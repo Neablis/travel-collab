@@ -11,7 +11,11 @@ same," never "new kind of plumbing."
 - pnpm workspaces monorepo: `packages/contracts`, `packages/domain`, `apps/web`;
   shared root-level tsconfig and eslint config with boundary rules (UI may not
   import domain or server internals).
-- docker-compose Postgres; Drizzle migrations.
+- docker-compose Postgres (major version pinned to Neon's); Drizzle
+  migrations applied as an explicit step, never at runtime; `.env.example`
+  documenting every required variable (ADR-004).
+- Vercel project wired for preview deployments per PR; production deploy from
+  `main` with a Neon pooled connection string, node runtime only.
 - **Event store** in `apps/web/src/server`: `events` table
   (`stream_id, seq, type, payload, actor_id, occurred_at`), append with
   optimistic concurrency on `(stream_id, seq)`, read-stream, read-all.

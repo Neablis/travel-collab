@@ -33,7 +33,8 @@ physical process boundary, and Phase 2 realtime will require a bolt-on
 | Language | TypeScript strict, everywhere | One language across all agent workstreams; inferred types from Zod schemas *are* the contracts |
 | Monorepo | pnpm workspaces | Boring, sufficient; Turborepo optional later |
 | App | **Next.js all-in-one** (UI + route handlers/server actions) on Vercel free tier | Single deployable, zero infra work; boundary discipline preserved via the `src/server` lint wall (see ADR-001 / AGENTS.md) |
-| Database | Postgres — Docker locally; **Neon** free tier in prod (serverless driver) | Event store + projections in one durable place; Neon over Supabase because we only need Postgres (auth is Auth.js), minimizing platform gravity |
+| Database | Postgres — Docker locally; **Neon** free tier in prod | Event store + projections in one durable place; Neon over Supabase because we only need Postgres (auth is Auth.js), minimizing platform gravity |
+| DB access | Node runtime + plain `pg` driver; Neon **pooled** connection string in prod; **no edge runtime** | Command pipeline needs interactive transactions (append + project atomically); Neon's HTTP driver can't; see ADR-004 |
 | DB access | Drizzle ORM + drizzle-kit migrations | Type-safe SQL without heavy abstraction; good fit for a hand-rolled event store |
 | Auth | Auth.js with Google OAuth (Facebook later if wanted) | Commodity — buy via library; native Next.js integration |
 | Validation/contracts | Zod in `packages/contracts` | Runtime validation + inferred static types from one definition |
