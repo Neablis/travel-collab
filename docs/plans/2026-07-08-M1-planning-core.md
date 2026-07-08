@@ -15,7 +15,7 @@
 
 - Read `AGENTS.md` before starting. Its invariants override convenience, always.
 - Node >= 20, pnpm >= 9. All commands run from the repo root unless stated.
-- **Local ports (M0 retro):** Postgres is on **5433** (`docker compose up -d`), the dev server on **3001**. CI uses 5432/3000 — do not "fix" either. `DATABASE_URL` defaults to `postgres://postgres:postgres@localhost:5433/travel` locally; env overrides it.
+- **Local ports and dev config (M0 retro):** Postgres is on **5433** (`docker compose up -d`), the dev server on **3001** — another local project squats on the defaults; do not "fix" either. Task 0 makes `apps/web/src/config.ts` (browser-safe: `WEB_PORT`, `BASE_URL`) and `apps/web/src/server/config.ts` (`POSTGRES_PORT`, `DATABASE_URL`) the single source of truth for these values; every TypeScript consumer imports them, and env vars override. `docker-compose.yml` and `package.json` scripts cannot import TS, so they carry the same defaults as `${VAR:-default}` interpolations with pointer comments — if you change a default, change it in both places. Never hardcode a port or database URL anywhere else in this plan's code; if a snippet appears to, that is a bug — import from the config modules instead.
 - **Branch strategy (M0 retro):** create branch `m1-planning-core` from `main` (isolated worktree recommended via superpowers:using-git-worktrees). One PR at the end (Task 13). CI must be green before merge.
 - New dependencies allowed by this plan and NO others: `@atlaskit/pragmatic-drag-and-drop`, `@atlaskit/pragmatic-drag-and-drop-hitbox` (board DnD — Mitchell's pick, powers Jira/Trello, native-DnD based); `fast-check` (property tests — mandated by `docs/guidelines/building-the-parts.md`); `msw`, `@testing-library/react`, `@testing-library/dom`, `jsdom`, `@vitejs/plugin-react` (UI test harness — guidelines mandate MSW-against-contracts). If pnpm reports a hard version conflict, prefer the newest stable that installs cleanly and note it in the commit body.
 - Events are forever: never edit stored events; all new event schemas are `version: 1`; event payloads use explicit `null`, never missing keys.
@@ -25,6 +25,131 @@
 - Local Postgres must be running for integration tests: `docker compose up -d`.
 - Commit after every task with the exact message given (conventional commits).
 - Known red window: `pnpm -r typecheck` fails between Task 1 and Task 2 (the grown `TripEvent` union makes M0's `evolveTrip` non-exhaustive). Task 1 verifies the contracts package only; the workspace is green again from Task 2 onward.
+
+---
+
+### Task 0: Single-source dev-environment config
+
+**Files:**
+- Create: `apps/web/src/config.ts`, `apps/web/src/server/config.ts`
+- Modify: `apps/web/src/server/db/client.ts`, `apps/web/drizzle.config.ts`, `apps/web/playwright.config.ts`, `apps/web/package.json` (dev/start scripts), `docker-compose.yml`, `.env.example`
+
+**Interfaces:**
+- Produces (imported by later tasks — Task 9's vitest config and apiClient use `BASE_URL`):
+  from `@/config` (browser-safe — UI code may import it): `WEB_PORT: number` (default 3001), `BASE_URL: string` (default `http://localhost:3001`);
+  from `@/server/config` (server/tooling only): `POSTGRES_PORT: number` (default 5433), `DATABASE_URL: string` (default `postgres://postgres:postgres@localhost:5433/travel`).
+  All four read env overrides first. Node-side configs outside `src/` import them by relative path (`./src/config`, `./src/server/config`).
+
+- [ ] **Step 1: Create the config modules**
+
+`apps/web/src/config.ts`:
+```ts
+// Single source of truth for local dev-environment values (browser-safe half —
+// the database URL lives in src/server/config.ts). The M0 retro moved these
+// off the defaults (3000/5432) because another local project squats on them.
+// docker-compose.yml and package.json scripts cannot import this file; they
+// repeat the same defaults as ${VAR:-default} interpolations — keep in sync.
+const env: Record<string, string | undefined> =
+  typeof process !== "undefined" ? process.env : {};
+
+export const WEB_PORT = Number(env.WEB_PORT ?? 3001);
+export const BASE_URL = env.BASE_URL ?? `http://localhost:${WEB_PORT}`;
+```
+
+`apps/web/src/server/config.ts`:
+```ts
+// Server/tooling half of the dev config — never import from UI code
+// (the DATABASE_URL default must not end up in a client bundle).
+export const POSTGRES_PORT = Number(process.env.POSTGRES_PORT ?? 5433);
+export const DATABASE_URL =
+  process.env.DATABASE_URL ??
+  `postgres://postgres:postgres@localhost:${POSTGRES_PORT}/travel`;
+```
+
+- [ ] **Step 2: Rewire every existing consumer**
+
+`apps/web/src/server/db/client.ts` (full new content — the `DATABASE_URL` definition moves to the config module; nothing else imports it from here, verify with the grep in Step 3):
+```ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { DATABASE_URL } from "../config";
+import * as schema from "./schema";
+
+const pool = new Pool({ connectionString: DATABASE_URL });
+export const db = drizzle(pool, { schema });
+export type Db = typeof db;
+```
+
+`apps/web/drizzle.config.ts` (full new content):
+```ts
+import { defineConfig } from "drizzle-kit";
+import { DATABASE_URL } from "./src/server/config";
+
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./src/server/db/schema.ts",
+  out: "./drizzle",
+  dbCredentials: { url: DATABASE_URL },
+});
+```
+
+`apps/web/playwright.config.ts` (full new content):
+```ts
+import { defineConfig } from "@playwright/test";
+import { BASE_URL } from "./src/config";
+import { DATABASE_URL } from "./src/server/config";
+
+export default defineConfig({
+  testDir: "./e2e",
+  use: { baseURL: BASE_URL },
+  webServer: {
+    command: process.env.CI ? "pnpm start" : "pnpm dev",
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
+    env: {
+      AUTH_DEV_LOGIN: "true",
+      AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-secret",
+      DATABASE_URL,
+    },
+  },
+});
+```
+
+`apps/web/package.json` — the two script lines become (defaults must match `src/config.ts`):
+```json
+    "dev": "next dev -p ${WEB_PORT:-3001}",
+    "start": "next start -p ${WEB_PORT:-3001}",
+```
+
+`docker-compose.yml` — the ports line becomes (default must match `src/server/config.ts`):
+```yaml
+    # Default must match apps/web/src/server/config.ts (compose can't import TS).
+    ports: ["${POSTGRES_PORT:-5433}:5432"]
+```
+
+Append to `.env.example`:
+```bash
+# Local port overrides — defaults live in apps/web/src/config.ts and
+# apps/web/src/server/config.ts (M0 retro: 3000/5432 are taken on this machine).
+# WEB_PORT=3001
+# POSTGRES_PORT=5433
+```
+
+- [ ] **Step 3: Verify nothing else hardcodes the values**
+
+Run: `grep -rn "5433\|3001" apps/web/src apps/web/playwright.config.ts apps/web/drizzle.config.ts docker-compose.yml apps/web/package.json | grep -v "config.ts"`
+Expected: only the two `${VAR:-default}` interpolation lines (package.json, docker-compose.yml) and `.env`-style comments. Any other hit is a missed consumer — rewire it.
+
+- [ ] **Step 4: Run the full existing suite to prove the rewiring is behavior-neutral**
+
+Run: `docker compose up -d && pnpm check && pnpm test:int && pnpm --filter web test:e2e`
+Expected: everything green, exactly as before this task (recreate the Postgres container if compose complains about the changed port mapping: `docker compose up -d --force-recreate postgres`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "chore(web): single-source dev-environment config"
+```
 
 ---
 
@@ -2123,13 +2248,14 @@ Add to `apps/web/package.json` scripts:
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { BASE_URL } from "./src/config";
 
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   test: {
     environment: "jsdom",
-    environmentOptions: { jsdom: { url: "http://localhost:3001" } },
+    environmentOptions: { jsdom: { url: BASE_URL } },
     include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["src/**/*.int.test.ts", "node_modules/**"],
   },
@@ -2194,6 +2320,7 @@ Expected: FAIL — `@/lib/apiClient` does not exist.
 `apps/web/src/lib/apiClient.ts`:
 ```ts
 import { TripDetail, type TripCommand } from "@tc/contracts";
+import { BASE_URL } from "@/config";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -2201,12 +2328,13 @@ export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError
 export type BoardCommand = Exclude<TripCommand, { type: "CreateTrip" }>;
 
 // Browsers resolve relative URLs against the page; Node's fetch (jsdom tests)
-// rejects them. Resolve explicitly against the window origin.
+// rejects them. Resolve explicitly against the window origin, falling back to
+// the dev config (Task 0) when no DOM is present.
 function apiUrl(path: string): string {
   const origin =
     typeof window !== "undefined" && window.location.origin !== "null"
       ? window.location.origin
-      : "http://localhost:3001";
+      : BASE_URL;
   return new URL(path, origin).toString();
 }
 
@@ -3320,3 +3448,4 @@ git add -A && git commit -m "docs: m1 gate passed — retro note and roadmap tic
 - Spec coverage: every M1 milestone scope line maps to a task (days → T1–T3, start date → T1–T3+T11, activities → T1–T3, conflict engine → T4, pipeline step 7 → T7, trip_details + golden → T5–T7, API → T8, board UI → T9–T11, e2e → T12, gate → T13).
 - Type consistency: `TripState`/`Decision`/`TripDetail`/`BoardCommand`/`ActivityFormValue`/`BoardCallbacks` signatures match across tasks; rejection codes in T3 match the route status map in T8.
 - No placeholders: every code step contains complete code; every run step has an expected outcome.
+- Config single-sourcing (added 2026-07-08 at Mitchell's request): Task 0 introduces `apps/web/src/config.ts` + `apps/web/src/server/config.ts`; no later snippet hardcodes a port or database URL (Task 9's vitest config and apiClient import `BASE_URL`); the only repeated defaults are the two `${VAR:-default}` interpolations compose/scripts require, each with a pointer comment.
