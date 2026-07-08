@@ -40,3 +40,5 @@ Phase 1: M0 walking skeleton → M1 planning core → M2 time travel → M3 plac
 time → M4 money & lenses → M5 solo delight — gated by dogfooding a real trip.
 Phase 2: M6 collaboration. Phase 3: M7 fork & lineage → M8 community → M9 rich
 layer. Details: `docs/milestones/README.md`.
+
+<!-- verifying vercel preview deployments -->
