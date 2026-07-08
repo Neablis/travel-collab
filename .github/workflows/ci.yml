@@ -8,6 +8,10 @@ env:
   DATABASE_URL: postgres://postgres:postgres@localhost:5432/travel
   AUTH_SECRET: ci-secret
   AUTH_DEV_LOGIN: "true"
+  # Auth.js v5 rejects requests from untrusted hosts under `next start`
+  # (production mode) unless the platform sets this itself (Vercel does).
+  # CI runs `next start` for e2e, so it must opt in explicitly.
+  AUTH_TRUST_HOST: "true"
 
 jobs:
   checks:
