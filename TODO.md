@@ -10,7 +10,7 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 *Phase gate: Mitchell plans a real trip end-to-end and needs no other tool.*
 
-- [ ] **M0 Walking skeleton** — monorepo, CI, Google auth, event store, one
+- [x] **M0 Walking skeleton** — monorepo, CI, Google auth, event store, one
       command→event→projection→UI thread, deployed to Vercel + Neon.
       → `docs/milestones/M0-walking-skeleton.md`
 - [ ] **M1 Planning core** — trips, days, activities, backlog, day-column

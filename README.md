@@ -5,8 +5,9 @@ activities, with an immutable change history (undo, revert, fork-with-lineage),
 soft-conflict validation, and — in later phases — multi-user collaboration,
 community sharing, rich trip pages, cost rollups, and AI generation.
 
-**Status:** pre-M0, Phase 1 (full single-player product). Design and decision
-records written; no application code yet.
+**Status:** M0 complete, M1 next. Phase 1 (full single-player product).
+Walking skeleton deployed: Google auth, event-sourced trip creation, CI, and a
+live Vercel + Neon production deploy.
 
 ## Layout
 
