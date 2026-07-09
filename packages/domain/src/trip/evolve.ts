@@ -28,6 +28,7 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       days: [],
       backlog: [],
       activities: {},
+      dismissedConflictIds: [],
     };
   }
 
@@ -97,5 +98,15 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       delete activities[event.payload.activityId];
       return { ...removed, activities };
     }
+    case "ConflictDismissed": {
+      const id = event.payload.conflictId;
+      if (state.dismissedConflictIds.includes(id)) return state;
+      return { ...state, dismissedConflictIds: [...state.dismissedConflictIds, id].sort() };
+    }
+    case "ConflictUndismissed":
+      return {
+        ...state,
+        dismissedConflictIds: state.dismissedConflictIds.filter((id) => id !== event.payload.conflictId),
+      };
   }
 }

@@ -26,6 +26,7 @@ describe("decideCreateTrip", () => {
       days: [],
       backlog: [],
       activities: {},
+      dismissedConflictIds: [],
     };
     const decision = decideCreateTrip(existing, cmd, { actorId: "user-1" });
     expect(decision).toEqual({
@@ -53,6 +54,7 @@ describe("evolveTrip", () => {
       days: [],
       backlog: [],
       activities: {},
+      dismissedConflictIds: [],
     });
   });
 });

@@ -10,6 +10,7 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
     backlog: [],
     activities: {},
     conflicts: [],
+    dismissedConflictIds: [],
     createdAt: "2026-07-08T12:00:00.000Z",
     ...overrides,
   };

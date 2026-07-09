@@ -20,4 +20,5 @@ export type TripState = {
   days: DayState[]; // ordinal = position in this array
   backlog: string[]; // ordered activityIds without a day
   activities: Record<string, ActivityState>;
+  dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
 };
