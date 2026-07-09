@@ -66,7 +66,9 @@ export default function Home() {
       {error && <p role="alert">{error}</p>}
       <ul>
         {(trips ?? []).map((t) => (
-          <li key={t.tripId}>{t.name}</li>
+          <li key={t.tripId}>
+            <Link href={`/trips/${t.tripId}`}>{t.name}</Link>
+          </li>
         ))}
       </ul>
       {trips !== null && trips.length === 0 && <p>No trips yet — create one.</p>}
