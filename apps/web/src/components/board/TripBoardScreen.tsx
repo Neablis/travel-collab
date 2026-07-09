@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { TripDetail, TripHistory } from "@tc/contracts";
-import { fetchTripDetail, fetchTripHistory, sendTripCommand, type BoardCommand } from "@/lib/apiClient";
+import {
+  fetchTripDetail,
+  fetchTripDetailAt,
+  fetchTripHistory,
+  sendTripCommand,
+  type BoardCommand,
+} from "@/lib/apiClient";
 import type { ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
+import { HistoryPanel } from "./HistoryPanel";
 import { UndoRedoControls } from "./UndoRedoControls";
 
 function StartDateControl({
@@ -55,6 +62,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     void load();
   }, [load]);
 
+  const [previewSeq, setPreviewSeq] = useState<number | null>(null);
+  const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
+
+  const openPreview = useCallback(
+    async (seq: number) => {
+      const result = await fetchTripDetailAt(tripId, seq);
+      if (result.ok) {
+        setPreviewSeq(seq);
+        setPreviewTrip(result.value);
+      } else {
+        setError(result.error.message);
+      }
+    },
+    [tripId],
+  );
+
+  const exitPreview = useCallback(() => {
+    setPreviewSeq(null);
+    setPreviewTrip(null);
+  }, []);
+
   const dispatch = useCallback(
     async (command: BoardCommand) => {
       setError(null);
@@ -62,8 +90,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       if (!result.ok) setError(result.error.message);
       // Refetch either way: conflicts are data and may have changed shape.
       await load();
+      exitPreview();
     },
-    [load],
+    [load, exitPreview],
   );
 
   if (status === "loading") return <main>Loading…</main>;
@@ -90,48 +119,61 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         <Link href="/">← Your trips</Link>
       </nav>
       <h1>{trip.name}</h1>
-      <StartDateControl
-        startDate={trip.startDate}
-        onSet={(startDate) => void dispatch({ type: "SetTripStartDate", tripId, startDate })}
-      />
-      <UndoRedoControls
-        canUndo={history?.canUndo ?? false}
-        canRedo={history?.canRedo ?? false}
-        onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-        onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+      {previewSeq === null && (
+        <StartDateControl
+          startDate={trip.startDate}
+          onSet={(startDate) => void dispatch({ type: "SetTripStartDate", tripId, startDate })}
+        />
+      )}
+      {previewSeq === null && (
+        <UndoRedoControls
+          canUndo={history?.canUndo ?? false}
+          canRedo={history?.canRedo ?? false}
+          onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+          onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+        />
+      )}
+      <HistoryPanel
+        history={history}
+        previewSeq={previewSeq}
+        onPreview={(seq) => void openPreview(seq)}
+        onExitPreview={exitPreview}
+        onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
       />
       {error !== null && <p role="alert">{error}</p>}
-      <Board
-        trip={trip}
-        callbacks={{
-          onMove: (activityId, toDayId, position) =>
-            void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
-          onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
-          onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-          onAddActivity: (value: ActivityFormValue) =>
-            void dispatch({
-              type: "AddActivity",
-              tripId,
-              activityId: crypto.randomUUID(),
-              title: value.title,
-              timeWindow: value.timeWindow ?? undefined,
-              location: value.location ?? undefined,
-              notes: value.notes ?? undefined,
-            }),
-          onUpdateActivity: (activityId, value) =>
-            void dispatch({
-              type: "UpdateActivity",
-              tripId,
-              activityId,
-              title: value.title,
-              timeWindow: value.timeWindow,
-              location: value.location,
-              notes: value.notes,
-            }),
-          onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
-          onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-        }}
-      />
+      <div inert={previewSeq !== null ? true : undefined}>
+        <Board
+          trip={previewSeq !== null && previewTrip !== null ? previewTrip : trip}
+          callbacks={{
+            onMove: (activityId, toDayId, position) =>
+              void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+            onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
+            onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
+            onAddActivity: (value: ActivityFormValue) =>
+              void dispatch({
+                type: "AddActivity",
+                tripId,
+                activityId: crypto.randomUUID(),
+                title: value.title,
+                timeWindow: value.timeWindow ?? undefined,
+                location: value.location ?? undefined,
+                notes: value.notes ?? undefined,
+              }),
+            onUpdateActivity: (activityId, value) =>
+              void dispatch({
+                type: "UpdateActivity",
+                tripId,
+                activityId,
+                title: value.title,
+                timeWindow: value.timeWindow,
+                location: value.location,
+                notes: value.notes,
+              }),
+            onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+            onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+          }}
+        />
+      </div>
     </main>
   );
 }
