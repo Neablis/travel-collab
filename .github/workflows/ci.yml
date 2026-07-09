@@ -44,3 +44,22 @@ jobs:
       - run: pnpm --filter web exec playwright install chromium --with-deps
       - run: pnpm --filter web build
       - run: pnpm --filter web test:e2e
+
+  migrate-production:
+    needs: checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web db:migrate
+        env:
+          # Overrides the workflow-level localhost value with the real target.
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
