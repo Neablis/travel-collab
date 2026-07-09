@@ -81,3 +81,32 @@ anchors (M3), calendar/timeline/map views (M3), costs (M4), history UI and
 undo (M2), persistent conflict dismissal (needs a command — with M2 history
 work), trip rename/delete, styling beyond functional defaults, realtime,
 invitations.
+
+## Ops follow-ups for M2 (found 2026-07-08 debugging the M1 preview deploy)
+
+The M1 migration (`trip_details`) was never applied to Vercel/Neon — CI only
+ran `db:migrate` against its own ephemeral Postgres service, and ADR-004's
+"explicit CI/deploy step" was never actually wired up anywhere outside CI.
+`POST /api/trips` 500'd on the preview deployment (`relation "trip_details"
+does not exist`) until it was applied by hand via the Vercel CLI + a
+manually-pasted Neon connection string. Mitchell's call: fix properly as part
+of M2 planning rather than patch reactively mid-gate. Concretely, M2's plan
+should include, early (infra tasks first, same pattern as M1's Task 0):
+
+1. **Separate preview and production databases.** Vercel's `DATABASE_URL` is
+   currently the *same value* for both the Production and Preview
+   environments (not the Neon dev/branch database ADR-004 originally called
+   for) — every preview deployment reads and writes production's live data,
+   and any migration applied to unblock a preview lands on production too.
+2. **Automate the production migration step.** No deploy hook or CI step
+   runs `drizzle-kit migrate` against the real (Vercel/Neon) database on
+   merge to `main` — it's still a manual, easy-to-forget action. Add a
+   GitHub Actions step gated to `push: main`, after CI passes, using a
+   `DATABASE_URL` secret. (Once dbs are split, consider also wiring a Vercel
+   preview build-step migration against the isolated preview branch — safe
+   only once previews are disposable.)
+3. **DB reset/reseed helper tooling**, for testing against Preview/Neon
+   without hand-written `psql`/CLI one-liners each time (this session reset
+   `trip_details`/`trip_summaries`/`events` manually more than once). Treat
+   as scaffolding — remove or fold into a proper seed/fixture story once the
+   product nears release, per ADR-004's "DB resets are cheap" framing.
