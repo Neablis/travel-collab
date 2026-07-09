@@ -8,6 +8,13 @@
       "when": 1783478221511,
       "tag": "0000_workable_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783557816054,
+      "tag": "0001_huge_solo",
+      "breakpoints": true
     }
   ]
 }
