@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { TripCommand, type TripDetail } from "@tc/contracts";
+import { TripCommand, type TripDetail, type TripHistory } from "@tc/contracts";
 
 // Deliberately naive state transitions — just enough for UI development and
 // component tests. The real semantics live in @tc/domain, which UI-side code
@@ -58,13 +58,27 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
       for (const d of next.days) d.activityIds = d.activityIds.filter((id) => id !== command.activityId);
       delete next.activities[command.activityId];
       break;
+    case "DismissConflict":
+      next.dismissedConflictIds = [...next.dismissedConflictIds, command.conflictId].sort();
+      break;
+    case "UndoLastChange":
+    case "RedoChange":
+    case "RevertToState":
+      break; // accepted no-ops in mocks; component tests assert via onCommand
     case "CreateTrip":
       break;
   }
   return next;
 }
 
-export function makeTripHandlers(initial: TripDetail) {
+export function makeTripHandlers(
+  initial: TripDetail,
+  options?: {
+    history?: TripHistory;
+    detailAt?: Record<number, TripDetail>;
+    onCommand?: (command: TripCommand) => void;
+  },
+) {
   let detail = structuredClone(initial);
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
@@ -74,8 +88,21 @@ export function makeTripHandlers(initial: TripDetail) {
     ),
     http.post("/api/trips/:tripId/commands", async ({ request }) => {
       const command = TripCommand.parse(await request.json());
+      options?.onCommand?.(command);
       detail = applyMock(detail, command);
       return HttpResponse.json({ ok: true, tripId: detail.tripId });
+    }),
+    http.get("/api/trips/:tripId/history", () =>
+      HttpResponse.json({
+        history:
+          options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
+      }),
+    ),
+    http.get("/api/trips/:tripId/history/:seq", ({ params }) => {
+      const at = options?.detailAt?.[Number(params.seq)];
+      return at !== undefined
+        ? HttpResponse.json({ trip: at })
+        : HttpResponse.json({ error: "not-found" }, { status: 404 });
     }),
   ];
 }

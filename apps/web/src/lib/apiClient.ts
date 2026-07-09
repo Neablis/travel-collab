@@ -1,4 +1,4 @@
-import { TripDetail, type TripCommand } from "@tc/contracts";
+import { TripDetail, TripHistory, type TripCommand } from "@tc/contracts";
 import { BASE_URL } from "@/config";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -19,6 +19,26 @@ function apiUrl(path: string): string {
 
 export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDetail>> {
   const res = await fetch(apiUrl(`/api/trips/${tripId}`));
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  }
+  const data = (await res.json()) as { trip: unknown };
+  return { ok: true, value: TripDetail.parse(data.trip) };
+}
+
+export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHistory>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/history`));
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  }
+  const data = (await res.json()) as { history: unknown };
+  return { ok: true, value: TripHistory.parse(data.history) };
+}
+
+export async function fetchTripDetailAt(tripId: string, seq: number): Promise<ApiResult<TripDetail>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
