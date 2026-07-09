@@ -6,3 +6,4 @@ export * from "./trip/conflicts";
 export * from "./trip/detail";
 export * from "./trip/equality";
 export * from "./trip/diff";
+export * from "./trip/history";
