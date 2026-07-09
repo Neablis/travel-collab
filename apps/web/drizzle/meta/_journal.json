@@ -15,6 +15,13 @@
       "when": 1783557816054,
       "tag": "0001_huge_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783573652047,
+      "tag": "0002_light_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

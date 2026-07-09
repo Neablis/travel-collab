@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import type { EventEnvelope } from "@tc/contracts";
+import type { EventEnvelope, Origin } from "@tc/contracts";
 import type { Db } from "./db/client";
 import { events } from "./db/schema";
 
@@ -22,6 +22,8 @@ function toEnvelope(row: EventRow): EventEnvelope {
     payload: row.payload,
     actorId: row.actorId,
     occurredAt: new Date(row.occurredAt).toISOString(),
+    batchId: row.batchId,
+    origin: row.origin,
   };
 }
 
@@ -42,6 +44,8 @@ export async function appendToStream(
     events: DomainEvent[];
     actorId: string;
     occurredAt: string;
+    batchId: string;
+    origin: Origin;
   },
 ): Promise<AppendResult> {
   try {
@@ -56,6 +60,8 @@ export async function appendToStream(
           payload: e.payload,
           actorId: args.actorId,
           occurredAt: args.occurredAt,
+          batchId: args.batchId,
+          origin: args.origin,
         })),
       )
       .returning();

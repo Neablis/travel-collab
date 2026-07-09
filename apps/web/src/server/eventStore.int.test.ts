@@ -28,6 +28,8 @@ describe("event store", () => {
         events: [tripCreated(streamId)],
         actorId: "user-1",
         occurredAt: NOW,
+        batchId: randomUUID(),
+        origin: { kind: "user" },
       }),
     );
     expect(result.ok).toBe(true);
@@ -53,6 +55,8 @@ describe("event store", () => {
           events: [tripCreated(streamId)],
           actorId: "user-1",
           occurredAt: NOW,
+          batchId: randomUUID(),
+          origin: { kind: "user" },
         }),
       );
     const first = await append();
