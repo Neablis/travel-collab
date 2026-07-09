@@ -1,0 +1,130 @@
+import { describe, expect, it } from "vitest";
+import type { TripEvent } from "@tc/contracts";
+import { evolveTrip, type TripState } from "../src";
+
+const TRIP = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+const DAY_A = "7f8b3d0f-4a8b-4c7f-8e4a-3c2b6d9e8f70";
+const DAY_B = "8a9c4e10-5b9c-4d80-9f5b-4d3c7e0f9a81";
+const ACT = "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a81";
+
+const created: TripEvent = {
+  type: "TripCreated",
+  version: 1,
+  payload: { tripId: TRIP, name: "Rome 2027", createdBy: "user-1" },
+};
+
+function fold(events: TripEvent[]): TripState {
+  let state: TripState | null = null;
+  for (const event of events) state = evolveTrip(state, event);
+  if (state === null) throw new Error("no events");
+  return state;
+}
+
+const addActivity: TripEvent = {
+  type: "ActivityAdded",
+  version: 1,
+  payload: {
+    tripId: TRIP,
+    activityId: ACT,
+    dayId: null,
+    title: "Colosseum",
+    timeWindow: { start: "09:00", end: "11:00" },
+    location: null,
+    notes: null,
+  },
+};
+
+describe("evolveTrip (M1 events)", () => {
+  it("adds days in order and sets/clears the display-only start date", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_B } },
+      { type: "TripStartDateSet", version: 1, payload: { tripId: TRIP, startDate: "2027-05-01" } },
+    ]);
+    expect(state.days).toEqual([
+      { dayId: DAY_A, activityIds: [] },
+      { dayId: DAY_B, activityIds: [] },
+    ]);
+    expect(state.startDate).toBe("2027-05-01");
+    const cleared = evolveTrip(state, {
+      type: "TripStartDateSet",
+      version: 1,
+      payload: { tripId: TRIP, startDate: null },
+    });
+    expect(cleared.startDate).toBeNull();
+  });
+
+  it("adds an activity to the backlog and moves it onto a day at a position", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      addActivity,
+      { type: "ActivityMoved", version: 1, payload: { tripId: TRIP, activityId: ACT, toDayId: DAY_A, position: 0 } },
+    ]);
+    expect(state.backlog).toEqual([]);
+    expect(state.days).toEqual([{ dayId: DAY_A, activityIds: [ACT] }]);
+    expect(state.activities[ACT]).toEqual({
+      title: "Colosseum",
+      timeWindow: { start: "09:00", end: "11:00" },
+      location: null,
+      notes: null,
+    });
+  });
+
+  it("clamps an out-of-range move position instead of throwing", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      addActivity,
+      { type: "ActivityMoved", version: 1, payload: { tripId: TRIP, activityId: ACT, toDayId: DAY_A, position: 99 } },
+    ]);
+    expect(state.days).toEqual([{ dayId: DAY_A, activityIds: [ACT] }]);
+  });
+
+  it("replaces the field snapshot on ActivityUpdated", () => {
+    const state = fold([
+      created,
+      addActivity,
+      {
+        type: "ActivityUpdated",
+        version: 1,
+        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead" },
+      },
+    ]);
+    expect(state.activities[ACT]).toEqual({
+      title: "Colosseum tour",
+      timeWindow: null,
+      location: null,
+      notes: "book ahead",
+    });
+  });
+
+  it("returns a removed day's activities to the backlog", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      addActivity,
+      { type: "ActivityMoved", version: 1, payload: { tripId: TRIP, activityId: ACT, toDayId: DAY_A, position: 0 } },
+      { type: "DayRemoved", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+    ]);
+    expect(state.days).toEqual([]);
+    expect(state.backlog).toEqual([ACT]);
+  });
+
+  it("removes an activity everywhere", () => {
+    const state = fold([
+      created,
+      addActivity,
+      { type: "ActivityRemoved", version: 1, payload: { tripId: TRIP, activityId: ACT } },
+    ]);
+    expect(state.backlog).toEqual([]);
+    expect(state.activities).toEqual({});
+  });
+
+  it("throws the replay totality guard on an event before TripCreated", () => {
+    expect(() =>
+      evolveTrip(null, { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } }),
+    ).toThrow();
+  });
+});

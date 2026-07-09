@@ -22,6 +22,10 @@ describe("decideCreateTrip", () => {
       tripId: TRIP_ID,
       name: "Rome 2027",
       members: [{ userId: "user-1", role: "owner" }],
+      startDate: null,
+      days: [],
+      backlog: [],
+      activities: {},
     };
     const decision = decideCreateTrip(existing, cmd, { actorId: "user-1" });
     expect(decision).toEqual({
@@ -35,7 +39,7 @@ describe("decideCreateTrip", () => {
 });
 
 describe("evolveTrip", () => {
-  it("builds state with the creator as the sole member", () => {
+  it("builds an empty board with the creator as the sole member", () => {
     const state = evolveTrip(null, {
       type: "TripCreated",
       version: 1,
@@ -45,6 +49,10 @@ describe("evolveTrip", () => {
       tripId: TRIP_ID,
       name: "Rome 2027",
       members: [{ userId: "user-1", role: "owner" }],
+      startDate: null,
+      days: [],
+      backlog: [],
+      activities: {},
     });
   });
 });
