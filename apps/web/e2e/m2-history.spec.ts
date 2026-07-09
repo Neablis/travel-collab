@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { signInAsDevUser } from "./helpers";
 
 test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) => {
-  const tripName = `Rome ${Date.now()}`;
+  // Distinct prefix from smoke.spec.ts's "Rome ..." — parallel workers share
+  // the "alice" dev user's trip list, and a same-millisecond Date.now() would
+  // otherwise make both specs' trip names collide.
+  const tripName = `Venice ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
