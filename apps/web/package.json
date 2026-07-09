@@ -15,6 +15,8 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
     "drizzle-orm": "^0.36.0",
