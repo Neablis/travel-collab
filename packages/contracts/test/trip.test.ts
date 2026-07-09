@@ -31,6 +31,7 @@ describe("trip contracts", () => {
         createdBy: "user-1",
       },
     });
+    if (ok.type !== "TripCreated") throw new Error("expected TripCreated");
     expect(ok.payload.createdBy).toBe("user-1");
     expect(() =>
       TripEvent.parse({
