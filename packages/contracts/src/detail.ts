@@ -22,6 +22,7 @@ export const TripDetail = z.object({
   backlog: z.array(z.string().uuid()),
   activities: z.record(ActivityView),
   conflicts: z.array(Conflict),
+  dismissedConflictIds: z.array(z.string()), // sorted; ids are content-derived
   createdAt: z.string(), // ISO 8601, from the first envelope
 });
 export type TripDetail = z.infer<typeof TripDetail>;
