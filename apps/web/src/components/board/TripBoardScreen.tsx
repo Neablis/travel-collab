@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { TripDetail } from "@tc/contracts";
-import { fetchTripDetail, sendTripCommand, type BoardCommand } from "@/lib/apiClient";
+import type { TripDetail, TripHistory } from "@tc/contracts";
+import { fetchTripDetail, fetchTripHistory, sendTripCommand, type BoardCommand } from "@/lib/apiClient";
 import type { ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
+import { UndoRedoControls } from "./UndoRedoControls";
 
 function StartDateControl({
   startDate,
@@ -31,17 +32,22 @@ function StartDateControl({
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const [trip, setTrip] = useState<TripDetail | null>(null);
+  const [history, setHistory] = useState<TripHistory | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unauthenticated" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const result = await fetchTripDetail(tripId);
-    if (!result.ok) {
-      setStatus(result.error.status === 401 ? "unauthenticated" : "error");
-      setError(result.error.message);
+    const [detailResult, historyResult] = await Promise.all([
+      fetchTripDetail(tripId),
+      fetchTripHistory(tripId),
+    ]);
+    if (!detailResult.ok) {
+      setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
+      setError(detailResult.error.message);
       return;
     }
-    setTrip(result.value);
+    setTrip(detailResult.value);
+    setHistory(historyResult.ok ? historyResult.value : null);
     setStatus("ready");
   }, [tripId]);
 
@@ -88,6 +94,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         startDate={trip.startDate}
         onSet={(startDate) => void dispatch({ type: "SetTripStartDate", tripId, startDate })}
       />
+      <UndoRedoControls
+        canUndo={history?.canUndo ?? false}
+        canRedo={history?.canRedo ?? false}
+        onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+        onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+      />
       {error !== null && <p role="alert">{error}</p>}
       <Board
         trip={trip}
@@ -117,6 +129,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               notes: value.notes,
             }),
           onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+          onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
         }}
       />
     </main>

@@ -16,6 +16,7 @@ export type BoardCallbacks = {
   onAddActivity: (value: ActivityFormValue) => void;
   onUpdateActivity: (activityId: string, value: ActivityFormValue) => void;
   onRemoveActivity: (activityId: string) => void;
+  onDismissConflict: (conflictId: string) => void;
 };
 
 function listFor(trip: TripDetail, dayId: string | null): string[] {
@@ -74,7 +75,11 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
 
   return (
     <div>
-      <ConflictBanner conflicts={trip.conflicts} />
+      <ConflictBanner
+        conflicts={trip.conflicts}
+        dismissedConflictIds={trip.dismissedConflictIds}
+        onDismiss={callbacks.onDismissConflict}
+      />
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", overflowX: "auto" }}>
         <Column
           title="Backlog"

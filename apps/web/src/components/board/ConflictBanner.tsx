@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import type { Conflict } from "@tc/contracts";
 
 // Conflicts are data, never blocking modals (AGENTS.md invariant 3).
-// Dismissal is client-local in M1; a persistent dismissal command arrives
-// with the history work in M2.
-export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
-  const visible = conflicts.filter((c) => !dismissed.has(c.id));
+// Dismissal is a real command since M2 — it persists, appears in history,
+// and is undoable like any other change.
+export function ConflictBanner({
+  conflicts,
+  dismissedConflictIds,
+  onDismiss,
+}: {
+  conflicts: Conflict[];
+  dismissedConflictIds: string[];
+  onDismiss: (conflictId: string) => void;
+}) {
+  const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
   if (visible.length === 0) return null;
   return (
     <aside
@@ -18,10 +24,7 @@ export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
       {visible.map((c) => (
         <p key={c.id} style={{ margin: "4px 0" }}>
           ⚠️ {c.description} <em>({c.resolutions.join(" · ")})</em>{" "}
-          <button
-            onClick={() => setDismissed(new Set([...dismissed, c.id]))}
-            aria-label={`Dismiss: ${c.description}`}
-          >
+          <button onClick={() => onDismiss(c.id)} aria-label={`Dismiss: ${c.description}`}>
             Dismiss
           </button>
         </p>
