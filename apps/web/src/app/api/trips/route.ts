@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/server/auth";
-import { handleCreateTrip } from "@/server/commands";
+import { executeTripCommand } from "@/server/commands";
 import { listTripSummaries } from "@/server/projections";
 
 export async function GET() {
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
   if (!body.success) {
     return Response.json({ error: "name is required (1-200 chars)" }, { status: 400 });
   }
-  const result = await handleCreateTrip(
-    { tripId: randomUUID(), name: body.data.name },
+  const result = await executeTripCommand(
+    { type: "CreateTrip", tripId: randomUUID(), name: body.data.name },
     session.user.id,
   );
   if (!result.ok) {

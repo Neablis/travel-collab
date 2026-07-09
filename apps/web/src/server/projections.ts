@@ -1,7 +1,8 @@
-import { TripEvent, type EventEnvelope } from "@tc/contracts";
-import { projectTripSummaries } from "@tc/domain";
+import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
+import { projectTripDetails, projectTripSummaries } from "@tc/domain";
+import { eq } from "drizzle-orm";
 import { db, type Db } from "./db/client";
-import { tripSummaries } from "./db/schema";
+import { tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 
 type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -26,17 +27,36 @@ export async function applyTripEvents(
           createdAt: env.occurredAt,
         });
         break;
+      // M1 events don't touch the summaries read model.
     }
   }
 }
 
-export async function rebuildTripSummaries(): Promise<void> {
+// The ONLY code allowed to write trip_details (AGENTS.md invariant 1).
+export async function upsertTripDetail(tx: Queryable, detail: TripDetail): Promise<void> {
+  await tx
+    .insert(tripDetails)
+    .values({ tripId: detail.tripId, doc: detail })
+    .onConflictDoUpdate({ target: tripDetails.tripId, set: { doc: detail } });
+}
+
+export async function getTripDetail(tripId: string): Promise<TripDetail | null> {
+  const rows = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+  return rows[0]?.doc ?? null;
+}
+
+export async function rebuildProjections(): Promise<void> {
   await db.transaction(async (tx) => {
     const envelopes = await readAll(tx);
     const summaries = projectTripSummaries(envelopes);
     await tx.delete(tripSummaries);
     for (const s of summaries) {
       await tx.insert(tripSummaries).values(s);
+    }
+    const details = projectTripDetails(envelopes);
+    await tx.delete(tripDetails);
+    for (const d of details) {
+      await tx.insert(tripDetails).values({ tripId: d.tripId, doc: d });
     }
   });
 }
