@@ -13,9 +13,9 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 - [x] **M0 Walking skeleton** — monorepo, CI, Google auth, event store, one
       command→event→projection→UI thread, deployed to Vercel + Neon.
       → `docs/milestones/M0-walking-skeleton.md`
-- [ ] **M1 Planning core** — trips, days, activities, backlog, day-column
+- [x] **M1 Planning core** — trips, days, activities, backlog, day-column
       board with drag; first soft-conflict rules (overlap, geography).
-      → milestone file to be written at M1 start
+      → `docs/milestones/M1-planning-core.md`
 - [ ] **M2 History & time travel** — history UI, undo, revert-to-state;
       proves the event-sourcing bet.
 - [ ] **M3 Place & time** — map view (MapLibre), timeline, calendar views;

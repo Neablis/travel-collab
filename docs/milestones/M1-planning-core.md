@@ -56,23 +56,68 @@ Everything flows through the same command pipeline M0 proved.
 
 ## Exit gate — all must be true
 
-- [ ] Demo on the deployed Vercel URL: create a trip, add days, add activities
+- [x] Demo on the deployed Vercel URL: create a trip, add days, add activities
       (with times and a manual-coordinate location), drag between backlog and
       days, see an overlap conflict appear and clear, set a start date and see
       day columns re-label.
-- [ ] Golden test: dropping **both** projection tables (`trip_summaries`,
+- [x] Golden test: dropping **both** projection tables (`trip_summaries`,
       `trip_details`) and rebuilding from the event log reproduces identical
       state, conflicts included.
-- [ ] Property-based tests (fast-check) green for both conflict rules.
-- [ ] Conflicts are data: an integration test proves a write that produces
+- [x] Property-based tests (fast-check) green for both conflict rules.
+- [x] Conflicts are data: an integration test proves a write that produces
       conflicts still succeeds (no blocking error path).
-- [ ] Every new write goes through the one command pipeline; projection writes
+- [x] Every new write goes through the one command pipeline; projection writes
       exist only in `src/server/projections.ts`.
-- [ ] All M0 gates still green: M0 e2e smoke, lint wall, optimistic-concurrency
+- [x] All M0 gates still green: M0 e2e smoke, lint wall, optimistic-concurrency
       test.
-- [ ] `docs/contracts/CHANGELOG.md` has entries for every M1 schema plus the
+- [x] `docs/contracts/CHANGELOG.md` has entries for every M1 schema plus the
       M0 backfill entry.
-- [ ] Retro note appended to this file.
+- [x] Retro note appended to this file.
+
+## Retro (2026-07-09)
+
+Shipped the full board: days, backlog, activities (time window + manual-coordinate
+location + notes), drag-to-plan via `pragmatic-drag-and-drop`, both soft-conflict
+rules persisted through command-pipeline step 7, the `trip_details` projection
+with a golden rebuild test, and one new Playwright script — all merged in
+[#4](https://github.com/Neablis/travel-collab/pull/4) and demoed live on
+production (`https://travel-collab-three.vercel.app`), including a
+manual-coordinate geography conflict.
+
+**What changed vs. the plan:**
+- **`packages/domain/test/trip.test.ts` needed a type-narrowing guard.**
+  `TripEvent` grew from a single schema into a discriminated union in Task 1;
+  the pre-existing M0 test asserted on a bare `TripEvent` without narrowing on
+  `.type`, which no longer typechecked once the union grew. Added an `if
+  (!decision.ok) throw` / type guard rather than changing the test's intent.
+- **Dependency version pins.** `@vitejs/plugin-react`'s latest major (6.x) is
+  ESM-only and fails to load under this project's vitest 2 / vite 5 setup;
+  pinned to `^4.7.0` instead. Also declined msw's postinstall build script in
+  `pnpm-workspace.yaml` (`allowBuilds.msw: false`) — only `msw/node` is used
+  (no browser Service Worker needed), so there was nothing for it to build.
+- **Executed in an isolated worktree/branch** (`m1-planning-core`), same
+  pattern M0 used, via `superpowers:using-git-worktrees` +
+  `superpowers:executing-plans`.
+- **A merge from `main` (Vercel Web Analytics, #3) silently broke
+  `pnpm-lock.yaml`** with no textual conflict markers —
+  `ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY` on a peer-dep-resolved `next` entry.
+  Fixed by regenerating via `pnpm install --no-frozen-lockfile` and
+  reverifying the full suite + `next build` before re-pushing. Worth knowing:
+  pnpm lockfile merges can be silently broken even when git reports a clean
+  merge — always re-run `--frozen-lockfile` after merging `main` into a
+  long-lived branch.
+- **The M1 migration (`trip_details`) was never applied to Vercel/Neon**,
+  causing 500s on the preview deployment until diagnosed via the Vercel CLI
+  (runtime logs pinpointed `relation "trip_details" does not exist`) and
+  fixed by hand. Full detail and the resulting M2 action items are in the
+  "Ops follow-ups for M2" section below — this is the most important thing
+  for M2 to read first.
+
+**What held up:** the command pipeline, conflict-as-data invariant, projection
+rebuild, and lint wall all worked exactly as designed for a second milestone
+in a row — every deviation this milestone was tooling/environment friction
+(dependency versions, lockfile merges, missing deploy automation), not the
+architecture.
 
 ## Explicitly out of scope
 

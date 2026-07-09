@@ -5,9 +5,9 @@ activities, with an immutable change history (undo, revert, fork-with-lineage),
 soft-conflict validation, and — in later phases — multi-user collaboration,
 community sharing, rich trip pages, cost rollups, and AI generation.
 
-**Status:** M0 complete, M1 next. Phase 1 (full single-player product).
-Walking skeleton deployed: Google auth, event-sourced trip creation, CI, and a
-live Vercel + Neon production deploy.
+**Status:** M1 complete, M2 next. Phase 1 (full single-player product).
+Trips are a day-column board with drag-to-plan, backlog, and soft-conflict
+detection (time overlap, impossible geography), deployed live on Vercel + Neon.
 
 ## Layout
 
