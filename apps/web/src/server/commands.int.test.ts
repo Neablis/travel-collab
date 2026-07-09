@@ -2,59 +2,155 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc } from "drizzle-orm";
 import { db } from "./db/client";
-import { events, tripSummaries } from "./db/schema";
-import { handleCreateTrip } from "./commands";
-import { rebuildTripSummaries } from "./projections";
+import { events, tripDetails, tripSummaries } from "./db/schema";
+import { executeTripCommand } from "./commands";
+import { getTripDetail, rebuildProjections } from "./projections";
 
-describe("handleCreateTrip", () => {
+const exec = (command: object, actorId = "user-1") => executeTripCommand(command, actorId);
+
+async function seedBoard() {
+  const tripId = randomUUID();
+  const dayA = randomUUID();
+  const dayB = randomUUID();
+  const colosseum = randomUUID();
+  const vatican = randomUUID();
+  await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
+  await exec({ type: "AddDay", tripId, dayId: dayA });
+  await exec({ type: "AddDay", tripId, dayId: dayB });
+  await exec({
+    type: "AddActivity",
+    tripId,
+    activityId: colosseum,
+    title: "Colosseum",
+    timeWindow: { start: "09:00", end: "11:00" },
+    location: { name: "Rome", lat: 41.8902, lng: 12.4922 },
+  });
+  await exec({
+    type: "AddActivity",
+    tripId,
+    activityId: vatican,
+    title: "Vatican Museums",
+    timeWindow: { start: "10:00", end: "12:00" },
+  });
+  return { tripId, dayA, dayB, colosseum, vatican };
+}
+
+describe("executeTripCommand", () => {
   beforeEach(async () => {
+    await db.delete(tripDetails);
     await db.delete(tripSummaries);
     await db.delete(events);
   });
 
-  it("appends TripCreated with actor and updates the projection", async () => {
+  it("appends TripCreated with the actor and updates both projections", async () => {
     const tripId = randomUUID();
-    const result = await handleCreateTrip({ tripId, name: "Rome 2027" }, "user-1");
+    const result = await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
     expect(result).toEqual({ ok: true, tripId });
 
     const eventRows = await db.select().from(events);
     expect(eventRows).toHaveLength(1);
     expect(eventRows[0]!.actorId).toBe("user-1");
 
-    const summaryRows = await db.select().from(tripSummaries);
-    expect(summaryRows).toHaveLength(1);
-    expect(summaryRows[0]!.name).toBe("Rome 2027");
-    expect(summaryRows[0]!.members).toEqual([{ userId: "user-1", role: "owner" }]);
+    expect(await db.select().from(tripSummaries)).toHaveLength(1);
+    const detail = await getTripDetail(tripId);
+    expect(detail).toMatchObject({ tripId, name: "Rome 2027", days: [], backlog: [], conflicts: [] });
   });
 
   it("rejects a duplicate tripId with a typed error", async () => {
     const tripId = randomUUID();
-    await handleCreateTrip({ tripId, name: "Rome 2027" }, "user-1");
-    const second = await handleCreateTrip({ tripId, name: "Rome again" }, "user-1");
+    await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
+    const second = await exec({ type: "CreateTrip", tripId, name: "Rome again" });
     expect(second).toEqual({
       ok: false,
-      error: {
-        code: "trip-already-exists",
-        message: "A trip with this id already exists.",
-      },
+      error: { code: "trip-already-exists", message: "A trip with this id already exists." },
     });
   });
 
   it("rejects invalid input via the contract schema", async () => {
-    const result = await handleCreateTrip({ tripId: "not-a-uuid", name: "" }, "user-1");
+    const result = await exec({ type: "CreateTrip", tripId: "not-a-uuid", name: "" });
     expect(result.ok).toBe(false);
   });
 
-  it("GOLDEN: rebuild from the log equals the live projection", async () => {
-    await handleCreateTrip({ tripId: randomUUID(), name: "Rome 2027" }, "user-1");
-    await handleCreateTrip({ tripId: randomUUID(), name: "Tokyo 2028" }, "user-2");
+  it("rejects a non-member via the AccessPolicy seam", async () => {
+    const { tripId } = await seedBoard();
+    const result = await exec({ type: "AddDay", tripId, dayId: randomUUID() }, "user-2");
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "forbidden", message: "Not a member of this trip." },
+    });
+  });
 
-    const live = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
-    await rebuildTripSummaries();
-    const rebuilt = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
+  it("runs the board flow; conflicts are data and never block the write", async () => {
+    const { tripId, dayA, dayB, colosseum, vatican } = await seedBoard();
 
-    const normalize = (rows: typeof live) =>
+    await exec({ type: "MoveActivity", tripId, activityId: colosseum, toDayId: dayA, position: 0 });
+    const overlapping = await exec({ type: "MoveActivity", tripId, activityId: vatican, toDayId: dayA, position: 1 });
+    expect(overlapping.ok).toBe(true); // the write succeeded despite creating a conflict
+
+    let detail = await getTripDetail(tripId);
+    expect(detail?.days).toEqual([
+      { dayId: dayA, activityIds: [colosseum, vatican] },
+      { dayId: dayB, activityIds: [] },
+    ]);
+    expect(detail?.conflicts).toHaveLength(1);
+    expect(detail?.conflicts[0]).toMatchObject({
+      kind: "time-overlap",
+      severity: "warn",
+      subjects: [colosseum, vatican].sort(),
+    });
+
+    // resolving by moving away clears the conflict
+    await exec({ type: "MoveActivity", tripId, activityId: vatican, toDayId: dayB, position: 0 });
+    detail = await getTripDetail(tripId);
+    expect(detail?.conflicts).toEqual([]);
+  });
+
+  it("flags impossible geography for far-apart same-day activities", async () => {
+    const { tripId, dayA, colosseum } = await seedBoard();
+    const met = randomUUID();
+    await exec({
+      type: "AddActivity",
+      tripId,
+      activityId: met,
+      title: "The Met",
+      dayId: dayA,
+      location: { name: "New York", lat: 40.7794, lng: -73.9632 },
+    });
+    await exec({ type: "MoveActivity", tripId, activityId: colosseum, toDayId: dayA, position: 0 });
+    const detail = await getTripDetail(tripId);
+    expect(detail?.conflicts.some((c) => c.kind === "impossible-geography")).toBe(true);
+  });
+
+  it("supports the display-only start date", async () => {
+    const { tripId } = await seedBoard();
+    await exec({ type: "SetTripStartDate", tripId, startDate: "2027-05-01" });
+    expect((await getTripDetail(tripId))?.startDate).toBe("2027-05-01");
+    await exec({ type: "SetTripStartDate", tripId, startDate: null });
+    expect((await getTripDetail(tripId))?.startDate).toBeNull();
+  });
+
+  it("GOLDEN: rebuild from the log equals the live projections", async () => {
+    await seedBoard();
+    const second = await seedBoard();
+    await exec({
+      type: "MoveActivity",
+      tripId: second.tripId,
+      activityId: second.vatican,
+      toDayId: second.dayA,
+      position: 0,
+    });
+
+    const liveSummaries = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
+    const liveDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+
+    await rebuildProjections();
+
+    const rebuiltSummaries = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
+    const rebuiltDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+
+    const normalize = (rows: typeof liveSummaries) =>
       rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).toISOString() }));
-    expect(normalize(rebuilt)).toEqual(normalize(live));
+    expect(normalize(rebuiltSummaries)).toEqual(normalize(liveSummaries));
+    expect(rebuiltDetails).toEqual(liveDetails);
   });
 });

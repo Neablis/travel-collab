@@ -1,7 +1,8 @@
 services:
   postgres:
     image: postgres:17
-    ports: ["5433:5432"]
+    # Default must match apps/web/src/server/config.ts (compose can't import TS).
+    ports: ["${POSTGRES_PORT:-5433}:5432"]
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: travel

@@ -1,8 +1,8 @@
-import { CreateTrip, TripEvent } from "@tc/contracts";
-import { decideCreateTrip, evolveTrip, type TripState } from "@tc/domain";
+import { TripCommand, TripEvent } from "@tc/contracts";
+import { decideTripCommand, evolveTrip, tripDetailFromState, type TripState } from "@tc/domain";
 import { db } from "./db/client";
 import { appendToStream, readStream } from "./eventStore";
-import { applyTripEvents } from "./projections";
+import { applyTripEvents, upsertTripDetail } from "./projections";
 import { soleMemberPolicy } from "./accessPolicy";
 
 export type CommandResult =
@@ -11,17 +11,11 @@ export type CommandResult =
 
 // The command pipeline (docs/guidelines/building-the-parts.md). Every write
 // in the planning domain goes through this exact sequence.
-export async function handleCreateTrip(
-  input: { tripId: string; name: string },
-  actorId: string,
-): Promise<CommandResult> {
+export async function executeTripCommand(input: unknown, actorId: string): Promise<CommandResult> {
   // 1. validate the command against the contract
-  const parsed = CreateTrip.safeParse({ type: "CreateTrip", ...input });
+  const parsed = TripCommand.safeParse(input);
   if (!parsed.success) {
-    return {
-      ok: false,
-      error: { code: "invalid-command", message: parsed.error.message },
-    };
+    return { ok: false, error: { code: "invalid-command", message: parsed.error.message } };
   }
   const command = parsed.data;
 
@@ -30,11 +24,7 @@ export async function handleCreateTrip(
     const history = await readStream(tx, command.tripId);
     let state: TripState | null = null;
     for (const env of history) {
-      const event = TripEvent.parse({
-        type: env.type,
-        version: env.version,
-        payload: env.payload,
-      });
+      const event = TripEvent.parse({ type: env.type, version: env.version, payload: env.payload });
       state = evolveTrip(state, event);
     }
 
@@ -44,7 +34,7 @@ export async function handleCreateTrip(
     }
 
     // 4. decide
-    const decision = decideCreateTrip(state, command, { actorId });
+    const decision = decideTripCommand(state, command, { actorId });
     if (!decision.ok) return { ok: false, error: decision.rejection };
 
     // 5. append with optimistic concurrency
@@ -64,6 +54,15 @@ export async function handleCreateTrip(
 
     // 6. update projections in the same transaction
     await applyTripEvents(tx, appended.envelopes);
+
+    // 7. run the conflict engine on the new state and persist the detail doc
+    //    (tripDetailFromState computes conflicts) — same transaction.
+    let nextState = state;
+    for (const event of decision.events) nextState = evolveTrip(nextState, event);
+    if (nextState === null) throw new Error("state cannot be null after an accepted command");
+    const firstEnvelope = history[0] ?? appended.envelopes[0];
+    if (firstEnvelope === undefined) throw new Error("append returned no envelopes");
+    await upsertTripDetail(tx, tripDetailFromState(nextState, firstEnvelope.occurredAt));
 
     return { ok: true, tripId: command.tripId };
   });

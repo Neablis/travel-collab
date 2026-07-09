@@ -1,0 +1,6 @@
+// Server/tooling half of the dev config — never import from UI code
+// (the DATABASE_URL default must not end up in a client bundle).
+export const POSTGRES_PORT = Number(process.env.POSTGRES_PORT ?? 5433);
+export const DATABASE_URL =
+  process.env.DATABASE_URL ??
+  `postgres://postgres:postgres@localhost:${POSTGRES_PORT}/travel`;

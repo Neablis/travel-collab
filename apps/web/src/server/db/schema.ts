@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { TripMember } from "@tc/contracts";
+import type { TripDetail, TripMember } from "@tc/contracts";
 
 export const events = pgTable(
   "events",
@@ -30,4 +30,9 @@ export const tripSummaries = pgTable("trip_summaries", {
   name: text("name").notNull(),
   members: jsonb("members").$type<TripMember[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
+export const tripDetails = pgTable("trip_details", {
+  tripId: uuid("trip_id").primaryKey(),
+  doc: jsonb("doc").$type<TripDetail>().notNull(),
 });
