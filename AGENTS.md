@@ -14,7 +14,7 @@ AI generation.
 
 Think: Jira's planning + git's history + Notion's editing, for vacations.
 
-**Current phase: 1 (full single-player product), current milestone: M0.**
+**Current phase: 1 (full single-player product), current milestone: M3.**
 Design record: `docs/specs/2026-07-07-foundation-design.md` · Decisions:
 `docs/architecture/` · Roadmap: `TODO.md` + `docs/milestones/README.md` ·
 How-to guides: `docs/guidelines/`

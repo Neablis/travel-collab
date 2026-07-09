@@ -47,4 +47,4 @@ Placement notes (decided 2026-07-07):
 - M2 precedes M3–M5 deliberately: prove history/revert works before investing
   in breadth on top of it.
 
-Current milestone: **M0** — see `M0-walking-skeleton.md`.
+Current milestone: **M3** — Place & time (no milestone file yet; write one before starting).
