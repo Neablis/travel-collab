@@ -19,6 +19,7 @@
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.36.0",
     "next": "^15.0.0",
     "next-auth": "^5.0.0-beta.25",

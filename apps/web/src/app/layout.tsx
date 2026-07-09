@@ -1,3 +1,5 @@
+import { Analytics } from '@vercel/analytics/next';
+
 export const metadata = { title: "travel-collab" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -5,6 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body style={{ fontFamily: "system-ui", margin: "2rem" }}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
