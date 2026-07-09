@@ -17,6 +17,8 @@ function stream(): EventEnvelope[] {
     payload,
     actorId: "user-1",
     occurredAt: "2026-07-08T12:00:00.000Z",
+    batchId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+    origin: { kind: "user" },
   });
   return [
     env("TripCreated", { tripId: T1, name: "Rome 2027", createdBy: "user-1" }),

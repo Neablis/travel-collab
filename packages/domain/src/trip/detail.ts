@@ -26,6 +26,7 @@ export function tripDetailFromState(state: TripState, createdAt: string): TripDe
       ]),
     ),
     conflicts: detectConflicts(state),
+    dismissedConflictIds: [...state.dismissedConflictIds],
     createdAt,
   };
 }

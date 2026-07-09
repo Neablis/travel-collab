@@ -35,6 +35,7 @@ function noopCallbacks(): BoardCallbacks {
     onAddActivity: vi.fn(),
     onUpdateActivity: vi.fn(),
     onRemoveActivity: vi.fn(),
+    onDismissConflict: vi.fn(),
   };
 }
 
@@ -55,9 +56,14 @@ describe("Board", () => {
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
   });
 
-  it("dismissing a conflict hides it from the banner (client-local)", () => {
-    render(<Board trip={fixture()} callbacks={noopCallbacks()} />);
+  it("dismissing a conflict calls onDismissConflict; dismissedConflictIds hides it from the banner", () => {
+    const callbacks = noopCallbacks();
+    const { rerender } = render(<Board trip={fixture()} callbacks={callbacks} />);
+    const conflictId = fixture().conflicts[0]!.id;
     fireEvent.click(screen.getByRole("button", { name: /^Dismiss:/ }));
+    expect(callbacks.onDismissConflict).toHaveBeenCalledWith(conflictId);
+
+    rerender(<Board trip={{ ...fixture(), dismissedConflictIds: [conflictId] }} callbacks={callbacks} />);
     expect(screen.queryByText(/overlap in time on the same day/)).toBeNull();
   });
 

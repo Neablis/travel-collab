@@ -92,6 +92,7 @@ describe("M1 contracts", () => {
         },
       },
       conflicts: [],
+      dismissedConflictIds: [],
       createdAt: "2026-07-08T12:00:00.000Z",
     });
     expect(detail.days[0]!.activityIds).toEqual([ACT]);

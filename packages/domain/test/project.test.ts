@@ -14,6 +14,8 @@ function envelope(streamId: string, name: string, actorId: string): EventEnvelop
     payload: { tripId: streamId, name, createdBy: actorId },
     actorId,
     occurredAt: "2026-07-07T12:00:00.000Z",
+    batchId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+    origin: { kind: "user" },
   };
 }
 

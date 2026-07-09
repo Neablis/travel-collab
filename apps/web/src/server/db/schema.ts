@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { TripDetail, TripMember } from "@tc/contracts";
+import type { Origin, TripDetail, TripMember } from "@tc/contracts";
 
 export const events = pgTable(
   "events",
@@ -21,6 +21,8 @@ export const events = pgTable(
     payload: jsonb("payload").notNull(),
     actorId: text("actor_id").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "string" }).notNull(),
+    batchId: uuid("batch_id").notNull(),
+    origin: jsonb("origin").$type<Origin>().notNull(),
   },
   (t) => [uniqueIndex("events_stream_seq").on(t.streamId, t.seq)],
 );

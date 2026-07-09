@@ -9,6 +9,14 @@ import {
   RemoveActivity,
   UpdateActivity,
 } from "./activity";
+import {
+  ConflictDismissedV1,
+  ConflictUndismissedV1,
+  DismissConflict,
+  RedoChange,
+  RevertToState,
+  UndoLastChange,
+} from "./history";
 
 export const CreateTrip = z.object({
   type: z.literal("CreateTrip"),
@@ -83,6 +91,8 @@ export const TripEvent = z.discriminatedUnion("type", [
   ActivityUpdatedV1,
   ActivityMovedV1,
   ActivityRemovedV1,
+  ConflictDismissedV1,
+  ConflictUndismissedV1,
 ]);
 export type TripEvent = z.infer<typeof TripEvent>;
 
@@ -95,6 +105,10 @@ export const TripCommand = z.discriminatedUnion("type", [
   UpdateActivity,
   MoveActivity,
   RemoveActivity,
+  UndoLastChange,
+  RedoChange,
+  RevertToState,
+  DismissConflict,
 ]);
 export type TripCommand = z.infer<typeof TripCommand>;
 

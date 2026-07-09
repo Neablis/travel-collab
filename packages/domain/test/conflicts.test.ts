@@ -36,6 +36,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
         },
       ]),
     ),
+    dismissedConflictIds: [],
   };
 }
 

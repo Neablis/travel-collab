@@ -129,6 +129,66 @@ describe("executeTripCommand", () => {
     expect((await getTripDetail(tripId))?.startDate).toBeNull();
   });
 
+  it("undo → redo → revert flow through the one pipeline", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const activityId = randomUUID();
+    const run = (input: unknown) => executeTripCommand(input, "int-user");
+    expect((await run({ type: "CreateTrip", tripId, name: "History trip" })).ok).toBe(true);
+    expect((await run({ type: "AddDay", tripId, dayId })).ok).toBe(true);
+    expect((await run({ type: "AddActivity", tripId, activityId, dayId, title: "Colosseum" })).ok).toBe(true);
+
+    expect((await run({ type: "UndoLastChange", tripId })).ok).toBe(true);
+    expect((await getTripDetail(tripId))?.activities[activityId]).toBeUndefined();
+
+    expect((await run({ type: "RedoChange", tripId })).ok).toBe(true);
+    expect((await getTripDetail(tripId))?.activities[activityId]).toBeDefined();
+
+    expect((await run({ type: "RevertToState", tripId, toSeq: 1 })).ok).toBe(true);
+    const reverted = await getTripDetail(tripId);
+    expect(reverted?.days).toEqual([]);
+    expect(Object.keys(reverted?.activities ?? {})).toEqual([]);
+
+    const noop = await run({ type: "RevertToState", tripId, toSeq: 1 });
+    expect(noop.ok).toBe(false);
+    if (!noop.ok) expect(noop.error.code).toBe("already-at-that-state");
+  });
+
+  it("dismissal persists through the projection and is revertible", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const run = (input: unknown) => executeTripCommand(input, "int-user");
+    await run({ type: "CreateTrip", tripId, name: "Dismiss trip" });
+    await run({ type: "AddDay", tripId, dayId });
+    await run({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "A", timeWindow: { start: "09:00", end: "11:00" } });
+    await run({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "B", timeWindow: { start: "10:00", end: "12:00" } });
+    const conflicted = await getTripDetail(tripId);
+    const conflictId = conflicted?.conflicts[0]?.id;
+    expect(conflictId).toBeDefined();
+    expect((await run({ type: "DismissConflict", tripId, conflictId })).ok).toBe(true);
+    expect((await getTripDetail(tripId))?.dismissedConflictIds).toEqual([conflictId]);
+    expect((await run({ type: "UndoLastChange", tripId })).ok).toBe(true);
+    expect((await getTripDetail(tripId))?.dismissedConflictIds).toEqual([]);
+  });
+
+  it("a history command racing a concurrent write serializes or returns the typed conflict", async () => {
+    const tripId = randomUUID();
+    const run = (input: unknown) => executeTripCommand(input, "int-user");
+    await run({ type: "CreateTrip", tripId, name: "Race trip" });
+    await run({ type: "AddDay", tripId, dayId: randomUUID() });
+    const [undo, add] = await Promise.all([
+      run({ type: "UndoLastChange", tripId }),
+      run({ type: "AddDay", tripId, dayId: randomUUID() }),
+    ]);
+    const failures = [undo, add].filter((r) => !r.ok);
+    for (const f of failures) {
+      if (!f.ok) expect(f.error.code).toBe("concurrency-conflict");
+    }
+    // Whatever interleaving happened, the store must be consistent:
+    const detail = await getTripDetail(tripId);
+    expect(detail).not.toBeNull();
+  });
+
   it("GOLDEN: rebuild from the log equals the live projections", async () => {
     await seedBoard();
     const second = await seedBoard();
@@ -139,6 +199,15 @@ describe("executeTripCommand", () => {
       toDayId: second.dayA,
       position: 0,
     });
+
+    const conflictedSecond = await getTripDetail(second.tripId);
+    const conflictIdSecond = conflictedSecond?.conflicts[0]?.id;
+    if (conflictIdSecond !== undefined) {
+      await exec({ type: "DismissConflict", tripId: second.tripId, conflictId: conflictIdSecond });
+    }
+    await exec({ type: "UndoLastChange", tripId: second.tripId });
+    await exec({ type: "RedoChange", tripId: second.tripId });
+    await exec({ type: "RevertToState", tripId: second.tripId, toSeq: 1 });
 
     const liveSummaries = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
     const liveDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));

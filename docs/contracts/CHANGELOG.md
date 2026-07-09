@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-08 — M2 history & time travel schemas
+- Added: `Origin`; `EventEnvelope` gains required `batchId` + `origin`
+- Added: commands `UndoLastChange`, `RedoChange`, `RevertToState`,
+  `DismissConflict` (joined `TripCommand`)
+- Added: events `ConflictDismissedV1`, `ConflictUndismissedV1` (joined `TripEvent`)
+- Added: DTOs `HistoryEntry`, `TripHistory`; `TripDetail` gains `dismissedConflictIds`
+- Why: M2 — undo/redo/revert via compensating events (ADR-005), history UI,
+  persistent conflict dismissal
+- Consumers updated: `@tc/domain`, `apps/web` (pipeline, event store + column
+  migration with backfill, routes, UI) — in this same PR
+- Breaking? yes, envelope only — stored events need the Task 5 backfill
+  migration (batch_id = own uuid, origin = user); event payloads unchanged,
+  `TripEvent.parse` accepts all previously stored events
+
 ## 2026-07-08 — M1 planning-core schemas
 - Added: commands `AddDay`, `RemoveDay`, `SetTripStartDate`, `AddActivity`,
   `UpdateActivity`, `MoveActivity`, `RemoveActivity`; command union `TripCommand`
