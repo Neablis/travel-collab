@@ -1,17 +1,19 @@
 import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
 import { detectConflicts } from "./conflicts";
+import { deriveDayDates } from "./dates";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
 
 // The single state → document definition. The live pipeline and the rebuild
 // both call this, so "rebuild equals stored" holds by construction.
 export function tripDetailFromState(state: TripState, createdAt: string): TripDetail {
+  const dayDates = deriveDayDates(state.startDate, state.days.length);
   return {
     tripId: state.tripId,
     name: state.name,
     startDate: state.startDate,
     members: state.members,
-    days: state.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
+    days: state.days.map((d, i) => ({ dayId: d.dayId, activityIds: [...d.activityIds], date: dayDates[i]! })),
     backlog: [...state.backlog],
     activities: Object.fromEntries(
       Object.entries(state.activities).map(([id, a]) => [
