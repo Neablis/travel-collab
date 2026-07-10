@@ -7,4 +7,5 @@ export const DATABASE_URL =
 
 export const serverConfig = {
   locationIqApiKey: process.env.LOCATIONIQ_API_KEY ?? "",
+  timezone: process.env.TRIP_TIMEZONE ?? "America/Los_Angeles",
 };

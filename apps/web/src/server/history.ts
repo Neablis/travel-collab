@@ -6,6 +6,7 @@ import {
   groupBatches,
   tripDetailFromState,
 } from "@tc/domain";
+import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
 import { readStream } from "./eventStore";
 
@@ -30,5 +31,5 @@ export async function getTripDetailAt(tripId: string, seq: number): Promise<Trip
   }
   const state = foldEnvelopes(envelopes, seq);
   if (state === null) return null;
-  return tripDetailFromState(state, envelopes[0]!.occurredAt);
+  return tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext());
 }
