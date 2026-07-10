@@ -13,6 +13,19 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-09 — M3 place & time schemas
+- Added: `Weekday`, `Anchor` (union: dayOfWeek | dateRange | timeOfDay | publicHoliday)
+- Added: `anchors` on `AddActivity`/`UpdateActivity` (optional) and on
+  `ActivityAddedV1`/`ActivityUpdatedV1` payloads (`z.array(Anchor).default([])`)
+- Added: `Location.countryCode` (optional, ISO-3166 alpha-2)
+- Added: `ActivityView.anchors`; `TripDetail.days[].date` (nullable derived date)
+- Why: M3 — date-anchored activities, derived day dates, geocoded locations
+- Consumers updated: `@tc/domain` (state/evolve/decide/diff/equality/conflicts/
+  detail), `apps/web` (projection wiring, mocks, lens UI) — same PR
+- Breaking? no — event payload additions default, so `TripEvent.parse` accepts
+  all previously stored events unchanged; DTO additions are new required fields
+  produced only by the updated projection
+
 ## 2026-07-08 — M2 history & time travel schemas
 - Added: `Origin`; `EventEnvelope` gains required `batchId` + `origin`
 - Added: commands `UndoLastChange`, `RedoChange`, `RevertToState`,

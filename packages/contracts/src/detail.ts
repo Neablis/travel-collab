@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict";
 import { TripMember } from "./trip";
-import { Location, TimeWindow } from "./activity";
+import { Anchor, Location, TimeWindow } from "./activity";
 
 export const ActivityView = z.object({
   activityId: z.string().uuid(),
@@ -9,6 +9,7 @@ export const ActivityView = z.object({
   timeWindow: TimeWindow.nullable(),
   location: Location.nullable(),
   notes: z.string().nullable(),
+  anchors: z.array(Anchor),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 
@@ -18,7 +19,9 @@ export const TripDetail = z.object({
   name: z.string(),
   startDate: z.string().nullable(),
   members: z.array(TripMember).min(1),
-  days: z.array(z.object({ dayId: z.string().uuid(), activityIds: z.array(z.string().uuid()) })),
+  days: z.array(
+    z.object({ dayId: z.string().uuid(), activityIds: z.array(z.string().uuid()), date: z.string().nullable() }),
+  ),
   backlog: z.array(z.string().uuid()),
   activities: z.record(ActivityView),
   conflicts: z.array(Conflict),

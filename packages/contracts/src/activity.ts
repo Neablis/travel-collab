@@ -7,11 +7,33 @@ export const TimeWindow = z
   .refine((w) => w.start < w.end, { message: "end must be after start" });
 export type TimeWindow = z.infer<typeof TimeWindow>;
 
+export const Weekday = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+export type Weekday = z.infer<typeof Weekday>;
+
+const ISO_DATE_A = /^\d{4}-\d{2}-\d{2}$/;
+
+// Constraint on WHEN an activity may fall. All four ship in M3; the first three
+// evaluate live (domain Task D3), publicHoliday is inert (permissive stub).
+export const Anchor = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("dayOfWeek"), days: z.array(Weekday).min(1) }),
+    z.object({ kind: z.literal("dateRange"), from: z.string().regex(ISO_DATE_A), to: z.string().regex(ISO_DATE_A) }),
+    z.object({ kind: z.literal("timeOfDay"), window: TimeWindow }),
+    z.object({ kind: z.literal("publicHoliday"), country: z.string().regex(/^[A-Z]{2}$/) }),
+  ])
+  .superRefine((a, ctx) => {
+    if (a.kind === "dateRange" && a.from > a.to) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "from must be <= to" });
+    }
+  });
+export type Anchor = z.infer<typeof Anchor>;
+
 export const Location = z
   .object({
     name: z.string().min(1).max(200),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
+    countryCode: z.string().regex(/^[A-Z]{2}$/).optional(), // populated by the geocoder (ADR-007)
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",
@@ -29,6 +51,7 @@ export const AddActivity = z.object({
   timeWindow: TimeWindow.optional(),
   location: Location.optional(),
   notes: z.string().max(2000).optional(),
+  anchors: z.array(Anchor).optional(),
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -41,6 +64,7 @@ export const UpdateActivity = z.object({
   timeWindow: TimeWindow.nullable().optional(),
   location: Location.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  anchors: z.array(Anchor).optional(),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
 
@@ -73,6 +97,7 @@ export const ActivityAddedV1 = z.object({
     timeWindow: TimeWindow.nullable(),
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
+    anchors: z.array(Anchor).default([]),
   }),
 });
 export type ActivityAddedV1 = z.infer<typeof ActivityAddedV1>;
@@ -88,6 +113,7 @@ export const ActivityUpdatedV1 = z.object({
     timeWindow: TimeWindow.nullable(),
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
+    anchors: z.array(Anchor).default([]),
   }),
 });
 export type ActivityUpdatedV1 = z.infer<typeof ActivityUpdatedV1>;

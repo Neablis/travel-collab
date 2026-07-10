@@ -80,7 +80,7 @@ describe("M1 contracts", () => {
       name: "Rome 2027",
       startDate: "2027-05-01",
       members: [{ userId: "dev-alice", role: "owner" }],
-      days: [{ dayId: DAY, activityIds: [ACT] }],
+      days: [{ dayId: DAY, activityIds: [ACT], date: "2027-05-01" }],
       backlog: [],
       activities: {
         [ACT]: {
@@ -89,6 +89,7 @@ describe("M1 contracts", () => {
           timeWindow: { start: "09:00", end: "11:00" },
           location: { name: "Rome", lat: 41.9, lng: 12.5 },
           notes: null,
+          anchors: [],
         },
       },
       conflicts: [],
