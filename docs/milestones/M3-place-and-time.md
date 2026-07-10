@@ -61,23 +61,25 @@ Plan: `docs/plans/2026-07-09-M3-place-and-time.md`
       anchor; **drag the vacation** (shift the start date) → a now-violated
       anchor raises a `warn` conflict; shift back → it clears; clear the date →
       anchors go dormant; **undo** the shift → dates *and* conflicts revert.
-- [ ] **Property tests (fast-check) green:** `deriveDayDates` shift-`+N`-then-`−N`
+      (Pending: requires `LOCATIONIQ_API_KEY` + Vercel env wiring — human step,
+      see retro.)
+- [x] **Property tests (fast-check) green:** `deriveDayDates` shift-`+N`-then-`−N`
       is identity on derived dates (length preserved); anchor evaluation for the
       three live kinds; `diffTripStates` round-trip still holds with anchors
       present (undo/revert reproduces state exactly).
-- [ ] **Golden rebuild:** dropping projections and rebuilding from a log with
+- [x] **Golden rebuild:** dropping projections and rebuilding from a log with
       start-date shifts and anchored activities reproduces identical state —
       conflicts included.
-- [ ] **Purity/lint wall green:** `detectConflicts(state, ctx)` and
+- [x] **Purity/lint wall green:** `detectConflicts(state, ctx)` and
       `deriveDayDates` do no I/O and read no wall clock; geocoding lives only in
       `apps/web/src/server`; UI imports only `@tc/contracts` + the typed client
       (never `@tc/domain`); MapLibre/geocode fetches only from client
       components or server routes as designed.
-- [ ] **All M0/M1/M2 e2e scripts still green; a new M3 happy-path e2e script
+- [x] **All M0/M1/M2 e2e scripts still green; a new M3 happy-path e2e script
       added and green.**
-- [ ] `docs/contracts/CHANGELOG.md` has an entry for the `Anchor` union +
+- [x] `docs/contracts/CHANGELOG.md` has an entry for the `Anchor` union +
       `activities[].anchors`, `TripDetail.days[].date`, and `Location.countryCode`.
-- [ ] Retro note appended to this file.
+- [x] Retro note appended to this file.
 
 ## Explicitly out of scope
 
@@ -86,3 +88,58 @@ per-activity IANA timezones and cross-zone / travel-time math (the M1 geography
 distance heuristic stays); arbitrary-day pinning / end-date-driven date ranges;
 geocoding autocomplete/typeahead; external calendar sync (M9); costs (M4);
 realtime (M6); trip rename/delete; styling beyond functional defaults.
+
+## Retro (2026-07-10)
+
+Implemented via subagent-driven development: Task 1 (contracts) landed first
+and gated three parallel workstreams (Domain D1-D3, Server-geocoding S1, UI
+U1-U5), then four integration tasks (I1-I4) ran sequentially. All 14 plan
+tasks completed with a clean task-scoped review; the full local gate
+(typecheck, lint, 119 unit tests, 16 integration tests, 4 e2e specs) is green.
+
+**What we learned:**
+- Parallel subagents sharing one working tree can race on `git add`/`git
+  commit` even when their file sets are fully disjoint — the race is on git's
+  index/refs, not the files themselves. One early parallel dispatch (D1, S1,
+  U1 sharing this worktree) hit exactly this: a `git reset --soft` performed
+  by one agent to fix its own accidental over-broad commit silently dropped
+  a sibling agent's already-committed work from the branch tip (the changes
+  survived in the working tree, uncommitted, and were recovered). From D2
+  onward, every parallel implementer ran in its own isolated `git worktree`
+  and merged back sequentially — no further incidents.
+- The "red window" the plan called out between Task 1 and Task D2 was real
+  and, once found, wider than the plan anticipated: a `pnpm typecheck`-invisible
+  runtime assertion in `commands.int.test.ts` (an integration test requiring a
+  live Postgres) also needed the same mechanical `date: null` fix D2 applied
+  to typecheck-visible literals elsewhere. Integration tests don't run in a
+  typecheck pass, so this only surfaced when the local gate's integration
+  suite ran directly, ahead of Task I1.
+- LocationIQ's port and geocode-stubbing conventions didn't exist yet in the
+  e2e harness (`apps/web/e2e/helpers.ts`) — Task I3 introduced the first
+  `page.route` interception pattern in this codebase. Future geocoding-touching
+  e2e specs should reuse it rather than re-deriving it.
+
+**Changed from the plan:**
+- Nothing structural. Two small deviations, both disclosed and reviewed
+  clean: `packages/domain/src/trip/detail.ts` needed `anchors: a.anchors`
+  added to `tripDetailFromState`'s activity mapping (Task D2 — the brief's
+  file list omitted this one-line consequence of `ActivityView.anchors` being
+  required, not optional); Task I3's undo-sequencing in the e2e script waits
+  for each `Undo`'s POST response before firing the next click, which
+  surfaced a genuine (if minor) product gap noted below.
+
+**Debt parked for M4:**
+- `UndoRedoControls` has no in-flight guard — nothing disables Undo/Redo
+  while a prior undo/redo request is still in flight, so rapid double-clicks
+  can race two commands against the same `expectedSeq`. Currently masked by
+  UI latency in practice; the M3 e2e script had to add an explicit wait to
+  avoid hitting it.
+- Two near-duplicate "start date" controls now exist (`TripBoardScreen`'s own
+  `StartDateControl` and `CalendarLens`'s `TripDateControl`) with slightly
+  different copy ("Clear" vs "Clear dates"). Both are mutually exclusive by
+  mount (only one lens renders at a time) so there's no functional bug, but
+  it's worth consolidating into one component before M4 adds more lenses.
+- `LOCATIONIQ_API_KEY` + Vercel env wiring (plan Step I4.2) and the deployed-URL
+  gate demo (plan Step I4.5) are deliberately left for Mitchell — no Vercel
+  credential access from this session, per the run's human-in-the-loop
+  instructions.
