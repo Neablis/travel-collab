@@ -10,10 +10,16 @@ import {
   sendTripCommand,
   type BoardCommand,
 } from "@/lib/apiClient";
-import type { ActivityFormValue } from "./ActivityEditor";
+import { CalendarLens } from "@/components/lenses/CalendarLens";
+import { MapLens } from "@/components/lenses/MapLens";
+import { TimelineLens } from "@/components/lenses/TimelineLens";
+import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { HistoryPanel } from "./HistoryPanel";
 import { UndoRedoControls } from "./UndoRedoControls";
+
+const LENSES = ["Board", "Map", "Timeline", "Calendar"] as const;
+type Lens = (typeof LENSES)[number];
 
 function StartDateControl({
   startDate,
@@ -61,6 +67,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const [lens, setLens] = useState<Lens>("Board");
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
 
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
@@ -113,6 +122,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     );
   }
 
+  const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : trip;
+  const editingActivity = editingActivityId !== null ? (activeTrip.activities[editingActivityId] ?? null) : null;
+
+  const updateActivity = (activityId: string, value: ActivityFormValue) =>
+    void dispatch({
+      type: "UpdateActivity",
+      tripId,
+      activityId,
+      title: value.title,
+      timeWindow: value.timeWindow,
+      location: value.location,
+      notes: value.notes,
+      anchors: value.anchors,
+    });
+
   return (
     <main>
       <nav>
@@ -141,40 +165,68 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
       />
       {error !== null && <p role="alert">{error}</p>}
+      <div role="tablist" aria-label="Trip view">
+        {LENSES.map((l) => (
+          <button
+            key={l}
+            type="button"
+            role="tab"
+            aria-selected={lens === l}
+            onClick={() => setLens(l)}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
       <div inert={previewSeq !== null ? true : undefined}>
-        <Board
-          trip={previewSeq !== null && previewTrip !== null ? previewTrip : trip}
-          callbacks={{
-            onMove: (activityId, toDayId, position) =>
-              void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
-            onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
-            onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-            onAddActivity: (value: ActivityFormValue) =>
-              void dispatch({
-                type: "AddActivity",
-                tripId,
-                activityId: crypto.randomUUID(),
-                title: value.title,
-                timeWindow: value.timeWindow ?? undefined,
-                location: value.location ?? undefined,
-                notes: value.notes ?? undefined,
-                anchors: value.anchors,
-              }),
-            onUpdateActivity: (activityId, value) =>
-              void dispatch({
-                type: "UpdateActivity",
-                tripId,
-                activityId,
-                title: value.title,
-                timeWindow: value.timeWindow,
-                location: value.location,
-                notes: value.notes,
-                anchors: value.anchors,
-              }),
-            onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
-            onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-          }}
-        />
+        {lens === "Board" && (
+          <Board
+            trip={activeTrip}
+            callbacks={{
+              onMove: (activityId, toDayId, position) =>
+                void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+              onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
+              onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
+              onAddActivity: (value: ActivityFormValue) =>
+                void dispatch({
+                  type: "AddActivity",
+                  tripId,
+                  activityId: crypto.randomUUID(),
+                  title: value.title,
+                  timeWindow: value.timeWindow ?? undefined,
+                  location: value.location ?? undefined,
+                  notes: value.notes ?? undefined,
+                  anchors: value.anchors,
+                }),
+              onUpdateActivity: updateActivity,
+              onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+              onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+            }}
+          />
+        )}
+        {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Timeline" && <TimelineLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Calendar" && (
+          <CalendarLens
+            detail={activeTrip}
+            onCommand={(command) => {
+              if (command.type !== "CreateTrip") void dispatch(command);
+            }}
+            onSelectActivity={setEditingActivityId}
+          />
+        )}
+        {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
+          <div style={{ marginTop: 12, maxWidth: 420 }}>
+            <ActivityEditor
+              initial={editingActivity}
+              onSave={(value) => {
+                updateActivity(editingActivityId, value);
+                setEditingActivityId(null);
+              }}
+              onCancel={() => setEditingActivityId(null)}
+            />
+          </div>
+        )}
       </div>
     </main>
   );

@@ -9,9 +9,11 @@ const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export function CalendarLens({
   detail,
   onCommand,
+  onSelectActivity,
 }: {
   detail: TripDetail;
   onCommand: (command: TripCommand) => void;
+  onSelectActivity?: (activityId: string) => void;
 }) {
   const cells = calendarCells(detail);
 
@@ -49,7 +51,29 @@ export function CalendarLens({
               {cell.inTrip && (
                 <div>
                   <small>Day {cell.ordinal}</small>
-                  {cell.activityIds.length > 0 && <small> · {cell.activityIds.length} activities</small>}
+                  {cell.activityIds.length > 0 && (
+                    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                      {cell.activityIds.map((activityId) => {
+                        const activity = detail.activities[activityId];
+                        if (!activity) return null;
+                        return (
+                          <li key={activityId}>
+                            {onSelectActivity ? (
+                              <button
+                                type="button"
+                                onClick={() => onSelectActivity(activityId)}
+                                style={{ fontSize: 11, border: "none", background: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+                              >
+                                {activity.title}
+                              </button>
+                            ) : (
+                              <small>{activity.title}</small>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>

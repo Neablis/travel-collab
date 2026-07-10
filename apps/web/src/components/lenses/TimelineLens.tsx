@@ -17,7 +17,13 @@ function clampPercent(minutes: number): number {
   return Math.min(100, Math.max(0, pct));
 }
 
-export function TimelineLens({ detail }: { detail: TripDetail }) {
+export function TimelineLens({
+  detail,
+  onSelectActivity,
+}: {
+  detail: TripDetail;
+  onSelectActivity?: (activityId: string) => void;
+}) {
   const rows = timelineRows(detail);
 
   if (rows.length === 0) {
@@ -50,26 +56,38 @@ export function TimelineLens({ detail }: { detail: TripDetail }) {
               const left = clampPercent(toMinutes(item.start));
               const right = clampPercent(toMinutes(item.end));
               const width = Math.max(right - left, 1);
-              return (
+              const itemStyle = {
+                position: "absolute" as const,
+                left: `${left}%`,
+                width: `${width}%`,
+                top: 4,
+                bottom: 4,
+                background: "#4f7cff",
+                color: "white",
+                borderRadius: 4,
+                padding: "2px 6px",
+                fontSize: 12,
+                overflow: "hidden",
+                whiteSpace: "nowrap" as const,
+                textOverflow: "ellipsis" as const,
+              };
+              return onSelectActivity ? (
+                <button
+                  key={item.activityId}
+                  type="button"
+                  data-testid={`timeline-item-${item.activityId}`}
+                  title={`${item.title} (${item.start}–${item.end})`}
+                  onClick={() => onSelectActivity(item.activityId)}
+                  style={{ ...itemStyle, border: "none", textAlign: "left", cursor: "pointer" }}
+                >
+                  {item.title}
+                </button>
+              ) : (
                 <div
                   key={item.activityId}
                   data-testid={`timeline-item-${item.activityId}`}
                   title={`${item.title} (${item.start}–${item.end})`}
-                  style={{
-                    position: "absolute",
-                    left: `${left}%`,
-                    width: `${width}%`,
-                    top: 4,
-                    bottom: 4,
-                    background: "#4f7cff",
-                    color: "white",
-                    borderRadius: 4,
-                    padding: "2px 6px",
-                    fontSize: 12,
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
-                  }}
+                  style={itemStyle}
                 >
                   {item.title}
                 </div>
@@ -79,20 +97,32 @@ export function TimelineLens({ detail }: { detail: TripDetail }) {
 
           {row.untimed.length > 0 && (
             <ul style={{ display: "flex", flexWrap: "wrap", gap: 6, listStyle: "none", padding: 0, margin: 0 }}>
-              {row.untimed.map((item) => (
-                <li
-                  key={item.activityId}
-                  data-testid={`timeline-untimed-${item.activityId}`}
-                  style={{
-                    background: "#eee",
-                    borderRadius: 4,
-                    padding: "2px 8px",
-                    fontSize: 12,
-                  }}
-                >
-                  {item.title}
-                </li>
-              ))}
+              {row.untimed.map((item) =>
+                onSelectActivity ? (
+                  <li key={item.activityId} data-testid={`timeline-untimed-${item.activityId}`}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectActivity(item.activityId)}
+                      style={{ background: "#eee", borderRadius: 4, padding: "2px 8px", fontSize: 12, border: "none", cursor: "pointer" }}
+                    >
+                      {item.title}
+                    </button>
+                  </li>
+                ) : (
+                  <li
+                    key={item.activityId}
+                    data-testid={`timeline-untimed-${item.activityId}`}
+                    style={{
+                      background: "#eee",
+                      borderRadius: 4,
+                      padding: "2px 8px",
+                      fontSize: 12,
+                    }}
+                  >
+                    {item.title}
+                  </li>
+                ),
+              )}
             </ul>
           )}
         </div>
