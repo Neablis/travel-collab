@@ -1,7 +1,25 @@
+import type { Anchor } from "@tc/contracts";
 import type { ActivityState, DayState, TripState } from "./state";
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+// Canonical string per anchor — order-insensitive within an anchor's own list
+// fields, so equality doesn't spuriously fail on weekday ordering.
+export function anchorKey(a: Anchor): string {
+  switch (a.kind) {
+    case "dayOfWeek": return `dow:${[...a.days].sort().join(",")}`;
+    case "dateRange": return `range:${a.from}_${a.to}`;
+    case "timeOfDay": return `tod:${a.window.start}-${a.window.end}`;
+    case "publicHoliday": return `hol:${a.country}`;
+  }
+}
+
+// Anchor LIST order is significant (the update snapshot preserves it), so we
+// compare positionally by canonical key.
+function sameAnchors(a: readonly Anchor[], b: readonly Anchor[]): boolean {
+  return a.length === b.length && a.every((x, i) => anchorKey(x) === anchorKey(b[i]!));
 }
 
 export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean {
@@ -12,7 +30,8 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     (a.timeWindow === null || (a.timeWindow.start === b.timeWindow!.start && a.timeWindow.end === b.timeWindow!.end)) &&
     (a.location === null) === (b.location === null) &&
     (a.location === null ||
-      (a.location.name === b.location!.name && a.location.lat === b.location!.lat && a.location.lng === b.location!.lng))
+      (a.location.name === b.location!.name && a.location.lat === b.location!.lat && a.location.lng === b.location!.lng)) &&
+    sameAnchors(a.anchors, b.anchors)
   );
 }
 

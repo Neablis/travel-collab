@@ -18,8 +18,8 @@ function conflictedState(): TripState {
     days: [{ dayId: DAY, activityIds: [A1, A2] }],
     backlog: [],
     activities: {
-      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null },
-      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null },
+      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [] },
+      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [] },
     },
     dismissedConflictIds: [],
   };

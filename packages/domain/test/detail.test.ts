@@ -46,7 +46,7 @@ describe("projectTripDetails", () => {
       backlog: [],
       createdAt: "2026-07-08T12:00:00.000Z",
     });
-    expect(detail.days).toEqual([{ dayId: DAY, activityIds: [A1, A2] }]);
+    expect(detail.days).toEqual([{ dayId: DAY, activityIds: [A1, A2], date: null }]);
     expect(detail.activities[A1]).toMatchObject({ activityId: A1, title: "Colosseum" });
     expect(detail.conflicts).toHaveLength(1);
     expect(detail.conflicts[0]).toMatchObject({ kind: "time-overlap" });

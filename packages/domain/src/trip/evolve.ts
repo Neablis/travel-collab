@@ -54,12 +54,12 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     case "TripStartDateSet":
       return { ...state, startDate: event.payload.startDate };
     case "ActivityAdded": {
-      const { activityId, dayId, title, timeWindow, location, notes } = event.payload;
+      const { activityId, dayId, title, timeWindow, location, notes, anchors } = event.payload;
       const next: TripState = {
         ...state,
         activities: {
           ...state.activities,
-          [activityId]: { title, timeWindow, location, notes },
+          [activityId]: { title, timeWindow, location, notes, anchors },
         },
       };
       if (dayId === null) return { ...next, backlog: [...next.backlog, activityId] };
@@ -71,10 +71,10 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       };
     }
     case "ActivityUpdated": {
-      const { activityId, title, timeWindow, location, notes } = event.payload;
+      const { activityId, title, timeWindow, location, notes, anchors } = event.payload;
       return {
         ...state,
-        activities: { ...state.activities, [activityId]: { title, timeWindow, location, notes } },
+        activities: { ...state.activities, [activityId]: { title, timeWindow, location, notes, anchors } },
       };
     }
     case "ActivityMoved": {

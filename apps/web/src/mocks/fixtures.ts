@@ -16,6 +16,11 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
   };
 }
 
+export const sampleGeocodeResults = [
+  { lat: 41.8902, lng: 12.4922, canonicalName: "Colosseum, Rome, Italy", countryCode: "IT" },
+  { lat: 41.9029, lng: 12.4534, canonicalName: "Vatican Museums, Vatican City", countryCode: "VA" },
+];
+
 // Newest first: an undo entry, the undone "add to backlog" entry, then the
 // creation entry — matches how the real history endpoint orders things.
 export function historyFixture(tripId: string): TripHistory {

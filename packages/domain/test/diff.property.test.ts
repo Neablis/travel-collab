@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { TripCommand, TripEvent } from "@tc/contracts";
+import type { Anchor, TripCommand, TripEvent } from "@tc/contracts";
 import {
   decideTripCommand,
   detectConflicts,
@@ -21,6 +21,12 @@ const LOCATIONS = [
   { name: "Rome", lat: 41.9, lng: 12.5 },
   { name: "NYC", lat: 40.7, lng: -74.0 },
 ] as const;
+const ANCHORS: (Anchor[] | undefined)[] = [
+  undefined,
+  [{ kind: "dayOfWeek", days: ["mon", "tue", "wed", "thu", "fri"] }],
+  [{ kind: "timeOfDay", window: { start: "08:00", end: "13:00" } }],
+  [],
+];
 
 // One raw op = a tuple of small integers the builder interprets against the
 // CURRENT state, so most generated commands are valid; invalid ones are
@@ -53,6 +59,7 @@ function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
         title: `Activity ${raw.a}`,
         timeWindow: WINDOWS[raw.b % WINDOWS.length] ?? undefined,
         location: LOCATIONS[raw.c % LOCATIONS.length] ?? undefined,
+        anchors: ANCHORS[raw.c % ANCHORS.length],
       };
     case 4:
       return activity
@@ -62,6 +69,7 @@ function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
             activityId: activity,
             title: `Renamed ${raw.b}`,
             timeWindow: WINDOWS[raw.c % WINDOWS.length],
+            anchors: ANCHORS[raw.b % ANCHORS.length],
           }
         : null;
     case 5:

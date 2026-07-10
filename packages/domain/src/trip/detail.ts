@@ -1,17 +1,23 @@
 import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
-import { detectConflicts } from "./conflicts";
+import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, type ConflictContext } from "./conflicts";
+import { deriveDayDates } from "./dates";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
 
 // The single state → document definition. The live pipeline and the rebuild
 // both call this, so "rebuild equals stored" holds by construction.
-export function tripDetailFromState(state: TripState, createdAt: string): TripDetail {
+export function tripDetailFromState(
+  state: TripState,
+  createdAt: string,
+  ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
+): TripDetail {
+  const dayDates = deriveDayDates(state.startDate, state.days.length);
   return {
     tripId: state.tripId,
     name: state.name,
     startDate: state.startDate,
     members: state.members,
-    days: state.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
+    days: state.days.map((d, i) => ({ dayId: d.dayId, activityIds: [...d.activityIds], date: dayDates[i]! })),
     backlog: [...state.backlog],
     activities: Object.fromEntries(
       Object.entries(state.activities).map(([id, a]) => [
@@ -22,16 +28,20 @@ export function tripDetailFromState(state: TripState, createdAt: string): TripDe
           timeWindow: a.timeWindow,
           location: a.location,
           notes: a.notes,
+          anchors: a.anchors,
         },
       ]),
     ),
-    conflicts: detectConflicts(state),
+    conflicts: detectConflicts(state, ctx),
     dismissedConflictIds: [...state.dismissedConflictIds],
     createdAt,
   };
 }
 
-export function projectTripDetails(envelopes: EventEnvelope[]): TripDetail[] {
+export function projectTripDetails(
+  envelopes: EventEnvelope[],
+  ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
+): TripDetail[] {
   const streams = new Map<string, { state: TripState | null; createdAt: string }>();
   for (const env of envelopes) {
     const event = TripEvent.parse({ type: env.type, version: env.version, payload: env.payload });
@@ -41,7 +51,7 @@ export function projectTripDetails(envelopes: EventEnvelope[]): TripDetail[] {
   }
   const details: TripDetail[] = [];
   for (const { state, createdAt } of streams.values()) {
-    if (state !== null) details.push(tripDetailFromState(state, createdAt));
+    if (state !== null) details.push(tripDetailFromState(state, createdAt, ctx));
   }
   return details;
 }

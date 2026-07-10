@@ -1,10 +1,48 @@
-import type { Conflict, TimeWindow } from "@tc/contracts";
+import type { Anchor, Conflict, TimeWindow } from "@tc/contracts";
 import type { TripState } from "./state";
+import { deriveDayDates } from "./dates";
+import { anchorKey } from "./equality";
 
 // Same-day activities further apart than this are flagged as impossible
 // geography. Deliberately crude in M1 — travel-time/gap math belongs with
 // real dates in M3.
 export const GEO_INFEASIBLE_KM = 150;
+
+// Facts the pure engine cannot compute itself, injected by the caller (ADR-006).
+export type ConflictContext = {
+  isPublicHoliday: (countryCode: string, isoDate: string) => boolean;
+  timezone: string;
+};
+
+// M3 default = the inert stub. `isPublicHoliday: () => true` means a
+// publicHoliday anchor is ALWAYS satisfied (never a conflict). The rule really
+// calls the oracle, so wiring `date-holidays` later is a one-line swap.
+export const DEFAULT_CONFLICT_CONTEXT: ConflictContext = {
+  isPublicHoliday: () => true,
+  timezone: "America/Los_Angeles",
+};
+
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+// Weekday of a YYYY-MM-DD as a pure calendar fact (explicit UTC components — not
+// a wall-clock read; timezone-independent for a plain date).
+function weekdayOf(iso: string): (typeof WEEKDAYS)[number] {
+  const [y, m, d] = iso.split("-").map(Number);
+  return WEEKDAYS[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()]!;
+}
+
+function anchorViolated(anchor: Anchor, date: string | null, tw: TimeWindow | null, ctx: ConflictContext): boolean {
+  switch (anchor.kind) {
+    case "dayOfWeek":
+      return date !== null && !anchor.days.includes(weekdayOf(date));
+    case "dateRange":
+      return date !== null && (date < anchor.from || date > anchor.to);
+    case "timeOfDay":
+      return tw !== null && !(anchor.window.start <= tw.start && tw.end <= anchor.window.end);
+    case "publicHoliday":
+      return date !== null && !ctx.isPublicHoliday(anchor.country, date);
+  }
+}
 
 export function windowsOverlap(a: TimeWindow, b: TimeWindow): boolean {
   // HH:mm strings compare correctly as strings
@@ -25,9 +63,9 @@ export function haversineKm(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-type Rule = (state: TripState) => Conflict[];
+type Rule = (state: TripState, ctx: ConflictContext) => Conflict[];
 
-const timeOverlapRule: Rule = (state) => {
+const timeOverlapRule: Rule = (state, _ctx) => {
   const conflicts: Conflict[] = [];
   for (const day of state.days) {
     const timed: { id: string; title: string; window: TimeWindow }[] = [];
@@ -61,7 +99,7 @@ const timeOverlapRule: Rule = (state) => {
   return conflicts;
 };
 
-const geographyRule: Rule = (state) => {
+const geographyRule: Rule = (state, _ctx) => {
   const conflicts: Conflict[] = [];
   for (const day of state.days) {
     const located: { id: string; title: string; place: string; lat: number; lng: number }[] = [];
@@ -103,11 +141,34 @@ const geographyRule: Rule = (state) => {
   return conflicts;
 };
 
+const anchorRule: Rule = (state, ctx) => {
+  const conflicts: Conflict[] = [];
+  const dayDates = deriveDayDates(state.startDate, state.days.length);
+  const dateOf = new Map<string, string | null>();       // activityId → derived date (null = backlog/undated)
+  state.days.forEach((day, i) => day.activityIds.forEach((id) => dateOf.set(id, dayDates[i]!)));
+  for (const [id, activity] of Object.entries(state.activities)) {
+    const date = dateOf.get(id) ?? null;
+    for (const anchor of activity.anchors) {
+      if (!anchorViolated(anchor, date, activity.timeWindow, ctx)) continue;
+      const where = date ? `${date}` : "an unscheduled slot";
+      conflicts.push({
+        id: `anchor-violation:${id}:${anchorKey(anchor)}`,
+        kind: "anchor-violation",
+        severity: "warn",
+        subjects: [id],
+        description: `"${activity.title}" has an anchor its current placement (${where}) does not satisfy.`,
+        resolutions: ["Shift the trip's dates", "Move the activity to a different day", "Edit or remove the anchor"],
+      });
+    }
+  }
+  return conflicts;
+};
+
 // Rules are registered here; each is pure and individually testable
 // (docs/guidelines/building-the-parts.md). Sorted output keeps the
 // projection deterministic for the golden rebuild test.
-const rules: Rule[] = [timeOverlapRule, geographyRule];
+const rules: Rule[] = [timeOverlapRule, geographyRule, anchorRule];
 
-export function detectConflicts(state: TripState): Conflict[] {
-  return rules.flatMap((rule) => rule(state)).sort((a, b) => a.id.localeCompare(b.id));
+export function detectConflicts(state: TripState, ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT): Conflict[] {
+  return rules.flatMap((rule) => rule(state, ctx)).sort((a, b) => a.id.localeCompare(b.id));
 }

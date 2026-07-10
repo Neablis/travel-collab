@@ -1,6 +1,7 @@
 import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
 import { eq } from "drizzle-orm";
+import { serverConflictContext } from "./conflictContext";
 import { db, type Db } from "./db/client";
 import { tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
@@ -53,7 +54,7 @@ export async function rebuildProjections(): Promise<void> {
     for (const s of summaries) {
       await tx.insert(tripSummaries).values(s);
     }
-    const details = projectTripDetails(envelopes);
+    const details = projectTripDetails(envelopes, serverConflictContext());
     await tx.delete(tripDetails);
     for (const d of details) {
       await tx.insert(tripDetails).values({ tripId: d.tripId, doc: d });

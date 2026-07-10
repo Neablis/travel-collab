@@ -25,7 +25,7 @@ const base = fold([
 const withActivity = evolveTrip(base, {
   type: "ActivityAdded",
   version: 1,
-  payload: { tripId: TRIP, activityId: ACT, dayId: null, title: "Colosseum", timeWindow: null, location: null, notes: null },
+  payload: { tripId: TRIP, activityId: ACT, dayId: null, title: "Colosseum", timeWindow: null, location: null, notes: null, anchors: [] },
 });
 
 describe("decideTripCommand", () => {
@@ -70,7 +70,7 @@ describe("decideTripCommand", () => {
       {
         type: "ActivityAdded",
         version: 1,
-        payload: { tripId: TRIP, activityId: ACT, dayId: null, title: "Colosseum", timeWindow: null, location: null, notes: null },
+        payload: { tripId: TRIP, activityId: ACT, dayId: null, title: "Colosseum", timeWindow: null, location: null, notes: null, anchors: [] },
       },
     ]);
   });
@@ -86,7 +86,7 @@ describe("decideTripCommand", () => {
     const timed = evolveTrip(withActivity, {
       type: "ActivityUpdated",
       version: 1,
-      payload: { tripId: TRIP, activityId: ACT, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null },
+      payload: { tripId: TRIP, activityId: ACT, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [] },
     });
     const decision = run(timed, { type: "UpdateActivity", tripId: TRIP, activityId: ACT, notes: "book ahead" });
     if (!decision.ok) throw new Error("expected ok");
@@ -101,6 +101,7 @@ describe("decideTripCommand", () => {
           timeWindow: { start: "09:00", end: "11:00" }, // kept (omitted)
           location: null,
           notes: "book ahead",
+          anchors: [], // kept (omitted)
         },
       },
     ]);

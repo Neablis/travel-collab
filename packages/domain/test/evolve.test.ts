@@ -31,6 +31,7 @@ const addActivity: TripEvent = {
     timeWindow: { start: "09:00", end: "11:00" },
     location: null,
     notes: null,
+    anchors: [],
   },
 };
 
@@ -69,6 +70,7 @@ describe("evolveTrip (M1 events)", () => {
       timeWindow: { start: "09:00", end: "11:00" },
       location: null,
       notes: null,
+      anchors: [],
     });
   });
 
@@ -89,7 +91,7 @@ describe("evolveTrip (M1 events)", () => {
       {
         type: "ActivityUpdated",
         version: 1,
-        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead" },
+        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead", anchors: [] },
       },
     ]);
     expect(state.activities[ACT]).toEqual({
@@ -97,6 +99,7 @@ describe("evolveTrip (M1 events)", () => {
       timeWindow: null,
       location: null,
       notes: "book ahead",
+      anchors: [],
     });
   });
 

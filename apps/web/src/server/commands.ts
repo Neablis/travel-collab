@@ -5,6 +5,7 @@ import {
   foldEnvelopes,
   tripDetailFromState,
 } from "@tc/domain";
+import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
 import { appendToStream, readStream } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
@@ -81,7 +82,7 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
     if (nextState === null) throw new Error("state cannot be null after an accepted command");
     const firstEnvelope = history[0] ?? appended.envelopes[0];
     if (firstEnvelope === undefined) throw new Error("append returned no envelopes");
-    await upsertTripDetail(tx, tripDetailFromState(nextState, firstEnvelope.occurredAt));
+    await upsertTripDetail(tx, tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext()));
 
     return { ok: true, tripId: command.tripId };
   });
