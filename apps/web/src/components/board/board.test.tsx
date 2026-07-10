@@ -87,6 +87,7 @@ describe("Board", () => {
       timeWindow: null,
       location: null,
       notes: null,
+      anchors: [],
     });
   });
 });
