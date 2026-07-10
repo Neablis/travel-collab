@@ -33,6 +33,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           timeWindow: a.window ?? null,
           location: a.point ? { name: a.point.name, lat: a.point.lat, lng: a.point.lng } : null,
           notes: null,
+          anchors: [],
         },
       ]),
     ),

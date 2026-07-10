@@ -1,10 +1,11 @@
-import type { Location, TimeWindow, TripMember } from "@tc/contracts";
+import type { Anchor, Location, TimeWindow, TripMember } from "@tc/contracts";
 
 export type ActivityState = {
   title: string;
   timeWindow: TimeWindow | null;
   location: Location | null;
   notes: string | null;
+  anchors: Anchor[];
 };
 
 export type DayState = {

@@ -79,6 +79,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           timeWindow: a.timeWindow,
           location: a.location,
           notes: a.notes,
+          anchors: a.anchors,
         },
       });
     }
@@ -98,6 +99,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           timeWindow: a.timeWindow,
           location: a.location,
           notes: a.notes,
+          anchors: a.anchors,
         },
       });
     }

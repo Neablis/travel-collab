@@ -107,6 +107,7 @@ export function decideTripCommand(
             timeWindow: command.timeWindow ?? null,
             location: command.location ?? null,
             notes: command.notes ?? null,
+            anchors: command.anchors ?? [],
           },
         },
       ]);
@@ -128,6 +129,7 @@ export function decideTripCommand(
             timeWindow: command.timeWindow === undefined ? current.timeWindow : command.timeWindow,
             location: command.location === undefined ? current.location : command.location,
             notes: command.notes === undefined ? current.notes : command.notes,
+            anchors: command.anchors === undefined ? current.anchors : command.anchors,
           },
         },
       ]);

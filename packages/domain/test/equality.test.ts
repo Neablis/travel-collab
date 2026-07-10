@@ -9,7 +9,7 @@ const base: TripState = {
   days: [{ dayId: "7d9a1f8e-0000-4000-8000-00000000000d", activityIds: [] }],
   backlog: ["7d9a1f8e-0000-4000-8000-0000000000a1"],
   activities: {
-    "7d9a1f8e-0000-4000-8000-0000000000a1": { title: "Colosseum", timeWindow: null, location: null, notes: null },
+    "7d9a1f8e-0000-4000-8000-0000000000a1": { title: "Colosseum", timeWindow: null, location: null, notes: null, anchors: [] },
   },
   dismissedConflictIds: [],
 };
@@ -21,7 +21,7 @@ describe("tripStatesEqual", () => {
       backlog: [...base.backlog, "7d9a1f8e-0000-4000-8000-0000000000a2"],
       activities: {
         ...base.activities,
-        "7d9a1f8e-0000-4000-8000-0000000000a2": { title: "Vatican", timeWindow: null, location: null, notes: null },
+        "7d9a1f8e-0000-4000-8000-0000000000a2": { title: "Vatican", timeWindow: null, location: null, notes: null, anchors: [] },
       },
     };
     const reversedKeys = {

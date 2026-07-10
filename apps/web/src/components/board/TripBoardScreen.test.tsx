@@ -39,7 +39,7 @@ describe("TripBoardScreen", () => {
     const pastFixture = tripDetailFixture({
       backlog: [ancientId],
       activities: {
-        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null },
+        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [] },
       },
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();

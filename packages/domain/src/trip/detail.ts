@@ -24,6 +24,7 @@ export function tripDetailFromState(state: TripState, createdAt: string): TripDe
           timeWindow: a.timeWindow,
           location: a.location,
           notes: a.notes,
+          anchors: a.anchors,
         },
       ]),
     ),

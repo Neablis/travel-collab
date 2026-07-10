@@ -9,10 +9,10 @@ const DAY = "33333333-3333-4333-8333-333333333333";
 
 function fixture() {
   return tripDetailFixture({
-    days: [{ dayId: DAY, activityIds: [A1, A2] }],
+    days: [{ dayId: DAY, activityIds: [A1, A2], date: null }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null },
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null },
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [] },
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [] },
     },
     conflicts: [
       {
