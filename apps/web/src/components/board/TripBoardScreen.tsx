@@ -158,6 +158,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 timeWindow: value.timeWindow ?? undefined,
                 location: value.location ?? undefined,
                 notes: value.notes ?? undefined,
+                anchors: value.anchors,
               }),
             onUpdateActivity: (activityId, value) =>
               void dispatch({
@@ -168,6 +169,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 timeWindow: value.timeWindow,
                 location: value.location,
                 notes: value.notes,
+                anchors: value.anchors,
               }),
             onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
             onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
