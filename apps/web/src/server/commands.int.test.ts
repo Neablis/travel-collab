@@ -89,8 +89,8 @@ describe("executeTripCommand", () => {
 
     let detail = await getTripDetail(tripId);
     expect(detail?.days).toEqual([
-      { dayId: dayA, activityIds: [colosseum, vatican], date: null },
-      { dayId: dayB, activityIds: [], date: null },
+      { dayId: dayA, activityIds: [colosseum, vatican], date: null, costSubtotal: 0 },
+      { dayId: dayB, activityIds: [], date: null, costSubtotal: 0 },
     ]);
     expect(detail?.conflicts).toHaveLength(1);
     expect(detail?.conflicts[0]).toMatchObject({

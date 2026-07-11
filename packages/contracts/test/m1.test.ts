@@ -79,8 +79,10 @@ describe("M1 contracts", () => {
       tripId: TRIP,
       name: "Rome 2027",
       startDate: "2027-05-01",
+      currency: "USD",
+      budget: null,
       members: [{ userId: "dev-alice", role: "owner" }],
-      days: [{ dayId: DAY, activityIds: [ACT], date: "2027-05-01" }],
+      days: [{ dayId: DAY, activityIds: [ACT], date: "2027-05-01", costSubtotal: 0 }],
       backlog: [],
       activities: {
         [ACT]: {
@@ -90,11 +92,15 @@ describe("M1 contracts", () => {
           location: { name: "Rome", lat: 41.9, lng: 12.5 },
           notes: null,
           anchors: [],
+          cost: null,
         },
       },
       conflicts: [],
       dismissedConflictIds: [],
       createdAt: "2026-07-08T12:00:00.000Z",
+      unscheduledCostSubtotal: 0,
+      tripCostTotal: 0,
+      budgetRemaining: null,
     });
     expect(detail.days[0]!.activityIds).toEqual([ACT]);
   });

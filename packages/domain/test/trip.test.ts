@@ -27,6 +27,8 @@ describe("decideCreateTrip", () => {
       backlog: [],
       activities: {},
       dismissedConflictIds: [],
+      currency: "USD",
+      budget: null,
     };
     const decision = decideCreateTrip(existing, cmd, { actorId: "user-1" });
     expect(decision).toEqual({
@@ -55,6 +57,8 @@ describe("evolveTrip", () => {
       backlog: [],
       activities: {},
       dismissedConflictIds: [],
+      currency: "USD",
+      budget: null,
     });
   });
 });

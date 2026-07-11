@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Money } from "./money";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -52,6 +53,7 @@ export const AddActivity = z.object({
   location: Location.optional(),
   notes: z.string().max(2000).optional(),
   anchors: z.array(Anchor).optional(),
+  cost: Money.optional(), // omitted = no cost
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -65,6 +67,7 @@ export const UpdateActivity = z.object({
   location: Location.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   anchors: z.array(Anchor).optional(),
+  cost: Money.nullable().optional(), // omitted = unchanged, null = cleared
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
 
@@ -98,6 +101,7 @@ export const ActivityAddedV1 = z.object({
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
     anchors: z.array(Anchor).default([]),
+    cost: Money.nullable().default(null),
   }),
 });
 export type ActivityAddedV1 = z.infer<typeof ActivityAddedV1>;
@@ -114,6 +118,7 @@ export const ActivityUpdatedV1 = z.object({
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
     anchors: z.array(Anchor).default([]),
+    cost: Money.nullable().default(null),
   }),
 });
 export type ActivityUpdatedV1 = z.infer<typeof ActivityUpdatedV1>;

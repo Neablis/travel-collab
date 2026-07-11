@@ -49,7 +49,8 @@ export function calendarCells(detail: TripDetail): CalendarCell[] {
   if (detail.startDate === null) return [];
 
   const tripDays = detail.days.filter(
-    (day): day is { dayId: string; activityIds: string[]; date: string } => day.date !== null,
+    (day): day is { dayId: string; activityIds: string[]; date: string; costSubtotal: number } =>
+      day.date !== null,
   );
   if (tripDays.length === 0) return [];
 

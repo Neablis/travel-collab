@@ -76,11 +76,11 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- clear the date: date-based anchors go dormant --
-  await page.getByRole("button", { name: "Clear" }).click();
+  await page.getByRole("button", { name: "Clear dates" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- undo the shift: dates and the conflict return --
-  // The "Clear" click and the date shift are each their own change; two undos
+  // The "Clear dates" click and the date shift are each their own change; two undos
   // get back to the pre-shift (Saturday) state where the anchor is violated.
   // Wait for each undo's command POST to resolve before firing the next one —
   // undo is an ordinary optimistic-concurrency-checked command, and firing

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { ActivityView, Anchor, Location, TimeWindow } from "@tc/contracts";
+import type { ActivityView, Anchor, Location, Money, TimeWindow } from "@tc/contracts";
 import { AnchorEditor } from "./AnchorEditor";
 import { LocationInput } from "./LocationInput";
+import { MoneyInput } from "./MoneyInput";
 
 export type ActivityFormValue = {
   title: string;
@@ -11,14 +12,17 @@ export type ActivityFormValue = {
   location: Location | null;
   notes: string | null;
   anchors: Anchor[];
+  cost: Money | null;
 };
 
 export function ActivityEditor({
   initial,
+  tripCurrency = "USD",
   onSave,
   onCancel,
 }: {
   initial: ActivityView | null;
+  tripCurrency?: string;
   onSave: (value: ActivityFormValue) => void;
   onCancel: () => void;
 }) {
@@ -28,6 +32,7 @@ export function ActivityEditor({
   const [location, setLocation] = useState<Location | null>(initial?.location ?? null);
   const [anchors, setAnchors] = useState<Anchor[]>(initial?.anchors ?? []);
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   const [error, setError] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
@@ -42,6 +47,7 @@ export function ActivityEditor({
       location,
       notes: notes.trim() !== "" ? notes.trim() : null,
       anchors,
+      cost,
     });
   }
 
@@ -54,6 +60,7 @@ export function ActivityEditor({
       </div>
       <LocationInput value={location} onChange={setLocation} />
       <AnchorEditor value={anchors} onChange={setAnchors} />
+      <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
       <textarea aria-label="Notes" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
       {error !== null && <p role="alert">{error}</p>}
       <div style={{ display: "flex", gap: 6 }}>

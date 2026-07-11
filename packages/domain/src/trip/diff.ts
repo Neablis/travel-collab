@@ -1,5 +1,5 @@
 import type { TripEvent } from "@tc/contracts";
-import { tripStatesEqual, activityStatesEqual } from "./equality";
+import { tripStatesEqual, activityStatesEqual, moneyEqual } from "./equality";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
 
@@ -30,6 +30,12 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
       version: 1,
       payload: { tripId: target.tripId, startDate: target.startDate },
     });
+  }
+  if (working.currency !== target.currency) {
+    push({ type: "TripCurrencySet", version: 1, payload: { tripId: target.tripId, currency: target.currency } });
+  }
+  if (!moneyEqual(working.budget, target.budget)) {
+    push({ type: "TripBudgetSet", version: 1, payload: { tripId: target.tripId, budget: target.budget } });
   }
 
   // 2. Activities that no longer exist in the target.
@@ -80,6 +86,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          cost: a.cost,
         },
       });
     }
@@ -100,6 +107,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          cost: a.cost,
         },
       });
     }

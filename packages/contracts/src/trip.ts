@@ -17,6 +17,7 @@ import {
   RevertToState,
   UndoLastChange,
 } from "./history";
+import { Money } from "./money";
 
 export const CreateTrip = z.object({
   type: z.literal("CreateTrip"),
@@ -82,6 +83,34 @@ export const TripStartDateSetV1 = z.object({
 });
 export type TripStartDateSetV1 = z.infer<typeof TripStartDateSetV1>;
 
+export const SetTripCurrency = z.object({
+  type: z.literal("SetTripCurrency"),
+  tripId: z.string().uuid(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+});
+export type SetTripCurrency = z.infer<typeof SetTripCurrency>;
+
+export const TripCurrencySetV1 = z.object({
+  type: z.literal("TripCurrencySet"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().uuid(), currency: z.string().regex(/^[A-Z]{3}$/) }),
+});
+export type TripCurrencySetV1 = z.infer<typeof TripCurrencySetV1>;
+
+export const SetTripBudget = z.object({
+  type: z.literal("SetTripBudget"),
+  tripId: z.string().uuid(),
+  budget: Money.nullable(), // null clears
+});
+export type SetTripBudget = z.infer<typeof SetTripBudget>;
+
+export const TripBudgetSetV1 = z.object({
+  type: z.literal("TripBudgetSet"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().uuid(), budget: Money.nullable() }),
+});
+export type TripBudgetSetV1 = z.infer<typeof TripBudgetSetV1>;
+
 export const TripEvent = z.discriminatedUnion("type", [
   TripCreatedV1,
   DayAddedV1,
@@ -93,6 +122,8 @@ export const TripEvent = z.discriminatedUnion("type", [
   ActivityRemovedV1,
   ConflictDismissedV1,
   ConflictUndismissedV1,
+  TripCurrencySetV1,
+  TripBudgetSetV1,
 ]);
 export type TripEvent = z.infer<typeof TripEvent>;
 
@@ -109,6 +140,8 @@ export const TripCommand = z.discriminatedUnion("type", [
   RedoChange,
   RevertToState,
   DismissConflict,
+  SetTripCurrency,
+  SetTripBudget,
 ]);
 export type TripCommand = z.infer<typeof TripCommand>;
 

@@ -13,35 +13,18 @@ import {
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { MapLens } from "@/components/lenses/MapLens";
 import { TimelineLens } from "@/components/lenses/TimelineLens";
+import { TripDateControl } from "@/components/lenses/TripDateControl";
+import { ItineraryLens } from "@/components/lenses/ItineraryLens";
+import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
+import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { HistoryPanel } from "./HistoryPanel";
+import { TripMoneySettings } from "./TripMoneySettings";
 import { UndoRedoControls } from "./UndoRedoControls";
 
-const LENSES = ["Board", "Map", "Timeline", "Calendar"] as const;
+const LENSES = ["Board", "Map", "Timeline", "Calendar", "Itinerary", "Daily", "Trip"] as const;
 type Lens = (typeof LENSES)[number];
-
-function StartDateControl({
-  startDate,
-  onSet,
-}: {
-  startDate: string | null;
-  onSet: (value: string | null) => void;
-}) {
-  return (
-    <p>
-      <label>
-        Start date:{" "}
-        <input
-          type="date"
-          value={startDate ?? ""}
-          onChange={(e) => onSet(e.target.value === "" ? null : e.target.value)}
-        />
-      </label>{" "}
-      {startDate !== null && <button onClick={() => onSet(null)}>Clear</button>}
-    </p>
-  );
-}
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -73,6 +56,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
+  const [pending, setPending] = useState(false);
 
   const openPreview = useCallback(
     async (seq: number) => {
@@ -95,11 +79,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const dispatch = useCallback(
     async (command: BoardCommand) => {
       setError(null);
-      const result = await sendTripCommand(command);
-      if (!result.ok) setError(result.error.message);
-      // Refetch either way: conflicts are data and may have changed shape.
-      await load();
-      exitPreview();
+      setPending(true);
+      try {
+        const result = await sendTripCommand(command);
+        if (!result.ok) setError(result.error.message);
+        // Refetch either way: conflicts are data and may have changed shape.
+        await load();
+        exitPreview();
+      } finally {
+        setPending(false);
+      }
     },
     [load, exitPreview],
   );
@@ -135,6 +124,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       location: value.location,
       notes: value.notes,
       anchors: value.anchors,
+      cost: value.cost,
     });
 
   return (
@@ -144,9 +134,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       </nav>
       <h1>{trip.name}</h1>
       {previewSeq === null && (
-        <StartDateControl
+        <TripDateControl
+          tripId={tripId}
           startDate={trip.startDate}
-          onSet={(startDate) => void dispatch({ type: "SetTripStartDate", tripId, startDate })}
+          onCommand={(command) => {
+            if (command.type !== "CreateTrip") void dispatch(command);
+          }}
+        />
+      )}
+      {previewSeq === null && (
+        <TripMoneySettings
+          tripId={tripId}
+          currency={trip.currency}
+          budget={trip.budget}
+          onCommand={(command) => {
+            if (command.type !== "CreateTrip") void dispatch(command);
+          }}
         />
       )}
       {previewSeq === null && (
@@ -155,6 +158,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           canRedo={history?.canRedo ?? false}
           onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
           onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+          isBusy={pending}
         />
       )}
       <HistoryPanel
@@ -197,6 +201,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   location: value.location ?? undefined,
                   notes: value.notes ?? undefined,
                   anchors: value.anchors,
+                  cost: value.cost ?? undefined,
                 }),
               onUpdateActivity: updateActivity,
               onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
@@ -207,18 +212,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
         {lens === "Timeline" && <TimelineLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
         {lens === "Calendar" && (
-          <CalendarLens
-            detail={activeTrip}
-            onCommand={(command) => {
-              if (command.type !== "CreateTrip") void dispatch(command);
-            }}
-            onSelectActivity={setEditingActivityId}
-          />
+          <CalendarLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
         )}
+        {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
+        {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
         {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
           <div style={{ marginTop: 12, maxWidth: 420 }}>
             <ActivityEditor
+              key={editingActivityId}
               initial={editingActivity}
+              tripCurrency={activeTrip.currency}
               onSave={(value) => {
                 updateActivity(editingActivityId, value);
                 setEditingActivityId(null);

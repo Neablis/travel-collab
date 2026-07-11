@@ -175,6 +175,12 @@ function describeEvent(state: TripState | null, event: TripEvent): string {
       return event.payload.startDate === null
         ? "Cleared the start date"
         : `Set the start date to ${event.payload.startDate}`;
+    case "TripCurrencySet":
+      return `Set the trip currency to ${event.payload.currency}`;
+    case "TripBudgetSet":
+      return event.payload.budget === null
+        ? "Cleared the budget"
+        : `Set the budget to ${(event.payload.budget.amountMinor / 100).toFixed(2)} ${event.payload.budget.currency}`;
     case "ActivityAdded":
       return `Added "${event.payload.title}" to ${
         event.payload.dayId === null ? "the backlog" : dayLabel(state, event.payload.dayId)

@@ -9,10 +9,10 @@ const DAY = "33333333-3333-4333-8333-333333333333";
 
 function fixture() {
   return tripDetailFixture({
-    days: [{ dayId: DAY, activityIds: [A1, A2], date: null }],
+    days: [{ dayId: DAY, activityIds: [A1, A2], date: null, costSubtotal: 0 }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [] },
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [] },
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], cost: null },
     },
     conflicts: [
       {
@@ -88,6 +88,19 @@ describe("Board", () => {
       location: null,
       notes: null,
       anchors: [],
+      cost: null,
     });
+  });
+
+  it("switching which activity is being edited resets the form, not the previous activity's stale fields", () => {
+    render(<Board trip={fixture()} callbacks={noopCallbacks()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Colosseum" }));
+    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Colosseum");
+
+    // Click Edit on a different activity without cancelling or saving first —
+    // the form must show Vatican Museums' fields, not Colosseum's leftover
+    // state (a missing `key` on ActivityEditor previously left it stale).
+    fireEvent.click(screen.getByRole("button", { name: "Edit Vatican Museums" }));
+    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Vatican Museums");
   });
 });
