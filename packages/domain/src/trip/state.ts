@@ -1,4 +1,4 @@
-import type { Anchor, Location, TimeWindow, TripMember } from "@tc/contracts";
+import type { Anchor, Location, Money, TimeWindow, TripMember } from "@tc/contracts";
 
 export type ActivityState = {
   title: string;
@@ -6,6 +6,7 @@ export type ActivityState = {
   location: Location | null;
   notes: string | null;
   anchors: Anchor[];
+  cost: Money | null;
 };
 
 export type DayState = {
@@ -22,4 +23,6 @@ export type TripState = {
   backlog: string[]; // ordered activityIds without a day
   activities: Record<string, ActivityState>;
   dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
+  currency: string; // ISO-4217; defaults to "USD"
+  budget: Money | null; // defaults to null
 };

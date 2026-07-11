@@ -1,5 +1,10 @@
-import type { Anchor } from "@tc/contracts";
+import type { Anchor, Money } from "@tc/contracts";
 import type { ActivityState, DayState, TripState } from "./state";
+
+export function moneyEqual(a: Money | null, b: Money | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.amountMinor === b.amountMinor && a.currency === b.currency;
+}
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
@@ -31,7 +36,8 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     (a.location === null) === (b.location === null) &&
     (a.location === null ||
       (a.location.name === b.location!.name && a.location.lat === b.location!.lat && a.location.lng === b.location!.lng)) &&
-    sameAnchors(a.anchors, b.anchors)
+    sameAnchors(a.anchors, b.anchors) &&
+    moneyEqual(a.cost, b.cost)
   );
 }
 
@@ -48,6 +54,7 @@ function daysEqual(a: readonly DayState[], b: readonly DayState[]): boolean {
 // compared in order.
 export function tripStatesEqual(a: TripState, b: TripState): boolean {
   if (a.tripId !== b.tripId || a.name !== b.name || a.startDate !== b.startDate) return false;
+  if (a.currency !== b.currency || !moneyEqual(a.budget, b.budget)) return false;
   if (
     a.members.length !== b.members.length ||
     !a.members.every((m, i) => m.userId === b.members[i]!.userId && m.role === b.members[i]!.role)

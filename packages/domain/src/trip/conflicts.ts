@@ -2,6 +2,13 @@ import type { Anchor, Conflict, TimeWindow } from "@tc/contracts";
 import type { TripState } from "./state";
 import { deriveDayDates } from "./dates";
 import { anchorKey } from "./equality";
+import { rollupCosts } from "./costs";
+
+// 2-decimal display formatter (ADR-008 M4 simplification); pure and deterministic
+// so the stored conflict description reproduces under the golden rebuild.
+function fmt(minor: number, currency: string): string {
+  return `${(minor / 100).toFixed(2)} ${currency}`;
+}
 
 // Same-day activities further apart than this are flagged as impossible
 // geography. Deliberately crude in M1 — travel-time/gap math belongs with
@@ -164,10 +171,24 @@ const anchorRule: Rule = (state, ctx) => {
   return conflicts;
 };
 
+const budgetRule: Rule = (state, _ctx) => {
+  if (state.budget === null) return [];
+  const { tripCostTotal } = rollupCosts(state);
+  if (tripCostTotal <= state.budget.amountMinor) return [];
+  return [{
+    id: `over-budget:${state.tripId}`,
+    kind: "over-budget",
+    severity: "warn",
+    subjects: [state.tripId],
+    description: `Trip total (${fmt(tripCostTotal, state.currency)}) exceeds the budget (${fmt(state.budget.amountMinor, state.currency)}) by ${fmt(tripCostTotal - state.budget.amountMinor, state.currency)}.`,
+    resolutions: ["Raise the budget", "Remove or reduce a cost"],
+  }];
+};
+
 // Rules are registered here; each is pure and individually testable
 // (docs/guidelines/building-the-parts.md). Sorted output keeps the
 // projection deterministic for the golden rebuild test.
-const rules: Rule[] = [timeOverlapRule, geographyRule, anchorRule];
+const rules: Rule[] = [timeOverlapRule, geographyRule, anchorRule, budgetRule];
 
 export function detectConflicts(state: TripState, ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT): Conflict[] {
   return rules.flatMap((rule) => rule(state, ctx)).sort((a, b) => a.id.localeCompare(b.id));

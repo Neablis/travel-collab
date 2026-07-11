@@ -29,6 +29,8 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       backlog: [],
       activities: {},
       dismissedConflictIds: [],
+      currency: "USD",
+      budget: null,
     };
   }
 
@@ -53,13 +55,17 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     }
     case "TripStartDateSet":
       return { ...state, startDate: event.payload.startDate };
+    case "TripCurrencySet":
+      return { ...state, currency: event.payload.currency };
+    case "TripBudgetSet":
+      return { ...state, budget: event.payload.budget };
     case "ActivityAdded": {
-      const { activityId, dayId, title, timeWindow, location, notes, anchors } = event.payload;
+      const { activityId, dayId, title, timeWindow, location, notes, anchors, cost } = event.payload;
       const next: TripState = {
         ...state,
         activities: {
           ...state.activities,
-          [activityId]: { title, timeWindow, location, notes, anchors },
+          [activityId]: { title, timeWindow, location, notes, anchors, cost },
         },
       };
       if (dayId === null) return { ...next, backlog: [...next.backlog, activityId] };
@@ -71,10 +77,10 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       };
     }
     case "ActivityUpdated": {
-      const { activityId, title, timeWindow, location, notes, anchors } = event.payload;
+      const { activityId, title, timeWindow, location, notes, anchors, cost } = event.payload;
       return {
         ...state,
-        activities: { ...state.activities, [activityId]: { title, timeWindow, location, notes, anchors } },
+        activities: { ...state.activities, [activityId]: { title, timeWindow, location, notes, anchors, cost } },
       };
     }
     case "ActivityMoved": {

@@ -27,13 +27,16 @@ const ANCHORS: (Anchor[] | undefined)[] = [
   [{ kind: "timeOfDay", window: { start: "08:00", end: "13:00" } }],
   [],
 ];
+const COSTS = [undefined, null, { amountMinor: 1000, currency: "USD" }, { amountMinor: 250_00, currency: "USD" }] as const;
+const CURRENCIES = ["USD", "EUR", "GBP"] as const;
+const BUDGETS = [undefined, null, { amountMinor: 100_00, currency: "USD" }, { amountMinor: 500_00, currency: "USD" }] as const;
 
 // One raw op = a tuple of small integers the builder interprets against the
 // CURRENT state, so most generated commands are valid; invalid ones are
 // simply skipped (decide rejects them — including no-ops).
 type RawOp = { op: number; a: number; b: number; c: number };
 const rawOp = fc.record({
-  op: fc.integer({ min: 0, max: 7 }),
+  op: fc.integer({ min: 0, max: 9 }),
   a: fc.integer({ min: 0, max: 4 }),
   b: fc.integer({ min: 0, max: 4 }),
   c: fc.integer({ min: 0, max: 5 }),
@@ -60,6 +63,7 @@ function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
         timeWindow: WINDOWS[raw.b % WINDOWS.length] ?? undefined,
         location: LOCATIONS[raw.c % LOCATIONS.length] ?? undefined,
         anchors: ANCHORS[raw.c % ANCHORS.length],
+        cost: COSTS[raw.c % COSTS.length] ?? undefined,
       };
     case 4:
       return activity
@@ -70,6 +74,7 @@ function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
             title: `Renamed ${raw.b}`,
             timeWindow: WINDOWS[raw.c % WINDOWS.length],
             anchors: ANCHORS[raw.b % ANCHORS.length],
+            cost: COSTS[raw.b % COSTS.length],
           }
         : null;
     case 5:
@@ -89,6 +94,10 @@ function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
       const target = live[raw.a % Math.max(1, live.length)];
       return target ? { type: "DismissConflict", tripId: TRIP, conflictId: target.id } : null;
     }
+    case 8:
+      return { type: "SetTripCurrency", tripId: TRIP, currency: CURRENCIES[raw.b % CURRENCIES.length]! };
+    case 9:
+      return { type: "SetTripBudget", tripId: TRIP, budget: BUDGETS[raw.b % BUDGETS.length] ?? null };
     default:
       return null;
   }
