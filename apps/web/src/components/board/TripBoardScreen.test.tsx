@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
-import { historyFixture, tripDetailFixture } from "@/mocks/fixtures";
+import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
 
 const server = setupServer();
@@ -161,5 +162,60 @@ describe("TripBoardScreen", () => {
     fireEvent.change(dateInput, { target: { value: "2027-06-08" } });
 
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
+  });
+
+  it("switches to the Itinerary, Daily, and Trip lenses", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    render(<TripBoardScreen tripId={fixture.tripId} />);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Itinerary" }));
+    expect(await screen.findByTestId("itinerary-lens")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Daily" }));
+    expect(await screen.findByTestId("daily-overview-lens")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Trip" }));
+    expect(await screen.findByRole("region", { name: "Full trip overview" })).toBeTruthy();
+  });
+
+  it("posts a SetTripBudget command from TripMoneySettings", async () => {
+    const fixture = tripDetailFixture();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    render(<TripBoardScreen tripId={fixture.tripId} />);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    await userEvent.type(screen.getByLabelText(/cost|budget/i), "500");
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripBudget", tripId: fixture.tripId }),
+      ),
+    );
+  });
+
+  it("shows the over-budget warning in the conflict banner", async () => {
+    const fixture = tripDetailFixture({
+      budget: { amountMinor: 1000, currency: "USD" },
+      tripCostTotal: 5000,
+      budgetRemaining: -4000,
+      conflicts: [
+        {
+          id: "over-budget:trip",
+          kind: "over-budget",
+          severity: "warn",
+          subjects: [],
+          description: "Trip total (50.00 USD) exceeds the budget (10.00 USD) by 40.00 USD.",
+          resolutions: ["Raise the budget", "Remove or reduce a cost"],
+        },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    render(<TripBoardScreen tripId={fixture.tripId} />);
+
+    expect(await screen.findByText(/exceeds the budget/)).toBeTruthy();
   });
 });

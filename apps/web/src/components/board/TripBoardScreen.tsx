@@ -14,12 +14,16 @@ import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { MapLens } from "@/components/lenses/MapLens";
 import { TimelineLens } from "@/components/lenses/TimelineLens";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
+import { ItineraryLens } from "@/components/lenses/ItineraryLens";
+import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
+import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { HistoryPanel } from "./HistoryPanel";
+import { TripMoneySettings } from "./TripMoneySettings";
 import { UndoRedoControls } from "./UndoRedoControls";
 
-const LENSES = ["Board", "Map", "Timeline", "Calendar"] as const;
+const LENSES = ["Board", "Map", "Timeline", "Calendar", "Itinerary", "Daily", "Trip"] as const;
 type Lens = (typeof LENSES)[number];
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
@@ -139,6 +143,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         />
       )}
       {previewSeq === null && (
+        <TripMoneySettings
+          tripId={tripId}
+          currency={trip.currency}
+          budget={trip.budget}
+          onCommand={(command) => {
+            if (command.type !== "CreateTrip") void dispatch(command);
+          }}
+        />
+      )}
+      {previewSeq === null && (
         <UndoRedoControls
           canUndo={history?.canUndo ?? false}
           canRedo={history?.canRedo ?? false}
@@ -200,6 +214,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         {lens === "Calendar" && (
           <CalendarLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
         )}
+        {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
+        {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
         {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
           <div style={{ marginTop: 12, maxWidth: 420 }}>
             <ActivityEditor
