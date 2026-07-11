@@ -55,6 +55,10 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     }
     case "TripStartDateSet":
       return { ...state, startDate: event.payload.startDate };
+    case "TripCurrencySet":
+      return { ...state, currency: event.payload.currency };
+    case "TripBudgetSet":
+      return { ...state, budget: event.payload.budget };
     case "ActivityAdded": {
       const { activityId, dayId, title, timeWindow, location, notes, anchors, cost } = event.payload;
       const next: TripState = {

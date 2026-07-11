@@ -1,5 +1,6 @@
 import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
 import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, type ConflictContext } from "./conflicts";
+import { rollupCosts } from "./costs";
 import { deriveDayDates } from "./dates";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
@@ -12,12 +13,20 @@ export function tripDetailFromState(
   ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
 ): TripDetail {
   const dayDates = deriveDayDates(state.startDate, state.days.length);
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state);
   return {
     tripId: state.tripId,
     name: state.name,
     startDate: state.startDate,
+    currency: state.currency,
+    budget: state.budget,
     members: state.members,
-    days: state.days.map((d, i) => ({ dayId: d.dayId, activityIds: [...d.activityIds], date: dayDates[i]! })),
+    days: state.days.map((d, i) => ({
+      dayId: d.dayId,
+      activityIds: [...d.activityIds],
+      date: dayDates[i]!,
+      costSubtotal: dayCostSubtotals[i]!,
+    })),
     backlog: [...state.backlog],
     activities: Object.fromEntries(
       Object.entries(state.activities).map(([id, a]) => [
@@ -36,6 +45,9 @@ export function tripDetailFromState(
     conflicts: detectConflicts(state, ctx),
     dismissedConflictIds: [...state.dismissedConflictIds],
     createdAt,
+    unscheduledCostSubtotal,
+    tripCostTotal,
+    budgetRemaining: state.budget ? state.budget.amountMinor - tripCostTotal : null,
   };
 }
 

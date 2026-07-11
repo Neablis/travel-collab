@@ -88,6 +88,14 @@ export function decideTripCommand(
           payload: { tripId: command.tripId, startDate: command.startDate },
         },
       ]);
+    case "SetTripCurrency":
+      return okUnlessNoOp(state, [
+        { type: "TripCurrencySet", version: 1, payload: { tripId: command.tripId, currency: command.currency } },
+      ]);
+    case "SetTripBudget":
+      return okUnlessNoOp(state, [
+        { type: "TripBudgetSet", version: 1, payload: { tripId: command.tripId, budget: command.budget } },
+      ]);
     case "AddActivity": {
       if (state.activities[command.activityId] !== undefined) {
         return reject("activity-already-exists", "An activity with this id already exists.");
