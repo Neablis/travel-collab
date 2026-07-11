@@ -53,11 +53,12 @@ describe("M3 anchor + place/time contracts", () => {
 
   it("TripDetail day carries a nullable derived date and activity carries anchors", () => {
     const detail = {
-      tripId: TRIP, name: "Rome", startDate: "2026-10-12",
+      tripId: TRIP, name: "Rome", startDate: "2026-10-12", currency: "USD", budget: null,
       members: [{ userId: "u1", role: "owner" }],
-      days: [{ dayId: DAY, activityIds: [A1], date: "2026-10-12" }],
+      days: [{ dayId: DAY, activityIds: [A1], date: "2026-10-12", costSubtotal: 0 }],
       backlog: [], conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
-      activities: { [A1]: { activityId: A1, title: "Market", timeWindow: null, location: null, notes: null, anchors: [] } },
+      unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
+      activities: { [A1]: { activityId: A1, title: "Market", timeWindow: null, location: null, notes: null, anchors: [], cost: null } },
     };
     expect(TripDetail.parse(detail).days[0]!.date).toBe("2026-10-12");
   });

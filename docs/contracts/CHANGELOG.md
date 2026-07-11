@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-10 — M4 money & lenses schemas
+- Added: `Money` (integer minor units + ISO-4217 currency)
+- Added: `cost` on `AddActivity` (optional) / `UpdateActivity` (nullable, optional)
+  and on `ActivityAddedV1`/`ActivityUpdatedV1` payloads (`Money.nullable().default(null)`)
+- Added: commands `SetTripCurrency`, `SetTripBudget`; events `TripCurrencySetV1`,
+  `TripBudgetSetV1` (joined `TripCommand`/`TripEvent`)
+- Added: `ActivityView.cost`; `TripDetail.currency`, `.budget`, `.tripCostTotal`,
+  `.unscheduledCostSubtotal`, `.budgetRemaining`, `days[].costSubtotal`
+- Why: M4 — costs on activities, derived cost rollups, trip currency & budget,
+  over-budget conflict (ADR-008, ADR-009)
+- Consumers updated: `@tc/domain` (state/evolve/equality/diff/decide/costs/
+  conflicts/detail), `apps/web` (projection wiring, mocks, money editors, lenses)
+  — same PR
+- Breaking? no — event payload additions default (`cost` → null), so
+  `TripEvent.parse` accepts all previously stored events unchanged; DTO additions
+  are new required fields produced only by the updated projection
+
 ## 2026-07-09 — M3 place & time schemas
 - Added: `Weekday`, `Anchor` (union: dayOfWeek | dateRange | timeOfDay | publicHoliday)
 - Added: `anchors` on `AddActivity`/`UpdateActivity` (optional) and on
