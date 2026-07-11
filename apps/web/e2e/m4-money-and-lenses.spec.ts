@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 import { signInAsDevUser } from "./helpers";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
-  const tripName = `Lisbon ${Date.now()}`;
+  // Distinct prefix from other specs' trip names — see m3-place-and-time.spec.ts's
+  // comment for why parallel workers need this.
+  const tripName = `Porto ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
   await page.getByLabel("Trip name").fill(tripName);
