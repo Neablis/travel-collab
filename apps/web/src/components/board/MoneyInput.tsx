@@ -11,7 +11,7 @@ export function MoneyInput({ value, currency, onChange }: { value: Money | null;
       onChange={(e) => {
         const raw = e.target.value.trim();
         if (raw === "") return onChange(null);
-        const amountMinor = Math.round(Number(raw) * 100);
+        const amountMinor = Math.max(0, Math.round(Number(raw) * 100));
         onChange(Number.isFinite(amountMinor) ? { amountMinor, currency } : null);
       }}
     />

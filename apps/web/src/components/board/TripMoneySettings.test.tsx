@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TripMoneySettings } from "./TripMoneySettings";
+
+afterEach(cleanup);
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 
