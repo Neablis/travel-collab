@@ -41,7 +41,7 @@ Product drift:
 - Blocking modal errors for plan-consistency problems (violates
   conflicts-are-data).
 - A feature that only makes sense multi-user being built during Phase 1.
-- Solving merge/CRDT-shaped problems anywhere before M7 — that complexity is
+- Solving merge/CRDT-shaped problems anywhere before M8 — that complexity is
   quarantined by decision.
 
 ## Escalation protocol

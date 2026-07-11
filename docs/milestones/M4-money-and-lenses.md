@@ -96,7 +96,7 @@ for later); a currency-exponent map for non-2-decimal currencies (JPY/BHD); a
 first-class `Flight` or `CostItem` entity, itemized/multiple costs per activity,
 and an activity `kind`; per-cost currency pickers; cost categories/tags and
 category rollups; print CSS, PDF, and share-link export (output is on-screen only
-in M4); external calendar sync (M10); realtime (M7); trip rename/delete; styling
+in M4); external calendar sync (M11); realtime (M8); trip rename/delete; styling
 beyond functional defaults.
 
 ## Retro (2026-07-11)

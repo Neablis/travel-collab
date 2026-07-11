@@ -86,8 +86,8 @@ Plan: `docs/plans/2026-07-09-M3-place-and-time.md`
 `publicHoliday` live evaluation (inert stub; `date-holidays` wired later);
 per-activity IANA timezones and cross-zone / travel-time math (the M1 geography
 distance heuristic stays); arbitrary-day pinning / end-date-driven date ranges;
-geocoding autocomplete/typeahead; external calendar sync (M10); costs (M4);
-realtime (M7); trip rename/delete; styling beyond functional defaults.
+geocoding autocomplete/typeahead; external calendar sync (M11); costs (M4);
+realtime (M8); trip rename/delete; styling beyond functional defaults.
 
 ## Retro (2026-07-10)
 
