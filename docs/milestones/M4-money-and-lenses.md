@@ -200,6 +200,22 @@ is the clearest evidence in this milestone for why the final whole-branch
 review step is not redundant with per-task review — no single task's diff
 contained more than one of the three formatters.
 
+**Manual QA (post-PR) found one more real bug the automated gate didn't
+catch:** typing a multi-digit budget (e.g. "10000") could display a much
+smaller number than typed. `MoneyInput` dispatched a live `SetTripBudget`
+command on every keystroke with no debouncing — five concurrent async
+round-trips for five digits — and since those can resolve out of order, the
+displayed budget could snap back to an earlier, smaller keystroke's
+server-confirmed value instead of the final typed amount. No automated
+test caught this because none of them typed multi-digit numbers through
+real per-keystroke events fast enough to race (`userEvent.type` in the unit
+tests and `.fill()` in e2e both complete too quickly/atomically to expose
+it). Fixed by debouncing the commit (500ms) with an immediate flush on
+blur, so a typing burst collapses into one command. This is a case worth
+remembering for future money/live-dispatch inputs: **any input wired to
+fire a command per keystroke needs debouncing**, not just the specific one
+that got reported.
+
 **Debt parked for M5:** the trip budget `MoneyInput` and an open
 `ActivityEditor`'s cost `MoneyInput` share an identical accessible name
 (`cost (${currency})`) when both are visible, which is a real
