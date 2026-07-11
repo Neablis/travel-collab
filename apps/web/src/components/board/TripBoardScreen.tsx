@@ -133,7 +133,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         <TripDateControl
           tripId={tripId}
           startDate={trip.startDate}
-          onCommand={(command) => void dispatch(command)}
+          onCommand={(command) => {
+            if (command.type !== "CreateTrip") void dispatch(command);
+          }}
         />
       )}
       {previewSeq === null && (

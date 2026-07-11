@@ -7,11 +7,13 @@ const A2 = "7d9a1f8e-0000-4000-8000-0000000000a2";
 const DAY = "7d9a1f8e-0000-4000-8000-00000000000d";
 const detail: TripDetail = {
   tripId: "7d9a1f8e-0000-4000-8000-00000000000a", name: "Rome", startDate: "2026-10-12",
+  currency: "USD", budget: null,
   members: [{ userId: "u1", role: "owner" }],
-  days: [{ dayId: DAY, activityIds: [A1, A2], date: "2026-10-12" }], backlog: [],
+  days: [{ dayId: DAY, activityIds: [A1, A2], date: "2026-10-12", costSubtotal: 0 }], backlog: [],
+  unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: {
-    [A1]: { activityId: A1, title: "Museum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [] },
-    [A2]: { activityId: A2, title: "Wander", timeWindow: null, location: null, notes: null, anchors: [] },
+    [A1]: { activityId: A1, title: "Museum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
+    [A2]: { activityId: A2, title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
   },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
 };

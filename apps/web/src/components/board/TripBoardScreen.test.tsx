@@ -40,7 +40,7 @@ describe("TripBoardScreen", () => {
     const pastFixture = tripDetailFixture({
       backlog: [ancientId],
       activities: {
-        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [] },
+        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
       },
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();
@@ -114,7 +114,7 @@ describe("TripBoardScreen", () => {
 
     const withConflict = tripDetailFixture({
       startDate: "2027-06-07", // a Monday
-      days: [{ dayId, activityIds: [activityId], date: "2027-06-07" }],
+      days: [{ dayId, activityIds: [activityId], date: "2027-06-07", costSubtotal: 0 }],
       activities: {
         [activityId]: {
           activityId,
@@ -123,6 +123,7 @@ describe("TripBoardScreen", () => {
           location: null,
           notes: null,
           anchors: [{ kind: "dayOfWeek", days: ["tue", "wed"] }],
+          cost: null,
         },
       },
       conflicts: [
