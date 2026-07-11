@@ -94,6 +94,10 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     await screen.findByText("Set a start date to see the calendar.");
 
+    // M3 debt paydown: only the single canonical TripDateControl renders, not
+    // a duplicate (the old inline StartDateControl + CalendarLens's own copy).
+    expect(screen.getAllByLabelText("Start date")).toHaveLength(1);
+
     const dateInput = screen.getAllByLabelText("Start date")[0]!;
     fireEvent.change(dateInput, { target: { value: "2027-06-01" } });
 
@@ -152,7 +156,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Weekday Market")).toBeTruthy();
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
 
-    const dateInput = screen.getAllByLabelText("Start date:")[0]!;
+    const dateInput = screen.getAllByLabelText("Start date")[0]!;
     fireEvent.change(dateInput, { target: { value: "2027-06-08" } });
 
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
