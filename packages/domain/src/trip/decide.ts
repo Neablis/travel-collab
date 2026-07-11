@@ -108,6 +108,7 @@ export function decideTripCommand(
             location: command.location ?? null,
             notes: command.notes ?? null,
             anchors: command.anchors ?? [],
+            cost: command.cost ?? null,
           },
         },
       ]);
@@ -130,6 +131,7 @@ export function decideTripCommand(
             location: command.location === undefined ? current.location : command.location,
             notes: command.notes === undefined ? current.notes : command.notes,
             anchors: command.anchors === undefined ? current.anchors : command.anchors,
+            cost: command.cost === undefined ? current.cost : command.cost,
           },
         },
       ]);

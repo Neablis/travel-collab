@@ -29,6 +29,7 @@ export function tripDetailFromState(
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          cost: a.cost,
         },
       ]),
     ),
