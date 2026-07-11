@@ -91,4 +91,16 @@ describe("Board", () => {
       cost: null,
     });
   });
+
+  it("switching which activity is being edited resets the form, not the previous activity's stale fields", () => {
+    render(<Board trip={fixture()} callbacks={noopCallbacks()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Colosseum" }));
+    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Colosseum");
+
+    // Click Edit on a different activity without cancelling or saving first —
+    // the form must show Vatican Museums' fields, not Colosseum's leftover
+    // state (a missing `key` on ActivityEditor previously left it stale).
+    fireEvent.click(screen.getByRole("button", { name: "Edit Vatican Museums" }));
+    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Vatican Museums");
+  });
 });

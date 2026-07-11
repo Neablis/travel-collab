@@ -220,6 +220,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
           <div style={{ marginTop: 12, maxWidth: 420 }}>
             <ActivityEditor
+              key={editingActivityId}
               initial={editingActivity}
               tripCurrency={activeTrip.currency}
               onSave={(value) => {

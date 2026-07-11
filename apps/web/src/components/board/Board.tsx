@@ -124,6 +124,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
       {editing !== null && editingActivity !== null && (
         <div style={{ marginTop: 12, maxWidth: 420 }}>
           <ActivityEditor
+            key={editing}
             initial={editingActivity}
             tripCurrency={trip.currency}
             onSave={(value) => {
