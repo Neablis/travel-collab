@@ -101,8 +101,8 @@ Plan: `docs/plans/2026-07-08-M2-history-time-travel.md`
 
 ## Explicitly out of scope
 
-Selective mid-history undo, fork/clone-with-lineage (M8), replay
+Selective mid-history undo, fork/clone-with-lineage (M9), replay
 snapshots/performance work, cross-trip or global history, history for CRUD
 modules (Identity/Access — ADR-003), date semantics/anchors/geocoding/maps
-(M3), costs (M4), realtime (M7), trip rename/delete, styling beyond
+(M3), costs (M4), realtime (M8), trip rename/delete, styling beyond
 functional defaults.

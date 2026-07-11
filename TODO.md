@@ -22,27 +22,32 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
       date-anchored events; anchor-violation conflicts on date shifts.
 - [ ] **M4 Money & lenses** — cost items + rollups; itinerary / daily /
       full-trip output lenses.
-- [ ] **M5 Atomic changes** — client/generator-declared command groups: submit
+- [ ] **M5 Design foundations** — Tailwind design tokens; documented color
+      palette with usage guidelines; styled reusable primitives (inputs,
+      headings, text) and composites (forms, tables, modals); re-skin every
+      existing surface on top of them.
+      → `docs/milestones/M5-design-foundations.md`
+- [ ] **M6 Atomic changes** — client/generator-declared command groups: submit
       a series of commands as one atomic batch (one history entry) so undo/redo/
       revert treat them as a single change. Opt-in, all-or-nothing; the substrate
-      templates + AI generation (M6) build on.
-- [ ] **M6 Solo delight** — basic trip notes page (TipTap, no embeds), trip
+      templates + AI generation (M7) build on.
+- [ ] **M7 Solo delight** — basic trip notes page (TipTap, no embeds), trip
       templates, AI generation via command pipeline, polish pass.
 - [ ] **Phase 1 gate review with Mitchell** — dogfood retro; go/no-go and
       backlog reshuffle before Phase 2.
 
 ## Phase 2 — Multi-persona
 
-- [ ] **M7 Collaboration** — invites, roles, revocation; realtime transport
+- [ ] **M8 Collaboration** — invites, roles, revocation; realtime transport
       ADR + implementation; concurrent-edit conflicts as resolvable data.
 
 ## Phase 3 — Outward
 
-- [ ] **M8 Fork & lineage** — clone-with-lineage, guided cherry-pick merge,
+- [ ] **M9 Fork & lineage** — clone-with-lineage, guided cherry-pick merge,
       template sharing.
-- [ ] **M9 Community** — share RBAC, public gallery, voting, reporting
+- [ ] **M10 Community** — share RBAC, public gallery, voting, reporting
       (trust & safety scope lives here, nowhere earlier).
-- [ ] **M10 Rich layer** — Notion-style pages with embedded objects, external
+- [ ] **M11 Rich layer** — Notion-style pages with embedded objects, external
       calendar sync, dogfood-backlog items.
 
 ## Standing tasks (every milestone)
