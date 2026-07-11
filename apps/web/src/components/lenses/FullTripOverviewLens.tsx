@@ -2,14 +2,7 @@
 
 import type { TripDetail } from "@tc/contracts";
 import { tripOverview } from "./tripOverviewData";
-
-function formatMoney(amountMinor: number, currency: string): string {
-  const sign = amountMinor < 0 ? "-" : "";
-  const abs = Math.abs(amountMinor);
-  const major = Math.floor(abs / 100);
-  const minor = String(abs % 100).padStart(2, "0");
-  return `${sign}${currency} ${major}.${minor}`;
-}
+import { formatMoney } from "./formatMoney";
 
 export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
   const overview = tripOverview(detail);

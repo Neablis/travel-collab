@@ -2,10 +2,7 @@
 
 import type { TripDetail } from "@tc/contracts";
 import { itineraryDays, itineraryUnscheduled, type ItineraryActivity } from "./itineraryData";
-
-function formatAmount(costMinor: number, currency: string): string {
-  return `${(costMinor / 100).toFixed(2)} ${currency}`;
-}
+import { formatMoney as formatAmount } from "./formatMoney";
 
 function ActivityRow({
   activity,

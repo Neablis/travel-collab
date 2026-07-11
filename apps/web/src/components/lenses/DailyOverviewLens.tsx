@@ -2,10 +2,7 @@
 
 import type { TripDetail } from "@tc/contracts";
 import { dailyRows } from "./dailyOverviewData";
-
-function formatMoney(amountMinor: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amountMinor / 100);
-}
+import { formatMoney } from "./formatMoney";
 
 export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
   const rows = dailyRows(detail);

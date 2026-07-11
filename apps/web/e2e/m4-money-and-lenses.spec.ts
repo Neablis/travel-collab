@@ -46,11 +46,11 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   // -- Daily lens: per-day count/subtotal --
   await page.getByRole("tab", { name: "Daily" }).click();
-  await expect(page.getByText("€420.00")).toBeVisible();
+  await expect(page.getByText("420.00 EUR")).toBeVisible();
 
   // -- Trip lens: total renders --
   await page.getByRole("tab", { name: "Trip" }).click();
-  await expect(page.getByText("EUR 519.00")).toBeVisible();
+  await expect(page.getByText("519.00 EUR")).toBeVisible();
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.

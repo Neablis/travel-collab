@@ -175,16 +175,42 @@ mechanics (D1-D3), UI components (U2-U6), and the money integration test
 The additions above were all either (a) integration-phase cleanup work the
 plan's dependency graph correctly placed after both tracks converge, just
 under-specified in scope, or (b) a genuine bug the plan's given `MoneyInput`
-code carried (also flagged separately during review: it accepts negative
-input past the `min="0"` HTML attribute, which the contract's server-side
-`nonnegative()` check safely rejects but with an opaque error rather than
-inline validation — deferred as UI polish, not fixed this milestone).
+code carried: it accepted negative input past the `min="0"` HTML attribute.
+Caught and fixed during the Task U2 review — `onChange` now clamps to
+`Math.max(0, …)` before emitting, so no negative `Money` is ever produced;
+the field can still *display* a negative typed string momentarily, but no
+server round-trip or opaque validation error is reachable. (An earlier draft
+of this retro described the pre-clamp behavior as still-live parked debt —
+corrected here after the final whole-branch review caught the discrepancy.)
 
-**Debt parked for M5:** the negative-money-input UX gap above; the trip
-budget `MoneyInput` and an open `ActivityEditor`'s cost `MoneyInput` share an
-identical accessible name (`cost (${currency})`) when both are visible,
-which is a real accessibility/testability ambiguity (found manually while
-verifying I2 in the browser) — worth a distinct `aria-label` per context; the
+**Final whole-branch review (post-merge-of-both-tracks) caught one more real
+bug, invisible to any single task's review:** the three new lenses
+(`ItineraryLens`, `DailyOverviewLens`, `FullTripOverviewLens`) each wrote
+their own local money formatter, and they'd silently drifted — three
+different display styles for the same amount, and `DailyOverviewLens`'s use
+of `Intl.NumberFormat({style:"currency"})` applies each currency's *real*
+decimal exponent (0 for JPY) while every other formatter in the app
+hard-codes the ADR-008 2-decimal simplification. Since JPY is a selectable
+trip currency, that lens would have rendered JPY minor-unit amounts 100×
+too small. Fixed by extracting one shared `formatMoney` (matching the
+domain's own `fmt` used in the over-budget conflict text) into
+`apps/web/src/components/lenses/formatMoney.ts` and using it in all three
+lenses; updated the e2e script's format-dependent assertions to match. This
+is the clearest evidence in this milestone for why the final whole-branch
+review step is not redundant with per-task review — no single task's diff
+contained more than one of the three formatters.
+
+**Debt parked for M5:** the trip budget `MoneyInput` and an open
+`ActivityEditor`'s cost `MoneyInput` share an identical accessible name
+(`cost (${currency})`) when both are visible, which is a real
+accessibility/testability ambiguity (found manually while verifying I2 in
+the browser, and confirmed by the final review to already be forcing the
+e2e script into brittle `.first()`/`.last()` positional selectors) — worth a
+distinct `aria-label` per context, e.g. a `label` prop on `MoneyInput`; the
 unscheduled section in `ItineraryLens` has no subtotal shown despite
 `unscheduledCostSubtotal` being available (noted in the U3 review as a minor
-inconsistency with the day sections' subtotals).
+inconsistency with the day sections' subtotals); the domain's `over-budget`
+rule and the UI mock's `rerollup` compute the same conflict shape but with
+different `description` text — harmless today since no test asserts the
+mock's exact string against the real server's, but worth converging if a
+future task adds one.
