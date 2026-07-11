@@ -46,7 +46,7 @@ permission checks route through the `AccessPolicy` seam.
 - Merge-conflict UX is hostile to non-technical users → decision 7. The event
   log preserves the raw material (per-fork histories with a common ancestor)
   to build real merge later if users demand it.
-- Community features imply trust & safety obligations; quarantined in M8.
+- Community features imply trust & safety obligations; quarantined in M9.
 - Phase 1 has zero network effects — validation is personal utility only.
   Accepted deliberately: collaboration later lands on a product people want to
   be invited into, on a core hardened by real use.
@@ -56,7 +56,7 @@ permission checks route through the `AccessPolicy` seam.
 - **Trip** — title, *optional* date range (undated "someday" trips are valid;
   days are ordinals until dates are pinned), members list with roles (length 1
   in Phase 1), lineage pointer (`forkedFrom: {tripId, atSeq}`), visibility
-  (private until M8).
+  (private until M9).
 - **Day** — ordinal within trip + optional calendar date (derived when the
   trip range is pinned; shifting the range re-derives dates and re-runs the
   conflict engine — the "drag the vacation" behavior).
@@ -111,10 +111,10 @@ ADR-002 (stack), `docs/milestones/README.md` (phases and gates), `TODO.md`
 
 ## 8. Open questions (deferred, tracked)
 
-- Realtime transport at Phase 2/M6 — bolt-on (Supabase Realtime/Pusher) vs
-  `src/server` extraction. ADR due at M6 start.
-- Rich-text editor at M5 (TipTap presumptive; embeds M9).
+- Realtime transport at Phase 2/M7 — bolt-on (Supabase Realtime/Pusher) vs
+  `src/server` extraction. ADR due at M7 start.
+- Rich-text editor at M6 (TipTap presumptive; embeds M10).
 - Facebook OAuth: deferred; Google-only until users ask.
 - Whether membership changes are mirrored into trip streams for the activity
   feed (Phase 2).
-- Community moderation policy details (M8).
+- Community moderation policy details (M9).

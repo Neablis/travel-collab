@@ -14,7 +14,9 @@ AI generation.
 
 Think: Jira's planning + git's history + Notion's editing, for vacations.
 
-**Current phase: 1 (full single-player product), current milestone: M3.**
+**Current phase: 1 (full single-player product).** The active milestone lives in
+one place — `docs/milestones/README.md` ("Current milestone"); do not restate the
+number here (that duplication is how it drifts).
 Design record: `docs/specs/2026-07-07-foundation-design.md` · Decisions:
 `docs/architecture/` · Roadmap: `TODO.md` + `docs/milestones/README.md` ·
 How-to guides: `docs/guidelines/`
@@ -115,7 +117,10 @@ step before dependent feature work continues.
 ## Milestone discipline and drift detection
 
 Work proceeds through the gates in `docs/milestones/README.md`. Do not build
-ahead of the current milestone. Signals of drift — call these out immediately:
+ahead of the current milestone. When a gate passes, flip every status flag in one
+commit via that file's **gate-close checklist**; each milestone kickoff runs a
+**preflight** that reconciles the previous milestone's. Signals of drift — call
+these out immediately:
 
 - A feature "needs" direct writes bypassing the command pipeline.
 - Projection rebuild diverges from stored state.
@@ -125,6 +130,8 @@ ahead of the current milestone. Signals of drift — call these out immediately:
 - Event-sourcing creeping into CRUD modules, or CRUD shortcuts creeping into
   the planning domain (the ADR-003 boundary smell).
 - Scope creep past the current milestone's gate definition.
+- A passed gate whose status flags (TODO tick, milestone exit-gate boxes,
+  Current milestone) were left unflipped.
 
 ## Testing model
 

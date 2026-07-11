@@ -16,34 +16,44 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 - [x] **M1 Planning core** — trips, days, activities, backlog, day-column
       board with drag; first soft-conflict rules (overlap, geography).
       → `docs/milestones/M1-planning-core.md`
-- [ ] **M2 History & time travel** — history UI, undo, revert-to-state;
+- [x] **M2 History & time travel** — history UI, undo, revert-to-state;
       proves the event-sourcing bet.
-- [ ] **M3 Place & time** — map view (MapLibre), timeline, calendar views;
+- [x] **M3 Place & time** — map view (MapLibre), timeline, calendar views;
       date-anchored events; anchor-violation conflicts on date shifts.
 - [ ] **M4 Money & lenses** — cost items + rollups; itinerary / daily /
       full-trip output lenses.
-- [ ] **M5 Solo delight** — basic trip notes page (TipTap, no embeds), trip
+- [ ] **M5 Atomic changes** — client/generator-declared command groups: submit
+      a series of commands as one atomic batch (one history entry) so undo/redo/
+      revert treat them as a single change. Opt-in, all-or-nothing; the substrate
+      templates + AI generation (M6) build on.
+- [ ] **M6 Solo delight** — basic trip notes page (TipTap, no embeds), trip
       templates, AI generation via command pipeline, polish pass.
 - [ ] **Phase 1 gate review with Mitchell** — dogfood retro; go/no-go and
       backlog reshuffle before Phase 2.
 
 ## Phase 2 — Multi-persona
 
-- [ ] **M6 Collaboration** — invites, roles, revocation; realtime transport
+- [ ] **M7 Collaboration** — invites, roles, revocation; realtime transport
       ADR + implementation; concurrent-edit conflicts as resolvable data.
 
 ## Phase 3 — Outward
 
-- [ ] **M7 Fork & lineage** — clone-with-lineage, guided cherry-pick merge,
+- [ ] **M8 Fork & lineage** — clone-with-lineage, guided cherry-pick merge,
       template sharing.
-- [ ] **M8 Community** — share RBAC, public gallery, voting, reporting
+- [ ] **M9 Community** — share RBAC, public gallery, voting, reporting
       (trust & safety scope lives here, nowhere earlier).
-- [ ] **M9 Rich layer** — Notion-style pages with embedded objects, external
+- [ ] **M10 Rich layer** — Notion-style pages with embedded objects, external
       calendar sync, dogfood-backlog items.
 
 ## Standing tasks (every milestone)
 
+- **Preflight (kickoff):** before the milestone's first task, reconcile the
+  *previous* milestone's gate-close checklist (`docs/milestones/README.md`) — if
+  any flag is unflipped, flip it first. This is the forcing function that catches
+  a missed gate-close.
 - Write the milestone file (scope + exit gate) before its first commit.
 - Keep every prior milestone's e2e script green.
-- Append a retro note to the milestone file at gate time.
+- **At gate time, run the gate-close checklist** in `docs/milestones/README.md`
+  (tick here, check the milestone file's exit-gate boxes, append the retro, bump
+  Current milestone) — all in one commit, never a trailing manual step.
 - Record any irreversible decision as an ADR before acting on it.

@@ -8,7 +8,7 @@
 - **Postgres** — Docker locally, Neon in prod; **Drizzle** ORM + migrations.
 - **Auth.js** with Google OAuth (no other providers until asked).
 - **Zod** in `packages/contracts` for every cross-boundary type.
-- **MapLibre GL** + OSM/Protomaps tiles (M3+). **TipTap** presumptive (M5+).
+- **MapLibre GL** + OSM/Protomaps tiles (M3+). **TipTap** presumptive (M6+).
 - **Vitest** (+ fast-check) for unit/integration; **Playwright** for e2e;
   **MSW** for UI-against-mock development.
 
@@ -52,6 +52,6 @@
 
 - Client/server separation is lint-enforced, not process-enforced — chosen
   eyes-open vs a separate API service (ADR-002).
-- Realtime at M6 will need a bolt-on or a `src/server` extraction — designed
+- Realtime at M7 will need a bolt-on or a `src/server` extraction — designed
   for, deferred.
 - Phase 1 has zero network effects; validation is dogfooding.

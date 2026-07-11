@@ -33,7 +33,7 @@ with no internal boundaries, and microservices.
 `command → validate → append event(s) → update projections`. The event log is
 the sole source of truth; projections (read models) are disposable and
 rebuildable. This applies from milestone zero, including single-player features,
-so that history (M2), collaboration (M6), and forking (M7) are additive layers
+so that history (M2), collaboration (M7), and forking (M8) are additive layers
 rather than retrofits. The substrate's blast radius is deliberately scoped to
 the planning domain — see ADR-003.
 
