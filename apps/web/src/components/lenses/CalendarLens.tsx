@@ -1,25 +1,21 @@
 "use client";
 
-import type { TripCommand, TripDetail } from "@tc/contracts";
+import type { TripDetail } from "@tc/contracts";
 import { calendarCells } from "./calendarData";
-import { TripDateControl } from "./TripDateControl";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function CalendarLens({
   detail,
-  onCommand,
   onSelectActivity,
 }: {
   detail: TripDetail;
-  onCommand: (command: TripCommand) => void;
   onSelectActivity?: (activityId: string) => void;
 }) {
   const cells = calendarCells(detail);
 
   return (
     <section>
-      <TripDateControl tripId={detail.tripId} startDate={detail.startDate} onCommand={onCommand} />
       {cells.length === 0 ? (
         <p role="status">Set a start date to see the calendar.</p>
       ) : (
