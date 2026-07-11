@@ -210,11 +210,20 @@ server-confirmed value instead of the final typed amount. No automated
 test caught this because none of them typed multi-digit numbers through
 real per-keystroke events fast enough to race (`userEvent.type` in the unit
 tests and `.fill()` in e2e both complete too quickly/atomically to expose
-it). Fixed by debouncing the commit (500ms) with an immediate flush on
-blur, so a typing burst collapses into one command. This is a case worth
-remembering for future money/live-dispatch inputs: **any input wired to
-fire a command per keystroke needs debouncing**, not just the specific one
-that got reported.
+it). First fix attempt debounced the commit (500ms, flushed on blur);
+revised on request to commit only on blur/Enter instead — simpler and more
+predictable than a timer, with the same fix (typing never fires a command
+until the field is left). That revision needed its own edge-case handling:
+Enter commits-and-blurs but is intercepted before it can fall through to
+`ActivityEditor`'s surrounding `<form>`'s native submit-on-Enter (which can
+otherwise fire before React flushes the just-typed value into the form's
+state, submitting a stale cost); Escape reverts to the last external value
+without committing; unmounting mid-edit still flushes any pending typed
+value via a cleanup effect, so nothing is silently dropped. This is a case
+worth remembering for future money/live-dispatch inputs: **any input wired
+to fire a command per keystroke needs an explicit commit point** (blur,
+Enter, a Save button — not "every change"), not just the specific one that
+got reported.
 
 **Debt parked for M5:** the trip budget `MoneyInput` and an open
 `ActivityEditor`'s cost `MoneyInput` share an identical accessible name
