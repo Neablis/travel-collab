@@ -103,6 +103,13 @@ Agents work per-boundary and meet at `packages/contracts`:
 Rule: a contract change (schema + changelog + all consumers) is its own reviewed
 step before dependent feature work continues.
 
+Rule: parallel implementers each work in their **own git worktree** and merge
+back sequentially — never a shared working tree. Even with fully disjoint file
+sets, concurrent agents race on git's index and refs: in M3, one agent's `git
+reset --soft` (fixing its own over-broad commit) silently dropped a sibling's
+already-committed work from the branch tip — recovered only because it survived
+uncommitted in the working tree. Isolate via `superpowers:using-git-worktrees`.
+
 ## Definition of Done (every change)
 
 - Typecheck, lint, and all tests pass locally (`pnpm check` once M0 lands).

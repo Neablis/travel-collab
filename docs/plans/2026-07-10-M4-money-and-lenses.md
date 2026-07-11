@@ -34,6 +34,8 @@
 
 The domain track and the UI track **never touch the same files** and share no runtime state — the UI builds entirely against contract-derived MSW mocks (U1), exactly as M1/M2/M3 did. Within a track, order is D1→D2→D3 and U1→{U2,U3,U4,U5,U6}.
 
+**Worktree isolation (binding — see AGENTS.md "Workstreams"):** each parallel implementer (D vs U, and the parallel U2–U6) runs in its **own git worktree** and merges back sequentially — never a shared working tree. This is not optional: M3 lost a subagent's committed work to a cross-agent `git reset` in a shared tree.
+
 **Integration tasks run after their tracks converge** (a single coordinating session, not parallel):
 - **I1 (server wiring + rollup integration test)** needs Track D merged.
 - **I2 (wire lenses + money settings to the real API)** needs Track U + I1 merged.
@@ -403,7 +405,7 @@ Add `&& moneyEqual(a.cost, b.cost)` to the `activityStatesEqual` return expressi
 - [ ] **Step 5: Fix the red window mechanically (domain tests only)**
 
 Run: `pnpm --filter @tc/domain typecheck`
-Every remaining error in `packages/domain/test/*.test.ts` is an `ActivityState` literal missing `cost` or a `TripState` literal missing `currency`/`budget`. Add `cost: null` to each activity literal and `currency: "USD"`, `budget: null` to each state literal. No other change this step. (The UI mocks' literals are fixed in Task U1, on the UI track — leave them.)
+Every remaining error in `packages/domain/test/*.test.ts` is an `ActivityState` literal missing `cost` or a `TripState` literal missing `currency`/`budget`. Add `cost: null` to each activity literal and `currency: "USD"`, `budget: null` to each state literal. No other change this step. (The UI mocks' literals are fixed in Task U1, on the UI track — leave them. **Server integration-test literals in `apps/web/src/server/*.int.test.ts` also carry these types but are invisible to `pnpm typecheck` — they run only under Postgres — so they are fixed at Task I1, not here. M3 got bitten by exactly this: a `commands.int.test.ts` literal needed the same mechanical fix and only surfaced when the integration suite ran.**)
 
 - [ ] **Step 6: Run + commit**
 
@@ -561,21 +563,20 @@ Expected: FAIL — no `over-budget` conflict produced.
 
 - [ ] **Step 3: Implement — currency/budget mutations**
 
-`packages/domain/src/trip/decide.ts` — add two cases, mirroring the existing `SetTripStartDate` case's structure (its no-op guard + event shape):
+`packages/domain/src/trip/decide.ts` — add two cases, exactly like the existing `SetTripStartDate` case, which is `return okUnlessNoOp(state, [event])`:
 
 ```ts
-    case "SetTripCurrency": {
-      // no-op if unchanged (mirror SetTripStartDate's no-op guard)
-      if (command.currency === state.currency) return /* the no-op rejection SetTripStartDate returns */;
-      return /* ok with */ [{ type: "TripCurrencySet", version: 1, payload: { tripId: command.tripId, currency: command.currency } }];
-    }
-    case "SetTripBudget": {
-      if (moneyEqual(command.budget, state.budget)) return /* the no-op rejection */;
-      return /* ok with */ [{ type: "TripBudgetSet", version: 1, payload: { tripId: command.tripId, budget: command.budget } }];
-    }
+    case "SetTripCurrency":
+      return okUnlessNoOp(state, [
+        { type: "TripCurrencySet", version: 1, payload: { tripId: command.tripId, currency: command.currency } },
+      ]);
+    case "SetTripBudget":
+      return okUnlessNoOp(state, [
+        { type: "TripBudgetSet", version: 1, payload: { tripId: command.tripId, budget: command.budget } },
+      ]);
 ```
 
-> Copy the exact ok/no-op return shape from the `SetTripStartDate` case in the same file — do not invent new helpers. Import `moneyEqual` from `./equality`.
+> `okUnlessNoOp` evolves the event then compares via `tripStatesEqual`, so a same-currency / same-budget set is auto-rejected as `no-op` — **this is exactly why D1 must add `currency` and `budget` to `tripStatesEqual`**. No manual equality guard, and `moneyEqual` is **not** needed in `decide.ts` (only in `equality.ts` and `diff.ts`).
 
 `packages/domain/src/trip/evolve.ts` — add two branches:
 
@@ -586,18 +587,18 @@ Expected: FAIL — no `over-budget` conflict produced.
       return { ...state, budget: event.payload.budget };
 ```
 
-`packages/domain/src/trip/diff.ts` — alongside the existing `startDate` diff (which pushes a `TripStartDateSet` when `a.startDate !== b.startDate`), add:
+`packages/domain/src/trip/diff.ts` — in step 1 (start date), right after the existing `working.startDate !== target.startDate` push, add currency and budget (the local variables are `working` and `target`, and the file's `push()` helper already drops no-ops via `tripStatesEqual`):
 
 ```ts
-    if (a.currency !== b.currency) {
-      /* push */ { type: "TripCurrencySet", version: 1, payload: { tripId, currency: b.currency } };
+    if (working.currency !== target.currency) {
+      push({ type: "TripCurrencySet", version: 1, payload: { tripId: target.tripId, currency: target.currency } });
     }
-    if (!moneyEqual(a.budget, b.budget)) {
-      /* push */ { type: "TripBudgetSet", version: 1, payload: { tripId, budget: b.budget } };
+    if (!moneyEqual(working.budget, target.budget)) {
+      push({ type: "TripBudgetSet", version: 1, payload: { tripId: target.tripId, budget: target.budget } });
     }
 ```
 
-> Match the exact push/emit mechanism `diff.ts` uses for `TripStartDateSet`. Import `moneyEqual` from `./equality`.
+> Import `moneyEqual` from `./equality`. The `if` guards just mirror the startDate optimization; `push()` would drop a no-op anyway.
 
 - [ ] **Step 4: Implement — the over-budget rule**
 
@@ -1082,19 +1083,20 @@ git commit -m "feat(ui): full-trip overview lens (totals, split, budget status)"
 ### Task U6: UI — M3 debt paydown (undo/redo in-flight guard + one start-date control)
 
 **Files:**
-- Modify: the `UndoRedoControls` component (locate: `grep -rl "UndoRedo" apps/web/src`) and its test
-- Modify/remove: the duplicate start-date control (locate: `grep -rln "SetTripStartDate" apps/web/src/components`)
+- Modify: `apps/web/src/components/board/UndoRedoControls.tsx` (+ `UndoRedoControls.test.tsx`)
+- Modify: `apps/web/src/components/board/TripBoardScreen.tsx` (remove its inline `StartDateControl`)
+- Keep as the single canonical control: `apps/web/src/components/lenses/TripDateControl.tsx`
 
 **Interfaces:**
 - No contract/domain change — UI only.
 
 - [ ] **Step 1: Guard undo/redo while a command is in flight**
 
-Locate the component: `grep -rl "UndoRedo" apps/web/src`. Add an in-flight guard so a rapid double-click cannot fire two overlapping compensating commands: disable both buttons while a command is pending. Prefer an existing "is a command posting?" signal from the screen (thread it as an `isBusy`/`pending` prop); if none exists, track local `pending` state around the `onCommand` promise and disable while it resolves. Extend the component's test to assert both buttons are `disabled` while `pending`/`isBusy` is true.
+In `apps/web/src/components/board/UndoRedoControls.tsx`, add an in-flight guard so a rapid double-click cannot fire two overlapping compensating commands against the same `expectedSeq` (the M3 retro's exact debt — the M3 e2e had to add an explicit wait to dodge this race). Disable both buttons while a command is pending: prefer an existing "is a command posting?" signal from `TripBoardScreen` (thread it as an `isBusy`/`pending` prop); if none exists, track local `pending` state around the `onCommand` promise and disable while it resolves. Extend `UndoRedoControls.test.tsx` to assert both buttons are `disabled` while `pending`/`isBusy` is true.
 
 - [ ] **Step 2: Consolidate the two start-date controls**
 
-`grep -rln "SetTripStartDate" apps/web/src/components` — M3 left a start-date control in two places (the calendar lens `TripDateControl` and a second one on the board/settings surface). Keep **one** canonical control (the `TripDateControl` from M3) and remove the duplicate, updating any references so the trip start date is set from a single place. Where the M4 `TripMoneySettings` lives is the natural home for trip-level settings — co-locate the single start-date control there if it reduces duplication, but do not change its emitted command. Add/adjust a test asserting only one start-date control renders in the screen.
+M3 left two start-date controls (named in its retro): `TripBoardScreen`'s **inline `StartDateControl`** and `apps/web/src/components/lenses/TripDateControl.tsx` — whose copy differs ("Clear" vs "Clear dates"). They're mutually exclusive by mount today (only one lens renders at a time), so this is a consolidation, not a bug fix. Keep the canonical `TripDateControl`; remove `TripBoardScreen`'s inline `StartDateControl` and point the board at `TripDateControl` (co-locating it with the new `TripMoneySettings` trip-settings area is the natural home). Do **not** change the emitted `SetTripStartDate` command. Add/adjust a test asserting only one start-date control renders in the screen.
 
 - [ ] **Step 3: Run + commit**
 
@@ -1114,20 +1116,21 @@ git commit -m "fix(ui): guard undo/redo in-flight; consolidate to one start-date
 
 **Files:**
 - Test: `apps/web/src/server/money.int.test.ts` (create; mirror the setup style of `apps/web/src/server/commands.int.test.ts`)
-- Modify (only if needed): `apps/web/src/server/commands.ts` — see Step 1
+- Modify (mechanical, typecheck-invisible): any `apps/web/src/server/*.int.test.ts` carrying `TripDetail`/`ActivityView`/`TripState` literals — add the new `cost`/`currency`/`budget`/rollup fields (these only fail when the Postgres integration suite runs; the M3 red-window lesson)
+- No change to `apps/web/src/server/commands.ts` (pipeline is generic — see Step 1)
 
 **Interfaces:**
 - Consumes: Track D (the projection now emits rollups/currency/budget; `decide`/`evolve` handle the new commands).
 
 - [ ] **Step 1: Confirm the pipeline needs no change for the new commands**
 
-The command pipeline validates commands via `TripCommand.parse` and calls `decideTripCommand` generically, so `SetTripCurrency`/`SetTripBudget` flow through with no pipeline change (the domain handles them). Confirm:
+**Verified during planning:** the pipeline is generic — `apps/web/src/server/commands.ts` calls `decideTripCommand(state, command, { actorId })` for every command (around line 53), so `SetTripCurrency`/`SetTripBudget` flow through with **no** pipeline change. Quick re-confirm, then move on:
 
 ```bash
-grep -rn "TripCommand\|decideTripCommand" apps/web/src/server/commands.ts
+grep -n "decideTripCommand" apps/web/src/server/commands.ts
 ```
 
-If (and only if) there is an explicit per-type switch/allow-list, add the two new command types to it. Otherwise no server code changes here — the projection changes already landed with Track D.
+There is no per-type allow-list to extend; no server command-routing change this milestone. Then, before running the integration suite, add the new fields to any `*.int.test.ts` literals (see Files above) — `pnpm typecheck` will not flag them.
 
 - [ ] **Step 2: Integration test — rollups recompute and over-budget appears, and survive rebuild**
 
