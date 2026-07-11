@@ -135,6 +135,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       location: value.location,
       notes: value.notes,
       anchors: value.anchors,
+      cost: value.cost,
     });
 
   return (
@@ -197,6 +198,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   location: value.location ?? undefined,
                   notes: value.notes ?? undefined,
                   anchors: value.anchors,
+                  cost: value.cost ?? undefined,
                 }),
               onUpdateActivity: updateActivity,
               onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
@@ -219,6 +221,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           <div style={{ marginTop: 12, maxWidth: 420 }}>
             <ActivityEditor
               initial={editingActivity}
+              tripCurrency={activeTrip.currency}
               onSave={(value) => {
                 updateActivity(editingActivityId, value);
                 setEditingActivityId(null);

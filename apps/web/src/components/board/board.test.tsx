@@ -88,6 +88,7 @@ describe("Board", () => {
       location: null,
       notes: null,
       anchors: [],
+      cost: null,
     });
   });
 });
