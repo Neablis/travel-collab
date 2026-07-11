@@ -20,18 +20,38 @@ function rederiveDates(detail: TripDetail): void {
   detail.days.forEach((day, i) => (day.date = dates[i]!));
 }
 
+// Deliberately naive rollup — the mock stands in for the projection
+// (`packages/domain` may not be imported here, per the UI/server lint wall).
+function rerollup(detail: TripDetail): void {
+  const costOf = (id: string): number => detail.activities[id]?.cost?.amountMinor ?? 0;
+  detail.days.forEach((day) => (day.costSubtotal = day.activityIds.reduce((s, id) => s + costOf(id), 0)));
+  detail.unscheduledCostSubtotal = detail.backlog.reduce((s, id) => s + costOf(id), 0);
+  detail.tripCostTotal = detail.days.reduce((s, d) => s + d.costSubtotal, 0) + detail.unscheduledCostSubtotal;
+  detail.budgetRemaining = detail.budget ? detail.budget.amountMinor - detail.tripCostTotal : null;
+  detail.conflicts = detail.conflicts.filter((c) => c.kind !== "over-budget");
+  if (detail.budget && detail.tripCostTotal > detail.budget.amountMinor) {
+    detail.conflicts.push({
+      id: `over-budget:${detail.tripId}`, kind: "over-budget", severity: "warn",
+      subjects: [detail.tripId], description: "Trip total exceeds the budget.",
+      resolutions: ["Raise the budget", "Remove or reduce a cost"],
+    });
+  }
+}
+
 function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
   const next = structuredClone(detail);
   switch (command.type) {
     case "AddDay":
-      next.days.push({ dayId: command.dayId, activityIds: [], date: null });
+      next.days.push({ dayId: command.dayId, activityIds: [], date: null, costSubtotal: 0 });
       rederiveDates(next);
+      rerollup(next);
       break;
     case "RemoveDay": {
       const day = next.days.find((d) => d.dayId === command.dayId);
       next.backlog.push(...(day?.activityIds ?? []));
       next.days = next.days.filter((d) => d.dayId !== command.dayId);
       rederiveDates(next);
+      rerollup(next);
       break;
     }
     case "SetTripStartDate":
@@ -46,12 +66,14 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         location: command.location ?? null,
         notes: command.notes ?? null,
         anchors: command.anchors ?? [],
+        cost: command.cost ?? null,
       };
       if (command.dayId !== undefined) {
         next.days.find((d) => d.dayId === command.dayId)?.activityIds.push(command.activityId);
       } else {
         next.backlog.push(command.activityId);
       }
+      rerollup(next);
       break;
     case "MoveActivity": {
       next.backlog = next.backlog.filter((id) => id !== command.activityId);
@@ -61,6 +83,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
           ? next.backlog
           : next.days.find((d) => d.dayId === command.toDayId)?.activityIds;
       list?.splice(Math.min(command.position, list.length), 0, command.activityId);
+      rerollup(next);
       break;
     }
     case "UpdateActivity": {
@@ -71,16 +94,26 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.location !== undefined) activity.location = command.location;
         if (command.notes !== undefined) activity.notes = command.notes;
         if (command.anchors !== undefined) activity.anchors = command.anchors;
+        if (command.cost !== undefined) activity.cost = command.cost;
       }
+      rerollup(next);
       break;
     }
     case "RemoveActivity":
       next.backlog = next.backlog.filter((id) => id !== command.activityId);
       for (const d of next.days) d.activityIds = d.activityIds.filter((id) => id !== command.activityId);
       delete next.activities[command.activityId];
+      rerollup(next);
       break;
     case "DismissConflict":
       next.dismissedConflictIds = [...next.dismissedConflictIds, command.conflictId].sort();
+      break;
+    case "SetTripCurrency":
+      next.currency = command.currency;
+      break;
+    case "SetTripBudget":
+      next.budget = command.budget;
+      rerollup(next);
       break;
     case "UndoLastChange":
     case "RedoChange":

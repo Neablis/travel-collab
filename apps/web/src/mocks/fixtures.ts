@@ -5,6 +5,8 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
     name: "Rome 2027",
     startDate: null,
+    currency: "USD",
+    budget: null,
     members: [{ userId: "dev-alice", role: "owner" }],
     days: [],
     backlog: [],
@@ -12,8 +14,70 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
     conflicts: [],
     dismissedConflictIds: [],
     createdAt: "2026-07-08T12:00:00.000Z",
+    unscheduledCostSubtotal: 0,
+    tripCostTotal: 0,
+    budgetRemaining: null,
     ...overrides,
   };
+}
+
+// A costed sample: one day with two costed activities, one costed backlog
+// activity, a trip currency/budget set, and rollups computed by hand — for
+// the itinerary/daily/full-trip overview lenses to have something to show.
+export function costedTripDetailFixture(): TripDetail {
+  const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
+  const colosseumId = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
+  const forumId = "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f";
+  const flightId = "4e5f6071-8293-4d0e-1f2a-3b4c5d6e7f80";
+
+  const colosseumCost = { amountMinor: 2500, currency: "USD" };
+  const forumCost = { amountMinor: 1600, currency: "USD" };
+  const flightCost = { amountMinor: 45000, currency: "USD" };
+
+  const daySubtotal = colosseumCost.amountMinor + forumCost.amountMinor;
+  const unscheduledCostSubtotal = flightCost.amountMinor;
+  const tripCostTotal = daySubtotal + unscheduledCostSubtotal;
+  const budget = { amountMinor: 100000, currency: "USD" };
+
+  return tripDetailFixture({
+    startDate: "2027-06-01",
+    currency: "USD",
+    budget,
+    days: [{ dayId, activityIds: [colosseumId, forumId], date: "2027-06-01", costSubtotal: daySubtotal }],
+    backlog: [flightId],
+    activities: {
+      [colosseumId]: {
+        activityId: colosseumId,
+        title: "Colosseum tour",
+        timeWindow: { start: "09:00", end: "11:00" },
+        location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
+        notes: null,
+        anchors: [],
+        cost: colosseumCost,
+      },
+      [forumId]: {
+        activityId: forumId,
+        title: "Roman Forum",
+        timeWindow: { start: "11:30", end: "13:00" },
+        location: { name: "Roman Forum, Rome, Italy", lat: 41.8925, lng: 12.4853, countryCode: "IT" },
+        notes: null,
+        anchors: [],
+        cost: forumCost,
+      },
+      [flightId]: {
+        activityId: flightId,
+        title: "Flight to Rome",
+        timeWindow: null,
+        location: null,
+        notes: null,
+        anchors: [],
+        cost: flightCost,
+      },
+    },
+    unscheduledCostSubtotal,
+    tripCostTotal,
+    budgetRemaining: budget.amountMinor - tripCostTotal,
+  });
 }
 
 export const sampleGeocodeResults = [

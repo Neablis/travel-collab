@@ -93,6 +93,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
           {adding ? (
             <ActivityEditor
               initial={null}
+              tripCurrency={trip.currency}
               onSave={(value) => {
                 callbacks.onAddActivity(value);
                 setAdding(false);
@@ -124,6 +125,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
         <div style={{ marginTop: 12, maxWidth: 420 }}>
           <ActivityEditor
             initial={editingActivity}
+            tripCurrency={trip.currency}
             onSave={(value) => {
               callbacks.onUpdateActivity(editing, value);
               setEditing(null);

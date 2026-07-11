@@ -14,16 +14,22 @@ export function UndoRedoControls({
   canRedo,
   onUndo,
   onRedo,
+  isBusy = false,
 }: {
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** True while a compensating command (undo/redo) is in flight. Guards against
+   * a rapid double-click firing two overlapping commands against the same
+   * expectedSeq. */
+  isBusy?: boolean;
 }) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       if (isTypingTarget(e.target)) return;
+      if (isBusy) return;
       e.preventDefault();
       if (e.shiftKey) {
         if (canRedo) onRedo();
@@ -33,14 +39,14 @@ export function UndoRedoControls({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canUndo, canRedo, onUndo, onRedo]);
+  }, [canUndo, canRedo, onUndo, onRedo, isBusy]);
 
   return (
     <span>
-      <button onClick={onUndo} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)">
+      <button onClick={onUndo} disabled={!canUndo || isBusy} aria-label="Undo" title="Undo (⌘Z)">
         ↺ Undo
       </button>{" "}
-      <button onClick={onRedo} disabled={!canRedo} aria-label="Redo" title="Redo (⇧⌘Z)">
+      <button onClick={onRedo} disabled={!canRedo || isBusy} aria-label="Redo" title="Redo (⇧⌘Z)">
         ↻ Redo
       </button>
     </span>
