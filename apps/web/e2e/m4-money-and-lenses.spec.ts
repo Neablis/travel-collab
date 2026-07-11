@@ -57,11 +57,23 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("tab", { name: "Board" }).click();
 
   // -- set a budget below the total: over-budget warning appears --
-  await page.getByLabel("cost (EUR)").first().fill("100.00");
+  // MoneyInput debounces/commits on blur (avoids firing one SetTripBudget
+  // command per keystroke) — press Tab to flush immediately rather than
+  // waiting out the debounce window.
+  const budgetInput = page.getByLabel("cost (EUR)").first();
+  await budgetInput.fill("100.00");
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok()),
+    budgetInput.press("Tab"),
+  ]);
   await expect(page.getByText(/exceeds the budget/)).toBeVisible();
 
   // -- raise the budget above the total: warning clears --
-  await page.getByLabel("cost (EUR)").first().fill("1000.00");
+  await budgetInput.fill("1000.00");
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok()),
+    budgetInput.press("Tab"),
+  ]);
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 
   // -- undo the last cost edit: the budget field and the warning both revert --

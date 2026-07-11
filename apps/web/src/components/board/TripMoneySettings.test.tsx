@@ -14,6 +14,7 @@ describe("TripMoneySettings", () => {
     await userEvent.selectOptions(screen.getByLabelText(/currency/i), "EUR");
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripCurrency", tripId: TRIP, currency: "EUR" });
     await userEvent.type(screen.getByLabelText(/cost|budget/i), "2500");
+    await userEvent.tab();
     expect(onCommand).toHaveBeenLastCalledWith({ type: "SetTripBudget", tripId: TRIP, budget: { amountMinor: 250000, currency: "USD" } });
   });
 });
