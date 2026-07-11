@@ -189,6 +189,7 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     await userEvent.type(screen.getByLabelText(/cost|budget/i), "500");
+    await userEvent.tab();
 
     await waitFor(() =>
       expect(onCommand).toHaveBeenCalledWith(
