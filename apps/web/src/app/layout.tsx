@@ -1,4 +1,9 @@
 import { Analytics } from '@vercel/analytics/next';
+// Required by MapLens (maplibre-gl): without this, marker positioning
+// transforms and the map's stacking context are undefined, causing
+// mispositioned/misbehaving markers and z-index issues with content
+// rendered after the map.
+import "maplibre-gl/dist/maplibre-gl.css";
 
 export const metadata = { title: "travel-collab" };
 
