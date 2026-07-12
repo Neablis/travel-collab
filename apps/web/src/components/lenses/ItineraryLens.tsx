@@ -5,6 +5,7 @@ import { Heading } from "../ui/heading";
 import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { Table, TBody, TR, TD } from "../ui/table";
+import { Button } from "../ui/button";
 import { itineraryDays, itineraryUnscheduled, type ItineraryActivity } from "./itineraryData";
 import { formatMoney as formatAmount } from "./formatMoney";
 
@@ -25,13 +26,13 @@ function ActivityRow({
       <TD>{timeLabel ? <DataText>{timeLabel}</DataText> : null}</TD>
       <TD>
         {onSelectActivity ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onSelectActivity(activity.activityId)}
-            className="cursor-pointer bg-transparent p-0 text-left text-base text-ink underline-offset-2 hover:underline"
+            className="h-auto justify-start p-0 text-left text-base font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
           >
             {label}
-          </button>
+          </Button>
         ) : (
           <Text as="span">{label}</Text>
         )}
