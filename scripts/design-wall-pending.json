@@ -1,6 +1,4 @@
 [
-  "apps/web/src/app/page.tsx",
-  "apps/web/src/app/trips/[tripId]/page.tsx",
   "apps/web/src/components/board/ActivityCard.tsx",
   "apps/web/src/components/board/ActivityEditor.tsx",
   "apps/web/src/components/board/AnchorEditor.tsx",
