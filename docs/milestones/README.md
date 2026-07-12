@@ -40,7 +40,7 @@ for collaboration later landing on a product people already want to join.
 | M3 | Place & time | Map view (MapLibre), timeline view, calendar views; date-anchored events (holidays, weekly schedules) whose anchors produce soft conflicts when dates shift |
 | M4 | Money & lenses | Cost items on activities/days/flights with rollup to trip; output lenses: itinerary, daily overview, full-trip overview |
 | M5 | Design foundations | Tailwind-based design system: global tokens, a documented color palette with usage guidelines (brand/semantic/gradients), styled reusable primitives (inputs, headings, text) and composites (forms, tables, modals), then a re-skin of every existing surface using only them. Purely presentational — no behavior/contract changes |
-| M6 | Atomic changes | Client/generator-declared command groups: a series of commands committed as one atomic batch (one history entry) so undo/redo/revert treat them as a single change. Opt-in, all-or-nothing; the substrate templates + AI generation (M7) build on. ADR-010 due here |
+| M6 | Atomic changes | Client/generator-declared command groups: a series of commands committed as one atomic batch (one history entry) so undo/redo/revert treat them as a single change. Opt-in, all-or-nothing; the substrate templates + AI generation (M7) build on. ADR-011 due here (ADR-010 was taken by M5's shadcn/ui adoption) |
 | M7 | Solo delight | Trip notes page (basic rich text, no embeds), trip templates, AI generation (Claude emitting commands through the standard validation pipeline), polish pass |
 
 ## Phase 2 — Multi-persona

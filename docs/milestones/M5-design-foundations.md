@@ -16,6 +16,17 @@ Design record, ADR (if any irreversible choice emerges, e.g. component-library
 adoption), and task plan are due at M5 kickoff per the standard process — this
 file defines scope and gate only.
 
+## Kickoff record (2026-07-11)
+
+- Exit gate below **confirmed unchanged by Mitchell**.
+- Component-library decision: **shadcn/ui adopted** (Mitchell, overriding the
+  hand-rolled presumptive default) — ADR-010, including the per-component
+  native-semantics rule (no Radix Select; no react-hook-form).
+- Aesthetic direction: **Field Kit** (paper/ink/teal, mono-for-data signature).
+- Design record: `docs/specs/2026-07-11-M5-design-foundations-design.md` ·
+  System reference: `docs/guidelines/design-system.md` ·
+  Task plan: `docs/plans/2026-07-11-M5-design-foundations.md`.
+
 ## Scope
 
 - **Global Tailwind design tokens.** Introduce Tailwind CSS (new dev
@@ -43,7 +54,7 @@ file defines scope and gate only.
   for the system design, and `web-design-guidelines` (Web Interface Guidelines
   compliance review) as the review gate on the re-skinned surfaces.
 
-## Exit gate — all must be true (drafted 2026-07-11; confirm with Mitchell at kickoff)
+## Exit gate — all must be true (drafted 2026-07-11; confirmed by Mitchell at kickoff 2026-07-11)
 
 - [ ] **Demo on the deployed Vercel URL:** walk every Phase-1 surface (board,
       backlog, history, map/timeline/calendar, all three lenses) — consistent

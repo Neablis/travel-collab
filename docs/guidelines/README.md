@@ -11,6 +11,7 @@ practice. Read the one that matches your task:
 | `connecting-the-parts.md` | How do parts talk to each other, and how do interfaces change safely? |
 | `validating-direction.md` | How do we know we're still building the *right* thing, and when do we stop and ask Mitchell? |
 | `quality-enforcement.md` | What testing/CI/review bar must every change clear? |
+| `design-system.md` | What tokens, colors, and shared components does UI code use — and when? |
 
 Document map for orientation:
 
