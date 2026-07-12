@@ -4,7 +4,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs",
+    "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs",
     "test": "pnpm -r --if-present test",
     "test:int": "pnpm --filter web test:int",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
