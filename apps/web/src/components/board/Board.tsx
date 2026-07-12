@@ -6,6 +6,7 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
+import { useEditor } from "@/components/trip/context/EditorHost";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
@@ -33,7 +34,7 @@ function containerOf(trip: TripDetail, activityId: string): string | null {
 
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const [editing, setEditing] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const { openCreate } = useEditor();
 
   const conflictIds = useMemo(
     () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
@@ -91,19 +92,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
           onEditActivity={setEditing}
           onRemoveActivity={callbacks.onRemoveActivity}
         >
-          {adding ? (
-            <ActivityEditor
-              initial={null}
-              tripCurrency={trip.currency}
-              onSave={(value) => {
-                callbacks.onAddActivity(value);
-                setAdding(false);
-              }}
-              onCancel={() => setAdding(false)}
-            />
-          ) : (
-            <Button variant="primary" onClick={() => setAdding(true)}>+ Add activity</Button>
-          )}
+          <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
         </Column>
         {trip.days.map((day, index) => (
           <Column
@@ -116,6 +105,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             onEditActivity={setEditing}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
+            onAddActivity={() => openCreate({ dayId: day.dayId })}
           />
         ))}
         <Button variant="secondary" onClick={callbacks.onAddDay} className="w-32 shrink-0">

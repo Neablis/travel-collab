@@ -17,6 +17,7 @@ export function Column({
   onEditActivity,
   onRemoveActivity,
   onRemoveDay,
+  onAddActivity,
   children,
 }: {
   title: string;
@@ -27,6 +28,7 @@ export function Column({
   onEditActivity: (activityId: string) => void;
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
+  onAddActivity?: () => void;
   children?: ReactNode;
 }) {
   const ref = useRef<HTMLUListElement>(null);
@@ -76,6 +78,17 @@ export function Column({
           );
         })}
       </ul>
+      {onAddActivity && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onAddActivity}
+          aria-label={`Add activity to ${title}`}
+          className="mt-1 w-full justify-center"
+        >
+          +
+        </Button>
+      )}
       {children}
     </section>
   );
