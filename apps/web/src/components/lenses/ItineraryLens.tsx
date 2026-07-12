@@ -1,6 +1,10 @@
 "use client";
 
 import type { TripDetail } from "@tc/contracts";
+import { Heading } from "../ui/heading";
+import { Text } from "../ui/text";
+import { DataText } from "../ui/data-text";
+import { Table, TBody, TR, TD } from "../ui/table";
 import { itineraryDays, itineraryUnscheduled, type ItineraryActivity } from "./itineraryData";
 import { formatMoney as formatAmount } from "./formatMoney";
 
@@ -14,26 +18,28 @@ function ActivityRow({
   onSelectActivity?: (activityId: string) => void;
 }) {
   const timeLabel = activity.start && activity.end ? `${activity.start}–${activity.end}` : null;
-  const label = [timeLabel, activity.place, activity.title].filter(Boolean).join(" · ");
+  const label = [activity.place, activity.title].filter(Boolean).join(" · ");
 
   return (
-    <li
-      data-testid={`itinerary-activity-${activity.activityId}`}
-      style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "2px 0" }}
-    >
-      {onSelectActivity ? (
-        <button
-          type="button"
-          onClick={() => onSelectActivity(activity.activityId)}
-          style={{ border: "none", background: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
-        >
-          {label}
-        </button>
-      ) : (
-        <span>{label}</span>
-      )}
-      <span>{activity.costMinor !== null ? formatAmount(activity.costMinor, currency) : "—"}</span>
-    </li>
+    <TR data-testid={`itinerary-activity-${activity.activityId}`}>
+      <TD>{timeLabel ? <DataText>{timeLabel}</DataText> : null}</TD>
+      <TD>
+        {onSelectActivity ? (
+          <button
+            type="button"
+            onClick={() => onSelectActivity(activity.activityId)}
+            className="cursor-pointer bg-transparent p-0 text-left text-base text-ink underline-offset-2 hover:underline"
+          >
+            {label}
+          </button>
+        ) : (
+          <Text as="span">{label}</Text>
+        )}
+      </TD>
+      <TD className="text-right">
+        <DataText>{activity.costMinor !== null ? formatAmount(activity.costMinor, currency) : "—"}</DataText>
+      </TD>
+    </TR>
   );
 }
 
@@ -48,52 +54,71 @@ export function ItineraryLens({
   const unscheduled = itineraryUnscheduled(detail);
 
   return (
-    <div data-testid="itinerary-lens" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div data-testid="itinerary-lens" className="flex flex-col gap-4">
       {days.map((day) => (
-        <section key={day.dayId} data-testid={`itinerary-day-${day.dayId}`} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>
+        <section key={day.dayId} data-testid={`itinerary-day-${day.dayId}`} className="rounded-md border border-hairline p-2">
+          <Heading level={3} className="mb-1.5">
             Day {day.ordinal}
-            {day.date && <span style={{ fontWeight: 400, color: "#666" }}> · {day.date}</span>}
-          </h3>
+            {day.date && (
+              <>
+                {" · "}
+                <DataText as="span" size="base" className="font-normal">
+                  {day.date}
+                </DataText>
+              </>
+            )}
+          </Heading>
           {day.activities.length === 0 ? (
-            <p style={{ margin: 0, color: "#888", fontSize: 13 }}>No activities.</p>
+            <Text variant="secondary">No activities.</Text>
           ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {day.activities.map((activity) => (
-                <ActivityRow key={activity.activityId} activity={activity} currency={detail.currency} onSelectActivity={onSelectActivity} />
-              ))}
-            </ul>
+            <Table>
+              <TBody>
+                {day.activities.map((activity) => (
+                  <ActivityRow key={activity.activityId} activity={activity} currency={detail.currency} onSelectActivity={onSelectActivity} />
+                ))}
+              </TBody>
+            </Table>
           )}
-          <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", fontWeight: 600, fontSize: 13 }}>
+          <div className="mt-1.5 flex justify-between border-t border-hairline bg-moss px-2 py-1.5 text-sm font-medium">
             <span>Day subtotal</span>
-            <span>{formatAmount(day.costSubtotal, detail.currency)}</span>
+            <DataText>{formatAmount(day.costSubtotal, detail.currency)}</DataText>
           </div>
         </section>
       ))}
 
-      <section data-testid="itinerary-unscheduled" style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}>
-        <h3 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>Unscheduled</h3>
+      <section data-testid="itinerary-unscheduled" className="rounded-md border border-hairline p-2">
+        <Heading level={3} className="mb-1.5">
+          Unscheduled
+        </Heading>
         {unscheduled.length === 0 ? (
-          <p style={{ margin: 0, color: "#888", fontSize: 13 }}>Nothing unscheduled.</p>
+          <Text variant="secondary">Nothing unscheduled.</Text>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {unscheduled.map((activity) => (
-              <ActivityRow key={activity.activityId} activity={activity} currency={detail.currency} onSelectActivity={onSelectActivity} />
-            ))}
-          </ul>
+          <Table>
+            <TBody>
+              {unscheduled.map((activity) => (
+                <ActivityRow key={activity.activityId} activity={activity} currency={detail.currency} onSelectActivity={onSelectActivity} />
+              ))}
+            </TBody>
+          </Table>
         )}
       </section>
 
-      <footer data-testid="itinerary-footer" style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, paddingTop: 8, borderTop: "2px solid #ccc" }}>
+      <footer data-testid="itinerary-footer" className="flex justify-between border-t border-border-strong pt-2 font-semibold">
         <span>Trip total</span>
         <span>
-          {formatAmount(detail.tripCostTotal, detail.currency)}
+          <DataText>{formatAmount(detail.tripCostTotal, detail.currency)}</DataText>
           {detail.budget && (
             <>
-              {" "}
-              / budget {formatAmount(detail.budget.amountMinor, detail.budget.currency)}
+              {" / budget "}
+              <DataText>{formatAmount(detail.budget.amountMinor, detail.budget.currency)}</DataText>
               {detail.budgetRemaining !== null && (
-                <> (remaining {formatAmount(detail.budgetRemaining, detail.currency)})</>
+                <>
+                  {" (remaining "}
+                  <DataText className={detail.budgetRemaining < 0 ? "text-warning-ink" : undefined}>
+                    {formatAmount(detail.budgetRemaining, detail.currency)}
+                  </DataText>
+                  {")"}
+                </>
               )}
             </>
           )}

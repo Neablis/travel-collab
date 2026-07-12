@@ -14,9 +14,6 @@
   "apps/web/src/components/board/TripMoneySettings.tsx",
   "apps/web/src/components/board/UndoRedoControls.tsx",
   "apps/web/src/components/lenses/CalendarLens.tsx",
-  "apps/web/src/components/lenses/DailyOverviewLens.tsx",
-  "apps/web/src/components/lenses/FullTripOverviewLens.tsx",
-  "apps/web/src/components/lenses/ItineraryLens.tsx",
   "apps/web/src/components/lenses/MapLens.tsx",
   "apps/web/src/components/lenses/TimelineLens.tsx",
   "apps/web/src/components/lenses/TripDateControl.tsx"
