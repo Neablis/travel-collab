@@ -9,6 +9,9 @@ export function THead(props: React.HTMLAttributes<HTMLTableSectionElement>) {
 export function TBody(props: React.HTMLAttributes<HTMLTableSectionElement>) {
   return <tbody {...props} />;
 }
+export function TFoot(props: React.HTMLAttributes<HTMLTableSectionElement>) {
+  return <tfoot {...props} />;
+}
 export function TR({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return <tr className={cn("border-b border-hairline", className)} {...props} />;
 }

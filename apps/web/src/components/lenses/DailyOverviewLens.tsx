@@ -2,7 +2,7 @@
 
 import type { TripDetail } from "@tc/contracts";
 import { DataText } from "../ui/data-text";
-import { Table, THead, TBody, TR, TH, TD } from "../ui/table";
+import { Table, THead, TBody, TFoot, TR, TH, TD } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { EmptyState } from "../ui/empty-state";
 import { dailyRows } from "./dailyOverviewData";
@@ -46,7 +46,7 @@ export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
             </TR>
           ))}
         </TBody>
-        <tfoot>
+        <TFoot>
           <TR data-testid="daily-overview-footer" className="border-t border-border-strong font-semibold">
             <TD colSpan={3}>Trip total</TD>
             <TD className="text-right">
@@ -54,7 +54,7 @@ export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
             </TD>
             <TD></TD>
           </TR>
-        </tfoot>
+        </TFoot>
       </Table>
     </div>
   );
