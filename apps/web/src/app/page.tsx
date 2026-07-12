@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { TripSummary } from "@tc/contracts";
+import { Heading } from "../components/ui/heading";
+import { Text } from "../components/ui/text";
+import { DataText } from "../components/ui/data-text";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Card } from "../components/ui/card";
+import { FormField } from "../components/ui/form-field";
+import { EmptyState } from "../components/ui/empty-state";
 
 export default function Home() {
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
@@ -44,34 +52,56 @@ export default function Home() {
 
   if (unauthenticated) {
     return (
-      <main>
-        <h1>travel-collab</h1>
-        <Link href="/api/auth/signin?callbackUrl=/">Sign in</Link>
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        <Heading level={1}>travel-collab</Heading>
+        <Link
+          href="/api/auth/signin?callbackUrl=/"
+          className="mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-3.5 text-base font-medium text-ink transition-colors hover:bg-moss"
+        >
+          Sign in
+        </Link>
       </main>
     );
   }
 
   return (
-    <main>
-      <h1>Your trips</h1>
-      <form onSubmit={createTrip}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Trip name"
-          aria-label="Trip name"
-        />
-        <button type="submit">Create trip</button>
+    <main className="mx-auto max-w-6xl px-6 py-8">
+      <Heading level={1}>Your trips</Heading>
+      <form onSubmit={createTrip} className="mt-4 flex items-end gap-2">
+        <FormField id="trip-name" label="Trip name">
+          <Input
+            id="trip-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Trip name"
+            aria-label="Trip name"
+          />
+        </FormField>
+        <Button type="submit" variant="primary">
+          Create trip
+        </Button>
       </form>
-      {error && <p role="alert">{error}</p>}
-      <ul>
-        {(trips ?? []).map((t) => (
-          <li key={t.tripId}>
-            <Link href={`/trips/${t.tripId}`}>{t.name}</Link>
-          </li>
-        ))}
-      </ul>
-      {trips !== null && trips.length === 0 && <p>No trips yet — create one.</p>}
+      {error && (
+        <Text role="alert" variant="secondary" className="mt-2 text-danger-ink">
+          {error}
+        </Text>
+      )}
+      {trips !== null && trips.length === 0 ? (
+        <EmptyState title="Start your first trip" body="No trips yet — create one." />
+      ) : (
+        <ul className="mt-6 flex flex-col gap-2">
+          {(trips ?? []).map((t) => (
+            <Card key={t.tripId} as="li">
+              <Link href={`/trips/${t.tripId}`} className="text-brand font-medium hover:underline">
+                {t.name}
+              </Link>
+              <div>
+                <DataText>{t.createdAt}</DataText>
+              </div>
+            </Card>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

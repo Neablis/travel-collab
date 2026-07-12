@@ -42,8 +42,6 @@ export default [
       "src/server/**",
       "src/app/api/**",
       // pending re-skin — mirror of scripts/design-wall-pending.json:
-      "src/app/page.tsx",
-      "src/app/trips/[tripId]/page.tsx",
       "src/components/board/*.tsx",
       "src/components/lenses/*.tsx",
     ],
