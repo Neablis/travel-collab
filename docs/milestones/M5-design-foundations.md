@@ -24,7 +24,8 @@ file defines scope and gate only.
   native-semantics rule (no Radix Select; no react-hook-form).
 - Aesthetic direction: **Field Kit** (paper/ink/teal, mono-for-data signature).
 - Design record: `docs/specs/2026-07-11-M5-design-foundations-design.md` ·
-  System reference: `docs/guidelines/design-system.md`.
+  System reference: `docs/guidelines/design-system.md` ·
+  Task plan: `docs/plans/2026-07-11-M5-design-foundations.md`.
 
 ## Scope
 
