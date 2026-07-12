@@ -45,8 +45,6 @@ export default [
       // context (e.g. a "probe" input standing in for some other field on
       // the page) — this is not shipped UI, so the element wall doesn't apply.
       "src/**/*.test.tsx",
-      // pending re-skin — mirror of scripts/design-wall-pending.json:
-      "src/components/lenses/*.tsx",
     ],
     rules: {
       "no-restricted-syntax": [

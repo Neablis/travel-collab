@@ -1,6 +1,11 @@
 "use client";
 
 import type { TripDetail } from "@tc/contracts";
+import { Heading } from "../ui/heading";
+import { Text } from "../ui/text";
+import { DataText } from "../ui/data-text";
+import { EmptyState } from "../ui/empty-state";
+import { Button } from "../ui/button";
 import { timelineRows } from "./timelineData";
 
 const DAY_START_MIN = 6 * 60; // 06:00
@@ -27,67 +32,63 @@ export function TimelineLens({
   const rows = timelineRows(detail);
 
   if (rows.length === 0) {
-    return <p>No days yet.</p>;
+    return <EmptyState title="No days yet." />;
   }
 
   return (
-    <div data-testid="timeline-lens" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div data-testid="timeline-lens" className="flex flex-col gap-4">
       {rows.map((row) => (
-        <div
-          key={row.dayId}
-          data-testid={`timeline-row-${row.dayId}`}
-          style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}
-        >
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>
+        <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="rounded-md border border-hairline p-2">
+          <Heading level={3} className="mb-1.5">
             Day {row.ordinal}
-            {row.date && <span style={{ fontWeight: 400, color: "#666" }}> · {row.date}</span>}
-          </div>
+            {row.date && (
+              <>
+                {" · "}
+                <DataText as="span" size="base" className="font-normal">
+                  {row.date}
+                </DataText>
+              </>
+            )}
+          </Heading>
 
           <div
-            style={{
-              position: "relative",
-              height: 40,
-              background: "#f5f5f5",
-              borderRadius: 4,
-              marginBottom: row.untimed.length > 0 ? 8 : 0,
-            }}
+            className="relative rounded-sm border border-hairline bg-moss"
+            // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
+            style={{ height: 40, marginBottom: row.untimed.length > 0 ? 8 : 0 }}
           >
             {row.timed.map((item) => {
               const left = clampPercent(toMinutes(item.start));
               const right = clampPercent(toMinutes(item.end));
               const width = Math.max(right - left, 1);
-              const itemStyle = {
-                position: "absolute" as const,
+              const geometry = {
                 left: `${left}%`,
                 width: `${width}%`,
                 top: 4,
                 bottom: 4,
-                background: "#4f7cff",
-                color: "white",
-                borderRadius: 4,
-                padding: "2px 6px",
-                fontSize: 12,
-                overflow: "hidden",
-                whiteSpace: "nowrap" as const,
-                textOverflow: "ellipsis" as const,
               };
+              const blockClassName =
+                "absolute overflow-hidden text-ellipsis whitespace-nowrap rounded-sm border border-brand bg-brand-tint px-1.5 py-0.5 text-xs text-brand-pressed";
               return onSelectActivity ? (
-                <button
+                <Button
                   key={item.activityId}
-                  type="button"
+                  variant="ghost"
                   data-testid={`timeline-item-${item.activityId}`}
                   title={`${item.title} (${item.start}–${item.end})`}
                   onClick={() => onSelectActivity(item.activityId)}
-                  style={{ ...itemStyle, border: "none", textAlign: "left", cursor: "pointer" }}
+                  className={`${blockClassName} h-auto justify-start border-brand text-left hover:bg-brand-tint`}
+                  // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
+                  style={geometry}
                 >
                   {item.title}
-                </button>
+                </Button>
               ) : (
                 <div
                   key={item.activityId}
                   data-testid={`timeline-item-${item.activityId}`}
                   title={`${item.title} (${item.start}–${item.end})`}
-                  style={itemStyle}
+                  className={blockClassName}
+                  // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
+                  style={geometry}
                 >
                   {item.title}
                 </div>
@@ -96,30 +97,23 @@ export function TimelineLens({
           </div>
 
           {row.untimed.length > 0 && (
-            <ul style={{ display: "flex", flexWrap: "wrap", gap: 6, listStyle: "none", padding: 0, margin: 0 }}>
+            <ul className="flex flex-wrap gap-1.5">
               {row.untimed.map((item) =>
                 onSelectActivity ? (
                   <li key={item.activityId} data-testid={`timeline-untimed-${item.activityId}`}>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       onClick={() => onSelectActivity(item.activityId)}
-                      style={{ background: "#eee", borderRadius: 4, padding: "2px 8px", fontSize: 12, border: "none", cursor: "pointer" }}
+                      className="h-auto rounded-sm bg-moss px-2 py-0.5 text-xs font-normal text-ink hover:bg-moss"
                     >
                       {item.title}
-                    </button>
+                    </Button>
                   </li>
                 ) : (
-                  <li
-                    key={item.activityId}
-                    data-testid={`timeline-untimed-${item.activityId}`}
-                    style={{
-                      background: "#eee",
-                      borderRadius: 4,
-                      padding: "2px 8px",
-                      fontSize: 12,
-                    }}
-                  >
-                    {item.title}
+                  <li key={item.activityId} data-testid={`timeline-untimed-${item.activityId}`} className="rounded-sm bg-moss px-2 py-0.5 text-xs text-ink">
+                    <Text as="span" variant="muted">
+                      {item.title}
+                    </Text>
                   </li>
                 ),
               )}

@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
+import { Heading } from "../ui/heading";
+import { Text } from "../ui/text";
+import { Button } from "../ui/button";
 import { activityPins, unlocatedActivities } from "./mapData";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -37,9 +40,15 @@ export function MapLens({
         zoom: 10,
       });
 
+      // Marker color is a maplibre-gl runtime option, not a CSS class — it
+      // requires a literal color string at construction time. It is read from
+      // the live --color-brand CSS variable rather than hardcoded, so the
+      // marker always tracks the design token.
+      const brandColor = getComputedStyle(document.documentElement).getPropertyValue("--color-brand").trim() || undefined;
+
       const bounds = new LngLatBounds();
       for (const pin of pins) {
-        const marker = new Marker().setLngLat([pin.lng, pin.lat]).addTo(map);
+        const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
         if (onSelectActivity) {
           marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
           marker.getElement().style.cursor = "pointer";
@@ -59,40 +68,57 @@ export function MapLens({
   }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity]);
 
   return (
-    <div className="map-lens">
+    <div className="map-lens flex flex-col gap-3">
       {pins.length > 0 ? (
         <>
-          <div ref={containerRef} className="map-lens-canvas" style={{ width: "100%", height: 400 }} />
-          <ul className="map-lens-pin-list">
+          {/* eslint-disable-next-line no-restricted-syntax -- maplibre requires a sized DOM container to mount into; dimensions are geometry, not tokenable colors */}
+          <div ref={containerRef} className="map-lens-canvas overflow-hidden rounded-md border border-hairline" style={{ width: "100%", height: 400 }} />
+          <ul className="map-lens-pin-list flex flex-col gap-1">
             {pins.map((pin) =>
               onSelectActivity ? (
                 <li key={pin.activityId}>
-                  <button type="button" onClick={() => onSelectActivity(pin.activityId)}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSelectActivity(pin.activityId)}
+                    className="h-auto justify-start p-0 text-left text-base font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
+                  >
                     {pin.title}
-                  </button>
+                  </Button>
                 </li>
               ) : (
-                <li key={pin.activityId}>{pin.title}</li>
+                <li key={pin.activityId}>
+                  <Text as="span">{pin.title}</Text>
+                </li>
               ),
             )}
           </ul>
         </>
       ) : (
-        <p className="map-lens-empty">No located activities yet — add a place to see it on the map.</p>
+        <Text variant="secondary" className="map-lens-empty">
+          No located activities yet — add a place to see it on the map.
+        </Text>
       )}
       {unlocated.length > 0 && (
         <div className="map-lens-unlocated">
-          <h3>Not on the map — add a place</h3>
-          <ul>
+          <Heading level={3} className="mb-1.5">
+            Not on the map — add a place
+          </Heading>
+          <ul className="flex flex-col gap-1">
             {unlocated.map((activity) =>
               onSelectActivity ? (
                 <li key={activity.activityId}>
-                  <button type="button" onClick={() => onSelectActivity(activity.activityId)}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSelectActivity(activity.activityId)}
+                    className="h-auto justify-start p-0 text-left text-base font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
+                  >
                     {activity.title}
-                  </button>
+                  </Button>
                 </li>
               ) : (
-                <li key={activity.activityId}>{activity.title}</li>
+                <li key={activity.activityId}>
+                  <Text as="span">{activity.title}</Text>
+                </li>
               ),
             )}
           </ul>
