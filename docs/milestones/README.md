@@ -75,4 +75,4 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M4** — Money & lenses (see `M4-money-and-lenses.md`).
+Current milestone: **M5** — Design foundations (see `M5-design-foundations.md`).

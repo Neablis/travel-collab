@@ -20,7 +20,7 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
       proves the event-sourcing bet.
 - [x] **M3 Place & time** — map view (MapLibre), timeline, calendar views;
       date-anchored events; anchor-violation conflicts on date shifts.
-- [ ] **M4 Money & lenses** — cost items + rollups; itinerary / daily /
+- [x] **M4 Money & lenses** — cost items + rollups; itinerary / daily /
       full-trip output lenses.
 - [ ] **M5 Design foundations** — Tailwind design tokens; documented color
       palette with usage guidelines; styled reusable primitives (inputs,
