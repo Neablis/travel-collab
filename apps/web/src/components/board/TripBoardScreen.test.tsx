@@ -94,8 +94,10 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    // P2 surface move: History is now a Popover trigger in TripHeader (#13),
+    // not an inline toggle — the click opens the popover the same way.
     fireEvent.click(screen.getByRole("button", { name: "History" }));
-    fireEvent.click(screen.getByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
 
     await screen.findByText("Viewing version 2 (read-only)");
     expect(await screen.findByText("Ancient Rome")).toBeTruthy();
@@ -142,9 +144,13 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
     await screen.findByText("Set a start date to see the calendar.");
 
+    // P2 surface move: TripDateControl re-homed into SettingsSheet (#15) —
+    // open it via the header's gear button first.
+    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
+
     // M3 debt paydown: only the single canonical TripDateControl renders, not
     // a duplicate (the old inline StartDateControl + CalendarLens's own copy).
-    expect(screen.getAllByLabelText("Start date")).toHaveLength(1);
+    expect(await screen.findAllByLabelText("Start date")).toHaveLength(1);
 
     const dateInput = screen.getAllByLabelText("Start date")[0]!;
     fireEvent.change(dateInput, { target: { value: "2027-06-01" } });
@@ -205,7 +211,9 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Weekday Market")).toBeTruthy();
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
 
-    const dateInput = screen.getAllByLabelText("Start date")[0]!;
+    // P2 surface move: TripDateControl re-homed into SettingsSheet (#15).
+    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
+    const dateInput = (await screen.findAllByLabelText("Start date"))[0]!;
     fireEvent.change(dateInput, { target: { value: "2027-06-08" } });
 
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
@@ -235,7 +243,10 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    await userEvent.type(screen.getByLabelText(/cost|budget/i), "500");
+    // P2 surface move: TripMoneySettings re-homed into SettingsSheet (comment 12b) —
+    // open it via the header's gear button first.
+    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
+    await userEvent.type(await screen.findByLabelText(/cost|budget/i), "500");
     await userEvent.tab();
 
     await waitFor(() =>

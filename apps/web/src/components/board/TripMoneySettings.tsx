@@ -20,7 +20,7 @@ export function TripMoneySettings({
   onCommand: (command: TripCommand) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-col gap-3">
       <FormField id="trip-currency" label="currency">
         <NativeSelect
           id="trip-currency"
@@ -35,14 +35,22 @@ export function TripMoneySettings({
           ))}
         </NativeSelect>
       </FormField>
-      <MoneyInput
-        value={budget}
-        currency={currency}
-        onChange={(money) => onCommand({ type: "SetTripBudget", tripId, budget: money })}
-      />
-      <Button variant="ghost" onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}>
-        Clear budget
-      </Button>
+      <FormField
+        id="trip-budget"
+        label="Trip budget"
+        description="Used for the over-budget warning across lenses."
+      >
+        <div className="flex items-center gap-1.5">
+          <MoneyInput
+            value={budget}
+            currency={currency}
+            onChange={(money) => onCommand({ type: "SetTripBudget", tripId, budget: money })}
+          />
+          <Button variant="ghost" onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}>
+            Clear budget
+          </Button>
+        </div>
+      </FormField>
     </div>
   );
 }

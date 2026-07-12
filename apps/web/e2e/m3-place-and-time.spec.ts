@@ -34,8 +34,14 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // -- start date: calendar shows the derived dates --
+  // P2 surface move (#15): TripDateControl moved into the Settings sheet —
+  // open it via the header's gear button. The sheet is a full-height overlay
+  // (RadixDialog.Overlay covers the viewport), so it has to be closed again
+  // before interacting with anything behind it (tabs, board).
   // 2026-10-10 is a Saturday.
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-10");
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("tab", { name: "Calendar" }).click();
   await expect(page.getByText("Day 1")).toBeVisible();
   await expect(page.getByText("Day 2")).toBeVisible();
@@ -72,11 +78,15 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
 
   // -- shift the start date so the anchor is satisfied; badge clears --
   // 2026-10-12 is a Monday.
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-12");
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- clear the date: date-based anchors go dormant --
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Clear dates" }).click();
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- undo the shift: dates and the conflict return --
@@ -91,13 +101,17 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
     ),
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await expect(page.getByLabel("Start date")).toHaveValue("2026-10-12");
+  await page.getByRole("button", { name: "Close" }).click();
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
     ),
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await expect(page.getByLabel("Start date")).toHaveValue("2026-10-10");
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).toBeVisible();
 });

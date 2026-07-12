@@ -7,20 +7,17 @@ import { LENSES, useLens } from "@/components/trip/context/LensRouter";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { MapLens } from "@/components/lenses/MapLens";
 import { TimelineLens } from "@/components/lenses/TimelineLens";
-import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { ItineraryLens } from "@/components/lenses/ItineraryLens";
 import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
 import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
 import { TabStrip } from "@/components/ui/tab-strip";
+import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
-import { HistoryPanel } from "./HistoryPanel";
-import { TripMoneySettings } from "./TripMoneySettings";
-import { UndoRedoControls } from "./UndoRedoControls";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, history, activeTrip, status, error, pending, dispatch, preview } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, preview } = useTrip();
   const { lens, setLens } = useLens();
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
 
@@ -61,45 +58,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   return (
     <>
-      <nav>
-        <Link href="/">← Your trips</Link>
-      </nav>
-      <Heading level={2}>{trip.name}</Heading>
-      {preview.seq === null && (
-        <TripDateControl
-          tripId={tripId}
-          startDate={trip.startDate}
-          onCommand={(command) => {
-            if (command.type !== "CreateTrip") void dispatch(command);
-          }}
-        />
-      )}
-      {preview.seq === null && (
-        <TripMoneySettings
-          tripId={tripId}
-          currency={trip.currency}
-          budget={trip.budget}
-          onCommand={(command) => {
-            if (command.type !== "CreateTrip") void dispatch(command);
-          }}
-        />
-      )}
-      {preview.seq === null && (
-        <UndoRedoControls
-          canUndo={history?.canUndo ?? false}
-          canRedo={history?.canRedo ?? false}
-          onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-          onRedo={() => void dispatch({ type: "RedoChange", tripId })}
-          isBusy={pending}
-        />
-      )}
-      <HistoryPanel
-        history={history}
-        previewSeq={preview.seq}
-        onPreview={(seq) => void preview.enter(seq)}
-        onExitPreview={preview.exit}
-        onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
-      />
+      <TripHeader tripId={tripId} />
       {error !== null && <p role="alert">{error}</p>}
       <TabStrip
         value={lens}

@@ -50,6 +50,9 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
 
   // -- history + read-only preview + revert --
+  // P2 surface move (#13): History is now a Popover trigger in the trip
+  // header, and its entries render inside the popover instead of an inline
+  // panel pushing page content down.
   await page.getByRole("button", { name: "History" }).click();
   await expect(page.getByTestId("history-entry").first()).toContainText("Redid: Dismissed a conflict");
   // preview the moment just before Vatican Museums moved onto Day 1:
