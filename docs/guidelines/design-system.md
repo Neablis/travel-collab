@@ -194,10 +194,12 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 
 | Component | Replaces / skins |
 |---|---|
-| `FormField` | Label + control + hint/error slot (no react-hook-form — existing form logic untouched) |
+| `FormField` | Label (**required**) + control + optional `description` (one-line explainer between label and control) + hint/error slot (no react-hook-form — existing form logic untouched) |
 | `Dialog` | shadcn/Radix dialog; only where a modal already exists behaviorally |
 | `Table` | Itinerary / daily / trip lenses, cost rollups; mono data cells |
-| `Tabs` | Lens switcher |
+| `Tabs` | Radix tabs; kept for cases without the fireEvent-safety requirement below |
+| `TabStrip` | Non-Radix `role="tab"` button group, moss-pill skin of `Tabs`. Use for the trip lens switcher (Task P1) and anywhere tests must drive selection with `fireEvent.click` — Radix `TabsTrigger` is pointer-only and silently no-ops under `fireEvent` (comment #11 / Track-B1) |
+| `SegmentedControl` | Non-Radix `role="radiogroup"`/`role="radio"` button group, same moss-pill skin. Use for two/three-way toggles (e.g. Calendar↔Timeline) where Radix `RadioGroup` would have the same `fireEvent` gap |
 | `Banner` | Conflict banner (warning), info notices |
 | `Panel` | History panel chrome |
 | `PageContainer` | Centers + constrains page width; `width="content"` (default, 1120px) / `"measure"` (640px) / `"full"` (board/map); optionally `as="main"` |
@@ -205,8 +207,30 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Popover` | Anchored Radix Popover; History, clear-date, row menus. State-controlled (`open`/`onOpenChange`), no `PopoverTrigger` |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
 
+`TabStrip`/`SegmentedControl` are deliberately hand-rolled, not Radix — see
+`apps/web/src/components/ui/tab-strip.tsx`. They are the one sanctioned
+raw-`<button>` group outside individual primitives; feature code still never
+renders a raw `<button>` directly — import `TabStrip`/`SegmentedControl`
+instead of recreating one. Both are fully controlled: they only call
+`onValueChange`, never hold their own selected-value state.
+
 Adding a primitive or composite is a design-system change: update this
 inventory in the same PR.
+
+### Field-with-context convention
+
+Established with `FormField`'s `description` slot (Task F4) and binding for
+form fields going forward:
+
+- **Label is mandatory.** Every `FormField` has a visible `label` — no
+  placeholder-as-label, no bare inputs outside `ui/`.
+- **`description` is for domain concepts**, not restating the label — use it
+  when a field encodes a concept a first-time user won't already know (e.g.
+  "Lock to a date rule" needs a sentence explaining what locking means).
+  Validation/format guidance stays in `hint`; error state stays in `error`.
+- **Search fields use a combobox**, not a bare `Input` with ad hoc
+  autocomplete wiring. No combobox primitive exists yet — this convention is
+  established here for Task C1 to implement against when it lands.
 
 ## Enforcement
 

@@ -50,4 +50,13 @@ describe("ui composites", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(screen.getByText("map content")).toBeTruthy();
   });
+
+  it("FormField renders a description between label and control", () => {
+    render(
+      <FormField id="anchor" label="Lock to a date rule" description="Keeps this event tied to a rule (e.g. every Monday) even if dates shift.">
+        <input id="anchor" />
+      </FormField>,
+    );
+    expect(screen.getByText(/Keeps this event tied to a rule/)).toBeTruthy();
+  });
 });
