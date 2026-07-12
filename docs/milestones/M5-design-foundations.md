@@ -27,6 +27,40 @@ file defines scope and gate only.
   System reference: `docs/guidelines/design-system.md` ·
   Task plan: `docs/plans/2026-07-11-M5-design-foundations.md`.
 
+## Wave 2 — Layout & surfaces (scope expansion, 2026-07-12)
+
+Wave 1 (PR #11) re-skinned every surface presentationally. Mitchell's 15 Vercel
+comments surfaced four missing patterns. Wave 2 **reverses the "responsive out
+of scope" exclusion inside M5** (Mitchell's call) and adds: responsive
+container/breakpoint tokens, Sheet + Popover primitives, a client-state context
+spine (ADR-012), URL-backed view routing, and a scope→surface editing paradigm
+(ADR-011). It is desktop-first with mobile-capable tokens; no phone pass.
+Spec: `docs/specs/2026-07-12-M5-layout-and-surfaces-design.md` ·
+Plan: `docs/plans/2026-07-12-M5-layout-and-surfaces.md`.
+
+Wave 1's "e2e changes are selector-only" rule does **not** apply to Wave 2:
+Enter-to-search, editor-as-sheet, budget-in-settings, and the merged Schedule
+lens are intentional behavior/structure changes, each justified in its commit.
+
+### Wave 2 exit gate — all must be true
+
+- [ ] Every one of the 15 PR #11 comments is resolved (map in the spec) and
+      demoed on the deployed Vercel URL at ≥1024px.
+- [ ] **ADR-011 validated:** a new global setting lands in Settings and a new
+      activity field in the editor with no per-feature surface decision (R1);
+      the editor is raised with prefill from ≥2 triggers (R2).
+- [ ] **ADR-012 validated:** grep shows no direct trip-context writes;
+      `LensRouter` holds no `useState` mirror; a test proves `fireEvent.click`
+      opens every overlay.
+- [ ] `docs/guidelines/design-system.md` amended: breakpoints/containers,
+      overflow policy, surface vocabulary, field-with-context, date format, and
+      the new inventory entries.
+- [ ] Enforcement green (color/element/style walls); `pnpm check` passes.
+- [ ] All M0–M4 e2e green; Wave-2 behavioral test changes each justified.
+- [ ] Still no `docs/contracts/CHANGELOG.md` entry (any contract change means
+      scope crept).
+- [ ] Wave-2 retro note appended.
+
 ## Scope
 
 - **Global Tailwind design tokens.** Introduce Tailwind CSS (new dev
