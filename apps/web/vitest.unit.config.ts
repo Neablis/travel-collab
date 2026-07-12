@@ -11,5 +11,6 @@ export default defineConfig({
     environmentOptions: { jsdom: { url: BASE_URL } },
     include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["src/**/*.int.test.ts", "node_modules/**"],
+    setupFiles: ["./vitest.setup.ts"],
   },
 });
