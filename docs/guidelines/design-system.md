@@ -19,7 +19,7 @@ currency) so ledger-like surfaces align. Decided by Mitchell at M5 kickoff
 |---|---|---|
 | Display | Bricolage Grotesque | Headings only (`Heading`). Weights 500–600. Never for body or UI chrome. |
 | Body / UI | IBM Plex Sans | Everything else (`Text`, `Label`, buttons, inputs). Weights 400/500/600. |
-| Data | IBM Plex Mono | **All** times, dates, durations, currency amounts, IDs (`DataText`). Weight 400/500. This is the system's signature — money and time columns align like a ledger. |
+| Data | IBM Plex Mono | **All** times, dates, durations, currency amounts, IDs (`DataText`). Weight 400/500. This is the system's signature — money and time columns align like a ledger. Dates rendered in `DataText` use `formatTripDate`/`formatTripDateLong` — never bare ISO strings. |
 
 Loaded via `next/font` (self-hosted, zero layout shift). No other font families,
 weights, or `font-style: italic` display usage.
