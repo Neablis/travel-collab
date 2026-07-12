@@ -5,6 +5,7 @@ import type { TripDetail } from "@tc/contracts";
 import { Heading } from "../ui/heading";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
+import { useEditor } from "../trip/context/EditorHost";
 import { activityPins, unlocatedActivities } from "./mapData";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -16,6 +17,7 @@ export function MapLens({
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
 }) {
+  const { openCreate } = useEditor();
   const containerRef = useRef<HTMLDivElement>(null);
   const pins = activityPins(detail);
   const unlocated = unlocatedActivities(detail);
@@ -38,6 +40,19 @@ export function MapLens({
         style: STYLE_URL,
         center: [firstPin.lng, firstPin.lat],
         zoom: 10,
+      });
+
+      // Double-click on the map is the create-mode trigger (ADR-011 R2): it
+      // seeds the editor's prefill with the clicked coordinates instead of a
+      // dayId, demonstrating a second, distinct prefill shape from the same
+      // openCreate() entry point. No other maplibre behavior changes — this
+      // only adds a listener (maplibre's default dblclick-to-zoom still
+      // fires alongside it, matching stock map interaction expectations).
+      map.on("dblclick", (e: import("maplibre-gl").MapMouseEvent) => {
+        const { lng, lat } = e.lngLat;
+        openCreate({
+          location: { name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng },
+        });
       });
 
       // Marker color is a maplibre-gl runtime option, not a CSS class — it
@@ -65,7 +80,7 @@ export function MapLens({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity]);
+  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
   return (
     <div className="map-lens flex flex-col gap-3">
