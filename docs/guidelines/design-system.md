@@ -73,6 +73,24 @@ Used via the `PageContainer` composite, which applies `mx-auto` (centers) +
 `px-6` (safe margin) + a max-width class (`max-w-measure`, `max-w-content`) or
 none (`width="full"` for board/map views). See `PageContainer` below.
 
+### Surface vocabulary (fixed, so R1 holds)
+
+| Surface | Used for | Why this one |
+|---|---|---|
+| **Sheet** (slides from the right; board stays visible, dimmed) | create/edit an **activity**; **trip settings** | roomy for many fields; keeps spatial context so context-prefill is meaningful |
+| **Popover** (anchored, small) | tiny contextual controls — clear-date (#2), History (#13), row menus | attached to its trigger; never pushes page content down |
+| **Dialog** (centered, blocking) | destructive confirmations only | the only time blocking the screen is correct |
+
+The activity editor is a **sheet, not a dialog** (a dialog covers the map/day
+you just acted on, killing prefill) and **not a popover** (the form has too many
+fields — a popover reproduces the overflow of comment #9).
+
+Both `Sheet` and `Popover` are **state-controlled** (`open`/`onOpenChange` props
+owned by the caller) and never expose a Radix `*Trigger` component — see
+ADR-012 invariant 3. Radix triggers only respond to real pointer events, so
+`fireEvent.click` in unit tests silently fails to open them; the caller instead
+renders a plain `Button` with its own `onClick` that flips `open`.
+
 ## Color palette
 
 All values are defined once as `@theme` tokens; raw hex/rgb/hsl literals
@@ -183,6 +201,8 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Banner` | Conflict banner (warning), info notices |
 | `Panel` | History panel chrome |
 | `PageContainer` | Centers + constrains page width; `width="content"` (default, 1120px) / `"measure"` (640px) / `"full"` (board/map); optionally `as="main"` |
+| `Sheet` | Side-anchored Radix Dialog; activity editor, trip settings. State-controlled (`open`/`onOpenChange`), no `SheetTrigger` |
+| `Popover` | Anchored Radix Popover; History, clear-date, row menus. State-controlled (`open`/`onOpenChange`), no `PopoverTrigger` |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
 
 Adding a primitive or composite is a design-system change: update this
