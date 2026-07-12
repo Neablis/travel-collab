@@ -57,7 +57,9 @@ optically larger).
 **Breakpoints:** Tailwind defaults, untouched. M5 must not regress current
 responsive behavior; a real responsive pass is explicitly out of scope.
 **Minimum supported width is 1024px** (desktop-first; below that, layout is
-best-effort until the mobile milestone).
+best-effort until the mobile milestone). The `lg` breakpoint (1024px) is named
+the **board-stack breakpoint**: below it, the trip board's day-column layout
+switches from horizontal to stacked.
 
 **Container widths:** Two tiers, generated from `@theme` tokens in
 `globals.css`:
