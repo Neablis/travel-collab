@@ -5,6 +5,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
+import { Button } from "@/components/ui/button";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
@@ -80,7 +81,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
         dismissedConflictIds={trip.dismissedConflictIds}
         onDismiss={callbacks.onDismissConflict}
       />
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", overflowX: "auto" }}>
+      <div className="flex items-start gap-3 overflow-x-auto pb-2">
         <Column
           title="Backlog"
           dayId={null}
@@ -101,7 +102,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
               onCancel={() => setAdding(false)}
             />
           ) : (
-            <button onClick={() => setAdding(true)}>+ Add activity</button>
+            <Button variant="primary" onClick={() => setAdding(true)}>+ Add activity</Button>
           )}
         </Column>
         {trip.days.map((day, index) => (
@@ -117,12 +118,12 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
           />
         ))}
-        <button onClick={callbacks.onAddDay} style={{ minWidth: 120 }}>
+        <Button variant="secondary" onClick={callbacks.onAddDay} className="w-32 shrink-0">
           + Add day
-        </button>
+        </Button>
       </div>
       {editing !== null && editingActivity !== null && (
-        <div style={{ marginTop: 12, maxWidth: 420 }}>
+        <div className="mt-3 max-w-md">
           <ActivityEditor
             key={editing}
             initial={editingActivity}

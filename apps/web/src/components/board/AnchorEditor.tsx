@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import type { Anchor, Weekday } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Text } from "@/components/ui/text";
 
 const ANCHOR_KINDS = ["dayOfWeek", "dateRange", "timeOfDay", "publicHoliday"] as const;
 type AnchorKind = (typeof ANCHOR_KINDS)[number];
@@ -58,27 +62,33 @@ export function AnchorEditor({
   }
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div className="grid gap-1.5">
       {value.map((anchor, index) => (
-        <div key={index} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{describeAnchor(anchor)}</span>
-          <button type="button" onClick={() => removeAnchor(index)}>
+        <div key={index} className="flex items-center gap-1.5">
+          <Text as="span">{describeAnchor(anchor)}</Text>
+          <Button variant="ghost" onClick={() => removeAnchor(index)}>
             Remove
-          </button>
+          </Button>
         </div>
       ))}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <label htmlFor="anchor-kind">anchor kind</label>
-        <select id="anchor-kind" aria-label="anchor kind" value={kind} onChange={(e) => setKind(e.target.value as AnchorKind)}>
-          {ANCHOR_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={addAnchor}>
+      <div className="flex items-center gap-1.5">
+        <FormField id="anchor-kind" label="anchor kind">
+          <NativeSelect
+            id="anchor-kind"
+            aria-label="anchor kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as AnchorKind)}
+          >
+            {ANCHOR_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </NativeSelect>
+        </FormField>
+        <Button variant="secondary" onClick={addAnchor}>
           Add anchor
-        </button>
+        </Button>
       </div>
     </div>
   );

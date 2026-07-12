@@ -17,6 +17,8 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { ItineraryLens } from "@/components/lenses/ItineraryLens";
 import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
 import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
+import { Button } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { HistoryPanel } from "./HistoryPanel";
@@ -97,7 +99,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   if (status === "unauthenticated") {
     return (
       <main>
-        <h1>travel-collab</h1>
+        <Heading level={1}>travel-collab</Heading>
         <Link href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}>Sign in</Link>
       </main>
     );
@@ -132,7 +134,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <nav>
         <Link href="/">← Your trips</Link>
       </nav>
-      <h1>{trip.name}</h1>
+      <Heading level={2}>{trip.name}</Heading>
       {previewSeq === null && (
         <TripDateControl
           tripId={tripId}
@@ -171,15 +173,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {error !== null && <p role="alert">{error}</p>}
       <div role="tablist" aria-label="Trip view">
         {LENSES.map((l) => (
-          <button
+          <Button
             key={l}
-            type="button"
+            variant="ghost"
             role="tab"
             aria-selected={lens === l}
             onClick={() => setLens(l)}
+            className={lens === l ? "font-semibold text-ink" : undefined}
           >
             {l}
-          </button>
+          </Button>
         ))}
       </div>
       <div inert={previewSeq !== null ? true : undefined}>
@@ -218,7 +221,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
         {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
         {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
-          <div style={{ marginTop: 12, maxWidth: 420 }}>
+          <div className="mt-3 max-w-md">
             <ActivityEditor
               key={editingActivityId}
               initial={editingActivity}

@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import type { Location } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string };
 
@@ -34,34 +37,34 @@ export function LocationInput({
   }
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div className="grid gap-1.5">
       {value?.name != null && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{value.name}</span>
-          <button type="button" onClick={() => onChange(null)}>
+        <div className="flex items-center gap-1.5">
+          <Text as="span">{value.name}</Text>
+          <Button variant="ghost" onClick={() => onChange(null)}>
             Clear
-          </button>
+          </Button>
         </div>
       )}
-      <div style={{ display: "flex", gap: 6 }}>
-        <input
+      <div className="flex gap-1.5">
+        <Input
           aria-label="Place name"
           placeholder="place name"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button type="button" onClick={() => void search()}>
+        <Button variant="secondary" onClick={() => void search()}>
           Search
-        </button>
+        </Button>
       </div>
-      {error !== null && <p role="alert">{error}</p>}
+      {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
       {results.length > 0 && (
-        <ul>
+        <ul className="m-0 list-none p-0">
           {results.map((r, index) => (
             <li key={index}>
-              <button type="button" onClick={() => pick(r)}>
+              <Button variant="ghost" onClick={() => pick(r)}>
                 {r.canonicalName}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
