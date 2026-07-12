@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Money } from "@tc/contracts";
+import { Input } from "@/components/ui/input";
 
 function formatMoney(value: Money | null): string {
   return value ? (value.amountMinor / 100).toFixed(2) : "";
@@ -58,7 +59,7 @@ export function MoneyInput({ value, currency, onChange }: { value: Money | null;
   }, []);
 
   return (
-    <input
+    <Input
       type="number" step="0.01" min="0" aria-label={`cost (${currency})`} placeholder={`0.00 ${currency}`}
       value={display}
       onChange={(e) => setDisplay(e.target.value)}

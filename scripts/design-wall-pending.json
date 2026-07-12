@@ -1,13 +1,8 @@
 [
   "apps/web/src/app/page.tsx",
   "apps/web/src/app/trips/[tripId]/page.tsx",
-  "apps/web/src/components/board/ActivityEditor.tsx",
-  "apps/web/src/components/board/AnchorEditor.tsx",
   "apps/web/src/components/board/ConflictBanner.tsx",
   "apps/web/src/components/board/HistoryPanel.tsx",
-  "apps/web/src/components/board/LocationInput.tsx",
-  "apps/web/src/components/board/MoneyInput.tsx",
-  "apps/web/src/components/board/TripMoneySettings.tsx",
   "apps/web/src/components/board/UndoRedoControls.tsx",
   "apps/web/src/components/lenses/CalendarLens.tsx",
   "apps/web/src/components/lenses/DailyOverviewLens.tsx",
