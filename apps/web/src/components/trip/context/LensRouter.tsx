@@ -27,7 +27,7 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
     const view = (SCHEDULE_VIEWS as readonly string[]).includes(params.get("view") ?? "")
       ? (params.get("view") as ScheduleView)
       : "Timeline";
-    const write = (next: URLSearchParams) => router.replace(`${pathname}?${next.toString()}`);
+    const write = (next: URLSearchParams) => router.replace(`${pathname}?${next.toString()}`, { scroll: false });
     return {
       lens,
       view,

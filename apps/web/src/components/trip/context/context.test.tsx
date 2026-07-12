@@ -70,7 +70,7 @@ describe("trip context spine", () => {
     render(<Harness />);
     await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Board"));
     fireEvent.click(screen.getByRole("button", { name: "go map" }));
-    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("lens=Map"));
+    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("lens=Map"), { scroll: false });
   });
 
   it("openCreate opens the editor with prefill", async () => {
