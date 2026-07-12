@@ -61,15 +61,19 @@ flights are activities) · Plan: `docs/plans/2026-07-10-M4-money-and-lenses.md`
 
 ## Exit gate — all must be true
 
-- [ ] **Demo on the deployed Vercel URL:** set the trip currency → add costs to a
+- [x] **Demo on the deployed Vercel URL:** set the trip currency → add costs to a
       few activities (including a "flight" activity and an unscheduled trip-level
       cost) → per-day subtotals and the trip total appear across all three lenses;
       set a **budget below the total** → an `over-budget` `warn` conflict appears
       in the existing banner; raise the budget (or remove a cost) → it clears;
       **dismiss** the over-budget warn → it stays dismissed; **undo** a cost edit
       → the totals revert.
-      (Pending: requires a Vercel deploy — human step. Manually verified locally
-      via the browser preview and the e2e script instead; see retro.)
+      (Waived by Mitchell at gate-close 2026-07-11: production deploy is green
+      (CI + migrate-production both passed on the merge commit) and
+      `LOCATIONIQ_API_KEY` is now configured in production, but the actual
+      click-through on the deployed URL was explicitly skipped in favor of the
+      equivalent local verification already done — browser preview walkthrough
+      + the M4 e2e script, both covering this exact scenario. See retro.)
 - [x] **Property tests (fast-check) green:** `rollupCosts` — costless trip totals
       `0`; day subtotals + unscheduled = trip total (partition); add-then-remove a
       cost is identity on all totals. `diffTripStates` round-trip still holds with
