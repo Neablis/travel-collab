@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { dragCardTo, signInAsDevUser } from "./helpers";
 
 test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   const tripName = `Lisbon ${Date.now()}`;
@@ -34,16 +34,16 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   const day1 = page.getByTestId("day-column").nth(0);
   const day2 = page.getByTestId("day-column").nth(1);
 
-  await colosseum.dragTo(day1);
+  await dragCardTo(colosseum, day1);
   await expect(day1.getByText("Colosseum")).toBeVisible();
-  await vatican.dragTo(day1);
+  await dragCardTo(vatican, day1);
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
 
   // The conflict appears as data — the writes above all succeeded.
   await expect(page.getByText(/overlap in time/)).toBeVisible();
 
   // Resolving by moving away clears it.
-  await vatican.dragTo(day2);
+  await dragCardTo(vatican, day2);
   await expect(day2.getByText("Vatican Museums")).toBeVisible();
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
 });

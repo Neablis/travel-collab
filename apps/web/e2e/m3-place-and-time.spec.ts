@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { dragCardTo, signInAsDevUser } from "./helpers";
 
 test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
@@ -59,7 +59,7 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
 
   const fushimi = page.getByTestId(/activity-card-/).filter({ hasText: "Fushimi Inari" });
   const day1 = page.getByTestId("day-column").nth(0);
-  await fushimi.dragTo(day1);
+  await dragCardTo(fushimi, day1);
   await expect(day1.getByText("Fushimi Inari")).toBeVisible();
 
   // Assert the map pin.

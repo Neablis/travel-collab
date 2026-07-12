@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { dragCardTo, signInAsDevUser } from "./helpers";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — see m3-place-and-time.spec.ts's
@@ -28,7 +28,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   const flight = page.getByTestId(/activity-card-/).filter({ hasText: "Flight to Rome" });
   const day1 = page.getByTestId("day-column").nth(0);
-  await flight.dragTo(day1);
+  await dragCardTo(flight, day1);
   await expect(day1.getByText("Flight to Rome")).toBeVisible();
 
   // -- add an unscheduled (trip-level) costed activity: stays in the backlog --

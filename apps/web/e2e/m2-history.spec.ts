@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { dragCardTo, signInAsDevUser } from "./helpers";
 
 test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) => {
   // Distinct prefix from smoke.spec.ts's "Rome ..." — parallel workers share
@@ -30,9 +30,9 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   const colosseum = page.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" });
   const vatican = page.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" });
   const day1 = page.getByTestId("day-column").nth(0);
-  await colosseum.dragTo(day1);
+  await dragCardTo(colosseum, day1);
   await expect(day1.getByText("Colosseum")).toBeVisible();
-  await vatican.dragTo(day1);
+  await dragCardTo(vatican, day1);
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
 
