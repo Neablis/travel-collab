@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { ActivityCard } from "./ActivityCard";
 
 export function Column({
@@ -44,26 +47,19 @@ export function Column({
   return (
     <section
       data-testid={dayId === null ? "backlog-column" : "day-column"}
-      style={{ minWidth: 220, background: "#f6f6f6", borderRadius: 8, padding: 8 }}
+      className="w-64 shrink-0 rounded-md bg-moss p-2"
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong>{title}</strong>
+      <header className="flex items-baseline justify-between">
+        <span className="text-sm font-semibold text-ink">{title}</span>
         {onRemoveDay && (
-          <button onClick={onRemoveDay} aria-label={`Remove ${title}`}>
-            ✕
-          </button>
+          <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
+            <X className="size-3.5" aria-hidden />
+          </Button>
         )}
       </header>
       <ul
         ref={ref}
-        style={{
-          listStyle: "none",
-          margin: 0,
-          minHeight: 48,
-          padding: 4,
-          background: isOver ? "#e8efff" : "transparent",
-          borderRadius: 6,
-        }}
+        className={cn("m-0 min-h-12 list-none rounded-sm p-1", isOver && "bg-brand-tint")}
       >
         {activityIds.map((id) => {
           const activity = activities[id];
