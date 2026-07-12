@@ -56,6 +56,10 @@
 
   --shadow-raised: 0 1px 2px rgb(21 29 46 / 0.06);
   --shadow-overlay: 0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08);
+
+  /* Content-width tiers (design-system.md "Breakpoints & containers"). */
+  --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
+  --container-content: 70rem;   /* 1120px — default page + non-full lenses */
 }
 
 @theme inline {

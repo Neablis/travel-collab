@@ -51,8 +51,25 @@ optically larger).
   0.06)`) for cards that must lift off a tinted background; `shadow-overlay`
   (`0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08)`) for
   dialogs/popovers. Everything else separates with borders, not depth.
-- **Breakpoints:** Tailwind defaults, untouched. M5 must not regress current
-  responsive behavior; a real responsive pass is explicitly out of scope.
+
+### Breakpoints & containers
+
+**Breakpoints:** Tailwind defaults, untouched. M5 must not regress current
+responsive behavior; a real responsive pass is explicitly out of scope.
+**Minimum supported width is 1024px** (desktop-first; below that, layout is
+best-effort until the mobile milestone).
+
+**Container widths:** Two tiers, generated from `@theme` tokens in
+`globals.css`:
+
+| Token | Pixels | Use |
+|---|---|---|
+| `--container-measure` | 640px (40rem) | Forms, settings panels, prose passages |
+| `--container-content` | 1120px (70rem) | Default page width; non-full lenses |
+
+Used via the `PageContainer` composite, which applies `mx-auto` (centers) +
+`px-6` (safe margin) + a max-width class (`max-w-measure`, `max-w-content`) or
+none (`width="full"` for board/map views). See `PageContainer` below.
 
 ## Color palette
 
@@ -163,6 +180,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Tabs` | Lens switcher |
 | `Banner` | Conflict banner (warning), info notices |
 | `Panel` | History panel chrome |
+| `PageContainer` | Centers + constrains page width; `width="content"` (default, 1120px) / `"measure"` (640px) / `"full"` (board/map); optionally `as="main"` |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
 
 Adding a primitive or composite is a design-system change: update this
