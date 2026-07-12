@@ -7,7 +7,7 @@ import { setupServer } from "msw/node";
 import { TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { TripProvider } from "@/components/trip/context/TripProvider";
-import { EditorHost } from "@/components/trip/context/EditorHost";
+import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
@@ -276,5 +276,100 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByText(/exceeds the budget/)).toBeTruthy();
+  });
+
+  // E1 review finding: the ActivityEditorSheet (portable Sheet raised via
+  // EditorHost) had zero coverage of its open/seed/dispatch/close cycle.
+  // Edit-mode is reachable through a real UI trigger today: ItineraryLens's
+  // ActivityRow renders each activity as a clickable button wired to
+  // onSelectActivity -> useEditor().openEdit (see TripBoardScreen.tsx).
+  it("opens the activity editor from the Itinerary lens, edits, and dispatches UpdateActivity", async () => {
+    const fixture = costedTripDetailFixture();
+    const colosseumId = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Itinerary" }));
+    await screen.findByTestId("itinerary-lens");
+
+    // The row label is "<place> · <title>" — click the activity to openEdit.
+    fireEvent.click(screen.getByRole("button", { name: /Colosseum tour/ }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Edit activity" })).toBeTruthy();
+
+    // Seeded from the existing activity's data.
+    const titleInput = screen.getByLabelText("Activity title") as HTMLInputElement;
+    expect(titleInput.value).toBe("Colosseum tour");
+
+    fireEvent.change(titleInput, { target: { value: "Colosseum night tour" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "UpdateActivity",
+          activityId: colosseumId,
+          title: "Colosseum night tour",
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  // E1 review finding, continued: E2 hasn't wired any UI trigger to
+  // openCreate yet (confirmed by review), so create-mode is exercised via a
+  // direct useEditor() consumer rendered inside the same provider stack —
+  // same pattern as F5's context.test.tsx Consumer.
+  it("opens the activity editor via useEditor().openCreate, seeds the prefill, and dispatches AddActivity", async () => {
+    const dayId = "77777777-7777-4777-8777-777777777777";
+    const fixture = tripDetailFixture({
+      days: [{ dayId, activityIds: [], date: null, costSubtotal: 0 }],
+    });
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+
+    function OpenCreateButton() {
+      const { openCreate } = useEditor();
+      return <button onClick={() => openCreate({ dayId })}>trigger create</button>;
+    }
+
+    render(
+      <TripProvider tripId={fixture.tripId}>
+        <EditorHost>
+          <LensRouter>
+            <TripBoardScreen tripId={fixture.tripId} />
+            <OpenCreateButton />
+          </LensRouter>
+        </EditorHost>
+      </TripProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "trigger create" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "New activity" })).toBeTruthy();
+
+    const titleInput = screen.getByLabelText("Activity title") as HTMLInputElement;
+    expect(titleInput.value).toBe("");
+
+    fireEvent.change(titleInput, { target: { value: "Vatican tour" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "AddActivity",
+          dayId,
+          title: "Vatican tour",
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
