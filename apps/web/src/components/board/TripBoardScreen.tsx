@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
+import { useEditor } from "@/components/trip/context/EditorHost";
 import { LENSES, useLens } from "@/components/trip/context/LensRouter";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { MapLens } from "@/components/lenses/MapLens";
@@ -13,13 +13,14 @@ import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
 import { TabStrip } from "@/components/ui/tab-strip";
 import { TripHeader } from "@/components/trip/TripHeader";
-import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
+import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, preview } = useTrip();
   const { lens, setLens } = useLens();
-  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const { openEdit } = useEditor();
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" — this component renders its fragment inside it.
@@ -40,8 +41,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       </>
     );
   }
-
-  const editingActivity = editingActivityId !== null ? (activeTrip.activities[editingActivityId] ?? null) : null;
 
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
     void dispatch({
@@ -93,35 +92,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             }}
           />
         )}
-        {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
         {/* Interim: LensRouter's LENSES already merged Timeline/Calendar into a single
             "Schedule" lens (Task L1 will build the real ScheduleLens with its own
             Timeline/Calendar toggle). Until then, render both existing lens components
             stacked under the Schedule tab so no functionality regresses. */}
         {lens === "Schedule" && (
           <>
-            <TimelineLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
-            <CalendarLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
+            <TimelineLens detail={activeTrip} onSelectActivity={openEdit} />
+            <CalendarLens detail={activeTrip} onSelectActivity={openEdit} />
           </>
         )}
-        {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
+        {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
         {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
         {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
-        {lens !== "Board" && editingActivityId !== null && editingActivity !== null && (
-          <div className="mt-3 max-w-md">
-            <ActivityEditor
-              key={editingActivityId}
-              initial={editingActivity}
-              tripCurrency={activeTrip.currency}
-              onSave={(value) => {
-                updateActivity(editingActivityId, value);
-                setEditingActivityId(null);
-              }}
-              onCancel={() => setEditingActivityId(null)}
-            />
-          </div>
-        )}
       </div>
+      {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
+          portable Sheet raised via EditorHost, mounted once here outside the
+          lens switch so it's available regardless of which lens is active. */}
+      <ActivityEditorSheet />
     </>
   );
 }
