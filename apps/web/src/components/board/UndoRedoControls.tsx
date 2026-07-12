@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { Redo2, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   return (
@@ -42,13 +44,13 @@ export function UndoRedoControls({
   }, [canUndo, canRedo, onUndo, onRedo, isBusy]);
 
   return (
-    <span>
-      <button onClick={onUndo} disabled={!canUndo || isBusy} aria-label="Undo" title="Undo (⌘Z)">
-        ↺ Undo
-      </button>{" "}
-      <button onClick={onRedo} disabled={!canRedo || isBusy} aria-label="Redo" title="Redo (⇧⌘Z)">
-        ↻ Redo
-      </button>
+    <span className="flex gap-0.5">
+      <Button variant="ghost" size="icon" onClick={onUndo} disabled={!canUndo || isBusy} aria-label="Undo" title="Undo (⌘Z)">
+        <Undo2 className="size-3.5" aria-hidden />
+      </Button>
+      <Button variant="ghost" size="icon" onClick={onRedo} disabled={!canRedo || isBusy} aria-label="Redo" title="Redo (⇧⌘Z)">
+        <Redo2 className="size-3.5" aria-hidden />
+      </Button>
     </span>
   );
 }

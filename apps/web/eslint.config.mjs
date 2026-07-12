@@ -41,10 +41,13 @@ export default [
       "src/components/ui/**",
       "src/server/**",
       "src/app/api/**",
+      // Test fixtures render arbitrary DOM to simulate surrounding page
+      // context (e.g. a "probe" input standing in for some other field on
+      // the page) — this is not shipped UI, so the element wall doesn't apply.
+      "src/**/*.test.tsx",
       // pending re-skin — mirror of scripts/design-wall-pending.json:
       "src/app/page.tsx",
       "src/app/trips/[tripId]/page.tsx",
-      "src/components/board/*.tsx",
       "src/components/lenses/*.tsx",
     ],
     rules: {
