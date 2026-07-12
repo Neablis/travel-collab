@@ -1,18 +1,63 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { useSyncExternalStore } from "react";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { TripProvider } from "@/components/trip/context/TripProvider";
+import { EditorHost } from "@/components/trip/context/EditorHost";
+import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
 
+// LensRouter derives lens/view from the URL via next/navigation — mock it the
+// same way F5's context.test.tsx does, with the URL as the store. Unlike that
+// test (which only asserts the router.replace call), TripBoardScreen's tests
+// click a tab and then assert on newly-rendered content, so the mock needs to
+// actually trigger a re-render — wire it through useSyncExternalStore.
+let search = new URLSearchParams("");
+const listeners = new Set<() => void>();
+const replaceSpy = vi.fn((url: string) => {
+  search = new URLSearchParams(url.split("?")[1] ?? "");
+  listeners.forEach((l) => l());
+});
+vi.mock("next/navigation", () => ({
+  useSearchParams: () =>
+    useSyncExternalStore(
+      (onStoreChange) => {
+        listeners.add(onStoreChange);
+        return () => listeners.delete(onStoreChange);
+      },
+      () => search,
+    ),
+  usePathname: () => "/trips/x",
+  useRouter: () => ({ replace: replaceSpy }),
+}));
+
+function renderScreen(tripId: string) {
+  return render(
+    <TripProvider tripId={tripId}>
+      <EditorHost>
+        <LensRouter>
+          <TripBoardScreen tripId={tripId} />
+        </LensRouter>
+      </EditorHost>
+    </TripProvider>,
+  );
+}
+
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeEach(() => {
+  search = new URLSearchParams("");
+  replaceSpy.mockClear();
+});
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  listeners.clear();
 });
 afterAll(() => server.close());
 
@@ -20,7 +65,7 @@ describe("TripBoardScreen", () => {
   it("loads the trip and adds a day through the command endpoint", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "+ Add day" }));
@@ -30,7 +75,7 @@ describe("TripBoardScreen", () => {
   it("shows an error state for a missing trip", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    render(<TripBoardScreen tripId="00000000-0000-4000-8000-000000000000" />);
+    renderScreen("00000000-0000-4000-8000-000000000000");
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
 
@@ -46,7 +91,7 @@ describe("TripBoardScreen", () => {
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { history, detailAt: { 2: pastFixture }, onCommand }));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "History" }));
@@ -64,10 +109,14 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByText(/Viewing version/)).toBeNull());
   });
 
-  it("switches between Board, Map, Timeline and Calendar lenses", async () => {
+  it("switches between Board, Map and Schedule (Timeline + Calendar) lenses", async () => {
+    // Interim P1 behavior: LensRouter's LENSES already merged Timeline/Calendar
+    // into a single "Schedule" lens (Task L1 will build the real ScheduleLens
+    // with its own Timeline/Calendar toggle). Until then, TripBoardScreen
+    // renders both existing lens components stacked under "Schedule".
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.getByTestId("backlog-column")).toBeTruthy();
@@ -75,10 +124,8 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
     expect(await screen.findByText("No days yet.")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Board" }));
@@ -89,10 +136,10 @@ describe("TripBoardScreen", () => {
     const fixture = tripDetailFixture();
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { onCommand }));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
     await screen.findByText("Set a start date to see the calendar.");
 
     // M3 debt paydown: only the single canonical TripDateControl renders, not
@@ -153,7 +200,7 @@ describe("TripBoardScreen", () => {
       ),
     );
 
-    render(<TripBoardScreen tripId={withConflict.tripId} />);
+    renderScreen(withConflict.tripId);
 
     expect(await screen.findByText("Weekday Market")).toBeTruthy();
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
@@ -167,7 +214,7 @@ describe("TripBoardScreen", () => {
   it("switches to the Itinerary, Daily, and Trip lenses", async () => {
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
@@ -185,7 +232,7 @@ describe("TripBoardScreen", () => {
     const fixture = tripDetailFixture();
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { onCommand }));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     await userEvent.type(screen.getByLabelText(/cost|budget/i), "500");
@@ -215,7 +262,7 @@ describe("TripBoardScreen", () => {
       ],
     });
     server.use(...makeTripHandlers(fixture));
-    render(<TripBoardScreen tripId={fixture.tripId} />);
+    renderScreen(fixture.tripId);
 
     expect(await screen.findByText(/exceeds the budget/)).toBeTruthy();
   });

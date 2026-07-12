@@ -1,15 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import type { TripDetail, TripHistory } from "@tc/contracts";
-import {
-  fetchTripDetail,
-  fetchTripDetailAt,
-  fetchTripHistory,
-  sendTripCommand,
-  type BoardCommand,
-} from "@/lib/apiClient";
+import { useTrip } from "@/components/trip/context/TripProvider";
+import { LENSES, useLens } from "@/components/trip/context/LensRouter";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { MapLens } from "@/components/lenses/MapLens";
 import { TimelineLens } from "@/components/lenses/TimelineLens";
@@ -17,103 +11,39 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { ItineraryLens } from "@/components/lenses/ItineraryLens";
 import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
 import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
-import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
+import { TabStrip } from "@/components/ui/tab-strip";
 import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { HistoryPanel } from "./HistoryPanel";
 import { TripMoneySettings } from "./TripMoneySettings";
 import { UndoRedoControls } from "./UndoRedoControls";
 
-const LENSES = ["Board", "Map", "Timeline", "Calendar", "Itinerary", "Daily", "Trip"] as const;
-type Lens = (typeof LENSES)[number];
-
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const [trip, setTrip] = useState<TripDetail | null>(null);
-  const [history, setHistory] = useState<TripHistory | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "unauthenticated" | "error">("loading");
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [detailResult, historyResult] = await Promise.all([
-      fetchTripDetail(tripId),
-      fetchTripHistory(tripId),
-    ]);
-    if (!detailResult.ok) {
-      setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
-      setError(detailResult.error.message);
-      return;
-    }
-    setTrip(detailResult.value);
-    setHistory(historyResult.ok ? historyResult.value : null);
-    setStatus("ready");
-  }, [tripId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const [lens, setLens] = useState<Lens>("Board");
+  const { trip, history, activeTrip, status, error, pending, dispatch, preview } = useTrip();
+  const { lens, setLens } = useLens();
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
 
-  const [previewSeq, setPreviewSeq] = useState<number | null>(null);
-  const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const openPreview = useCallback(
-    async (seq: number) => {
-      const result = await fetchTripDetailAt(tripId, seq);
-      if (result.ok) {
-        setPreviewSeq(seq);
-        setPreviewTrip(result.value);
-      } else {
-        setError(result.error.message);
-      }
-    },
-    [tripId],
-  );
-
-  const exitPreview = useCallback(() => {
-    setPreviewSeq(null);
-    setPreviewTrip(null);
-  }, []);
-
-  const dispatch = useCallback(
-    async (command: BoardCommand) => {
-      setError(null);
-      setPending(true);
-      try {
-        const result = await sendTripCommand(command);
-        if (!result.ok) setError(result.error.message);
-        // Refetch either way: conflicts are data and may have changed shape.
-        await load();
-        exitPreview();
-      } finally {
-        setPending(false);
-      }
-    },
-    [load, exitPreview],
-  );
-
-  if (status === "loading") return <main>Loading…</main>;
+  // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
+  // PageContainer as="main" — this component renders its fragment inside it.
+  if (status === "loading") return <>Loading…</>;
   if (status === "unauthenticated") {
     return (
-      <main>
+      <>
         <Heading level={1}>travel-collab</Heading>
         <Link href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}>Sign in</Link>
-      </main>
+      </>
     );
   }
-  if (status === "error" || trip === null) {
+  if (status === "error" || trip === null || activeTrip === null) {
     return (
-      <main>
+      <>
         <p role="alert">{error ?? "Something went wrong"}</p>
         <Link href="/">← Your trips</Link>
-      </main>
+      </>
     );
   }
 
-  const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : trip;
   const editingActivity = editingActivityId !== null ? (activeTrip.activities[editingActivityId] ?? null) : null;
 
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
@@ -130,12 +60,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     });
 
   return (
-    <main>
+    <>
       <nav>
         <Link href="/">← Your trips</Link>
       </nav>
       <Heading level={2}>{trip.name}</Heading>
-      {previewSeq === null && (
+      {preview.seq === null && (
         <TripDateControl
           tripId={tripId}
           startDate={trip.startDate}
@@ -144,7 +74,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           }}
         />
       )}
-      {previewSeq === null && (
+      {preview.seq === null && (
         <TripMoneySettings
           tripId={tripId}
           currency={trip.currency}
@@ -154,7 +84,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           }}
         />
       )}
-      {previewSeq === null && (
+      {preview.seq === null && (
         <UndoRedoControls
           canUndo={history?.canUndo ?? false}
           canRedo={history?.canRedo ?? false}
@@ -165,27 +95,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       )}
       <HistoryPanel
         history={history}
-        previewSeq={previewSeq}
-        onPreview={(seq) => void openPreview(seq)}
-        onExitPreview={exitPreview}
+        previewSeq={preview.seq}
+        onPreview={(seq) => void preview.enter(seq)}
+        onExitPreview={preview.exit}
         onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
       />
       {error !== null && <p role="alert">{error}</p>}
-      <div role="tablist" aria-label="Trip view">
-        {LENSES.map((l) => (
-          <Button
-            key={l}
-            variant="ghost"
-            role="tab"
-            aria-selected={lens === l}
-            onClick={() => setLens(l)}
-            className={lens === l ? "font-semibold text-ink" : undefined}
-          >
-            {l}
-          </Button>
-        ))}
-      </div>
-      <div inert={previewSeq !== null ? true : undefined}>
+      <TabStrip
+        value={lens}
+        onValueChange={setLens}
+        options={LENSES.map((l) => ({ value: l, label: l }))}
+        aria-label="Trip view"
+      />
+      <div inert={preview.seq !== null ? true : undefined}>
         {lens === "Board" && (
           <Board
             trip={activeTrip}
@@ -213,9 +135,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           />
         )}
         {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
-        {lens === "Timeline" && <TimelineLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
-        {lens === "Calendar" && (
-          <CalendarLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
+        {/* Interim: LensRouter's LENSES already merged Timeline/Calendar into a single
+            "Schedule" lens (Task L1 will build the real ScheduleLens with its own
+            Timeline/Calendar toggle). Until then, render both existing lens components
+            stacked under the Schedule tab so no functionality regresses. */}
+        {lens === "Schedule" && (
+          <>
+            <TimelineLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
+            <CalendarLens detail={activeTrip} onSelectActivity={setEditingActivityId} />
+          </>
         )}
         {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={setEditingActivityId} />}
         {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
@@ -235,6 +163,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           </div>
         )}
       </div>
-    </main>
+    </>
   );
 }

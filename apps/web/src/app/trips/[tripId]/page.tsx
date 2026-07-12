@@ -1,10 +1,20 @@
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { PageContainer } from "@/components/ui/page-container";
+import { TripProvider } from "@/components/trip/context/TripProvider";
+import { EditorHost } from "@/components/trip/context/EditorHost";
+import { LensRouter } from "@/components/trip/context/LensRouter";
 
 export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   return (
-    <div className="mx-auto max-w-none px-6 py-6">
-      <TripBoardScreen tripId={tripId} />
-    </div>
+    <PageContainer as="main" width="full">
+      <TripProvider tripId={tripId}>
+        <EditorHost>
+          <LensRouter>
+            <TripBoardScreen tripId={tripId} />
+          </LensRouter>
+        </EditorHost>
+      </TripProvider>
+    </PageContainer>
   );
 }
