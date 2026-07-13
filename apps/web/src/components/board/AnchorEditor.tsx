@@ -10,6 +10,15 @@ import { Text } from "@/components/ui/text";
 const ANCHOR_KINDS = ["dayOfWeek", "dateRange", "timeOfDay", "publicHoliday"] as const;
 type AnchorKind = (typeof ANCHOR_KINDS)[number];
 
+// Option text only — friendlier than the raw enum values, which remain the
+// submitted `value` attributes untouched.
+const ANCHOR_KIND_LABELS: Record<AnchorKind, string> = {
+  dayOfWeek: "Day of the week",
+  dateRange: "Date range",
+  timeOfDay: "Time of day",
+  publicHoliday: "Public holiday",
+};
+
 const DEFAULT_DAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 
 function todayIso(): string {
@@ -72,7 +81,11 @@ export function AnchorEditor({
         </div>
       ))}
       <div className="flex items-center gap-1.5">
-        <FormField id="anchor-kind" label="anchor kind">
+        <FormField
+          id="anchor-kind"
+          label="Lock to a date rule"
+          description="Ties this event to a rule — e.g. a specific date or every Monday — so it flags a conflict if trip dates shift."
+        >
           <NativeSelect
             id="anchor-kind"
             aria-label="anchor kind"
@@ -81,7 +94,7 @@ export function AnchorEditor({
           >
             {ANCHOR_KINDS.map((k) => (
               <option key={k} value={k}>
-                {k}
+                {ANCHOR_KIND_LABELS[k]}
               </option>
             ))}
           </NativeSelect>
