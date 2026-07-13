@@ -20,10 +20,34 @@ describe("LocationInput", () => {
     render(<LocationInput value={null} onChange={onChange} />);
     await userEvent.type(screen.getByPlaceholderText(/place/i), "Colosseum");
     await userEvent.click(screen.getByRole("button", { name: /search/i }));
-    const pick = await screen.findByText(/Colosseum, Rome/i);
+    const pick = await screen.findByRole("option", { name: /Colosseum, Rome/i });
     await userEvent.click(pick);
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith({ name: "Colosseum, Rome, Italy", lat: 41.89, lng: 12.49, countryCode: "IT" }),
     );
+  });
+
+  it("renders results as a listbox with primary and secondary text", async () => {
+    const onChange = vi.fn();
+    render(<LocationInput value={null} onChange={onChange} />);
+    await userEvent.type(screen.getByPlaceholderText(/place/i), "Colosseum");
+    await userEvent.click(screen.getByRole("button", { name: /search/i }));
+    await screen.findByRole("listbox");
+    const option = screen.getByRole("option", { name: /Colosseum, Rome/i });
+    expect(option.textContent).toContain("Colosseum, Rome, Italy");
+    expect(option.textContent).toContain("IT");
+  });
+
+  it("pressing Enter in the place-name field searches instead of submitting the surrounding form", async () => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn((e: { preventDefault: () => void }) => e.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <LocationInput value={null} onChange={onChange} />
+      </form>,
+    );
+    await userEvent.type(screen.getByLabelText(/place name/i), "Colosseum{Enter}");
+    await screen.findByRole("listbox");
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

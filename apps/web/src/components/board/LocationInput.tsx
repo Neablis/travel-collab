@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Location } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 
@@ -46,24 +47,48 @@ export function LocationInput({
           </Button>
         </div>
       )}
-      <div className="flex gap-1.5">
-        <Input
-          aria-label="Place name"
-          placeholder="place name"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <Button variant="secondary" onClick={() => void search()}>
-          Search
-        </Button>
-      </div>
+      <FormField
+        id="location-search"
+        label="Place name"
+        description="Search for a place by name, then pick a match from the results."
+      >
+        <div className="flex gap-1.5">
+          <Input
+            id="location-search"
+            aria-label="Place name"
+            placeholder="place name"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void search();
+              }
+            }}
+          />
+          <Button variant="secondary" onClick={() => void search()}>
+            Search
+          </Button>
+        </div>
+      </FormField>
       {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
       {results.length > 0 && (
-        <ul className="m-0 list-none p-0">
+        <ul role="listbox" aria-label="Search results" className="m-0 list-none divide-y divide-hairline p-0">
           {results.map((r, index) => (
-            <li key={index}>
-              <Button variant="ghost" onClick={() => pick(r)}>
-                {r.canonicalName}
+            <li key={index} role="presentation">
+              <Button
+                role="option"
+                aria-selected={false}
+                variant="ghost"
+                onClick={() => pick(r)}
+                className="flex h-auto w-full flex-col items-start px-3 py-2 text-left"
+              >
+                <Text as="span">{r.canonicalName}</Text>
+                {r.countryCode != null && (
+                  <Text as="span" variant="secondary">
+                    {r.countryCode}
+                  </Text>
+                )}
               </Button>
             </li>
           ))}
