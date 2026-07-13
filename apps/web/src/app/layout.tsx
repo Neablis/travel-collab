@@ -1,4 +1,5 @@
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 // Required by MapLens (maplibre-gl): without this, marker positioning
 // transforms and the map's stacking context are undefined, causing
 // mispositioned/misbehaving markers and z-index issues with content
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: "system-ui", margin: "2rem" }}>
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

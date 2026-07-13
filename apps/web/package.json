@@ -22,6 +22,7 @@
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "drizzle-orm": "^0.36.0",
     "maplibre-gl": "^5.24.0",
     "next": "^15.0.0",
