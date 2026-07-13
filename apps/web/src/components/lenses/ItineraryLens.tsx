@@ -8,6 +8,7 @@ import { Table, TBody, TR, TD } from "../ui/table";
 import { Button } from "../ui/button";
 import { itineraryDays, itineraryUnscheduled, type ItineraryActivity } from "./itineraryData";
 import { formatMoney as formatAmount } from "./formatMoney";
+import { formatTripDate } from "@/lib/formatDate";
 
 function ActivityRow({
   activity,
@@ -64,7 +65,7 @@ export function ItineraryLens({
               <>
                 {" · "}
                 <DataText as="span" size="base" className="font-normal">
-                  {day.date}
+                  {formatTripDate(day.date)}
                 </DataText>
               </>
             )}
