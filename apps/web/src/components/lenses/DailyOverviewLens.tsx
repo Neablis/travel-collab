@@ -7,6 +7,7 @@ import { Badge } from "../ui/badge";
 import { EmptyState } from "../ui/empty-state";
 import { dailyRows } from "./dailyOverviewData";
 import { formatMoney } from "./formatMoney";
+import { formatTripDate } from "@/lib/formatDate";
 
 export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
   const rows = dailyRows(detail);
@@ -31,7 +32,7 @@ export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
           {rows.map((row) => (
             <TR key={row.dayId} data-testid={`daily-overview-row-${row.dayId}`}>
               <TD>Day {row.ordinal}</TD>
-              <TD>{row.date ? <DataText>{row.date}</DataText> : "—"}</TD>
+              <TD>{row.date ? <DataText>{formatTripDate(row.date)}</DataText> : "—"}</TD>
               <TD className="text-right">{row.activityCount}</TD>
               <TD className="text-right">
                 <DataText>{formatMoney(row.costSubtotal, detail.currency)}</DataText>

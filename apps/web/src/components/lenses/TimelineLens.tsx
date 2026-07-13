@@ -6,20 +6,41 @@ import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { EmptyState } from "../ui/empty-state";
 import { Button } from "../ui/button";
-import { timelineRows } from "./timelineData";
+import { useEditor } from "../trip/context/EditorHost";
+import { timelineRows, type TimelineRow } from "./timelineData";
 
 const DAY_START_MIN = 6 * 60; // 06:00
 const DAY_END_MIN = 22 * 60; // 22:00
 const DAY_SPAN_MIN = DAY_END_MIN - DAY_START_MIN;
+const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+function toTimeString(minutes: number): string {
+  const clamped = Math.min(DAY_END_MIN, Math.max(DAY_START_MIN, minutes));
+  const h = Math.floor(clamped / 60)
+    .toString()
+    .padStart(2, "0");
+  const m = (clamped % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 function clampPercent(minutes: number): number {
   const pct = ((minutes - DAY_START_MIN) / DAY_SPAN_MIN) * 100;
   return Math.min(100, Math.max(0, pct));
+}
+
+// The day-foot "+" trigger's timeWindow: start right after the day's last
+// timed activity ends (so a new activity slots in chronologically without
+// the user having to retype a time), or the start of the visible day window
+// if there are no timed activities yet.
+function nextSlot(row: TimelineRow): { start: string; end: string } {
+  const lastEnd = row.timed.reduce((max, item) => Math.max(max, toMinutes(item.end)), DAY_START_MIN);
+  const start = row.timed.length > 0 ? lastEnd : DAY_START_MIN;
+  return { start: toTimeString(start), end: toTimeString(start + DEFAULT_SLOT_MIN) };
 }
 
 export function TimelineLens({
@@ -30,6 +51,7 @@ export function TimelineLens({
   onSelectActivity?: (activityId: string) => void;
 }) {
   const rows = timelineRows(detail);
+  const { openCreate } = useEditor();
 
   if (rows.length === 0) {
     return <EmptyState title="No days yet." />;
@@ -119,6 +141,15 @@ export function TimelineLens({
               )}
             </ul>
           )}
+
+          <Button
+            variant="ghost"
+            data-testid={`timeline-add-${row.dayId}`}
+            onClick={() => openCreate({ dayId: row.dayId, timeWindow: nextSlot(row) })}
+            className="mt-1.5 h-auto rounded-sm px-2 py-0.5 text-xs font-normal text-slate hover:bg-moss hover:text-ink"
+          >
+            + Add activity
+          </Button>
         </div>
       ))}
     </div>

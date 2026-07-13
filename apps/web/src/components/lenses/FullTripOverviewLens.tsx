@@ -7,6 +7,7 @@ import { DataText } from "../ui/data-text";
 import { Banner } from "../ui/banner";
 import { tripOverview } from "./tripOverviewData";
 import { formatMoney } from "./formatMoney";
+import { formatTripDateLong } from "@/lib/formatDate";
 
 export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
   const overview = tripOverview(detail);
@@ -19,8 +20,8 @@ export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
           <Text variant="secondary" className="mt-1">
             <DataText as="span" size="sm">
               {overview.dateRange.from === overview.dateRange.to
-                ? overview.dateRange.from
-                : `${overview.dateRange.from} – ${overview.dateRange.to}`}
+                ? formatTripDateLong(overview.dateRange.from)
+                : `${formatTripDateLong(overview.dateRange.from)} – ${formatTripDateLong(overview.dateRange.to)}`}
             </DataText>
             {" · "}
             {overview.dayCount} {overview.dayCount === 1 ? "day" : "days"}

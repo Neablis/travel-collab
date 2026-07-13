@@ -112,10 +112,9 @@ describe("TripBoardScreen", () => {
   });
 
   it("switches between Board, Map and Schedule (Timeline + Calendar) lenses", async () => {
-    // Interim P1 behavior: LensRouter's LENSES already merged Timeline/Calendar
-    // into a single "Schedule" lens (Task L1 will build the real ScheduleLens
-    // with its own Timeline/Calendar toggle). Until then, TripBoardScreen
-    // renders both existing lens components stacked under "Schedule".
+    // Task L1: Schedule is now a real ScheduleLens with a Timeline/Calendar
+    // SegmentedControl toggle — only one inner view renders at a time
+    // (previously, pre-L1, both were rendered stacked as an interim measure).
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -128,6 +127,8 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
     expect(await screen.findByText("No days yet.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Board" }));
@@ -142,6 +143,7 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Calendar" }));
     await screen.findByText("Set a start date to see the calendar.");
 
     // P2 surface move: TripDateControl re-homed into SettingsSheet (#15) —
