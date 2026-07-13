@@ -84,15 +84,21 @@ export function Column({
           );
         })}
       </ul>
+      {/* On an empty day the add affordance is more pronounced — a full dashed
+          "add here" slot with a label — since there's nothing else to act on
+          (#20); once the day has cards it collapses to a compact "+". */}
       {onAddActivity && (
         <Button
           variant="ghost"
           size="sm"
           onClick={onAddActivity}
           aria-label={`Add activity to ${title}`}
-          className="mt-1 w-full justify-center"
+          className={cn(
+            "mt-1 w-full justify-center",
+            activityIds.length === 0 && "border border-dashed border-border-strong py-2 text-slate",
+          )}
         >
-          +
+          {activityIds.length === 0 ? "+ Add activity" : "+"}
         </Button>
       )}
       {children}

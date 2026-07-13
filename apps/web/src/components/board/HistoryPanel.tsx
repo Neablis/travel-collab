@@ -49,14 +49,16 @@ export function HistoryPanel({
             data-testid="history-entry"
             className={cn("flex items-center justify-between gap-2 py-1.5", previewSeq === entry.toSeq && "bg-brand-tint")}
           >
+            {/* min-w-0 + truncate so a long description ellipsizes instead of
+                pushing the date past the popover's right edge (#17). */}
             <Button
               variant="ghost"
               onClick={() => (previewSeq === entry.toSeq ? onExitPreview() : onPreview(entry.toSeq))}
-              className={cn(entry.undone && "opacity-50", previewSeq === entry.toSeq && "font-bold")}
+              className={cn("min-w-0 flex-1 justify-start", entry.undone && "opacity-50", previewSeq === entry.toSeq && "font-bold")}
             >
-              {entry.undone ? <s>{entry.description}</s> : entry.description}
+              <span className="truncate">{entry.undone ? <s>{entry.description}</s> : entry.description}</span>
             </Button>
-            <DataText size="xs">{formatTripDate(entry.occurredAt.slice(0, 10))}</DataText>
+            <DataText size="xs" className="shrink-0">{formatTripDate(entry.occurredAt.slice(0, 10))}</DataText>
           </li>
         ))}
       </ol>
@@ -65,17 +67,18 @@ export function HistoryPanel({
           Show older
         </Button>
       )}
+      {/* Actions sit under the text and wrap, rather than in Banner's no-wrap
+          `actions` row that overflowed the narrow popover (comment #16, part
+          one). "Dismiss" replaces the unobvious "Back to now" (part two). */}
       {previewSeq !== null && (
-        <Banner
-          variant="info"
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => onRevert(previewSeq)}>Revert to here</Button>
-              <Button variant="ghost" onClick={onExitPreview}>Back to now</Button>
-            </>
-          }
-        >
-          <Text as="span">Viewing version {previewSeq} (read-only)</Text>
+        <Banner variant="info">
+          <div className="flex flex-col gap-1.5">
+            <Text as="span">Viewing version {previewSeq} (read-only)</Text>
+            <div className="flex flex-wrap gap-1.5">
+              <Button variant="secondary" size="sm" onClick={() => onRevert(previewSeq)}>Revert to here</Button>
+              <Button variant="ghost" size="sm" onClick={onExitPreview}>Dismiss</Button>
+            </div>
+          </div>
         </Banner>
       )}
     </div>

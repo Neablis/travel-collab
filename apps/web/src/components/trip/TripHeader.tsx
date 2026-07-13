@@ -9,6 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { formatTripDate } from "@/lib/formatDate";
+import { formatAmount } from "@/components/lenses/formatMoney";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
@@ -44,7 +45,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
             )}
             {trip.budget !== null && (
               <DataText size="sm" className={overBudget ? "text-warning-ink" : undefined}>
-                {(trip.tripCostTotal / 100).toFixed(2)} / {(trip.budget.amountMinor / 100).toFixed(2)} {trip.currency}
+                {formatAmount(trip.tripCostTotal)} / {formatAmount(trip.budget.amountMinor)} {trip.currency}
               </DataText>
             )}
           </div>
@@ -66,8 +67,17 @@ export function TripHeader({ tripId }: { tripId: string }) {
               controls must remain reachable while previewing a past state. */}
           <Popover
             open={historyOpen || preview.seq !== null}
-            onOpenChange={setHistoryOpen}
+            // #18: dismissing the popover (outside-click or Escape) while
+            // previewing a past state also exits the preview ("back to now"),
+            // so you never end up with a closed popover still pinned to an old
+            // version. The wider content gives the entries + preview controls
+            // room (#16/#17).
+            onOpenChange={(open) => {
+              setHistoryOpen(open);
+              if (!open && preview.seq !== null) preview.exit();
+            }}
             align="end"
+            contentClassName="w-96"
             trigger={
               <Button variant="ghost" aria-label="History">
                 <Clock className="size-3.5" aria-hidden />

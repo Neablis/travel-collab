@@ -59,7 +59,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();
   await expect(page.getByText(/Viewing version \d+ \(read-only\)/)).toBeVisible();
   await expect(day1.getByText("Vatican Museums")).not.toBeVisible(); // past state
-  await page.getByRole("button", { name: "Back to now" }).click();
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click(); // #16b: was "Back to now"
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
 
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();

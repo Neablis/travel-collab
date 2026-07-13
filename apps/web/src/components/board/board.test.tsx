@@ -120,16 +120,18 @@ describe("Board", () => {
     expect(getEditorState()).toEqual({ mode: "create", prefill: { dayId: DAY } });
   });
 
-  it("switching which activity is being edited resets the form, not the previous activity's stale fields", () => {
-    renderBoard(fixture(), noopCallbacks());
+  // #29: an activity card's Edit raises the SAME portable editor (openEdit) the
+  // other lenses use, instead of Board's old inline bottom form — so editing is
+  // consistent everywhere (right-side sheet). Board only owns the trigger wiring;
+  // the sheet's seeding/save/dispatch and its `key`-based form reset are covered
+  // by ActivityEditorSheet's tests in TripBoardScreen.test.tsx.
+  it("Edit on a card opens the portable editor in edit mode with that activityId", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks());
     fireEvent.click(screen.getByRole("button", { name: "Edit Colosseum" }));
-    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Colosseum");
+    expect(getEditorState()).toEqual({ mode: "edit", activityId: A1 });
 
-    // Click Edit on a different activity without cancelling or saving first —
-    // the form must show Vatican Museums' fields, not Colosseum's leftover
-    // state (a missing `key` on ActivityEditor previously left it stale).
     fireEvent.click(screen.getByRole("button", { name: "Edit Vatican Museums" }));
-    expect((screen.getByLabelText("Activity title") as HTMLInputElement).value).toBe("Vatican Museums");
+    expect(getEditorState()).toEqual({ mode: "edit", activityId: A2 });
   });
 
   // Day pager (#10): a compact "jump to day" chip row above the scrollable

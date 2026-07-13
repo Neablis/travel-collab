@@ -101,11 +101,10 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- clear the date: date-based anchors go dormant --
-  // C2 surface move (#2): the rare "clear date" action moved off a permanent
-  // standalone button into a Popover on the date control, and the copy is
-  // now singular ("Clear date") — open the popover trigger first.
+  // #19: a one-item "Date options" popover was replaced by a direct "Clear
+  // date" X next to the date in Settings (only shown when a date is set), so
+  // there's no popover to open first.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Date options" }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();

@@ -7,7 +7,7 @@ import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
+import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 
@@ -37,8 +37,7 @@ function containerOf(trip: TripDetail, activityId: string): string | null {
 }
 
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const { openCreate } = useEditor();
+  const { openCreate, openEdit } = useEditor();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const dayRefs = useRef(new Map<string, HTMLElement>());
@@ -101,8 +100,6 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
     });
   }, [trip, callbacks]);
 
-  const editingActivity = editing !== null ? (trip.activities[editing] ?? null) : null;
-
   const scrollToDay = useCallback((dayId: string) => {
     dayRefs.current.get(dayId)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
   }, []);
@@ -139,7 +136,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             activityIds={trip.backlog}
             activities={trip.activities}
             conflictIds={conflictIds}
-            onEditActivity={setEditing}
+            onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
           >
             <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
@@ -152,7 +149,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
               activityIds={day.activityIds}
               activities={trip.activities}
               conflictIds={conflictIds}
-              onEditActivity={setEditing}
+              onEditActivity={openEdit}
               onRemoveActivity={callbacks.onRemoveActivity}
               onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
               onAddActivity={() => openCreate({ dayId: day.dayId })}
@@ -173,20 +170,6 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
           />
         )}
       </div>
-      {editing !== null && editingActivity !== null && (
-        <div className="mt-3 max-w-md">
-          <ActivityEditor
-            key={editing}
-            initial={editingActivity}
-            tripCurrency={trip.currency}
-            onSave={(value) => {
-              callbacks.onUpdateActivity(editing, value);
-              setEditing(null);
-            }}
-            onCancel={() => setEditing(null)}
-          />
-        </div>
-      )}
     </div>
   );
 }

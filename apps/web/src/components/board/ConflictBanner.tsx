@@ -19,8 +19,10 @@ export function ConflictBanner({
 }) {
   const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
   if (visible.length === 0) return null;
+  // my-3 (not just mb-3) so the alert isn't flush against the tab strip above
+  // it (#21).
   return (
-    <div className="mb-3 grid gap-1.5">
+    <div className="my-3 grid gap-1.5">
       {visible.map((c) => (
         <Banner
           key={c.id}

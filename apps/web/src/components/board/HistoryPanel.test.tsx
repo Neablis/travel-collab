@@ -56,4 +56,18 @@ describe("HistoryPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show older" }));
     expect(screen.getAllByTestId("history-entry")).toHaveLength(25);
   });
+
+  // #16: while previewing a past version, the banner offers Revert plus an
+  // exit control; the exit control is labelled "Dismiss" (was "Back to now",
+  // which read as unobvious) and calls onExitPreview.
+  it("in preview mode, Dismiss exits the preview", () => {
+    const onExitPreview = vi.fn();
+    render(
+      <HistoryPanel history={history} previewSeq={1} onPreview={() => {}} onExitPreview={onExitPreview} onRevert={() => {}} />,
+    );
+    expect(screen.getByText(/Viewing version 1/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Revert to here" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(onExitPreview).toHaveBeenCalledOnce();
+  });
 });
