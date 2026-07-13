@@ -91,7 +91,9 @@ export function ActivityEditor({
         </div>
         <LocationInput value={location} onChange={setLocation} />
         <AnchorEditor value={anchors} onChange={setAnchors} />
-        <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
+        <FormField id="activity-cost" label="Cost">
+          <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
+        </FormField>
         <FormField id="activity-notes" label="Notes">
           <Textarea
             id="activity-notes"
