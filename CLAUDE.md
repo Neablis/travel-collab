@@ -11,3 +11,4 @@ Quick orientation:
 - Current milestone and gates: `docs/milestones/README.md`
 - How to build/connect/validate/enforce quality: `docs/guidelines/`
 - Contract change log: `docs/contracts/CHANGELOG.md`
+- Known issues & tech debt (unfixed-but-known): `docs/known-issues.md`
