@@ -51,7 +51,15 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText("99.00 EUR").first()).toBeVisible();
 
   // -- Daily lens: per-day count/subtotal --
+  // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
+  // update, not instant — right after the click the previous lens (Itinerary)
+  // is still mounted. Itinerary's own markup coincidentally also renders
+  // "420.00 EUR" twice for this fixture (a single $420 activity means its
+  // per-activity cost cell equals the day subtotal), so asserting on that text
+  // alone can hit a strict-mode violation mid-transition. Wait for the Daily
+  // lens's own container to mount first, disambiguating which lens is live.
   await page.getByRole("tab", { name: "Daily" }).click();
+  await expect(page.getByTestId("daily-overview-lens")).toBeVisible();
   await expect(page.getByText("420.00 EUR")).toBeVisible();
 
   // -- Trip lens: total renders --

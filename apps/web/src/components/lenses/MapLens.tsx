@@ -83,7 +83,7 @@ export function MapLens({
   }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
   return (
-    <div className="map-lens flex flex-col gap-3">
+    <div data-testid="map-lens" className="map-lens flex flex-col gap-3">
       {pins.length > 0 ? (
         <>
           {/* eslint-disable-next-line no-restricted-syntax -- maplibre requires a sized DOM container to mount into; dimensions are geometry, not tokenable colors */}

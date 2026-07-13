@@ -50,13 +50,21 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(page.getByText("Day 1")).toBeVisible();
   await expect(page.getByText("Day 2")).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
+  // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
+  // update, not instant — wait for Board's own content to mount before
+  // interacting with it, so we're not still hitting the Schedule lens's own
+  // per-day "+ Add activity" triggers (same accessible name, one per day).
+  await expect(page.getByTestId("backlog-column")).toBeVisible();
 
   // -- add an activity, geocode a place, assert a map pin --
   await page.getByRole("button", { name: "+ Add activity" }).click();
   await page.getByLabel("Activity title").fill("Fushimi Inari");
   await page.getByLabel("Place name").fill("Kyoto");
   await page.getByRole("button", { name: "Search" }).click();
-  await page.getByRole("button", { name: "Kyoto, Japan" }).click();
+  // C1 (#5): search results are a listbox/option combobox now, not a plain
+  // button list — the result's accessible role is "option" (its explicit
+  // role="option" overrides the underlying <button>'s implicit role).
+  await page.getByRole("option", { name: "Kyoto, Japan" }).click();
   await expect(page.getByText("Kyoto, Japan")).toBeVisible();
 
   // -- add a dayOfWeek anchor (default: weekdays mon-fri) that day 1's
@@ -74,6 +82,11 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
 
   // Assert the map pin.
   await page.getByRole("tab", { name: "Map" }).click();
+  // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
+  // update, not instant — wait for the Map lens to mount before asserting on
+  // its pin button, so we're not still hitting Board's own "Fushimi Inari"
+  // buttons (Edit/Remove/Dismiss all contain the activity name).
+  await expect(page.getByTestId("map-lens")).toBeVisible();
   await expect(page.getByRole("button", { name: "Fushimi Inari" })).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
 
@@ -88,8 +101,12 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
   // -- clear the date: date-based anchors go dormant --
+  // C2 surface move (#2): the rare "clear date" action moved off a permanent
+  // standalone button into a Popover on the date control, and the copy is
+  // now singular ("Clear date") — open the popover trigger first.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Clear dates" }).click();
+  await page.getByRole("button", { name: "Date options" }).click();
+  await page.getByRole("button", { name: "Clear date" }).click();
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
