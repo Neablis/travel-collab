@@ -18,6 +18,7 @@ export function Column({
   onRemoveActivity,
   onRemoveDay,
   onAddActivity,
+  sectionRef,
   children,
 }: {
   title: string;
@@ -29,6 +30,10 @@ export function Column({
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
   onAddActivity?: () => void;
+  // Ref to the column's outer <section>, so callers (e.g. the day pager) can
+  // scrollIntoView() a specific day's column. Not used for drag-drop, which
+  // keeps its own internal <ul> ref below.
+  sectionRef?: (el: HTMLElement | null) => void;
   children?: ReactNode;
 }) {
   const ref = useRef<HTMLUListElement>(null);
@@ -48,6 +53,7 @@ export function Column({
 
   return (
     <section
+      ref={sectionRef}
       data-testid={dayId === null ? "backlog-column" : "day-column"}
       className="w-64 shrink-0 rounded-md bg-moss p-2"
     >
