@@ -6,8 +6,13 @@ import { LensRouter } from "@/components/trip/context/LensRouter";
 
 export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
+  // Task L1: non-full lenses (Schedule, Itinerary, Daily, Trip) each own a
+  // PageContainer width="content" wrapper in TripBoardScreen's LensOutlet.
+  // Keep the page shell's own padding at zero so it doesn't double up
+  // against that inner container's px-6 on those lenses; Board/Map render
+  // edge-to-edge as before.
   return (
-    <PageContainer as="main" width="full">
+    <PageContainer as="main" width="full" className="px-0">
       <TripProvider tripId={tripId}>
         <EditorHost>
           <LensRouter>

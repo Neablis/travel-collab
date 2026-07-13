@@ -42,7 +42,11 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-10");
   await page.getByRole("button", { name: "Close" }).click();
-  await page.getByRole("tab", { name: "Calendar" }).click();
+  // Task L1: Timeline/Calendar merged into a single "Schedule" lens with a
+  // SegmentedControl toggle — click the Schedule tab, then the Calendar
+  // option within it, instead of a standalone "Calendar" top-level tab.
+  await page.getByRole("tab", { name: "Schedule" }).click();
+  await page.getByRole("radio", { name: "Calendar" }).click();
   await expect(page.getByText("Day 1")).toBeVisible();
   await expect(page.getByText("Day 2")).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
