@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // Mock the API client the provider wraps.
@@ -77,5 +77,26 @@ describe("trip context spine", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "add" }));
     expect(screen.getByTestId("editor").textContent).toBe("create");
+  });
+
+  it("openCreate/openEdit/close keep a stable identity across editor-state changes (F1)", () => {
+    const seen: Array<ReturnType<typeof useEditor>> = [];
+    function Probe() {
+      const api = useEditor();
+      seen.push(api);
+      return null;
+    }
+    render(
+      <EditorHost>
+        <Probe />
+      </EditorHost>,
+    );
+    const first = seen[seen.length - 1]!;
+    act(() => first.openEdit("a-1")); // changes state → re-render
+    const second = seen[seen.length - 1]!;
+    expect(second.state).toEqual({ mode: "edit", activityId: "a-1" });
+    expect(second.openCreate).toBe(first.openCreate);
+    expect(second.openEdit).toBe(first.openEdit);
+    expect(second.close).toBe(first.close);
   });
 });
