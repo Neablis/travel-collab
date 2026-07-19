@@ -59,7 +59,11 @@ export function Column({
     <section
       ref={sectionRef}
       data-testid={dayId === null ? "backlog-column" : "day-column"}
-      className={cn("rounded-md bg-moss p-2", fullWidth ? "w-full" : "w-64 shrink-0")}
+      className={cn(
+        "flex flex-col rounded-md bg-moss p-2",
+        fullWidth ? "w-full" : "w-64 shrink-0",
+        dayId !== null && "min-h-44", // dated day cards get a comfortable min height
+      )}
     >
       <header className="flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">{title}</span>
@@ -71,7 +75,11 @@ export function Column({
       </header>
       <ul
         ref={ref}
-        className={cn("m-0 min-h-12 list-none rounded-sm p-1", isOver && "bg-brand-tint")}
+        className={cn(
+          "m-0 flex-1 list-none rounded-sm p-1",
+          dayId !== null ? "min-h-24" : "min-h-12",
+          isOver && "bg-brand-tint",
+        )}
       >
         {activityIds.map((id) => {
           const activity = activities[id];

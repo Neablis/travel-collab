@@ -145,4 +145,12 @@ describe("Board", () => {
     expect(dayGrid?.className).not.toContain("overflow-x-auto");
     expect(screen.queryByLabelText("Jump to day")).toBeNull();
   });
+
+  it("a day column's drop area fills the card with a minimum height", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const day = screen.getAllByTestId("day-column")[0]!;
+    const dropList = day.querySelector("ul");
+    expect(dropList?.className).toContain("flex-1");
+    expect(dropList?.className).toMatch(/min-h-/);
+  });
 });

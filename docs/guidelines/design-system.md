@@ -73,6 +73,24 @@ Used via the `PageContainer` composite, which applies `mx-auto` (centers) +
 `px-6` (safe margin) + a max-width class (`max-w-measure`, `max-w-content`) or
 none (`width="full"` for board/map views). See `PageContainer` below.
 
+### Overflow policy
+
+**The trip board wraps; it does not scroll horizontally.** Day columns
+(`Column.tsx`, `data-testid="day-column"`) render in a `flex flex-wrap` grid
+below the backlog strip rather than a fixed-width horizontally-scrolling row —
+the previous `overflow-x-auto` treatment and its "Jump to day" affordance are
+retired (#31/#23/#4/#10). The backlog renders as a full-width strip
+(`fullWidth` prop on `Column`) above the day grid instead of sitting inline as
+just another scrollable column.
+
+**Day cards are whole-card drop targets with a comfortable minimum height.**
+Each day `<section>` is a flex column with `min-h-44` (dated day cards only —
+the backlog keeps its own compact height); the droppable `<ul>` inside is
+`flex-1` with `min-h-24` (`min-h-12` for the backlog), so the drag-and-drop
+target fills the card rather than just the area actually occupied by activity
+rows. This means dropping anywhere in an empty or sparse day card — not just
+on existing cards — targets that day.
+
 ### Surface vocabulary (fixed, so R1 holds)
 
 | Surface | Used for | Why this one |
