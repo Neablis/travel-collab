@@ -80,7 +80,7 @@ export function AnchorEditor({
           </Button>
         </div>
       ))}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-end gap-1.5">
         <FormField
           id="anchor-kind"
           label="Lock to a date rule"
