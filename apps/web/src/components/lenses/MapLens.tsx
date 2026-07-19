@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
-import { Heading } from "../ui/heading";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
@@ -85,59 +84,21 @@ export function MapLens({
   return (
     <div data-testid="map-lens" className="map-lens flex flex-col gap-3">
       {pins.length > 0 ? (
-        <>
-          {/* eslint-disable-next-line no-restricted-syntax -- maplibre requires a sized DOM container to mount into; dimensions are geometry, not tokenable colors */}
-          <div ref={containerRef} className="map-lens-canvas overflow-hidden rounded-md border border-hairline" style={{ width: "100%", height: 400 }} />
-          <ul className="map-lens-pin-list flex flex-col gap-1">
-            {pins.map((pin) =>
-              onSelectActivity ? (
-                <li key={pin.activityId}>
-                  <Button
-                    variant="ghost"
-                    onClick={() => onSelectActivity(pin.activityId)}
-                    className="h-auto justify-start p-0 text-left text-base font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
-                  >
-                    {pin.title}
-                  </Button>
-                </li>
-              ) : (
-                <li key={pin.activityId}>
-                  <Text as="span">{pin.title}</Text>
-                </li>
-              ),
-            )}
-          </ul>
-        </>
+        // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
+        <div ref={containerRef} className="map-lens-canvas grow overflow-hidden rounded-md border border-hairline" style={{ width: "100%", minHeight: 480, height: "70vh" }} />
       ) : (
         <Text variant="secondary" className="map-lens-empty">
           No located activities yet — add a place to see it on the map.
         </Text>
       )}
       {unlocated.length > 0 && (
-        <div className="map-lens-unlocated">
-          <Heading level={3} className="mb-1.5">
-            Not on the map — add a place
-          </Heading>
-          <ul className="flex flex-col gap-1">
-            {unlocated.map((activity) =>
-              onSelectActivity ? (
-                <li key={activity.activityId}>
-                  <Button
-                    variant="ghost"
-                    onClick={() => onSelectActivity(activity.activityId)}
-                    className="h-auto justify-start p-0 text-left text-base font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
-                  >
-                    {activity.title}
-                  </Button>
-                </li>
-              ) : (
-                <li key={activity.activityId}>
-                  <Text as="span">{activity.title}</Text>
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
+        <Button
+          variant="ghost"
+          className="self-start text-slate"
+          onClick={() => onSelectActivity?.(unlocated[0]!.activityId)}
+        >
+          {unlocated.length} {unlocated.length === 1 ? "activity has" : "activities have"} no location — add a place
+        </Button>
       )}
     </div>
   );
