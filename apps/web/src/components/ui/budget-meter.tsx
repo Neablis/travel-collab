@@ -13,7 +13,6 @@ export function BudgetMeter({ cost, budget, currency }: { cost: number; budget: 
         <div
           data-testid="budget-meter-fill"
           className={cn("h-full rounded-full", over ? "bg-warning" : "bg-brand")}
-          // eslint-disable-next-line no-restricted-syntax -- computed geometry (fill %), not a tokenable color
           style={{ width: `${pct}%` }}
         />
       </div>

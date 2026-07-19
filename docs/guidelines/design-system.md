@@ -261,10 +261,11 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
    maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
    applies to `src/**/*.tsx` outside `components/ui/**` (and outside
    `*.test.tsx`), so composites that live in `ui/` — e.g. `BudgetMeter`'s fill
-   width — are structurally exempt; they still carry a line-level
+   width — are structurally exempt and need no `eslint-disable` comment; a
+   disable directive there would be flagged as unused. Components outside
+   `ui/` that need an inline style still carry a line-level
    `eslint-disable-next-line no-restricted-syntax` with a reason, matching the
-   enumerated-exception pattern used by `TimelineLens`/`MapLens`/`ActivityCard`,
-   for documentation consistency even though it's a no-op for `ui/` files.
+   enumerated-exception pattern used by `TimelineLens`/`MapLens`/`ActivityCard`.
 3. **Raw elements banned outside `ui/`** (list above) — ESLint
    `no-restricted-syntax` on JSX element names.
 4. **No arbitrary Tailwind values** (`[13px]`, `[#hex]`) — lint.
