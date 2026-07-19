@@ -83,11 +83,14 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   // Assert the map pin.
   await page.getByRole("tab", { name: "Map" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
-  // update, not instant — wait for the Map lens to mount before asserting on
-  // its pin button, so we're not still hitting Board's own "Fushimi Inari"
-  // buttons (Edit/Remove/Dismiss all contain the activity name).
+  // update, not instant — wait for the Map lens to mount before asserting.
   await expect(page.getByTestId("map-lens")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Fushimi Inari" })).toBeVisible();
+  // #26: the located-activities list was removed — a geocoded activity now
+  // shows only as a map marker. The map canvas renders only when at least one
+  // activity has a location (pins.length > 0); its presence (vs. the "No
+  // located activities yet" empty state) confirms Fushimi Inari's geocode
+  // landed.
+  await expect(page.locator(".map-lens-canvas")).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
 
   // -- anchor-violation conflict badge (day 1 = Saturday, anchor excludes it) --
