@@ -33,6 +33,11 @@ function clampPercent(minutes: number): number {
   return Math.min(100, Math.max(0, pct));
 }
 
+const AXIS_TICKS = [6, 9, 12, 15, 18, 21].map((h) => ({
+  minute: h * 60,
+  label: h === 12 ? "12p" : h < 12 ? `${h}a` : `${h - 12}p`,
+}));
+
 // The day-foot "+" trigger's timeWindow: start right after the day's last
 // timed activity ends (so a new activity slots in chronologically without
 // the user having to retype a time), or the start of the visible day window
@@ -73,11 +78,34 @@ export function TimelineLens({
             )}
           </Heading>
 
+          <div className="relative mb-0.5 h-3.5">
+            {AXIS_TICKS.map((tick) => (
+              <DataText
+                key={tick.minute}
+                as="span"
+                size="xs"
+                className="absolute top-0"
+                // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
+                style={{ left: `${clampPercent(tick.minute)}%` }}
+              >
+                {tick.label}
+              </DataText>
+            ))}
+          </div>
+
           <div
             className="relative rounded-sm border border-hairline bg-moss"
             // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
             style={{ height: 40, marginBottom: row.untimed.length > 0 ? 8 : 0 }}
           >
+            {AXIS_TICKS.map((tick) => (
+              <div
+                key={tick.minute}
+                className="absolute inset-y-0 border-l border-hairline"
+                // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
+                style={{ left: `${clampPercent(tick.minute)}%` }}
+              />
+            ))}
             {row.timed.map((item) => {
               const left = clampPercent(toMinutes(item.start));
               const right = clampPercent(toMinutes(item.end));
