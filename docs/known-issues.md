@@ -59,6 +59,28 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   - Near-duplicate link-button `className` strings across 3 lens files (DRY).
 - **First noted:** 2026-07-11/12 (M5 Wave 1/2).
 
+### KI-4 — Minor M5 Wave-3 cosmetic/dead-code notes
+- **Severity:** cosmetic / cleanup
+- **Area:** `apps/web/src` (various)
+- Non-blocking findings from the Wave-3 per-task + final whole-branch reviews
+  (all shipped as-is by decision — no wrong behavior reachable by a user):
+  - `board/Column.tsx` — the `sectionRef` prop is now dead (its only caller,
+    the removed day-pager `scrollToDay`, is gone); safe to delete the prop,
+    its type, and the `ref={sectionRef}` wiring in a cleanup pass.
+  - `lenses/MapLens.tsx` — the `grow` class on `.map-lens-canvas` is inert (no
+    flex/bounded-height ancestor); the `minHeight`/`height: 70vh` inline styles
+    do the sizing. Harmless dead class.
+  - `lenses/TimelineLens.tsx` — the hour-gridline `<div>`s lack
+    `pointer-events-none`; non-blocking today (buttons paint on top), but worth
+    adding before any click-to-create-at-time affordance lands on the bar.
+  - `lenses/TimelineLens.tsx` — axis tick labels are left-aligned at their
+    `left:%`, so the last label ("9p") can clip against the row's right edge at
+    narrow widths (centering needs an inline `translateX(-50%)`, which is
+    allowed under the geometry inline-style exception).
+  - `ui/segmented-control.tsx` — a redundant `gap-0.5` base class is overridden
+    in the subtle variant (cosmetic).
+- **First noted:** 2026-07-13 (M5 Wave 3).
+
 ## Deferred design work (tracked elsewhere, pointer only)
 
 Not bugs — design decisions awaiting a brainstorm, so they live with the
