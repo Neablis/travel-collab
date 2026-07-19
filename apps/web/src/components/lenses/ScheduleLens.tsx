@@ -17,12 +17,15 @@ export function ScheduleLens({
 
   return (
     <div data-testid="schedule-lens" className="flex flex-col gap-3">
-      <SegmentedControl
-        value={view}
-        onValueChange={setView}
-        options={SCHEDULE_VIEWS.map((v) => ({ value: v, label: v }))}
-        aria-label="Schedule view"
-      />
+      <div className="flex justify-end">
+        <SegmentedControl
+          variant="subtle"
+          value={view}
+          onValueChange={setView}
+          options={SCHEDULE_VIEWS.map((v) => ({ value: v, label: v }))}
+          aria-label="Schedule view"
+        />
+      </div>
       {view === "Timeline" ? (
         <TimelineLens detail={detail} onSelectActivity={onSelectActivity} />
       ) : (
