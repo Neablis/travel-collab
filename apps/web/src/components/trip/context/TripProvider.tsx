@@ -74,7 +74,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setPending(true);
       try {
         const result = await sendTripCommand(command);
-        if (!result.ok) setError(result.error.message);
+        if (!result.ok) {
+          // A "no-op" (e.g. re-setting a value to what it already is) changed
+          // nothing — surfacing it as a page alert alarms the user for a
+          // harmless action (#7HuQy). Treat it as a benign no-op: no error,
+          // no refetch.
+          if (result.error.code === "no-op") return;
+          setError(result.error.message);
+        }
         // Event log is the source of truth — refetch either way, never mutate context state directly.
         await load();
         exit();
