@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import type { TripDetail } from "@tc/contracts";
@@ -10,10 +10,6 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
-
-// Tolerance (px) for the scrollWidth/scrollLeft/clientWidth comparison, to
-// absorb sub-pixel rounding from browser zoom/fractional layout.
-const SCROLL_EDGE_TOLERANCE = 2;
 
 export type BoardCallbacks = {
   onMove: (activityId: string, toDayId: string | null, position: number) => void;
@@ -38,30 +34,6 @@ function containerOf(trip: TripDetail, activityId: string): string | null {
 
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const { openCreate, openEdit } = useEditor();
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const dayRefs = useRef(new Map<string, HTMLElement>());
-  const [hasOverflowRight, setHasOverflowRight] = useState(false);
-
-  const updateOverflow = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setHasOverflowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - SCROLL_EDGE_TOLERANCE);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateOverflow();
-    el.addEventListener("scroll", updateOverflow);
-    window.addEventListener("resize", updateOverflow);
-    return () => {
-      el.removeEventListener("scroll", updateOverflow);
-      window.removeEventListener("resize", updateOverflow);
-    };
-    // Re-check whenever the trip's day count changes the row's scrollWidth,
-    // in addition to scroll/resize events.
-  }, [updateOverflow, trip.days.length]);
 
   const conflictIds = useMemo(
     () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
@@ -100,75 +72,48 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
     });
   }, [trip, callbacks]);
 
-  const scrollToDay = useCallback((dayId: string) => {
-    dayRefs.current.get(dayId)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-  }, []);
-
   return (
-    <div>
+    <div className="flex flex-col gap-3">
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}
         onDismiss={callbacks.onDismissConflict}
       />
-      {trip.days.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Jump to day">
-          {trip.days.map((day, index) => (
-            <Button
-              key={day.dayId}
-              variant="secondary"
-              size="sm"
-              onClick={() => scrollToDay(day.dayId)}
-            >
-              {dayLabel(trip.startDate, index)}
-            </Button>
-          ))}
-        </div>
-      )}
-      <div className="relative">
-        <div
-          ref={scrollRef}
-          className="flex flex-col items-stretch gap-3 pb-2 lg:flex-row lg:items-start lg:overflow-x-auto"
-        >
+      {/* Backlog is the unscheduled pool — a full-width strip above the dated
+          day grid, not a column in the wrap. */}
+      <Column
+        title="Backlog"
+        dayId={null}
+        activityIds={trip.backlog}
+        activities={trip.activities}
+        conflictIds={conflictIds}
+        onEditActivity={openEdit}
+        onRemoveActivity={callbacks.onRemoveActivity}
+        fullWidth
+      >
+        <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
+      </Column>
+      {/* Day columns wrap into rows instead of scrolling horizontally
+          (#31/#23/#4/#10). Adjacency for drag is dayId-based, not DOM order,
+          so wrapping doesn't affect drop logic. */}
+      <div className="flex flex-wrap gap-3">
+        {trip.days.map((day, index) => (
           <Column
-            title="Backlog"
-            dayId={null}
-            activityIds={trip.backlog}
+            key={day.dayId}
+            title={dayLabel(trip.startDate, index)}
+            dayId={day.dayId}
+            activityIds={day.activityIds}
             activities={trip.activities}
             conflictIds={conflictIds}
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
-          >
-            <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
-          </Column>
-          {trip.days.map((day, index) => (
-            <Column
-              key={day.dayId}
-              title={dayLabel(trip.startDate, index)}
-              dayId={day.dayId}
-              activityIds={day.activityIds}
-              activities={trip.activities}
-              conflictIds={conflictIds}
-              onEditActivity={openEdit}
-              onRemoveActivity={callbacks.onRemoveActivity}
-              onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
-              onAddActivity={() => openCreate({ dayId: day.dayId })}
-              sectionRef={(el) => {
-                if (el) dayRefs.current.set(day.dayId, el);
-                else dayRefs.current.delete(day.dayId);
-              }}
-            />
-          ))}
-          <Button variant="secondary" onClick={callbacks.onAddDay} className="w-32 shrink-0">
-            + Add day
-          </Button>
-        </div>
-        {hasOverflowRight && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 hidden w-4 shadow-overlay lg:block"
+            onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
+            onAddActivity={() => openCreate({ dayId: day.dayId })}
           />
-        )}
+        ))}
+        <Button variant="secondary" onClick={callbacks.onAddDay} className="h-9 w-32 shrink-0">
+          + Add day
+        </Button>
       </div>
     </div>
   );

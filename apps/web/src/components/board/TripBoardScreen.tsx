@@ -65,10 +65,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
   // px-0) so a non-full lens's own PageContainer width="content" can own
   // horizontal padding without doubling up. Chrome that's shared across all
-  // lenses (the tab strip, the error banner) and the full-bleed lenses
-  // (Board, Map) get their padding from this PageContainer width="full"
-  // wrapper instead.
-  const isFullLens = lens === "Board" || lens === "Map";
+  // lenses (the tab strip, the error banner) gets its padding from this
+  // PageContainer width="full" wrapper instead.
+  // Board is capped to content width (#31) now that its columns wrap instead
+  // of scrolling horizontally — only Map remains full-bleed.
+  const isFullLens = lens === "Map";
 
   return (
     <>
@@ -85,6 +86,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <div inert={preview.seq !== null ? true : undefined}>
         {isFullLens ? (
           <PageContainer width="full">
+            {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
+          </PageContainer>
+        ) : (
+          <PageContainer width="content">
             {lens === "Board" && (
               <Board
                 trip={activeTrip}
@@ -111,10 +116,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 }}
               />
             )}
-            {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
-          </PageContainer>
-        ) : (
-          <PageContainer width="content">
             {lens === "Schedule" && <ScheduleLens detail={activeTrip} onSelectActivity={openEdit} />}
             {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
             {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
