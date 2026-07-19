@@ -44,22 +44,22 @@ lens are intentional behavior/structure changes, each justified in its commit.
 
 ### Wave 2 exit gate — all must be true
 
-- [ ] Every one of the 15 PR #11 comments is resolved (map in the spec) and
+- [x] Every one of the 15 PR #11 comments is resolved (map in the spec) and
       demoed on the deployed Vercel URL at ≥1024px.
-- [ ] **ADR-011 validated:** a new global setting lands in Settings and a new
+- [x] **ADR-011 validated:** a new global setting lands in Settings and a new
       activity field in the editor with no per-feature surface decision (R1);
       the editor is raised with prefill from ≥2 triggers (R2).
-- [ ] **ADR-012 validated:** grep shows no direct trip-context writes;
+- [x] **ADR-012 validated:** grep shows no direct trip-context writes;
       `LensRouter` holds no `useState` mirror; a test proves `fireEvent.click`
       opens every overlay.
-- [ ] `docs/guidelines/design-system.md` amended: breakpoints/containers,
+- [x] `docs/guidelines/design-system.md` amended: breakpoints/containers,
       overflow policy, surface vocabulary, field-with-context, date format, and
       the new inventory entries.
-- [ ] Enforcement green (color/element/style walls); `pnpm check` passes.
-- [ ] All M0–M4 e2e green; Wave-2 behavioral test changes each justified.
-- [ ] Still no `docs/contracts/CHANGELOG.md` entry (any contract change means
+- [x] Enforcement green (color/element/style walls); `pnpm check` passes.
+- [x] All M0–M4 e2e green; Wave-2 behavioral test changes each justified.
+- [x] Still no `docs/contracts/CHANGELOG.md` entry (any contract change means
       scope crept).
-- [ ] Wave-2 retro note appended.
+- [x] Wave-2 retro note appended.
 
 ## Scope
 
@@ -90,25 +90,25 @@ lens are intentional behavior/structure changes, each justified in its commit.
 
 ## Exit gate — all must be true (drafted 2026-07-11; confirmed by Mitchell at kickoff 2026-07-11)
 
-- [ ] **Demo on the deployed Vercel URL:** walk every Phase-1 surface (board,
+- [x] **Demo on the deployed Vercel URL:** walk every Phase-1 surface (board,
       backlog, history, map/timeline/calendar, all three lenses) — consistent
       type scale, spacing, and palette throughout; no unstyled native controls
       anywhere.
-- [ ] `docs/guidelines/design-system.md` committed: tokens, the palette with
+- [x] `docs/guidelines/design-system.md` committed: tokens, the palette with
       when-to-use guidance (semantic vs brand vs gradients), and a component
       inventory (primitives + composites).
-- [ ] **Enforcement green:** no raw color literals (hex/rgb/hsl) in app code
+- [x] **Enforcement green:** no raw color literals (hex/rgb/hsl) in app code
       outside the token definitions (lint/grep wall, same spirit as the purity
       wall); text, inputs, and buttons render through the shared primitives.
-- [ ] Documented text/background combos pass WCAG AA contrast; a
+- [x] Documented text/background combos pass WCAG AA contrast; a
       `web-design-guidelines` review of the re-skinned surfaces has no
       unaddressed findings.
-- [ ] **All M0–M4 e2e scripts green *unchanged*** — the milestone is purely
+- [x] **All M0–M4 e2e scripts green *unchanged*** — the milestone is purely
       presentational; selector-only test updates are acceptable, behavioral
       updates are a red flag.
-- [ ] No `docs/contracts/CHANGELOG.md` entry needed — and that stays true (any
+- [x] No `docs/contracts/CHANGELOG.md` entry needed — and that stays true (any
       contract change means scope crept).
-- [ ] Retro note appended to this file.
+- [x] Retro note appended to this file.
 
 ## Explicitly out of scope
 
@@ -120,3 +120,46 @@ a published package; collaboration UX design (that's M8 planning); marketing or
 landing pages. Adopting a component library (shadcn/radix) vs hand-rolled
 primitives on Tailwind is a kickoff decision for Mitchell — hand-rolled is the
 presumptive default; if a library is adopted, record it as an ADR.
+
+## Wave 3 — Group-4 refinements (2026-07-13)
+
+A second batch of Vercel comments on the Wave-2 deploy (16 new). The
+unambiguous ones shipped as a fix pass; the design-ambiguous cluster (Group 4)
+was brainstormed and built: board wrapped-grid + capped width (retires
+horizontal scroll), whole-card drop targets, Map re-render fix
+(`EditorHost` callback stabilization) + pin-list removal + fill height,
+Schedule toggle restyle, header `BudgetMeter`, Timeline hour axis, `MoneyInput`
+grouped-display inputs, and silent no-op commands. UI-layer only.
+Spec: `docs/specs/2026-07-13-M5-wave3-refinements-design.md` ·
+Plan: `docs/plans/2026-07-13-M5-wave3-refinements.md` ·
+Feedback capture: `docs/design-feedback/2026-07-13-pr11-wave2-vercel-comments.md`.
+Minor cosmetic/dead-code findings recorded as KI-4 in `docs/known-issues.md`.
+
+## Retro — M5 closed (2026-07-19)
+
+M5 shipped in **three waves**, all merged to `main` via the squash-merge of
+PR #11 (`df3a37f`; the merge-commit title reads "Wave 1 + Wave 2" but the
+squash contains all three waves). Mitchell demoed the deployed preview
+(covering the Wave-3 surfaces) and confirmed it good; prod migration was run
+(Wave 3 added no migrations — the M0–M4 schema is unchanged).
+
+- **What went well:** the "read the feedback as a set, fix the underlying
+  pattern" approach (Mitchell's) held across all three waves — Wave 2 turned 15
+  comments into 4 patterns + 2 ADRs; Wave 3 turned the Group-4 cluster into six
+  focused areas. The UI-only wall (zero diff to `packages/`, server, api,
+  contracts) held for the entire milestone. Subagent-driven execution with
+  per-task + final reviews kept quality high.
+- **Honest scope note:** this milestone was drafted as "purely presentational,
+  e2e unchanged." Wave 2 **intentionally reversed** that (recorded above and in
+  the Wave-2 section): behavioral e2e changes were expected and each justified
+  per commit. So the exit-gate line "All M0–M4 e2e green *unchanged*" is ticked
+  in the **amended** sense — e2e is green, with behavioral changes justified —
+  not the literal original wording. The scope expansion was Mitchell's explicit
+  call, not drift.
+- **Carried forward (not blockers):** KI-1 (pre-existing `packages/domain`
+  property-test flake), KI-2 (over-budget conflict-banner amount stays
+  ungrouped — domain-generated), KI-3/KI-4 (minor cosmetics) — all in
+  `docs/known-issues.md`.
+- **Ops follow-up (Mitchell):** the `migrate-production` CI job needs the
+  `PRODUCTION_DATABASE_URL` GitHub Actions secret set so future migrations are
+  automatic (this migration was run manually).

@@ -22,7 +22,7 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
       date-anchored events; anchor-violation conflicts on date shifts.
 - [x] **M4 Money & lenses** — cost items + rollups; itinerary / daily /
       full-trip output lenses.
-- [ ] **M5 Design foundations** — Tailwind design tokens; documented color
+- [x] **M5 Design foundations** — Tailwind design tokens; documented color
       palette with usage guidelines; styled reusable primitives (inputs,
       headings, text) and composites (forms, tables, modals); re-skin every
       existing surface on top of them.
