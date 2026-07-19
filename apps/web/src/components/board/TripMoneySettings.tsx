@@ -1,6 +1,9 @@
 "use client";
 
 import type { Money, TripCommand } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { MoneyInput } from "./MoneyInput";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF"] as const;
@@ -17,28 +20,37 @@ export function TripMoneySettings({
   onCommand: (command: TripCommand) => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <label htmlFor="trip-currency">currency</label>
-      <select
-        id="trip-currency"
-        aria-label="currency"
-        value={currency}
-        onChange={(e) => onCommand({ type: "SetTripCurrency", tripId, currency: e.target.value })}
+    <div className="flex flex-col gap-3">
+      <FormField id="trip-currency" label="currency">
+        <NativeSelect
+          id="trip-currency"
+          aria-label="currency"
+          value={currency}
+          onChange={(e) => onCommand({ type: "SetTripCurrency", tripId, currency: e.target.value })}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </NativeSelect>
+      </FormField>
+      <FormField
+        id="trip-budget"
+        label="Trip budget"
+        description="Used for the over-budget warning across lenses."
       >
-        {CURRENCIES.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-      <MoneyInput
-        value={budget}
-        currency={currency}
-        onChange={(money) => onCommand({ type: "SetTripBudget", tripId, budget: money })}
-      />
-      <button type="button" onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}>
-        Clear budget
-      </button>
+        <div className="flex items-center gap-1.5">
+          <MoneyInput
+            value={budget}
+            currency={currency}
+            onChange={(money) => onCommand({ type: "SetTripBudget", tripId, budget: money })}
+          />
+          <Button variant="ghost" onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}>
+            Clear budget
+          </Button>
+        </div>
+      </FormField>
     </div>
   );
 }

@@ -90,7 +90,7 @@ describe("MoneyInput", () => {
   it("re-syncs the displayed value when the value prop changes externally (e.g. undo)", () => {
     const onChange = vi.fn();
     const { rerender } = render(<MoneyInput value={{ amountMinor: 100000, currency: "EUR" }} currency="EUR" onChange={onChange} />);
-    expect((screen.getByLabelText(/cost/i) as HTMLInputElement).value).toBe("1000.00");
+    expect((screen.getByLabelText(/cost/i) as HTMLInputElement).value).toBe("1,000.00");
     rerender(<MoneyInput value={{ amountMinor: 10000, currency: "EUR" }} currency="EUR" onChange={onChange} />);
     expect((screen.getByLabelText(/cost/i) as HTMLInputElement).value).toBe("100.00");
   });
@@ -103,5 +103,19 @@ describe("MoneyInput", () => {
     // re-render triggered by something unrelated) — must not reset display.
     rerender(<MoneyInput value={null} currency="USD" onChange={onChange} />);
     expect((screen.getByLabelText(/cost/i) as HTMLInputElement).value).toBe("7");
+  });
+
+  it("shows a grouped amount when not focused (#22)", () => {
+    render(<MoneyInput value={{ amountMinor: 111110600, currency: "USD" }} currency="USD" onChange={vi.fn()} />);
+    expect((screen.getByLabelText("cost (USD)") as HTMLInputElement).value).toBe("1,111,106.00");
+  });
+
+  it("commits parsed minor units from a comma-grouped entry on blur", () => {
+    const onChange = vi.fn();
+    render(<MoneyInput value={null} currency="USD" onChange={onChange} />);
+    const input = screen.getByLabelText("cost (USD)");
+    fireEvent.change(input, { target: { value: "4,332,212" } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith({ amountMinor: 433221200, currency: "USD" });
   });
 });

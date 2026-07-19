@@ -1,68 +1,77 @@
 "use client";
 
 import type { TripDetail } from "@tc/contracts";
+import { Heading } from "../ui/heading";
+import { Text } from "../ui/text";
+import { DataText } from "../ui/data-text";
+import { Banner } from "../ui/banner";
 import { tripOverview } from "./tripOverviewData";
 import { formatMoney } from "./formatMoney";
+import { formatTripDateLong } from "@/lib/formatDate";
 
 export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
   const overview = tripOverview(detail);
 
   return (
-    <section aria-label="Full trip overview" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section aria-label="Full trip overview" className="flex flex-col gap-3">
       <header>
-        <h2 style={{ margin: 0 }}>{detail.name}</h2>
+        <Heading level={2}>{detail.name}</Heading>
         {overview.dateRange ? (
-          <p style={{ margin: "4px 0 0", color: "#555" }}>
-            {overview.dateRange.from === overview.dateRange.to
-              ? overview.dateRange.from
-              : `${overview.dateRange.from} – ${overview.dateRange.to}`}
+          <Text variant="secondary" className="mt-1">
+            <DataText as="span" size="sm">
+              {overview.dateRange.from === overview.dateRange.to
+                ? formatTripDateLong(overview.dateRange.from)
+                : `${formatTripDateLong(overview.dateRange.from)} – ${formatTripDateLong(overview.dateRange.to)}`}
+            </DataText>
             {" · "}
             {overview.dayCount} {overview.dayCount === 1 ? "day" : "days"}
-          </p>
+          </Text>
         ) : (
-          <p style={{ margin: "4px 0 0", color: "#555" }}>No dates set yet</p>
+          <Text variant="secondary" className="mt-1">
+            No dates set yet
+          </Text>
         )}
       </header>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between font-semibold">
           <span>Trip total</span>
-          <span>{formatMoney(overview.tripCostTotal, overview.currency)}</span>
+          <DataText>{formatMoney(overview.tripCostTotal, overview.currency)}</DataText>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#555" }}>
+        <div className="flex justify-between text-sm text-slate">
           <span>Scheduled</span>
-          <span>{formatMoney(overview.scheduledTotal, overview.currency)}</span>
+          <DataText>{formatMoney(overview.scheduledTotal, overview.currency)}</DataText>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#555" }}>
+        <div className="flex justify-between text-sm text-slate">
           <span>Unscheduled</span>
-          <span>{formatMoney(overview.unscheduledTotal, overview.currency)}</span>
+          <DataText>{formatMoney(overview.unscheduledTotal, overview.currency)}</DataText>
         </div>
       </div>
 
-      <div
-        role="status"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          padding: 8,
-          borderRadius: 4,
-          background: overview.overBudget ? "#fdecea" : "#eef5ff",
-          color: overview.overBudget ? "#a4231b" : "#1a1a1a",
-        }}
-      >
-        {overview.budget === null ? (
-          <span>No budget set</span>
-        ) : (
-          <>
-            <span>Budget: {formatMoney(overview.budget.amountMinor, overview.currency)}</span>
+      {overview.budget === null ? (
+        <Banner variant="info">No budget set</Banner>
+      ) : (
+        <Banner variant={overview.overBudget ? "warning" : "info"}>
+          <div className="flex justify-between">
+            <span>
+              Budget: <DataText as="span">{formatMoney(overview.budget.amountMinor, overview.currency)}</DataText>
+            </span>
             <span>
               {overview.overBudget
-                ? `Over by ${formatMoney(Math.abs(overview.budgetRemaining ?? 0), overview.currency)}`
-                : `Remaining: ${formatMoney(overview.budgetRemaining ?? 0, overview.currency)}`}
+                ? (
+                  <>
+                    Over by <DataText as="span" className="text-warning-ink">{formatMoney(Math.abs(overview.budgetRemaining ?? 0), overview.currency)}</DataText>
+                  </>
+                )
+                : (
+                  <>
+                    Remaining: <DataText as="span">{formatMoney(overview.budgetRemaining ?? 0, overview.currency)}</DataText>
+                  </>
+                )}
             </span>
-          </>
-        )}
-      </div>
+          </div>
+        </Banner>
+      )}
     </section>
   );
 }

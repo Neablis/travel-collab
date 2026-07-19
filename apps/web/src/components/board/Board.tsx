@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
-import { ActivityEditor, type ActivityFormValue } from "./ActivityEditor";
+import { Button } from "@/components/ui/button";
+import { useEditor } from "@/components/trip/context/EditorHost";
+import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 
@@ -31,8 +33,7 @@ function containerOf(trip: TripDetail, activityId: string): string | null {
 }
 
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const { openCreate, openEdit } = useEditor();
 
   const conflictIds = useMemo(
     () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
@@ -71,39 +72,31 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
     });
   }, [trip, callbacks]);
 
-  const editingActivity = editing !== null ? (trip.activities[editing] ?? null) : null;
-
   return (
-    <div>
+    <div className="flex flex-col gap-3">
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}
         onDismiss={callbacks.onDismissConflict}
       />
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", overflowX: "auto" }}>
-        <Column
-          title="Backlog"
-          dayId={null}
-          activityIds={trip.backlog}
-          activities={trip.activities}
-          conflictIds={conflictIds}
-          onEditActivity={setEditing}
-          onRemoveActivity={callbacks.onRemoveActivity}
-        >
-          {adding ? (
-            <ActivityEditor
-              initial={null}
-              tripCurrency={trip.currency}
-              onSave={(value) => {
-                callbacks.onAddActivity(value);
-                setAdding(false);
-              }}
-              onCancel={() => setAdding(false)}
-            />
-          ) : (
-            <button onClick={() => setAdding(true)}>+ Add activity</button>
-          )}
-        </Column>
+      {/* Backlog is the unscheduled pool — a full-width strip above the dated
+          day grid, not a column in the wrap. */}
+      <Column
+        title="Backlog"
+        dayId={null}
+        activityIds={trip.backlog}
+        activities={trip.activities}
+        conflictIds={conflictIds}
+        onEditActivity={openEdit}
+        onRemoveActivity={callbacks.onRemoveActivity}
+        fullWidth
+      >
+        <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
+      </Column>
+      {/* Day columns wrap into rows instead of scrolling horizontally
+          (#31/#23/#4/#10). Adjacency for drag is dayId-based, not DOM order,
+          so wrapping doesn't affect drop logic. */}
+      <div className="flex flex-wrap gap-3">
         {trip.days.map((day, index) => (
           <Column
             key={day.dayId}
@@ -112,29 +105,16 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             activityIds={day.activityIds}
             activities={trip.activities}
             conflictIds={conflictIds}
-            onEditActivity={setEditing}
+            onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
+            onAddActivity={() => openCreate({ dayId: day.dayId })}
           />
         ))}
-        <button onClick={callbacks.onAddDay} style={{ minWidth: 120 }}>
+        <Button variant="secondary" onClick={callbacks.onAddDay} className="h-9 w-32 shrink-0">
           + Add day
-        </button>
+        </Button>
       </div>
-      {editing !== null && editingActivity !== null && (
-        <div style={{ marginTop: 12, maxWidth: 420 }}>
-          <ActivityEditor
-            key={editing}
-            initial={editingActivity}
-            tripCurrency={trip.currency}
-            onSave={(value) => {
-              callbacks.onUpdateActivity(editing, value);
-              setEditing(null);
-            }}
-            onCancel={() => setEditing(null)}
-          />
-        </div>
-      )}
     </div>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import type { TripDetail } from "@tc/contracts";
+import { Text } from "../ui/text";
+import { DataText } from "../ui/data-text";
+import { Button } from "../ui/button";
 import { calendarCells } from "./calendarData";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -17,15 +20,13 @@ export function CalendarLens({
   return (
     <section>
       {cells.length === 0 ? (
-        <p role="status">Set a start date to see the calendar.</p>
+        <Text as="span" variant="secondary" role="status">
+          Set a start date to see the calendar.
+        </Text>
       ) : (
-        <div
-          role="grid"
-          aria-label="Trip calendar"
-          style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 8 }}
-        >
+        <div role="grid" aria-label="Trip calendar" className="mt-2 grid grid-cols-7 gap-1">
           {WEEKDAY_LABELS.map((label) => (
-            <div key={label} style={{ fontWeight: "bold", textAlign: "center" }}>
+            <div key={label} className="text-center text-xs font-semibold text-slate">
               {label}
             </div>
           ))}
@@ -34,36 +35,33 @@ export function CalendarLens({
               key={cell.date}
               data-testid="calendar-cell"
               data-in-trip={cell.inTrip}
-              style={{
-                border: "1px solid #ccc",
-                borderRadius: 4,
-                padding: 4,
-                minHeight: 48,
-                background: cell.inTrip ? "#eef5ff" : "transparent",
-                opacity: cell.inTrip ? 1 : 0.4,
-              }}
+              className={`min-h-12 rounded-sm border border-hairline p-1 ${cell.inTrip ? "bg-brand-tint" : "bg-transparent opacity-40"}`}
             >
-              <div>{Number(cell.date.slice(-2))}</div>
+              <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
               {cell.inTrip && (
                 <div>
-                  <small>Day {cell.ordinal}</small>
+                  <Text as="span" variant="muted">
+                    Day {cell.ordinal}
+                  </Text>
                   {cell.activityIds.length > 0 && (
-                    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    <ul className="m-0 list-none p-0">
                       {cell.activityIds.map((activityId) => {
                         const activity = detail.activities[activityId];
                         if (!activity) return null;
                         return (
                           <li key={activityId}>
                             {onSelectActivity ? (
-                              <button
-                                type="button"
+                              <Button
+                                variant="ghost"
                                 onClick={() => onSelectActivity(activityId)}
-                                style={{ fontSize: 11, border: "none", background: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+                                className="h-auto justify-start p-0 text-left text-xs font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
                               >
                                 {activity.title}
-                              </button>
+                              </Button>
                             ) : (
-                              <small>{activity.title}</small>
+                              <Text as="span" variant="muted">
+                                {activity.title}
+                              </Text>
                             )}
                           </li>
                         );

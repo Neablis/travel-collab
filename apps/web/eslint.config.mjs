@@ -31,4 +31,33 @@ export default [
       ],
     },
   },
+  {
+    // THE ELEMENT WALL (design-system.md): text, controls, and tables render
+    // through components/ui primitives; no inline styles. Enumerated inline-
+    // style exceptions (drag opacity, map container, computed timeline/calendar
+    // geometry) carry a line-level eslint-disable with a reason.
+    files: ["src/**/*.tsx"],
+    ignores: [
+      "src/components/ui/**",
+      "src/server/**",
+      "src/app/api/**",
+      // Test fixtures render arbitrary DOM to simulate surrounding page
+      // context (e.g. a "probe" input standing in for some other field on
+      // the page) — this is not shipped UI, so the element wall doesn't apply.
+      "src/**/*.test.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXOpeningElement[name.name=/^(button|input|textarea|select|label|h1|h2|h3|h4|h5|h6|table)$/]",
+          message: "Render through the components/ui primitives (design-system.md).",
+        },
+        {
+          selector: "JSXAttribute[name.name='style']",
+          message: "No inline styles — use tokens. Enumerated exceptions need a line disable with a reason (design-system.md).",
+        },
+      ],
+    },
+  },
 ];

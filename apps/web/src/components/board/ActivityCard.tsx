@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import { AlertTriangle, Pencil, X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { DataText } from "@/components/ui/data-text";
+import { Text } from "@/components/ui/text";
 
 export function ActivityCard({
   activity,
@@ -44,44 +50,36 @@ export function ActivityCard({
   }, [activity.activityId, dayId]);
 
   return (
-    <li
+    <Card
+      as="li"
       ref={ref}
       data-testid={`activity-card-${activity.activityId}`}
-      style={{
-        background: "white",
-        border: "1px solid #ddd",
-        borderRadius: 6,
-        padding: 8,
-        marginBottom: 6,
-        opacity: dragging ? 0.5 : 1,
-        cursor: "grab",
-      }}
+      // eslint-disable-next-line no-restricted-syntax -- drag opacity is computed per-frame by pragmatic-drag-and-drop state, not expressible as a token class
+      style={{ opacity: dragging ? 0.5 : 1 }}
+      className="mb-1.5 cursor-grab p-2.5"
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <span>
-          <span>{activity.title}</span>
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex items-center gap-1.5">
+          <Text as="span" className="font-medium">{activity.title}</Text>
           {hasConflict && (
-            <span role="img" aria-label="conflict" title="This activity has conflicts">
-              {" "}
-              ⚠️
-            </span>
+            <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
+              <AlertTriangle className="size-3" aria-hidden />
+            </Badge>
           )}
         </span>
-        <span style={{ whiteSpace: "nowrap" }}>
-          <button onClick={onEdit} aria-label={`Edit ${activity.title}`}>
-            ✎
-          </button>{" "}
-          <button onClick={onRemove} aria-label={`Remove ${activity.title}`}>
-            ✕
-          </button>
+        <span className="flex shrink-0 gap-0.5">
+          <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${activity.title}`}>
+            <Pencil className="size-3.5" aria-hidden />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
+            <X className="size-3.5" aria-hidden />
+          </Button>
         </span>
       </div>
       {activity.timeWindow && (
-        <small>
-          {activity.timeWindow.start}–{activity.timeWindow.end}
-        </small>
+        <DataText size="xs">{activity.timeWindow.start}–{activity.timeWindow.end}</DataText>
       )}
-      {activity.location && <small> · {activity.location.name}</small>}
-    </li>
+      {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
+    </Card>
   );
 }

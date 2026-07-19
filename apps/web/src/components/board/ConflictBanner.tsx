@@ -1,6 +1,9 @@
 "use client";
 
 import type { Conflict } from "@tc/contracts";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 
 // Conflicts are data, never blocking modals (AGENTS.md invariant 3).
 // Dismissal is a real command since M2 — it persists, appears in history,
@@ -16,19 +19,25 @@ export function ConflictBanner({
 }) {
   const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
   if (visible.length === 0) return null;
+  // my-3 (not just mb-3) so the alert isn't flush against the tab strip above
+  // it (#21).
   return (
-    <aside
-      role="status"
-      style={{ border: "1px solid #e0a800", background: "#fff8e1", borderRadius: 6, padding: 8, marginBottom: 12 }}
-    >
+    <div className="my-3 grid gap-1.5">
       {visible.map((c) => (
-        <p key={c.id} style={{ margin: "4px 0" }}>
-          ⚠️ {c.description} <em>({c.resolutions.join(" · ")})</em>{" "}
-          <button onClick={() => onDismiss(c.id)} aria-label={`Dismiss: ${c.description}`}>
-            Dismiss
-          </button>
-        </p>
+        <Banner
+          key={c.id}
+          variant="warning"
+          actions={
+            <Button variant="ghost" onClick={() => onDismiss(c.id)} aria-label={`Dismiss: ${c.description}`}>
+              Dismiss
+            </Button>
+          }
+        >
+          <Text as="span">
+            {c.description} <Text as="span" variant="muted">({c.resolutions.join(" · ")})</Text>
+          </Text>
+        </Banner>
       ))}
-    </aside>
+    </div>
   );
 }

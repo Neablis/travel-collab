@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import type { Location } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string };
 
@@ -34,34 +38,58 @@ export function LocationInput({
   }
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div className="grid gap-1.5">
       {value?.name != null && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{value.name}</span>
-          <button type="button" onClick={() => onChange(null)}>
+        <div className="flex items-center gap-1.5">
+          <Text as="span">{value.name}</Text>
+          <Button variant="ghost" onClick={() => onChange(null)}>
             Clear
-          </button>
+          </Button>
         </div>
       )}
-      <div style={{ display: "flex", gap: 6 }}>
-        <input
-          aria-label="Place name"
-          placeholder="place name"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button type="button" onClick={() => void search()}>
-          Search
-        </button>
-      </div>
-      {error !== null && <p role="alert">{error}</p>}
+      <FormField
+        id="location-search"
+        label="Place name"
+        description="Search for a place by name, then pick a match from the results."
+      >
+        <div className="flex gap-1.5">
+          <Input
+            id="location-search"
+            aria-label="Place name"
+            placeholder="place name"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void search();
+              }
+            }}
+          />
+          <Button variant="secondary" onClick={() => void search()}>
+            Search
+          </Button>
+        </div>
+      </FormField>
+      {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
       {results.length > 0 && (
-        <ul>
+        <ul role="listbox" aria-label="Search results" className="m-0 list-none divide-y divide-hairline p-0">
           {results.map((r, index) => (
-            <li key={index}>
-              <button type="button" onClick={() => pick(r)}>
-                {r.canonicalName}
-              </button>
+            <li key={index} role="presentation">
+              <Button
+                role="option"
+                aria-selected={false}
+                variant="ghost"
+                onClick={() => pick(r)}
+                className="flex h-auto w-full flex-col items-start px-3 py-2 text-left"
+              >
+                <Text as="span">{r.canonicalName}</Text>
+                {r.countryCode != null && (
+                  <Text as="span" variant="secondary">
+                    {r.countryCode}
+                  </Text>
+                )}
+              </Button>
             </li>
           ))}
         </ul>

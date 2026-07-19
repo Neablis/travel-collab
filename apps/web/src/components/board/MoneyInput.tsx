@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Money } from "@tc/contracts";
+import { Input } from "@/components/ui/input";
+import { formatAmount } from "@/components/lenses/formatMoney";
 
+// Grouped display when idle (e.g. 1,111,106.00); raw digits are still accepted
+// while typing. Uses the shared formatAmount so grouping matches the lenses.
 function formatMoney(value: Money | null): string {
-  return value ? (value.amountMinor / 100).toFixed(2) : "";
+  return value ? formatAmount(value.amountMinor) : "";
 }
 
 function moneyEqual(a: Money | null, b: Money | null): boolean {
@@ -12,7 +16,7 @@ function moneyEqual(a: Money | null, b: Money | null): boolean {
 }
 
 function parseMoney(raw: string, currency: string): Money | null {
-  const trimmed = raw.trim();
+  const trimmed = raw.replace(/,/g, "").trim(); // strip grouping separators
   if (trimmed === "") return null;
   const amountMinor = Math.max(0, Math.round(Number(trimmed) * 100));
   return Number.isFinite(amountMinor) ? { amountMinor, currency } : null;
@@ -58,8 +62,8 @@ export function MoneyInput({ value, currency, onChange }: { value: Money | null;
   }, []);
 
   return (
-    <input
-      type="number" step="0.01" min="0" aria-label={`cost (${currency})`} placeholder={`0.00 ${currency}`}
+    <Input
+      type="text" inputMode="decimal" aria-label={`cost (${currency})`} placeholder={`0.00 ${currency}`}
       value={display}
       onChange={(e) => setDisplay(e.target.value)}
       onBlur={(e) => {
@@ -67,7 +71,9 @@ export function MoneyInput({ value, currency, onChange }: { value: Money | null;
           cancelingRef.current = false;
           return;
         }
-        onChange(parseMoney(e.target.value, currency));
+        const parsed = parseMoney(e.target.value, currency);
+        onChange(parsed);
+        setDisplay(formatMoney(parsed)); // re-group after commit
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {

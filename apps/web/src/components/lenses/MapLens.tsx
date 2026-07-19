@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
+import { Text } from "../ui/text";
+import { Button } from "../ui/button";
+import { useEditor } from "../trip/context/EditorHost";
 import { activityPins, unlocatedActivities } from "./mapData";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -13,6 +16,7 @@ export function MapLens({
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
 }) {
+  const { openCreate } = useEditor();
   const containerRef = useRef<HTMLDivElement>(null);
   const pins = activityPins(detail);
   const unlocated = unlocatedActivities(detail);
@@ -37,9 +41,28 @@ export function MapLens({
         zoom: 10,
       });
 
+      // Double-click on the map is the create-mode trigger (ADR-011 R2): it
+      // seeds the editor's prefill with the clicked coordinates instead of a
+      // dayId, demonstrating a second, distinct prefill shape from the same
+      // openCreate() entry point. No other maplibre behavior changes — this
+      // only adds a listener (maplibre's default dblclick-to-zoom still
+      // fires alongside it, matching stock map interaction expectations).
+      map.on("dblclick", (e: import("maplibre-gl").MapMouseEvent) => {
+        const { lng, lat } = e.lngLat;
+        openCreate({
+          location: { name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng },
+        });
+      });
+
+      // Marker color is a maplibre-gl runtime option, not a CSS class — it
+      // requires a literal color string at construction time. It is read from
+      // the live --color-brand CSS variable rather than hardcoded, so the
+      // marker always tracks the design token.
+      const brandColor = getComputedStyle(document.documentElement).getPropertyValue("--color-brand").trim() || undefined;
+
       const bounds = new LngLatBounds();
       for (const pin of pins) {
-        const marker = new Marker().setLngLat([pin.lng, pin.lat]).addTo(map);
+        const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
         if (onSelectActivity) {
           marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
           marker.getElement().style.cursor = "pointer";
@@ -56,47 +79,26 @@ export function MapLens({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity]);
+  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
   return (
-    <div className="map-lens">
+    <div data-testid="map-lens" className="map-lens flex flex-col gap-3">
       {pins.length > 0 ? (
-        <>
-          <div ref={containerRef} className="map-lens-canvas" style={{ width: "100%", height: 400 }} />
-          <ul className="map-lens-pin-list">
-            {pins.map((pin) =>
-              onSelectActivity ? (
-                <li key={pin.activityId}>
-                  <button type="button" onClick={() => onSelectActivity(pin.activityId)}>
-                    {pin.title}
-                  </button>
-                </li>
-              ) : (
-                <li key={pin.activityId}>{pin.title}</li>
-              ),
-            )}
-          </ul>
-        </>
+        // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
+        <div ref={containerRef} className="map-lens-canvas grow overflow-hidden rounded-md border border-hairline" style={{ width: "100%", minHeight: 480, height: "70vh" }} />
       ) : (
-        <p className="map-lens-empty">No located activities yet — add a place to see it on the map.</p>
+        <Text variant="secondary" className="map-lens-empty">
+          No located activities yet — add a place to see it on the map.
+        </Text>
       )}
       {unlocated.length > 0 && (
-        <div className="map-lens-unlocated">
-          <h3>Not on the map — add a place</h3>
-          <ul>
-            {unlocated.map((activity) =>
-              onSelectActivity ? (
-                <li key={activity.activityId}>
-                  <button type="button" onClick={() => onSelectActivity(activity.activityId)}>
-                    {activity.title}
-                  </button>
-                </li>
-              ) : (
-                <li key={activity.activityId}>{activity.title}</li>
-              ),
-            )}
-          </ul>
-        </div>
+        <Button
+          variant="ghost"
+          className="self-start text-slate"
+          onClick={() => onSelectActivity?.(unlocated[0]!.activityId)}
+        >
+          {unlocated.length} {unlocated.length === 1 ? "activity has" : "activities have"} no location — add a place
+        </Button>
       )}
     </div>
   );

@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import type { ActivityView, Anchor, Location, Money, TimeWindow } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
+import { Textarea } from "@/components/ui/textarea";
 import { AnchorEditor } from "./AnchorEditor";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
@@ -52,23 +58,61 @@ export function ActivityEditor({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 6, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}>
-      <input aria-label="Activity title" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <div style={{ display: "flex", gap: 6 }}>
-        <input aria-label="Start time" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-        <input aria-label="End time" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-      </div>
-      <LocationInput value={location} onChange={setLocation} />
-      <AnchorEditor value={anchors} onChange={setAnchors} />
-      <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
-      <textarea aria-label="Notes" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      {error !== null && <p role="alert">{error}</p>}
-      <div style={{ display: "flex", gap: 6 }}>
-        <button type="submit">Save</button>
-        <button type="button" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </form>
+    <Card as="div">
+      <form onSubmit={submit} className="grid gap-1.5">
+        <FormField id="activity-title" label="Activity title">
+          <Input
+            id="activity-title"
+            aria-label="Activity title"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </FormField>
+        <div className="flex gap-1.5">
+          <FormField id="activity-start-time" label="Start time">
+            <Input
+              id="activity-start-time"
+              aria-label="Start time"
+              type="time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+            />
+          </FormField>
+          <FormField id="activity-end-time" label="End time">
+            <Input
+              id="activity-end-time"
+              aria-label="End time"
+              type="time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+            />
+          </FormField>
+        </div>
+        <LocationInput value={location} onChange={setLocation} />
+        <AnchorEditor value={anchors} onChange={setAnchors} />
+        <FormField id="activity-cost" label="Cost">
+          <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
+        </FormField>
+        <FormField id="activity-notes" label="Notes">
+          <Textarea
+            id="activity-notes"
+            aria-label="Notes"
+            placeholder="Notes (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </FormField>
+        {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
+        <div className="flex gap-1.5">
+          <Button type="submit" variant="secondary" className="font-semibold">
+            Save
+          </Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }

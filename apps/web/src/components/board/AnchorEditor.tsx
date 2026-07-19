@@ -2,9 +2,22 @@
 
 import { useState } from "react";
 import type { Anchor, Weekday } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Text } from "@/components/ui/text";
 
 const ANCHOR_KINDS = ["dayOfWeek", "dateRange", "timeOfDay", "publicHoliday"] as const;
 type AnchorKind = (typeof ANCHOR_KINDS)[number];
+
+// Option text only — friendlier than the raw enum values, which remain the
+// submitted `value` attributes untouched.
+const ANCHOR_KIND_LABELS: Record<AnchorKind, string> = {
+  dayOfWeek: "Day of the week",
+  dateRange: "Date range",
+  timeOfDay: "Time of day",
+  publicHoliday: "Public holiday",
+};
 
 const DEFAULT_DAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 
@@ -58,27 +71,37 @@ export function AnchorEditor({
   }
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div className="grid gap-1.5">
       {value.map((anchor, index) => (
-        <div key={index} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{describeAnchor(anchor)}</span>
-          <button type="button" onClick={() => removeAnchor(index)}>
+        <div key={index} className="flex items-center gap-1.5">
+          <Text as="span">{describeAnchor(anchor)}</Text>
+          <Button variant="ghost" onClick={() => removeAnchor(index)}>
             Remove
-          </button>
+          </Button>
         </div>
       ))}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <label htmlFor="anchor-kind">anchor kind</label>
-        <select id="anchor-kind" aria-label="anchor kind" value={kind} onChange={(e) => setKind(e.target.value as AnchorKind)}>
-          {ANCHOR_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={addAnchor}>
+      <div className="flex items-end gap-1.5">
+        <FormField
+          id="anchor-kind"
+          label="Lock to a date rule"
+          description="Ties this event to a rule — e.g. a specific date or every Monday — so it flags a conflict if trip dates shift."
+        >
+          <NativeSelect
+            id="anchor-kind"
+            aria-label="anchor kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as AnchorKind)}
+          >
+            {ANCHOR_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {ANCHOR_KIND_LABELS[k]}
+              </option>
+            ))}
+          </NativeSelect>
+        </FormField>
+        <Button variant="secondary" onClick={addAnchor}>
           Add anchor
-        </button>
+        </Button>
       </div>
     </div>
   );

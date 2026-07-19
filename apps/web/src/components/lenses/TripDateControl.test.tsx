@@ -15,10 +15,18 @@ describe("TripDateControl", () => {
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripStartDate", tripId: TRIP_ID, startDate: "2026-10-12" });
   });
 
-  it("Clear dates dispatches SetTripStartDate with startDate: null", () => {
+  it("the Clear date X clears the start date directly (#19)", () => {
     const onCommand = vi.fn<(command: TripCommand) => void>();
     render(<TripDateControl tripId={TRIP_ID} startDate="2026-10-12" onCommand={onCommand} />);
-    fireEvent.click(screen.getByRole("button", { name: /clear dates/i }));
+    // #19: a one-item "Date options" popover was silly for a single action —
+    // clearing is now a direct X next to the date, no menu to open first.
+    fireEvent.click(screen.getByRole("button", { name: /clear date/i }));
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripStartDate", tripId: TRIP_ID, startDate: null });
+  });
+
+  it("hides the Clear date X when there is no date to clear", () => {
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    render(<TripDateControl tripId={TRIP_ID} startDate={null} onCommand={onCommand} />);
+    expect(screen.queryByRole("button", { name: /clear date/i })).toBeNull();
   });
 });
