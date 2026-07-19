@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
+import { BudgetMeter } from "@/components/ui/budget-meter";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { formatTripDate } from "@/lib/formatDate";
-import { formatAmount } from "@/components/lenses/formatMoney";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
@@ -27,8 +27,6 @@ export function TripHeader({ tripId }: { tripId: string }) {
 
   if (trip === null || status !== "ready") return null;
 
-  const overBudget = trip.budgetRemaining !== null && trip.budgetRemaining < 0;
-
   return (
     <header className="border-b border-hairline bg-surface px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -44,9 +42,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
               <DataText size="sm">{formatTripDate(trip.startDate)}</DataText>
             )}
             {trip.budget !== null && (
-              <DataText size="sm" className={overBudget ? "text-warning-ink" : undefined}>
-                {formatAmount(trip.tripCostTotal)} / {formatAmount(trip.budget.amountMinor)} {trip.currency}
-              </DataText>
+              <BudgetMeter cost={trip.tripCostTotal} budget={trip.budget.amountMinor} currency={trip.currency} />
             )}
           </div>
         </div>
