@@ -224,6 +224,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Sheet` | Side-anchored Radix Dialog; activity editor, trip settings. State-controlled (`open`/`onOpenChange`), no `SheetTrigger` |
 | `Popover` | Anchored Radix Popover; History, clear-date, row menus. State-controlled (`open`/`onOpenChange`), no `PopoverTrigger` |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
+| `BudgetMeter` | Header spent-vs-budget glance (#30): fill bar (`bg-brand` under budget, `bg-warning` over, clamped at 100%) + `DataText` label (`cost of budget currency`, `text-warning-ink` when over). Fill width is computed geometry via inline `style` — same pattern as `TimelineLens`'s position math |
 
 `TabStrip`/`SegmentedControl` are deliberately hand-rolled, not Radix — see
 `apps/web/src/components/ui/tab-strip.tsx`. They are the one sanctioned
@@ -257,7 +258,13 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
 1. **No raw color literals** — CI grep: hex/rgb/hsl in `apps/web/src` outside
    `globals.css` fails the build.
 2. **No inline `style={{…}}`** outside an explicit allowlist (drag transforms,
-   maplibre container sizing) — ESLint `no-restricted-syntax`.
+   maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
+   applies to `src/**/*.tsx` outside `components/ui/**` (and outside
+   `*.test.tsx`), so composites that live in `ui/` — e.g. `BudgetMeter`'s fill
+   width — are structurally exempt; they still carry a line-level
+   `eslint-disable-next-line no-restricted-syntax` with a reason, matching the
+   enumerated-exception pattern used by `TimelineLens`/`MapLens`/`ActivityCard`,
+   for documentation consistency even though it's a no-op for `ui/` files.
 3. **Raw elements banned outside `ui/`** (list above) — ESLint
    `no-restricted-syntax` on JSX element names.
 4. **No arbitrary Tailwind values** (`[13px]`, `[#hex]`) — lint.
