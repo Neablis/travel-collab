@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "user-experience": {
+      "source": "geekatron/jerry",
+      "sourceType": "github",
+      "skillPath": "skills/user-experience/SKILL.md",
+      "computedHash": "a19c4f64ecdf6601f5e7ff231d88573d4465be1f63f59c641ad20a4a32d2e918"
+    }
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "../components/ui/heading";
 import { Text } from "../components/ui/text";
@@ -66,6 +67,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
+      <SpeedInsights />
       <Heading level={1}>Your trips</Heading>
       <form onSubmit={createTrip} className="mt-4 flex items-end gap-2">
         <FormField id="trip-name" label="Trip name">
