@@ -11,12 +11,55 @@ const money = fc.record({
   amountMinor: fc.integer({ min: 0, max: 1_000_000 }),
   currency: fc.constantFrom("USD", "EUR", "GBP"),
 });
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Two distinct hour/minute pairs, ordered start < end, formatted as HH:MM.
+const timeWindow: fc.Arbitrary<{ start: string; end: string }> = fc
+  .tuple(
+    fc.tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 })),
+    fc.tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 })),
+  )
+  .filter(([[h1, m1], [h2, m2]]) => h1 * 60 + m1 !== h2 * 60 + m2)
+  .map(([a, b]) => {
+    const [aH, aM] = a;
+    const [bH, bM] = b;
+    const [first, second] = aH * 60 + aM < bH * 60 + bM ? [a, b] : [b, a];
+    return { start: `${pad2(first[0])}:${pad2(first[1])}`, end: `${pad2(second[0])}:${pad2(second[1])}` };
+  });
+
+// lat/lng must be provided together (both present or both absent).
+const location = fc
+  .record({
+    name: fc.string({ minLength: 1, maxLength: 30 }),
+    coords: fc.option(
+      fc.record({
+        lat: fc.float({ min: -90, max: 90, noNaN: true }),
+        lng: fc.float({ min: -180, max: 180, noNaN: true }),
+      }),
+      { nil: null },
+    ),
+    countryCode: fc.option(fc.constantFrom("US", "FR", "JP", "CA"), { nil: null }),
+  })
+  .map(({ name, coords, countryCode }) => ({
+    name,
+    ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+    ...(countryCode ? { countryCode } : {}),
+  }));
+
+const weekday = fc.constantFrom("mon", "tue", "wed", "thu", "fri", "sat", "sun");
+
+const anchor = fc.oneof(
+  fc.record({ kind: fc.constant("dayOfWeek" as const), days: fc.uniqueArray(weekday, { minLength: 1, maxLength: 3 }) }),
+  fc.record({ kind: fc.constant("timeOfDay" as const), window: timeWindow }),
+);
+
 const activity: fc.Arbitrary<ActivityState> = fc.record({
   title: fc.string({ minLength: 1, maxLength: 40 }),
-  timeWindow: fc.constant(null),
-  location: fc.constant(null),
+  timeWindow: fc.option(timeWindow, { nil: null }),
+  location: fc.option(location, { nil: null }),
   notes: fc.option(fc.string(), { nil: null }),
-  anchors: fc.constant([]),
+  anchors: fc.array(anchor, { maxLength: 3 }),
   cost: fc.option(money, { nil: null }),
 });
 

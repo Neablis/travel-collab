@@ -11,7 +11,7 @@ export function hydrate(detail: TripDetail): TripState {
   return {
     tripId: detail.tripId,
     name: detail.name,
-    members: detail.members,
+    members: [...detail.members],
     startDate: detail.startDate,
     days: detail.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
     backlog: [...detail.backlog],
