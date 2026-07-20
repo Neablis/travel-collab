@@ -145,6 +145,22 @@ export const TripCommand = z.discriminatedUnion("type", [
 ]);
 export type TripCommand = z.infer<typeof TripCommand>;
 
+// Commands eligible for atomic batching (M6): every TripCommand except
+// CreateTrip (a trip's genesis) and the history commands (decided separately).
+export const BatchableCommand = z.discriminatedUnion("type", [
+  AddDay,
+  RemoveDay,
+  SetTripStartDate,
+  AddActivity,
+  UpdateActivity,
+  MoveActivity,
+  RemoveActivity,
+  DismissConflict,
+  SetTripCurrency,
+  SetTripBudget,
+]);
+export type BatchableCommand = z.infer<typeof BatchableCommand>;
+
 export const TripMember = z.object({
   userId: z.string().min(1),
   role: z.literal("owner"),

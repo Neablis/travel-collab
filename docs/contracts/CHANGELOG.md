@@ -13,6 +13,13 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-19 — M6 atomic changes + optimistic updates
+- Added: `BatchableCommand` (discriminated union — TripCommand minus CreateTrip
+  and the history commands) for the batch endpoint
+- Why: M6 — submit a series of commands as one atomic batch (one history entry)
+- Consumers updated: packages/domain (predict), apps/web (batch route, apiClient)
+- Breaking? no — additive
+
 ## 2026-07-10 — M4 money & lenses schemas
 - Added: `Money` (integer minor units + ISO-4217 currency)
 - Added: `cost` on `AddActivity` (optional) / `UpdateActivity` (nullable, optional)
