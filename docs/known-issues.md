@@ -81,6 +81,24 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
     in the subtle variant (cosmetic).
 - **First noted:** 2026-07-13 (M5 Wave 3).
 
+### KI-5 — `m2-history.spec.ts` e2e intermittently fails on reload/in-flight-request race
+- **Severity:** reliability
+- **Area:** `apps/web/e2e/m2-history.spec.ts` ("history: dismiss persists, undo/redo, preview, revert")
+- **Symptom:** fails ~1-in-4 runs with `expect(locator).not.toBeVisible()`
+  timing out on `getByText(/overlap in time/)` after a `page.reload()`,
+  accompanied by a server-side `Error: aborted { code: 'ECONNRESET' }` in the
+  webServer log. The spec clicks "Dismiss" (an async command) and immediately
+  reloads with no `waitForResponse` gate first, so the reload can cancel the
+  in-flight request before the server persists the dismissal — the same race
+  class fixed defensively in `apps/web/e2e/m6-optimistic.spec.ts`'s own tests
+  (M6 Task 13).
+- **Scope:** pre-existing, predates M6. Reproduced with `m6-optimistic.spec.ts`
+  removed from disk entirely, so independent of M6's changes.
+- **Fix path:** add a `waitForResponse` (or equivalent) gate before the
+  `page.reload()` in `m2-history.spec.ts`, mirroring the fix already applied
+  in `m6-optimistic.spec.ts`.
+- **First noted:** 2026-07-19/20 (M6 Task 13, e2e work).
+
 ## Deferred design work (tracked elsewhere, pointer only)
 
 Not bugs — design decisions awaiting a brainstorm, so they live with the
