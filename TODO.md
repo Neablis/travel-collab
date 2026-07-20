@@ -27,10 +27,12 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
       headings, text) and composites (forms, tables, modals); re-skin every
       existing surface on top of them.
       → `docs/milestones/M5-design-foundations.md`
-- [ ] **M6 Atomic changes** — client/generator-declared command groups: submit
+- [x] **M6 Atomic changes** — client/generator-declared command groups: submit
       a series of commands as one atomic batch (one history entry) so undo/redo/
       revert treat them as a single change. Opt-in, all-or-nothing; the substrate
-      templates + AI generation (M7) build on.
+      templates + AI generation (M7) build on. Optimistic updates added to
+      scope mid-milestone.
+      → `docs/milestones/M6-atomic-changes.md`
 - [ ] **M7 Solo delight** — basic trip notes page (TipTap, no embeds), trip
       templates, AI generation via command pipeline, polish pass.
 - [ ] **Phase 1 gate review with Mitchell** — dogfood retro; go/no-go and
