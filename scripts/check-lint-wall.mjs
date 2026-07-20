@@ -1,19 +1,39 @@
 import { writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 
-const fixture = "apps/web/src/app/__lint_wall_fixture__.tsx";
-writeFileSync(
-  fixture,
+function lintFixture(name, source) {
+  const fixture = `apps/web/src/app/__${name}__.tsx`;
+  writeFileSync(fixture, source);
+  try {
+    execSync(`pnpm --filter web exec eslint src/app/__${name}__.tsx`, {
+      stdio: "pipe",
+    });
+    return { fixture, passed: true };
+  } catch {
+    return { fixture, passed: false };
+  } finally {
+    rmSync(fixture, { force: true });
+  }
+}
+
+const forbidden = lintFixture(
+  "lint_wall_fixture",
   'import "@tc/domain";\nexport default function Fixture() { return null; }\n',
 );
-try {
-  execSync("pnpm --filter web exec eslint src/app/__lint_wall_fixture__.tsx", {
-    stdio: "pipe",
-  });
+if (forbidden.passed) {
   console.error("LINT WALL BREACHED: forbidden import was NOT flagged");
   process.exitCode = 1;
-} catch {
+} else {
   console.log("lint wall OK: forbidden import correctly rejected");
-} finally {
-  rmSync(fixture, { force: true });
+}
+
+const predict = lintFixture(
+  "lint_wall_predict_fixture",
+  'import { predictCommand } from "@tc/predict";\nexport default function Fixture() { void predictCommand; return null; }\n',
+);
+if (!predict.passed) {
+  console.error("LINT WALL TOO STRICT: @tc/predict import was incorrectly flagged");
+  process.exitCode = 1;
+} else {
+  console.log("lint wall OK: @tc/predict import (predict subpath allowed) correctly passes");
 }
