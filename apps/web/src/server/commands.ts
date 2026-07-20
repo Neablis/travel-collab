@@ -1,8 +1,11 @@
-import { TripCommand, type Origin, type TripEvent } from "@tc/contracts";
+import { TripCommand, type EventEnvelope, type Origin, type TripDetail, type TripEvent, type TripHistory } from "@tc/contracts";
 import {
+  buildHistoryEntries,
   decideHistoryCommand,
   decideTripCommand,
+  deriveUndoRedo,
   foldEnvelopes,
+  groupBatches,
   tripDetailFromState,
 } from "@tc/domain";
 import { serverConflictContext } from "./conflictContext";
@@ -12,8 +15,33 @@ import { applyTripEvents, upsertTripDetail } from "./projections";
 import { soleMemberPolicy } from "./accessPolicy";
 
 export type CommandResult =
-  | { ok: true; tripId: string }
+  | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
   | { ok: false; error: { code: string; message: string } };
+
+// Build the authoritative detail (persisting it) and history DTO from the
+// full envelope list — the same shapes the read endpoints serve. Runs inside
+// the caller's transaction so the projections it writes are part of the same
+// atomic write as the appended events.
+async function projectAndHistory(
+  tx: Parameters<typeof upsertTripDetail>[0],
+  allEnvelopes: EventEnvelope[],
+  tripId: string,
+): Promise<{ detail: TripDetail; history: TripHistory }> {
+  const nextState = foldEnvelopes(allEnvelopes);
+  if (nextState === null) throw new Error("state cannot be null after an accepted command");
+  const firstEnvelope = allEnvelopes[0];
+  if (firstEnvelope === undefined) throw new Error("no envelopes to project");
+  const detail = tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext());
+  await upsertTripDetail(tx, detail);
+  const targets = deriveUndoRedo(groupBatches(allEnvelopes));
+  const history: TripHistory = {
+    tripId,
+    entries: buildHistoryEntries(allEnvelopes).reverse(),
+    canUndo: targets.undo !== null,
+    canRedo: targets.redo !== null,
+  };
+  return { detail, history };
+}
 
 // The command pipeline (docs/guidelines/building-the-parts.md). Every write
 // in the planning domain goes through this exact sequence — including undo,
@@ -73,17 +101,15 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       };
     }
 
-    // 6. update projections in the same transaction
+    // 6-7. update projections + build the authoritative response — a revert
+    //    into a formerly-conflicted state resurfaces its badges here.
     await applyTripEvents(tx, appended.envelopes);
+    const { detail, history: historyDto } = await projectAndHistory(
+      tx,
+      [...history, ...appended.envelopes],
+      command.tripId,
+    );
 
-    // 7. run the conflict engine on the new state and persist the detail doc
-    //    — a revert into a formerly-conflicted state resurfaces its badges here.
-    const nextState = foldEnvelopes([...history, ...appended.envelopes]);
-    if (nextState === null) throw new Error("state cannot be null after an accepted command");
-    const firstEnvelope = history[0] ?? appended.envelopes[0];
-    if (firstEnvelope === undefined) throw new Error("append returned no envelopes");
-    await upsertTripDetail(tx, tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext()));
-
-    return { ok: true, tripId: command.tripId };
+    return { ok: true, tripId: command.tripId, detail, history: historyDto };
   });
 }

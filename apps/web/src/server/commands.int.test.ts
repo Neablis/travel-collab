@@ -45,7 +45,9 @@ describe("executeTripCommand", () => {
   it("appends TripCreated with the actor and updates both projections", async () => {
     const tripId = randomUUID();
     const result = await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
-    expect(result).toEqual({ ok: true, tripId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tripId).toBe(tripId);
 
     const eventRows = await db.select().from(events);
     expect(eventRows).toHaveLength(1);
@@ -54,6 +56,17 @@ describe("executeTripCommand", () => {
     expect(await db.select().from(tripSummaries)).toHaveLength(1);
     const detail = await getTripDetail(tripId);
     expect(detail).toMatchObject({ tripId, name: "Rome 2027", days: [], backlog: [], conflicts: [] });
+  });
+
+  it("returns the authoritative detail + history on success", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
+    const dayId = randomUUID();
+    const result = await exec({ type: "AddDay", tripId, dayId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.detail.days).toHaveLength(1);
+    expect(result.history.entries[0]?.description).toBe("Added Day 1");
   });
 
   it("rejects a duplicate tripId with a typed error", async () => {
