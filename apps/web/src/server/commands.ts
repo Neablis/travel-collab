@@ -1,9 +1,19 @@
-import { TripCommand, type EventEnvelope, type Origin, type TripDetail, type TripEvent, type TripHistory } from "@tc/contracts";
+import { z } from "zod";
+import {
+  BatchableCommand,
+  TripCommand,
+  type EventEnvelope,
+  type Origin,
+  type TripDetail,
+  type TripEvent,
+  type TripHistory,
+} from "@tc/contracts";
 import {
   buildHistoryEntries,
   decideHistoryCommand,
   decideTripCommand,
   deriveUndoRedo,
+  evolveTrip,
   foldEnvelopes,
   groupBatches,
   tripDetailFromState,
@@ -111,5 +121,76 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
     );
 
     return { ok: true, tripId: command.tripId, detail, history: historyDto };
+  });
+}
+
+const BatchBody = z.array(BatchableCommand).min(1);
+
+// Same pipeline as executeTripCommand, but decides N batchable commands
+// against the evolving state and — only if every one succeeds — appends all
+// resulting events under ONE batchId, so groupBatches/buildHistoryEntries
+// treat the whole batch as a single history entry (ADR-005-adjacent: undo
+// unwinds the batch as a unit). Any rejection appends nothing.
+export async function executeTripCommandBatch(input: unknown, actorId: string): Promise<CommandResult> {
+  // 1. validate the batch shape against the contract
+  const parsed = BatchBody.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsed.error.message } };
+  }
+  const commands = parsed.data;
+  const tripId = commands[0]!.tripId;
+  if (!commands.every((c) => c.tripId === tripId)) {
+    return {
+      ok: false,
+      error: { code: "invalid-command", message: "All commands in a batch must target the same trip." },
+    };
+  }
+
+  return db.transaction(async (tx): Promise<CommandResult> => {
+    // 2. load the stream and fold to current state
+    const history = await readStream(tx, tripId);
+    let state = foldEnvelopes(history);
+
+    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand)
+    if (!soleMemberPolicy.canExecute(actorId, commands[0]!.type, state?.members ?? null)) {
+      return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
+    }
+
+    // 4. decide each command in order against the evolving state; the first
+    //    rejection aborts the whole batch — nothing is appended.
+    const events: TripEvent[] = [];
+    for (const command of commands) {
+      const decision = decideTripCommand(state, command, { actorId });
+      if (!decision.ok) return { ok: false, error: decision.rejection };
+      for (const event of decision.events) state = evolveTrip(state, event);
+      events.push(...decision.events);
+    }
+
+    // 5. append every event from every command under ONE batchId
+    const appended = await appendToStream(tx, {
+      streamId: tripId,
+      expectedSeq: history.length,
+      events,
+      actorId,
+      occurredAt: new Date().toISOString(),
+      batchId: crypto.randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) {
+      return {
+        ok: false,
+        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+      };
+    }
+
+    // 6-7. update projections + build the authoritative response
+    await applyTripEvents(tx, appended.envelopes);
+    const { detail, history: historyDto } = await projectAndHistory(
+      tx,
+      [...history, ...appended.envelopes],
+      tripId,
+    );
+
+    return { ok: true, tripId, detail, history: historyDto };
   });
 }

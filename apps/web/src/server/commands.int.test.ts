@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { asc } from "drizzle-orm";
 import { db } from "./db/client";
 import { events, tripDetails, tripSummaries } from "./db/schema";
-import { executeTripCommand } from "./commands";
+import { executeTripCommand, executeTripCommandBatch } from "./commands";
 import { getTripDetail, rebuildProjections } from "./projections";
 
 const exec = (command: object, actorId = "user-1") => executeTripCommand(command, actorId);
@@ -234,5 +234,74 @@ describe("executeTripCommand", () => {
       rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).toISOString() }));
     expect(normalize(rebuiltSummaries)).toEqual(normalize(liveSummaries));
     expect(rebuiltDetails).toEqual(liveDetails);
+  });
+});
+
+describe("executeTripCommandBatch", () => {
+  beforeEach(async () => {
+    await db.delete(tripDetails);
+    await db.delete(tripSummaries);
+    await db.delete(events);
+  });
+
+  it("appends a batch of commands as ONE history entry", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Batch trip" });
+    const result = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "AddDay", tripId, dayId: randomUUID() },
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.detail.days).toHaveLength(2);
+    // one entry for the batch, plus the creation entry
+    const userEntries = result.history.entries.filter((e) => e.origin.kind === "user");
+    expect(userEntries).toHaveLength(2);
+    expect(userEntries[0]?.description).toBe("Added Day 1; Added Day 2");
+  });
+
+  it("is all-or-nothing — a later invalid command appends nothing", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Batch trip" });
+    const before = await getTripDetail(tripId);
+    const result = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "RemoveDay", tripId, dayId: randomUUID() }, // ghost day
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
+    const after = await getTripDetail(tripId);
+    expect(after?.days).toEqual(before?.days); // unchanged
+  });
+
+  it("rejects a non-member via the AccessPolicy seam", async () => {
+    const { tripId } = await seedBoard();
+    const result = await executeTripCommandBatch(
+      [{ type: "AddDay", tripId, dayId: randomUUID() }],
+      "user-2",
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "forbidden", message: "Not a member of this trip." },
+    });
+  });
+
+  it("rejects commands that target different trips", async () => {
+    const tripId = randomUUID();
+    const otherTripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Batch trip" });
+    const result = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "AddDay", tripId: otherTripId, dayId: randomUUID() },
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
   });
 });
