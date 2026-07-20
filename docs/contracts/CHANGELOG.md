@@ -13,6 +13,15 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-19 — M6 command endpoints return authoritative state
+- Changed: `POST /api/trips/:id/commands` success response now includes
+  `{ detail: TripDetail, history: TripHistory }` (was `{ ok, tripId }`)
+- Added: `POST /api/trips/:id/commands/batch` with body `{ commands: BatchableCommand[] }`,
+  same response shape
+- Why: M6 optimistic updates reconcile from the response instead of refetching
+- Consumers updated: apps/web apiClient + TripProvider
+- Breaking? no — response fields added; new endpoint is additive
+
 ## 2026-07-19 — M6 atomic changes + optimistic updates
 - Added: `BatchableCommand` (discriminated union — TripCommand minus CreateTrip
   and the history commands) for the batch endpoint
