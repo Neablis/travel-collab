@@ -201,7 +201,12 @@ describe("TripBoardScreen", () => {
       http.post("/api/trips/:tripId/commands", async ({ request }) => {
         const command = TripCommand.parse(await request.json());
         if (command.type === "SetTripStartDate") detail = resolved;
-        return HttpResponse.json({ ok: true, tripId: detail.tripId });
+        return HttpResponse.json({
+          ok: true,
+          tripId: detail.tripId,
+          detail,
+          history: { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
+        });
       }),
       http.get("/api/trips/:tripId/history", () =>
         HttpResponse.json({ history: { tripId: withConflict.tripId, entries: [], canUndo: false, canRedo: false } }),

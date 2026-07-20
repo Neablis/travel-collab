@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { TripCommand, type TripDetail, type TripHistory } from "@tc/contracts";
+import { BatchableCommand, TripCommand, type TripDetail, type TripHistory } from "@tc/contracts";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string };
 
@@ -145,7 +145,28 @@ export function makeTripHandlers(
       const command = TripCommand.parse(await request.json());
       options?.onCommand?.(command);
       detail = applyMock(detail, command);
-      return HttpResponse.json({ ok: true, tripId: detail.tripId });
+      return HttpResponse.json({
+        ok: true,
+        tripId: detail.tripId,
+        detail,
+        history:
+          options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
+      });
+    }),
+    http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
+      const body = (await request.json()) as { commands: unknown[] };
+      const commands = body.commands.map((c) => BatchableCommand.parse(c));
+      commands.forEach((c) => options?.onCommand?.(c));
+      for (const command of commands) {
+        detail = applyMock(detail, command);
+      }
+      return HttpResponse.json({
+        ok: true,
+        tripId: detail.tripId,
+        detail,
+        history:
+          options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
+      });
     }),
     http.get("/api/trips/:tripId/history", () =>
       HttpResponse.json({
