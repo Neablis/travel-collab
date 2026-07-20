@@ -3,14 +3,23 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { tripDetailFixture, historyFixture } from "@/mocks/fixtures";
 
 const sendTripCommandMock = vi.fn();
+const sendTripCommandBatchMock = vi.fn();
+
+function oneDayTripDetailFixture() {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: [], date: null, costSubtotal: 0 }],
+  });
+}
+
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
-    fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: tripDetailFixture() }),
+    fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() }),
     fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture("x") }),
     fetchTripDetailAt: vi.fn(),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
+    sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
 });
 
@@ -18,6 +27,7 @@ import { TripProvider, useTrip } from "./TripProvider";
 
 beforeEach(() => {
   sendTripCommandMock.mockReset();
+  sendTripCommandBatchMock.mockReset();
 });
 
 function Probe() {
@@ -75,5 +85,60 @@ describe("TripProvider dispatch — no-op command results (#7HuQy)", () => {
     fireEvent.click(screen.getByRole("button", { name: "dispatch" }));
 
     await waitFor(() => expect(screen.getByTestId("error").textContent).toBe("Something went wrong."));
+  });
+});
+
+function OptimisticProbe() {
+  const { activeTrip, error, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="error">{error ?? "none"}</span>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-new" } as never)}>add-day</button>
+    </div>
+  );
+}
+function twoDayDetail() {
+  const d = oneDayTripDetailFixture();
+  return { ...d, days: [...d.days, { dayId: "d-new", activityIds: [], date: null, costSubtotal: 0 }] };
+}
+
+describe("TripProvider optimistic overlay (M6)", () => {
+  it("renders the optimistic change before the server responds", async () => {
+    let resolveSend: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockReturnValue(
+      new Promise((res) => {
+        resolveSend = res;
+      }),
+    );
+
+    render(
+      <TripProvider tripId="x">
+        <OptimisticProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    // Applied instantly, before we resolve the send.
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+
+    resolveSend({ ok: true, value: { detail: twoDayDetail(), history: historyFixture("x") } });
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+  });
+
+  it("rolls back the optimistic change on a server failure", async () => {
+    sendTripCommandMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom", code: "server-error" } });
+
+    render(
+      <TripProvider tripId="x">
+        <OptimisticProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(screen.getByTestId("error").textContent).toBe("boom"));
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1")); // reverted
   });
 });
