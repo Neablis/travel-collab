@@ -161,6 +161,19 @@ function dayLabel(state: TripState | null, dayId: string): string {
   return index === -1 ? "a removed day" : `Day ${index + 1}`;
 }
 
+// The description of a user batch: each event described against the state at the
+// moment it applied, joined. Shared by the history read model and the client
+// predictor so the text never drifts.
+export function describeUserBatch(stateBefore: TripState | null, events: TripEvent[]): string {
+  const parts: string[] = [];
+  let state = stateBefore;
+  for (const event of events) {
+    parts.push(describeEvent(state, event));
+    state = evolveTrip(state, event);
+  }
+  return parts.join("; ");
+}
+
 // `state` is the state BEFORE the event — names resolve even when a payload
 // carries only ids (e.g. ActivityMoved).
 function describeEvent(state: TripState | null, event: TripEvent): string {
@@ -214,15 +227,8 @@ function describeBatch(
       return `Redid: ${priorDescriptions.get(batch.origin.redoesBatchId) ?? "an earlier change"}`;
     case "revert":
       return `Reverted to version ${batch.origin.toSeq}`;
-    case "user": {
-      const parts: string[] = [];
-      let state = stateBefore;
-      for (const event of batch.events) {
-        parts.push(describeEvent(state, event));
-        state = evolveTrip(state, event);
-      }
-      return parts.join("; ");
-    }
+    case "user":
+      return describeUserBatch(stateBefore, batch.events);
   }
 }
 
