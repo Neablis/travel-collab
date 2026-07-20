@@ -111,7 +111,6 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setOptimistic((prev) => {
         if (!prev) return prev;
         if (result.ok) {
-          setError(null);
           return confirmHead(prev, result.value);
         }
         // A "no-op" (e.g. re-setting a value to what it already is) changed
@@ -120,21 +119,32 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // the (already-applied-optimistically) head is simply confirmed away
         // against the existing confirmed state.
         if (result.error.code === "no-op") return confirmHead(prev, prev.confirmed);
-        setError(result.error.message);
         return failHead(prev);
       });
+      // Decided from `result` (already known, outer scope) rather than from
+      // inside the setOptimistic updater above — updater functions must stay
+      // pure, since React may invoke them more than once.
+      if (result.ok) {
+        setError(null);
+      } else if (result.error.code !== "no-op") {
+        setError(result.error.message);
+      }
     })();
   }, [optimistic, tripId]);
 
   const runDispatch = useCallback((commands: BatchableCommand[]) => {
-    setError(null);
+    // `rejectionMessage` is populated (deterministically, from `prev`) inside
+    // the updater below, but setError itself is only ever invoked once, here,
+    // after setOptimistic returns — keeps the updater free of side effects.
+    let rejectionMessage: string | null = null;
     setOptimistic((prev) => {
       if (!prev) return prev;
       const r = enqueue(prev, `c${++seq.current}`, commands);
       if (r.ok) return r.state;
-      if (r.code !== "no-op") setError(r.message); // predicted rejection — no send
+      if (r.code !== "no-op") rejectionMessage = r.message; // predicted rejection — no send
       return prev;
     });
+    setError(rejectionMessage);
   }, []);
 
   const dispatch = useCallback(

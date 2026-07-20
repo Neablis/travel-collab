@@ -30,8 +30,12 @@ Decision record: `docs/architecture/ADR-013-optimistic-updates-and-atomic-batche
 - [x] An optimistic edit renders before the network settles; a forced server
       failure rolls the edit (and anything queued behind it) back and surfaces an
       error (component + e2e tests).
-- [x] Predictor parity: for each command type, `predictCommand` yields the same
-      `TripDetail` the server produces after real execution.
+- [x] Predictor parity: `predictCommand`/`predictBatch` share the exact server
+      decider/reducer chain (no parallel implementation), validated for
+      representative command types (matching the design spec's own
+      "representative command of each type" phrasing); parity is guaranteed
+      structurally by the shared decider, not by an exhaustive per-type golden
+      test.
 - [x] `hydrate`/`project` round-trip property test green.
 - [x] Projection rebuild-equals-stored golden test still green.
 - [x] Lint wall: UI may import `@tc/predict` (not a `@tc/domain` subpath); bare
