@@ -1,4 +1,11 @@
-import { TripDetail, TripHistory, type BatchableCommand, type TripCommand } from "@tc/contracts";
+import {
+  PageContent,
+  TripDetail,
+  TripHistory,
+  type BatchableCommand,
+  type PageContext,
+  type TripCommand,
+} from "@tc/contracts";
 import { BASE_URL } from "@/config";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -78,6 +85,54 @@ export async function sendTripCommandBatch(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ commands }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    return {
+      ok: false,
+      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+    };
+  }
+  const data = (await res.json()) as { detail: unknown; history: unknown };
+  return { ok: true, value: parseOutcome(data) };
+}
+
+// Task 5.5: POST /api/trips/:id/ai. `composeAiPage` is the page-authoring
+// surface (returns a validated PageContent doc for the caller to review
+// before it autosaves — see ComposePanel/PageScreen). `composeAiPlan` is the
+// board/combined surface (the server executes 0+ planning tool calls as one
+// atomic batch and returns the resulting detail/history, same shape as
+// sendTripCommandBatch).
+export async function composeAiPage(
+  tripId: string,
+  prompt: string,
+  pageContext: PageContext,
+): Promise<ApiResult<PageContent>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, surface: "page", pageContext }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    return {
+      ok: false,
+      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+    };
+  }
+  const data = (await res.json()) as { content: unknown };
+  return { ok: true, value: PageContent.parse(data.content) };
+}
+
+export async function composeAiPlan(
+  tripId: string,
+  prompt: string,
+  surface: "board" | "combined" = "board",
+): Promise<ApiResult<CommandOutcome>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, surface }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
