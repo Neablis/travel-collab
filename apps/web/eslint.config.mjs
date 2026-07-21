@@ -9,6 +9,11 @@ const compat = new FlatCompat({
 export default [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
+  {
     // THE LINT WALL (AGENTS.md): UI code may not touch the domain package or
     // server internals. Route handlers and src/server are the exempt shell.
     files: ["src/**/*.{ts,tsx}"],

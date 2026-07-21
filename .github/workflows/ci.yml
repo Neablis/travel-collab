@@ -42,6 +42,12 @@ jobs:
       - run: pnpm --filter web db:migrate
       - run: pnpm --filter web test:int
       - run: pnpm --filter web exec playwright install chromium --with-deps
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**/*.[jt]s', 'apps/web/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
       - run: pnpm --filter web build
       - run: pnpm --filter web test:e2e
 
