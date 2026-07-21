@@ -111,9 +111,11 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   confirming response before proceeding, matching the pattern already used in
   `m6-optimistic.spec.ts`), so the CI flake itself is resolved. This entry
   tracks the underlying **product** risk, which is not fixed.
-- **Fix path (not yet built):** a `beforeunload` warning while `pending` is
-  true, and/or blocking/queuing navigation until the send queue drains, and/or
-  a `navigator.sendBeacon`-based best-effort flush on unload. Worth deciding
+- **Fix path (not yet built; Mitchell's direction, 2026-07-20):** favor a
+  synced/caught-up UI indicator over blocking navigation — surface `pending`
+  (already exposed on `useTrip()`) as a visible "syncing…" / "all changes
+  saved" affordance so the user can SEE when it's safe to navigate away,
+  rather than a `beforeunload` prompt or forced queue flush. Worth deciding
   alongside M8 (collaboration), where concurrent multi-actor writes make
   silent client-side loss more consequential.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
