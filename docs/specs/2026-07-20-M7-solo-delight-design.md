@@ -49,18 +49,21 @@ exactly the boundary ADR-003 scoped for.
 | 8 | **Notes live outside time-travel (ADR-014 consequence).** Revert-to-state rewinds the *plan*, not the *prose* — deliberately. Macros soften this: a reverted page's dynamic parts auto-update (resolved live), only hand-written prose is outside history and gets its own (later collaborative) undo | forcing pages into the history substrate to gain revert (reverting a schedule should not delete written paragraphs; and see #6) |
 | 9 | **Copy-on-create templates, lazily instantiated.** Templates are code-defined seed documents beside the registry. On **first visit** to a trip's Notebook, defaults are instantiated into ordinary page rows — no backfill migration for existing trips/fixtures. Later template edits don't touch existing pages | linked instantiation w/ propagation/sync (three-way doc merge + conflict UX — M9-adjacent fork machinery, wrong milestone); eager backfill migration (needs a data migration for every existing trip) |
 | 10 | **Two default templates: Trip Overview + Day Sheet.** Trip Overview = name, dates, cost total, per-day itinerary blocks. Day Sheet = context-bound to a day (date, that day's itinerary block, day cost). Two is enough to prove the system; more is content, not architecture | one template (doesn't exercise context binding); many (content, not validation) |
-| 11 | **Notebook = the Pages tab itself**, a plain per-trip UI surface (list: title, context binding, last edited; create/rename/delete). Not itself a macro-page in v1 | a `pages.list` macro-page (its resolver would read the Pages module, breaking the "resolvers are pure over the projection" rule for zero user-visible gain — noted as a C-era upgrade once resolvers learn multiple sources) |
+| 11 | **Notebook is a plain per-trip UI surface** (list: title, context binding, last edited; create/rename/delete). Not itself a macro-page in v1. **Placement (refined at planning, 2026-07-20): a separate `/trips/[tripId]/pages` route subtree**, outside the TripProvider/lens system — pages own their data (CRUD, not the projection), so a projection-only lens tab was the wrong home; a Notebook link sits in the trip nav | a `pages.list` macro-page (its resolver would read the Pages module, breaking the "resolvers are pure over the projection" rule for zero user-visible gain — noted as a C-era upgrade once resolvers learn multiple sources); a lens tab inside the existing chrome (all other lenses read `TripDetail`; pages don't) |
 | 12 | **AI does both page-authoring and plan-editing, constrained to a typed, schema-derived tool surface (ADR-015).** Two tool families, both *derived, never hand-written*: **planning tools ← `@tc/contracts` command schemas** (executed as an M6 atomic batch through the standard pipeline); **page tools ← the macro registry** (macro vocabulary is a registry-generated enum). A typed **context envelope** (surface + summarized projection + surface-relevant tools only) bounds hallucination and token usage | free-form AI prompting (hallucinated tools, unbounded context/tokens); hand-written tool defs (duplicates schemas — violates Invariant 5); pages-only AI (drops the original "AI emits commands" intent) |
 
 ## 3. Data ⟷ Integration ⟷ UI (the three layers)
 
-The separation Mitchell called for maps onto existing seams:
+The separation Mitchell called for maps onto existing seams. The integration
+layer lives in a **new pure package `@tc/pages`** (approved 2026-07-20; mirrors
+the `@tc/predict`/ADR-013 precedent — depends on `@tc/contracts` only, importable
+by both UI and server without tripping the `@tc/domain` lint wall):
 
 ```
 DATA          TripDetail projection (event-sourced, M1–M6). Unchanged by M7.
               Pages module rows (CRUD, new). Content = TipTap JSON.
                                    │  read-only ▲ (never writes planning data)
-INTEGRATION   Macro registry: name → { kind, params(Zod), description,
+INTEGRATION   @tc/pages macro registry: name → { kind, params(Zod), description,
               emptyText, resolver:(TripDetail, PageContext, params) → Result }.
               Pure. The single source of truth consumed by three surfaces.
                                    │
