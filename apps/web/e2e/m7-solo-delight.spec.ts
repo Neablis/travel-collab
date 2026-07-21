@@ -127,3 +127,125 @@ test("solo delight: notebook, dynamic pages, day binding, autocomplete", async (
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-macro-name="cost.trip"]')).toHaveText("$50.00");
 });
+
+// Exit-gate line "Open a fresh empty trip's Notebook → default pages render
+// as a legible skeleton (every macro shows its empty/unbound state)". A
+// brand-new trip has no days, no activities, no dates, no costs — this
+// asserts every macro in both default pages degrades to its declarative
+// placeholder rather than erroring or rendering blank.
+test("fresh trip: Notebook default pages render every macro's empty/unbound state", async ({ page }) => {
+  const tripName = `Lagos ${Date.now()}`;
+  await signInAsDevUser(page, "alice");
+
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("link", { name: tripName }).click();
+  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+
+  await page.getByRole("link", { name: "Notebook" }).click();
+  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await page.getByRole("link", { name: /Trip Overview/ }).click();
+  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+
+  // trip.name always resolves (the create-trip form requires a name); every
+  // other Trip Overview macro has nothing to resolve against yet, so each
+  // shows its registry-declared `emptyText` (packages/pages/src/macros/*.ts) —
+  // "empty" (valid path, no data), not an error.
+  await expect(page.locator('[data-macro-name="trip.name"]')).toContainText(tripName);
+  await expect(page.locator('[data-macro-name="trip.dates"]')).toHaveText("no dates set");
+  await expect(page.locator('[data-macro-name="cost.trip"]')).toHaveText("no costs yet");
+  await expect(page.locator('[data-macro-name="itinerary.trip"]')).toHaveText("No days planned yet");
+  await expect(page.locator('[data-macro-name="costs.table"]')).toHaveText("no costs yet");
+
+  // Day Sheet's default template binds it to day index 0, but the trip has
+  // zero days — that binding has nothing to resolve against, so its
+  // day-scoped macros are "unbound" (needs context the page lacks), a
+  // distinct state from "empty": an actionable "select a day" chip, not a
+  // muted placeholder.
+  await page.getByRole("link", { name: "← Notebook" }).click();
+  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await page.getByRole("link", { name: /Day Sheet/ }).click();
+  await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
+  await expect(page.locator('[data-macro-name="cost.day"]')).toContainText("select a day");
+  await expect(page.locator('[data-macro-name="itinerary.day"]')).toContainText("select a day");
+});
+
+// Waits for a page's debounced content autosave (PageScreen.tsx's
+// AUTOSAVE_DELAY_MS) to actually PATCH before returning. Needed before any
+// navigation away from the editor: the debounce is cancelled outright on
+// unmount (`saveContentRef.current.cancel()`), so typing and immediately
+// navigating away would silently drop the keystrokes rather than persist
+// them — a much stricter version of the optimistic-command race
+// `waitForConfirmedCommand` guards against above.
+async function waitForPageSaved(page: Page, action: () => Promise<void>): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH" && r.ok(),
+    ),
+    action(),
+  ]);
+}
+
+// Exit-gate line "Undo a trip revert → macros update, prose persists".
+// Pages are a CRUD module outside the trip command pipeline (ADR-014):
+// reverting/undoing the *plan* (days/activities/etc.) must never touch a
+// page's hand-written prose, while any macros on that page re-resolve live
+// against whatever plan state is now current.
+test("undo a trip revert: macros update, hand-typed prose persists", async ({ page }) => {
+  const tripName = `Sintra ${Date.now()}`;
+  await signInAsDevUser(page, "alice");
+
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("link", { name: tripName }).click();
+  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  const tripUrl = page.url();
+
+  // Day 1 is the state we'll revert back to.
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await expect(page.getByTestId("day-column")).toHaveCount(1);
+
+  // -- open Trip Overview, add hand-typed prose alongside its macros --
+  await page.getByRole("link", { name: "Notebook" }).click();
+  await page.getByRole("link", { name: /Trip Overview/ }).click();
+  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await expect(page.locator('[data-macro-name="itinerary.trip"]').getByText("Undated day")).toHaveCount(1);
+
+  const proseText = `Hand-typed notes ${Date.now()}`;
+  await page.locator(".tc-page-editor h2", { hasText: "Overview" }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await waitForPageSaved(page, () => page.keyboard.type(proseText));
+  await expect(page.getByText(proseText)).toBeVisible();
+  const overviewUrl = page.url();
+
+  // -- add a second day, then revert to the 1-day state via the History panel --
+  await page.goto(tripUrl);
+  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await expect(page.getByTestId("day-column")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "History" }).click();
+  await page.getByRole("button", { name: "Added Day 1" }).click();
+  await expect(page.getByText(/Viewing version \d+ \(read-only\)/)).toBeVisible();
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Revert to here" }).click());
+  await expect(page.getByTestId("day-column")).toHaveCount(1);
+
+  // -- reopen Trip Overview: the itinerary macro reflects the reverted
+  // (1-day) plan state, and the hand-typed prose survived the revert
+  // untouched --
+  await page.goto(overviewUrl);
+  await expect(page.locator('[data-macro-name="itinerary.trip"]').getByText("Undated day")).toHaveCount(1);
+  await expect(page.getByText(proseText)).toBeVisible();
+
+  // -- undo the revert itself (the most recent batch): back to 2 days,
+  // prose still untouched --
+  await page.goto(tripUrl);
+  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Undo" }).click());
+  await expect(page.getByTestId("day-column")).toHaveCount(2);
+
+  await page.goto(overviewUrl);
+  await expect(page.locator('[data-macro-name="itinerary.trip"]').getByText("Undated day")).toHaveCount(2);
+  await expect(page.getByText(proseText)).toBeVisible();
+});
