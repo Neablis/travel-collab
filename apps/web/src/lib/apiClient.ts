@@ -9,7 +9,7 @@ export type BoardCommand = Exclude<TripCommand, { type: "CreateTrip" }>;
 // Browsers resolve relative URLs against the page; Node's fetch (jsdom tests)
 // rejects them. Resolve explicitly against the window origin, falling back to
 // the dev config (Task 0) when no DOM is present.
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   const origin =
     typeof window !== "undefined" && window.location.origin !== "null"
       ? window.location.origin

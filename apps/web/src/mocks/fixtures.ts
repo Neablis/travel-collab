@@ -1,4 +1,4 @@
-import type { TripDetail, TripHistory } from "@tc/contracts";
+import type { Page, TripDetail, TripHistory } from "@tc/contracts";
 
 export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDetail {
   return {
@@ -78,6 +78,20 @@ export function costedTripDetailFixture(): TripDetail {
     tripCostTotal,
     budgetRemaining: budget.amountMinor - tripCostTotal,
   });
+}
+
+export function pageFixture(overrides: Partial<Page> = {}): Page {
+  return {
+    id: "7f8a9b0c-1d2e-4f3a-8b4c-5d6e7f8a9b0c",
+    tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+    title: "Trip Overview",
+    context: { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" },
+    content: { type: "doc", content: [] },
+    createdAt: "2026-07-08T12:00:00.000Z",
+    updatedAt: "2026-07-08T12:00:00.000Z",
+    actorId: "dev-alice",
+    ...overrides,
+  };
 }
 
 export const sampleGeocodeResults = [
