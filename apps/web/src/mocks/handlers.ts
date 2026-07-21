@@ -254,6 +254,7 @@ export function makePagesHandlers(
     http.delete("/api/trips/:tripId/pages/:pageId", ({ params }) => {
       const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
       if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      options?.onDelete?.(params.pageId as string);
       pages = pages.filter((_, i) => i !== idx);
       return HttpResponse.json({ ok: true });
     }),
