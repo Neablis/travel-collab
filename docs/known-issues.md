@@ -81,23 +81,42 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
     in the subtle variant (cosmetic).
 - **First noted:** 2026-07-13 (M5 Wave 3).
 
-### KI-5 — `m2-history.spec.ts` e2e intermittently fails on reload/in-flight-request race
-- **Severity:** reliability
-- **Area:** `apps/web/e2e/m2-history.spec.ts` ("history: dismiss persists, undo/redo, preview, revert")
-- **Symptom:** fails ~1-in-4 runs with `expect(locator).not.toBeVisible()`
-  timing out on `getByText(/overlap in time/)` after a `page.reload()`,
-  accompanied by a server-side `Error: aborted { code: 'ECONNRESET' }` in the
-  webServer log. The spec clicks "Dismiss" (an async command) and immediately
-  reloads with no `waitForResponse` gate first, so the reload can cancel the
-  in-flight request before the server persists the dismissal — the same race
-  class fixed defensively in `apps/web/e2e/m6-optimistic.spec.ts`'s own tests
-  (M6 Task 13).
-- **Scope:** pre-existing, predates M6. Reproduced with `m6-optimistic.spec.ts`
-  removed from disk entirely, so independent of M6's changes.
-- **Fix path:** add a `waitForResponse` (or equivalent) gate before the
-  `page.reload()` in `m2-history.spec.ts`, mirroring the fix already applied
-  in `m6-optimistic.spec.ts`.
-- **First noted:** 2026-07-19/20 (M6 Task 13, e2e work).
+### KI-5 — Optimistic commands can be silently lost on abrupt navigation before the send queue drains
+- **Severity:** correctness (data loss, no error surfaced)
+- **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` /
+  `optimistic.ts` (M6's optimistic-update overlay + sequential send queue)
+- **Symptom:** every trip-mutating command now applies to the UI instantly
+  (client-side prediction) while the real persist happens in the background,
+  one command at a time. If the user (or a script) fires several commands in
+  quick succession and then navigates away, reloads, or closes the tab
+  **before the queue has drained**, every command still queued behind the one
+  currently in flight is silently dropped from the server's event log — with
+  no error, no warning, and no visual difference from a fully-persisted state
+  (the UI already showed everything as "done"). Root-caused by reproducing a
+  CI-only e2e failure (`m2-history.spec.ts`, initially misdiagnosed as a
+  narrower pre-existing reload/in-flight-request race — see below): throttling
+  the commands endpoint by 400ms and replaying the spec's rapid drag+dismiss
+  sequence deterministically reproduced the loss — after `page.reload()`, the
+  persisted history contained **only the very first command** of six; the
+  other five (two `AddActivity`, two `MoveActivity`, one `DismissConflict`)
+  never reached the server at all.
+- **Not a data-integrity violation of the event log itself** (Invariant 1
+  holds — nothing partially-written, nothing corrupted; commands that never
+  arrive simply never get an event) but is a real UX/correctness gap: the
+  optimistic overlay gives no user-visible signal that unconfirmed work exists
+  before a destructive-to-in-memory-state action (navigation, reload, tab
+  close), unlike e.g. a native app's "unsaved changes" prompt.
+- **The e2e test symptom is fixed** in this same change
+  (`apps/web/e2e/m2-history.spec.ts` now waits for each mutating action's
+  confirming response before proceeding, matching the pattern already used in
+  `m6-optimistic.spec.ts`), so the CI flake itself is resolved. This entry
+  tracks the underlying **product** risk, which is not fixed.
+- **Fix path (not yet built):** a `beforeunload` warning while `pending` is
+  true, and/or blocking/queuing navigation until the send queue drains, and/or
+  a `navigator.sendBeacon`-based best-effort flush on unload. Worth deciding
+  alongside M8 (collaboration), where concurrent multi-actor writes make
+  silent client-side loss more consequential.
+- **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ## Deferred design work (tracked elsewhere, pointer only)
 

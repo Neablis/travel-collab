@@ -1,5 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { dragCardTo, signInAsDevUser } from "./helpers";
+
+// M6 made every trip-mutating command optimistic: the UI (and Playwright's
+// assertions against it) update instantly from a client-side prediction,
+// while the actual persist happens in the background through a queue that
+// sends one command at a time. That instant-apply is exactly the behavior
+// M6's own e2e spec (m6-optimistic.spec.ts) verifies — but it also means
+// this spec's `page.reload()` at the dismiss step can no longer rely on the
+// old "dispatch awaits the round trip" timing to have implicitly confirmed
+// every prior action first. Without a wait, a reload can tear down the page
+// while several commands are still queued and unsent, silently dropping
+// them from the server's event log with no error (reproduced locally by
+// throttling the commands endpoint: the persisted history after reload
+// contained only the very first command). Waiting for each mutating
+// action's own confirming response keeps at most one command in flight at
+// a time, so nothing is ever queued behind an unconfirmed one when we reload.
+async function waitForCommandConfirmed(page: Page, action: () => Promise<void>): Promise<void> {
+  await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/commands$/.test(new URL(r.url()).pathname) && r.request().method() === "POST"),
+    action(),
+  ]);
+}
 
 test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) => {
   // Distinct prefix from smoke.spec.ts's "Rome ..." — parallel workers share
@@ -13,31 +34,31 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "+ Add day" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   await page.getByRole("button", { name: "+ Add activity" }).click();
   await page.getByLabel("Activity title").fill("Colosseum");
   await page.getByLabel("Start time").fill("09:00");
   await page.getByLabel("End time").fill("11:00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
   await page.getByRole("button", { name: "+ Add activity" }).click();
   await page.getByLabel("Activity title").fill("Vatican Museums");
   await page.getByLabel("Start time").fill("10:00");
   await page.getByLabel("End time").fill("12:00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
 
   const colosseum = page.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" });
   const vatican = page.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" });
   const day1 = page.getByTestId("day-column").nth(0);
-  await dragCardTo(colosseum, day1);
+  await waitForCommandConfirmed(page, () => dragCardTo(colosseum, day1));
   await expect(day1.getByText("Colosseum")).toBeVisible();
-  await dragCardTo(vatican, day1);
+  await waitForCommandConfirmed(page, () => dragCardTo(vatican, day1));
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
 
   // -- persistent dismissal --
-  await page.getByRole("button", { name: /^Dismiss:/ }).click();
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: /^Dismiss:/ }).click());
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
