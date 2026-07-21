@@ -1,5 +1,6 @@
 import {
   bigserial,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -8,7 +9,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Origin, TripDetail, TripMember } from "@tc/contracts";
+import type { Origin, TripDetail, TripMember, PageContent, PageContext } from "@tc/contracts";
 
 export const events = pgTable(
   "events",
@@ -38,3 +39,18 @@ export const tripDetails = pgTable("trip_details", {
   tripId: uuid("trip_id").primaryKey(),
   doc: jsonb("doc").$type<TripDetail>().notNull(),
 });
+
+export const pages = pgTable(
+  "pages",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    title: text("title").notNull(),
+    context: jsonb("context").$type<PageContext>().notNull(),
+    content: jsonb("content").$type<PageContent>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+    actorId: text("actor_id").notNull(),
+  },
+  (t) => [index("pages_trip").on(t.tripId)],
+);
