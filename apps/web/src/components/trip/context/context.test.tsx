@@ -1,13 +1,44 @@
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-// Mock the API client the provider wraps.
-const dispatchSpy = vi.fn().mockResolvedValue({ ok: true, value: {} });
+// Mock the API client the provider wraps. The detail must be a
+// contract-complete TripDetail (not just the fields this test happens to
+// read) because dispatch now runs the client-side predictor (hydrate +
+// decide) against it before ever reaching the network mock below.
+// `vi.mock` factories are hoisted above top-level consts, so the fixture
+// lives inside `vi.hoisted` to be safely referenced from the factory.
+const { italyTripDetail, dispatchSpy } = vi.hoisted(() => {
+  const italyTripDetail = {
+    tripId: "italy-trip",
+    name: "Italy",
+    startDate: null,
+    currency: "USD",
+    budget: null,
+    members: [{ userId: "dev-alice", role: "owner" }],
+    days: [],
+    backlog: [],
+    activities: {},
+    conflicts: [],
+    dismissedConflictIds: [],
+    createdAt: "2026-07-08T12:00:00.000Z",
+    unscheduledCostSubtotal: 0,
+    tripCostTotal: 0,
+    budgetRemaining: null,
+  };
+  return {
+    italyTripDetail,
+    dispatchSpy: vi.fn().mockResolvedValue({
+      ok: true,
+      value: { detail: italyTripDetail, history: { tripId: "italy-trip", entries: [], canUndo: false, canRedo: false } },
+    }),
+  };
+});
 vi.mock("@/lib/apiClient", () => ({
-  fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: { name: "Italy", currency: "USD", days: [], activities: {} } }),
-  fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: { entries: [], canUndo: false, canRedo: false } }),
+  fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: italyTripDetail }),
+  fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: { tripId: "italy-trip", entries: [], canUndo: false, canRedo: false } }),
   fetchTripDetailAt: vi.fn(),
   sendTripCommand: (...a: unknown[]) => dispatchSpy(...a),
+  sendTripCommandBatch: vi.fn(),
 }));
 
 // Mock next/navigation: URL is the store.

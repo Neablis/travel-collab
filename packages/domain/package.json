@@ -5,6 +5,10 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./predict": { "types": "./src/predict.ts", "default": "./src/predict.ts" }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

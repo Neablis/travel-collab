@@ -35,6 +35,9 @@ importers:
       '@tc/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@tc/predict':
+        specifier: workspace:*
+        version: link:../../packages/predict
       '@vercel/analytics':
         specifier: ^2.0.1
         version: 2.0.1(next@15.5.20(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
@@ -164,6 +167,16 @@ importers:
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)(msw@2.14.7(@types/node@22.20.0)(typescript@5.9.3))
+
+  packages/predict:
+    dependencies:
+      '@tc/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
 
 packages:
 

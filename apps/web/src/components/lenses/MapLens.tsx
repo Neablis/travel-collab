@@ -41,6 +41,16 @@ export function MapLens({
         zoom: 10,
       });
 
+      // The "liberty" style's POI layers reference sprite icons (e.g.
+      // "office") that don't always resolve; without a fallback, maplibre
+      // logs a console error per missing id. A blank placeholder silences
+      // this — the icon slot just renders empty, which is already the
+      // effective behavior when this fires.
+      map.on("styleimagemissing", (e: { id: string }) => {
+        if (map?.hasImage(e.id)) return;
+        map?.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
+      });
+
       // Double-click on the map is the create-mode trigger (ADR-011 R2): it
       // seeds the editor's prefill with the clicked coordinates instead of a
       // dayId, demonstrating a second, distinct prefill shape from the same

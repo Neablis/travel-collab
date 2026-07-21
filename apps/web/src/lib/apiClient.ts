@@ -1,4 +1,4 @@
-import { TripDetail, TripHistory, type TripCommand } from "@tc/contracts";
+import { TripDetail, TripHistory, type BatchableCommand, type TripCommand } from "@tc/contracts";
 import { BASE_URL } from "@/config";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -47,7 +47,13 @@ export async function fetchTripDetailAt(tripId: string, seq: number): Promise<Ap
   return { ok: true, value: TripDetail.parse(data.trip) };
 }
 
-export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<null>> {
+export type CommandOutcome = { detail: TripDetail; history: TripHistory };
+
+function parseOutcome(data: { detail: unknown; history: unknown }): CommandOutcome {
+  return { detail: TripDetail.parse(data.detail), history: TripHistory.parse(data.history) };
+}
+
+export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<CommandOutcome>> {
   const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -60,5 +66,26 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
       error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
     };
   }
-  return { ok: true, value: null };
+  const data = (await res.json()) as { detail: unknown; history: unknown };
+  return { ok: true, value: parseOutcome(data) };
+}
+
+export async function sendTripCommandBatch(
+  tripId: string,
+  commands: BatchableCommand[],
+): Promise<ApiResult<CommandOutcome>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ commands }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    return {
+      ok: false,
+      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+    };
+  }
+  const data = (await res.json()) as { detail: unknown; history: unknown };
+  return { ok: true, value: parseOutcome(data) };
 }

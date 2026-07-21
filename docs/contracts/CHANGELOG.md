@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-19 — M6 command endpoints return authoritative state
+- Changed: `POST /api/trips/:id/commands` success response now includes
+  `{ detail: TripDetail, history: TripHistory }` (was `{ ok, tripId }`)
+- Added: `POST /api/trips/:id/commands/batch` with body `{ commands: BatchableCommand[] }`,
+  same response shape
+- Why: M6 optimistic updates reconcile from the response instead of refetching
+- Consumers updated: apps/web apiClient + TripProvider
+- Breaking? no — response fields added; new endpoint is additive
+
+## 2026-07-19 — M6 atomic changes + optimistic updates
+- Added: `BatchableCommand` (discriminated union — TripCommand minus CreateTrip
+  and the history commands) for the batch endpoint
+- Why: M6 — submit a series of commands as one atomic batch (one history entry)
+- Consumers updated: packages/domain (predict), apps/web (batch route, apiClient)
+- Breaking? no — additive
+
 ## 2026-07-10 — M4 money & lenses schemas
 - Added: `Money` (integer minor units + ISO-4217 currency)
 - Added: `cost` on `AddActivity` (optional) / `UpdateActivity` (nullable, optional)

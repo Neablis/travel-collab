@@ -1,8 +1,21 @@
-import { TripCommand, type Origin, type TripEvent } from "@tc/contracts";
+import { z } from "zod";
 import {
+  BatchableCommand,
+  TripCommand,
+  type EventEnvelope,
+  type Origin,
+  type TripDetail,
+  type TripEvent,
+  type TripHistory,
+} from "@tc/contracts";
+import {
+  buildHistoryEntries,
   decideHistoryCommand,
   decideTripCommand,
+  deriveUndoRedo,
+  evolveTrip,
   foldEnvelopes,
+  groupBatches,
   tripDetailFromState,
 } from "@tc/domain";
 import { serverConflictContext } from "./conflictContext";
@@ -12,8 +25,33 @@ import { applyTripEvents, upsertTripDetail } from "./projections";
 import { soleMemberPolicy } from "./accessPolicy";
 
 export type CommandResult =
-  | { ok: true; tripId: string }
+  | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
   | { ok: false; error: { code: string; message: string } };
+
+// Build the authoritative detail (persisting it) and history DTO from the
+// full envelope list — the same shapes the read endpoints serve. Runs inside
+// the caller's transaction so the projections it writes are part of the same
+// atomic write as the appended events.
+async function projectAndHistory(
+  tx: Parameters<typeof upsertTripDetail>[0],
+  allEnvelopes: EventEnvelope[],
+  tripId: string,
+): Promise<{ detail: TripDetail; history: TripHistory }> {
+  const nextState = foldEnvelopes(allEnvelopes);
+  if (nextState === null) throw new Error("state cannot be null after an accepted command");
+  const firstEnvelope = allEnvelopes[0];
+  if (firstEnvelope === undefined) throw new Error("no envelopes to project");
+  const detail = tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext());
+  await upsertTripDetail(tx, detail);
+  const targets = deriveUndoRedo(groupBatches(allEnvelopes));
+  const history: TripHistory = {
+    tripId,
+    entries: buildHistoryEntries(allEnvelopes).reverse(),
+    canUndo: targets.undo !== null,
+    canRedo: targets.redo !== null,
+  };
+  return { detail, history };
+}
 
 // The command pipeline (docs/guidelines/building-the-parts.md). Every write
 // in the planning domain goes through this exact sequence — including undo,
@@ -73,17 +111,86 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       };
     }
 
-    // 6. update projections in the same transaction
+    // 6-7. update projections + build the authoritative response — a revert
+    //    into a formerly-conflicted state resurfaces its badges here.
     await applyTripEvents(tx, appended.envelopes);
+    const { detail, history: historyDto } = await projectAndHistory(
+      tx,
+      [...history, ...appended.envelopes],
+      command.tripId,
+    );
 
-    // 7. run the conflict engine on the new state and persist the detail doc
-    //    — a revert into a formerly-conflicted state resurfaces its badges here.
-    const nextState = foldEnvelopes([...history, ...appended.envelopes]);
-    if (nextState === null) throw new Error("state cannot be null after an accepted command");
-    const firstEnvelope = history[0] ?? appended.envelopes[0];
-    if (firstEnvelope === undefined) throw new Error("append returned no envelopes");
-    await upsertTripDetail(tx, tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext()));
+    return { ok: true, tripId: command.tripId, detail, history: historyDto };
+  });
+}
 
-    return { ok: true, tripId: command.tripId };
+const BatchBody = z.array(BatchableCommand).min(1);
+
+// Same pipeline as executeTripCommand, but decides N batchable commands
+// against the evolving state and — only if every one succeeds — appends all
+// resulting events under ONE batchId, so groupBatches/buildHistoryEntries
+// treat the whole batch as a single history entry (ADR-005-adjacent: undo
+// unwinds the batch as a unit). Any rejection appends nothing.
+export async function executeTripCommandBatch(input: unknown, actorId: string): Promise<CommandResult> {
+  // 1. validate the batch shape against the contract
+  const parsed = BatchBody.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsed.error.message } };
+  }
+  const commands = parsed.data;
+  const tripId = commands[0]!.tripId;
+  if (!commands.every((c) => c.tripId === tripId)) {
+    return {
+      ok: false,
+      error: { code: "invalid-command", message: "All commands in a batch must target the same trip." },
+    };
+  }
+
+  return db.transaction(async (tx): Promise<CommandResult> => {
+    // 2. load the stream and fold to current state
+    const history = await readStream(tx, tripId);
+    let state = foldEnvelopes(history);
+
+    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand)
+    if (!soleMemberPolicy.canExecute(actorId, commands[0]!.type, state?.members ?? null)) {
+      return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
+    }
+
+    // 4. decide each command in order against the evolving state; the first
+    //    rejection aborts the whole batch — nothing is appended.
+    const events: TripEvent[] = [];
+    for (const command of commands) {
+      const decision = decideTripCommand(state, command, { actorId });
+      if (!decision.ok) return { ok: false, error: decision.rejection };
+      for (const event of decision.events) state = evolveTrip(state, event);
+      events.push(...decision.events);
+    }
+
+    // 5. append every event from every command under ONE batchId
+    const appended = await appendToStream(tx, {
+      streamId: tripId,
+      expectedSeq: history.length,
+      events,
+      actorId,
+      occurredAt: new Date().toISOString(),
+      batchId: crypto.randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) {
+      return {
+        ok: false,
+        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+      };
+    }
+
+    // 6-7. update projections + build the authoritative response
+    await applyTripEvents(tx, appended.envelopes);
+    const { detail, history: historyDto } = await projectAndHistory(
+      tx,
+      [...history, ...appended.envelopes],
+      tripId,
+    );
+
+    return { ok: true, tripId, detail, history: historyDto };
   });
 }
