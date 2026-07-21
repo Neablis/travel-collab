@@ -14,7 +14,43 @@ env:
   AUTH_TRUST_HOST: "true"
 
 jobs:
-  checks:
+  # No Postgres, no build — pure static analysis, so it's the fastest lane
+  # and runs in parallel with the other two instead of gating them.
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+
+  # Unit tests (vitest.unit.config.ts) don't touch Postgres either, so they
+  # run in their own parallel lane rather than serialized after static-checks.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  # Everything that needs Postgres, a real build, and a browser: migrations,
+  # integration tests, and e2e. This is the long pole, so it also runs in
+  # parallel with the two lanes above rather than after them.
+  integration-e2e:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -27,22 +63,29 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s --health-timeout 2s --health-retries 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm test
       - run: pnpm --filter web db:migrate
       - run: pnpm --filter web test:int
-      - run: pnpm --filter web exec playwright install chromium --with-deps
-      - uses: actions/cache@v4
+      # Playwright's OS-level deps (apt packages) aren't cacheable and must
+      # install fresh on every runner; the browser binary download is the
+      # slow part and is what the cache step below skips on a hit.
+      - run: pnpm --filter web exec playwright install-deps chromium
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter web exec playwright install chromium
+      - uses: actions/cache@v6
         with:
           path: apps/web/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**/*.[jt]s', 'apps/web/**/*.[jt]sx') }}
@@ -52,15 +95,15 @@ jobs:
       - run: pnpm --filter web test:e2e
 
   migrate-production:
-    needs: checks
+    needs: [static-checks, unit-tests, integration-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
