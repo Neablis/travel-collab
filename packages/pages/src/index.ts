@@ -5,3 +5,4 @@ export const PACKAGE = "@tc/pages" as const;
 export * from "./result";
 export * from "./registry-types";
 export * from "./registry";
+export * from "./templates";
