@@ -33,8 +33,13 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
       templates + AI generation (M7) build on. Optimistic updates added to
       scope mid-milestone.
       → `docs/milestones/M6-atomic-changes.md`
-- [ ] **M7 Solo delight** — basic trip notes page (TipTap, no embeds), trip
-      templates, AI generation via command pipeline, polish pass.
+- [x] **M7 Solo delight** — dynamic pages (TipTap) with typed macros that
+      resolve live against trip state (registry-driven autocomplete +
+      renderers), lazily-instantiated default templates (Trip Overview, Day
+      Sheet), a Notebook route outside time-travel, and schema-derived AI
+      page-authoring + plan-editing via Vercel AI Gateway (atomic batches for
+      plan edits). Trip templates moved to M9.
+      → `docs/milestones/M7-solo-delight.md`
 - [ ] **Phase 1 gate review with Mitchell** — dogfood retro; go/no-go and
       backlog reshuffle before Phase 2.
 

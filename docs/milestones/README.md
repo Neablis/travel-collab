@@ -75,4 +75,4 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M7** — Solo delight (see `TODO.md`; `M7-solo-delight.md` to be written at kickoff).
+Current milestone: **Phase 1 gate review with Mitchell** (see `TODO.md`).

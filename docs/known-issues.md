@@ -120,6 +120,38 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   silent client-side loss more consequential.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
+### KI-6 — `listPages` lazy-instantiation race on concurrent first visits
+- **Severity:** correctness (non-atomicity), low likelihood
+- **Area:** `apps/web/src/server/pages.ts` (`listPages`'s zero-rows guard
+  that seeds a trip's default pages on first Notebook visit)
+- **Symptom:** `listPages` seeds default pages (Trip Overview, Day Sheet)
+  the first time it sees zero rows for a trip. Two concurrent first-visit
+  requests (e.g. two tabs opened at once, or a double-fetch) can each
+  observe zero rows before either has inserted, and both seed — producing
+  duplicate default pages for the same trip.
+- **Scope:** known and accepted at the point of writing `pages.ts` (Task
+  3.2); the brief that specified `listPages` explicitly scoped a fix out
+  ("a later task could add a unique partial index; out of scope now").
+- **Fix path:** a unique partial index on `pages (tripId, title)` (or
+  similar) scoped to system-seeded rows, or a transactional
+  check-then-insert, would close the race.
+- **First noted:** 2026-07-21 (M7 Task 3.2 / gate-close).
+
+### KI-7 — `ai` / `@ai-sdk/gateway` provider-type version skew (V1 vs V2)
+- **Severity:** cleanup (type-level only; correct at runtime)
+- **Area:** `apps/web/src/server/ai/route.ts` (`aiModel()` call site)
+- **Symptom:** the installed `@ai-sdk/gateway` resolves to `1.0.41`, which is
+  built against `@ai-sdk/provider`'s `LanguageModelV2`, while the repo pins
+  `"ai": "^4.0.0"`, whose `LanguageModel`/`generateText` types are `V1`. So
+  `aiModel()`'s return type doesn't structurally satisfy `LanguageModel` per
+  TypeScript, even though it is the correct gateway model handle at runtime.
+- **Workaround in place:** a single documented cast (`aiModel() as unknown
+  as LanguageModel`) at the one call site, rather than threading `any`
+  through the route.
+- **Fix path:** pin `@ai-sdk/gateway` to a V1-era version, or upgrade `ai`
+  to v5 (which uses `LanguageModelV2` throughout) and re-align the cast.
+- **First noted:** 2026-07-21 (M7 Task 5.5 / gate-close).
+
 ## Deferred design work (tracked elsewhere, pointer only)
 
 Not bugs — design decisions awaiting a brainstorm, so they live with the
