@@ -2,7 +2,7 @@
 // Invariant 5: tool schemas must be DERIVED, never hand-written duplicates).
 //
 // Each BatchableCommand union member becomes one tool, keyed by its `type`.
-// The tool's `parameters` schema is that command's schema with `tripId`
+// The tool's `inputSchema` is that command's schema with `tripId`
 // omitted — the AI never chooses which trip; the server injects it. Calling
 // a tool doesn't execute anything by itself: it pushes the fully-formed
 // command (type + injected tripId + the AI's args) onto an in-memory,
@@ -54,7 +54,7 @@ export function buildPlanningTools(tripId: string): {
 
     tools[type] = tool({
       description: DESCRIPTIONS[type],
-      parameters,
+      inputSchema: parameters,
       execute: async (args: Record<string, unknown>) => {
         const command = { ...args, type, tripId } as BatchableCommandType;
         collected.push(command);

@@ -82,7 +82,7 @@ export function buildPageTools(): { tools: Record<string, Tool> } {
       description:
         "Compose a page as a title and an ordered list of blocks (headings, paragraphs, and macros). " +
         "Macro names are limited to the trip data registry — do not invent macro names.",
-      parameters: ComposePageParams,
+      inputSchema: ComposePageParams,
       execute: async (params: ComposePageParams) => {
         return { title: params.title, content: toPageContent(params) };
       },

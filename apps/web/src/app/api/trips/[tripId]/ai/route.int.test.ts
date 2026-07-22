@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MockLanguageModelV1 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { db } from "@/server/db/client";
 import { events, pages, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
@@ -11,9 +11,19 @@ const OUTSIDER_ID = "user-2";
 
 // Not exported by `ai`'s top-level barrel (it's an `@ai-sdk/provider` type,
 // which isn't a direct dependency of this package) — shaped to match
-// LanguageModelV1FunctionToolCall exactly, which is all MockLanguageModelV1
-// needs from us.
-type FunctionToolCall = { toolCallType: "function"; toolCallId: string; toolName: string; args: string };
+// LanguageModelV4ToolCall exactly, which is all MockLanguageModelV4 needs
+// from us. Note `input` (not `args`) and it's a stringified JSON object, same
+// as v4's `args` was.
+type FunctionToolCall = { type: "tool-call"; toolCallId: string; toolName: string; input: string };
+
+// AI SDK v7's LanguageModelV4Usage requires nested inputTokens/outputTokens
+// objects (each field individually optional-typed as `number | undefined`,
+// but the object itself is required) instead of v4's flat
+// `{ promptTokens, completionTokens }`.
+const USAGE = {
+  inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+  outputTokens: { total: 10, text: undefined, reasoning: undefined },
+};
 
 let currentUserId = ACTOR_ID;
 
@@ -46,38 +56,40 @@ function req(tripId: string, body: unknown) {
   });
 }
 
-// A MockLanguageModelV1 that emits the given tool calls on its first
+// A MockLanguageModelV4 that emits the given tool calls on its first
 // doGenerate invocation, then reports "stop" on any subsequent call. This is
-// a fully local fake LanguageModelV1 — generateText calls `doGenerate`
-// directly, no network involved. The "stop" tail matters: with `maxSteps` > 1
-// the AI SDK loops calling `doGenerate` again after a "tool-calls" finish
-// reason (to let a real model react to tool results); a fake that always
-// re-emitted the same tool calls would have them executed — and, for
-// planning tools, collected/batched — once per remaining step.
+// a fully local fake LanguageModelV4 — generateText calls `doGenerate`
+// directly, no network involved. The "stop" tail matters: with `stopWhen:
+// isStepCount(N)` for N > 1, the AI SDK loops calling `doGenerate` again
+// after a "tool-calls" finish reason (to let a real model react to tool
+// results); a fake that always re-emitted the same tool calls would have
+// them executed — and, for planning tools, collected/batched — once per
+// remaining step.
 function modelWithToolCalls(toolCalls: FunctionToolCall[]) {
   let calls = 0;
-  return new MockLanguageModelV1({
+  return new MockLanguageModelV4({
     doGenerate: async () => {
       calls += 1;
       if (calls > 1) {
         return {
-          rawCall: { rawPrompt: null, rawSettings: {} },
-          finishReason: "stop",
-          usage: { promptTokens: 10, completionTokens: 10 },
+          finishReason: { unified: "stop" as const, raw: undefined },
+          usage: USAGE,
+          warnings: [],
+          content: [],
         };
       }
       return {
-        rawCall: { rawPrompt: null, rawSettings: {} },
-        finishReason: "tool-calls",
-        usage: { promptTokens: 10, completionTokens: 10 },
-        toolCalls,
+        finishReason: { unified: "tool-calls" as const, raw: undefined },
+        usage: USAGE,
+        warnings: [],
+        content: toolCalls,
       };
     },
   });
 }
 
 function toolCall(toolName: string, args: Record<string, unknown>): FunctionToolCall {
-  return { toolCallType: "function", toolCallId: randomUUID(), toolName, args: JSON.stringify(args) };
+  return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(args) };
 }
 
 describe("POST /api/trips/:id/ai", () => {

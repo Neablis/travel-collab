@@ -1,14 +1,24 @@
 // AI page tools derived from the @tc/pages macro registry (ADR-015,
 // Invariant 5: tool schemas must be DERIVED, never hand-written duplicates).
 import { describe, expect, it } from "vitest";
+import type { ZodTypeAny } from "zod";
 
 import { buildPageTools, validateComposedPage } from "./pageTools";
 import type { PageContent } from "@tc/contracts";
 
+// `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
+// covering Standard Schema, Zod, and other schema shapes it accepts), which
+// doesn't statically expose `.safeParse`. We know the concrete value is a
+// Zod schema (built with `z.object(...)` in pageTools.ts), so cast it back
+// to exercise it directly in tests.
+function asZodSchema(schema: unknown): ZodTypeAny {
+  return schema as ZodTypeAny;
+}
+
 describe("buildPageTools", () => {
   it("compose_page accepts a doc using only registry macros", () => {
     const { tools } = buildPageTools();
-    const result = tools.compose_page!.parameters.safeParse({
+    const result = asZodSchema(tools.compose_page!.inputSchema).safeParse({
       title: "Overview",
       blocks: [
         { type: "heading", level: 2, text: "Overview" },
@@ -20,7 +30,7 @@ describe("buildPageTools", () => {
 
   it("compose_page rejects a macro name not in MACRO_NAMES", () => {
     const { tools } = buildPageTools();
-    const result = tools.compose_page!.parameters.safeParse({
+    const result = asZodSchema(tools.compose_page!.inputSchema).safeParse({
       title: "Overview",
       blocks: [{ type: "macro", name: "nope.nope" }],
     });
@@ -38,7 +48,7 @@ describe("buildPageTools", () => {
           { type: "macro", name: "trip.name" },
         ],
       },
-      { toolCallId: "call-1", messages: [] },
+      { toolCallId: "call-1", messages: [], context: undefined },
     );
 
     expect(result).toEqual({

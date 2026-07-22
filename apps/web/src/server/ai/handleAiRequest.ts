@@ -10,10 +10,10 @@
 // passes one, so the only path that can ever reach a real provider is a real
 // request hitting the real deployed/dev route with AI_GATEWAY_API_KEY set —
 // tests call `handleAiRequest` directly with a fake model (ai/test's
-// MockLanguageModelV1) and never touch `POST`'s default, so they never
+// MockLanguageModelV4) and never touch `POST`'s default, so they never
 // construct `aiModel()` and never hit the network.
 import { z } from "zod";
-import { generateText, type LanguageModel } from "ai";
+import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
@@ -39,20 +39,10 @@ const AiRequest = z.object({
 // planning may chain a few (e.g. AddDay then AddActivity onto it).
 const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 6, combined: 8 };
 
-// NOTE (pre-existing dependency skew, not introduced by this task): the
-// installed @ai-sdk/gateway (^1.0.0 → resolved 1.0.41) builds against
-// @ai-sdk/provider's LanguageModelV2, while this repo pins "ai": "^4.0.0",
-// whose `generateText`/`LanguageModel` type is still V1. `aiModel()`'s
-// return value is therefore not structurally a `LanguageModelV1` by TS's
-// judgment even though gateway models are drop-in compatible with `ai`'s
-// runtime in practice for the v4/v2-bridge era. Cast at this one seam
-// rather than threading `any` through the rest of the route; worth
-// revisiting (pin @ai-sdk/gateway to a V1-era version, or upgrade `ai` to
-// v5) as a follow-up outside Task 5.5's scope.
 export async function handleAiRequest(
   request: Request,
   tripId: string,
-  model: LanguageModel = aiModel() as unknown as LanguageModel,
+  model: LanguageModel = aiModel(),
 ): Promise<Response> {
   const g = await guard(tripId);
   if ("error" in g) return g.error;
@@ -71,23 +61,22 @@ export async function handleAiRequest(
     const { tools } = buildPageTools();
     let result;
     try {
-      result = await generateText({ model, system, prompt, tools, maxSteps: MAX_STEPS.page });
+      result = await generateText({ model, system, prompt, tools, stopWhen: isStepCount(MAX_STEPS.page) });
     } catch (err) {
       return Response.json({ error: `model call failed: ${errorMessage(err)}` }, { status: 422 });
     }
-    // `result.toolResults` only reflects the LAST step (AI SDK v4 quirk —
-    // GenerateTextResult.toolResults is `lastStep.toolResults`, not every
-    // step's). Since compose_page may be called on an earlier step (a
-    // follow-up "stop" step commonly follows), search every step's results.
-    const stepToolResults = result.steps.flatMap((step) => step.toolResults) as Array<{
-      toolName: string;
-      result: { title: string; content: PageContent };
-    }>;
-    const composed = stepToolResults.find((r) => r.toolName === "compose_page");
+    // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
+    // GenerateTextResult.toolResults reflected only the last step, which
+    // required manually flattening `result.steps[].toolResults` to find a
+    // compose_page call made on an earlier step). No workaround needed here
+    // anymore.
+    const composed = result.toolResults.find((r) => r.toolName === "compose_page") as
+      | { toolName: string; output: { title: string; content: PageContent } }
+      | undefined;
     if (!composed) {
       return Response.json({ error: "model did not compose a page" }, { status: 422 });
     }
-    const validated = validateComposedPage(composed.result.content);
+    const validated = validateComposedPage(composed.output.content);
     if ("error" in validated) {
       return Response.json({ error: validated.error }, { status: 422 });
     }
@@ -98,7 +87,7 @@ export async function handleAiRequest(
   const planning = buildPlanningTools(tripId);
   const tools = surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools;
   try {
-    await generateText({ model, system, prompt, tools, maxSteps: MAX_STEPS[surface] });
+    await generateText({ model, system, prompt, tools, stopWhen: isStepCount(MAX_STEPS[surface]) });
   } catch (err) {
     return Response.json({ error: `model call failed: ${errorMessage(err)}` }, { status: 422 });
   }
