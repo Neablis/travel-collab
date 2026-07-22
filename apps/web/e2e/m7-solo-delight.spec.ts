@@ -120,10 +120,13 @@ test("solo delight: notebook, dynamic pages, day binding, autocomplete", async (
   await page.keyboard.type("{{");
   // The popover lists the whole macro catalog until the query narrows it —
   // both a trip-wide and a day-scoped macro are visible at this point.
-  await expect(page.getByRole("button", { name: /cost\.trip/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /cost\.day/ })).toBeVisible();
+  // Items carry an explicit role="option" (inside a role="listbox" popover,
+  // for screen-reader support) rather than the button element's native
+  // implicit role, which the explicit role overrides in the a11y tree.
+  await expect(page.getByRole("option", { name: /cost\.trip/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /cost\.day/ })).toBeVisible();
   await page.keyboard.type("cost.trip");
-  await expect(page.getByRole("button", { name: /cost\.trip/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /cost\.trip/ })).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-macro-name="cost.trip"]')).toHaveText("$50.00");
 });
