@@ -173,5 +173,59 @@ describe("/api/trips/:id/pages", () => {
       const getRes = await GET_ITEM(getReq, { params: Promise.resolve({ tripId, pageId }) });
       expect(getRes.status).toBe(404);
     });
+
+    it("404s a PATCH on a page belonging to a different trip", async () => {
+      const tripId = await seedTrip();
+      const otherTripId = await seedTrip();
+      const pageId = await seedPage(otherTripId);
+      const req = new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Renamed" }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ tripId, pageId }) });
+      expect(res.status).toBe(404);
+    });
+
+    it("404s a DELETE on a page belonging to a different trip", async () => {
+      const tripId = await seedTrip();
+      const otherTripId = await seedTrip();
+      const pageId = await seedPage(otherTripId);
+      const req = new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, { method: "DELETE" });
+      const res = await DELETE(req, { params: Promise.resolve({ tripId, pageId }) });
+      expect(res.status).toBe(404);
+
+      // Confirm it wasn't actually deleted (still fetchable from its real trip).
+      const getReq = new Request(`http://test/api/trips/${otherTripId}/pages/${pageId}`);
+      const getRes = await GET_ITEM(getReq, { params: Promise.resolve({ tripId: otherTripId, pageId }) });
+      expect(getRes.status).toBe(200);
+    });
+
+    it("400s a PATCH with a body that fails UpdatePageInput validation", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const req = new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        // title must be a non-empty string per UpdatePageInput.
+        body: JSON.stringify({ title: "" }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ tripId, pageId }) });
+      expect(res.status).toBe(400);
+    });
+
+    it("400s a PATCH that tries to reparent the page via a mismatched context.tripId", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const req = new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context: { tripId: randomUUID() } }),
+      });
+      const res = await PATCH(req, { params: Promise.resolve({ tripId, pageId }) });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toMatch(/tripId/i);
+    });
   });
 });

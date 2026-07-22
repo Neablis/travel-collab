@@ -62,10 +62,15 @@ export const MacroSuggestionList = forwardRef<MacroSuggestionListRef, MacroSugge
     }
 
     return (
-      <div className="z-50 max-h-72 min-w-64 overflow-y-auto rounded-lg border border-hairline bg-surface p-1 shadow-overlay">
+      <div
+        role="listbox"
+        className="z-50 max-h-72 min-w-64 overflow-y-auto rounded-lg border border-hairline bg-surface p-1 shadow-overlay"
+      >
         {items.map((item, index) => (
           <Button
             key={item.name}
+            role="option"
+            aria-selected={index === selectedIndex}
             variant="ghost"
             size="md"
             className={cn(

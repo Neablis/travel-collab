@@ -15,7 +15,6 @@ import { z } from "zod";
 import { generateText, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
-import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
 import { aiModel } from "@/server/ai/gateway";
 import { buildEnvelope, type AiSurface } from "@/server/ai/context";
@@ -56,7 +55,7 @@ export async function handleAiRequest(
 ): Promise<Response> {
   const g = await guard(tripId);
   if ("error" in g) return g.error;
-  const { userId } = g;
+  const { userId, detail } = g;
 
   const parsed = AiRequest.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -64,10 +63,6 @@ export async function handleAiRequest(
   }
   const { prompt, surface, pageContext } = parsed.data;
 
-  const detail = await getTripDetail(tripId);
-  if (detail === null) {
-    return Response.json({ error: "not-found" }, { status: 404 });
-  }
   const envelope = buildEnvelope({ detail, surface, pageContext });
   const system = `You are the travel-collab planning/authoring assistant. Use ONLY this context — no outside knowledge of the trip: ${JSON.stringify(envelope)}`;
 

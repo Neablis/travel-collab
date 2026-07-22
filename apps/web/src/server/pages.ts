@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
 import { instantiateDefaults } from "@tc/pages";

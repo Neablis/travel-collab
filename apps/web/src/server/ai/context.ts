@@ -41,6 +41,30 @@ export interface AiEnvelope {
   tripSummary: TripSummary;
   macros?: ReturnType<typeof macroCatalog>;
   tools: string[];
+  // The day a `page`/`combined`-surface request is bound to, resolved from
+  // `pageContext.dayRef` against `detail.days`. Absent when the surface has
+  // no page context, the page isn't day-bound, or the ref doesn't resolve
+  // (e.g. an out-of-range index) — same resolution rule as
+  // `@tc/pages`'s `resolveDayIndex` (packages/pages/src/macros/inline.ts),
+  // inlined here rather than imported since this module is otherwise free
+  // of a `@tc/pages` dependency for anything but the macro catalog.
+  boundDay?: { index: number; date: string | null };
+}
+
+// Resolve a day-ref against `detail.days`, mirroring
+// `packages/pages/src/macros/inline.ts`'s `resolveDayIndex`.
+function resolveBoundDay(detail: TripDetail, pageContext?: PageContext): AiEnvelope["boundDay"] {
+  const ref = pageContext?.dayRef;
+  if (!ref) return undefined;
+  const index =
+    ref.kind === "index"
+      ? (ref.index < detail.days.length ? ref.index : null)
+      : (() => {
+          const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
+          return idx === -1 ? null : idx;
+        })();
+  if (index === null) return undefined;
+  return { index, date: detail.days[index]!.date };
 }
 
 const TOOLS_BY_SURFACE: Record<AiSurface, string[]> = {
@@ -68,13 +92,15 @@ export function buildEnvelope(params: {
   surface: AiSurface;
   pageContext?: PageContext;
 }): AiEnvelope {
-  const { detail, surface } = params;
+  const { detail, surface, pageContext } = params;
   const includeMacros = surface === "page" || surface === "combined";
+  const boundDay = includeMacros ? resolveBoundDay(detail, pageContext) : undefined;
 
   return {
     surface,
     tripSummary: summarizeTrip(detail),
     ...(includeMacros ? { macros: macroCatalog() } : {}),
     tools: TOOLS_BY_SURFACE[surface],
+    ...(boundDay ? { boundDay } : {}),
   };
 }

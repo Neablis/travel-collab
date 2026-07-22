@@ -64,4 +64,46 @@ describe("buildEnvelope", () => {
     expect(summary.currency).toBe("USD");
     expect(summary.tripCostTotal).toBe(detail.tripCostTotal);
   });
+
+  it("page surface with a dayRef: includes boundDay resolved against detail.days", () => {
+    const detail = costedTripDetailFixture();
+    const dayId = detail.days[0]!.dayId;
+    const envelope = buildEnvelope({
+      detail,
+      surface: "page",
+      pageContext: { tripId: detail.tripId, dayRef: { kind: "dayId", dayId } },
+    });
+
+    expect(envelope.boundDay).toEqual({ index: 0, date: "2027-06-01" });
+  });
+
+  it("page surface with an index dayRef: resolves boundDay by position", () => {
+    const detail = costedTripDetailFixture();
+    const envelope = buildEnvelope({
+      detail,
+      surface: "page",
+      pageContext: { tripId: detail.tripId, dayRef: { kind: "index", index: 0 } },
+    });
+
+    expect(envelope.boundDay).toEqual({ index: 0, date: "2027-06-01" });
+  });
+
+  it("page surface without a dayRef: boundDay is absent", () => {
+    const detail = costedTripDetailFixture();
+    const envelope = buildEnvelope({ detail, surface: "page", pageContext: PAGE_CONTEXT });
+
+    expect(envelope.boundDay).toBeUndefined();
+  });
+
+  it("board surface: boundDay is absent even if pageContext.dayRef were somehow present", () => {
+    const detail = costedTripDetailFixture();
+    const dayId = detail.days[0]!.dayId;
+    const envelope = buildEnvelope({
+      detail,
+      surface: "board",
+      pageContext: { tripId: detail.tripId, dayRef: { kind: "dayId", dayId } },
+    });
+
+    expect(envelope.boundDay).toBeUndefined();
+  });
 });
