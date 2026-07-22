@@ -25,7 +25,10 @@ vi.mock("@/server/auth", () => ({
 // `handleAiRequest` is exercised directly (never `POST`, which is the only
 // path that could ever construct a real `aiModel()`) — every test here
 // injects a `MockLanguageModelV1` so no network call is ever made.
-const { handleAiRequest } = await import("./route");
+// `handleAiRequest` lives in @/server/ai/handleAiRequest, not the route file
+// itself — Next.js's route-type-checking only allows HTTP-method exports
+// from app/api/**/route.ts, so it can't be exported from ./route.
+const { handleAiRequest } = await import("@/server/ai/handleAiRequest");
 
 function seedTrip() {
   const tripId = randomUUID();
