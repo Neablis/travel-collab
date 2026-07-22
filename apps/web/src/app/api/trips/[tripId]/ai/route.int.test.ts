@@ -34,7 +34,7 @@ vi.mock("@/server/auth", () => ({
 // Import after the mock so the route picks up the mocked `auth`. Only
 // `handleAiRequest` is exercised directly (never `POST`, which is the only
 // path that could ever construct a real `aiModel()`) — every test here
-// injects a `MockLanguageModelV1` so no network call is ever made.
+// injects a `MockLanguageModelV4` so no network call is ever made.
 // `handleAiRequest` lives in @/server/ai/handleAiRequest, not the route file
 // itself — Next.js's route-type-checking only allows HTTP-method exports
 // from app/api/**/route.ts, so it can't be exported from ./route.

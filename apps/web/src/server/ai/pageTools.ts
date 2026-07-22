@@ -2,7 +2,7 @@
 // (ADR-015, Invariant 5: tool schemas must be DERIVED, never hand-written
 // duplicates). This is the page-authoring counterpart to planningTools.ts.
 //
-// The compose_page tool's `parameters` describe a flat, AI-friendly page
+// The compose_page tool's `inputSchema` describes a flat, AI-friendly page
 // shape (title + blocks), NOT the full nested ProseMirror doc. The macro
 // `name` param is a closed Zod enum over MACRO_NAMES, so an unknown macro
 // name fails schema validation before it ever reaches a document. execute()
