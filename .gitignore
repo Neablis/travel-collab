@@ -21,3 +21,5 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 apps/web/.ds-compiled.css
+.vercel
+.env*
