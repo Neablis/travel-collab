@@ -21,6 +21,7 @@ import { aiModel } from "@/server/ai/gateway";
 import { buildEnvelope, type AiSurface } from "@/server/ai/context";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
+import { summarizeBatch } from "@/server/ai/planSummary";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -55,7 +56,20 @@ export async function handleAiRequest(
   const { prompt, surface, pageContext } = parsed.data;
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
-  const system = `You are the travel-collab planning/authoring assistant. Use ONLY this context — no outside knowledge of the trip: ${JSON.stringify(envelope)}`;
+  // The ID rules matter: planning tools (Move/Update/Remove) require the
+  // activity's/day's UUID, which the model can only get by copying it verbatim
+  // from the envelope. Without this instruction the model tends to reference
+  // activities by title alone, fail to fill the required id field, and emit
+  // zero tool calls — the trip then comes back unchanged.
+  const system = [
+    "You are the travel-collab planning/authoring assistant.",
+    "Use ONLY the context below — no outside knowledge of the trip.",
+    "The planning tools take human references: name an existing activity by its exact `title` (its `id` also works) via `activityRef`, and a day as \"day N\" (1-based, e.g. \"day 2\"; a `dayId` or null/\"backlog\" also work) via `dayRef`. The server resolves them — never invent, guess, or reformat a UUID.",
+    "If a title is ambiguous (matches two activities), the tool says so; reference that one by its exact `id` instead.",
+    "When adding a NEW activity, generate a fresh random UUID for its activityId.",
+    "A MoveActivity `position` is a zero-based index into the target day's activity list.",
+    `Context: ${JSON.stringify(envelope)}`,
+  ].join("\n");
 
   if (surface === "page") {
     const { tools } = buildPageTools();
@@ -84,7 +98,7 @@ export async function handleAiRequest(
   }
 
   // board | combined
-  const planning = buildPlanningTools(tripId);
+  const planning = buildPlanningTools(tripId, detail);
   const tools = surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools;
   try {
     await generateText({ model, system, prompt, tools, stopWhen: isStepCount(MAX_STEPS[surface]) });
@@ -95,9 +109,16 @@ export async function handleAiRequest(
   const calls = planning.getCollected();
   if (calls.length === 0) {
     // Nothing to apply — return the trip unchanged rather than submitting an
-    // empty batch (executeTripCommandBatch requires at least one command).
+    // empty batch (executeTripCommandBatch requires at least one command). The
+    // `message` is what tells the user *why* nothing moved, instead of a
+    // silent board reload that looks like the request was dropped.
     const history: TripHistory | null = await getTripHistory(tripId);
-    return Response.json({ detail, history });
+    return Response.json({
+      detail,
+      history,
+      message:
+        "I couldn't turn that into any changes, so nothing was applied. Try naming the activities and days as they appear on the board.",
+    });
   }
 
   const result = await flushPlanningBatch(tripId, calls, userId);
@@ -107,7 +128,14 @@ export async function handleAiRequest(
       { status: STATUS[result.error.code] ?? 400 },
     );
   }
-  return Response.json({ detail: result.detail, history: result.history });
+  // A plain-language summary of what actually got applied — derived from the
+  // committed batch, so it can never claim an edit the batch didn't make (see
+  // planSummary). Names resolve against the pre-change `detail`.
+  return Response.json({
+    detail: result.detail,
+    history: result.history,
+    message: summarizeBatch(calls, detail),
+  });
 }
 
 function errorMessage(err: unknown): string {
