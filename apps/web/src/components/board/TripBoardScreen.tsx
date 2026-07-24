@@ -19,7 +19,7 @@ import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, preview } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
   const { lens, setLens } = useLens();
   const { openEdit } = useEditor();
 
@@ -93,17 +93,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           <PageContainer width="content">
             {lens === "Board" && (
               <div className="mb-3">
-                {/* Scope tradeoff (Task 5.5): the AI route already executes
-                    the model's plan as one atomic batch server-side (Task
-                    5.3), so there's nothing for the client to predict — but
-                    TripProvider doesn't expose a refetch hook, only
-                    dispatch/dispatchBatch (which optimistically predict from
-                    commands the client itself sends). Reloading is a coarse
-                    stand-in for a real refetch-into-TripProvider path; wiring
-                    that properly is TripProvider surface area beyond this
-                    task's scope. The route itself (not this reload) is what
-                    Task 5.5's tests actually validate. */}
-                <ComposePanel tripId={tripId} surface="board" onApplied={() => window.location.reload()} />
+                {/* The AI route executes the model's plan as one atomic batch
+                    server-side (Task 5.3), so there's nothing for the client to
+                    predict — we reconcile in place from the authoritative
+                    { detail, history } the response already returns (no refetch,
+                    no page reload; ComposePanel's summary stays on screen). */}
+                <ComposePanel tripId={tripId} surface="board" onApplied={applyOutcome} />
               </div>
             )}
             {lens === "Board" && (

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { PageContent, PageContext } from "@tc/contracts";
-import { composeAiPage, composeAiPlan } from "@/lib/apiClient";
+import { composeAiPage, composeAiPlan, type CommandOutcome } from "@/lib/apiClient";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,14 @@ type Status = "idle" | "loading" | "error";
 //     panel never calls updatePage itself.
 //   - `surface="board"`/`"combined"`: the server already executed the
 //     model's tool calls as one atomic batch (Task 5.3/5.4) before
-//     responding, so there's nothing left to "apply" — `onApplied` just
-//     tells the caller a batch landed so it can refresh whatever board
-//     state it's showing (TripProvider's `dispatch`/`dispatchBatch` predict
-//     locally from commands the client itself sent; this command was
-//     decided server-side, so a refetch — not a new optimistic prediction —
-//     is the correct reconciliation).
+//     responding, so there's nothing left to "apply" — `onApplied` hands the
+//     caller the resulting `{ detail, history }` so it can reconcile board
+//     state directly (TripProvider's `dispatch`/`dispatchBatch` predict
+//     locally from commands the client itself sent; this command was decided
+//     server-side, so the client never held it to predict — reconciling from
+//     the authoritative response is correct, and it's already in hand, so no
+//     refetch is needed). Reconciling in place (not a page reload) keeps this
+//     panel mounted so the summary below stays on screen.
 type PageProps = {
   tripId: string;
   surface: "page";
@@ -35,18 +37,23 @@ type PageProps = {
 type PlanProps = {
   tripId: string;
   surface: "board" | "combined";
-  onApplied: () => void;
+  onApplied: (outcome: CommandOutcome) => void;
 };
 
 export function ComposePanel(props: PageProps | PlanProps) {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  // The board/combined surface's summary of what the AI just did. Kept in this
+  // panel's own state (not a transient toast) so it stays visible after the
+  // board refetches in place — the user's confirmation of the applied edit.
+  const [message, setMessage] = useState<string | null>(null);
 
   const submit = async () => {
     if (prompt.trim() === "") return;
     setStatus("loading");
     setError(null);
+    setMessage(null);
 
     if (props.surface === "page") {
       const result = await composeAiPage(props.tripId, prompt, props.pageContext);
@@ -67,7 +74,8 @@ export function ComposePanel(props: PageProps | PlanProps) {
       setStatus("error");
       return;
     }
-    props.onApplied();
+    setMessage(result.value.message);
+    props.onApplied(result.value);
     setStatus("idle");
     setPrompt("");
   };
@@ -91,6 +99,9 @@ export function ComposePanel(props: PageProps | PlanProps) {
         disabled={status === "loading"}
       />
       {error !== null && <p role="alert" className="text-sm text-danger">{error}</p>}
+      {message !== null && message !== "" && (
+        <p role="status" className="text-sm text-slate">{message}</p>
+      )}
       <div className="flex justify-end">
         <Button
           variant="primary"

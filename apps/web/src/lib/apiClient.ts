@@ -124,11 +124,16 @@ export async function composeAiPage(
   return { ok: true, value: PageContent.parse(data.content) };
 }
 
+// The plan surface returns the same detail/history as a command batch, plus a
+// human-readable `message` summarizing what the AI applied (or why nothing
+// was) — surfaced to the user by ComposePanel.
+export type PlanOutcome = CommandOutcome & { message: string };
+
 export async function composeAiPlan(
   tripId: string,
   prompt: string,
   surface: "board" | "combined" = "board",
-): Promise<ApiResult<CommandOutcome>> {
+): Promise<ApiResult<PlanOutcome>> {
   const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -141,6 +146,12 @@ export async function composeAiPlan(
       error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
     };
   }
-  const data = (await res.json()) as { detail: unknown; history: unknown };
-  return { ok: true, value: parseOutcome(data) };
+  const data = (await res.json()) as { detail: unknown; history: unknown; message?: unknown };
+  return {
+    ok: true,
+    value: {
+      ...parseOutcome(data),
+      message: typeof data.message === "string" ? data.message : "",
+    },
+  };
 }

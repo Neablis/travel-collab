@@ -186,9 +186,37 @@ describe("POST /api/trips/:id/ai", () => {
     // two separate ones.
     expect(body.history.entries).toHaveLength(2);
     expect(body.history.entries[0].description).toBe("Added Day 1; Added Day 2");
+    // A plain-language summary of what was applied, derived from the batch.
+    expect(body.message).toBe("Done — added a day and added a day.");
   });
 
-  it("board surface: zero tool calls returns the trip unchanged (no empty batch submitted)", async () => {
+  it("board surface: the applied summary names the moved activity and its target", async () => {
+    const tripId = await seedTrip();
+    const dayId = randomUUID();
+    const activityId = randomUUID();
+    // Seed an on-day activity so the AI's MoveActivity references it BY TITLE —
+    // the exact shape of the user's "move Treasure Island …" prompt. The server
+    // resolves activityRef/dayRef to real ids (the model never sees a UUID).
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, ACTOR_ID);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId, dayId, title: "Treasure Island" },
+      ACTOR_ID,
+    );
+    const model = modelWithToolCalls([
+      toolCall("MoveActivity", { activityRef: "Treasure Island", dayRef: "backlog", position: 0 }),
+    ]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "move treasure island to the backlog", surface: "board" }),
+      tripId,
+      model,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Name resolved from the (pre-change) trip detail, not the raw id/args.
+    expect(body.message).toBe("Done — moved “Treasure Island” to the backlog.");
+  });
+
+  it("board surface: zero tool calls returns the trip unchanged, with a message explaining nothing applied", async () => {
     const tripId = await seedTrip();
     const model = modelWithToolCalls([]);
     const res = await handleAiRequest(
@@ -199,5 +227,7 @@ describe("POST /api/trips/:id/ai", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.detail.days).toHaveLength(0);
+    // Not a silent no-op: the user is told why the board didn't change.
+    expect(body.message).toMatch(/nothing was applied/i);
   });
 });

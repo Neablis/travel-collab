@@ -51,12 +51,19 @@ describe("buildEnvelope", () => {
     expect(summary).not.toHaveProperty("members");
     expect(summary).not.toHaveProperty("backlog");
 
-    // Day list carries titles only (looked up from detail.activities), not full activity objects.
+    // Day list carries { id, title } per activity plus the day's dayId, so the
+    // model can reference existing activities/days in Move/Update/Remove
+    // planning tools (whose schemas require those UUIDs). It still omits the
+    // full ActivityView record (location/notes/anchors/timeWindow).
     expect(summary.days).toEqual([
       {
         index: 0,
+        dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
         date: "2027-06-01",
-        activities: ["Colosseum tour", "Roman Forum"],
+        activities: [
+          { id: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e", title: "Colosseum tour" },
+          { id: "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f", title: "Roman Forum" },
+        ],
         cost: 4100,
       },
     ]);

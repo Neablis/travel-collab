@@ -3,8 +3,13 @@
 // request gets a small, bounded context instead of the full board state.
 //
 // Two things are deliberately kept out of `tripSummary`:
-//   - `activities` (the full ActivityView record, keyed by id) — the AI only
-//     needs activity *titles* per day, looked up here and inlined as strings.
+//   - `activities` (the full ActivityView record, keyed by id) — the AI needs
+//     only each activity's *id + title* per day (location/notes/anchors/etc.
+//     are omitted), inlined here. The id matters: the planning tools
+//     (MoveActivity/UpdateActivity/RemoveActivity) require the activity's UUID,
+//     and each day carries its `dayId` for the same reason (MoveActivity's
+//     `toDayId`). Without these the model can name an activity but has no way
+//     to reference it, so it emits zero commands and nothing changes.
 //   - `conflicts` / `dismissedConflictIds` — conflict detection is a planning
 //     concern surfaced through the planning tools' own results, not context
 //     the model needs pre-loaded on every request.
@@ -19,10 +24,19 @@ import { macroCatalog } from "@tc/pages";
 
 export type AiSurface = "page" | "board" | "combined";
 
+export interface TripActivitySummary {
+  // The activity's UUID — what MoveActivity/UpdateActivity/RemoveActivity
+  // reference. The model must copy it verbatim from here, never invent one.
+  id: string;
+  title: string;
+}
+
 export interface TripDaySummary {
   index: number;
+  // The day's UUID — what MoveActivity's `toDayId` references.
+  dayId: string;
   date: string | null;
-  activities: string[];
+  activities: TripActivitySummary[];
   // Minor-unit integer (e.g. cents), same convention as TripDetail's
   // costSubtotal/tripCostTotal — no currency formatting here, that's a
   // presentation concern for whatever renders the model's response.
@@ -80,8 +94,12 @@ function summarizeTrip(detail: TripDetail): TripSummary {
     tripCostTotal: detail.tripCostTotal,
     days: detail.days.map((day, index) => ({
       index,
+      dayId: day.dayId,
       date: day.date,
-      activities: day.activityIds.map((id) => detail.activities[id]?.title ?? "(unknown activity)"),
+      activities: day.activityIds.map((id) => ({
+        id,
+        title: detail.activities[id]?.title ?? "(unknown activity)",
+      })),
       cost: day.costSubtotal,
     })),
   };

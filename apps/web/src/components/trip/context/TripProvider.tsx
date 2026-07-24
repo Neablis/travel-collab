@@ -22,6 +22,13 @@ type TripCtx = {
   pending: boolean;
   dispatch: (command: BoardCommand) => Promise<void>;
   dispatchBatch: (commands: BatchableCommand[]) => Promise<void>;
+  // Replace confirmed state with an authoritative outcome the client didn't
+  // predict — the AI planning batch is decided server-side, so the client
+  // never held those commands to optimistically predict from. The AI response
+  // already carries the resulting detail + history, so we reconcile directly
+  // from it (no refetch round-trip) — same shape as how undo/redo/revert
+  // reconcile from their command response below.
+  applyOutcome: (outcome: CommandOutcome) => void;
   preview: { seq: number | null; enter: (seq: number) => Promise<void>; exit: () => void };
 };
 
@@ -173,6 +180,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     [runDispatch],
   );
 
+  const applyOutcome = useCallback((outcome: CommandOutcome) => {
+    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape. Clear
+    // pending: this is authoritative server state, nothing local is unconfirmed
+    // relative to it (matches the undo/redo/revert reconciliation).
+    setOptimistic((prev) => (prev ? { confirmed: outcome, pending: [] } : prev));
+    setError(null);
+  }, []);
+
   const confirmedDetail = optimistic ? activeDetail(optimistic) : null;
   const history: TripHistory | null = optimistic ? activeHistory(optimistic) : null;
   const trip = optimistic?.confirmed.detail ?? null;
@@ -189,6 +204,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         pending,
         dispatch,
         dispatchBatch,
+        applyOutcome,
         preview: { seq: previewSeq, enter, exit },
       }}
     >
