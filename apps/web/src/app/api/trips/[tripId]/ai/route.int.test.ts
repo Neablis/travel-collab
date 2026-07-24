@@ -188,6 +188,13 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.history.entries[0].description).toBe("Added Day 1; Added Day 2");
     // A plain-language summary of what was applied, derived from the batch.
     expect(body.message).toBe("Done — added a day and added a day.");
+    // Auditing meta: the caller can see the model call actually happened and
+    // which tools fired, and resolvedCommands mirrors the applied batch.
+    expect(body.meta.model.requested).toBeDefined();
+    expect(body.meta.finishReason).toBeDefined();
+    expect(body.meta.steps).toBeGreaterThanOrEqual(1);
+    expect(body.meta.toolCalls.map((c: { name: string }) => c.name)).toEqual(["AddDay", "AddDay"]);
+    expect(body.resolvedCommands).toHaveLength(2);
   });
 
   it("board surface: the applied summary names the moved activity and its target", async () => {
@@ -214,6 +221,11 @@ describe("POST /api/trips/:id/ai", () => {
     const body = await res.json();
     // Name resolved from the (pre-change) trip detail, not the raw id/args.
     expect(body.message).toBe("Done — moved “Treasure Island” to the backlog.");
+    // The audit trail shows the ref→id resolution end to end: the model sent a
+    // human title + "backlog" (meta.toolCalls), and the applied command carries
+    // the real activityId and a null day (resolvedCommands).
+    expect(body.meta.toolCalls[0].input).toMatchObject({ activityRef: "Treasure Island", dayRef: "backlog" });
+    expect(body.resolvedCommands[0]).toMatchObject({ type: "MoveActivity", activityId, toDayId: null });
   });
 
   it("board surface: zero tool calls returns the trip unchanged, with a message explaining nothing applied", async () => {
@@ -229,5 +241,9 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.detail.days).toHaveLength(0);
     // Not a silent no-op: the user is told why the board didn't change.
     expect(body.message).toMatch(/nothing was applied/i);
+    // meta.toolCalls empty confirms the model called nothing (vs. calling
+    // tools whose refs all failed to resolve, which would populate it).
+    expect(body.meta.toolCalls).toHaveLength(0);
+    expect(body.resolvedCommands).toHaveLength(0);
   });
 });

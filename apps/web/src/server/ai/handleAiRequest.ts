@@ -40,6 +40,64 @@ const AiRequest = z.object({
 // planning may chain a few (e.g. AddDay then AddActivity onto it).
 const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 6, combined: 8 };
 
+// Per-call retry ceiling passed to generateText (the AI SDK's own retry of
+// transient provider failures). Surfaced in the response `meta` so a caller
+// can tell an actual success from a retried one, and read the same ceiling the
+// failure message ("Failed after N attempts") counts against.
+const AI_MAX_RETRIES = 2;
+
+// Auditing envelope attached to every AI response so a caller can confirm a
+// request actually reached a model and see what it did — which model answered,
+// whether tools fired (and with what args), token spend, and timing. Debug
+// metadata, not part of the domain contract; safe to ignore on the client.
+interface AiCallMeta {
+  model: { requested: string; served: string | null };
+  finishReason: string;
+  // Round-trips the model took (1 = answered in a single step).
+  steps: number;
+  // What the model asked for, BEFORE server-side ref resolution — e.g.
+  // { name: "MoveActivity", input: { activityRef: "Colosseum tour", dayRef: "day 2" } }.
+  toolCalls: { name: string; input: unknown }[];
+  usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null };
+  warnings: unknown[];
+  maxRetries: number;
+  durationMs: number;
+}
+
+// Structural view of the generateText result — just the fields meta reads.
+// Avoids threading generateText's ToolSet generics through the helper.
+interface AiResultLike {
+  finishReason: string;
+  steps: readonly unknown[];
+  toolCalls: readonly { toolName: string; input: unknown }[];
+  usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  warnings?: readonly unknown[];
+  finalStep?: { response?: { modelId?: string } };
+}
+
+// A LanguageModel is either a bare model-id string or a provider model object
+// carrying `.modelId` — normalize to the requested id either way.
+function requestedModelId(model: LanguageModel): string {
+  return typeof model === "string" ? model : model.modelId;
+}
+
+function buildAiMeta(result: AiResultLike, model: LanguageModel, durationMs: number): AiCallMeta {
+  return {
+    model: { requested: requestedModelId(model), served: result.finalStep?.response?.modelId ?? null },
+    finishReason: result.finishReason,
+    steps: result.steps.length,
+    toolCalls: result.toolCalls.map((c) => ({ name: c.toolName, input: c.input })),
+    usage: {
+      inputTokens: result.usage.inputTokens ?? null,
+      outputTokens: result.usage.outputTokens ?? null,
+      totalTokens: result.usage.totalTokens ?? null,
+    },
+    warnings: [...(result.warnings ?? [])],
+    maxRetries: AI_MAX_RETRIES,
+    durationMs,
+  };
+}
+
 export async function handleAiRequest(
   request: Request,
   tripId: string,
@@ -74,11 +132,23 @@ export async function handleAiRequest(
   if (surface === "page") {
     const { tools } = buildPageTools();
     let result;
+    const startedAt = Date.now();
     try {
-      result = await generateText({ model, system, prompt, tools, stopWhen: isStepCount(MAX_STEPS.page) });
+      result = await generateText({
+        model,
+        system,
+        prompt,
+        tools,
+        stopWhen: isStepCount(MAX_STEPS.page),
+        maxRetries: AI_MAX_RETRIES,
+      });
     } catch (err) {
-      return Response.json({ error: `model call failed: ${errorMessage(err)}` }, { status: 422 });
+      return Response.json(
+        { error: `model call failed: ${errorMessage(err)}`, meta: failedMeta(model, Date.now() - startedAt) },
+        { status: 422 },
+      );
     }
+    const meta = buildAiMeta(result, model, Date.now() - startedAt);
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -88,54 +158,88 @@ export async function handleAiRequest(
       | { toolName: string; output: { title: string; content: PageContent } }
       | undefined;
     if (!composed) {
-      return Response.json({ error: "model did not compose a page" }, { status: 422 });
+      // meta.toolCalls shows what the model DID do instead of composing.
+      return Response.json({ error: "model did not compose a page", meta }, { status: 422 });
     }
     const validated = validateComposedPage(composed.output.content);
     if ("error" in validated) {
-      return Response.json({ error: validated.error }, { status: 422 });
+      return Response.json({ error: validated.error, meta }, { status: 422 });
     }
-    return Response.json({ content: validated });
+    return Response.json({ content: validated, meta });
   }
 
   // board | combined
   const planning = buildPlanningTools(tripId, detail);
   const tools = surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools;
+  let gen;
+  const startedAt = Date.now();
   try {
-    await generateText({ model, system, prompt, tools, stopWhen: isStepCount(MAX_STEPS[surface]) });
+    gen = await generateText({
+      model,
+      system,
+      prompt,
+      tools,
+      stopWhen: isStepCount(MAX_STEPS[surface]),
+      maxRetries: AI_MAX_RETRIES,
+    });
   } catch (err) {
-    return Response.json({ error: `model call failed: ${errorMessage(err)}` }, { status: 422 });
+    return Response.json(
+      { error: `model call failed: ${errorMessage(err)}`, meta: failedMeta(model, Date.now() - startedAt) },
+      { status: 422 },
+    );
   }
+  const meta = buildAiMeta(gen, model, Date.now() - startedAt);
 
   const calls = planning.getCollected();
   if (calls.length === 0) {
     // Nothing to apply — return the trip unchanged rather than submitting an
     // empty batch (executeTripCommandBatch requires at least one command). The
     // `message` is what tells the user *why* nothing moved, instead of a
-    // silent board reload that looks like the request was dropped.
+    // silent board reload that looks like the request was dropped. `meta`
+    // disambiguates the two zero-command causes: the model called no tools
+    // (meta.toolCalls empty) vs. it called them but every ref failed to
+    // resolve (meta.toolCalls populated, resolvedCommands still empty).
     const history: TripHistory | null = await getTripHistory(tripId);
     return Response.json({
       detail,
       history,
       message:
         "I couldn't turn that into any changes, so nothing was applied. Try naming the activities and days as they appear on the board.",
+      meta,
+      resolvedCommands: [],
     });
   }
 
-  const result = await flushPlanningBatch(tripId, calls, userId);
-  if (!result.ok) {
+  const batch = await flushPlanningBatch(tripId, calls, userId);
+  if (!batch.ok) {
     return Response.json(
-      { error: result.error.message, code: result.error.code },
-      { status: STATUS[result.error.code] ?? 400 },
+      { error: batch.error.message, code: batch.error.code, meta, resolvedCommands: calls },
+      { status: STATUS[batch.error.code] ?? 400 },
     );
   }
   // A plain-language summary of what actually got applied — derived from the
   // committed batch, so it can never claim an edit the batch didn't make (see
   // planSummary). Names resolve against the pre-change `detail`.
+  // `resolvedCommands` is the post-resolution batch (real UUIDs) so a caller
+  // can see how each human `*Ref` mapped to an id vs. what the model asked for
+  // in `meta.toolCalls`.
   return Response.json({
-    detail: result.detail,
-    history: result.history,
+    detail: batch.detail,
+    history: batch.history,
     message: summarizeBatch(calls, detail),
+    meta,
+    resolvedCommands: calls,
   });
+}
+
+// Minimal meta for the model-call-failure path, where there is no result to
+// read — just which model was attempted and how long before it gave up.
+function failedMeta(model: LanguageModel, durationMs: number): Pick<AiCallMeta, "model" | "maxRetries" | "durationMs"> {
+  return {
+    model: { requested: requestedModelId(model), served: null },
+    maxRetries: AI_MAX_RETRIES,
+    durationMs,
+  };
 }
 
 function errorMessage(err: unknown): string {
