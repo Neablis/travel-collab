@@ -2,6 +2,7 @@
   "name": "web",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack -p ${WEB_PORT:-3001}",
