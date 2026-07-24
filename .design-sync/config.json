@@ -1,0 +1,20 @@
+{
+  "projectId": "c5b66415-77a7-4370-aec7-2bcbd6dd88ec",
+  "shape": "package",
+  "pkg": "web",
+  "globalName": "TravelCollabUI",
+  "srcDir": "src/components/ui",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".ds-compiled.css",
+  "extraFonts": ["../../.design-sync/fonts-src/fonts.css"],
+  "buildCmd": "node scripts/design-sync-tailwind.mjs",
+  "docsDir": "../../.design-sync/docs-stubs",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Dialog": { "cardMode": "single", "viewport": "560x420" },
+    "Sheet": { "cardMode": "single", "viewport": "560x520" },
+    "Popover": { "cardMode": "single", "viewport": "420x360" },
+    "DialogFooter": { "cardMode": "single", "viewport": "560x420" },
+    "PageContainer": { "cardMode": "column" }
+  }
+}
