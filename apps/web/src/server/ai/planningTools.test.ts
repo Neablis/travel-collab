@@ -19,6 +19,35 @@ const COLOSSEUM_ID = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
 const FORUM_ID = "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f";
 const FLIGHT_ID = "4e5f6071-8293-4d0e-1f2a-3b4c5d6e7f80";
 
+// A compound, UUID-embedding conflict id (as detectConflicts emits) — the exact
+// kind of string the model must never be asked to copy.
+const OVERLAP_ID = `time-overlap:${DAY_1_ID}:${COLOSSEUM_ID}:${FORUM_ID}`;
+const OVER_BUDGET_ID = "over-budget:6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+
+// A detail carrying two active conflicts, for the DismissConflict resolver.
+const conflictedDetail = () =>
+  tripDetailFixture({
+    conflicts: [
+      {
+        id: OVERLAP_ID,
+        kind: "time-overlap",
+        severity: "warn",
+        subjects: [COLOSSEUM_ID, FORUM_ID],
+        description: '"Colosseum tour" and "Roman Forum" overlap in time on the same day.',
+        resolutions: ["Change one activity's time window"],
+      },
+      {
+        id: OVER_BUDGET_ID,
+        kind: "over-budget",
+        severity: "warn",
+        subjects: ["6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f"],
+        description: "Trip total exceeds the budget.",
+        resolutions: ["Raise the budget"],
+      },
+    ],
+    dismissedConflictIds: [],
+  });
+
 const detail = () => costedTripDetailFixture();
 
 // The AI SDK passes execute() a second "options" arg; tests don't use it, so a
@@ -62,6 +91,16 @@ describe("buildPlanningTools", () => {
     expect(withTripId.success).toBe(true);
   });
 
+  it("money-bearing tools spell out integer minor units, guarding the silent-corruption trap", () => {
+    const { tools } = buildPlanningTools(TRIP_ID, detail());
+    // amountMinor is cents, but nothing in the derived Money schema hints it —
+    // so the model could emit `amountMinor: 500` for "5 EUR" (structurally
+    // valid, silently wrong). Every tool that carries a Money field must say so.
+    for (const type of ["SetTripBudget", "AddActivity", "UpdateActivity"] as const) {
+      expect(tools[type]!.description).toMatch(/minor units|cents/i);
+    }
+  });
+
   it("collects executed tool calls, injecting tripId and type, retrievable via getCollected", async () => {
     const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
     const dayId = "22222222-2222-2222-2222-222222222222";
@@ -86,6 +125,22 @@ describe("reference resolution", () => {
       .shape;
     expect(moveShape).toHaveProperty("dayRef");
     expect(moveShape).not.toHaveProperty("toDayId");
+  });
+
+  it("AddActivity schema exposes dayRef, not dayId (activityId is untouched — it's a new entity)", () => {
+    const { tools } = buildPlanningTools(TRIP_ID, detail());
+    const shape = (asZodSchema(tools.AddActivity!.inputSchema) as unknown as { shape: Record<string, unknown> })
+      .shape;
+    expect(shape).toHaveProperty("dayRef");
+    expect(shape).not.toHaveProperty("dayId");
+    expect(shape).toHaveProperty("activityId");
+  });
+
+  it("RemoveDay schema exposes dayRef, not dayId", () => {
+    const { tools } = buildPlanningTools(TRIP_ID, detail());
+    const shape = (asZodSchema(tools.RemoveDay!.inputSchema) as unknown as { shape: Record<string, unknown> }).shape;
+    expect(shape).toHaveProperty("dayRef");
+    expect(shape).not.toHaveProperty("dayId");
   });
 
   describe("activityRef", () => {
@@ -240,6 +295,210 @@ describe("reference resolution", () => {
 
       expect(result.queued).toBe(false);
       expect(getCollected()).toEqual([]);
+    });
+  });
+
+  describe("AddActivity dayRef", () => {
+    it('resolves "day N" (1-based) to that day\'s id', async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const activityId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+      await tools.AddActivity!.execute!({ activityId, title: "New stop", dayRef: "day 1" }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([
+        { type: "AddActivity", tripId: TRIP_ID, activityId, title: "New stop", dayId: DAY_1_ID },
+      ]);
+    });
+
+    it("resolves a raw dayId that exists", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const activityId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+      await tools.AddActivity!.execute!({ activityId, title: "New stop", dayRef: DAY_1_ID }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([
+        { type: "AddActivity", tripId: TRIP_ID, activityId, title: "New stop", dayId: DAY_1_ID },
+      ]);
+    });
+
+    it("omitting dayRef leaves the activity in the backlog (no dayId on the command)", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const activityId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+      await tools.AddActivity!.execute!({ activityId, title: "New stop" }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "AddActivity", tripId: TRIP_ID, activityId, title: "New stop" }]);
+    });
+
+    it('null and "backlog" also resolve to the backlog', async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const idA = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa";
+      const idB = "bbbbbbbb-1111-4bbb-8bbb-bbbbbbbbbbbb";
+      await tools.AddActivity!.execute!({ activityId: idA, title: "Stop A", dayRef: null }, EXEC_OPTS);
+      await tools.AddActivity!.execute!({ activityId: idB, title: "Stop B", dayRef: "backlog" }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([
+        { type: "AddActivity", tripId: TRIP_ID, activityId: idA, title: "Stop A" },
+        { type: "AddActivity", tripId: TRIP_ID, activityId: idB, title: "Stop B" },
+      ]);
+    });
+
+    it("errors (and collects nothing) on an out-of-range day number — this is the day-not-found bug fix", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const activityId = "ffffffff-1111-4fff-8fff-ffffffffffff";
+      const result = (await tools.AddActivity!.execute!(
+        { activityId, title: "New stop", dayRef: "day 2" },
+        EXEC_OPTS,
+      )) as { queued: boolean; error?: string };
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toContain("out of range");
+      expect(getCollected()).toEqual([]);
+    });
+
+    it("errors (and collects nothing) on an unresolvable dayRef string", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const activityId = "12345678-1111-4123-8123-123456789012";
+      const result = (await tools.AddActivity!.execute!(
+        { activityId, title: "New stop", dayRef: "next tuesday" },
+        EXEC_OPTS,
+      )) as { queued: boolean; error?: string };
+
+      expect(result.queued).toBe(false);
+      expect(getCollected()).toEqual([]);
+    });
+  });
+
+  describe("RemoveDay dayRef", () => {
+    it('resolves "day N" (1-based) to that day\'s id', async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const result = await tools.RemoveDay!.execute!({ dayRef: "day 1" }, EXEC_OPTS);
+
+      expect(result).toEqual({ queued: true, type: "RemoveDay", tripId: TRIP_ID });
+      expect(getCollected()).toEqual([{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_1_ID }]);
+    });
+
+    it("resolves a bare day number to that day's id", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      await tools.RemoveDay!.execute!({ dayRef: 1 }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_1_ID }]);
+    });
+
+    it("resolves a raw dayId that exists", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      await tools.RemoveDay!.execute!({ dayRef: DAY_1_ID }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_1_ID }]);
+    });
+
+    it("errors (and collects nothing) on an out-of-range day number — this is the day-not-found bug fix", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const result = (await tools.RemoveDay!.execute!({ dayRef: "day 2" }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toContain("out of range");
+      expect(getCollected()).toEqual([]);
+    });
+
+    it("errors (and collects nothing) on an unresolvable dayRef string", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const result = (await tools.RemoveDay!.execute!({ dayRef: "next tuesday" }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+
+      expect(result.queued).toBe(false);
+      expect(getCollected()).toEqual([]);
+    });
+
+    it('rejects null and "backlog" — RemoveDay has no backlog concept, so it never builds a command with no dayId', async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const fromNull = (await tools.RemoveDay!.execute!({ dayRef: null }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+      const fromBacklog = (await tools.RemoveDay!.execute!({ dayRef: "backlog" }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+
+      expect(fromNull.queued).toBe(false);
+      expect(fromNull.error).toContain("backlog is not a day");
+      expect(fromBacklog.queued).toBe(false);
+      expect(fromBacklog.error).toContain("backlog is not a day");
+      expect(getCollected()).toEqual([]);
+    });
+  });
+
+  describe("DismissConflict conflictRef", () => {
+    it("DismissConflict schema exposes conflictRef, not conflictId", () => {
+      const { tools } = buildPlanningTools(TRIP_ID, conflictedDetail());
+      const shape = (asZodSchema(tools.DismissConflict!.inputSchema) as unknown as { shape: Record<string, unknown> })
+        .shape;
+      expect(shape).toHaveProperty("conflictRef");
+      expect(shape).not.toHaveProperty("conflictId");
+    });
+
+    it("resolves a 1-based ref number to that conflict's real (compound) id", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, conflictedDetail());
+      const result = await tools.DismissConflict!.execute!({ conflictRef: 1 }, EXEC_OPTS);
+
+      expect(result).toEqual({ queued: true, type: "DismissConflict", tripId: TRIP_ID });
+      expect(getCollected()).toEqual([{ type: "DismissConflict", tripId: TRIP_ID, conflictId: OVERLAP_ID }]);
+    });
+
+    it("resolves a numeric-string ref too, and picks the right conflict by position", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, conflictedDetail());
+      await tools.DismissConflict!.execute!({ conflictRef: "2" }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "DismissConflict", tripId: TRIP_ID, conflictId: OVER_BUDGET_ID }]);
+    });
+
+    it("accepts an exact conflict id as a fallback", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, conflictedDetail());
+      await tools.DismissConflict!.execute!({ conflictRef: OVERLAP_ID }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "DismissConflict", tripId: TRIP_ID, conflictId: OVERLAP_ID }]);
+    });
+
+    it("errors (and collects nothing) on an out-of-range ref", async () => {
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, conflictedDetail());
+      const result = (await tools.DismissConflict!.execute!({ conflictRef: 3 }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toContain("out of range");
+      expect(getCollected()).toEqual([]);
+    });
+
+    it("errors (and collects nothing) when there are no active conflicts to dismiss", async () => {
+      // The default fixture has an empty conflicts array.
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, detail());
+      const result = (await tools.DismissConflict!.execute!({ conflictRef: 1 }, EXEC_OPTS)) as {
+        queued: boolean;
+        error?: string;
+      };
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toContain("no active conflicts");
+      expect(getCollected()).toEqual([]);
+    });
+
+    it("excludes dismissed conflicts from ref numbering", async () => {
+      // With the first conflict already dismissed, ref 1 must resolve to the
+      // second (still-active) conflict, not the dismissed one.
+      const base = conflictedDetail();
+      const partlyDismissed = tripDetailFixture({
+        conflicts: base.conflicts,
+        dismissedConflictIds: [OVERLAP_ID],
+      });
+      const { tools, getCollected } = buildPlanningTools(TRIP_ID, partlyDismissed);
+      await tools.DismissConflict!.execute!({ conflictRef: 1 }, EXEC_OPTS);
+
+      expect(getCollected()).toEqual([{ type: "DismissConflict", tripId: TRIP_ID, conflictId: OVER_BUDGET_ID }]);
     });
   });
 });

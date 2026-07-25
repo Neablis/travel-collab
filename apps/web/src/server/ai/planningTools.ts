@@ -35,23 +35,30 @@ import {
   type TripDetail,
 } from "@tc/contracts";
 import { executeTripCommandBatch, type CommandResult } from "../commands";
+import { activeConflicts } from "./context";
 
 // Short, human-readable descriptions for the model — keyed by command type.
 // Not derived from the contract (the contract has no description field);
 // kept here as the one place hand-written tool copy lives.
+// Money is ALWAYS integer minor units (cents), never a decimal — the single
+// biggest silent-corruption trap for the model, so every money-bearing tool
+// spells it out (an amount of 500 means 5.00, not 500.00).
+const MONEY_UNITS_NOTE =
+  "Money is integer minor units (cents): amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).";
+
 const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   AddDay: "Add a day to the trip.",
-  RemoveDay: "Remove a day from the trip; its activities return to the backlog.",
+  RemoveDay: 'Remove an existing day from the trip (dayRef: "day N" or its dayId); its activities return to the backlog.',
   SetTripStartDate: "Set (or clear, with null) the trip's start date.",
-  AddActivity: "Add an activity, optionally placed on a day or left in the backlog.",
-  UpdateActivity:
-    "Update fields on an existing activity (name it via activityRef — its title or id). Omitted fields are unchanged.",
+  AddActivity: `Add an activity, optionally placed on a day or left in the backlog. ${MONEY_UNITS_NOTE}`,
+  UpdateActivity: `Update fields on an existing activity (name it via activityRef — its title or id). Omitted fields are unchanged. ${MONEY_UNITS_NOTE}`,
   MoveActivity:
     'Move an activity (activityRef: title or id) to a different day (dayRef: "day N", a dayId, or null/backlog) and position.',
   RemoveActivity: "Remove an activity from the trip (name it via activityRef — its title or id).",
-  DismissConflict: "Dismiss a detected scheduling conflict.",
+  DismissConflict:
+    "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
-  SetTripBudget: "Set (or clear, with null) the trip's budget.",
+  SetTripBudget: `Set (or clear, with null) the trip's budget. ${MONEY_UNITS_NOTE}`,
 };
 
 // The command types whose id-bearing fields are swapped for human `*Ref`
@@ -73,6 +80,17 @@ const dayRefSchema = z
   .union([z.string(), z.number().int()])
   .nullable()
   .describe('Target day: "day N" (1-based, e.g. "day 2"), a dayId, "backlog", or null for the backlog.');
+
+// RemoveDay targets an *existing* day and has no backlog concept, so its ref is
+// non-nullable — unlike dayRefSchema, "backlog"/null is not a valid choice here
+// (execute() rejects a ref that resolves to the backlog with a clear error).
+const removeDayRefSchema = z
+  .union([z.string(), z.number().int()])
+  .describe('The day to remove: "day N" (1-based, e.g. "day 2") or its dayId. Must be an existing day — the backlog is not a day and cannot be removed.');
+
+const conflictRefSchema = z
+  .union([z.string(), z.number().int()])
+  .describe("The conflict to dismiss, by its `ref` number in the context's `conflicts` list (e.g. 1). Never a raw conflict id.");
 
 type Resolved<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -141,7 +159,37 @@ function buildRefResolver(detail: TripDetail) {
     return resolveDayNumber(Number(match[1]), `“${ref}”`);
   }
 
-  return { resolveActivity, resolveDay };
+  // Conflict ids are compound, UUID-embedding strings the model never sees; it
+  // references an active conflict by the 1-based `ref` shown in the envelope's
+  // `conflicts` list (built from the SAME `activeConflicts(detail)`, so the
+  // numbering matches). A bare exact id is still accepted as a fallback.
+  const conflicts = activeConflicts(detail);
+  function resolveConflict(ref: string | number): Resolved<string> {
+    if (conflicts.length === 0) {
+      return { ok: false, error: "There are no active conflicts to dismiss." };
+    }
+    const asNum =
+      typeof ref === "number" ? ref : /^\d+$/.test(ref.trim()) ? Number(ref.trim()) : null;
+    if (asNum !== null) {
+      const match = conflicts.find((c) => c.ref === asNum);
+      if (!match) {
+        return {
+          ok: false,
+          error: `Conflict ${asNum} is out of range — there ${conflicts.length === 1 ? "is" : "are"} ${conflicts.length} active conflict(s), numbered 1..${conflicts.length}.`,
+        };
+      }
+      return { ok: true, value: match.id };
+    }
+    const refStr = typeof ref === "string" ? ref.trim() : String(ref);
+    const byId = conflicts.find((c) => c.id === refStr);
+    if (byId) return { ok: true, value: byId.id };
+    return {
+      ok: false,
+      error: `Couldn't read “${ref}” as a conflict. Reference an active conflict by its number (e.g. 1) from the context's conflicts list.`,
+    };
+  }
+
+  return { resolveActivity, resolveDay, resolveConflict };
 }
 
 export function buildPlanningTools(
@@ -154,6 +202,26 @@ export function buildPlanningTools(
   const collected: BatchableCommandType[] = [];
   const tools: Record<string, Tool> = {};
   const resolver = buildRefResolver(detail);
+
+  // The single typed choke point between a tool's (resolved) args and the
+  // pending batch: model output becomes a domain command only by PARSING
+  // against the contract, never by an unchecked `as` cast. A parse failure
+  // here means our derived tool schema or a ref resolver has drifted from
+  // `BatchableCommand` — surface it as a tool error (same shape a failed ref
+  // returns) so the model sees it, rather than pushing a malformed command
+  // onto the batch or throwing out of execute(). `.parse` also strips any
+  // stray keys, so what we collect is exactly the contract shape.
+  // NOTE: this makes the tool layer *locally* type-safe; `executeTripCommandBatch`
+  // still re-parses the whole batch as the authoritative boundary. See the
+  // "typed AI-gateway wrapper" tech-debt note (KI-9) for the broader follow-up.
+  function collect(raw: Record<string, unknown>): { queued: true; type: string; tripId: string } | { queued: false; error: string } {
+    const parsed = BatchableCommand.safeParse(raw);
+    if (!parsed.success) {
+      return { queued: false, error: `Could not build a valid command: ${parsed.error.message}` };
+    }
+    collected.push(parsed.data);
+    return { queued: true, type: parsed.data.type, tripId };
+  }
 
   // The union members have incompatible `.omit` overloads (each ZodObject's
   // shape differs), so TS can't call it generically across the union — cast
@@ -168,6 +236,84 @@ export function buildPlanningTools(
     // which trip), and `type` is redundant once the command is identified by
     // its tool name — execute() re-adds both before collecting the command.
     const base = optionSchema.omit({ tripId: true, type: true });
+
+    if (type === "AddActivity") {
+      // AddActivity's activityId isn't resolved against anything — it's a
+      // fresh id for a new entity — but its optional dayId targets an
+      // *existing* day, same as MoveActivity's toDayId, so it gets the same
+      // dayRef swap and the same "don't require a verbatim UUID" guarantee.
+      const refSchema = base.omit({ dayId: true }).extend({ dayRef: dayRefSchema.optional() });
+
+      tools[type] = tool({
+        description: DESCRIPTIONS[type],
+        inputSchema: refSchema as unknown as z.ZodTypeAny,
+        execute: async (args: Record<string, unknown>) => {
+          const { dayRef, ...rest } = args as { dayRef?: string | number | null } & Record<string, unknown>;
+
+          const day = resolver.resolveDay(dayRef ?? null);
+          if (!day.ok) return { queued: false, error: day.error };
+
+          return collect({
+            ...rest,
+            ...(day.value !== null ? { dayId: day.value } : {}),
+            type,
+            tripId,
+          });
+        },
+      });
+      continue;
+    }
+
+    if (type === "RemoveDay") {
+      // Same class as the AddActivity fix: RemoveDay.dayId targets an existing
+      // day, so require a human dayRef instead of a verbatim UUID. Unlike
+      // AddActivity/MoveActivity, RemoveDay has NO backlog concept, so a ref
+      // that resolves to the backlog (null/"backlog") is rejected outright
+      // rather than silently building a command with no dayId.
+      const refSchema = base.omit({ dayId: true }).extend({ dayRef: removeDayRefSchema });
+
+      tools[type] = tool({
+        description: DESCRIPTIONS[type],
+        inputSchema: refSchema as unknown as z.ZodTypeAny,
+        execute: async (args: Record<string, unknown>) => {
+          const { dayRef, ...rest } = args as { dayRef: string | number } & Record<string, unknown>;
+
+          const day = resolver.resolveDay(dayRef ?? null);
+          if (!day.ok) return { queued: false, error: day.error };
+          if (day.value === null) {
+            return {
+              queued: false,
+              error:
+                'RemoveDay needs an existing day — reference it as "day N" (1-based) or its dayId. The backlog is not a day and cannot be removed.',
+            };
+          }
+
+          return collect({ ...rest, dayId: day.value, type, tripId });
+        },
+      });
+      continue;
+    }
+
+    if (type === "DismissConflict") {
+      // Same id-verbatim class: the real conflictId is a compound UUID-embedding
+      // string the model is never shown. Swap it for conflictRef (the 1-based
+      // number from the envelope's `conflicts` list), resolved server-side.
+      const refSchema = base.omit({ conflictId: true }).extend({ conflictRef: conflictRefSchema });
+
+      tools[type] = tool({
+        description: DESCRIPTIONS[type],
+        inputSchema: refSchema as unknown as z.ZodTypeAny,
+        execute: async (args: Record<string, unknown>) => {
+          const { conflictRef, ...rest } = args as { conflictRef: string | number } & Record<string, unknown>;
+
+          const conflict = resolver.resolveConflict(conflictRef);
+          if (!conflict.ok) return { queued: false, error: conflict.error };
+
+          return collect({ ...rest, conflictId: conflict.value, type, tripId });
+        },
+      });
+      continue;
+    }
 
     if (REF_TOOL_TYPES.has(type)) {
       // Swap only the id-bearing fields (Invariant 5: keep the rest of the
@@ -200,9 +346,7 @@ export function buildPlanningTools(
             resolved.toDayId = day.value;
           }
 
-          const command = { ...resolved, type, tripId } as BatchableCommandType;
-          collected.push(command);
-          return { queued: true, type, tripId };
+          return collect({ ...resolved, type, tripId });
         },
       });
       continue;
@@ -212,9 +356,7 @@ export function buildPlanningTools(
       description: DESCRIPTIONS[type],
       inputSchema: base as unknown as z.ZodTypeAny,
       execute: async (args: Record<string, unknown>) => {
-        const command = { ...args, type, tripId } as BatchableCommandType;
-        collected.push(command);
-        return { queued: true, type, tripId };
+        return collect({ ...args, type, tripId });
       },
     });
   }

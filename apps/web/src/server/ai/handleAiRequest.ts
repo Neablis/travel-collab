@@ -124,8 +124,11 @@ export async function handleAiRequest(
     "Use ONLY the context below — no outside knowledge of the trip.",
     "The planning tools take human references: name an existing activity by its exact `title` (its `id` also works) via `activityRef`, and a day as \"day N\" (1-based, e.g. \"day 2\"; a `dayId` or null/\"backlog\" also work) via `dayRef`. The server resolves them — never invent, guess, or reformat a UUID.",
     "If a title is ambiguous (matches two activities), the tool says so; reference that one by its exact `id` instead.",
-    "When adding a NEW activity, generate a fresh random UUID for its activityId.",
+    "When adding a NEW entity, generate a fresh random UUID for its id: `activityId` on AddActivity, `dayId` on AddDay.",
     "A MoveActivity `position` is a zero-based index into the target day's activity list.",
+    "To dismiss a conflict, reference it by its `ref` number in the context's `conflicts` list via `conflictRef` — only conflicts listed there can be dismissed, and never copy a raw conflict id.",
+    "All money amounts are integer minor units (cents), never decimals: 5.00 is `amountMinor` 500, so multiply a decimal amount by 100 (500 EUR → 50000).",
+    "Codes are case-sensitive — use these exact forms: weekday anchors are lowercase three-letter codes (`mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`); `currency` is an uppercase ISO-4217 code (e.g. `EUR`); a location/anchor country is an uppercase ISO-3166 alpha-2 code (e.g. `IT`).",
     `Context: ${JSON.stringify(envelope)}`,
   ].join("\n");
 

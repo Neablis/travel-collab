@@ -1,8 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { costedTripDetailFixture } from "../../mocks/fixtures";
-import { buildEnvelope } from "./context";
+import type { Conflict } from "@tc/contracts";
+import { costedTripDetailFixture, tripDetailFixture } from "../../mocks/fixtures";
+import { activeConflicts, buildEnvelope } from "./context";
 
 const PAGE_CONTEXT = { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" };
+
+// Two conflicts with compound, UUID-embedding ids (as detectConflicts emits) —
+// exactly the ids the model must NEVER be asked to copy.
+const OVERLAP: Conflict = {
+  id: "time-overlap:1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d:2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e:3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f",
+  kind: "time-overlap",
+  severity: "warn",
+  subjects: ["2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e", "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f"],
+  description: '"Colosseum tour" and "Roman Forum" overlap in time on the same day.',
+  resolutions: ["Change one activity's time window"],
+};
+const OVER_BUDGET: Conflict = {
+  id: "over-budget:6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+  kind: "over-budget",
+  severity: "warn",
+  subjects: ["6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f"],
+  description: "Trip total exceeds the budget.",
+  resolutions: ["Raise the budget"],
+};
 
 describe("buildEnvelope", () => {
   it("page surface: includes macro catalog + summarized trip, tools: ['page']", () => {
@@ -25,6 +45,53 @@ describe("buildEnvelope", () => {
 
     expect(envelope.tools).toEqual(["planning"]);
     expect(envelope.macros).toBeUndefined();
+  });
+
+  describe("active-conflict surfacing", () => {
+    it("board surface: exposes active conflicts as { ref, kind, description }, hiding the raw id", () => {
+      const detail = tripDetailFixture({ conflicts: [OVERLAP, OVER_BUDGET], dismissedConflictIds: [] });
+      const envelope = buildEnvelope({ detail, surface: "board" });
+
+      expect(envelope.conflicts).toEqual([
+        { ref: 1, kind: "time-overlap", description: OVERLAP.description },
+        { ref: 2, kind: "over-budget", description: OVER_BUDGET.description },
+      ]);
+      // The raw compound id must never leak into what the model sees.
+      expect(JSON.stringify(envelope.conflicts)).not.toContain(OVERLAP.id);
+    });
+
+    it("excludes dismissed conflicts and renumbers refs over what remains", () => {
+      const detail = tripDetailFixture({
+        conflicts: [OVERLAP, OVER_BUDGET],
+        dismissedConflictIds: [OVERLAP.id],
+      });
+      const envelope = buildEnvelope({ detail, surface: "board" });
+
+      expect(envelope.conflicts).toEqual([{ ref: 1, kind: "over-budget", description: OVER_BUDGET.description }]);
+    });
+
+    it("omits the conflicts field entirely when there are no active conflicts", () => {
+      const detail = tripDetailFixture({ conflicts: [], dismissedConflictIds: [] });
+      const envelope = buildEnvelope({ detail, surface: "board" });
+
+      expect(envelope.conflicts).toBeUndefined();
+    });
+
+    it("page surface: never surfaces conflicts (not a planning surface)", () => {
+      const detail = tripDetailFixture({ conflicts: [OVERLAP], dismissedConflictIds: [] });
+      const envelope = buildEnvelope({ detail, surface: "page", pageContext: PAGE_CONTEXT });
+
+      expect(envelope.conflicts).toBeUndefined();
+    });
+
+    it("activeConflicts keeps input order and carries the id for the resolver", () => {
+      const detail = tripDetailFixture({ conflicts: [OVERLAP, OVER_BUDGET], dismissedConflictIds: [] });
+
+      expect(activeConflicts(detail)).toEqual([
+        { ref: 1, id: OVERLAP.id, kind: "time-overlap", description: OVERLAP.description },
+        { ref: 2, id: OVER_BUDGET.id, kind: "over-budget", description: OVER_BUDGET.description },
+      ]);
+    });
   });
 
   it("combined surface: tools: ['planning', 'page'], includes macro catalog", () => {

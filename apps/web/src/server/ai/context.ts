@@ -10,9 +10,14 @@
 //     and each day carries its `dayId` for the same reason (MoveActivity's
 //     `toDayId`). Without these the model can name an activity but has no way
 //     to reference it, so it emits zero commands and nothing changes.
-//   - `conflicts` / `dismissedConflictIds` — conflict detection is a planning
-//     concern surfaced through the planning tools' own results, not context
-//     the model needs pre-loaded on every request.
+//   - the full `conflicts` / `dismissedConflictIds` records — the raw
+//     Conflict shape carries a compound, UUID-embedding `id` the model must
+//     never copy. Instead, `AiEnvelope.conflicts` (planning surfaces only)
+//     surfaces the ACTIVE (non-dismissed) conflicts in a stable,
+//     human-referenceable form — a 1-based `ref` + kind + description — so
+//     DismissConflict can name one by its number (`conflictRef`), resolved
+//     server-side back to its real id (see `activeConflicts`). Without this
+//     the model has no id to reference and every dismiss attempt fails.
 // `members`, `backlog`, and `budget`/`budgetRemaining` are also excluded:
 // none of them are needed by the page-authoring or planning tool families
 // this envelope currently scopes into, and each one is either PII-adjacent
@@ -50,10 +55,38 @@ export interface TripSummary {
   days: TripDaySummary[];
 }
 
+// A single active conflict, in the stable human-referenceable form the model
+// sees. `ref` is 1-based and stable within one envelope; it is what
+// DismissConflict's `conflictRef` resolves against. The raw content-derived
+// `id` (which embeds UUIDs) is deliberately NOT exposed here.
+export interface AiConflictSummary {
+  ref: number;
+  kind: string;
+  description: string;
+}
+
+// The active (non-dismissed) conflicts, in the same order the resolver indexes
+// them — the SINGLE source of truth for conflict `ref` numbering, so the
+// envelope the model reads and the resolver that maps a `ref` back to an id can
+// never drift. `detail.conflicts` is already sorted deterministically by
+// `detectConflicts`; filtering by `dismissedConflictIds` preserves that order.
+// The returned `id` is for the resolver only; the envelope strips it.
+export function activeConflicts(detail: TripDetail): (AiConflictSummary & { id: string })[] {
+  const dismissed = new Set(detail.dismissedConflictIds);
+  return detail.conflicts
+    .filter((c) => !dismissed.has(c.id))
+    .map((c, i) => ({ ref: i + 1, id: c.id, kind: c.kind, description: c.description }));
+}
+
 export interface AiEnvelope {
   surface: AiSurface;
   tripSummary: TripSummary;
   macros?: ReturnType<typeof macroCatalog>;
+  // Active (non-dismissed) conflicts the model can dismiss by `ref`, present
+  // only on planning surfaces (board/combined) and only when there are any.
+  // Kept out of `tripSummary` on purpose — it is a planning affordance, not
+  // part of the trip's shape. See `activeConflicts`.
+  conflicts?: AiConflictSummary[];
   tools: string[];
   // The day a `page`/`combined`-surface request is bound to, resolved from
   // `pageContext.dayRef` against `detail.days`. Absent when the surface has
@@ -112,12 +145,18 @@ export function buildEnvelope(params: {
 }): AiEnvelope {
   const { detail, surface, pageContext } = params;
   const includeMacros = surface === "page" || surface === "combined";
+  const includePlanning = surface === "board" || surface === "combined";
   const boundDay = includeMacros ? resolveBoundDay(detail, pageContext) : undefined;
+  // Strip the internal `id` — the model references conflicts by `ref` only.
+  const conflicts = includePlanning
+    ? activeConflicts(detail).map(({ id: _id, ...rest }) => rest)
+    : [];
 
   return {
     surface,
     tripSummary: summarizeTrip(detail),
     ...(includeMacros ? { macros: macroCatalog() } : {}),
+    ...(conflicts.length > 0 ? { conflicts } : {}),
     tools: TOOLS_BY_SURFACE[surface],
     ...(boundDay ? { boundDay } : {}),
   };
