@@ -19,7 +19,7 @@
 
 ---
 
-## Starting state (already done on branch `claude/ai-id-resolver-refactor`)
+## Starting state (already done on `claude/next-milestone-388cd0`, PR #15)
 
 These are committed and verified — **do not rebuild them**:
 
@@ -494,23 +494,21 @@ cd apps/web && pnpm exec vitest run -c vitest.unit.config.ts src/server/ai
 
 - [ ] **Step 2: Sanity — the AI surface exposes no uuid params.** Confirm no planning tool's inputSchema contains `activityId`, `dayId`, `toDayId`, or `conflictId` (only `activityRef`/`dayRef`/`conflictRef`). The Task 1 test already asserts the key ones; eyeball the rest if desired.
 
-- [ ] **Step 3: Push + open PR**
+- [ ] **Step 3: Push**
+
+The work lives directly on `claude/next-milestone-388cd0` (PR #15) — there is no separate branch/PR. Just push the completed tasks:
 
 ```bash
-git push -u origin claude/ai-id-resolver-refactor
-gh pr create --base main --title "M7: manifest-driven, server-minted, batch-aware AI id resolution" \
-  --body "Supersedes KI-8's per-tool ref resolver with one manifest-driven engine. The AI never handles a UUID (server injects tripId, mints new ids, resolves human refs). Resolution is batch-aware, so 'add a day then put an activity on it' works. Fixes the remaining gaps: intra-batch dependencies + model-minted UUIDs.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+git push origin claude/next-milestone-388cd0
 ```
 
-> **PR base decision:** target `main` if PR #15 (the M7 branch) has merged by then; otherwise target `claude/next-milestone-388cd0` to stack on it. Check with `gh pr view 15 --json state`.
+PR #15's description already covers M7; this refactor is part of it.
 
 ---
 
 ## Gotchas / context the executor needs
 
-- **Shared branch churn.** This branch forked from `claude/next-milestone-388cd0` at KI-8 (`2bfd185`) + main merge. If more AI-surface commits land there, rebase before the final push.
+- **Shared branch.** Work continues directly on `claude/next-milestone-388cd0` (PR #15). The `idFields`/`batchResolver` foundation is already committed there (`e8fda8f`). If other AI-surface commits land, pull before continuing.
 - **KI-8 is what you're replacing.** The current `planningTools.ts` (before Task 1) has four per-tool branches (AddActivity/RemoveDay/DismissConflict/REF_TOOL_TYPES) + a `collect()` safeParse. All of that behavior now lives in the manifest + `resolveBatch`. Don't reintroduce per-tool code.
 - **Deferred resolution = no mid-generation self-correction.** The old design let a bad ref surface as a tool result mid-request; the new design resolves after generation. This is intentional (eager resolution can't see a day the batch is about to add) — errors surface in `resolutionErrors`/`meta` instead.
 - **Partial apply.** A bad ref drops one command; the survivors still submit as one atomic batch. If a *resolved* command later fails in the domain (`decide.ts`), the whole batch still rejects atomically — that's correct.
