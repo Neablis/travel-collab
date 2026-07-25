@@ -57,6 +57,19 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 - [ ] **M11 Rich layer** — Notion-style pages with embedded objects, external
       calendar sync, dogfood-backlog items.
 
+## Candidate ideas (unscheduled)
+
+Captured so they aren't lost; not committed to a milestone yet.
+
+- **AI "Preview" before apply.** Let an AI plan-edit be *previewed and approved*
+  before it becomes truth, instead of committing the atomic batch immediately.
+  Two directions to explore (Mitchell, 2026-07-25): (a) lean on the
+  event-sourcing/history substrate — a single pending "future" branch the user
+  reviews and approves (or discards) to fast-forward into the real log; or (b) an
+  intermediate, validated model of the proposed batch surfaced to the frontend
+  for approval before it's applied. Natural fit alongside M8 (multi-actor makes
+  "propose then approve" more valuable) or the M7 AI surface's own hardening.
+
 ## Standing tasks (every milestone)
 
 - **Preflight (kickoff):** before the milestone's first task, reconcile the
