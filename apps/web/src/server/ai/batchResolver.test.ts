@@ -308,3 +308,28 @@ describe("resolveBatch — a domain rejection drops one command, never the batch
     expect((commands[0] as Extract<BatchableCommand, { type: "DismissConflict" }>).conflictId).toBe(expected);
   });
 });
+
+describe("resolveBatch — cascaded drops name their cause", () => {
+  it("links a title ref to the dropped command that would have created it", () => {
+    const detail = tripWithDays([D1]);
+    const { commands, errors } = resolve(
+      [
+        { type: "AddActivity", args: { title: "Museum", dayRef: "day 9" } }, // dropped: out of range
+        { type: "UpdateActivity", args: { activityRef: "Museum", notes: "opens late" } },
+      ],
+      detail,
+    );
+
+    expect(commands).toHaveLength(0);
+    expect(errors).toHaveLength(2);
+    expect(errors[1]!.causeIndex).toBe(0);
+    expect(errors[1]!.message).toMatch(/would have created/i);
+  });
+
+  it("leaves an unrelated failure uncaused", () => {
+    const detail = tripWithDays([D1]);
+    const { errors } = resolve([{ type: "RemoveActivity", args: { activityRef: "Ghost" } }], detail);
+
+    expect(errors[0]!.causeIndex).toBeUndefined();
+  });
+});

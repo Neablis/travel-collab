@@ -44,6 +44,10 @@ export interface BatchResolutionError {
   // failure — callers should exclude it from user-facing "couldn't do that" counts.
   code: string;
   message: string;
+  // When this drop was CAUSED by an earlier drop — the command that would have
+  // created the entity this one references — the earlier command's emission
+  // index. Without it a cascade reads as N unrelated failures.
+  causeIndex?: number;
 }
 
 export interface ResolvedBatch {
@@ -146,6 +150,22 @@ function resolveRef(
   }
 }
 
+function explain(
+  error: BatchResolutionError,
+  args: Record<string, unknown>,
+  droppedTitles: Map<string, number>,
+): BatchResolutionError {
+  const ref = args[refParamName("activity")];
+  if (typeof ref !== "string") return error;
+  const causeIndex = droppedTitles.get(ref.trim().toLowerCase());
+  if (causeIndex === undefined) return error;
+  return {
+    ...error,
+    causeIndex,
+    message: `${error.message} (The earlier change that would have created "${ref}" was itself skipped.)`,
+  };
+}
+
 // Task 9 replaces this with the AddDay hoist. `index` is the model's emission
 // position and stays attached to the intent through any reordering.
 function orderIntents(intents: RawToolIntent[]): { intent: RawToolIntent; index: number }[] {
@@ -162,6 +182,10 @@ export function resolveBatch(
   const conflictIdByRef: ConflictRefMap = new Map(activeConflicts(detail).map((c) => [c.ref, c.id] as const));
   const commands: BatchableCommand[] = [];
   const errors: BatchResolutionError[] = [];
+  // Titles an earlier DROPPED command would have created or renamed. A later ref
+  // to one of them fails for a real reason ("No activity named X") that points at
+  // the wrong thing — this lets the error name the actual cause.
+  const droppedTitles = new Map<string, number>();
 
   for (const { intent, index } of orderIntents(intents)) {
     const spec = ID_FIELDS[intent.type];
@@ -221,7 +245,11 @@ export function resolveBatch(
       }
     }
 
-    errors.push({ index, type: intent.type, code: failure.code, message: failure.message });
+    errors.push(explain({ index, type: intent.type, code: failure.code, message: failure.message }, intent.args, droppedTitles));
+    // Recorded AFTER explain(), so a command that both references and sets the
+    // same title can never be cited as its own cause.
+    const title = typeof intent.args.title === "string" ? intent.args.title.trim().toLowerCase() : undefined;
+    if (title !== undefined && !droppedTitles.has(title)) droppedTitles.set(title, index);
   }
 
   return { commands, errors };
