@@ -12,4 +12,6 @@ export const DATABASE_URL = process.env.DATABASE_URL;
 export const serverConfig = {
   locationIqApiKey: process.env.LOCATIONIQ_API_KEY ?? "",
   timezone: process.env.TRIP_TIMEZONE ?? "America/Los_Angeles",
+  aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? "",
+  aiModel: process.env.AI_MODEL ?? "anthropic/claude-haiku-4-5",
 };

@@ -304,4 +304,32 @@ describe("executeTripCommandBatch", () => {
     );
     expect(result.ok).toBe(false);
   });
+
+  it("skips a no-op sub-command instead of aborting the batch", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "No-op batch trip" }); // defaults currency USD
+    const dayId = randomUUID();
+    const result = await executeTripCommandBatch(
+      [
+        { type: "SetTripCurrency", tripId, currency: "USD" }, // no-op: already USD
+        { type: "AddDay", tripId, dayId },
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.detail.days).toHaveLength(1); // the AddDay applied despite the no-op
+  });
+
+  it("rejects a batch that is entirely no-ops", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "All no-op trip" });
+    const result = await executeTripCommandBatch(
+      [{ type: "SetTripCurrency", tripId, currency: "USD" }],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected rejection");
+    expect(result.error.code).toBe("no-op");
+  });
 });

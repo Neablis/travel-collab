@@ -19,6 +19,7 @@
     "db:reset": "node scripts/db-reset.mjs"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.26",
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@radix-ui/react-dialog": "^1.1.19",
@@ -26,8 +27,14 @@
     "@radix-ui/react-tabs": "^1.1.17",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
+    "@tc/pages": "workspace:*",
     "@tc/predict": "workspace:*",
+    "@tiptap/pm": "^2.11.0",
+    "@tiptap/react": "^2.11.0",
+    "@tiptap/starter-kit": "^2.11.0",
+    "@tiptap/suggestion": "^2.11.0",
     "@vercel/analytics": "^2.0.1",
+    "ai": "^7.0.34",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.36.0",
@@ -39,6 +46,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.6.0",
+    "tippy.js": "6.3.7",
     "zod": "^3.23.0"
   },
   "devDependencies": {

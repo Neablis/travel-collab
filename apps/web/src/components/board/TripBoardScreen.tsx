@@ -14,11 +14,12 @@ import { TabStrip } from "@/components/ui/tab-strip";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { ComposePanel } from "@/components/pages/ai/ComposePanel";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, preview } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
   const { lens, setLens } = useLens();
   const { openEdit } = useEditor();
 
@@ -90,6 +91,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           </PageContainer>
         ) : (
           <PageContainer width="content">
+            {lens === "Board" && (
+              <div className="mb-3">
+                {/* The AI route executes the model's plan as one atomic batch
+                    server-side (Task 5.3), so there's nothing for the client to
+                    predict — we reconcile in place from the authoritative
+                    { detail, history } the response already returns (no refetch,
+                    no page reload; ComposePanel's summary stays on screen). */}
+                <ComposePanel tripId={tripId} surface="board" onApplied={applyOutcome} />
+              </div>
+            )}
             {lens === "Board" && (
               <Board
                 trip={activeTrip}

@@ -156,14 +156,25 @@ export async function executeTripCommandBatch(input: unknown, actorId: string): 
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
     }
 
-    // 4. decide each command in order against the evolving state; the first
-    //    rejection aborts the whole batch — nothing is appended.
+    // 4. decide each command in order against the evolving state. A no-op
+    //    sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
+    //    back an otherwise-valid batch (2026-07-25 live-testing finding). Real
+    //    rejections (day-not-found, activity-already-exists, …) still abort.
     const events: TripEvent[] = [];
     for (const command of commands) {
       const decision = decideTripCommand(state, command, { actorId });
-      if (!decision.ok) return { ok: false, error: decision.rejection };
+      if (!decision.ok) {
+        if (decision.rejection.code === "no-op") continue;
+        return { ok: false, error: decision.rejection };
+      }
       for (const event of decision.events) state = evolveTrip(state, event);
       events.push(...decision.events);
+    }
+    // If every sub-command was a no-op there is nothing to append — report it the
+    // same way a single no-op command does, rather than appending an empty batch
+    // (appendToStream requires ≥1 event and one batch = one history entry).
+    if (events.length === 0) {
+      return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
     }
 
     // 5. append every event from every command under ONE batchId

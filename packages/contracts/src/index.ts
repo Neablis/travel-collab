@@ -5,3 +5,4 @@ export * from "./envelope";
 export * from "./conflict";
 export * from "./history";
 export * from "./money";
+export * from "./pages";

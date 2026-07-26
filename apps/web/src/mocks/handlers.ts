@@ -1,5 +1,13 @@
 import { HttpResponse, http } from "msw";
-import { BatchableCommand, TripCommand, type TripDetail, type TripHistory } from "@tc/contracts";
+import {
+  BatchableCommand,
+  CreatePageInput,
+  TripCommand,
+  UpdatePageInput,
+  type Page,
+  type TripDetail,
+  type TripHistory,
+} from "@tc/contracts";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string };
 
@@ -183,6 +191,72 @@ export function makeTripHandlers(
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
       return HttpResponse.json({ results: q ? (options?.geocode ?? []) : [] });
+    }),
+  ];
+}
+
+// Deliberately naive in-memory pages store — just enough for UI development
+// and component tests against the pages REST routes (Task 3.3). Seed with
+// `@tc/pages`'s `instantiateDefaults(tripId)` (via `pagesClient.createPage`)
+// or an explicit fixture array (see `pageFixture` in `src/mocks/fixtures.ts`).
+export function makePagesHandlers(
+  initialPages: Page[],
+  options?: {
+    onCreate?: (tripId: string, input: CreatePageInput) => void;
+    onUpdate?: (pageId: string, patch: UpdatePageInput) => void;
+    onDelete?: (pageId: string) => void;
+  },
+) {
+  let pages = structuredClone(initialPages);
+  return [
+    http.get("/api/trips/:tripId/pages", ({ params }) =>
+      HttpResponse.json({ pages: pages.filter((p) => p.tripId === params.tripId) }),
+    ),
+    http.post("/api/trips/:tripId/pages", async ({ params, request }) => {
+      const input = CreatePageInput.parse(await request.json());
+      options?.onCreate?.(params.tripId as string, input);
+      const now = new Date().toISOString();
+      const page: Page = {
+        id: crypto.randomUUID(),
+        tripId: params.tripId as string,
+        title: input.title,
+        context: input.context,
+        content: input.content,
+        createdAt: now,
+        updatedAt: now,
+        actorId: "dev-alice",
+      };
+      pages.push(page);
+      return HttpResponse.json({ page }, { status: 201 });
+    }),
+    http.get("/api/trips/:tripId/pages/:pageId", ({ params }) => {
+      const page = pages.find((p) => p.id === params.pageId && p.tripId === params.tripId);
+      return page !== undefined
+        ? HttpResponse.json({ page })
+        : HttpResponse.json({ error: "not-found" }, { status: 404 });
+    }),
+    http.patch("/api/trips/:tripId/pages/:pageId", async ({ params, request }) => {
+      const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
+      if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      const patch = UpdatePageInput.parse(await request.json());
+      options?.onUpdate?.(params.pageId as string, patch);
+      const existing = pages[idx]!;
+      const updated: Page = {
+        ...existing,
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.context !== undefined ? { context: patch.context } : {}),
+        ...(patch.content !== undefined ? { content: patch.content } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      pages[idx] = updated;
+      return HttpResponse.json({ page: updated });
+    }),
+    http.delete("/api/trips/:tripId/pages/:pageId", ({ params }) => {
+      const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
+      if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      options?.onDelete?.(params.pageId as string);
+      pages = pages.filter((_, i) => i !== idx);
+      return HttpResponse.json({ ok: true });
     }),
   ];
 }

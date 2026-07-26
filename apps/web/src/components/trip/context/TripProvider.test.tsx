@@ -142,3 +142,37 @@ describe("TripProvider optimistic overlay (M6)", () => {
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1")); // reverted
   });
 });
+
+// The AI planning batch is decided server-side, so the client never held its
+// commands to predict from — it reconciles by dropping the authoritative
+// { detail, history } straight into confirmed state (no send, no refetch).
+function ApplyOutcomeProbe() {
+  const { activeTrip, applyOutcome } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <button onClick={() => applyOutcome({ detail: twoDayDetail(), history: historyFixture("x") })}>
+        apply-outcome
+      </button>
+    </div>
+  );
+}
+
+describe("TripProvider applyOutcome (AI plan reconciliation)", () => {
+  it("replaces confirmed state from the outcome without sending a command", async () => {
+    render(
+      <TripProvider tripId="x">
+        <ApplyOutcomeProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "apply-outcome" }));
+
+    // Board reflects the server-decided outcome directly...
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+    // ...and nothing was sent to the command endpoints (no optimistic round-trip).
+    expect(sendTripCommandMock).not.toHaveBeenCalled();
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+  });
+});

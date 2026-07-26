@@ -31,9 +31,15 @@ export function TripHeader({ tripId }: { tripId: string }) {
     <header className="border-b border-hairline bg-surface px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <nav>
+          <nav className="flex items-center gap-3">
             <Link href="/" className="text-sm text-slate hover:text-ink">
               ← Your trips
+            </Link>
+            {/* Notebook is a separate route subtree, not a lens (design spec
+                decision 11, refined 2026-07-20) — a nav link here, not a
+                TabStrip entry, keeps the lens system projection-only. */}
+            <Link href={`/trips/${tripId}/pages`} className="text-sm text-slate hover:text-ink">
+              Notebook
             </Link>
           </nav>
           <Heading level={2}>{trip.name}</Heading>

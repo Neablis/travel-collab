@@ -13,6 +13,13 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-20 — M7: add page & macro contracts
+- Added: `Page`, `PageContext`, `DayRef`, `MacroNode`, `PageContent`, `MacroKind`,
+  `PageSummary`, `CreatePageInput`, `UpdatePageInput`
+- Why: M7 Solo delight — dynamic macro pages, CRUD operations, Yjs collaboration support
+- Consumers updated: `@tc/pages`, `apps/web` pages routes + UI
+- Breaking? no — additive
+
 ## 2026-07-19 — M6 command endpoints return authoritative state
 - Changed: `POST /api/trips/:id/commands` success response now includes
   `{ detail: TripDetail, history: TripHistory }` (was `{ ok, tripId }`)
