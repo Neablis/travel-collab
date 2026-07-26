@@ -70,6 +70,23 @@ Captured so they aren't lost; not committed to a milestone yet.
   for approval before it's applied. Natural fit alongside M8 (multi-actor makes
   "propose then approve" more valuable) or the M7 AI surface's own hardening.
 
+- **AI cost/quality tuning — "best model for my buck" (Mitchell, 2026-07-25).**
+  Two threads: (1) **Tighten the prompt for token efficiency** — the context
+  envelope + system rules currently spend a lot of input tokens (a live run hit
+  ~33.5k input for one trip). Audit `context.ts` (what the envelope inlines) and
+  `handleAiRequest`'s system prompt for redundancy; trim to the minimum the tools
+  actually need, and consider summarizing/omitting more of the trip on large
+  trips. (2) **Measure cost vs. quality across models** — build a small harness
+  that runs a fixed set of representative prompts (e.g. "plan a N-day trip",
+  "move X to day 2", "add lunch on day 3") against several gateway models and
+  records, per model, the `meta` we already emit (input/output tokens, steps,
+  durationMs) alongside a quality score (did the batch apply? correct day
+  placement? no dropped/duplicate commands?). Goal: pick the cheapest model that
+  clears a quality bar, not the most expensive. Leverage the auditing `meta`
+  added in M7 and the AI Gateway's per-model pricing. Weak models (e.g.
+  deepseek-v4-flash) loop and over-generate; the harness makes that measurable
+  instead of anecdotal.
+
 ## Standing tasks (every milestone)
 
 - **Preflight (kickoff):** before the milestone's first task, reconcile the
