@@ -333,3 +333,90 @@ describe("resolveBatch — cascaded drops name their cause", () => {
     expect(errors[0]!.causeIndex).toBeUndefined();
   });
 });
+
+describe("resolveBatch — AddDay hoisting", () => {
+  it("resolves a day ref the model emitted BEFORE the AddDay that creates it", () => {
+    const detail = tripWithDays([]); // no days yet
+    const { commands, errors } = resolve(
+      [
+        { type: "AddActivity", args: { title: "Lunch", dayRef: "day 1" } },
+        { type: "AddDay", args: {} },
+      ],
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    // The AddDay is emitted FIRST in the batch — the executor decides in order,
+    // so the day must exist before the activity lands on it.
+    expect(commands[0]!.type).toBe("AddDay");
+    const addDay = commands[0] as Extract<BatchableCommand, { type: "AddDay" }>;
+    const lunch = commands[1] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(lunch.dayId).toBe(addDay.dayId);
+  });
+
+  it("keeps error `index` at the model's emission position, not the resolved one", () => {
+    const detail = tripWithDays([]);
+    const { errors } = resolve(
+      [
+        { type: "RemoveActivity", args: { activityRef: "Ghost" } }, // emitted 1st, resolved 2nd
+        { type: "AddDay", args: {} },
+      ],
+      detail,
+    );
+
+    expect(errors[0]!.index).toBe(0);
+  });
+
+  it("hoisting never retargets a ref to a pre-existing day", () => {
+    // Appends don't renumber: "day 1" is D1 whether or not the AddDay runs first.
+    const detail = tripWithDays([D1, D2]);
+    const { commands, errors } = resolve(
+      [
+        { type: "RemoveDay", args: { dayRef: "day 1" } },
+        { type: "AddDay", args: {} },
+      ],
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    const removeDay = commands.find((c) => c.type === "RemoveDay") as Extract<BatchableCommand, { type: "RemoveDay" }>;
+    expect(removeDay.dayId).toBe(D1);
+  });
+});
+
+describe("resolveBatch — rejected orderings stay rejected", () => {
+  it("does NOT phase-sort: a day ref keeps its emission-time meaning", () => {
+    // days [D1,D2,D3]. The model asked for day 2 (=D2) BEFORE removing day 1.
+    // A trip→day→activity phase sort would run the RemoveDay first and resolve
+    // "day 2" to D3 — a silent wrong target. Emission order is the intent.
+    const detail = tripWithDays([D1, D2, D3]);
+    const { commands, errors } = resolve(
+      [
+        { type: "AddActivity", args: { title: "Lunch", dayRef: "day 2" } },
+        { type: "RemoveDay", args: { dayRef: "day 1" } },
+      ],
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    expect((commands.find((c) => c.type === "AddActivity") as Extract<BatchableCommand, { type: "AddActivity" }>).dayId).toBe(D2);
+  });
+
+  it("does NOT retry to a fixpoint: a backward TITLE ref stays dropped", () => {
+    // A fixpoint would retry the move after the AddActivity succeeds — applying
+    // it out of emission order. Activities are not hoistable, so this drops.
+    const detail = tripWithDays([D1]);
+    const { commands, errors } = resolve(
+      [
+        { type: "MoveActivity", args: { activityRef: "Museum", dayRef: "day 1", position: 0 } },
+        { type: "AddActivity", args: { title: "Museum", dayRef: "day 1" } },
+      ],
+      detail,
+    );
+
+    expect(commands).toHaveLength(1);
+    expect(commands[0]!.type).toBe("AddActivity");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ index: 0, type: "MoveActivity", code: "unresolved-ref" });
+  });
+});

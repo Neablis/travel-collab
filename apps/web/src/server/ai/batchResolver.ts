@@ -166,10 +166,28 @@ function explain(
   };
 }
 
-// Task 9 replaces this with the AddDay hoist. `index` is the model's emission
-// position and stays attached to the intent through any reordering.
+// AddDay is the ONLY command that creates something a POSITIONAL ref can point
+// at, and evolveTrip APPENDS it (`days: [...state.days, new]`, evolve.ts:46).
+// Appends never renumber existing days — so moving every AddDay to the front,
+// relative order preserved, provably cannot change what a ref to a pre-existing
+// day means. All it does is make a day the model referenced before adding
+// ("day 3" emitted before the third AddDay) resolvable, and give the emitted
+// batch an order the executor can apply (the AddDay must be decided before the
+// command that targets it, or the batch aborts on day-not-found).
+//
+// Activities are deliberately NOT hoisted: an AddActivity's title changes which
+// activity a later title ref matches, and its day/position placement depends on
+// the state at its emission point. Backward TITLE refs therefore stay dropped —
+// see docs/known-issues.md KI-10. Reordering everything (a phase sort) or
+// retrying to a fixpoint both reintroduce silent wrong targets; the gap-review
+// section of this plan records why, and the tests above pin it.
+//
+// `index` is the model's emission position and rides along through the
+// reordering, so errors still line up with `meta.toolCalls`.
 function orderIntents(intents: RawToolIntent[]): { intent: RawToolIntent; index: number }[] {
-  return intents.map((intent, index) => ({ intent, index }));
+  const numbered = intents.map((intent, index) => ({ intent, index }));
+  const isAddDay = (e: { intent: RawToolIntent }) => e.intent.type === "AddDay";
+  return [...numbered.filter(isAddDay), ...numbered.filter((e) => !isAddDay(e))];
 }
 
 export function resolveBatch(
