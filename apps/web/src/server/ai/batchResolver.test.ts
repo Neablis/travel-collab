@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { BatchableCommand, TripDetail } from "@tc/contracts";
+import { hydrate, tripDetailFromState } from "@tc/domain";
 import { tripDetailFixture } from "../../mocks/fixtures";
 import { resolveBatch, type RawToolIntent } from "./batchResolver";
 
 const TRIP_ID = "165220a1-58c2-4acc-a5da-d04450758b87";
+const ACTOR = "user-1";
 
 // Deterministic id minter: valid, distinct UUIDs in a predictable order so
 // tests can assert linkage between a minted id and later references to it.
@@ -24,9 +26,42 @@ function tripWithDays(dayIds: string[]): TripDetail {
 
 const D1 = "11111111-1111-4111-8111-111111111111";
 const D2 = "22222222-2222-4222-8222-222222222222";
+const D3 = "33333333-3333-4333-8333-333333333333";
 
 function resolve(intents: RawToolIntent[], detail: TripDetail) {
-  return resolveBatch(intents, detail, { tripId: TRIP_ID, mintId: sequentialMinter() });
+  return resolveBatch(intents, detail, { tripId: TRIP_ID, actorId: ACTOR, mintId: sequentialMinter() });
+}
+
+// A detail whose `conflicts` are DERIVED, not asserted — round-tripping through
+// the domain guarantees the resolver's ref map and decideTripCommand's own
+// detectConflicts agree about which conflicts exist.
+function derivedDetail(detail: TripDetail): TripDetail {
+  return tripDetailFromState(hydrate(detail), detail.createdAt);
+}
+
+function activity(activityId: string, title: string, timeWindow: { start: string; end: string } | null) {
+  return { activityId, title, timeWindow, location: null, notes: null, anchors: [], cost: null };
+}
+
+// Two days, each holding a genuine time-overlap pair → exactly two conflicts,
+// sorted by id (`time-overlap:<dayId>:…`), so D1's is ref #1 and D2's is ref #2.
+function tripWithTwoConflicts(): TripDetail {
+  const ids = ["a", "b", "c", "d"].map((c) => `${c.repeat(8)}-${c.repeat(4)}-4${c.repeat(3)}-8${c.repeat(3)}-${c.repeat(12)}`);
+  const [a1, a2, b1, b2] = ids as [string, string, string, string];
+  return derivedDetail(
+    tripDetailFixture({
+      days: [
+        { dayId: D1, activityIds: [a1, a2], date: null, costSubtotal: 0 },
+        { dayId: D2, activityIds: [b1, b2], date: null, costSubtotal: 0 },
+      ],
+      activities: {
+        [a1]: activity(a1, "Colosseum", { start: "09:00", end: "11:00" }),
+        [a2]: activity(a2, "Forum", { start: "10:00", end: "12:00" }),
+        [b1]: activity(b1, "Vatican", { start: "09:00", end: "11:00" }),
+        [b2]: activity(b2, "Trastevere", { start: "10:00", end: "12:00" }),
+      },
+    }),
+  );
 }
 
 describe("resolveBatch — batch-aware dependency resolution", () => {
@@ -66,8 +101,8 @@ describe("resolveBatch — batch-aware dependency resolution", () => {
 
     expect(errors).toEqual([]);
     const secondNewDay = commands[1] as Extract<BatchableCommand, { type: "AddDay" }>;
-    const activity = commands[2] as Extract<BatchableCommand, { type: "AddActivity" }>;
-    expect(activity.dayId).toBe(secondNewDay.dayId);
+    const activityCmd = commands[2] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(activityCmd.dayId).toBe(secondNewDay.dayId);
   });
 
   it("resolves a later command against an activity added earlier in the batch (by title)", () => {
@@ -156,30 +191,120 @@ describe("resolveBatch — errors are per-command, not fatal to the batch", () =
     expect((commands[0] as Extract<BatchableCommand, { type: "RemoveDay" }>).dayId).toBe(D2);
   });
 
-  it("resolves DismissConflict by its 1-based ref number to the real conflict id", () => {
-    const c1 = "conflict-id-one";
-    const c2 = "conflict-id-two";
-    const detail = tripDetailFixture({
-      days: [{ dayId: D1, activityIds: [], date: null, costSubtotal: 0 }],
-      conflicts: [
-        { id: c1, kind: "overlap", severity: "warn", subjects: [], description: "a", resolutions: [] },
-        { id: c2, kind: "overlap", severity: "warn", subjects: [], description: "b", resolutions: [] },
-      ],
-      dismissedConflictIds: [],
-    });
-
-    // The model dismisses conflict "#2" (its ref in the envelope), never a raw id.
-    const { commands, errors } = resolve([{ type: "DismissConflict", args: { conflictRef: 2 } }], detail);
-
-    expect(errors).toEqual([]);
-    expect((commands[0] as Extract<BatchableCommand, { type: "DismissConflict" }>).conflictId).toBe(c2);
-  });
-
   it("drops a DismissConflict whose ref number isn't in the context", () => {
     const detail = tripWithDays([D1]); // no conflicts
     const { commands, errors } = resolve([{ type: "DismissConflict", args: { conflictRef: 1 } }], detail);
 
     expect(commands).toHaveLength(0);
     expect(errors[0]!.message).toMatch(/no conflict #1/i);
+  });
+});
+
+describe("resolveBatch — the running state tracks removals and moves", () => {
+  it("renumbers day refs after a RemoveDay earlier in the same batch", () => {
+    // days [D1,D2,D3]; removing day 1 makes the OLD day 3 the new "day 2".
+    const detail = tripWithDays([D1, D2, D3]);
+    const { commands, errors } = resolve(
+      [
+        { type: "RemoveDay", args: { dayRef: "day 1" } },
+        { type: "AddActivity", args: { title: "Lunch", dayRef: "day 2" } },
+      ],
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    expect((commands[0] as Extract<BatchableCommand, { type: "RemoveDay" }>).dayId).toBe(D1);
+    // The append-only projection resolved this to D2. It must be D3.
+    expect((commands[1] as Extract<BatchableCommand, { type: "AddActivity" }>).dayId).toBe(D3);
+  });
+
+  it("drops a ref to a day the batch already removed, instead of aborting the batch", () => {
+    // The escalation case: previously both commands 'resolved', then the whole
+    // atomic batch rolled back on day-not-found. Now the second is dropped.
+    const detail = tripWithDays([D1, D2]);
+    const { commands, errors } = resolve(
+      [
+        { type: "RemoveDay", args: { dayRef: "day 1" } },
+        { type: "AddActivity", args: { title: "Orphan", dayRef: D1 } },
+      ],
+      detail,
+    );
+
+    expect(commands).toHaveLength(1);
+    expect(commands[0]!.type).toBe("RemoveDay");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ index: 1, type: "AddActivity" });
+  });
+
+  it("scrubs a removed activity from title resolution", () => {
+    const detail = tripWithDays([D1]);
+    const { commands, errors } = resolve(
+      [
+        { type: "AddActivity", args: { title: "Museum", dayRef: "day 1" } },
+        { type: "RemoveActivity", args: { activityRef: "Museum" } },
+        { type: "UpdateActivity", args: { activityRef: "Museum", notes: "too late" } },
+      ],
+      detail,
+    );
+
+    expect(commands).toHaveLength(2);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ index: 2, type: "UpdateActivity" });
+    expect(errors[0]!.message).toMatch(/no activity named/i);
+  });
+
+  it("tracks a MoveActivity, so repeating it is a skipped no-op", () => {
+    const a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: D1, activityIds: [a], date: null, costSubtotal: 0 },
+        { dayId: D2, activityIds: [], date: null, costSubtotal: 0 },
+      ],
+      activities: { [a]: activity(a, "Museum", null) },
+    });
+    const move: RawToolIntent = { type: "MoveActivity", args: { activityRef: "Museum", dayRef: "day 2", position: 0 } };
+
+    const { commands, errors } = resolve([move, move], detail);
+
+    expect(commands).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.code).toBe("no-op");
+  });
+});
+
+describe("resolveBatch — a domain rejection drops one command, never the batch", () => {
+  it("skips a no-op sub-command and keeps the rest", () => {
+    const detail = tripWithDays([D1]); // fixture currency is already USD
+    const { commands, errors } = resolve(
+      [
+        { type: "SetTripCurrency", args: { currency: "USD" } },
+        { type: "AddDay", args: {} },
+      ],
+      detail,
+    );
+
+    expect(commands).toHaveLength(1);
+    expect(commands[0]!.type).toBe("AddDay");
+    expect(errors[0]).toMatchObject({ type: "SetTripCurrency", code: "no-op" });
+  });
+
+  it("drops a second dismissal of the same conflict with the domain's own code", () => {
+    const detail = tripWithTwoConflicts();
+    const dismiss: RawToolIntent = { type: "DismissConflict", args: { conflictRef: 1 } };
+
+    const { commands, errors } = resolve([dismiss, dismiss], detail);
+
+    expect(commands).toHaveLength(1);
+    expect(errors[0]!.code).toBe("conflict-already-dismissed");
+  });
+
+  it("resolves DismissConflict by its 1-based ref to the real (derivable) conflict id", () => {
+    const detail = tripWithTwoConflicts();
+    const expected = detail.conflicts[1]!.id;
+
+    const { commands, errors } = resolve([{ type: "DismissConflict", args: { conflictRef: 2 } }], detail);
+
+    expect(errors).toEqual([]);
+    expect((commands[0] as Extract<BatchableCommand, { type: "DismissConflict" }>).conflictId).toBe(expected);
   });
 });

@@ -201,7 +201,13 @@ export async function handleAiRequest(
   // commands in one batch-aware pass: mint new ids, resolve refs against the
   // trip AS THE BATCH BUILDS IT, and drop any command whose ref can't be
   // matched. `resolutionErrors` are the drops — surfaced for the caller.
-  const { commands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, { tripId });
+  const { commands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
+    tripId,
+    actorId: userId,
+  });
+  // `no-op` drops are informational (the domain simply had nothing to do), not
+  // something the user needs told "couldn't be matched" — only count real drops.
+  const skipped = resolutionErrors.filter((e) => e.code !== "no-op");
 
   if (commands.length === 0) {
     const history: TripHistory | null = await getTripHistory(tripId);
@@ -209,7 +215,7 @@ export async function handleAiRequest(
       detail,
       history,
       message:
-        resolutionErrors.length > 0
+        skipped.length > 0
           ? "I couldn't match that to anything on your trip, so nothing was applied. Try naming the days and activities as they appear on the board."
           : "I couldn't turn that into any changes, so nothing was applied.",
       meta,
@@ -227,8 +233,8 @@ export async function handleAiRequest(
   }
   const summary = summarizeBatch(commands, detail);
   const message =
-    resolutionErrors.length > 0
-      ? `${summary} (${resolutionErrors.length} other change${resolutionErrors.length === 1 ? "" : "s"} couldn't be matched and ${resolutionErrors.length === 1 ? "was" : "were"} skipped.)`
+    skipped.length > 0
+      ? `${summary} (${skipped.length} other change${skipped.length === 1 ? "" : "s"} couldn't be matched and ${skipped.length === 1 ? "was" : "were"} skipped.)`
       : summary;
   return Response.json({
     detail: batch.detail,
