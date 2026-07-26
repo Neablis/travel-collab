@@ -39,6 +39,15 @@ A real run against the deployed KI-8 build ("plan a Rochester trip", `deepseek-v
 2. **Activities targeting a same-batch day were silently dropped.** `AddActivity … dayRef:"day 1"` resolved against the *empty pre-batch* trip → "out of range" → dropped; only the backlog activity survived. **This is exactly what the batch-aware `resolveBatch` (already committed) + Tasks 1–2 fix.**
 3. **The model minted duplicate ids and looped** (15 `AddDay`s, repeated `activityId`s across 6 steps). Duplicate ids would themselves abort a batch (`activity-already-exists`). **Server-minting (Tasks 1–2) removes that hazard** — the model never supplies an id. (The raw over-generation is a weak-model artifact; out of scope beyond server-minting.)
 
+### Live-testing findings (2026-07-26): the step budget was truncating every itinerary
+
+A run against the post-refactor build ("7-day Rochester/Niagara/Ithaca itinerary with lunches", `openai/gpt-5.6-luna`) produced 6 empty days and zero activities. **Not a resolver bug** — the resolver never saw an `AddActivity`.
+
+4. **`MAX_STEPS.board = 6` cut the model off mid-plan, and the server reported success anyway.** `meta.steps` was exactly 6, `meta.finishReason` was `"tool-calls"` — a model that is *done* returns `"stop"`, so the run ended only because `stopWhen: isStepCount(6)` fired while more calls were pending. The model was emitting one `AddDay` per step, so it spent the entire budget on days and never reached the activities. Finding #3 above ("15 `AddDay`s across 6 steps") was the *same* ceiling, misattributed to weak-model over-generation. Fixed by three changes in `handleAiRequest.ts`:
+   - **Budget sized for the worst case.** A step is one model *round-trip* regardless of how many calls it packs in, so a model emitting one call per message needs a step per call. A 7-day itinerary with lunches is ~28 calls → `board`/`combined` raised to 32.
+   - **System prompt asks for one message.** Two new lines tell the model to emit every call at once (nothing depends on an earlier call's result — the batch is atomic), which keeps the typical run at 1–3 steps rather than 28. The old `'after adding a 3rd day, use "day 3"'` line read as a sequential protocol and was reworded to count the days the request *will* produce.
+   - **Truncation is no longer silent.** `meta.truncated` (`finishReason === "tool-calls"`) is surfaced, and the user-facing `message` says the plan is unfinished instead of "Done — added a day, added a day, …". Everything collected before the cut-off is still applied. Pinned by two tests in `route.int.test.ts`.
+
 ### Gap review (2026-07-25): the committed projection is append-only
 
 A read of the committed `resolveBatch` found three failure classes that Tasks 0–4 do **not** close. `BatchProjection` is a bespoke, *append-only* mirror: it has `addDay`/`addActivity` and nothing else, and only `mint`-role fields update it (`batchResolver.ts:165-170`). `RemoveDay`/`RemoveActivity`/`MoveActivity` carry `ref`-role fields, so they never touch it at all.

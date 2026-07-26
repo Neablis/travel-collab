@@ -92,6 +92,25 @@ function toolCall(toolName: string, args: Record<string, unknown>): FunctionTool
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(args) };
 }
 
+// A model that NEVER stops: every `doGenerate` re-emits the same tool calls, so
+// the run can only end when `stopWhen: isStepCount(N)` fires. This is the shape
+// of a real model working through a long plan — a 7-day itinerary with lunches
+// is ~28 tool calls — and getting cut off partway. Before the truncation check,
+// such a run returned 200 with "Done — added a day, added a day, …" over a trip
+// left holding only empty days (2026-07-26 live run: steps 6, finishReason
+// "tool-calls", zero AddActivity).
+function modelThatNeverStops(toolCalls: FunctionToolCall[]) {
+  return new MockLanguageModelV4({
+    // Fresh toolCallIds per step — reusing one across steps is invalid.
+    doGenerate: async () => ({
+      finishReason: { unified: "tool-calls" as const, raw: undefined },
+      usage: USAGE,
+      warnings: [],
+      content: toolCalls.map((call) => ({ ...call, toolCallId: randomUUID() })),
+    }),
+  });
+}
+
 describe("POST /api/trips/:id/ai", () => {
   beforeEach(async () => {
     currentUserId = ACTOR_ID;
@@ -245,6 +264,42 @@ describe("POST /api/trips/:id/ai", () => {
     // tools whose refs all failed to resolve, which would populate it).
     expect(body.meta.toolCalls).toHaveLength(0);
     expect(body.resolvedCommands).toHaveLength(0);
+  });
+
+  it("board surface: a run cut off by the step budget is reported as truncated, not as done", async () => {
+    const tripId = await seedTrip();
+    const model = modelThatNeverStops([toolCall("AddDay", {})]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "create a 7 day itinerary for Rochester NY", surface: "board" }),
+      tripId,
+      model,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // `stopWhen` firing while the model still wanted to call tools is the ONLY
+    // way a finished run lands on "tool-calls" — a model that is done returns
+    // "stop". That distinction is the whole truncation signal.
+    expect(body.meta.finishReason).toBe("tool-calls");
+    expect(body.meta.truncated).toBe(true);
+    // Whatever it managed IS applied — truncated, not discarded. One AddDay per
+    // step, so the day count also pins that the budget is sized for a real
+    // itinerary (~28 tool calls) rather than the old 6.
+    expect(body.detail.days.length).toBe(body.meta.steps);
+    expect(body.detail.days.length).toBeGreaterThanOrEqual(28);
+    // The user is told the plan is unfinished instead of being handed a
+    // confident "Done — added a day, added a day, …".
+    expect(body.message).toMatch(/didn't finish/i);
+  });
+
+  it("board surface: a model that finishes on its own is not reported as truncated", async () => {
+    const tripId = await seedTrip();
+    const model = modelWithToolCalls([toolCall("AddDay", {})]);
+    const res = await handleAiRequest(req(tripId, { prompt: "add a day", surface: "board" }), tripId, model);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.meta.finishReason).toBe("stop");
+    expect(body.meta.truncated).toBe(false);
+    expect(body.message).not.toMatch(/didn't finish/i);
   });
 
   it("board surface: adds a day and places an activity on it in one batch", async () => {

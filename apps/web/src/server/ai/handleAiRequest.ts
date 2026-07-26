@@ -37,9 +37,22 @@ const AiRequest = z.object({
   pageContext: PageContext.optional(),
 });
 
-// Max tool-call round-trips per surface. Page composition is one tool call;
-// planning may chain a few (e.g. AddDay then AddActivity onto it).
-const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 6, combined: 8 };
+// Max tool-call round-trips (steps) per surface. A step is ONE model
+// round-trip, however many tool calls it packs into that message: a model that
+// emits its whole plan at once costs 1 step, one that emits a single call per
+// message costs a step per call. So the planning budget has to cover the WORST
+// case, not the typical one — "a 7-day itinerary with lunches and something
+// nearby" is ~7 AddDay + ~21 AddActivity ≈ 28 calls.
+//
+// The old board budget of 6 was sized for small edits ("AddDay then AddActivity
+// onto it") and silently truncated every itinerary-sized request: the
+// 2026-07-26 run spent all 6 steps on AddDay and returned 6 empty days with
+// zero activities, and the 2026-07-25 run ("15 AddDays across 6 steps") died on
+// the same ceiling. The system prompt now asks for everything in one message,
+// which keeps the usual cost at 1–3 steps; this ceiling is only the backstop
+// for when the model insists on going one at a time. Page composition is still
+// a single compose_page call.
+const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 };
 
 // Per-call retry ceiling passed to generateText (the AI SDK's own retry of
 // transient provider failures). Surfaced in the response `meta` so a caller
@@ -54,6 +67,12 @@ const AI_MAX_RETRIES = 2;
 interface AiCallMeta {
   model: { requested: string; served: string | null };
   finishReason: string;
+  // True when the run ended because `stopWhen` fired while the model still
+  // wanted to call tools — the plan is UNFINISHED, not complete. A model that
+  // is done returns "stop", and any tool calls it emits are executed and
+  // followed by another step; so "tool-calls" surviving as the FINAL finish
+  // reason can only mean the step budget cut the model off mid-plan.
+  truncated: boolean;
   // Round-trips the model took (1 = answered in a single step).
   steps: number;
   // What the model asked for, BEFORE server-side ref resolution — e.g.
@@ -86,6 +105,7 @@ function buildAiMeta(result: AiResultLike, model: LanguageModel, durationMs: num
   return {
     model: { requested: requestedModelId(model), served: result.finalStep?.response?.modelId ?? null },
     finishReason: result.finishReason,
+    truncated: result.finishReason === "tool-calls",
     steps: result.steps.length,
     toolCalls: result.toolCalls.map((c) => ({ name: c.toolName, input: c.input })),
     usage: {
@@ -123,10 +143,12 @@ export async function handleAiRequest(
   const system = [
     "You are the travel-collab planning/authoring assistant.",
     "Use ONLY the context below — no outside knowledge of the trip.",
+    "Emit EVERY tool call the request needs in ONE message, all at once. Do not add one day, wait for the result, then add the next — every call is collected and applied together as a single atomic change, so no call depends on seeing an earlier call's result. Working one at a time wastes the request's budget and leaves the plan half-finished.",
+    "Fully satisfy the request in that one message: if the user asks for a 7-day itinerary with meals and activities, emit all 7 days AND every activity, not just the days.",
     "You never write, copy, or invent a UUID. The tools take human references and the server assigns all ids:",
     "- Name an existing activity by its exact `title` via `activityRef`.",
     '- Choose a day via `dayRef`: "day N" (1-based, e.g. "day 2"), or "backlog"/null for the backlog.',
-    '- To place an activity on a day you add in the SAME request, refer to it by number — e.g. after adding a 3rd day, use "day 3".',
+    '- Day numbers count the days this request will produce, so an activity can target a day added in the SAME message — if your calls add 3 days to an empty trip, the third is "day 3".',
     "- Do NOT provide activityId or dayId; the server generates ids for anything new.",
     "If a title matches two activities, the change is skipped and reported; reference the intended one by its exact `id` from the context.",
     "A MoveActivity `position` is a zero-based index into the target day's activity list.",
@@ -214,10 +236,12 @@ export async function handleAiRequest(
     return Response.json({
       detail,
       history,
-      message:
+      message: withNotices(
         skipped.length > 0
           ? "I couldn't match that to anything on your trip, so nothing was applied. Try naming the days and activities as they appear on the board."
           : "I couldn't turn that into any changes, so nothing was applied.",
+        meta.truncated ? [TRUNCATED_NOTICE] : [],
+      ),
       meta,
       resolvedCommands: [],
       resolutionErrors,
@@ -232,10 +256,16 @@ export async function handleAiRequest(
     );
   }
   const summary = summarizeBatch(commands, detail);
-  const message =
-    skipped.length > 0
-      ? `${summary} (${skipped.length} other change${skipped.length === 1 ? "" : "s"} couldn't be matched and ${skipped.length === 1 ? "was" : "were"} skipped.)`
-      : summary;
+  const notices: string[] = [];
+  if (skipped.length > 0) {
+    notices.push(
+      `${skipped.length} other change${skipped.length === 1 ? "" : "s"} couldn't be matched and ${skipped.length === 1 ? "was" : "were"} skipped.`,
+    );
+  }
+  // Everything collected before the cut-off IS applied — truncated, not
+  // discarded — so this rides alongside the summary rather than replacing it.
+  if (meta.truncated) notices.push(TRUNCATED_NOTICE);
+  const message = withNotices(summary, notices);
   return Response.json({
     detail: batch.detail,
     history: batch.history,
@@ -244,6 +274,18 @@ export async function handleAiRequest(
     resolvedCommands: commands,
     resolutionErrors,
   });
+}
+
+// What the user is told when `meta.truncated` — the step budget ended the run
+// while the model still had calls to make. Without this the response reads as a
+// confident "Done — added a day, added a day, …" over a half-built trip.
+const TRUNCATED_NOTICE =
+  "I didn't finish the whole plan before running out of room — ask me to continue and I'll pick up from here.";
+
+// Parenthesised caveats appended to a message, so the summary of what DID apply
+// always leads.
+function withNotices(message: string, notices: string[]): string {
+  return notices.length > 0 ? `${message} (${notices.join(" ")})` : message;
 }
 
 // Minimal meta for the model-call-failure path, where there is no result to
