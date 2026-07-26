@@ -274,16 +274,20 @@ describe("POST /api/trips/:id/ai", () => {
 
   it("board surface: a removal and a dependent add apply as one partial batch", async () => {
     const tripId = await seedTrip();
-    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, "user-1");
+    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, ACTOR_ID);
     const keptDayId = randomUUID();
-    await executeTripCommand({ type: "AddDay", tripId, dayId: keptDayId }, "user-1");
+    await executeTripCommand({ type: "AddDay", tripId, dayId: keptDayId }, ACTOR_ID);
 
     // After RemoveDay(day 1), "day 1" is what was day 2 — the resolver must see
     // the removal. Before the dry-run this either targeted the removed day (and
     // aborted the WHOLE batch on day-not-found) or silently hit the wrong day.
+    // The third call is unresolvable on purpose — "day 99" is out of range once
+    // RemoveDay has run and left only one day — so this batch is genuinely
+    // PARTIAL: two commands apply, one is dropped, and nothing aborts.
     const model = modelWithToolCalls([
       toolCall("RemoveDay", { dayRef: "day 1" }),
       toolCall("AddActivity", { title: "Dinner", dayRef: "day 1" }),
+      toolCall("AddActivity", { title: "Ghost", dayRef: "day 99" }),
     ]);
     const res = await handleAiRequest(
       req(tripId, { prompt: "drop the first day and add dinner to the remaining one", surface: "board" }),
@@ -296,6 +300,15 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.detail.days).toHaveLength(1);
     expect(body.detail.days[0].dayId).toBe(keptDayId);
     expect(body.detail.days[0].activityIds).toHaveLength(1);
-    expect(body.resolutionErrors).toEqual([]);
+    // The two resolvable commands still apply exactly as before...
+    expect(Object.values(body.detail.activities as Record<string, { title: string }>).map((a) => a.title)).toEqual([
+      "Dinner",
+    ]);
+    // ...while the unresolvable third one is reported as a drop, not a silent
+    // loss and not an abort of the whole batch (proof of the "partial batch"
+    // behavior this test is named for).
+    expect(body.resolutionErrors).toHaveLength(1);
+    expect(body.resolutionErrors[0]).toMatchObject({ type: "AddActivity", code: "unresolved-ref", index: 2 });
+    expect(body.resolutionErrors[0].message).toMatch(/out of range/i);
   });
 });

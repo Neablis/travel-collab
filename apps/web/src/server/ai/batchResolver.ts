@@ -16,6 +16,16 @@
 //   2. a command the domain WOULD reject is dropped here, so one bad
 //      sub-command can no longer abort the whole atomic batch downstream;
 //   3. a `no-op` sub-command skipped exactly as the batch executor skips it.
+//
+// This equivalence holds AS LONG AS no concurrent write lands between the two
+// reads: this resolver dry-runs against the `TripDetail` snapshot `guard()`
+// captured when the request came in, while `executeTripCommandBatch` re-reads
+// the event stream fresh, inside its own transaction, right before deciding.
+// If a write lands in that window, the two reads diverge — but the executor's
+// fresh state wins, as it must, and `decideTripCommand` there rejects the
+// now-stale command for real, aborting the whole batch atomically (a normal
+// domain rejection or `concurrency-conflict`, retryable by the caller). Never
+// a silent partial apply against state this resolver never actually saw.
 // The server owns every id — `inject` (tripId), `mint` (new day/activity ids),
 // `ref` (resolve a human ref to an existing id) — driven entirely by ID_FIELDS.
 // Errors are per-command: a drop removes just that command (recorded in
