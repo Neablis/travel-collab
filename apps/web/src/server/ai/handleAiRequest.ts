@@ -22,6 +22,7 @@ import { buildEnvelope, type AiSurface } from "@/server/ai/context";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
+import { resolveBatch } from "@/server/ai/batchResolver";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -122,9 +123,12 @@ export async function handleAiRequest(
   const system = [
     "You are the travel-collab planning/authoring assistant.",
     "Use ONLY the context below — no outside knowledge of the trip.",
-    "The planning tools take human references: name an existing activity by its exact `title` (its `id` also works) via `activityRef`, and a day as \"day N\" (1-based, e.g. \"day 2\"; a `dayId` or null/\"backlog\" also work) via `dayRef`. The server resolves them — never invent, guess, or reformat a UUID.",
-    "If a title is ambiguous (matches two activities), the tool says so; reference that one by its exact `id` instead.",
-    "When adding a NEW entity, generate a fresh random UUID for its id: `activityId` on AddActivity, `dayId` on AddDay.",
+    "You never write, copy, or invent a UUID. The tools take human references and the server assigns all ids:",
+    "- Name an existing activity by its exact `title` via `activityRef`.",
+    '- Choose a day via `dayRef`: "day N" (1-based, e.g. "day 2"), or "backlog"/null for the backlog.',
+    '- To place an activity on a day you add in the SAME request, refer to it by number — e.g. after adding a 3rd day, use "day 3".',
+    "- Do NOT provide activityId or dayId; the server generates ids for anything new.",
+    "If a title matches two activities, the change is skipped and reported; reference the intended one by its exact `id` from the context.",
     "A MoveActivity `position` is a zero-based index into the target day's activity list.",
     "To dismiss a conflict, reference it by its `ref` number in the context's `conflicts` list via `conflictRef` — only conflicts listed there can be dismissed, and never copy a raw conflict id.",
     "All money amounts are integer minor units (cents), never decimals: 5.00 is `amountMinor` 500, so multiply a decimal amount by 100 (500 EUR → 50000).",
@@ -172,7 +176,7 @@ export async function handleAiRequest(
   }
 
   // board | combined
-  const planning = buildPlanningTools(tripId, detail);
+  const planning = buildPlanningTools();
   const tools = surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools;
   let gen;
   const startedAt = Date.now();
@@ -193,45 +197,46 @@ export async function handleAiRequest(
   }
   const meta = buildAiMeta(gen, model, Date.now() - startedAt);
 
-  const calls = planning.getCollected();
-  if (calls.length === 0) {
-    // Nothing to apply — return the trip unchanged rather than submitting an
-    // empty batch (executeTripCommandBatch requires at least one command). The
-    // `message` is what tells the user *why* nothing moved, instead of a
-    // silent board reload that looks like the request was dropped. `meta`
-    // disambiguates the two zero-command causes: the model called no tools
-    // (meta.toolCalls empty) vs. it called them but every ref failed to
-    // resolve (meta.toolCalls populated, resolvedCommands still empty).
+  // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
+  // commands in one batch-aware pass: mint new ids, resolve refs against the
+  // trip AS THE BATCH BUILDS IT, and drop any command whose ref can't be
+  // matched. `resolutionErrors` are the drops — surfaced for the caller.
+  const { commands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, { tripId });
+
+  if (commands.length === 0) {
     const history: TripHistory | null = await getTripHistory(tripId);
     return Response.json({
       detail,
       history,
       message:
-        "I couldn't turn that into any changes, so nothing was applied. Try naming the activities and days as they appear on the board.",
+        resolutionErrors.length > 0
+          ? "I couldn't match that to anything on your trip, so nothing was applied. Try naming the days and activities as they appear on the board."
+          : "I couldn't turn that into any changes, so nothing was applied.",
       meta,
       resolvedCommands: [],
+      resolutionErrors,
     });
   }
 
-  const batch = await flushPlanningBatch(tripId, calls, userId);
+  const batch = await flushPlanningBatch(tripId, commands, userId);
   if (!batch.ok) {
     return Response.json(
-      { error: batch.error.message, code: batch.error.code, meta, resolvedCommands: calls },
+      { error: batch.error.message, code: batch.error.code, meta, resolvedCommands: commands, resolutionErrors },
       { status: STATUS[batch.error.code] ?? 400 },
     );
   }
-  // A plain-language summary of what actually got applied — derived from the
-  // committed batch, so it can never claim an edit the batch didn't make (see
-  // planSummary). Names resolve against the pre-change `detail`.
-  // `resolvedCommands` is the post-resolution batch (real UUIDs) so a caller
-  // can see how each human `*Ref` mapped to an id vs. what the model asked for
-  // in `meta.toolCalls`.
+  const summary = summarizeBatch(commands, detail);
+  const message =
+    resolutionErrors.length > 0
+      ? `${summary} (${resolutionErrors.length} other change${resolutionErrors.length === 1 ? "" : "s"} couldn't be matched and ${resolutionErrors.length === 1 ? "was" : "were"} skipped.)`
+      : summary;
   return Response.json({
     detail: batch.detail,
     history: batch.history,
-    message: summarizeBatch(calls, detail),
+    message,
     meta,
-    resolvedCommands: calls,
+    resolvedCommands: commands,
+    resolutionErrors,
   });
 }
 
