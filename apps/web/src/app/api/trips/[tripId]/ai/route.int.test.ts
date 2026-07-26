@@ -246,4 +246,29 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.meta.toolCalls).toHaveLength(0);
     expect(body.resolvedCommands).toHaveLength(0);
   });
+
+  it("board surface: adds a day and places an activity on it in one batch", async () => {
+    const tripId = await seedTrip(); // 0 days
+    const model = modelWithToolCalls([
+      toolCall("AddDay", {}),
+      toolCall("AddActivity", { title: "Lunch at the market", dayRef: "day 1" }),
+    ]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "add a day and put lunch on it", surface: "board" }),
+      tripId,
+      model,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // The new day exists and carries the activity — proof the AddActivity's
+    // "day 1" resolved to the day minted by the AddDay earlier in the SAME batch.
+    expect(body.detail.days).toHaveLength(1);
+    expect(body.detail.days[0].activityIds).toHaveLength(1);
+    const addedId = body.detail.days[0].activityIds[0];
+    expect(body.detail.activities[addedId].title).toBe("Lunch at the market");
+    // resolvedCommands shows the linkage: AddActivity.dayId === AddDay.dayId.
+    const [addDay, addActivity] = body.resolvedCommands;
+    expect(addActivity.dayId).toBe(addDay.dayId);
+    expect(body.resolutionErrors).toEqual([]);
+  });
 });
