@@ -271,4 +271,31 @@ describe("POST /api/trips/:id/ai", () => {
     expect(addActivity.dayId).toBe(addDay.dayId);
     expect(body.resolutionErrors).toEqual([]);
   });
+
+  it("board surface: a removal and a dependent add apply as one partial batch", async () => {
+    const tripId = await seedTrip();
+    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, "user-1");
+    const keptDayId = randomUUID();
+    await executeTripCommand({ type: "AddDay", tripId, dayId: keptDayId }, "user-1");
+
+    // After RemoveDay(day 1), "day 1" is what was day 2 — the resolver must see
+    // the removal. Before the dry-run this either targeted the removed day (and
+    // aborted the WHOLE batch on day-not-found) or silently hit the wrong day.
+    const model = modelWithToolCalls([
+      toolCall("RemoveDay", { dayRef: "day 1" }),
+      toolCall("AddActivity", { title: "Dinner", dayRef: "day 1" }),
+    ]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "drop the first day and add dinner to the remaining one", surface: "board" }),
+      tripId,
+      model,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.detail.days).toHaveLength(1);
+    expect(body.detail.days[0].dayId).toBe(keptDayId);
+    expect(body.detail.days[0].activityIds).toHaveLength(1);
+    expect(body.resolutionErrors).toEqual([]);
+  });
 });
