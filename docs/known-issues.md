@@ -186,7 +186,8 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-07-24 (raised while fixing KI-8).
 
 ### KI-10 — AI batches don't recover a reference to an activity created later in the same batch
-
+- **Severity:** correctness (a valid same-batch reference gets dropped; reported via `resolutionErrors`, not silent — no data corruption)
+- **Area:** `apps/web/src/server/ai/batchResolver.ts` (`orderIntents`, `resolveBatch`, `causeIndex`/`droppedTitles`)
 - **Symptom:** if the model emits `UpdateActivity{activityRef:"Museum"}` *before* the `AddActivity` that creates "Museum", the update is dropped with `No activity named "Museum"`. Day refs do not have this problem — `AddDay` intents are hoisted to the front of the batch (`batchResolver.ts`, `orderIntents`).
 - **Why it isn't fixed:** hoisting works for days because `evolveTrip` appends them, so it cannot renumber a ref to an existing day. Activities have no such property: hoisting an `AddActivity` changes which activity a later title ref resolves to, and its day/position placement depends on the state where it was emitted. The two general repairs — a fixpoint retry loop and a trip→day→activity phase sort — both apply commands out of emission order and so silently retarget positional day refs. See the gap-review section of `docs/plans/2026-07-25-ai-id-resolver-refactor.md` for the full comparison; `batchResolver.test.ts`'s "rejected orderings stay rejected" block pins the decision.
 - **Mitigation:** the system prompt tells the model to create before referencing, the drop is reported in `resolutionErrors`, and a cascaded drop names its causing command via `causeIndex`.
