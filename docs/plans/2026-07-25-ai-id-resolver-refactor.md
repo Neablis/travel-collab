@@ -29,6 +29,14 @@ These are committed and verified — **do not rebuild them**:
 
 `planningTools.ts` and `handleAiRequest.ts` are at the KI-8 baseline (per-tool resolver). This plan replaces the planning-tools half and rewires the handler.
 
+### Live-testing findings (2026-07-25)
+
+A real run against the deployed KI-8 build ("plan a Rochester trip", `deepseek-v4-flash`) surfaced three things this plan must address:
+
+1. **A no-op sub-command aborted the whole batch → nothing applied.** The model emitted `SetTripCurrency "USD"` on a trip that already defaults to USD; that decides to a `no-op` ([decide.ts:26](../../apps/web/src/server/commands.ts) via `okUnlessNoOp`), and `executeTripCommandBatch` aborts the entire batch on the first rejection ([commands.ts:162-164](../../apps/web/src/server/commands.ts)). 15 valid `AddDay`s + an activity were rolled back. **Addressed by Task 0 (below).**
+2. **Activities targeting a same-batch day were silently dropped.** `AddActivity … dayRef:"day 1"` resolved against the *empty pre-batch* trip → "out of range" → dropped; only the backlog activity survived. **This is exactly what the batch-aware `resolveBatch` (already committed) + Tasks 1–2 fix.**
+3. **The model minted duplicate ids and looped** (15 `AddDay`s, repeated `activityId`s across 6 steps). Duplicate ids would themselves abort a batch (`activity-already-exists`). **Server-minting (Tasks 1–2) removes that hazard** — the model never supplies an id. (The raw over-generation is a weak-model artifact; out of scope beyond server-minting.)
+
 Verify starting state before Task 1:
 
 ```bash
@@ -36,6 +44,95 @@ cd apps/web && pnpm exec vitest run -c vitest.unit.config.ts src/server/ai/batch
 # Expected: Test Files 1 passed, Tests 10 passed
 pnpm --filter web typecheck   # Expected: exit 0
 ```
+
+---
+
+## Task 0: Atomic batches tolerate a no-op sub-command
+
+**Do this first — it's independent of the AI layer and unblocks batches immediately** (see live-testing finding #1). A single redundant command (e.g. `SetTripCurrency "USD"` on a USD trip) must not roll back an otherwise-valid batch.
+
+**Files:**
+- Modify: `apps/web/src/server/commands.ts` (the `executeTripCommandBatch` decide loop)
+- Test: `apps/web/src/server/commands.int.test.ts` (DB-gated — needs the migrated test Postgres; `beforeEach` wipes tables, never point at the dev DB)
+
+**Interfaces:**
+- Consumes: `decideTripCommand(state, command, { actorId })` → `{ ok: true; events: TripEvent[] } | { ok: false; rejection: { code: string; message: string } }`; `evolveTrip(state, event)` — both from `@tc/domain`.
+
+- [ ] **Step 1: Write the failing tests** (add inside the existing `describe("executeTripCommandBatch", ...)` block; `exec` and `randomUUID` already exist in the file)
+
+```typescript
+  it("skips a no-op sub-command instead of aborting the batch", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "No-op batch trip" }); // defaults currency USD
+    const dayId = randomUUID();
+    const result = await executeTripCommandBatch(
+      [
+        { type: "SetTripCurrency", tripId, currency: "USD" }, // no-op: already USD
+        { type: "AddDay", tripId, dayId },
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.detail.days).toHaveLength(1); // the AddDay applied despite the no-op
+  });
+
+  it("rejects a batch that is entirely no-ops", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "All no-op trip" });
+    const result = await executeTripCommandBatch(
+      [{ type: "SetTripCurrency", tripId, currency: "USD" }],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected rejection");
+    expect(result.error.code).toBe("no-op");
+  });
+```
+
+- [ ] **Step 2: Run — expect the first test to FAIL** (requires the test Postgres)
+
+Run: `pnpm --filter web test:int -- commands.int.test.ts`
+Expected: "skips a no-op sub-command…" FAILS — the batch currently aborts on the no-op and `result.ok` is `false`. (If no test DB is available here, note it and proceed; the change is small and mechanical.)
+
+- [ ] **Step 3: Update the decide loop in `executeTripCommandBatch`.** Replace the loop (currently: `if (!decision.ok) return { ok: false, error: decision.rejection };`) with:
+
+```typescript
+    // Decide each command in order against the evolving state. A no-op
+    // sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
+    // back an otherwise-valid batch (2026-07-25 live-testing finding). Real
+    // rejections (day-not-found, activity-already-exists, …) still abort.
+    const events: TripEvent[] = [];
+    for (const command of commands) {
+      const decision = decideTripCommand(state, command, { actorId });
+      if (!decision.ok) {
+        if (decision.rejection.code === "no-op") continue;
+        return { ok: false, error: decision.rejection };
+      }
+      for (const event of decision.events) state = evolveTrip(state, event);
+      events.push(...decision.events);
+    }
+    // If every sub-command was a no-op there is nothing to append — report it the
+    // same way a single no-op command does, rather than appending an empty batch
+    // (appendToStream requires ≥1 event and one batch = one history entry).
+    if (events.length === 0) {
+      return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
+    }
+```
+
+- [ ] **Step 4: Run tests — expect PASS**, and confirm the existing "is all-or-nothing — a later invalid command appends nothing" test still passes (it uses a *real* rejection, not a no-op, so it must still abort).
+
+Run: `pnpm --filter web test:int -- commands.int.test.ts`
+Also: `grep -rn "no-op" apps/web/src/server/commands.int.test.ts packages/domain/src` — update any test that asserts a *batch* with a no-op is rejected (a single-command no-op rejection is unchanged and correct).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/server/commands.ts apps/web/src/server/commands.int.test.ts
+git commit -m "fix(M7): atomic batches skip a no-op sub-command instead of aborting"
+```
+
+> **Optional handler polish (do in Task 2):** after Task 2 wires the AI path, a whole-batch no-op surfaces as the batch's `no-op` error (HTTP 400 via `STATUS`). Consider mapping `code === "no-op"` to a friendly 200 "nothing needed changing" (unchanged `detail`) in `handleAiRequest`, so an AI request that only proposed redundant changes reads as success, not failure.
 
 ---
 
@@ -490,6 +587,13 @@ pnpm --filter web typecheck   # exit 0
 pnpm --filter web lint        # clean
 cd apps/web && pnpm exec vitest run -c vitest.unit.config.ts src/server/ai
 # Expected: batchResolver (10), idFields (2), planningTools (4), context, gateway, pageTools, planSummary — all pass
+```
+
+With the test Postgres available, also run the DB-gated suites (Task 0 + Task 4):
+
+```bash
+pnpm --filter web test:int -- commands.int.test.ts   # no-op batch tolerance
+pnpm --filter web test:int -- route.int.test.ts       # server-mint + intra-batch dependency
 ```
 
 - [ ] **Step 2: Sanity — the AI surface exposes no uuid params.** Confirm no planning tool's inputSchema contains `activityId`, `dayId`, `toDayId`, or `conflictId` (only `activityRef`/`dayRef`/`conflictRef`). The Task 1 test already asserts the key ones; eyeball the rest if desired.
