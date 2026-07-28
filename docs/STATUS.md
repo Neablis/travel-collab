@@ -5,7 +5,7 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-07-27**
+**Last updated: 2026-07-28**
 
 ## Where we are
 
@@ -38,37 +38,12 @@ which existed only on a branch.
 
 ## Next action
 
-**Phase 1 gate review with Mitchell** — plan a real trip end-to-end and see
-whether the product needs no other tool. Nothing blocks it now. The known gaps
-most likely to bite during that exercise are **KI-12** (no `SetTripName`
-command exists at all, so an AI-planned trip stays "New TRip" with null dates)
-and the general first-run/usability weaknesses recorded in the 2026-07-27 audit.
+**M8 — Make it real** (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate
+review ran on 2026-07-28 without the dogfood data, because the dogfood could not
+be attempted: a trip cannot be renamed or deleted. M8 closes that floor, then
+the gate runs for real.
 
-## Local dev recipe (the bits that get re-derived every time)
-
-Each checkout has its own docker-compose Postgres — **run `docker ps` before
-concluding a database is unavailable; it almost certainly already exists.**
-
-```bash
-docker compose up -d                  # travel-collab-postgres-1 → localhost:5433
-CI=true pnpm install                  # plain `pnpm install` aborts in a non-TTY shell
-pnpm --filter web db:migrate
-```
-
-`apps/web/.env.local` is gitignored and per-checkout; it needs
-`DATABASE_URL=postgres://postgres:postgres@localhost:5433/travel`.
-
-Integration tests: **`vitest` does not read `.env.local`** (unlike `db:migrate`,
-which uses `node --env-file-if-exists`). Note the two configs are asymmetric —
-the *default* `vitest.config.ts` is the integration suite (`test:int` is plain
-`vitest run`); unit tests need `-c vitest.unit.config.ts`. From `apps/web`:
-
-```bash
-set -a && . ./.env.local && set +a && pnpm exec vitest run
-```
-
-**`pnpm check` is not reliably green on a loaded machine** (KI-13) — the jsdom
-component tests time out under CPU contention and a different set fails each
-run. Re-run a suspect file alone before believing a failure, and prefer running
-`pnpm typecheck`, `pnpm lint`, and the test suites separately over trusting one
-`pnpm check` exit code.
+The roadmap was restructured in the same review — M8/M9/M10 are new, Fork &
+remix moved ahead of Collaboration, and everything from the old M8 onward
+renumbered. `docs/milestones/README.md` carries the mapping; closed milestone
+files and closed design specs were deliberately not rewritten.

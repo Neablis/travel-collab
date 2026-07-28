@@ -25,34 +25,37 @@ Where the work actually stands right now: `docs/STATUS.md`.
 - [x] **M5 Design foundations** → `docs/milestones/M5-design-foundations.md`
 - [x] **M6 Atomic changes** → `docs/milestones/M6-atomic-changes.md`
 - [x] **M7 Solo delight** → `docs/milestones/M7-solo-delight.md`
-      *(Trip templates moved to M9 during this milestone.)*
-- [ ] **Phase 1 gate review with Mitchell** — dogfood retro; go/no-go and
-      backlog reshuffle before Phase 2. **Note: every milestone is ticked but
-      the phase gate itself has not been met** — that is the gate doing its
-      job, not a bookkeeping error.
+      *(Trip templates moved to M11 during this milestone.)*
+- [ ] **M8 Make it real** → `docs/milestones/M8-make-it-real.md`
+- [ ] **Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end.
+      The 2026-07-28 review deferred this behind M8: the gate could not be
+      attempted because a trip cannot be renamed or deleted.
 
-## Phase 2 — Multi-persona
+## Phase 2 — A product worth using
 
-- [ ] **M8 Collaboration**
+- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
+- [ ] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
 
 ## Phase 3 — Outward
 
-- [ ] **M9 Fork & lineage** *(inherits trip templates from M7)*
-- [ ] **M10 Community** — all trust & safety scope lives here, nowhere earlier.
-- [ ] **M11 Rich layer**
+- [ ] **M11 Fork & remix** *(inherits trip templates from M7)*
+- [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
+- [ ] **M13 Collaboration** — invites, roles, realtime transport ADR.
+- [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
 
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
 
-- **AI "Preview" before apply.** Let an AI plan-edit be *previewed and approved*
-  before it becomes truth, instead of committing the atomic batch immediately.
-  Two directions to explore (Mitchell, 2026-07-25): (a) lean on the
-  event-sourcing/history substrate — a single pending "future" branch the user
-  reviews and approves (or discards) to fast-forward into the real log; or (b) an
-  intermediate, validated model of the proposed batch surfaced to the frontend
-  for approval before it's applied. Natural fit alongside M8 (multi-actor makes
-  "propose then approve" more valuable) or the M7 AI surface's own hardening.
+- **AI "Preview" before apply — now scoped into M9.** Kept here only for the
+  two implementation directions it records, which M9's design spec has to choose
+  between (Mitchell, 2026-07-25): (a) lean on the event-sourcing/history
+  substrate — a single pending "future" branch the user reviews and approves (or
+  discards) to fast-forward into the real log; or (b) an intermediate, validated
+  model of the proposed batch surfaced to the frontend for approval before it is
+  applied. Becomes more valuable again at M13, where multiple actors make
+  "propose then approve" a collaboration primitive rather than just an undo
+  affordance.
 
 - **AI cost/quality tuning — "best model for my buck" (Mitchell, 2026-07-25).**
   **Thread (1), prompt trimming, was measured on 2026-07-27 and is NOT worth

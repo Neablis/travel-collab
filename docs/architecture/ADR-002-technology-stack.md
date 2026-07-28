@@ -46,13 +46,13 @@ physical process boundary, and Phase 2 realtime will require a bolt-on
 
 ## Deferred decisions (each gets its own ADR when its milestone arrives)
 
-- **Realtime transport (Phase 2, M8):** Vercel serverless does not hold
+- **Realtime transport (Phase 2, M13):** Vercel serverless does not hold
   WebSockets. Candidates: Supabase Realtime, Pusher/Ably free tier, or
   extracting `src/server` to a small always-on host and using plain
   WebSockets/SSE. This is the known pressure point of the all-in-one choice;
   the extraction path is designed-in and cheap.
 - **Rich-text editor (M7):** TipTap/ProseMirror is the presumptive choice for
-  the basic trip notes page; custom embed nodes arrive at M11.
+  the basic trip notes page; custom embed nodes arrive at M14.
 - **AI integration (M7):** Claude API emitting domain *commands* through the
   standard validation pipeline — never raw writes. Details at M7.
 

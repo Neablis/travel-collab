@@ -13,6 +13,15 @@ Mechanism decisions: `docs/architecture/ADR-006` (conflict evaluation context),
 `docs/architecture/ADR-007` (maps & geocoding commodity) ·
 Plan: `docs/plans/2026-07-09-M3-place-and-time.md` (archived)
 
+
+> **Later decision (2026-07-28):** the **anchor UI shipped by this milestone is
+> retired in M8**, with the contract, conflict rules, and tests kept dormant
+> (`docs/known-issues.md`, D-1). This gate passed on rules that fire correctly;
+> it never established that a user could see or use them, and `publicHoliday`
+> shipped as a control backed by a permissive stub that could never conflict.
+> The gate below is left as it was written.
+
+
 ## Scope
 
 - **Dates become real (no new events).** `SetTripStartDate` /

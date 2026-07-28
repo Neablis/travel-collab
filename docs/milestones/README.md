@@ -37,25 +37,48 @@ for collaboration later landing on a product people already want to join.
 | M0 | Walking skeleton | Monorepo, CI, Google auth, event store, one command→event→projection→UI thread, deployed to Vercel |
 | M1 | Planning core | Trips, days, activities; drag-to-reschedule; soft-conflict engine (overlaps, impossible geography) |
 | M2 | History & time travel | History UI, undo, revert-to-state — proves the event-sourcing bet before stakes rise |
-| M3 | Place & time | Map view (MapLibre), timeline view, calendar views; date-anchored events (holidays, weekly schedules) whose anchors produce soft conflicts when dates shift |
-| M4 | Money & lenses | Cost items on activities/days/flights with rollup to trip; output lenses: itinerary, daily overview, full-trip overview |
-| M5 | Design foundations | Tailwind-based design system: global tokens, a documented color palette with usage guidelines (brand/semantic/gradients), styled reusable primitives (inputs, headings, text) and composites (forms, tables, modals), then a re-skin of every existing surface using only them. Purely presentational — no behavior/contract changes |
-| M6 | Atomic changes | Client/generator-declared command groups: a series of commands committed as one atomic batch (one history entry) so undo/redo/revert treat them as a single change. Opt-in, all-or-nothing; the substrate templates + AI generation (M7) build on. ADR-013 due here (ADR-010 was taken by M5's shadcn/ui adoption; ADR-011/012 taken by M5 Wave 2 layout & surfaces) |
-| M7 | Solo delight | Trip notes page (basic rich text, no embeds), trip templates, AI generation (Claude emitting commands through the standard validation pipeline), polish pass |
+| M3 | Place & time | Map view (MapLibre), timeline view, calendar views; date-anchored events whose anchors produce soft conflicts when dates shift. *(The anchor UI is retired in M8; the domain rules stay — see that file.)* |
+| M4 | Money & lenses | Cost items on activities/days/flights with rollup to trip; output lenses: itinerary, daily, full-trip |
+| M5 | Design foundations | Tailwind design system: tokens, documented palette, styled primitives and composites, then a re-skin of every existing surface. Answered "is it consistent" — not "is it obvious" (M8) or "is it beautiful" (M10) |
+| M6 | Atomic changes | Client/generator-declared command groups committed as one atomic batch, so undo/redo/revert treat them as a single change. Optimistic updates added mid-milestone |
+| M7 | Solo delight | Dynamic pages with typed macros, lazily-instantiated templates, a Notebook route outside time-travel, schema-derived constrained AI via Vercel AI Gateway |
+| M8 | Make it real | Trip lifecycle (name, dates, archive/delete, duplicate — `SetTripName` does not exist today); core loop ergonomics (search-to-add, quick add, moving activities); anchors retired from the UI but kept dormant; Notebook pulled back to plain notes; first-run and empty states. **Interaction design lives here** |
 
-## Phase 2 — Multi-persona
+## Phase 2 — A product worth using
 
 | # | Name | Scope |
 |---|---|---|
-| M8 | Collaboration | Invites, roles, revocation; near-real-time sync (transport ADR due here); concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events |
+| M9 | AI as a planning partner | Thread contract, streaming, propose→review→approve before commit, a refine turn, and the observability that does not exist today (persisted `meta`, replay harness, fixed eval set). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here** |
+| M10 | Visual craft pass | The "make it beautiful" pass, design-sync driven, once the surface inventory is stable. Deliberately after M9, which adds a whole new interaction surface |
 
 ## Phase 3 — Outward
 
 | # | Name | Scope |
 |---|---|---|
-| M9 | Fork & lineage | Clone-with-lineage, guided cherry-pick "merge", template sharing |
-| M10 | Community | Share links with RBAC, public gallery, voting, reporting (all trust & safety scope quarantined here) |
-| M11 | Rich layer | Notion-style pages with embedded community objects (TipTap ADR due here), external calendar sync (user's Google Calendar), dogfood-backlog items |
+| M11 | Fork & remix | Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport |
+| M12 | Community | Public gallery, discovery, voting, reporting (all trust & safety scope quarantined here) |
+| M13 | Collaboration | Invites, roles, revocation; near-real-time sync (transport ADR due here); concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
+| M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here |
+
+- **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
+  been met and the reason was structural, not cosmetic: a trip cannot be renamed
+  or deleted. **M8 "Make it real"** was inserted to close that floor, **M9 "AI as
+  a planning partner"** and **M10 "Visual craft pass"** were added, and
+  **Fork & remix moved ahead of Collaboration** — the wanted "social" feature is
+  cloning and sharing, which needs no realtime transport, while Collaboration is
+  the biggest remaining architectural lift. Renumbering:
+
+  | was | is now |
+  |---|---|
+  | M8 Collaboration | **M13** |
+  | M9 Fork & lineage | **M11** (Fork & remix) |
+  | M10 Community | **M12** |
+  | M11 Rich layer | **M14** |
+
+  Forward pointers were updated in the ADRs, the foundation spec, the
+  guidelines, and `known-issues.md` in the same change. **Closed milestone files
+  and closed per-milestone design specs were deliberately NOT rewritten** — they
+  were true when written, and this table is how to read them.
 
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
@@ -75,4 +98,4 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **Phase 1 gate review with Mitchell** (see `TODO.md`).
+Current milestone: **M8** — Make it real (see `M8-make-it-real.md`).

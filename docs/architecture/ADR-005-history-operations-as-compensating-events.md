@@ -50,7 +50,7 @@ came to be, not what it changed — it belongs beside `actor_id` and
   level, distinguished only by envelope metadata.
 - The log is truly append-only forever; "undo" adds history rather than
   erasing it, which is what makes concurrent-edit semantics (Phase 2) and
-  fork lineage (M9) remain tractable.
+  fork lineage (M11) remain tractable.
 - Correctness concentrates in one pure function, `diffTripStates`, with a
   crisp property-test invariant: applying the diff always reproduces the
   target state.

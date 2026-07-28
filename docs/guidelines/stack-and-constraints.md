@@ -53,6 +53,6 @@
 
 - Client/server separation is lint-enforced, not process-enforced — chosen
   eyes-open vs a separate API service (ADR-002).
-- Realtime at M8 will need a bolt-on or a `src/server` extraction — designed
+- Realtime at M13 will need a bolt-on or a `src/server` extraction — designed
   for, deferred.
 - Phase 1 has zero network effects; validation is dogfooding.

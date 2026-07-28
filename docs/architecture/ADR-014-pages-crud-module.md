@@ -29,8 +29,8 @@ operations outside the trip history pipeline.
 
 3. **Content format is Yjs-ready (ProseMirror-shaped, no CRDT now).**
    ProseMirror JSON is a tree of blocks and marks that natively maps to
-   `Y.XmlFragment` under a CRDT migration (planned for M8/M11). By storing
-   content in this format now, the M8/M11 transition from OCC to Yjs becomes a
+   `Y.XmlFragment` under a CRDT migration (planned for M13/M14). By storing
+   content in this format now, the M13/M14 transition from OCC to Yjs becomes a
    one-time per-document `Y.Doc` conversion: deserialize the existing ProseMirror
    JSON into a Yjs doc, keeping the schema and resolver logic unchanged. No CRDT
    plumbing, collaboration framing, or sync machinery is added in M7.
@@ -40,7 +40,7 @@ operations outside the trip history pipeline.
 - **Pages live outside time-travel.** Reverting to a historical trip state
   rewinds the plan (commands, itinerary, budget) but does not restore previous
   page prose. Hand-written content is only undoable within the editor session
-  (local or collaborative undo, once Yjs is live in M8). Macros in a reverted
+  (local or collaborative undo, once Yjs is live in M13). Macros in a reverted
   page auto-update because they resolve against the reverted trip state in real
   time.
 
@@ -72,7 +72,7 @@ operations outside the trip history pipeline.
    complexity and querying surface without gaining semantics: pages still would
    not be undoable from the trip history UI, and the two logs would diverge in
    sync guarantees and replication. Simpler to model pages as a pure CRUD
-   resource and unify undo via Yjs in M8.
+   resource and unify undo via Yjs in M13.
 
 3. **Macros resolve by reading historical snapshots of trip state.**
    Resolving macros against the reverted state (not a historical snapshot)

@@ -96,7 +96,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   (already exposed on `useTrip()`) as a visible "syncing…" / "all changes
   saved" affordance so the user can SEE when it's safe to navigate away,
   rather than a `beforeunload` prompt or forced queue flush. Worth deciding
-  alongside M8 (collaboration), where concurrent multi-actor writes make
+  alongside M13 (collaboration), where concurrent multi-actor writes make
   silent client-side loss more consequential.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
@@ -211,8 +211,8 @@ needs action — skip this section when triaging.
   `diff.property.test.ts` ("diffTripStates day ordering (KI-1 regression)").
 - **Reachability while it was open:** latent, never active. The UI mints
   `crypto.randomUUID()` per `AddDay` and the AI resolver mints ids server-side,
-  so no code path re-added a dayId. It would have stopped being latent at M8
-  (concurrent replay) and M9 (fork-with-lineage, where preserving day ids across
+  so no code path re-added a dayId. It would have stopped being latent at M13
+  (concurrent replay) and M11 (fork-with-lineage, where preserving day ids across
   a clone is the obvious implementation).
 - **Lesson worth keeping:** a property test found a genuine correctness bug in
   the most-trusted subsystem and it was filed as possible flake for two weeks.
@@ -261,6 +261,32 @@ needs action — skip this section when triaging.
   - **Minor cleanups:** the "generate a fresh random UUID" system-prompt instruction now covers `AddDay.dayId` (not just `activityId`); the system prompt now spells out the case-sensitive enum/code formats (`Weekday` `mon`..`sun`, uppercase ISO-4217 currency, uppercase ISO-3166 country) that otherwise fail at the tool-time Zod boundary.
   - Also hardened alongside: the planning tools now build each command via `BatchableCommand.safeParse` (a shared `collect()` choke point) instead of an unchecked `as` cast, so a resolver/schema drift fails at the tool with a clear error instead of relying solely on the downstream batch re-parse. `pageTools.ts` was audited and found clean (closed-enum macro names, server-resolved day binding).
 - **First noted:** 2026-07-24 (M7, post-real-model testing; full audit via subagent). **Resolved:** 2026-07-24 (M7; RemoveDay/DismissConflict/Money/prompt fixes + `collect()` parse boundary).
+
+## Dormant by decision
+
+Features that still exist in the domain but have no UI reaching them. Not bugs
+and not debt to pay down — deliberate holds, with a tripwire so the decision
+resurfaces when keeping them actually costs something.
+
+### D-1 — Anchors: domain kept, UI retired
+- **Decided:** 2026-07-28 (Mitchell), during the Phase 1 gate review. **Executed in M8.**
+- **What stays:** the `Anchor` contract, the anchor-violation conflict rules in
+  `packages/domain/src/trip/conflicts.ts`, and their tests
+  (`anchor-conflicts.test.ts`, `anchors-state.test.ts`).
+- **What goes:** `apps/web/src/components/board/AnchorEditor.tsx` and every UI
+  entry point to it.
+- **Why:** anchors were never made legible. M3's gate proved the *rules* fire,
+  never that anyone could see or use them. `publicHoliday` was worse than
+  invisible — a selectable option with a country picker whose oracle is a
+  permissive stub (`isPublicHoliday: () => true`), so it could never produce a
+  conflict. A control that cannot do anything is a lie in the UI.
+- **The tripwire — this is the point.** The anchor domain tests stay in the
+  suite, so a future change that breaks anchors **fails the build**. Whoever
+  hits it should read this entry and *decide* — revive with a real UI, or
+  delete the feature — rather than reflexively repairing code no user can
+  reach. A comment alone would never have surfaced; a failing test will.
+- **Related dead weight to clear in the same pass:** `ConflictContext.timezone`
+  is injected from `TRIP_TIMEZONE`, documented in ADR-006, and read by no rule.
 
 ## Deferred design work (tracked elsewhere, pointer only)
 
