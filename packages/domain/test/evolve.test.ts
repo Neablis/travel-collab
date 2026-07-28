@@ -134,3 +134,70 @@ describe("evolveTrip (M1 events)", () => {
     ).toThrow();
   });
 });
+
+// B2. `evolveTrip` already refuses to interpret a stream whose first event
+// isn't TripCreated ("corrupt stream"). These close the same hole one level
+// down: an activity event naming a day that doesn't exist used to be absorbed
+// silently, leaving the activity in `state.activities` but in NO list — neither
+// a day nor the backlog. Invisible in the UI, unreachable, undeletable.
+// `decideTripCommand` rejects these before they can ever be written, so this is
+// a replay-integrity guard, not a reachable user path: it must fail loudly
+// rather than produce a plausible-looking wrong state.
+describe("evolveTrip totality — activity events naming an unknown day", () => {
+  const GHOST = "0d0d0d0d-1111-4222-8333-444444444444";
+  const OTHER_ACT = "1b1b1b1b-2222-4333-8444-555555555555";
+
+  it("throws when ActivityAdded targets a day that does not exist", () => {
+    const state = fold([created, { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } }]);
+
+    expect(() =>
+      evolveTrip(state, {
+        type: "ActivityAdded",
+        version: 1,
+        payload: {
+          tripId: TRIP,
+          activityId: OTHER_ACT,
+          dayId: GHOST,
+          title: "Ghost",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      }),
+    ).toThrow(/corrupt stream/i);
+  });
+
+  it("throws when ActivityMoved targets a day that does not exist", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      addActivity,
+    ]);
+
+    expect(() =>
+      evolveTrip(state, {
+        type: "ActivityMoved",
+        version: 1,
+        payload: { tripId: TRIP, activityId: ACT, toDayId: GHOST, position: 0 },
+      }),
+    ).toThrow(/corrupt stream/i);
+  });
+
+  it("still moves an activity to the backlog when toDayId is null", () => {
+    const state = fold([
+      created,
+      { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+      addActivity,
+    ]);
+
+    const next = evolveTrip(state, {
+      type: "ActivityMoved",
+      version: 1,
+      payload: { tripId: TRIP, activityId: ACT, toDayId: null, position: 0 },
+    });
+
+    expect(next.backlog).toEqual([ACT]);
+  });
+});

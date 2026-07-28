@@ -18,6 +18,19 @@ function insertAt(list: string[], id: string, position: number): string[] {
   return next;
 }
 
+// Replay totality guard, same contract as the TripCreated check below: an
+// activity event naming a day the state doesn't have cannot be interpreted.
+// Absorbing it silently (the old behavior) left the activity in `activities`
+// but in no list at all — invisible, unreachable, undeletable. A stream that
+// cannot be interpreted must fail loudly, not fold to a plausible wrong state.
+// `decideTripCommand` rejects these before they can be written, so reaching
+// this means the log itself is corrupt.
+function requireDay(state: TripState, dayId: string, eventType: string): void {
+  if (!state.days.some((d) => d.dayId === dayId)) {
+    throw new Error(`${eventType} references unknown day ${dayId} — corrupt stream`);
+  }
+}
+
 export function evolveTrip(state: TripState | null, event: TripEvent): TripState {
   if (event.type === "TripCreated") {
     return {
@@ -69,6 +82,7 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
         },
       };
       if (dayId === null) return { ...next, backlog: [...next.backlog, activityId] };
+      requireDay(state, dayId, "ActivityAdded");
       return {
         ...next,
         days: next.days.map((d) =>
@@ -89,6 +103,7 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       if (toDayId === null) {
         return { ...removed, backlog: insertAt(removed.backlog, activityId, position) };
       }
+      requireDay(state, toDayId, "ActivityMoved");
       return {
         ...removed,
         days: removed.days.map((d) =>

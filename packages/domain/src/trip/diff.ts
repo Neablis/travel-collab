@@ -45,27 +45,45 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
     }
   }
 
-  // 3. Day reconciliation. DayAdded can only APPEND, and ordinals are derived
-  //    from array position, so day order matters. Both states' day lists
-  //    preserve the stream's original append order; the only order breaker is
-  //    a day that must be re-created mid-list. From the first such day onward,
-  //    every surviving day is removed and re-appended in target order.
-  //    (DayRemoved sends its activities to the backlog; step 5 re-places them.)
+  // 3. Day reconciliation. DayAdded can only APPEND, and a day's ordinal IS its
+  //    array position, so day ORDER is meaning, not presentation. Drop the days
+  //    the target doesn't have, then compare what survives against the target
+  //    position by position: from the first index where they disagree, tear down
+  //    and re-append in target order.
+  //
+  //    This used to look only for a target day *missing* from current, on the
+  //    assumption that "both states' day lists preserve the stream's original
+  //    append order". That assumption is false (KI-1): remove a day and re-add
+  //    it and it lands at the end, so an earlier state can hold the very same
+  //    dayIds in a different order. Nothing was missing, nothing was emitted,
+  //    and the revert silently produced the wrong day sequence — which, since
+  //    dates are derived from position, silently redated the trip.
+  //    (DayRemoved sends its activities to the backlog; step 6 re-places them.)
   const targetDayIds = new Set(target.days.map((d) => d.dayId));
   for (const day of working.days) {
     if (!targetDayIds.has(day.dayId)) {
       push({ type: "DayRemoved", version: 1, payload: { tripId: target.tripId, dayId: day.dayId } });
     }
   }
-  const survivorIds = new Set(working.days.filter((d) => targetDayIds.has(d.dayId)).map((d) => d.dayId));
-  const firstMissing = target.days.findIndex((d) => !survivorIds.has(d.dayId));
-  if (firstMissing !== -1) {
-    for (const day of target.days.slice(firstMissing)) {
+  // `working.days` is now exactly the survivors, in current's order. Survivors
+  // are a subset of the target's days, so the common prefix can only run out
+  // against the target's length.
+  const survivorOrder = working.days.map((d) => d.dayId);
+  let commonPrefix = 0;
+  while (
+    commonPrefix < survivorOrder.length &&
+    survivorOrder[commonPrefix] === target.days[commonPrefix]?.dayId
+  ) {
+    commonPrefix++;
+  }
+  if (commonPrefix < target.days.length) {
+    const survivorIds = new Set(survivorOrder);
+    for (const day of target.days.slice(commonPrefix)) {
       if (survivorIds.has(day.dayId)) {
         push({ type: "DayRemoved", version: 1, payload: { tripId: target.tripId, dayId: day.dayId } });
       }
     }
-    for (const day of target.days.slice(firstMissing)) {
+    for (const day of target.days.slice(commonPrefix)) {
       push({ type: "DayAdded", version: 1, payload: { tripId: target.tripId, dayId: day.dayId } });
     }
   }

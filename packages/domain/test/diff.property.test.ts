@@ -167,3 +167,62 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
     );
   });
 });
+
+// KI-1. The shrunk counterexample the property test above had been finding
+// ~1-in-5 runs since 2026-07-12, pinned deterministically. Day ORDER carries
+// meaning (ordinal = array position = the day's date), and two states can hold
+// the *same set* of dayIds in a different order once a day is removed and
+// re-added. Step 3 of diffTripStates used to rebuild only when a target day was
+// missing from current, so an order-only difference emitted no day events at
+// all and the revert silently produced the wrong day sequence.
+describe("diffTripStates day ordering (KI-1 regression)", () => {
+  const DAY_A = uuid(101);
+  const DAY_B = uuid(102);
+
+  // B added first, then A. B is removed, then re-added — so it lands at the END.
+  // The earlier state has [B, A]; the later state has [A, B]. Same set, different
+  // order. Reverting from the later state to the earlier one must reorder.
+  function statesWithSameDaysInDifferentOrder(): { current: TripState; target: TripState } {
+    const events: TripEvent[] = [];
+    let state: TripState | null = null;
+    const apply = (command: TripCommand): void => {
+      const decision = decideTripCommand(state, command, CTX);
+      if (!decision.ok) throw new Error(`setup rejected ${command.type}: ${decision.rejection.code}`);
+      for (const event of decision.events) {
+        events.push(event);
+        state = evolveTrip(state, event);
+      }
+    };
+    apply({ type: "CreateTrip", tripId: TRIP, name: "Ordering" });
+    apply({ type: "AddDay", tripId: TRIP, dayId: DAY_B });
+    apply({ type: "AddDay", tripId: TRIP, dayId: DAY_A });
+    const targetSeq = events.length; // days are [B, A] here
+    apply({ type: "RemoveDay", tripId: TRIP, dayId: DAY_B });
+    apply({ type: "AddDay", tripId: TRIP, dayId: DAY_B }); // re-added → appended
+
+    return { current: foldTo(events, events.length), target: foldTo(events, targetSeq) };
+  }
+
+  it("emits day events when the two states differ only in day ORDER", () => {
+    const { current, target } = statesWithSameDaysInDifferentOrder();
+    expect(current.days.map((d) => d.dayId)).toEqual([DAY_A, DAY_B]);
+    expect(target.days.map((d) => d.dayId)).toEqual([DAY_B, DAY_A]);
+
+    expect(diffTripStates(current, target)).not.toEqual([]);
+  });
+
+  it("applying that diff reproduces the target's day order exactly", () => {
+    const { current, target } = statesWithSameDaysInDifferentOrder();
+
+    let result = current;
+    for (const event of diffTripStates(current, target)) result = evolveTrip(result, event);
+
+    expect(result.days.map((d) => d.dayId)).toEqual(target.days.map((d) => d.dayId));
+    expect(tripStatesEqual(result, target)).toBe(true);
+  });
+
+  it("still emits nothing when the day lists are already identical", () => {
+    const { current } = statesWithSameDaysInDifferentOrder();
+    expect(diffTripStates(current, current)).toEqual([]);
+  });
+});
