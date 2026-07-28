@@ -165,24 +165,23 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Risk if ignored:** a red `pnpm check` that is *usually* noise trains everyone to wave it through — which is precisely how a real regression ships.
 - **First noted:** 2026-07-26 (verifying the flattened repo after the worktree cleanup).
 
-### KI-14 — A dismissed conflict stays dismissed forever, so a re-created problem is silently suppressed
-- **Severity:** correctness (a real, current conflict is hidden from the user with no signal)
-- **Area:** `packages/domain/src/trip/evolve.ts` (`ConflictDismissed`/`ConflictUndismissed`), `packages/domain/src/trip/conflicts.ts` (content-derived ids), `TripState.dismissedConflictIds`
-- **Symptom:** conflict ids are **content-derived** (`time-overlap:<dayId>:<actA>:<actB>`) and `dismissedConflictIds` is never garbage-collected, so:
-  1. two activities overlap → the conflict appears;
-  2. the user dismisses it ("yes, I know, it's fine");
-  3. the user fixes the overlap → the conflict disappears, **but the id stays in `dismissedConflictIds`**;
-  4. the user later re-creates the same overlap → `detectConflicts` regenerates the identical id and the UI filters it out. **Permanently invisible.**
-  Verified end-to-end against the real domain on 2026-07-27. No special conditions — plain M1/M3 behavior, reachable by anyone dragging activities around.
-- **Why it matters more than it looks:** it fails in the dangerous direction. Invariant 3 exists so plan problems surface as data the user can see; this silently un-surfaces a live one. It also compounds with time — the register only grows, so an old trip accumulates more suppression.
-- **The decision this needs first (not a mechanical fix):** should a dismissal bind to the conflict's *content* (today's behavior — "this exact overlap between these two activities is fine, forever") or to its *occurrence* ("this instance is fine; if it comes back, tell me again")? Occurrence semantics need a dismissal to be invalidated when the conflict stops being detected, which means either evolving `dismissedConflictIds` on every state change or storing a fingerprint of the state it was dismissed against. Content semantics are what's implemented and are defensible for genuinely permanent "I know, they overlap on purpose" cases — the bug is then narrower: nothing ever prunes ids for conflicts that can no longer exist at all (e.g. one of the two activities was deleted).
-- **Mitigation:** none today. A user who hits this has no way to un-dismiss from the UI (`ConflictUndismissed` exists as an event but is only emitted by `diffTripStates` during a revert).
-- **First noted:** 2026-07-27 (invariant-probe pass over the domain).
-
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-14 — A dismissed conflict stayed dismissed forever, silently suppressing a re-created problem — RESOLVED
+- **Severity:** correctness (a real, current conflict was hidden from the user with no signal)
+- **Area:** `packages/domain/src/trip/decide.ts` (`lapsedDismissals`), `TripState.dismissedConflictIds`
+- **Symptom:** conflict ids are **content-derived** (`time-overlap:<dayId>:<actA>:<actB>`) and `dismissedConflictIds` was append-only, so a dismissal outlived the thing it dismissed: dismiss an overlap → fix it → re-create the same overlap and the identical id was regenerated and filtered out. Permanently invisible, no way to recover it from the UI. Plain M1/M3 behavior, reachable by anyone dragging activities around.
+- **Decision (Mitchell, 2026-07-27): dismissal is OCCURRENCE-scoped**, not content-scoped — "this instance is fine; if it comes back, tell me again." Rejected the content-scoped reading ("this exact overlap is fine forever"), which is defensible for deliberately-overlapping activities but makes the dangerous failure the default. **No un-dismiss UI was added and none is needed:** a state change re-surfaces the conflict on its own, and `DismissConflict` is an ordinary command with a history entry, so undo already reverses a misclick (`diffTripStates` step 7 emits the `ConflictUndismissed`).
+- **Fix (2026-07-28):** `decideTripCommand` now appends a `ConflictUndismissed` for every dismissed conflict the command stops producing, in the same batch as the causing command (so it stays one history entry, described as "… , Restored a conflict"). The invariant is that `dismissedConflictIds` only ever holds ids of currently-detected conflicts.
+  - **Why decide and not evolve:** the log has to carry the lapse or a replay resurrects the stale id, and running the conflict engine inside the reducer would make every projection rebuild O(events × activities²). `decide` already called `detectConflicts` to validate `DismissConflict`.
+  - **Why not read-time filtering in `tripDetailFromState`:** it would not have fixed the bug — the id survives in `TripState`, so re-creating the conflict suppresses it again; only the projection would have been lying instead of the state.
+  - **Cost:** a `dismissedConflictIds.length === 0` early-out means the common case (no dismissals) does no extra work at all.
+  - The client predictor (`predictBatch`) reuses the same decider, so optimistic updates lapse dismissals identically — no client/server divergence.
+- **Pinned by** five tests in `dismissal.test.ts`, including two that guard against *over*-firing: a dismissal survives a command that leaves the conflict detected, and `DismissConflict` never lapses the dismissal it just created.
+- **First noted:** 2026-07-27 (invariant-probe pass over the domain). **Resolved:** 2026-07-28.
 
 ### KI-1 — `diffTripStates` ignored day ORDER, so a revert could silently redate the trip — RESOLVED
 - **Severity:** correctness (was logged as "reliability, possibly correctness — unconfirmed" for 14 days; it was correctness)

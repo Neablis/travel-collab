@@ -31,15 +31,11 @@ Nothing is mid-implementation. No open branches carrying unmerged code.
    in production until it is applied. Manual unblock:
    `DATABASE_URL='<neon-direct-url>' pnpm --filter web db:migrate` — use the
    unpooled `neon.tech` host, not `-pooler`.
-3. **KI-14 — a dismissed conflict is suppressed forever**, so a problem the user
-   fixed and then re-created is silently hidden. Live and reachable today.
-   Needs a semantics decision (content- vs occurrence-scoped dismissal) before
-   it can be fixed; see the entry in `docs/known-issues.md`.
-
-Resolved on 2026-07-27, no longer blocking: KI-1 (`diffTripStates` dropped day
-order — real correctness bug, fixed and pinned by regression tests); the
-`evolveTrip` replay-totality hole; and the stranded M7 post-gate retro plus
-KI-11/12/13, which are now on `main`.
+Recently resolved, no longer blocking: **KI-1** (`diffTripStates` dropped day
+order — a real correctness bug, not the flake it was filed as), the
+`evolveTrip` replay-totality hole, the stranded M7 post-gate retro plus
+KI-11/12/13, and **KI-14** (dismissed conflicts are now occurrence-scoped and
+lapse when the conflict stops being detected).
 
 ## Next action
 

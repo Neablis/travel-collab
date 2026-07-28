@@ -49,7 +49,51 @@ export function decideCreateTrip(
   ]);
 }
 
+// KI-14. A dismissal is OCCURRENCE-scoped: "this instance is fine; if it comes
+// back, tell me again." Conflict ids are content-derived, so an append-only
+// `dismissedConflictIds` let a dismissal outlive the thing it dismissed —
+// resolve an overlap, re-create it later, and the identical id was regenerated
+// and silently filtered out, hiding a real current problem with no signal.
+//
+// So every command that stops a dismissed conflict from being detected also
+// emits the matching `ConflictUndismissed`, keeping the invariant that
+// `dismissedConflictIds` only ever holds ids of currently-detected conflicts.
+// This lives in decide (not evolve) for two reasons: the log must carry the
+// lapse or a replay resurrects the stale id, and running the conflict engine
+// inside the reducer would make every projection rebuild O(events × activities²).
+// The `length === 0` early-out means the overwhelmingly common case — no
+// dismissals at all — costs nothing.
+function lapsedDismissals(state: TripState, events: TripEvent[]): TripEvent[] {
+  if (state.dismissedConflictIds.length === 0) return [];
+  let next = state;
+  for (const event of events) next = evolveTrip(next, event);
+  if (next.dismissedConflictIds.length === 0) return [];
+
+  const live = new Set(detectConflicts(next).map((c) => c.id));
+  return next.dismissedConflictIds
+    .filter((id) => !live.has(id))
+    .map((conflictId) => ({
+      type: "ConflictUndismissed" as const,
+      version: 1 as const,
+      payload: { tripId: next.tripId, conflictId },
+    }));
+}
+
 export function decideTripCommand(
+  state: TripState | null,
+  command: TripCommand,
+  ctx: DecideContext,
+): Decision {
+  const decision = decideCommand(state, command, ctx);
+  // `state === null` only survives decideCommand for CreateTrip, which has no
+  // dismissals to lapse.
+  if (!decision.ok || state === null) return decision;
+
+  const lapsed = lapsedDismissals(state, decision.events);
+  return lapsed.length === 0 ? decision : ok([...decision.events, ...lapsed]);
+}
+
+function decideCommand(
   state: TripState | null,
   command: TripCommand,
   ctx: DecideContext,

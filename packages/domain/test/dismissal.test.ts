@@ -99,3 +99,103 @@ describe("no-op command guards", () => {
     expect(decision.ok).toBe(true);
   });
 });
+
+// KI-14. Conflict ids are content-derived and `dismissedConflictIds` used to be
+// append-only, so a dismissal outlived the thing it dismissed: resolve an
+// overlap and re-create it later and the identical id was regenerated and
+// silently filtered out — a real, current problem hidden with no signal.
+// Dismissal is OCCURRENCE-scoped (Mitchell, 2026-07-27): "this instance is
+// fine; if it comes back, tell me again." The invariant is that
+// `dismissedConflictIds` only ever holds ids of currently-detected conflicts.
+describe("conflict dismissal lapses when the conflict stops being detected (KI-14)", () => {
+  function dismissed(): { state: TripState; conflictId: string } {
+    const base = conflictedState();
+    const conflictId = detectConflicts(base)[0]!.id;
+    return {
+      state: evolveTrip(base, {
+        type: "ConflictDismissed",
+        version: 1,
+        payload: { tripId: TRIP, conflictId },
+      }),
+      conflictId,
+    };
+  }
+
+  // Pull A2 off the overlap; the conflict disappears, so the dismissal must go.
+  const resolveOverlap: TripCommand = {
+    type: "UpdateActivity",
+    tripId: TRIP,
+    activityId: A2,
+    title: "Vatican",
+    timeWindow: { start: "14:00", end: "15:00" },
+  };
+
+  function apply(state: TripState, command: TripCommand): TripState {
+    const decision = decideTripCommand(state, command, CTX);
+    if (!decision.ok) throw new Error(decision.rejection.code);
+    let next = state;
+    for (const event of decision.events) next = evolveTrip(next, event);
+    return next;
+  }
+
+  it("emits ConflictUndismissed alongside the command that resolves the conflict", () => {
+    const { state, conflictId } = dismissed();
+
+    const decision = decideTripCommand(state, resolveOverlap, CTX);
+    if (!decision.ok) throw new Error(decision.rejection.code);
+
+    expect(decision.events).toContainEqual({
+      type: "ConflictUndismissed",
+      version: 1,
+      payload: { tripId: TRIP, conflictId },
+    });
+  });
+
+  it("drops the id from state, so re-creating the same conflict shows it again", () => {
+    const { state, conflictId } = dismissed();
+    expect(state.dismissedConflictIds).toEqual([conflictId]);
+
+    const resolved = apply(state, resolveOverlap);
+    expect(detectConflicts(resolved)).toEqual([]);
+    expect(resolved.dismissedConflictIds).toEqual([]);
+
+    // Put it back exactly as it was — the conflict must be visible, not suppressed.
+    const recreated = apply(resolved, {
+      type: "UpdateActivity",
+      tripId: TRIP,
+      activityId: A2,
+      title: "Vatican",
+      timeWindow: { start: "10:00", end: "12:00" },
+    });
+
+    const live = detectConflicts(recreated);
+    expect(live.map((c) => c.id)).toEqual([conflictId]);
+    expect(recreated.dismissedConflictIds).toEqual([]);
+    const detail = tripDetailFromState(recreated, "2026-07-28T00:00:00.000Z");
+    expect(detail.conflicts.map((c) => c.id)).toContain(conflictId);
+  });
+
+  it("lapses a dismissal when one of the conflicting activities is removed", () => {
+    const { state } = dismissed();
+    const next = apply(state, { type: "RemoveActivity", tripId: TRIP, activityId: A2 });
+    expect(next.dismissedConflictIds).toEqual([]);
+  });
+
+  it("leaves the dismissal alone while the conflict is still detected", () => {
+    const { state, conflictId } = dismissed();
+    // Renaming A2 doesn't touch the overlap — the conflict, and the dismissal, persist.
+    const next = apply(state, { type: "UpdateActivity", tripId: TRIP, activityId: A2, title: "St Peter's", timeWindow: { start: "10:00", end: "12:00" } });
+    expect(detectConflicts(next).map((c) => c.id)).toEqual([conflictId]);
+    expect(next.dismissedConflictIds).toEqual([conflictId]);
+  });
+
+  it("does not lapse the dismissal it just created", () => {
+    const base = conflictedState();
+    const conflictId = detectConflicts(base)[0]!.id;
+    const decision = decideTripCommand(base, { type: "DismissConflict", tripId: TRIP, conflictId }, CTX);
+    if (!decision.ok) throw new Error(decision.rejection.code);
+    expect(decision.events).toEqual([
+      { type: "ConflictDismissed", version: 1, payload: { tripId: TRIP, conflictId } },
+    ]);
+  });
+});
