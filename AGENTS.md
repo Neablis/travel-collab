@@ -148,7 +148,20 @@ these out immediately:
 ## Testing model
 
 - **Unit** (`packages/domain`): fast, exhaustive; property-based tests
-  (fast-check) for reducers and the conflict engine.
+  (fast-check) for reducers and the conflict engine. `fast-check` is also
+  available in `@tc/pages` and `apps/web` — a claim of the form "for ALL
+  inputs" gets a property test wherever it lives, not just in the domain.
+- **Property tests carry a `witness`.** A property that skips every generated
+  case still reports ✓. Count the assertions and assert a floor (`witness.ts`,
+  duplicated per package). **Measure the floor, don't guess it** — set it near
+  half the observed minimum; a guessed floor either flaps (retraining everyone
+  to ignore red) or is too low to catch anything. Real incidents both ways:
+  a probe passed 400 runs having asserted **zero** times, and the first draft
+  of these floors flapped 3-in-15.
+- **If a comment asserts an invariant, a test enforces it or the comment is a
+  lie with a timer on it.** KI-1, the `evolveTrip` totality hole, and KI-14
+  were all the same species: a correct-looking abstraction resting on a stated
+  assumption nothing checked.
 - **Contract**: every endpoint validated against its Zod schema; UI developed
   against MSW mocks from the same schemas.
 - **Integration** (`apps/web/src/server`): real Postgres via docker-compose;
