@@ -23,24 +23,26 @@ Nothing is mid-implementation. No open branches carrying unmerged code.
 
 ## Blocking / broken right now
 
-1. **`main` is red.** The `migrate-production` CI job fails — the
-   `PRODUCTION_DATABASE_URL` repo secret is unset (first flagged 2026-07-13).
-   Code lanes (static, unit, integration+e2e) are green.
-2. **Production is missing migration `0003_worried_lightspeed.sql`** (the
-   `pages` table), because of (1). The M7 Notebook feature is expected to fail
-   in production until it is applied. Manual unblock:
-   `DATABASE_URL='<neon-direct-url>' pnpm --filter web db:migrate` — use the
-   unpooled `neon.tech` host, not `-pooler`.
-Recently resolved, no longer blocking: **KI-1** (`diffTripStates` dropped day
-order — a real correctness bug, not the flake it was filed as), the
-`evolveTrip` replay-totality hole, the stranded M7 post-gate retro plus
-KI-11/12/13, and **KI-14** (dismissed conflicts are now occurrence-scoped and
-lapse when the conflict stops being detected).
+**Nothing.** `main` went fully green for the first time on 2026-07-28 — all four
+CI jobs including `migrate-production`, which applied migration `0003` (the
+`pages` table) to production after the `PRODUCTION_DATABASE_URL` secret was set.
+The M7 Notebook should now work on the deployed app; it had been failing there
+since M7 merged.
+
+Cleared on 2026-07-27/28: the production migration blocker (open since
+2026-07-13); **KI-1**, `diffTripStates` silently dropping day order — a real
+correctness bug, not the flake it had been filed as for two weeks; the
+`evolveTrip` replay-totality hole; **KI-14**, dismissed conflicts suppressing a
+re-created problem forever; and M7's stranded post-gate retro plus KI-11/12/13,
+which existed only on a branch.
 
 ## Next action
 
-Phase 1 gate review with Mitchell. Before it is worth running, at minimum items
-1–3 above should be cleared.
+**Phase 1 gate review with Mitchell** — plan a real trip end-to-end and see
+whether the product needs no other tool. Nothing blocks it now. The known gaps
+most likely to bite during that exercise are **KI-12** (no `SetTripName`
+command exists at all, so an AI-planned trip stays "New TRip" with null dates)
+and the general first-run/usability weaknesses recorded in the 2026-07-27 audit.
 
 ## Local dev recipe (the bits that get re-derived every time)
 
