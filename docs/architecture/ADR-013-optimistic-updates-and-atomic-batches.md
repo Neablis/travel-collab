@@ -2,7 +2,7 @@
 
 **Status:** Accepted — 2026-07-19
 **Deciders:** Mitchell (product/eng), Claude (architect)
-Design spec: `docs/superpowers/specs/2026-07-19-m6-atomic-changes-optimistic-updates-design.md`
+Design spec: `docs/specs/2026-07-19-M6-atomic-changes-optimistic-updates-design.md`
 
 ## Context
 
@@ -56,7 +56,7 @@ ADR-012 invariant 1 held that TripProvider mutates trip state ONLY by
 
 ## Deviation from the original design spec
 
-The design spec (`docs/superpowers/specs/2026-07-19-m6-atomic-changes-optimistic-updates-design.md`)
+The design spec (`docs/specs/2026-07-19-M6-atomic-changes-optimistic-updates-design.md`)
 originally proposed opening the UI/domain lint wall for a curated
 `@tc/domain/predict` subpath only, via an ESLint `no-restricted-imports`
 negation glob (`!@tc/domain/predict` re-inclusion alongside the `@tc/domain/*`

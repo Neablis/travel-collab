@@ -25,7 +25,7 @@ file defines scope and gate only.
 - Aesthetic direction: **Field Kit** (paper/ink/teal, mono-for-data signature).
 - Design record: `docs/specs/2026-07-11-M5-design-foundations-design.md` ·
   System reference: `docs/guidelines/design-system.md` ·
-  Task plan: `docs/plans/2026-07-11-M5-design-foundations.md`.
+  Task plan: `docs/plans/2026-07-11-M5-design-foundations.md` (archived).
 
 ## Wave 2 — Layout & surfaces (scope expansion, 2026-07-12)
 
@@ -36,7 +36,7 @@ container/breakpoint tokens, Sheet + Popover primitives, a client-state context
 spine (ADR-012), URL-backed view routing, and a scope→surface editing paradigm
 (ADR-011). It is desktop-first with mobile-capable tokens; no phone pass.
 Spec: `docs/specs/2026-07-12-M5-layout-and-surfaces-design.md` ·
-Plan: `docs/plans/2026-07-12-M5-layout-and-surfaces.md`.
+Plan: `docs/plans/2026-07-12-M5-layout-and-surfaces.md` (archived).
 
 Wave 1's "e2e changes are selector-only" rule does **not** apply to Wave 2:
 Enter-to-search, editor-as-sheet, budget-in-settings, and the merged Schedule
@@ -131,7 +131,7 @@ horizontal scroll), whole-card drop targets, Map re-render fix
 Schedule toggle restyle, header `BudgetMeter`, Timeline hour axis, `MoneyInput`
 grouped-display inputs, and silent no-op commands. UI-layer only.
 Spec: `docs/specs/2026-07-13-M5-wave3-refinements-design.md` ·
-Plan: `docs/plans/2026-07-13-M5-wave3-refinements.md` ·
+Plan: `docs/plans/2026-07-13-M5-wave3-refinements.md` (archived) ·
 Feedback capture: `docs/design-feedback/2026-07-13-pr11-wave2-vercel-comments.md`.
 Minor cosmetic/dead-code findings recorded as KI-4 in `docs/known-issues.md`.
 

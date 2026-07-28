@@ -11,7 +11,7 @@ undo/revert-correct via the existing compensating-events machinery (ADR-005).
 Design record: `docs/specs/2026-07-10-M4-money-and-lenses-design.md` ·
 Mechanism decisions: `docs/architecture/ADR-008` (money representation &
 single-currency scope), `docs/architecture/ADR-009` (cost as an activity field;
-flights are activities) · Plan: `docs/plans/2026-07-10-M4-money-and-lenses.md`
+flights are activities) · Plan: `docs/plans/2026-07-10-M4-money-and-lenses.md` (archived)
 
 ## Scope
 

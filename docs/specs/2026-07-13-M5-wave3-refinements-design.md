@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-13 · **Milestone:** M5 (design foundations), Wave 3 ·
 **Branch:** `m5-design-foundations` · **Precedes:** implementation plan
-`docs/plans/2026-07-13-M5-wave3-refinements.md`
+`docs/plans/2026-07-13-M5-wave3-refinements.md` (archived)
 
 Companion to the Wave-1 re-skin (`docs/specs/2026-07-11-M5-design-foundations-design.md`)
 and Wave-2 layout & surfaces (`docs/specs/2026-07-12-M5-layout-and-surfaces-design.md`).
@@ -187,7 +187,7 @@ to `TimelineLens`; the existing `%`-based geometry is unchanged.
 2. design-system.md amendments — board grid/drop convention, any new composite
    (`BudgetMeter`), MoneyInput behavior note, timeline axis (done in the
    implementation tasks, since doc + code change together).
-3. The implementation plan `docs/plans/2026-07-13-M5-wave3-refinements.md`.
+3. The implementation plan `docs/plans/2026-07-13-M5-wave3-refinements.md` (archived).
 
 ## Open items carried into the plan
 

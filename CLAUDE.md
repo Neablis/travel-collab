@@ -5,6 +5,7 @@ architecture boundaries, workstreams, definition of done). Everything there is
 binding for agent work here.
 
 Quick orientation:
+- **Where the work actually is right now (read this first): `docs/STATUS.md`**
 - What to work on next: `TODO.md`
 - Product/architecture design: `docs/specs/2026-07-07-foundation-design.md`
 - Decisions and rationale: `docs/architecture/` (ADRs)

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12 · **Milestone:** M5 (design foundations), Wave 2 ·
 **Branch:** `m5-design-foundations` · **Precedes:** implementation plan
-`docs/plans/2026-07-12-M5-layout-and-surfaces.md`
+`docs/plans/2026-07-12-M5-layout-and-surfaces.md` (archived)
 
 Companion to `docs/specs/2026-07-11-M5-design-foundations-design.md` (Wave 1 —
 the Field Kit re-skin, PR #11). Normative system reference:
@@ -303,7 +303,7 @@ Enter-to-search (#1).
    together).
 5. **M5 milestone amendment** — scope-expansion note + Wave-2 exit gate that
    validates ADR-011 and ADR-012 as independent line items.
-6. The implementation plan `docs/plans/2026-07-12-M5-layout-and-surfaces.md`.
+6. The implementation plan `docs/plans/2026-07-12-M5-layout-and-surfaces.md` (archived).
 
 ## Open items carried into the plan
 

@@ -11,7 +11,7 @@ the existing compensating-events machinery (ADR-005).
 Design record: `docs/specs/2026-07-09-M3-place-and-time-design.md` ·
 Mechanism decisions: `docs/architecture/ADR-006` (conflict evaluation context),
 `docs/architecture/ADR-007` (maps & geocoding commodity) ·
-Plan: `docs/plans/2026-07-09-M3-place-and-time.md`
+Plan: `docs/plans/2026-07-09-M3-place-and-time.md` (archived)
 
 ## Scope
 

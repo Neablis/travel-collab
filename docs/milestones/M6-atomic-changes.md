@@ -1,7 +1,7 @@
 # M6 — Atomic changes (+ optimistic updates)
 
 **Status:** Done — 2026-07-20
-Design spec: `docs/superpowers/specs/2026-07-19-m6-atomic-changes-optimistic-updates-design.md`
+Design spec: `docs/specs/2026-07-19-M6-atomic-changes-optimistic-updates-design.md`
 Decision record: `docs/architecture/ADR-013-optimistic-updates-and-atomic-batches.md`
 
 ## Scope

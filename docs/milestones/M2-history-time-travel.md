@@ -9,7 +9,7 @@ ad-hoc psql resets) before any feature work starts.
 
 Design record: `docs/specs/2026-07-08-M2-history-time-travel-design.md` ·
 Mechanism decision: `docs/architecture/ADR-005` ·
-Plan: `docs/plans/2026-07-08-M2-history-time-travel.md`
+Plan: `docs/plans/2026-07-08-M2-history-time-travel.md` (archived)
 
 ## Scope
 
