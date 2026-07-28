@@ -13,26 +13,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-1 — `diffTripStates` round-trip property test is intermittently failing
-- **Severity:** reliability (possibly correctness — unconfirmed)
-- **Area:** `packages/domain` · `packages/domain/test/diff.property.test.ts`
-  ("diffTripStates round-trip — THE M2 invariant")
-- **Symptom:** fails ~1-in-5 runs. It's a `fast-check` property test (300
-  runs, **no fixed seed**), so each run explores different inputs; the failure
-  reproduces **deterministically** when re-run with its own reported seed —
-  i.e. a genuine counterexample, not load/timing flake.
-- **Scope:** **pre-existing**, predates M5. Confirmed by diffing this branch's
-  `packages/domain` against `origin/main` (zero diff) and reproducing the same
-  intermittent failure against a pristine `origin/main` worktree.
-- **Open question:** is the M2 round-trip invariant (`applyDiff(a,
-  diff(a,b)) == b`) actually violated for some trip-state shape, or is the
-  test's generator producing states the invariant was never meant to cover?
-  Either way it needs a dedicated domain-package investigation (out of scope
-  for the UI-only M5 work that surfaced it).
-- **First noted:** 2026-07-12 (M5 Wave-2 integration). **Repro:** run
-  `pnpm --filter @tc/domain test` a handful of times, or capture a failing
-  seed and pin it.
-
 ### KI-2 — Money formatting differs between UI and domain conflict text
 - **Severity:** cosmetic
 - **Area:** `apps/web/src/components/lenses/formatMoney.ts` vs. the domain's
@@ -157,10 +137,87 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Related:** the `causeIndex`/`droppedTitles` cause-naming mechanism itself (`batchResolver.ts`, added while auditing Task 8) has a narrower same-area gap: `droppedTitles` records a title the first time a command referencing or setting it is dropped, but nothing ever removes an entry once recorded. If a later command in the *same batch* legitimately (re)creates that exact title and succeeds, the stale map entry survives, so a *subsequent* unrelated failure that happens to reference the same title text would still be explained as caused by the original (now-irrelevant) drop. This never corrupts data or breaks atomicity — each command is still resolved/dropped independently and correctly — it only means the explanatory parenthetical appended to `resolutionErrors[].message` could occasionally cite a stale cause. Same theme as the entry above (same-batch reference tracking has known limits); not worth a separate KI.
 - **First noted:** 2026-07-25 (gap review of the committed `resolveBatch`).
 
+### KI-11 — No AI test ever calls a real model, so the "real model ≠ mock" bug class is invisible to CI
+- **Severity:** reliability (no failing behavior today; the gap is in what CI *can* detect)
+- **Area:** `apps/web/src/app/api/trips/[tripId]/ai/route.int.test.ts` (every test injects `MockLanguageModelV4`), `apps/web/src/server/ai/*`
+- **Symptom:** the AI suite has been green through **seven** consecutive real-world AI failures (2026-07-21 → 07-26): an envelope missing ids so the model emitted zero tool calls; three separate verbatim-UUID/format classes (KI-8); a no-op sub-command aborting a whole batch; same-batch day refs resolving against pre-batch state; an append-only projection missing removals/moves; and the `MAX_STEPS` truncation fixed in `e9fe19b`. Each was found by Mitchell manually prompting the deployed build, never by a test.
+- **Why it happens:** `MockLanguageModelV4` is a scripted `doGenerate` — by construction it emits well-formed tool calls, emits them exactly when told, and stops when told. Real models do none of these reliably: they invent or mangle ids, choose wrong formats, emit redundant commands, split work across many steps, and run past a step budget. A mock validates *our* code path given well-formed input; it cannot generate the malformed input that has caused every actual bug. This is a structural limit, not a missing assertion — no amount of additional mocked tests closes it.
+- **Why it isn't fixed:** a live-gateway test costs money per run, is non-deterministic (so it can't gate CI on equality), and needs `AI_GATEWAY_API_KEY` in CI. The M7 exit gate's **"AI demo"** box was checked with an explicit waiver on exactly these grounds — honestly recorded, and it is the one waived criterion that would have caught all seven.
+- **Mitigation:** the `meta` envelope (`handleAiRequest.ts` `AiCallMeta`) is the substitute and has diagnosed every one of these — **keep it and extend it, don't trim it for token cost.** After any AI-layer change, run a live prompt and read `meta`: `steps` at exactly `MAX_STEPS` **plus** `finishReason: "tool-calls"` (now `meta.truncated`) means truncation; `toolCalls` empty means the model refused the tool surface; `resolutionErrors` non-empty means refs failed. **A run ending at exactly the configured ceiling is a budget problem until proven otherwise** — that signature appeared twice five days apart and was misread the first time as weak-model over-generation.
+- **Possible real fix (unscoped):** a small non-CI harness that replays a fixed prompt set against several gateway models and records the `meta` we already emit — overlaps the "best model for my buck" item in `TODO.md`, which would supply the same infrastructure.
+- **First noted:** 2026-07-26 (M7 post-gate retro).
+
+### KI-12 — The AI cannot name a trip or set its dates, so "plan me a trip" can't produce a complete one
+- **Severity:** correctness (product gap — the headline AI flow cannot finish the job it advertises)
+- **Area:** `packages/contracts/src/trip.ts` (`BatchableCommand` union), `apps/web/src/server/ai/handleAiRequest.ts` (system prompt)
+- **Symptom:** prompting "Create a 7 day itinerary for Rochester NY…" on a new trip yields days and activities but leaves the trip called **"New TRip"** with `startDate: null`. There is no `SetTripName` command anywhere in the contract — renaming is UI-only — so no tool for it can be derived (ADR-015 / Invariant 5: tool schemas are *derived*, never hand-written). `SetTripStartDate` *is* batchable and *is* exposed, but the model never calls it unprompted.
+- **Why it isn't fixed:** the two halves need different work and a product decision. Naming needs a new `SetTripName` command through the full pipeline (command + event + `decideTripCommand`/`evolveTrip` + contracts changelog) — small but a genuine contract change, and it's worth deciding first whether an AI should silently rename a trip the user already named. Dates need only a prompt nudge, but "7 days starting when?" has no answer without asking the user, and the AI surface has no clarification round-trip.
+- **Mitigation:** none today — the user renames and sets dates by hand after generation.
+- **First noted:** 2026-07-26 (live test of the `MAX_STEPS` fix).
+
+### KI-13 — `pnpm check` is not reliably green: jsdom component tests time out under parallel load
+- **Severity:** reliability (false failures; no product impact)
+- **Area:** `apps/web` unit suite — `TripBoardScreen`, `PageScreen`, `MoneyInput`, `LocationInput`, `TripProvider` tests; `pnpm check` = `typecheck && lint && test` recursively
+- **Symptom:** `pnpm check` fails with a **different set** of component tests each run (observed 2026-07-26 on a clean tree at `e9fe19b`: 9 failures, then 2 on the very next run), while every named file passes in isolation. `MoneyInput.test.tsx` took **11,675 ms** inside the full run versus **191 ms** alone. Failures surface as real-looking assertion messages ("expected spy to not be called"), not obvious timeouts, which is what makes them convincing.
+- **Why it happens:** these are `user-event`/`waitFor` tests whose implicit timeouts are wall-clock. `pnpm -r` runs packages in parallel and `check` stacks typecheck and lint alongside, so on a loaded machine the jsdom environment starves and waits expire. Distinct from the `packages/domain` `diffTripStates` property failure seen in the same session — that one turned out to be a real bug, not flake (KI-1, since fixed), which is exactly why a genuinely flaky suite is dangerous: it made a true failure look like noise for two weeks.
+- **Why it isn't fixed:** the real repairs are unattractive — pinning `fileParallelism`/`maxWorkers` down slows the suite for everyone, and raising every `waitFor` timeout hides genuine regressions. Neither is worth doing before someone confirms which of the two is actually biting in CI (CI has so far been green, so this may be local-hardware-specific).
+- **Mitigation:** **do not trust a single `pnpm check` exit code.** Re-run the specific failing files alone before believing a failure, and prefer running the gates separately: `pnpm typecheck`, `pnpm lint`, per-package `vitest run`, and integration via `cd apps/web && set -a && . ./.env.local && set +a && pnpm exec vitest run` (vitest does not auto-load `.env.local`).
+- **Risk if ignored:** a red `pnpm check` that is *usually* noise trains everyone to wave it through — which is precisely how a real regression ships.
+- **First noted:** 2026-07-26 (verifying the flattened repo after the worktree cleanup).
+
+### KI-14 — A dismissed conflict stays dismissed forever, so a re-created problem is silently suppressed
+- **Severity:** correctness (a real, current conflict is hidden from the user with no signal)
+- **Area:** `packages/domain/src/trip/evolve.ts` (`ConflictDismissed`/`ConflictUndismissed`), `packages/domain/src/trip/conflicts.ts` (content-derived ids), `TripState.dismissedConflictIds`
+- **Symptom:** conflict ids are **content-derived** (`time-overlap:<dayId>:<actA>:<actB>`) and `dismissedConflictIds` is never garbage-collected, so:
+  1. two activities overlap → the conflict appears;
+  2. the user dismisses it ("yes, I know, it's fine");
+  3. the user fixes the overlap → the conflict disappears, **but the id stays in `dismissedConflictIds`**;
+  4. the user later re-creates the same overlap → `detectConflicts` regenerates the identical id and the UI filters it out. **Permanently invisible.**
+  Verified end-to-end against the real domain on 2026-07-27. No special conditions — plain M1/M3 behavior, reachable by anyone dragging activities around.
+- **Why it matters more than it looks:** it fails in the dangerous direction. Invariant 3 exists so plan problems surface as data the user can see; this silently un-surfaces a live one. It also compounds with time — the register only grows, so an old trip accumulates more suppression.
+- **The decision this needs first (not a mechanical fix):** should a dismissal bind to the conflict's *content* (today's behavior — "this exact overlap between these two activities is fine, forever") or to its *occurrence* ("this instance is fine; if it comes back, tell me again")? Occurrence semantics need a dismissal to be invalidated when the conflict stops being detected, which means either evolving `dismissedConflictIds` on every state change or storing a fingerprint of the state it was dismissed against. Content semantics are what's implemented and are defensible for genuinely permanent "I know, they overlap on purpose" cases — the bug is then narrower: nothing ever prunes ids for conflicts that can no longer exist at all (e.g. one of the two activities was deleted).
+- **Mitigation:** none today. A user who hits this has no way to un-dismiss from the UI (`ConflictUndismissed` exists as an event but is only emitted by `diffTripStates` during a revert).
+- **First noted:** 2026-07-27 (invariant-probe pass over the domain).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-1 — `diffTripStates` ignored day ORDER, so a revert could silently redate the trip — RESOLVED
+- **Severity:** correctness (was logged as "reliability, possibly correctness — unconfirmed" for 14 days; it was correctness)
+- **Area:** `packages/domain/src/trip/diff.ts` (step 3, day reconciliation)
+- **What it actually was:** the M2 round-trip property test failed ~1-in-5 runs
+  from 2026-07-12. The open question on this entry was whether the invariant was
+  violated or the generator was producing states it was never meant to cover.
+  **It was the code.** Shrinking the counterexample gives six operations: add day
+  B, add day A, remove B, re-add B. B is appended, so an earlier state holds
+  `[B, A]` while the later one holds `[A, B]` — the *same set* of dayIds in a
+  different order.
+- **Root cause:** step 3 rebuilt day order only when a target day was *missing*
+  from current (`firstMissing !== -1`), resting on its own comment's claim that
+  "both states' day lists preserve the stream's original append order". Removing
+  and re-adding a day breaks that claim. With nothing missing, the diff emitted
+  **no day events at all**, so `RevertToState`/undo/redo produced the wrong day
+  sequence — and a day's ordinal *is* its array position, so wrong order silently
+  redates every activity after it.
+- **Fix (2026-07-27):** compare survivors against the target position by
+  position and rebuild from the first index where they disagree. One rule covers
+  both missing-day and order-only divergence, and minimality is preserved (an
+  append-only difference still emits just the `DayAdded`; identical lists still
+  emit nothing). Pinned by three deterministic regression tests in
+  `diff.property.test.ts` ("diffTripStates day ordering (KI-1 regression)").
+- **Reachability while it was open:** latent, never active. The UI mints
+  `crypto.randomUUID()` per `AddDay` and the AI resolver mints ids server-side,
+  so no code path re-added a dayId. It would have stopped being latent at M8
+  (concurrent replay) and M9 (fork-with-lineage, where preserving day ids across
+  a clone is the obvious implementation).
+- **Lesson worth keeping:** a property test found a genuine correctness bug in
+  the most-trusted subsystem and it was filed as possible flake for two weeks.
+  Seven runs and reading the shrunk counterexample was all it took. **A
+  `fast-check` failure that reproduces from its own seed is a bug report, not
+  noise** — see KI-13 for why a genuinely flaky suite makes that mistake easy.
+- **First noted:** 2026-07-12 (M5 Wave-2 integration). **Resolved:** 2026-07-27.
 
 ### KI-7 — `ai` / `@ai-sdk/gateway` provider-type version skew (V1 vs V2) — RESOLVED
 - **Severity:** was assumed type-level only; turned out to be a genuine

@@ -31,10 +31,15 @@ Nothing is mid-implementation. No open branches carrying unmerged code.
    in production until it is applied. Manual unblock:
    `DATABASE_URL='<neon-direct-url>' pnpm --filter web db:migrate` — use the
    unpooled `neon.tech` host, not `-pooler`.
-3. **KI-11, KI-12 and KI-13 are named in M7's post-gate retro but were never
-   registered** in `docs/known-issues.md`, and that retro itself is not on
-   `main` — the squash-merge snapshot predates commit `ff54229` on
-   `claude/next-milestone-388cd0`. Cherry-pick it.
+3. **KI-14 — a dismissed conflict is suppressed forever**, so a problem the user
+   fixed and then re-created is silently hidden. Live and reachable today.
+   Needs a semantics decision (content- vs occurrence-scoped dismissal) before
+   it can be fixed; see the entry in `docs/known-issues.md`.
+
+Resolved on 2026-07-27, no longer blocking: KI-1 (`diffTripStates` dropped day
+order — real correctness bug, fixed and pinned by regression tests); the
+`evolveTrip` replay-totality hole; and the stranded M7 post-gate retro plus
+KI-11/12/13, which are now on `main`.
 
 ## Next action
 
@@ -56,10 +61,12 @@ pnpm --filter web db:migrate
 `DATABASE_URL=postgres://postgres:postgres@localhost:5433/travel`.
 
 Integration tests: **`vitest` does not read `.env.local`** (unlike `db:migrate`,
-which uses `node --env-file-if-exists`). From `apps/web`:
+which uses `node --env-file-if-exists`). Note the two configs are asymmetric —
+the *default* `vitest.config.ts` is the integration suite (`test:int` is plain
+`vitest run`); unit tests need `-c vitest.unit.config.ts`. From `apps/web`:
 
 ```bash
-set -a && . ./.env.local && set +a && pnpm exec vitest run -c vitest.int.config.ts
+set -a && . ./.env.local && set +a && pnpm exec vitest run
 ```
 
 **`pnpm check` is not reliably green on a loaded machine** (KI-13) — the jsdom

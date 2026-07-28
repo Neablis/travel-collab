@@ -1,6 +1,6 @@
 # M7 — Solo delight (dynamic pages, macros, templates, constrained AI)
 
-**Status:** Done — gate closed 2026-07-21
+**Status:** Gate closed 2026-07-21; **AI-layer hardening continued through 2026-07-26** (24 further commits — see "Post-gate retro" at the end of this file). Merged to `main` 2026-07-26 via PR #15 (`4093b59`); this retro and KI-11/12/13 landed separately on 2026-07-27, the squash snapshot having predated them.
 Design spec: `docs/specs/2026-07-20-M7-solo-delight-design.md`
 Decision records: `docs/architecture/ADR-014-pages-crud-module.md`, `docs/architecture/ADR-015-ai-gateway-derived-tools.md`
 
@@ -160,3 +160,79 @@ recorded honestly here rather than silently skipped).
   repo's `ai@^4.0.0` pin expects `V1`), bridged with a single documented
   cast at the one call site in Task 5.5. Real fix is a dependency pin/
   upgrade.
+
+## Post-gate retro (2026-07-21 → 2026-07-26)
+
+The gate above closed on 2026-07-21. **Twenty-four more commits followed — 41%
+of the branch — every one in the AI layer, every one triggered by Mitchell
+manually prompting the deployed build.** `handleAiRequest.ts` was modified 8
+times, `planningTools.ts` 5, `batchResolver.ts` 5, `context.ts` 4. This section
+records why, because the pattern is more useful than any individual fix.
+
+### One root cause, seven times
+
+| Date | Bug | What a mocked model cannot do |
+|---|---|---|
+| 07-21 | Context envelope carried titles but no ids → model emitted zero tool calls | Refuse to invent a UUID |
+| 07-24 | Move/Update/Remove required verbatim UUIDs → `*Ref` resolution | Get an id subtly wrong |
+| 07-24 | KI-8: `RemoveDay`, `DismissConflict`, money minor-units | Choose a wrong format |
+| 07-25 | A `no-op` sub-command aborted the entire atomic batch | Emit a redundant command |
+| 07-25 | Same-batch `dayRef` resolved against the pre-batch trip | Add a day, then use it |
+| 07-26 | Append-only projection ignored removals/moves | Mix removes and adds in one batch |
+| 07-26 | `MAX_STEPS.board = 6` truncated every itinerary (`e9fe19b`) | Run longer than its step budget |
+
+Task 5.5's integration test was green through all seven. `MockLanguageModelV4`
+is a scripted `doGenerate`: it emits well-formed tool calls, emits them when
+told, and stops when told. Real models do none of those reliably. A mock
+validates *our* code path given well-formed input; it cannot produce the
+malformed input that caused every actual failure. Logged as **KI-11** — it is a
+structural limit, not a missing assertion.
+
+This was not concealed. The gate's **AI demo** box carries an explicit waiver
+("never a live AI Gateway call"), and the 07-21 retro says so plainly. The
+process recorded the risk accurately and the risk then landed. The lesson is
+narrower than "be more honest": **"covered locally by mocked tests" was treated
+as equivalent coverage, when the waived criterion was the only one exercising a
+real model.** A waived gate criterion should carry a scheduled follow-up, not
+just a note.
+
+### What to keep
+
+**The `meta` envelope was the highest-leverage thing M7 built.** Every root
+cause above was diagnosed from `steps` / `finishReason` / `toolCalls` / `usage`
+in the response body — the 07-26 truncation bug was provable in minutes because
+`steps: 6` and `finishReason: "tool-calls"` were already there. When trimming
+tokens (see `TODO.md`'s "best model for my buck"), **trim the prompt, never the
+telemetry.**
+
+### What to do differently
+
+1. **Read the ceiling first.** The 2026-07-25 findings recorded "15 `AddDay`s
+   across 6 steps" and attributed it to weak-model over-generation. That is the
+   identical `steps == MAX_STEPS` signature as the 07-26 truncation bug — the
+   evidence was written into the plan doc five days early and read past, because
+   attention was on the resolver then under construction. **A run ending at
+   exactly its configured ceiling is a budget problem until proven otherwise.**
+   Diagnosis gravitates toward whatever layer is currently being built; the fix
+   is to check the boring limits before the interesting logic.
+2. **State the invariant before the third rewrite.** The resolver was rebuilt
+   three times: per-tool `execute()` resolution (07-24) → manifest-driven
+   `resolveBatch` (07-25) → real-`TripState` dry-run (07-26). Each was a real
+   improvement, but the final design followed directly from one requirement —
+   *the resolver must agree with the executor* — which was reachable at the
+   start. Asking "what invariant must this layer hold?" would have skipped two
+   rounds.
+3. **A milestone whose headline feature is model-driven isn't done at gate
+   close.** M7's gate criteria were all satisfiable without a live model. For
+   any future AI-facing milestone, at least one exit criterion should be a real
+   call whose `meta` is pasted into the milestone file.
+
+### Issues opened from this retro
+
+- **KI-11** — no AI test ever calls a real model; the "real model ≠ mock" class
+  is invisible to CI.
+- **KI-12** — the AI cannot name a trip (`BatchableCommand` has no
+  `SetTripName`) or set its dates, so "plan me a trip" leaves "New TRip" with
+  null dates.
+- **KI-13** — `pnpm check` is not reliably green (jsdom component tests time out
+  under parallel load; a different set fails each run).
