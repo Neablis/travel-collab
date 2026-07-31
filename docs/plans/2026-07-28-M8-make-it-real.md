@@ -24,6 +24,80 @@
 
 AGENTS.md makes the contract change its own reviewed step. Tasks A1–A9 are domain/server and land before any UI.
 
+### Task A0: Write the two ADRs before any code
+
+M8 makes two decisions that outlive this plan, and **plans are deleted at gate
+close** (`docs/plans/README.md`) — so reasoning that only lives here is lost.
+AGENTS.md's Definition of Done requires an ADR for irreversible decisions. M7
+set the precedent by writing ADR-014/015 as its Task 0.2, before implementation.
+
+**Files:**
+- Create: `docs/architecture/ADR-016-trip-soft-delete-as-domain-event.md`
+- Create: `docs/architecture/ADR-017-duplicate-as-a-server-operation.md`
+
+Follow the existing ADR format exactly (see `ADR-014-pages-crud-module.md`):
+`# ADR-NNN: title`, then `**Status:** Accepted — 2026-07-28`, `**Deciders:**
+Mitchell (product/eng), Claude (architect)`, a `Design spec:` pointer to
+`docs/specs/2026-07-28-M8-make-it-real-design.md`, then `## Context`,
+`## Decision`, `## Consequences`, `## Alternatives considered`.
+
+- [ ] **Step 1: Write ADR-016 — soft delete as a domain event**
+
+Context: deletion is the first operation that acts on a trip's *existence*
+rather than its contents, and a trip **is** its event stream.
+
+Decision: `DeleteTrip` → `TripDeleted`, `RestoreTrip` → `TripRestored`;
+`TripState.status` gates further commands; `trip_summaries` filters. Rebuild
+from the log reproduces deletion, so Invariants 1–2 hold untouched.
+
+Consequences to state plainly: a deleted trip's data lives in the log forever
+(there is **no** true erasure, which matters the day a privacy requirement
+appears); `decide` grows a status guard every future command inherits; recovery
+is the undo toast plus the per-trip restore state at its own URL, with **no**
+surface that enumerates deleted trips.
+
+Alternatives, with why each lost — archive and delete as separate evented states
+(doubles the state machine, needs an archived-trips surface the gate doesn't ask
+for); hard purge of the event rows (irreversible by construction, and it would
+orphan lineage pointers when M11's fork lands, since a fork's ancestor stream
+could vanish).
+
+- [ ] **Step 2: Write ADR-017 — duplicate as a server operation**
+
+Context: every existing `TripCommand` mutates one stream. Duplicate **creates**
+a second one, so it does not fit the command shape at all.
+
+Decision: `POST /api/trips/[tripId]/duplicate` loads the source state, remaps
+every day and activity id to a fresh UUID, and replays `diffTripStates(empty,
+remapped)` as one atomic batch on the new stream. Not a `TripCommand`, and
+deliberately **not** in `BatchableCommand` — stream-creating operations stay out
+of the derived AI tool surface.
+
+Consequences: the copy's history starts clean rather than inheriting the
+source's undos and reverts; planning state only, since pages are a separate CRUD
+module (ADR-014); fresh ids keep the streams independent and leave M11 free to
+decide id preservation on its own terms — reusing source ids is the KI-1 hazard.
+
+Alternatives: copying raw events into a new stream (inherits the source's
+mistakes and its whole undo history); a `DuplicateTrip` domain command (a
+command that writes a stream other than its own `tripId` breaks the one-stream
+invariant the whole pipeline rests on).
+
+- [ ] **Step 3: Cross-link the spec**
+
+Add both ADRs to the spec's `**Companions:**` header line in
+`docs/specs/2026-07-28-M8-make-it-real-design.md`, and add an index row for each
+in `docs/architecture/README.md` if that file carries an index.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add docs/architecture/ADR-016-trip-soft-delete-as-domain-event.md docs/architecture/ADR-017-duplicate-as-a-server-operation.md docs/specs/2026-07-28-M8-make-it-real-design.md docs/architecture/README.md
+git commit -m "docs(M8): ADR-016 soft delete as a domain event, ADR-017 duplicate as a server operation"
+```
+
+---
+
 ### Task A1: Lifecycle contracts
 
 **Files:**
