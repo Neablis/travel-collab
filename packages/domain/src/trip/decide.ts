@@ -101,6 +101,12 @@ function decideCommand(
   if (command.type === "CreateTrip") return decideCreateTrip(state, command, ctx);
   if (state === null) return reject("trip-not-found", "This trip does not exist.");
 
+  // A deleted trip accepts exactly one command: its own inverse. Everything
+  // else is rejected rather than silently mutating a trip the user removed.
+  if (state.status === "deleted" && command.type !== "RestoreTrip") {
+    return reject("trip-deleted", "This trip has been deleted.");
+  }
+
   if (
     command.type === "UndoLastChange" ||
     command.type === "RedoChange" ||
@@ -233,5 +239,16 @@ function decideCommand(
         },
       ]);
     }
+    case "SetTripName":
+      return okUnlessNoOp(state, [
+        { type: "TripNameSet", version: 1, payload: { tripId: command.tripId, name: command.name } },
+      ]);
+    case "DeleteTrip":
+      return ok([{ type: "TripDeleted", version: 1, payload: { tripId: command.tripId } }]);
+    case "RestoreTrip":
+      if (state.status !== "deleted") {
+        return reject("trip-not-deleted", "This trip is not deleted.");
+      }
+      return ok([{ type: "TripRestored", version: 1, payload: { tripId: command.tripId } }]);
   }
 }
