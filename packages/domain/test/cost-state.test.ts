@@ -12,6 +12,7 @@ function baseState(): TripState {
     tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
     startDate: null, days: [], backlog: [], activities: {},
     currency: "USD", budget: null, dismissedConflictIds: [],
+    status: "active",
   };
 }
 
