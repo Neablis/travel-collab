@@ -29,6 +29,7 @@ describe("decideCreateTrip", () => {
       dismissedConflictIds: [],
       currency: "USD",
       budget: null,
+      status: "active",
     };
     const decision = decideCreateTrip(existing, cmd, { actorId: "user-1" });
     expect(decision).toEqual({
@@ -59,6 +60,7 @@ describe("evolveTrip", () => {
       dismissedConflictIds: [],
       currency: "USD",
       budget: null,
+      status: "active",
     });
   });
 });

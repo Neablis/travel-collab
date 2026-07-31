@@ -1,4 +1,4 @@
-import type { Anchor, Location, Money, TimeWindow, TripMember } from "@tc/contracts";
+import type { Anchor, Location, Money, TimeWindow, TripMember, TripStatus } from "@tc/contracts";
 
 export type ActivityState = {
   title: string;
@@ -25,4 +25,5 @@ export type TripState = {
   dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
   currency: string; // ISO-4217; defaults to "USD"
   budget: Money | null; // defaults to null
+  status: TripStatus; // "deleted" is a soft delete; the stream survives
 };

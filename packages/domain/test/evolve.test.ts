@@ -201,3 +201,30 @@ describe("evolveTrip totality — activity events naming an unknown day", () => 
     expect(next.backlog).toEqual([ACT]);
   });
 });
+
+describe("lifecycle events", () => {
+  const tripId = "11111111-1111-4111-8111-111111111111";
+  const created = evolveTrip(null, {
+    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1" },
+  });
+
+  it("starts a trip active", () => {
+    expect(created.status).toBe("active");
+  });
+
+  it("renames without touching anything else", () => {
+    const renamed = evolveTrip(created, {
+      type: "TripNameSet", version: 1, payload: { tripId, name: "Japan 2027" },
+    });
+    expect(renamed.name).toBe("Japan 2027");
+    expect(renamed.days).toEqual(created.days);
+  });
+
+  it("round-trips delete and restore", () => {
+    const deleted = evolveTrip(created, { type: "TripDeleted", version: 1, payload: { tripId } });
+    expect(deleted.status).toBe("deleted");
+    const restored = evolveTrip(deleted, { type: "TripRestored", version: 1, payload: { tripId } });
+    expect(restored.status).toBe("active");
+    expect(restored).toEqual(created);
+  });
+});
