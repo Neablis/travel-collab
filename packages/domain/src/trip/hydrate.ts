@@ -31,5 +31,6 @@ export function hydrate(detail: TripDetail): TripState {
     dismissedConflictIds: [...detail.dismissedConflictIds],
     currency: detail.currency,
     budget: detail.budget,
+    status: detail.status,
   };
 }

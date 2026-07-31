@@ -17,6 +17,7 @@ export function tripDetailFromState(
   return {
     tripId: state.tripId,
     name: state.name,
+    status: state.status,
     startDate: state.startDate,
     currency: state.currency,
     budget: state.budget,

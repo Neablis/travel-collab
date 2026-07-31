@@ -13,10 +13,26 @@ export function projectTripSummaries(envelopes: EventEnvelope[]): TripSummary[] 
         byStream.set(env.streamId, {
           tripId: event.payload.tripId,
           name: event.payload.name,
+          status: "active",
           members: [{ userId: event.payload.createdBy, role: "owner" }],
           createdAt: env.occurredAt,
         });
         break;
+      case "TripNameSet": {
+        const s = byStream.get(env.streamId);
+        if (s !== undefined) s.name = event.payload.name;
+        break;
+      }
+      case "TripDeleted": {
+        const s = byStream.get(env.streamId);
+        if (s !== undefined) s.status = "deleted";
+        break;
+      }
+      case "TripRestored": {
+        const s = byStream.get(env.streamId);
+        if (s !== undefined) s.status = "active";
+        break;
+      }
     }
   }
   return [...byStream.values()];

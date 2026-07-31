@@ -75,6 +75,7 @@ const arbTripState: fc.Arbitrary<TripState> = fc
     currency: fc.constantFrom("USD", "EUR", "GBP"),
     budget: fc.option(money, { nil: null }),
     dismissed: fc.uniqueArray(fc.string({ minLength: 1 }), { maxLength: 3 }),
+    status: fc.constantFrom("active" as const, "deleted" as const),
   })
   .chain((s) =>
     fc
@@ -105,6 +106,7 @@ const arbTripState: fc.Arbitrary<TripState> = fc
           dismissedConflictIds: [...s.dismissed].sort(),
           currency: s.currency,
           budget: s.budget,
+          status: s.status,
         };
       }),
   );
