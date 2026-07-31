@@ -58,8 +58,14 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
     );
 
     // Measured 2026-07-28 over repeated runs: ~360-435 commands built per 100
-    // runs at a 74-82% acceptance rate. Both floors sit well below that, so
-    // they catch a collapse without flapping on fast-check's run-to-run variance.
+    // runs at a 74-82% acceptance rate. Re-measured 2026-07-31 (M8) after
+    // widening rawOp.op to 0-12 for SetTripName/DeleteTrip/RestoreTrip:
+    // ~399-506 commands built at a 57-60% acceptance rate — lower than before
+    // because DeleteTrip flips status to "deleted", and the domain rejects
+    // every command but RestoreTrip against a deleted trip, so a chunk of
+    // subsequently-built commands in the same history are now rejected as
+    // no-ops of a different kind. Both floors sit well below the new range too,
+    // so they still catch a collapse without flapping on run-to-run variance.
     expect(generator.built).toBeGreaterThan(200);
     // Most built commands should survive `decide`. A collapse here means the
     // properties above are still green but barely testing anything.
@@ -140,5 +146,51 @@ describe("diffTripStates day ordering (KI-1 regression)", () => {
   it("still emits nothing when the day lists are already identical", () => {
     const { current } = statesWithSameDaysInDifferentOrder();
     expect(diffTripStates(current, current)).toEqual([]);
+  });
+});
+
+// M8. Task A1 added SetTripName (and DeleteTrip/RestoreTrip), falsifying
+// diffTripStates' old precondition comment that name/status never differ
+// between two states of one trip. tripStatesEqual (Task A3) now compares both,
+// so if diffTripStates doesn't reconcile them, undo/redo/revert across a
+// rename or delete silently fails to restore the target — same shape as KI-1.
+describe("diffTripStates lifecycle reconciliation (M8)", () => {
+  const tripId = "11111111-1111-4111-8111-111111111111";
+  const base = evolveTrip(null, {
+    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1" },
+  });
+
+  it("emits a rename when the names differ", () => {
+    const target = { ...base, name: "Japan 2027" };
+    const events = diffTripStates(base, target);
+    expect(events.map((e) => e.type)).toContain("TripNameSet");
+    expect(tripStatesEqual(events.reduce(evolveTrip, base), target)).toBe(true);
+  });
+
+  it("emits a delete when the target is deleted", () => {
+    const target = { ...base, status: "deleted" as const };
+    const events = diffTripStates(base, target);
+    expect(events.map((e) => e.type)).toEqual(["TripDeleted"]);
+    expect(tripStatesEqual(events.reduce(evolveTrip, base), target)).toBe(true);
+  });
+
+  it("restores FIRST so later reconciliation applies to a live trip", () => {
+    const current = { ...base, status: "deleted" as const };
+    const target = { ...base, name: "Renamed" };
+    const events = diffTripStates(current, target);
+    expect(events[0]!.type).toBe("TripRestored");
+    expect(tripStatesEqual(events.reduce(evolveTrip, current), target)).toBe(true);
+  });
+
+  it("deletes LAST so the delete is not applied before the rest of the diff", () => {
+    const current = { ...base, name: "Old" };
+    const target = { ...base, name: "New", status: "deleted" as const };
+    const events = diffTripStates(current, target);
+    expect(events[events.length - 1]!.type).toBe("TripDeleted");
+    expect(tripStatesEqual(events.reduce(evolveTrip, current), target)).toBe(true);
+  });
+
+  it("emits nothing for identical states", () => {
+    expect(diffTripStates(base, base)).toEqual([]);
   });
 });

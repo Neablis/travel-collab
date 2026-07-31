@@ -10,8 +10,11 @@ import type { TripState } from "./state";
 // Minimality is NOT required — but every returned event changes state (the
 // push() simulation drops no-ops), so an empty result means current == target.
 //
-// Precondition: same stream — tripId/name/members never differ between two
-// states of one trip (no rename/membership commands exist in Phase 1).
+// Precondition: same stream — tripId and members never differ between two
+// states of one trip (no membership commands exist yet). NAME and STATUS *can*
+// differ as of M8 (SetTripName / DeleteTrip / RestoreTrip) and are reconciled
+// in steps 0 and 8 below. This comment used to claim name was invariant too;
+// M8 falsified it, and the round-trip property is what enforces the claim.
 export function diffTripStates(current: TripState, target: TripState): TripEvent[] {
   const events: TripEvent[] = [];
   let working = current;
@@ -22,6 +25,16 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
       working = next;
     }
   };
+
+  // 0. Restore first: everything downstream should reconcile a live trip.
+  if (working.status === "deleted" && target.status === "active") {
+    push({ type: "TripRestored", version: 1, payload: { tripId: target.tripId } });
+  }
+
+  // 0b. Name.
+  if (working.name !== target.name) {
+    push({ type: "TripNameSet", version: 1, payload: { tripId: target.tripId, name: target.name } });
+  }
 
   // 1. Start date.
   if (working.startDate !== target.startDate) {
@@ -161,6 +174,11 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
     if (!working.dismissedConflictIds.includes(id)) {
       push({ type: "ConflictDismissed", version: 1, payload: { tripId: target.tripId, conflictId: id } });
     }
+  }
+
+  // 8. Delete last: the whole state is reconciled before the trip is removed.
+  if (working.status === "active" && target.status === "deleted") {
+    push({ type: "TripDeleted", version: 1, payload: { tripId: target.tripId } });
   }
 
   return events;
