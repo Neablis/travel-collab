@@ -5,7 +5,7 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-07-28**
+**Last updated: 2026-07-31**
 
 ## Where we are
 
@@ -19,7 +19,24 @@ the Phase 1 gate review, not M8.
 
 ## In flight
 
-Nothing is mid-implementation. No open branches carrying unmerged code.
+**M8 is designed and planned but not started.** No code has been written and no
+branch carries unmerged work — the two artifacts are on `main`:
+
+- Design spec: `docs/specs/2026-07-28-M8-make-it-real-design.md` (`b547fdd`) —
+  8 decisions, each recorded with the alternatives it beat.
+- Implementation plan: `docs/plans/2026-07-28-M8-make-it-real.md` (`9a77af6`) —
+  25 tasks / 142 TDD steps, four sequential waves (A lifecycle → B subtractive
+  → C ergonomics → D states). Start at **Task A1**.
+
+Two corrections to the domain surfaced while planning and are already folded
+into the spec — read them before touching `packages/domain`:
+
+1. `SetTripDates` carries `newDayIds`. Extending a trip emits `DayAdded`, which
+   needs a `dayId`, and the domain may not mint UUIDs (Invariant 4).
+2. **`diffTripStates` needs a `name` reconciliation step, not just `status`.**
+   `diff.ts:12` claims name never differs between two states of one trip;
+   `SetTripName` falsifies it, and `tripStatesEqual` compares `name`, so
+   without it the M2 round-trip property goes red. Task A6, same shape as KI-1.
 
 ## Blocking / broken right now
 
@@ -37,6 +54,11 @@ re-created problem forever; and M7's stranded post-gate retro plus KI-11/12/13,
 which existed only on a branch.
 
 ## Next action
+
+**Execute M8 Wave A, starting at Task A1** of
+`docs/plans/2026-07-28-M8-make-it-real.md`. Wave A is the trip-lifecycle
+contract change and is its own reviewed step before any UI work (AGENTS.md
+workstream rule). Background on why the milestone exists:
 
 **M8 — Make it real** (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate
 review ran on 2026-07-28 without the dogfood data, because the dogfood could not
