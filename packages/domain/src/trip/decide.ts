@@ -1,5 +1,6 @@
 import type { CreateTrip, TripCommand, TripEvent } from "@tc/contracts";
 import { detectConflicts } from "./conflicts";
+import { daySpan } from "./dates";
 import { tripStatesEqual } from "./equality";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
@@ -138,6 +139,47 @@ function decideCommand(
           payload: { tripId: command.tripId, startDate: command.startDate },
         },
       ]);
+    case "SetTripDates": {
+      const { startDate, endDate } = command;
+      if (startDate === null && endDate !== null) {
+        return reject("invalid-dates", "An end date needs a start date.");
+      }
+      const events: TripEvent[] = [];
+      if (state.startDate !== startDate) {
+        events.push({
+          type: "TripStartDateSet",
+          version: 1,
+          payload: { tripId: command.tripId, startDate },
+        });
+      }
+      // A null endDate means "set the start only" — day count is untouched.
+      if (startDate !== null && endDate !== null) {
+        const target = daySpan(startDate, endDate);
+        if (target < 1) {
+          return reject("invalid-dates", "The end date cannot be before the start date.");
+        }
+        const current = state.days.length;
+        if (target > current) {
+          const needed = target - current;
+          if (command.newDayIds.length < needed) {
+            return reject(
+              "not-enough-day-ids",
+              `This range needs ${needed} more day(s); ${command.newDayIds.length} id(s) were supplied.`,
+            );
+          }
+          for (const dayId of command.newDayIds.slice(0, needed)) {
+            events.push({ type: "DayAdded", version: 1, payload: { tripId: command.tripId, dayId } });
+          }
+        } else if (target < current) {
+          // Remove from the TAIL: day 1 stays pinned to startDate, so no
+          // surviving day is silently redated (a day's ordinal IS its date).
+          for (const day of state.days.slice(target)) {
+            events.push({ type: "DayRemoved", version: 1, payload: { tripId: command.tripId, dayId: day.dayId } });
+          }
+        }
+      }
+      return okUnlessNoOp(state, events);
+    }
     case "SetTripCurrency":
       return okUnlessNoOp(state, [
         { type: "TripCurrencySet", version: 1, payload: { tripId: command.tripId, currency: command.currency } },
