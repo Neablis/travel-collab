@@ -61,6 +61,64 @@ export const SetTripStartDate = z.object({
 });
 export type SetTripStartDate = z.infer<typeof SetTripStartDate>;
 
+export const SetTripName = z.object({
+  type: z.literal("SetTripName"),
+  tripId: z.string().uuid(),
+  name: z.string().min(1).max(200),
+});
+export type SetTripName = z.infer<typeof SetTripName>;
+
+export const TripNameSetV1 = z.object({
+  type: z.literal("TripNameSet"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().uuid(), name: z.string().min(1).max(200) }),
+});
+export type TripNameSetV1 = z.infer<typeof TripNameSetV1>;
+
+// Sets the date range and reconciles day COUNT to match it (decide emits the
+// DayAdded/DayRemoved events). `newDayIds` supplies ids for any days the
+// reconcile has to append — the domain is pure and cannot mint UUIDs
+// (Invariant 4), the same reason AddDay carries its own dayId.
+export const SetTripDates = z.object({
+  type: z.literal("SetTripDates"),
+  tripId: z.string().uuid(),
+  startDate: z.string().regex(ISO_DATE).nullable(),
+  endDate: z.string().regex(ISO_DATE).nullable(),
+  newDayIds: z.array(z.string().uuid()).default([]),
+});
+export type SetTripDates = z.infer<typeof SetTripDates>;
+
+// Soft delete. The stream survives; `status` gates further commands and the
+// summaries read model filters it out. RestoreTrip is the exact inverse.
+export const DeleteTrip = z.object({
+  type: z.literal("DeleteTrip"),
+  tripId: z.string().uuid(),
+});
+export type DeleteTrip = z.infer<typeof DeleteTrip>;
+
+export const TripDeletedV1 = z.object({
+  type: z.literal("TripDeleted"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().uuid() }),
+});
+export type TripDeletedV1 = z.infer<typeof TripDeletedV1>;
+
+export const RestoreTrip = z.object({
+  type: z.literal("RestoreTrip"),
+  tripId: z.string().uuid(),
+});
+export type RestoreTrip = z.infer<typeof RestoreTrip>;
+
+export const TripRestoredV1 = z.object({
+  type: z.literal("TripRestored"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().uuid() }),
+});
+export type TripRestoredV1 = z.infer<typeof TripRestoredV1>;
+
+export const TripStatus = z.enum(["active", "deleted"]);
+export type TripStatus = z.infer<typeof TripStatus>;
+
 export const DayAddedV1 = z.object({
   type: z.literal("DayAdded"),
   version: z.literal(1),
@@ -116,6 +174,7 @@ export const TripEvent = z.discriminatedUnion("type", [
   DayAddedV1,
   DayRemovedV1,
   TripStartDateSetV1,
+  TripNameSetV1,
   ActivityAddedV1,
   ActivityUpdatedV1,
   ActivityMovedV1,
@@ -124,6 +183,8 @@ export const TripEvent = z.discriminatedUnion("type", [
   ConflictUndismissedV1,
   TripCurrencySetV1,
   TripBudgetSetV1,
+  TripDeletedV1,
+  TripRestoredV1,
 ]);
 export type TripEvent = z.infer<typeof TripEvent>;
 
@@ -132,6 +193,8 @@ export const TripCommand = z.discriminatedUnion("type", [
   AddDay,
   RemoveDay,
   SetTripStartDate,
+  SetTripName,
+  SetTripDates,
   AddActivity,
   UpdateActivity,
   MoveActivity,
@@ -140,17 +203,22 @@ export const TripCommand = z.discriminatedUnion("type", [
   RedoChange,
   RevertToState,
   DismissConflict,
+  DeleteTrip,
+  RestoreTrip,
   SetTripCurrency,
   SetTripBudget,
 ]);
 export type TripCommand = z.infer<typeof TripCommand>;
 
 // Commands eligible for atomic batching (M6): every TripCommand except
-// CreateTrip (a trip's genesis) and the history commands (decided separately).
+// CreateTrip (a trip's genesis), the history commands (decided separately),
+// and destructive/stream-level operations (DeleteTrip, RestoreTrip).
 export const BatchableCommand = z.discriminatedUnion("type", [
   AddDay,
   RemoveDay,
   SetTripStartDate,
+  SetTripName,
+  SetTripDates,
   AddActivity,
   UpdateActivity,
   MoveActivity,
@@ -170,6 +238,7 @@ export type TripMember = z.infer<typeof TripMember>;
 export const TripSummary = z.object({
   tripId: z.string().uuid(),
   name: z.string(),
+  status: TripStatus,
   members: z.array(TripMember).min(1),
   createdAt: z.string(), // ISO 8601
 });
