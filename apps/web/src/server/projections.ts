@@ -26,9 +26,25 @@ export async function applyTripEvents(
           name: event.payload.name,
           members: [{ userId: event.payload.createdBy, role: "owner" }],
           createdAt: env.occurredAt,
+          status: "active",
         });
         break;
-      // M1 events don't touch the summaries read model.
+      case "TripNameSet":
+        await tx.update(tripSummaries)
+          .set({ name: event.payload.name })
+          .where(eq(tripSummaries.tripId, event.payload.tripId));
+        break;
+      case "TripDeleted":
+        await tx.update(tripSummaries)
+          .set({ status: "deleted" })
+          .where(eq(tripSummaries.tripId, event.payload.tripId));
+        break;
+      case "TripRestored":
+        await tx.update(tripSummaries)
+          .set({ status: "active" })
+          .where(eq(tripSummaries.tripId, event.payload.tripId));
+        break;
+      // Other planning events don't touch the summaries read model.
     }
   }
 }
@@ -63,5 +79,5 @@ export async function rebuildProjections(): Promise<void> {
 }
 
 export async function listTripSummaries() {
-  return db.select().from(tripSummaries);
+  return db.select().from(tripSummaries).where(eq(tripSummaries.status, "active"));
 }

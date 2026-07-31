@@ -1,0 +1,1 @@
+ALTER TABLE "trip_summaries" ADD COLUMN "status" text DEFAULT 'active' NOT NULL;

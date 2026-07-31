@@ -33,6 +33,7 @@ export const tripSummaries = pgTable("trip_summaries", {
   name: text("name").notNull(),
   members: jsonb("members").$type<TripMember[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  status: text("status").notNull().default("active"),
 });
 
 export const tripDetails = pgTable("trip_details", {
