@@ -14,6 +14,7 @@ const base: TripState = {
   dismissedConflictIds: [],
   currency: "USD",
   budget: null,
+  status: "active" as const,
 };
 
 describe("tripStatesEqual", () => {
@@ -37,5 +38,11 @@ describe("tripStatesEqual", () => {
     expect(tripStatesEqual(base, { ...base, backlog: [] })).toBe(false);
     expect(tripStatesEqual(base, { ...base, startDate: "2026-10-12" })).toBe(false);
     expect(tripStatesEqual(base, { ...base, dismissedConflictIds: ["x"] })).toBe(false);
+  });
+
+  it("treats a status difference as a difference", () => {
+    const a = base;
+    const b = { ...a, status: "deleted" as const };
+    expect(tripStatesEqual(a, b)).toBe(false);
   });
 });
