@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
-import { duplicateTrip, sendTripCommand } from "@/lib/apiClient";
+import { duplicateTrip, sendTripCommand, type CommandOutcome } from "@/lib/apiClient";
 
 // Trip-global edits, re-homed out of the always-visible header (Pattern 4,
 // comment 12b): budget/currency and the start date are set-once/rare operations, so
@@ -25,7 +25,11 @@ import { duplicateTrip, sendTripCommand } from "@/lib/apiClient";
 // queue's effect fires). Delete also can't raise its own toast: this sheet's
 // subtree is what closes/unmounts on success, so it reports success via
 // `onDeleted` and leaves the toast to the caller (TripHeader), same as the
-// list's local Toast in page.tsx but one level up.
+// list's local Toast in page.tsx but one level up. `onDeleted` also forwards
+// the successful command's CommandOutcome so TripHeader can feed it straight
+// into `applyOutcome` (A15-fix) — without that, TripProvider's local
+// `trip.status` would stay "active" until the toast closed, leaving the whole
+// board fully interactive against already-deleted server state.
 export function SettingsSheet({
   tripId,
   tripName,
@@ -49,7 +53,12 @@ export function SettingsSheet({
   currency: string;
   budget: Money | null;
   onCommand: (command: TripCommand) => void;
-  onDeleted: (trip: { tripId: string; name: string }) => void;
+  // The outcome is forwarded alongside the {tripId, name} summary so the
+  // caller (TripHeader) can call TripProvider's applyOutcome with it —
+  // mirroring the RestoreTrip/undo path — and reconcile trip.status to
+  // "deleted" immediately, rather than leaving the board's local state
+  // (and thus its full interactivity) stale for the whole toast window.
+  onDeleted: (trip: { tripId: string; name: string }, outcome: CommandOutcome) => void;
 }) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -62,7 +71,7 @@ export function SettingsSheet({
     setConfirmOpen(false);
     if (result.ok) {
       onOpenChange(false);
-      onDeleted({ tripId, name: tripName });
+      onDeleted({ tripId, name: tripName }, result.value);
     }
   }
 

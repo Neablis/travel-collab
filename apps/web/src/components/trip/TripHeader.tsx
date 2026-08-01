@@ -37,6 +37,12 @@ export function TripHeader({ tripId }: { tripId: string }) {
   // (applyOutcome, same as the undo/redo/revert commands above); dismissing
   // without undo is the "routes back to the trip list" half of the brief —
   // deferred until the toast closes so Undo still has a page to act on.
+  //
+  // A15-fix: `onDeleted` also applies the delete's own CommandOutcome via
+  // `applyOutcome` immediately (same call as the undo path below), so
+  // trip.status flips to "deleted" in TripProvider right away instead of
+  // staying "active" (and the whole board fully interactive against
+  // already-deleted server state) for the entire toast window.
   const [deleteToast, setDeleteToast] = useState<{ tripId: string; name: string } | null>(null);
 
   if (trip === null || status !== "ready") return null;
@@ -175,7 +181,8 @@ export function TripHeader({ tripId }: { tripId: string }) {
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}
-        onDeleted={(deleted) => {
+        onDeleted={(deleted, outcome) => {
+          applyOutcome(outcome);
           setSettingsOpen(false);
           setDeleteToast(deleted);
         }}

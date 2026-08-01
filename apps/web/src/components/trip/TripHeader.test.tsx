@@ -30,8 +30,18 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // TripProvider (apiClient mocked, per TripProvider.test.tsx's pattern) rather
 // than a mocked context — this exercises the real dispatch -> sendTripCommand
 // path, matching how the header's SetTripName dispatch actually resolves.
-import { TripProvider } from "@/components/trip/context/TripProvider";
+import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 import { TripHeader } from "./TripHeader";
+
+// A15-fix regression probe: mounted alongside TripHeader under the same
+// TripProvider so the test can observe trip.status directly (there's no
+// dedicated "deleted" banner in the UI yet to assert against instead — the
+// bug this guards against is TripProvider's own local state staying stale,
+// which is exactly what this exposes).
+function TripStatusProbe() {
+  const { trip } = useTrip();
+  return <span data-testid="tripStatus">{trip?.status ?? "none"}</span>;
+}
 
 afterEach(cleanup);
 
@@ -49,6 +59,7 @@ async function renderHeader() {
   render(
     <TripProvider tripId="x">
       <TripHeader tripId="x" />
+      <TripStatusProbe />
     </TripProvider>,
   );
   await waitFor(() => expect(screen.getByText("Japan")).toBeTruthy());
@@ -153,5 +164,49 @@ describe("TripHeader delete/undo (A15)", () => {
     await userEvent.click(within(toast).getByRole("button", { name: /dismiss/i }));
 
     expect(pushMock).toHaveBeenCalledWith("/");
+  });
+
+  // A15-fix: SettingsSheet.handleDelete() only forwarded {tripId, name} to
+  // onDeleted, never the DeleteTrip CommandOutcome — TripHeader never called
+  // applyOutcome for the delete itself (only for RestoreTrip/undo above), so
+  // TripProvider's trip.status stayed "active" in local state for the whole
+  // toast window even though the trip was already deleted server-side, and
+  // the board (rename, undo/redo, day/activity edits, Settings) stayed fully
+  // interactive against that stale state. Confirming this reconciles
+  // immediately — not deferred until the toast closes — is the point of this
+  // test.
+  it("reconciles trip.status to \"deleted\" immediately after a confirmed delete, before the toast closes", async () => {
+    sendTripCommandMock.mockImplementation((command: { type: string }) => {
+      if (command.type === "DeleteTrip") {
+        return Promise.resolve({
+          ok: true,
+          value: {
+            detail: tripDetailFixture({ tripId: "x", name: "Japan", status: "deleted" }),
+            history: historyFixture("x"),
+          },
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        value: {
+          detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }),
+          history: historyFixture("x"),
+        },
+      });
+    });
+
+    await renderHeader();
+    expect(screen.getByTestId("tripStatus").textContent).toBe("active");
+
+    await deleteViaSettings();
+
+    await waitFor(() =>
+      expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId: "x" }),
+    );
+    // The undo toast is still up (its 8s auto-dismiss hasn't fired, and this
+    // test never advances any timers) — but trip.status already reflects the
+    // delete, proving the reconciliation isn't waiting on the toast to close.
+    expect(await screen.findByRole("status")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("tripStatus").textContent).toBe("deleted"));
   });
 });

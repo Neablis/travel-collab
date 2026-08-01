@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Button } from "./button";
 import { Text } from "./text";
@@ -26,10 +26,28 @@ export function Toast({
   onDismiss: () => void;
   className?: string;
 }) {
+  // The timer's lifetime must be independent of `onDismiss`'s identity: both
+  // call sites (page.tsx, TripHeader.tsx) pass an inline arrow function, which
+  // is a new reference on every render of the parent — depending on it here
+  // would tear down and restart the countdown on any unrelated parent
+  // re-render (typing in the trip-name field, any context update), and in the
+  // worst case the toast would never auto-dismiss. A ref holds the latest
+  // callback so the timer can always call the current one without needing it
+  // in the dependency array.
+  //
+  // `message` IS a legitimate restart trigger, though: page.tsx's toast state
+  // can be overwritten by a second delete (a different trip) while the first
+  // trip's toast is still showing, without ever passing through null — same
+  // component instance, new props, no remount — so the new message needs its
+  // own full-length timer rather than inheriting whatever was left of the
+  // previous one.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   useEffect(() => {
-    const timer = setTimeout(onDismiss, AUTO_DISMISS_MS);
+    const timer = setTimeout(() => onDismissRef.current(), AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
-  }, [onDismiss]);
+  }, [message]);
 
   return (
     <div

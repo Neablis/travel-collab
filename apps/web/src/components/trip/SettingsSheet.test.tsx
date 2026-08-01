@@ -46,8 +46,9 @@ function renderSheet(onDeleted = vi.fn()) {
 }
 
 describe("SettingsSheet delete/duplicate (A15)", () => {
-  it("confirms before deleting, then reports success via onDeleted", async () => {
-    sendTripCommandMock.mockResolvedValue({ ok: true, value: {} });
+  it("confirms before deleting, then reports success (with the outcome) via onDeleted", async () => {
+    const outcome = { detail: { status: "deleted" }, history: {} };
+    sendTripCommandMock.mockResolvedValue({ ok: true, value: outcome });
     const { onDeleted } = renderSheet();
 
     await userEvent.click(screen.getByRole("button", { name: /^delete trip$/i }));
@@ -59,7 +60,10 @@ describe("SettingsSheet delete/duplicate (A15)", () => {
     await waitFor(() =>
       expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId }),
     );
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith({ tripId, name: "Japan" }));
+    // A15-fix: the outcome is forwarded alongside the summary so the caller
+    // (TripHeader) can feed it into applyOutcome and reconcile trip.status
+    // immediately, rather than only after the toast closes.
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith({ tripId, name: "Japan" }, outcome));
   });
 
   it("does not report success when the delete command fails", async () => {
