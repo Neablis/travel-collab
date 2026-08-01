@@ -41,6 +41,16 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-10");
+  // TripDateControl (M8/A14) stages date fields locally and only commits via
+  // an explicit "Set dates" click, dispatching SetTripDates. Wait for that
+  // command's POST to resolve before closing the sheet — later assertions
+  // (the conflict badge) depend on the commit having landed.
+  await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
+    ),
+    page.getByRole("button", { name: "Set dates" }).click(),
+  ]);
   await page.getByRole("button", { name: "Close" }).click();
   // Task L1: Timeline/Calendar merged into a single "Schedule" lens with a
   // SegmentedControl toggle — click the Schedule tab, then the Calendar
@@ -100,6 +110,22 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   // 2026-10-12 is a Monday.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-12");
+  // By this point the trip already has dated days (from the first "Set
+  // dates" commit), so TripDateControl's End date field is pre-staged with
+  // the trip's last day's date (TripHeader.tsx derives it from
+  // trip.days[days.length - 1].date), not empty. Clear it so this commit
+  // dispatches endDate: null — a start-only shift with dayCount untouched —
+  // instead of racing a stale end date behind the new start date, which
+  // trips the shrink-confirmation dialog.
+  await page.getByLabel("End date").fill("");
+  // Same commit race as the initial date-set above — wait for the "Set
+  // dates" command's POST before closing the sheet.
+  await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
+    ),
+    page.getByRole("button", { name: "Set dates" }).click(),
+  ]);
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
 
