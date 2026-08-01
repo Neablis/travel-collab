@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Clock, Pencil, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -9,8 +10,10 @@ import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
 import { BudgetMeter } from "@/components/ui/budget-meter";
+import { Toast } from "@/components/ui/toast";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { formatTripDate } from "@/lib/formatDate";
+import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
@@ -23,12 +26,28 @@ import { SettingsSheet } from "./SettingsSheet";
 // here — those moved to SettingsSheet (comments 15, 12b); the name is the one
 // piece of identity that's directly editable in the chrome itself.
 export function TripHeader({ tripId }: { tripId: string }) {
-  const { trip, history, status, pending, dispatch, preview } = useTrip();
+  const { trip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
+  const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  // A15: the settings sheet's own subtree closes/unmounts on a successful
+  // delete, so it can't host its own toast — it reports success here via
+  // `onDeleted` and this level raises it. Undo reconciles in place
+  // (applyOutcome, same as the undo/redo/revert commands above); dismissing
+  // without undo is the "routes back to the trip list" half of the brief —
+  // deferred until the toast closes so Undo still has a page to act on.
+  const [deleteToast, setDeleteToast] = useState<{ tripId: string; name: string } | null>(null);
 
   if (trip === null || status !== "ready") return null;
+
+  async function undoDelete() {
+    if (!deleteToast) return;
+    const { tripId: restoreId } = deleteToast;
+    setDeleteToast(null);
+    const result = await sendTripCommand({ type: "RestoreTrip", tripId: restoreId });
+    if (result.ok) applyOutcome(result.value);
+  }
 
   const commitRename = (value: string) => {
     const name = value.trim();
@@ -145,6 +164,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
 
       <SettingsSheet
         tripId={tripId}
+        tripName={trip.name}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         startDate={trip.startDate}
@@ -155,7 +175,23 @@ export function TripHeader({ tripId }: { tripId: string }) {
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}
+        onDeleted={(deleted) => {
+          setSettingsOpen(false);
+          setDeleteToast(deleted);
+        }}
       />
+
+      {deleteToast && (
+        <Toast
+          message={`Deleted "${deleteToast.name}"`}
+          actionLabel="Undo"
+          onAction={() => void undoDelete()}
+          onDismiss={() => {
+            setDeleteToast(null);
+            router.push("/");
+          }}
+        />
+      )}
     </header>
   );
 }
