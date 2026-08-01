@@ -135,7 +135,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByTestId("backlog-column")).toBeTruthy();
   });
 
-  it("posts a SetTripStartDate command from the Calendar lens's TripDateControl", async () => {
+  it("posts a SetTripDates command from the Calendar lens's TripDateControl", async () => {
     const fixture = tripDetailFixture();
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { onCommand }));
@@ -156,10 +156,15 @@ describe("TripBoardScreen", () => {
 
     const dateInput = screen.getAllByLabelText("Start date")[0]!;
     fireEvent.change(dateInput, { target: { value: "2027-06-01" } });
+    // A14: TripDateControl is now a date-RANGE control (start + end), so
+    // committing a value requires the explicit "Set dates" button rather
+    // than dispatching on every keystroke — the button click also lets the
+    // control decide whether the range needs a shrink-confirm first.
+    fireEvent.click(screen.getByRole("button", { name: /set dates/i }));
 
     await waitFor(() =>
       expect(onCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "SetTripStartDate", startDate: "2027-06-01" }),
+        expect.objectContaining({ type: "SetTripDates", startDate: "2027-06-01", endDate: null }),
       ),
     );
   });

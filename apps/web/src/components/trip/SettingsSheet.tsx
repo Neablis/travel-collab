@@ -15,6 +15,8 @@ export function SettingsSheet({
   open,
   onOpenChange,
   startDate,
+  endDate,
+  dayCount,
   currency,
   budget,
   onCommand,
@@ -23,6 +25,8 @@ export function SettingsSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   startDate: string | null;
+  endDate: string | null;
+  dayCount: number;
   currency: string;
   budget: Money | null;
   onCommand: (command: TripCommand) => void;
@@ -30,7 +34,13 @@ export function SettingsSheet({
   return (
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
       <div className="flex flex-col gap-5">
-        <TripDateControl tripId={tripId} startDate={startDate} onCommand={onCommand} />
+        <TripDateControl
+          tripId={tripId}
+          startDate={startDate}
+          endDate={endDate}
+          dayCount={dayCount}
+          onCommand={onCommand}
+        />
         <TripMoneySettings tripId={tripId} currency={currency} budget={budget} onCommand={onCommand} />
       </div>
     </Sheet>

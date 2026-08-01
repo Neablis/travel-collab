@@ -148,6 +148,8 @@ export function TripHeader({ tripId }: { tripId: string }) {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         startDate={trip.startDate}
+        endDate={trip.days[trip.days.length - 1]?.date ?? null}
+        dayCount={trip.days.length}
         currency={trip.currency}
         budget={trip.budget}
         onCommand={(command) => {
