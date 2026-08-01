@@ -155,6 +155,8 @@ export async function handleAiRequest(
     "To dismiss a conflict, reference it by its `ref` number in the context's `conflicts` list via `conflictRef` — only conflicts listed there can be dismissed, and never copy a raw conflict id.",
     "All money amounts are integer minor units (cents), never decimals: 5.00 is `amountMinor` 500, so multiply a decimal amount by 100 (500 EUR → 50000).",
     "Codes are case-sensitive — use these exact forms: weekday anchors are lowercase three-letter codes (`mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`); `currency` is an uppercase ISO-4217 code (e.g. `EUR`); a location/anchor country is an uppercase ISO-3166 alpha-2 code (e.g. `IT`).",
+    "Prefer SetTripDates over SetTripStartDate. SetTripDates sets the range AND matches the number of days to it; SetTripStartDate only moves day 1.",
+    'Only set the trip name if the trip still has a placeholder name (for example "New trip") or the user explicitly asked you to rename it. Never rename a trip the user has already named as a side effect of another request.',
     `Context: ${JSON.stringify(envelope)}`,
   ].join("\n");
 

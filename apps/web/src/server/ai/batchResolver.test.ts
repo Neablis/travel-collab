@@ -384,6 +384,52 @@ describe("resolveBatch — AddDay hoisting", () => {
   });
 });
 
+describe("resolveBatch — SetTripDates mints exactly the newDayIds needed", () => {
+  it("mints exactly 2 fresh, distinct ids when the range grows by 2 days", () => {
+    const detail = tripWithDays([D1]); // 1 existing day
+    const { commands, errors } = resolve(
+      [{ type: "SetTripDates", args: { startDate: "2027-06-01", endDate: "2027-06-03" } }], // 3-day span
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    expect(commands).toHaveLength(1);
+    const cmd = commands[0] as Extract<BatchableCommand, { type: "SetTripDates" }>;
+    expect(cmd.newDayIds).toHaveLength(2);
+    expect(new Set(cmd.newDayIds).size).toBe(2);
+    for (const id of cmd.newDayIds) {
+      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(id).not.toBe(D1);
+    }
+  });
+
+  it("mints zero ids when the range shrinks the day count", () => {
+    const detail = tripWithDays([D1, D2, D3]); // 3 existing days
+    const { commands, errors } = resolve(
+      [{ type: "SetTripDates", args: { startDate: "2027-06-01", endDate: "2027-06-01" } }], // 1-day span
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    expect(commands).toHaveLength(1);
+    const cmd = commands[0] as Extract<BatchableCommand, { type: "SetTripDates" }>;
+    expect(cmd.newDayIds).toEqual([]);
+  });
+
+  it("mints zero ids when only startDate is set (endDate null)", () => {
+    const detail = tripWithDays([D1]);
+    const { commands, errors } = resolve(
+      [{ type: "SetTripDates", args: { startDate: "2027-06-01", endDate: null } }],
+      detail,
+    );
+
+    expect(errors).toEqual([]);
+    expect(commands).toHaveLength(1);
+    const cmd = commands[0] as Extract<BatchableCommand, { type: "SetTripDates" }>;
+    expect(cmd.newDayIds).toEqual([]);
+  });
+});
+
 describe("resolveBatch — rejected orderings stay rejected", () => {
   it("does NOT phase-sort: a day ref keeps its emission-time meaning", () => {
     // days [D1,D2,D3]. The model asked for day 2 (=D2) BEFORE removing day 1.

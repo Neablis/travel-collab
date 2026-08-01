@@ -43,6 +43,8 @@ export const ID_FIELDS: IdFieldManifest = {
   AddDay: { dayId: mint("day") },
   RemoveDay: { dayId: ref("day") },
   SetTripStartDate: {},
+  SetTripName: {},
+  SetTripDates: { newDayIds: mint("day") },
   AddActivity: { activityId: mint("activity"), dayId: ref("day", "omit") },
   UpdateActivity: { activityId: ref("activity") },
   MoveActivity: { activityId: ref("activity"), toDayId: ref("day", "null") },
