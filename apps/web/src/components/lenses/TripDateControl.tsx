@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { TripCommand } from "@tc/contracts";
 import { FormField } from "../ui/form-field";
@@ -43,6 +43,23 @@ export function TripDateControl({
   const [pendingStart, setPendingStart] = useState(startDate ?? "");
   const [pendingEnd, setPendingEnd] = useState(endDate ?? "");
   const [confirmDrop, setConfirmDrop] = useState<number | null>(null);
+
+  // The Settings sheet this control lives in doesn't unmount on every prop
+  // change, only on close/reopen — so the local staging state above is only
+  // seeded once by useState's initializer. Without this, a collaborator's
+  // concurrent SetTripDates landing via useTrip() while the sheet stays open
+  // would be silently invisible here, and a later "Set dates" click would
+  // stomp their update with this user's stale values. Prop changes always
+  // win over unsaved local edits: an in-progress edit getting overwritten by
+  // fresher server data is far better than the reverse (submitting stale
+  // data over a collaborator's newer change). Any in-flight shrink
+  // confirmation is cancelled too, since its "drops N days" count was
+  // computed from the now-stale pending values and would otherwise mislead.
+  useEffect(() => {
+    setPendingStart(startDate ?? "");
+    setPendingEnd(endDate ?? "");
+    setConfirmDrop(null);
+  }, [startDate, endDate]);
 
   const dispatchSetDates = (nextStart: string | null, nextEnd: string | null) => {
     let newDayIds: string[] = [];

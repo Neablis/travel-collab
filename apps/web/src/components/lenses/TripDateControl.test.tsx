@@ -86,4 +86,28 @@ describe("TripDateControl", () => {
       newDayIds: [],
     });
   });
+
+  it("resyncs the staged inputs when startDate/endDate props change externally (e.g. a collaborator's concurrent edit)", () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(
+      <TripDateControl tripId={TRIP_ID} startDate="2026-07-07" endDate="2026-07-09" dayCount={3} onCommand={onCommand} />,
+    );
+    expect((screen.getByLabelText(/start date/i) as HTMLInputElement).value).toBe("2026-07-07");
+    expect((screen.getByLabelText(/end date/i) as HTMLInputElement).value).toBe("2026-07-09");
+
+    // Simulate a collaborator's edit landing via useTrip() context while this
+    // user still has the Settings sheet open — the parent re-renders with
+    // new startDate/endDate props without the control unmounting.
+    rerender(
+      <TripDateControl tripId={TRIP_ID} startDate="2026-08-01" endDate="2026-08-05" dayCount={5} onCommand={onCommand} />,
+    );
+
+    // The displayed values must reflect the NEW props, not whatever this
+    // user had staged before the external update arrived. Prop-wins-on-change
+    // is intentional here: silently discarding an in-progress local edit is
+    // far safer than letting a stale "Set dates" click stomp a collaborator's
+    // newer data, so no merge/preserve-local-edits behavior is implemented.
+    expect((screen.getByLabelText(/start date/i) as HTMLInputElement).value).toBe("2026-08-01");
+    expect((screen.getByLabelText(/end date/i) as HTMLInputElement).value).toBe("2026-08-05");
+  });
 });
