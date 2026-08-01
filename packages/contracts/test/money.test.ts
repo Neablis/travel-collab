@@ -42,7 +42,7 @@ describe("M4 money contracts", () => {
 
   it("TripDetail carries currency, budget, per-day + trip rollups", () => {
     const detail = {
-      tripId: TRIP, name: "Rome", startDate: "2026-10-12", currency: "USD", budget: null,
+      tripId: TRIP, name: "Rome", startDate: "2026-10-12", currency: "USD", budget: null, status: "active",
       members: [{ userId: "u1", role: "owner" }],
       days: [{ dayId: DAY, activityIds: [A1], date: "2026-10-12", costSubtotal: 4200 }],
       backlog: [], unscheduledCostSubtotal: 0, tripCostTotal: 4200, budgetRemaining: null,
