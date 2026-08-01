@@ -16,6 +16,7 @@ const detail: TripDetail = {
     [A2]: { activityId: A2, title: "Idea", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
   },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
+  status: "active",
 };
 
 describe("map data", () => {

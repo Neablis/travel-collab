@@ -12,6 +12,7 @@ const detail: TripDetail = {
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: { [A1]: { activityId: A1, title: "X", timeWindow: null, location: null, notes: null, anchors: [], cost: null } },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
+  status: "active",
 };
 
 describe("calendarCells", () => {

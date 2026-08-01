@@ -12,6 +12,7 @@ const detail: TripDetail = {
   activities: { [A1]: { activityId: A1, title: "Colosseum", timeWindow: null, location: null, notes: null, anchors: [], cost: { amountMinor: 4200, currency: "USD" } } },
   conflicts: [{ id: "anchor-violation:" + A1 + ":x", kind: "anchor-violation", severity: "warn", subjects: [A1], description: "x", resolutions: [] }],
   dismissedConflictIds: [], createdAt: "2026-07-10T00:00:00.000Z",
+  status: "active",
 };
 
 describe("dailyRows", () => {

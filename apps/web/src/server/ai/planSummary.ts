@@ -42,6 +42,12 @@ export function summarizeBatch(calls: BatchableCommand[], detail: TripDetail): s
         return `set the currency to ${c.currency}`;
       case "SetTripBudget":
         return c.budget === null ? "cleared the budget" : "set the budget";
+      case "SetTripName":
+        return `renamed the trip to "${c.name}"`;
+      case "SetTripDates":
+        return c.startDate !== null && c.endDate !== null
+          ? `set the trip dates to ${c.startDate} – ${c.endDate}`
+          : "set the trip dates";
     }
   });
 

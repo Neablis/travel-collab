@@ -15,6 +15,7 @@ const detail: TripDetail = {
     [A2]: { activityId: A2, title: "Travel insurance", timeWindow: null, location: null, notes: null, anchors: [], cost: { amountMinor: 9900, currency: "USD" } },
   },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-10T00:00:00.000Z",
+  status: "active",
 };
 
 describe("itineraryData", () => {
