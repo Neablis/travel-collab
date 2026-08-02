@@ -74,6 +74,59 @@ describe("Home trip actions", () => {
     );
   });
 
+  it("removes the row immediately on confirm, before the delete request resolves", async () => {
+    let resolveDelete: (r: Response) => void;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${tripId}/commands`)) {
+        return new Promise<Response>((resolve) => {
+          resolveDelete = resolve;
+        });
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({ trips: [tripSummaryFixture()] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^delete$/i })); // confirm dialog
+
+    // The DeleteTrip request is still in flight (we haven't resolved it yet),
+    // but the row should already be gone from the list.
+    await waitFor(() => expect(screen.queryByText("Japan")).toBeNull());
+
+    resolveDelete!(
+      jsonResponse({ detail: tripDetailFixture({ tripId, name: "Japan" }), history: historyFixture(tripId) }),
+    );
+    await screen.findByRole("status");
+  });
+
+  it("brings the row back and shows an error if the delete request fails", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${tripId}/commands`)) {
+        return jsonResponse({ error: "concurrency-conflict" }, 409);
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({ trips: [tripSummaryFixture()] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    await screen.findByRole("alert");
+    expect(screen.getByText("Japan")).toBeTruthy();
+  });
+
   it("duplicates a trip and navigates to the copy", async () => {
     const newTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
     fetchMock = vi.fn(async (input: string | URL | Request) => {

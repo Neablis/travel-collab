@@ -103,6 +103,38 @@ describe("TripHeader rename", () => {
     expect(sendTripCommandMock).not.toHaveBeenCalled();
   });
 
+  it("shows the new name immediately, before the server confirms it (optimistic)", async () => {
+    // A deferred promise: sendTripCommand won't resolve until we say so, so
+    // we can assert the heading already updated while the request is still
+    // in flight — this is what "optimistic" actually means, not just "no
+    // full-page reload". Regression coverage for TripHeader having read
+    // `trip` (confirmed-only) instead of `activeTrip` (optimistic-aware).
+    let resolveCommand: (value: { ok: true; value: unknown }) => void;
+    sendTripCommandMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCommand = resolve;
+      }),
+    );
+
+    await renderHeader();
+
+    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
+    const input = screen.getByRole("textbox", { name: /trip name/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, "Japan 2027{Enter}");
+
+    // Still in flight — sendTripCommandMock's promise hasn't resolved yet —
+    // but the heading should already read the new name.
+    await waitFor(() => expect(screen.getByText("Japan 2027")).toBeTruthy());
+    expect(screen.queryByText("Japan")).toBeNull();
+
+    resolveCommand!({
+      ok: true,
+      value: { detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }), history: historyFixture("x") },
+    });
+    await waitFor(() => expect(screen.getByText("Japan 2027")).toBeTruthy());
+  });
+
   it("Escape cancels without dispatching and reverts to read-only", async () => {
     await renderHeader();
 

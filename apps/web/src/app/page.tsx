@@ -28,6 +28,13 @@ export default function Home() {
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
   const [toast, setToast] = useState<{ tripId: string; name: string } | null>(null);
+  // Optimistically-deleted trip ids: filtered from the render the instant the
+  // user confirms, before the DeleteTrip request even starts — there's no
+  // TripProvider/predictBatch path for this (DeleteTrip is deliberately
+  // excluded from BatchableCommand), so this list-level filter is the
+  // optimistic mechanism. A failure removes the id again, bringing the row
+  // back; a success leaves it removed permanently via the `trips` filter below.
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const res = await fetch("/api/trips");
@@ -66,20 +73,33 @@ export default function Home() {
     setConfirmTrip(trip);
   }
 
-  // Optimistic: drop the row immediately on a confirmed DeleteTrip rather
-  // than waiting on a refetch, then raise the undo toast. RestoreTrip (below)
-  // reconciles via a real reload — the deleted trip is no longer in the
-  // dropped row's local state to restore in place.
+  // Optimistic: drop the row immediately on CONFIRM (before the DeleteTrip
+  // request even starts), not on its response. A failure re-adds the id so
+  // the row reappears alongside the error; a success removes it from `trips`
+  // for good and raises the undo toast. RestoreTrip (below) reconciles via a
+  // real reload — the deleted trip is no longer in local state to restore in
+  // place.
   async function confirmDelete() {
     const trip = confirmTrip;
     if (!trip) return;
     setConfirmTrip(null);
+    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
     const result = await sendTripCommand({ type: "DeleteTrip", tripId: trip.tripId });
     if (!result.ok) {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.tripId);
+        return next;
+      });
       setError(result.error.message);
       return;
     }
     setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(trip.tripId);
+      return next;
+    });
     setToast({ tripId: trip.tripId, name: trip.name });
   }
 
@@ -104,6 +124,8 @@ export default function Home() {
     }
     router.push(`/trips/${result.value.tripId}`);
   }
+
+  const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
 
   if (unauthenticated) {
     return (
@@ -142,11 +164,11 @@ export default function Home() {
           {error}
         </Text>
       )}
-      {trips !== null && trips.length === 0 ? (
+      {trips !== null && visibleTrips.length === 0 ? (
         <EmptyState title="Start your first trip" body="No trips yet — create one." />
       ) : (
         <ul className="mt-6 flex flex-col gap-2">
-          {(trips ?? []).map((t) => (
+          {visibleTrips.map((t) => (
             <Card key={t.tripId} as="li" className="flex items-center justify-between gap-3">
               <div>
                 <Link href={`/trips/${t.tripId}`} className="text-brand font-medium hover:underline">

@@ -26,7 +26,13 @@ import { SettingsSheet } from "./SettingsSheet";
 // here — those moved to SettingsSheet (comments 15, 12b); the name is the one
 // piece of identity that's directly editable in the chrome itself.
 export function TripHeader({ tripId }: { tripId: string }) {
-  const { trip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
+  // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
+  // detail only, while `activeTrip` folds in TripProvider's optimistic
+  // pending queue (the same value TripBoardScreen/ActivityEditorSheet already
+  // render from). Reading `trip` here meant a rename/date/budget edit sat in
+  // the optimistic queue correctly but never became visible until the server
+  // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -45,7 +51,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
   // already-deleted server state) for the entire toast window.
   const [deleteToast, setDeleteToast] = useState<{ tripId: string; name: string } | null>(null);
 
-  if (trip === null || status !== "ready") return null;
+  if (trip === null || activeTrip === null || status !== "ready") return null;
 
   async function undoDelete() {
     if (!deleteToast) return;
@@ -61,7 +67,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
     // the domain would reject an empty/unchanged name anyway, and a rejected
     // round-trip is worse UX than just not sending it (mirrors the #7HuQy
     // no-op handling in TripProvider).
-    if (name !== "" && name !== trip.name) {
+    if (name !== "" && name !== activeTrip.name) {
       void dispatch({ type: "SetTripName", tripId, name });
     }
     setRenaming(false);
@@ -85,7 +91,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
           {renaming ? (
             <Input
               aria-label="Trip name"
-              defaultValue={trip.name}
+              defaultValue={activeTrip.name}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -102,18 +108,22 @@ export function TripHeader({ tripId }: { tripId: string }) {
             />
           ) : (
             <div className="flex items-center gap-1">
-              <Heading level={2}>{trip.name}</Heading>
+              <Heading level={2}>{activeTrip.name}</Heading>
               <Button variant="ghost" size="icon" aria-label="Rename trip" onClick={() => setRenaming(true)}>
                 <Pencil className="size-3.5" aria-hidden />
               </Button>
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
-            {trip.startDate !== null && (
-              <DataText size="sm">{formatTripDate(trip.startDate)}</DataText>
+            {activeTrip.startDate !== null && (
+              <DataText size="sm">{formatTripDate(activeTrip.startDate)}</DataText>
             )}
-            {trip.budget !== null && (
-              <BudgetMeter cost={trip.tripCostTotal} budget={trip.budget.amountMinor} currency={trip.currency} />
+            {activeTrip.budget !== null && (
+              <BudgetMeter
+                cost={activeTrip.tripCostTotal}
+                budget={activeTrip.budget.amountMinor}
+                currency={activeTrip.currency}
+              />
             )}
           </div>
         </div>
@@ -170,14 +180,14 @@ export function TripHeader({ tripId }: { tripId: string }) {
 
       <SettingsSheet
         tripId={tripId}
-        tripName={trip.name}
+        tripName={activeTrip.name}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        startDate={trip.startDate}
-        endDate={trip.days[trip.days.length - 1]?.date ?? null}
-        dayCount={trip.days.length}
-        currency={trip.currency}
-        budget={trip.budget}
+        startDate={activeTrip.startDate}
+        endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
+        dayCount={activeTrip.days.length}
+        currency={activeTrip.currency}
+        budget={activeTrip.budget}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

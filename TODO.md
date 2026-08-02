@@ -47,6 +47,23 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Trip list row: richer, human-readable metadata (Mitchell, 2026-08-01, from
+  M8 dogfooding).** The "Your trips" list currently shows each row's
+  `createdAt` as a raw ISO timestamp (`2026-08-01 23:52:35.026+00`) — should be
+  human-readable, and more useful than the creation date anyway: start date,
+  trip length (day count), and cost are all already on `TripSummary`/derivable
+  from `TripDetail` and would tell the user more at a glance than when the row
+  was created.
+
+- **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
+  2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
+  `deletingIds` filter-set, M8/A15 follow-up) and the rename/date/budget
+  optimism fix (TripHeader reading `activeTrip` instead of `trip`) both landed
+  as small, well-scoped fixes. Duplicate (network round-trip before the
+  redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
+  refetch rather than re-inserting the row locally) are lower-value/more work
+  for now — deferred rather than done reflexively.
+
 - **AI "Preview" before apply — now scoped into M9.** Kept here only for the
   two implementation directions it records, which M9's design spec has to choose
   between (Mitchell, 2026-07-25): (a) lean on the event-sourcing/history
