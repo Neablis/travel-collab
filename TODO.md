@@ -64,6 +64,20 @@ Captured so they aren't lost; not committed to a milestone yet.
   refetch rather than re-inserting the row locally) are lower-value/more work
   for now — deferred rather than done reflexively.
 
+- **Expose geocoding as a model tool (Mitchell, 2026-08-01, from M8
+  dogfooding).** The AI planning path never had real geocoding wired in
+  (ADR-007's "pre-command enrichment" was only ever built for the manual
+  "Add a place" search) — the model was asked to supply `Location.lat/lng`
+  itself and reliably guessed/hallucinated (observed: `lat: 0, lng: 0`).
+  Server-side auto-geocode (enrich `AddActivity`/`UpdateActivity` commands
+  with a real `Geocoder.forward()` lookup after `resolveBatch`, before
+  `flushPlanningBatch`) is landing now as the fix. This item is the OTHER
+  half, deliberately deferred: give the model a `geocode` tool it can call
+  mid-batch to disambiguate among candidates itself (more steps/tokens per
+  request, but handles cases auto-geocode's "take the top match" can't —
+  e.g. two same-named places in different cities the model needs to pick
+  between using trip context).
+
 - **AI "Preview" before apply — now scoped into M9.** Kept here only for the
   two implementation directions it records, which M9's design spec has to choose
   between (Mitchell, 2026-07-25): (a) lean on the event-sourcing/history
