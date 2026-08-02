@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { events, pages, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
+import type { Geocoder, GeocodeResult } from "@/server/geocoding";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -109,6 +110,21 @@ function modelThatNeverStops(toolCalls: FunctionToolCall[]) {
       content: toolCalls.map((call) => ({ ...call, toolCallId: randomUUID() })),
     }),
   });
+}
+
+// A fake Geocoder (matching the `Geocoder` interface exactly) keyed by exact
+// query string. Maps a query to either a results array (possibly empty, for
+// the "no match" case) or an Error (for the "vendor threw/rejected" case).
+// `forward` is a vi.fn so tests can assert call count/args — the dedupe test's
+// whole point is that an identical place name across two commands triggers
+// exactly one call.
+function fakeGeocoder(responses: Record<string, GeocodeResult[] | Error>): Geocoder {
+  const forward = vi.fn(async (query: string) => {
+    const r = responses[query];
+    if (r instanceof Error) throw r;
+    return r ?? [];
+  });
+  return { forward } as unknown as Geocoder;
 }
 
 describe("POST /api/trips/:id/ai", () => {
@@ -365,5 +381,167 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.resolutionErrors).toHaveLength(1);
     expect(body.resolutionErrors[0]).toMatchObject({ type: "AddActivity", code: "unresolved-ref", index: 2 });
     expect(body.resolutionErrors[0].message).toMatch(/out of range/i);
+  });
+
+  // ADR-007's "pre-command enrichment" was only ever wired into the manual
+  // "Add a place" search — the AI planning path was never connected to a real
+  // geocoder, so the model was left to invent lat/lng itself (observed live:
+  // lat 0, lng 0). These pin the server-side fix: AddActivity/UpdateActivity
+  // commands with a `location` get it replaced by a real geocoder lookup,
+  // deduped per request, run in parallel, and best-effort (never fails the
+  // whole AI request).
+  describe("AI-planned activity locations are geocoded server-side", () => {
+    const GEOCODED: GeocodeResult = {
+      lat: 43.1566,
+      lng: -77.6088,
+      canonicalName: "Rochester, NY, USA",
+      countryCode: "US",
+    };
+
+    it("an AddActivity's location is replaced by the geocoder's result, not the model's guessed lat/lng", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": [GEOCODED] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          // The model's own (wrong) guess — must be discarded, not persisted.
+          location: { name: "Rochester, NY", lat: 0, lng: 0, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({
+        name: "Rochester, NY, USA",
+        lat: 43.1566,
+        lng: -77.6088,
+        countryCode: "US",
+      });
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    it("dedupes identical place-name queries within one request to a single geocoder call", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": [GEOCODED] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", { title: "Day 1 lunch", dayRef: "day 1", location: { name: "Rochester, NY" } }),
+        toolCall("AddActivity", { title: "Day 2 lunch", dayRef: "day 2", location: { name: "Rochester, NY" } }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester on both days", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const activities = Object.values(body.detail.activities as Record<string, { title: string; location: unknown }>);
+      expect(activities).toHaveLength(2);
+      for (const a of activities) {
+        expect(a.location).toEqual({
+          name: "Rochester, NY, USA",
+          lat: 43.1566,
+          lng: -77.6088,
+          countryCode: "US",
+        });
+      }
+      // The whole point: one geocoder call serves both identically-named commands.
+      expect(geocoder.forward).toHaveBeenCalledTimes(1);
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    it("falls back to a name-only location when the geocoder finds no match", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Nowhereville": [] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        // The model's own (wrong) guessed lat/lng — must be DROPPED on a
+        // no-match, not persisted as if it were real.
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          location: { name: "Nowhereville", lat: 12, lng: 34, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in nowhereville", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({ name: "Nowhereville" });
+      expect(geocoder.forward).toHaveBeenCalledWith("Nowhereville", { limit: 1 });
+    });
+
+    it("falls back to a name-only location when the geocoder rejects, without failing the request", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": new Error("LocationIQ rate limit exceeded") });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        // The model's own (wrong) guessed lat/lng — must be DROPPED when the
+        // lookup throws, not persisted as if it were real.
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          location: { name: "Rochester, NY", lat: 0, lng: 0, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({ name: "Rochester, NY" });
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    it("does not call the geocoder for an UpdateActivity that clears its location", async () => {
+      const tripId = await seedTrip();
+      const dayId = randomUUID();
+      const activityId = randomUUID();
+      await executeTripCommand({ type: "AddDay", tripId, dayId }, ACTOR_ID);
+      await executeTripCommand(
+        {
+          type: "AddActivity",
+          tripId,
+          activityId,
+          dayId,
+          title: "Museum visit",
+          location: { name: "Some Museum", lat: 1, lng: 2, countryCode: "US" },
+        },
+        ACTOR_ID,
+      );
+      const geocoder = fakeGeocoder({});
+      const model = modelWithToolCalls([
+        toolCall("UpdateActivity", { activityRef: "Museum visit", location: null }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "clear the museum's location", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.detail.activities[activityId].location).toBeNull();
+      expect(geocoder.forward).not.toHaveBeenCalled();
+    });
   });
 });

@@ -12,6 +12,12 @@
 // tests call `handleAiRequest` directly with a fake model (ai/test's
 // MockLanguageModelV4) and never touch `POST`'s default, so they never
 // construct `aiModel()` and never hit the network.
+//
+// Same pattern for `geocoder`: defaults to the real `getGeocoder()` (LocationIQ,
+// ADR-007), used to enrich AddActivity/UpdateActivity `location`s the model
+// supplied a name for — see `enrichCommandLocations`. Tests inject a fake
+// `Geocoder` the same way they inject a fake model, so no test needs
+// LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
@@ -23,6 +29,8 @@ import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTool
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { resolveBatch } from "@/server/ai/batchResolver";
+import { enrichCommandLocations } from "@/server/ai/geocodeEnrichment";
+import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -123,6 +131,7 @@ export async function handleAiRequest(
   request: Request,
   tripId: string,
   model: LanguageModel = aiModel(),
+  geocoder: Geocoder = getGeocoder(),
 ): Promise<Response> {
   const g = await guard(tripId);
   if ("error" in g) return g.error;
@@ -225,7 +234,7 @@ export async function handleAiRequest(
   // commands in one batch-aware pass: mint new ids, resolve refs against the
   // trip AS THE BATCH BUILDS IT, and drop any command whose ref can't be
   // matched. `resolutionErrors` are the drops — surfaced for the caller.
-  const { commands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
+  const { commands: resolvedCommands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
     tripId,
     actorId: userId,
   });
@@ -233,7 +242,7 @@ export async function handleAiRequest(
   // something the user needs told "couldn't be matched" — only count real drops.
   const skipped = resolutionErrors.filter((e) => e.code !== "no-op");
 
-  if (commands.length === 0) {
+  if (resolvedCommands.length === 0) {
     const history: TripHistory | null = await getTripHistory(tripId);
     return Response.json({
       detail,
@@ -249,6 +258,13 @@ export async function handleAiRequest(
       resolutionErrors,
     });
   }
+
+  // Best-effort server-side geocode enrichment (ADR-007): the model is never
+  // trusted with real coordinates, so every AddActivity/UpdateActivity with a
+  // `location` gets it replaced with a real geocoder lookup here, right before
+  // the batch is submitted. See geocodeEnrichment.ts for the dedupe/parallel/
+  // fallback behavior.
+  const commands = await enrichCommandLocations(resolvedCommands, geocoder);
 
   const batch = await flushPlanningBatch(tripId, commands, userId);
   if (!batch.ok) {
