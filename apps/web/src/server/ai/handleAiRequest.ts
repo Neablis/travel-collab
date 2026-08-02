@@ -13,11 +13,20 @@
 // MockLanguageModelV4) and never touch `POST`'s default, so they never
 // construct `aiModel()` and never hit the network.
 //
-// Same pattern for `geocoder`: defaults to the real `getGeocoder()` (LocationIQ,
-// ADR-007), used to enrich AddActivity/UpdateActivity `location`s the model
-// supplied a name for — see `enrichCommandLocations`. Tests inject a fake
-// `Geocoder` the same way they inject a fake model, so no test needs
-// LOCATIONIQ_API_KEY.
+// `geocoder` is different: unlike `model`, it's used by only ONE of the three
+// surfaces (board/combined's enrichment step, well after the `surface ===
+// "page"` branch has already returned), and only when the resolved batch
+// actually has an AddActivity/UpdateActivity with a `location` to look up. A
+// default parameter is evaluated at call time whenever the argument is
+// omitted — which is every real request, since route.ts's `POST` never passes
+// one — so `geocoder: Geocoder = getGeocoder()` here would construct the real
+// LocationIQ geocoder (ADR-007) unconditionally, including for `page`-surface
+// requests that never touch location data at all. `getGeocoder()` throws if
+// LOCATIONIQ_API_KEY is unset, so that would break page-surface (Notebook
+// AI-authoring) on a missing key too. Instead `geocoder` stays optional and is
+// resolved lazily, right where `enrichCommandLocations` needs it — see there.
+// Tests inject a fake `Geocoder` the same way they inject a fake model, so no
+// test needs LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
@@ -131,7 +140,7 @@ export async function handleAiRequest(
   request: Request,
   tripId: string,
   model: LanguageModel = aiModel(),
-  geocoder: Geocoder = getGeocoder(),
+  geocoder?: Geocoder,
 ): Promise<Response> {
   const g = await guard(tripId);
   if ("error" in g) return g.error;
@@ -264,7 +273,7 @@ export async function handleAiRequest(
   // `location` gets it replaced with a real geocoder lookup here, right before
   // the batch is submitted. See geocodeEnrichment.ts for the dedupe/parallel/
   // fallback behavior.
-  const commands = await enrichCommandLocations(resolvedCommands, geocoder);
+  const commands = await enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder());
 
   const batch = await flushPlanningBatch(tripId, commands, userId);
   if (!batch.ok) {

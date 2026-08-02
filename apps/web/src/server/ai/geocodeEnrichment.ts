@@ -47,9 +47,14 @@ async function geocodeOne(geocoder: Geocoder, name: string): Promise<Location> {
 // pattern ("Lunch in Rochester, NY" once per day of a multi-day trip) and a
 // meaningful save against LocationIQ's free-tier daily cap. Every unique
 // name's lookup runs in parallel (Promise.all), not serialized.
+// `getGeocoder` is a thunk, not a resolved `Geocoder`, so the caller can defer
+// its own construction cost (e.g. `getGeocoder()` from server/geocoding, which
+// throws if LOCATIONIQ_API_KEY is unset) until we've actually confirmed there's
+// something to geocode — it's only invoked below, after the size===0 early
+// return, and at most once per call regardless of how many names need looking up.
 export async function enrichCommandLocations(
   commands: BatchableCommand[],
-  geocoder: Geocoder,
+  getGeocoder: () => Geocoder,
 ): Promise<BatchableCommand[]> {
   const namesByKey = new Map<string, string>();
   for (const command of commands) {
@@ -59,6 +64,7 @@ export async function enrichCommandLocations(
   }
   if (namesByKey.size === 0) return commands;
 
+  const geocoder = getGeocoder();
   const entries = await Promise.all(
     Array.from(namesByKey.entries()).map(
       async ([key, name]) => [key, await geocodeOne(geocoder, name)] as const,

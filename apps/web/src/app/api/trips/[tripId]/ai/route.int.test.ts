@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { events, pages, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
+import { getGeocoder } from "@/server/geocoding";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
 
 const ACTOR_ID = "user-1";
@@ -30,6 +31,18 @@ let currentUserId = ACTOR_ID;
 
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
+}));
+
+// Regression coverage for the lazy-geocoder fix: `getGeocoder()` throws if
+// LOCATIONIQ_API_KEY isn't set, so it must never be reached for a page-surface
+// request (Notebook AI-authoring), which never touches location data. Mocked
+// to throw (not just spied on) so an accidental call fails loudly here rather
+// than silently succeeding because this worktree's .env.local happens to carry
+// a real key.
+vi.mock("@/server/geocoding", () => ({
+  getGeocoder: vi.fn(() => {
+    throw new Error("getGeocoder should never be called for a page-surface request");
+  }),
 }));
 
 // Import after the mock so the route picks up the mocked `auth`. Only
@@ -199,6 +212,36 @@ describe("POST /api/trips/:id/ai", () => {
     const body = await res.json();
     expect(body.content).toBeUndefined();
     expect(body.error).toBeDefined();
+  });
+
+  // Regression test: `geocoder` used to be `Geocoder = getGeocoder()`, a
+  // default parameter evaluated at call time whenever omitted — which is
+  // every real request, since route.ts's `POST` calls `handleAiRequest(request,
+  // tripId)` with no 3rd/4th argument. `getGeocoder()` throws if
+  // LOCATIONIQ_API_KEY is unset, so that would have broken page-surface
+  // requests too, even though the geocode-enrichment step only ever runs for
+  // board/combined surfaces. This pins that a page-surface request succeeds
+  // with NO geocoder argument at all (matching POST's real call shape exactly)
+  // and never constructs/calls a geocoder to do it.
+  it("page surface: succeeds with no geocoder argument, and never constructs one", async () => {
+    const tripId = await seedTrip();
+    const model = modelWithToolCalls([
+      toolCall("compose_page", {
+        title: "Trip Notes",
+        blocks: [{ type: "paragraph", text: "Some notes." }],
+      }),
+    ]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "compose a notes page", surface: "page", pageContext: { tripId } }),
+      tripId,
+      model,
+      // Deliberately no 4th argument — this is exactly how route.ts's POST
+      // calls handleAiRequest for every real request.
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.content.type).toBe("doc");
+    expect(getGeocoder).not.toHaveBeenCalled();
   });
 
   it("board surface: a tool call is submitted as exactly one atomic batch", async () => {
