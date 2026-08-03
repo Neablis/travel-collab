@@ -22,8 +22,53 @@ meant Tuesday." One-shot commit means nothing to examine or shape. **This is not
 a bug list; it is a different architecture** — and the expensive half already
 exists.
 
+**A fourth gap surfaced on 2026-08-02 that those three lines do NOT explain, and
+this milestone's original framing missed it: the agent has no read tools.** A
+dogfood run ("Plan a 3 day trip to Rochester NY, one day at Niagara Falls, one
+at the Strong Museum, find lunch and dinner near each") produced a restaurant
+with no address, a restaurant that may not exist, a dinner persisted in
+Shropshire, England, and `cost: 0` on all nine activities. The model is asked to
+*find* places while being unable to *look anything up* — so "find restaurants
+near the falls" is answered from parametric memory and is unverifiable by
+construction. Geocoding was bolted on afterwards as blind post-processing
+(KI-15), which can only confirm or corrupt a decision already made; on that run
+it corrupted a correct answer and silently dropped seven others. Streaming,
+threads and approval would have made all of this *visible sooner*. None of them
+would have made it *right*.
+
 ## Scope
 
+- **Grounding — the agent gets to look things up before it decides.** A
+  `SearchPlaces` read tool (one call, array of queries, each region-biased)
+  returns numbered real candidates; `AddActivity`/`UpdateActivity` then cite a
+  `placeRef: N` instead of a free-text `location`, resolved server-side against
+  that turn's search cache. **The model becomes structurally incapable of naming
+  a place it did not search for** — the exact guarantee `idFields.ts` already
+  provides for UUIDs, extended to locations, and the reason this belongs here
+  rather than in a prompt tweak. Blind post-hoc enrichment is demoted to a
+  fallback for user-typed text only (closes KI-15).
+  - **Source: LocationIQ, which is already wired** (Mitchell, 2026-08-02).
+    Decided against Yelp and Google — both prohibit persisting their content
+    (Yelp: 24h cache max; Google: `place_id` only), which is the same
+    storability constraint that drove ADR-007's vendor choice, and Yelp has no
+    free tier as of 2026. Foursquare OS Places / Overture stay the named
+    upgrade path if coverage proves thin; they swap behind ADR-007's existing
+    `Geocoder` port, which is the consequence that ADR explicitly bought.
+  - Use `/v1/search` with `viewbox` + `bounded=1` for region bias, **not** the
+    Nearby/POI endpoint — Nearby is public BETA ("format may change without
+    notice") with unconfirmed free-tier inclusion, so it is an optional later
+    evaluation, never a dependency.
+  - **Respect the real rate limit: 2 requests/second on the free tier.**
+    Throttle; do not `Promise.all`. This is what actually broke the dogfood run.
+  - Costs one extra step per turn (search, then act), not one per place — so
+    `meta.steps` should read 2–3, not 18. Watch it; it is still the cost driver.
+- **Honest unknowns.** The dogfood run wrote `amountMinor: 0` on every activity,
+  which renders as *free* when the truth is *unknown*. `Money` is already
+  `.optional()` on `AddActivity` — the contract is fine and needs no change; the
+  rule is that the model never writes a value it does not have. Same principle
+  as grounding: an absent field is honest, a fabricated one is not. No place API
+  in the surveyed set returns a per-meal price anyway (Yelp's `$$` is a band),
+  so this is a discipline question, not a data-source question.
 - **Thread contract.** Messages, not a bare prompt; conversation persisted so a
   refine turn has something to refine.
 - **Streaming.** `streamText`, so the plan appears as it is built.
@@ -61,5 +106,12 @@ progress reads, how rejection feels — not in M10.
       correction, and committed only on approval — as one atomic batch, one
       history entry, one undo.
 - [ ] Rejecting a proposal leaves the trip untouched.
+- [ ] **The 2026-08-02 Rochester prompt is re-run verbatim and every activity
+      with a location has real coordinates in the right region** — no silent
+      coordinate-less place, nothing on another continent. This prompt is the
+      regression test for grounding — **KI-15 keeps it verbatim, as typed**, so
+      it can be replayed exactly rather than approximated.
+- [ ] No activity carries a fabricated cost — unknown reads as unknown, not as
+      `0`/free.
 - [ ] Recorded real-model transcripts replay in CI without a live call.
 - [ ] Retro appended at gate close.

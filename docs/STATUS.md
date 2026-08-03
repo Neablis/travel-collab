@@ -40,7 +40,16 @@ into the spec — read them before touching `packages/domain`:
 
 ## Blocking / broken right now
 
-**Nothing.** `main` went fully green for the first time on 2026-07-28 — all four
+**Nothing blocking M8** — but **KI-15 is a live correctness bug on `main`**,
+filed 2026-08-02 from dogfooding: AI geocode enrichment overwrites correct
+model-supplied coordinates with an unbiased top match (a Niagara Falls dinner
+was persisted in Shropshire, England) and silently swallows rate-limit failures
+into coordinate-less locations (7 of 9 on that run). Every AI-planned trip built
+today stores wrong or missing coordinates and reports success either way. The
+architectural fix is scoped into M9 ("Grounding"); the throttle/bias/surface-the-
+failure half is smaller and does not need to wait.
+
+`main` went fully green for the first time on 2026-07-28 — all four
 CI jobs including `migrate-production`, which applied migration `0003` (the
 `pages` table) to production after the `PRODUCTION_DATABASE_URL` secret was set.
 The M7 Notebook should now work on the deployed app; it had been failing there
