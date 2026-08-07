@@ -42,7 +42,7 @@ for collaboration later landing on a product people already want to join.
 | M5 | Design foundations | Tailwind design system: tokens, documented palette, styled primitives and composites, then a re-skin of every existing surface. Answered "is it consistent" — not "is it obvious" (M8) or "is it beautiful" (M10) |
 | M6 | Atomic changes | Client/generator-declared command groups committed as one atomic batch, so undo/redo/revert treat them as a single change. Optimistic updates added mid-milestone |
 | M7 | Solo delight | Dynamic pages with typed macros, lazily-instantiated templates, a Notebook route outside time-travel, schema-derived constrained AI via Vercel AI Gateway |
-| M8 | Make it real | Trip lifecycle (name, dates, archive/delete, duplicate — `SetTripName` does not exist today); core loop ergonomics (search-to-add, quick add, moving activities); anchors retired from the UI but kept dormant; Notebook pulled back to plain notes; first-run and empty states. **Interaction design lives here** |
+| M8 | Make it real | Trip lifecycle (name, dates, archive/delete, duplicate — `SetTripName` does not exist today, **done, PR #21**); anchors retired from the UI but kept dormant (**done**); Notebook pulled back to plain notes. **Interaction design lives here.** *(Core-loop ergonomics — search-to-add, quick add, moving activities — and first-run/empty states trimmed from scope 2026-08-07; see that milestone's file and `TODO.md`'s Candidate ideas.)* |
 
 ## Phase 2 — A product worth using
 

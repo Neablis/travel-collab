@@ -27,6 +27,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
 - [x] **M7 Solo delight** → `docs/milestones/M7-solo-delight.md`
       *(Trip templates moved to M11 during this milestone.)*
 - [ ] **M8 Make it real** → `docs/milestones/M8-make-it-real.md`
+      *(Wave A merged 2026-08-07 via PR #21. Wave C's ergonomics tasks and
+      Wave D's first-run/empty-state tasks trimmed from scope the same day —
+      see Candidate ideas below.)*
 - [ ] **Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end.
       The 2026-07-28 review deferred this behind M8: the gate could not be
       attempted because a trip cannot be renamed or deleted.
@@ -46,6 +49,30 @@ Where the work actually stands right now: `docs/STATUS.md`.
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
+
+- **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
+  first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8
+  rather than done reflexively, once Wave A merged. None of these close a
+  capability gap: an activity — including one with a real geocoded place —
+  can already be added via the existing `+ Add activity` editor
+  (`ActivityEditor.tsx`/`LocationInput.tsx`), and reordering already works by
+  dragging. What's deferred is speed (a faster input, a dedicated search
+  button, a menu instead of a drag) and presentation (first-run/empty-state
+  copy and layout) — genuine ergonomics and polish, but not blockers against
+  the Phase 1 gate, and exactly the surface a separate, already-underway
+  design-tool brainstorm for the product's future look and feel is likely to
+  reshape. Building it now risks the "redone twice" cost M5's own Wave 1
+  re-skin already paid once when the layout moved underneath it — the same
+  argument M10's own scope doc makes about not polishing a structure that is
+  still moving, applied here to interaction/ergonomics work instead of visual
+  polish. **Kept, not deferred:** the KI-5 visible-sync-state indicator
+  (correctness/trust, not ergonomics — doesn't depend on quick-add existing)
+  and the M8 e2e gate script, resized to exercise the existing
+  add-activity/drag-and-drop flow. Full detail in
+  `docs/plans/2026-07-28-M8-make-it-real.md`'s Wave C/D headers (tasks left
+  in place, marked DEFERRED) and `docs/milestones/M8-make-it-real.md`'s
+  "Scope trim" section. Revisit once M10's direction is set — these are
+  exactly the kind of task that direction should inform, not the reverse.
 
 - **Trip list row: richer, human-readable metadata (Mitchell, 2026-08-01, from
   M8 dogfooding).** The "Your trips" list currently shows each row's

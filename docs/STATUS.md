@@ -24,9 +24,20 @@ the Phase 1 gate review, not M8.
 geocode-enrichment hardening (a separate reviewed pass on top of Wave A,
 `docs/plans/2026-08-05-KI-15-geocode-enrichment-hardening.md`). CI on `main`
 is green including `migrate-production` (migration `0004`, trip status,
-applied to production). Waves B (subtractive), C (ergonomics), and D
-(first-run/empty states) have not started; the plan is
-`docs/plans/2026-07-28-M8-make-it-real.md`. **Resume at Task B1.**
+applied to production).
+
+**Wave C and Wave D's scope was trimmed the same day (Mitchell + Claude,
+2026-08-07)** — before starting Wave B, read this. C1–C3 (quick-add, a
+search-to-add button, move-via-menu) and D1–D2 (first-run state, empty
+states) are deferred, not planned to start next: none close a capability gap
+(the existing `+ Add activity` editor and drag-and-drop already do this),
+and they're the kind of surface a separate, already-underway design-tool
+brainstorm for the product's future look and feel is likely to reshape —
+building them now risks getting redone once M10 lands. C4 (KI-5 sync
+indicator) and D3 (the e2e gate script, resized off the deferred UI) are
+kept. Full reasoning: `docs/milestones/M8-make-it-real.md`'s "Scope trim"
+section and `TODO.md`'s Candidate ideas. **Resume at Task B1** — Wave B is
+unaffected by the trim.
 
 - Design spec: `docs/specs/2026-07-28-M8-make-it-real-design.md` (`b547fdd`) —
   8 decisions, each recorded with the alternatives it beat.

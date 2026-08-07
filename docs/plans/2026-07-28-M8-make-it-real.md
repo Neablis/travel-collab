@@ -1817,7 +1817,25 @@ git commit -m "refactor(web): pull the Notebook back to plain notes, keep macro 
 
 # Wave C — Core-loop ergonomics
 
-### Task C1: Quick-add an activity
+> **Scope trimmed 2026-08-07 (Mitchell + Claude).** C1, C2, and C3 are
+> **deferred**, not done — see `TODO.md`'s Candidate ideas for the durable
+> record. None of them close a capability gap: an activity, including one
+> with a real geocoded place, can already be added via the existing
+> `+ Add activity` editor (`ActivityEditor.tsx`/`LocationInput.tsx`), and
+> reordering already works by dragging. What C1–C3 would add is speed —
+> a faster input, a dedicated search button, a menu instead of a drag — which
+> is convenience/ergonomics, not a blocker for the Phase 1 gate ("plans a
+> real trip end-to-end, needs no other tool"). It is also exactly the kind of
+> surface a planned visual-direction pass (M10, informed by a separate
+> design-tool brainstorm already underway) is likely to reshape — building it
+> now risks the same "redone twice" cost M5's own retro already paid once
+> (see M10's scope doc, which makes this same argument about polishing a
+> structure that is still moving). **C4 is kept** — the KI-5 sync indicator is
+> a correctness/trust signal (commands can silently drop with no visual
+> sign), not ergonomics, and does not depend on C1 existing (see its note
+> below, updated accordingly). Revisit C1–C3 once M10's direction is set.
+
+### Task C1: Quick-add an activity — DEFERRED, not done (see note above)
 
 **Files:**
 - Modify: `apps/web/src/components/board/Column.tsx`
@@ -1868,7 +1886,7 @@ git commit -m "feat(web): quick-add an activity from the column foot"
 
 ---
 
-### Task C2: Add an activity by searching for a place
+### Task C2: Add an activity by searching for a place — DEFERRED, not done (see note above)
 
 **Files:**
 - Create: `apps/web/src/components/board/AddPlaceButton.tsx`
@@ -1932,7 +1950,7 @@ git commit -m "feat(web): add an activity by searching for a place"
 
 ---
 
-### Task C3: Move an activity without dragging
+### Task C3: Move an activity without dragging — DEFERRED, not done (see note above)
 
 Drag-and-drop already works and is the thing to protect. This is the keyboard and touch path.
 
@@ -1987,9 +2005,15 @@ git commit -m "feat(web): move an activity from a menu as well as by dragging"
 
 ---
 
-### Task C4: The KI-5 sync indicator
+### Task C4: The KI-5 sync indicator — KEPT (C1/C2/C3 deferred, this is not)
 
-Quick-add is a rapid-fire command generator pointed straight at KI-5: commands still queued behind the one in flight are dropped on navigation with no error and no visual difference. `pending` is already exposed on `useTrip()`; this makes it visible, per KI-5's recorded fix path.
+**Not dependent on C1/C2/C3.** This task was originally framed around
+quick-add's rapid-fire command generation, but the underlying risk is
+general: commands still queued behind the one in flight are dropped on
+navigation with no error and no visual difference, and that is reachable
+today through the existing editor and drag-and-drop, not only through the
+deferred quick-add input. `pending` is already exposed on `useTrip()`; this
+makes it visible, per KI-5's recorded fix path.
 
 **Files:**
 - Create: `apps/web/src/components/trip/SyncIndicator.tsx`
@@ -2040,7 +2064,15 @@ git commit -m "feat(web): show sync state so unsaved work is visible (KI-5)"
 
 # Wave D — First-run and empty states
 
-### Task D1: First-run state for a new trip
+> **Scope trimmed 2026-08-07 (Mitchell + Claude).** D1 and D2 are
+> **deferred**, not done — same reasoning and same note as Wave C above:
+> presentational/copy work, not a capability gap, and exactly the surface a
+> planned M10 visual-direction pass is likely to reshape. **D3 is kept**,
+> resized: it is the milestone's actual exit gate, not polish, and its e2e
+> script below is rewritten to exercise the existing add-activity and
+> drag-and-drop flows instead of the deferred C1–C3 UI.
+
+### Task D1: First-run state for a new trip — DEFERRED, not done (see note above)
 
 **Files:**
 - Modify: `apps/web/src/components/board/TripBoardScreen.tsx`
@@ -2086,7 +2118,7 @@ git commit -m "feat(web): first-run state for a brand-new trip"
 
 ---
 
-### Task D2: Empty states across every surface
+### Task D2: Empty states across every surface — DEFERRED, not done (see note above)
 
 **Files:**
 - Modify: `apps/web/src/components/board/Column.tsx`, `apps/web/src/components/lenses/MapLens.tsx`, `TimelineLens.tsx`, `ItineraryLens.tsx`, `apps/web/src/components/pages/NotebookScreen.tsx`, `apps/web/src/components/board/HistoryPanel.tsx`
@@ -2142,6 +2174,20 @@ git commit -m "feat(web): give every surface an empty state with a next action"
 
 ### Task D3: M8 e2e and gate close
 
+> **Rewritten 2026-08-07 (Mitchell + Claude) for the C1–C3/D1/D2 scope trim.**
+> The original sketch below exercised the deferred quick-add input
+> (`add to day 1` textbox), the deferred `AddPlaceButton` (`add a place to
+> day N` + a `searchbox`), and the deferred per-card move menu
+> (`actions for … → move to…`) — none of which will exist. It now uses the
+> already-existing `+ Add activity` editor (`ActivityEditor.tsx` +
+> `LocationInput.tsx`, the exact pattern already proven in
+> `e2e/m3-place-and-time.spec.ts`) and the already-existing drag-and-drop
+> (`dragCardTo` from `e2e/helpers.ts`, same pattern). The KI-5 assertion (C4,
+> kept) is unchanged. **This still satisfies the milestone's exit-gate
+> wording** ("...build three days with activities including one added by
+> searching for a place, reorder them...") — that wording names a
+> capability, not a specific UI, and the capability already exists.
+
 **Files:**
 - Create: `apps/web/e2e/m8-make-it-real.spec.ts`
 - Modify: `TODO.md`, `docs/milestones/M8-make-it-real.md`, `docs/milestones/README.md`, `docs/STATUS.md`
@@ -2151,6 +2197,8 @@ git commit -m "feat(web): give every surface an empty state with a next action"
 
 ```ts
 // apps/web/e2e/m8-make-it-real.spec.ts
+import { dragCardTo } from "./helpers";
+
 test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await signIn(page);                                  // e2e/helpers.ts
   await page.getByLabel("Trip name").fill("Rochester");
@@ -2162,26 +2210,36 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await page.getByRole("button", { name: /set dates/i }).click();
   await expect(page.getByRole("region", { name: /day 3/i })).toBeVisible();
 
-  await page.getByRole("textbox", { name: /add to day 1/i }).fill("Coffee");
-  await page.getByRole("textbox", { name: /add to day 1/i }).press("Enter");
+  // Existing "+ Add activity" editor (ActivityEditor.tsx), same pattern as
+  // m1-board.spec.ts — no title-only quick-add exists, so this is the path.
+  await page.getByRole("button", { name: "+ Add activity" }).first().click();
+  await page.getByLabel("Activity title").fill("Coffee");
+  await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Coffee")).toBeVisible();
 
-  await page.getByRole("button", { name: /add a place to day 2/i }).click();
-  await page.getByRole("searchbox", { name: /search for a place/i }).fill("Niagara Falls");
-  await page.getByRole("searchbox", { name: /search for a place/i }).press("Enter");
-  await page.getByRole("option").first().click();
-  await expect(page.getByText(/niagara/i)).toBeVisible();
+  // Existing location search (LocationInput.tsx), same pattern as
+  // m3-place-and-time.spec.ts — no dedicated AddPlaceButton exists.
+  await page.getByRole("button", { name: "+ Add activity" }).nth(1).click();
+  await page.getByLabel("Activity title").fill("Niagara Falls");
+  await page.getByLabel("Place name").fill("Niagara Falls");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("option", { name: /niagara falls/i }).first().click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Niagara Falls")).toBeVisible();
 
-  await page.getByRole("button", { name: /actions for coffee/i }).click();
-  await page.getByRole("menuitem", { name: /move to…/i }).click();
-  await page.getByRole("menuitem", { name: /day 3/i }).click();
+  // Existing drag-and-drop (dragCardTo), same pattern as
+  // m3-place-and-time.spec.ts — no per-card "move to…" menu exists.
+  const coffee = page.getByTestId(/activity-card-/).filter({ hasText: "Coffee" });
+  const day3 = page.getByTestId("day-column").nth(2);
+  await dragCardTo(coffee, day3);
+  await expect(day3.getByText("Coffee")).toBeVisible();
 
   await page.getByRole("button", { name: /rename trip/i }).click();
   await page.getByRole("textbox", { name: /trip name/i }).fill("Rochester 2026");
   await page.getByRole("textbox", { name: /trip name/i }).press("Enter");
   await expect(page.getByText("Rochester 2026")).toBeVisible();
 
-  await expect(page.getByText(/all changes saved/i)).toBeVisible();  // KI-5
+  await expect(page.getByText(/all changes saved/i)).toBeVisible();  // KI-5, C4
 
   await page.goto("/");
   await page.getByRole("button", { name: /trip actions for rochester 2026/i }).click();
@@ -2195,6 +2253,9 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 ```
 
 **Wait for each mutating action's confirming response before the next** (the `m6-optimistic.spec.ts` pattern) — KI-5 means a rapid unconfirmed sequence can genuinely lose commands, and that would surface here as a confusing flake.
+Confirm the exact accessible names/labels above against the real components at
+implementation time — they were verified by reading the source during the
+2026-08-07 trim, not re-verified line-by-line for this rewrite.
 
 - [ ] **Step 2: Run every e2e script**
 

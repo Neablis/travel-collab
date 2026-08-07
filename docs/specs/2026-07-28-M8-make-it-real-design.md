@@ -28,6 +28,20 @@ No invariant weakens. Every lifecycle change is a command through the standard
 pipeline producing events (§Invariant 1); `TripState` gains a `status` field and
 every consumer of that state is updated in the same PR (§Invariant 5).
 
+> **Scope update, 2026-08-07 (Mitchell + Claude):** Wave A (§4–6) shipped as
+> designed, merged via PR #21. Wave C's ergonomics work and Wave D's
+> first-run/empty-state work (§7 below, and the Wave C table row above) were
+> **deferred out of M8** once Wave A landed — not because the decisions below
+> were wrong, but because none of it closes a capability gap (the existing
+> `+ Add activity` editor and drag-and-drop already cover the ground), and
+> it's exactly the kind of surface a separate, already-underway design-tool
+> brainstorm for the product's future visual direction (M10) is likely to
+> reshape. The decisions below remain the accurate record of why this shape
+> was originally chosen; they're a starting point if C/D are revisited after
+> M10, not a live spec for near-term work. Current scope:
+> `docs/milestones/M8-make-it-real.md`'s "Scope trim" section and
+> `TODO.md`'s Candidate ideas.
+
 ## 2. Decision log (all explicitly made by Mitchell, 2026-07-28)
 
 | # | Decision | Alternatives rejected |
