@@ -5,7 +5,7 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-06**
+**Last updated: 2026-08-07**
 
 ## Where we are
 
@@ -19,11 +19,14 @@ the Phase 1 gate review, not M8.
 
 ## In flight
 
-**M8 Wave A is complete and in review as PR #21** (`m8-wave-a`) — Tasks
-A0–A15, plus dogfooding follow-ups and the KI-15 hardening described below.
-Waves B (subtractive), C (ergonomics), and D (first-run/empty states) have not
-started; the plan is `docs/plans/2026-07-28-M8-make-it-real.md`. Resume at
-**Task B1** once #21 merges.
+**M8 Wave A is merged.** PR #21 (`m8-wave-a`) landed on `main` 2026-08-07
+(merge commit `6502a95`) — Tasks A0–A15, dogfooding follow-ups, and the KI-15
+geocode-enrichment hardening (a separate reviewed pass on top of Wave A,
+`docs/plans/2026-08-05-KI-15-geocode-enrichment-hardening.md`). CI on `main`
+is green including `migrate-production` (migration `0004`, trip status,
+applied to production). Waves B (subtractive), C (ergonomics), and D
+(first-run/empty states) have not started; the plan is
+`docs/plans/2026-07-28-M8-make-it-real.md`. **Resume at Task B1.**
 
 - Design spec: `docs/specs/2026-07-28-M8-make-it-real-design.md` (`b547fdd`) —
   8 decisions, each recorded with the alternatives it beat.
@@ -56,7 +59,7 @@ which existed only on a branch.
 
 ## Next action
 
-**Merge PR #21, then execute M8 Wave B, starting at Task B1** of
+**Execute M8 Wave B, starting at Task B1** of
 `docs/plans/2026-07-28-M8-make-it-real.md`. Wave A (the trip-lifecycle
 contract change) was its own reviewed step before any UI work (AGENTS.md
 workstream rule), and is done. Background on why the milestone exists:
