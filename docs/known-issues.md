@@ -168,17 +168,52 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Revised hypothesis:** both observations (2026-07-26, and again on 07-27 during the audit — 6 failures then 1, ~152s, `environment 701s`) happened **immediately after a fresh `CI=true pnpm install`**, not merely under parallel load. A cold post-install state — rebuilt esbuild binaries, empty transform caches, collection alone taking ~106s — plausibly starves the wall-clock `waitFor` budgets in a way steady-state load does not. Post-warm-up, `environment` drops from 701s to 41s.
 - **Practical implication:** do not spend effort pinning `fileParallelism` or raising `waitFor` timeouts yet — the evidence no longer supports the diagnosis those would treat. **Do** re-run the suite once after any dependency install before believing a failure. Kept open rather than closed because two independent observations are real and unexplained; it needs one reproduction on a cold install to confirm or kill.
 
-### KI-15 — AI geocode enrichment silently corrupts good locations and silently drops most of the rest
-- **Severity:** correctness (wrong persisted coordinates; missing coordinates presented as if verified)
+### KI-15 — AI-planned locations are still model guesses, not cited facts
+- **Severity:** correctness (downgraded 2026-08-06 — silent corruption fixed, the guess remains)
 - **Area:** `apps/web/src/server/ai/geocodeEnrichment.ts`
+- **Fixed on 2026-08-06, before PR #21 merged:** `enrichCommandLocations`/`resolveOne`
+  no longer relocate a correctly-placed activity. Every lookup is biased with a
+  viewbox toward what we already believe — the model's own plausible
+  coordinates as a tight (50 km) hint, else a region drawn from the trip's
+  existing activities (150 km margin), else, on a brand-new trip with neither,
+  the coordinates already accepted earlier in the same batch (`anchors`,
+  bootstrapped as lookups resolve) — and a result is kept only if it agrees
+  with that belief (within `MAX_REFINE_KM`, 50 km, of a hint, or inside the
+  region's box); disagreement means the model's own coordinates survive
+  unchanged and the place is reported `unverified`, never silently overwritten.
+  A Shropshire match against a Niagara Falls hint is now rejected on distance
+  alone. Lookups are serialized through `mapRateLimited` at LocationIQ's real
+  2 req/sec instead of a `Promise.all` burst, so a 9-name batch no longer 429s
+  itself into coordinate-less locations. The response carries a
+  `locationReport` (`verified`/`unverified`/`unchecked`/`failed`/`skipped`),
+  and `handleAiRequest.ts`'s `locationNotice` names up to three unverified,
+  failed, or skipped places in the reply message instead of reporting success
+  either way — `unchecked` (accepted with nothing yet to check it against,
+  which is the common case on the very first lookup of a freshly planned trip)
+  is deliberately excluded from the message to avoid training the user to
+  ignore it, but stays in the payload.
+- **What is still open:** the model still *guesses* the coordinate, and a guess
+  that happens to agree with a fuzzy string match is still reported as
+  "verified" — enrichment can refine a location, it cannot confirm one is
+  real. The acceptance thresholds (`MAX_REFINE_KM` 50 km, trip margin 150 km,
+  hint margin 50 km) are heuristics chosen from one dogfood run, not measured
+  against a corpus. `boundingBoxAround` does not handle the antimeridian — a
+  Pacific-spanning trip degrades to no useful bias (fails safe, not wrong;
+  left deliberately unfixed). And the first lookup on a trip with no geocoded
+  activities is still `unchecked` by construction: the batch has no region
+  until something resolves, so a wrong first answer both survives and becomes
+  the anchor the rest of the batch is checked against. Ordering lookups by how
+  reliably they geocode would help; M9's grounding removes the problem
+  instead.
+- **Fix path:** M9, "Grounding". The model cites a `placeRef` from a real
+  `SearchPlaces` result, so there is nothing to overwrite and nothing to
+  guess; enrichment survives only as a fallback for user-typed text.
 - **The prompt, verbatim** (kept exactly as typed so it can be replayed as M9's grounding regression test):
   > Plan a 3 day trip to Rochester ny, One day visiting the falls in Niagara, and another visiting the strong museum of place in rochester. Find and add lunch and dinner restaurants for each day near those locations
 - **Symptom (live run, 2026-08-02, trip `13fc0d33`):** of 9 activity locations, **2 were geocoded, 1 of those wrongly, and 7 came back with no coordinates at all** — including "Niagara Falls State Park", which resolves trivially. "Dinner at The Red Coach Inn" was persisted at **`lat 52.907918, lng -2.8901` — "The Red Lion Coaching Inn, Shropshire, England"**, ~5,500 km from the trip. Nothing in the response distinguishes a verified place from an unverified one.
 - **Two independent causes, both in `geocodeOne`/`enrichCommandLocations`:**
   1. **Unconditional top-match overwrite.** `geocodeOne` takes `forward(name, { limit: 1 })[0]` with **no viewbox, no region bias, and no acceptance test**, then the caller replaces the command's `location` with it. In the Red Coach Inn case the model had supplied **correct** coordinates (`43.0866, -79.0628` — Niagara Falls, NY, visible in `meta.toolCalls`); enrichment discarded a right answer for a fuzzy string match on another continent. The "canonical name REPLACES the model's raw name" rule was lifted from the manual `LocationInput.tsx` flow, where **a human picks from candidates** — that human is the part that didn't survive the port.
   2. **Parallel burst against a 2 req/sec vendor.** `enrichCommandLocations` fires every unique name concurrently via `Promise.all`. **LocationIQ's free tier is 5,000/day but rate-limited to 2 requests/second**, so a 9-name batch 429s on most of them; `forward` throws on `!res.ok`, and `geocodeOne`'s bare `catch { return { name } }` swallows every one into a coordinate-less `Location` indistinguishable from "this place does not exist". The dedupe/parallelism was written as a free-tier *saving* (daily cap) and is counterproductive against the *per-second* limit that actually binds.
-- **Why it matters beyond the pins:** the failure is silent in both directions. A wrong coordinate is persisted with full confidence, and a missing one is reported as success — so the user's only signal is noticing England on the map.
-- **Fix path (scoped into M9, "Grounding"):** stop enriching model output at all — the model cites a `placeRef` from a real `SearchPlaces` result instead, so there is nothing to overwrite. Enrichment survives only as a fallback for **user-typed** text. Independently of M9, and worth doing sooner: throttle to the vendor's real rate limit rather than `Promise.all`, bias the query with a viewbox drawn from trip context, and surface a failed or low-confidence lookup in the response instead of swallowing it.
 - **First noted:** 2026-08-02 (Mitchell, M8 dogfooding — trip `13fc0d33`).
 
 ## Resolved
