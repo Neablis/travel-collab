@@ -207,6 +207,37 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   the anchor the rest of the batch is checked against. Ordering lookups by how
   reliably they geocode would help; M9's grounding removes the problem
   instead.
+  A final whole-branch review (2026-08-06, before merge) found and fixed a
+  sharper version of the same problem — a model hint was never checked against
+  an available trip region at all, so a wrong-but-plausible hint could be
+  reported `verified` and permanently widen `tripRegionOf`'s box on every later
+  request for that trip (`resolveOne` now requires agreement with *every*
+  belief in play, not just the strongest one — see the `hintTrusted` logic and
+  its comment in `geocodeEnrichment.ts`) — and a dedupe bug where two commands
+  sharing a place name but carrying different coordinates could have one's
+  location silently stamped onto the other on the fallback path (fixed:
+  `unverified`/`failed` now rebuild each command's location from its own
+  input, never a name-sibling's). That second review left three narrower,
+  accepted residuals rather than blocking on them:
+  1. The dedupe fix only covers the fallback path — on the **`verified`**
+     path, one command's hint still drives the shared lookup and its match is
+     still applied to every command sharing the name, so a second command's
+     own distinct coordinates can still be silently discarded (bounded: the
+     shared match must fall inside the trip region if one exists, so it can't
+     relocate the second command arbitrarily far, only to the first's place).
+  2. A geographically spread trip (e.g. adding a Venice day to a Rome-only
+     trip) now costs more `unverified` reports than before: a genuine hint for
+     the distant leg is untrusted against the established region, so the
+     whole leg's activities lose the `verified` status they'd have gotten
+     pre-fix. Fails safe (coordinates kept, user told) but is a real,
+     user-visible behavior change worth knowing about before it's rediscovered
+     as a support question.
+  3. The monotonic-widening guarantee is narrower than "no bad location can
+     widen the region" — it only bounds the *silent* (`verified`, no notice)
+     path. An `unverified` fallback is still a raw, unvalidated model guess,
+     and it still gets persisted and still feeds `tripRegionOf` on the
+     next request exactly as much as a verified one would; the fix makes that
+     widening *announced* (via `locationNotice`) rather than eliminating it.
 - **Fix path:** M9, "Grounding". The model cites a `placeRef` from a real
   `SearchPlaces` result, so there is nothing to overwrite and nothing to
   guess; enrichment survives only as a fallback for user-typed text.
