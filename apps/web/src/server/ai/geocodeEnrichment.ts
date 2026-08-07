@@ -1,17 +1,95 @@
-// AI-planning-specific enrichment step (ADR-007): the model is never trusted
-// to supply real lat/lng — it's left to guess (observed live: lat 0, lng 0).
-// This mirrors the manual "Add a place" search flow (LocationInput.tsx: pick a
-// geocode result, its canonicalName/lat/lng/countryCode REPLACE what the user
-// typed) but runs server-side, once per resolved AI batch, right before the
-// batch is submitted.
+// AI-planning-specific enrichment step (ADR-007). The model is not trusted to
+// supply real lat/lng, so a resolved batch's locations are looked up against a
+// real geocoder before the batch is submitted.
 //
-// Lives here (not under server/geocoding/) because it's batch-shaped AI
-// pipeline policy — dedupe, parallelism, best-effort fallback — not a
+// Rewritten for KI-15. The original mirrored the manual "Add a place" flow
+// (LocationInput.tsx: a geocode result REPLACES what the user typed) but
+// dropped the part that made that flow safe — a human picking from candidates.
+// Unsupervised, it relocated a Niagara Falls dinner to Shropshire, England,
+// discarding coordinates the model had gotten right, and swallowed seven
+// rate-limited lookups into coordinate-less locations. Both silently.
+//
+// The rule now is: **enrichment may refine a location, never relocate it.**
+// Every lookup is biased toward what we already believe (the model's own
+// plausible coordinates, else the trip's existing activities) and its answer is
+// accepted only if it agrees with that belief. Disagreement means we keep what
+// we had and say so in the report.
+//
+// This is a floor, not the fix. The architecture still launders a model guess
+// into a stored fact; M9's "Grounding" (a SearchPlaces read tool and a
+// placeRef the model must cite) removes the guess. KI-15 stays open.
+//
+// Lives here (not under server/geocoding/) because dedupe, throttling,
+// acceptance and reporting are batch-shaped AI pipeline policy, not a
 // geocoding-provider concern; `geocoding/` stays a pure vendor seam.
 import type { BatchableCommand, Location } from "@tc/contracts";
 import type { Geocoder } from "@/server/geocoding";
+import {
+  boundingBoxAround,
+  distanceKm,
+  plausibleCoords,
+  withinBox,
+  type BoundingBox,
+  type LatLng,
+} from "@/server/ai/geocodeRegion";
+import { mapRateLimited } from "@/server/ai/rateLimit";
+
+// LocationIQ's free tier is 5,000/day but capped at 2 requests/second, and the
+// per-second limit is the one that actually binds on a 9-name itinerary.
+const REQUESTS_PER_SECOND = 2;
+const MIN_INTERVAL_MS = 1000 / REQUESTS_PER_SECOND;
+
+// Serialized at 500 ms apart, every lookup is wall-clock latency added to an AI
+// request that is already slow. 15 caps that at ~7 s, past which the marginal
+// pin is not worth the wait; the remainder keep the model's own coordinates and
+// are reported as skipped rather than silently left alone.
+const MAX_LOOKUPS_PER_BATCH = 15;
+
+// How far a geocode result may sit from the model's own coordinates and still
+// count as "the same place, located more precisely". Generous enough for a
+// vaguely-placed restaurant inside a metro area, nowhere near enough to cross
+// an ocean.
+const MAX_REFINE_KM = 50;
+
+// Padding on the box drawn around the trip's existing activities, and around a
+// single model-supplied hint. The trip margin is loose because a trip legibly
+// spans a region; the hint margin is tight because it describes one place.
+const TRIP_REGION_MARGIN_KM = 150;
+const HINT_MARGIN_KM = 50;
 
 type LocationCommand = Extract<BatchableCommand, { type: "AddActivity" | "UpdateActivity" }>;
+
+export interface LocationEnrichmentReport {
+  // The geocoder returned a match consistent with what we already believed.
+  verified: string[];
+  // No match, or a match rejected as implausible. The model's own location
+  // survives untouched — which may mean no coordinates at all.
+  unverified: string[];
+  // Accepted, but there was nothing to check it against: no model hint, and no
+  // region yet. Only reachable for the FIRST lookup of a trip that has no
+  // geocoded activities — after that, bootstrapping supplies a region. Reported
+  // for honesty but deliberately NOT surfaced to the user: on a freshly planned
+  // trip it would otherwise fire on every location, every time.
+  unchecked: string[];
+  // The lookup threw: rate limit, vendor outage, missing API key.
+  failed: string[];
+  // Never attempted — over MAX_LOOKUPS_PER_BATCH.
+  skipped: string[];
+}
+
+const emptyReport = (): LocationEnrichmentReport => ({
+  verified: [],
+  unverified: [],
+  unchecked: [],
+  failed: [],
+  skipped: [],
+});
+
+// True when the report describes something a user should be told about.
+// `unchecked` is excluded by design — see the field's comment.
+export function hasUnverifiedLocations(report: LocationEnrichmentReport): boolean {
+  return report.unverified.length + report.failed.length + report.skipped.length > 0;
+}
 
 // "Needs enrichment" = AddActivity/UpdateActivity with a `location` object
 // present. UpdateActivity's `location: null` means "clear it" — nothing to
@@ -24,57 +102,125 @@ function normalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
-// One geocoder lookup, reduced to a Location. Best-effort: an empty match or a
-// thrown/rejected lookup (vendor outage, missing key, rate limit) both fall
-// back to the model's stated name with no coordinates — never propagated as a
-// failure of the whole AI request.
-async function geocodeOne(geocoder: Geocoder, name: string): Promise<Location> {
-  try {
-    const [first] = await geocoder.forward(name, { limit: 1 });
-    return first
-      ? { name: first.canonicalName, lat: first.lat, lng: first.lng, countryCode: first.countryCode }
-      : { name };
-  } catch {
-    return { name };
-  }
+type Outcome = "verified" | "unverified" | "unchecked" | "failed";
+
+interface Resolution {
+  location: Location;
+  outcome: Outcome;
 }
 
-// Replaces `location` on every AddActivity/UpdateActivity command that has one
-// with the geocoded result, mirroring the manual search flow exactly (the
-// canonical name REPLACES the model's raw name). Identical place-name queries
-// (case-insensitive, trimmed) within the batch are deduped to a single
-// in-flight lookup, reused everywhere that name appears — real observed
-// pattern ("Lunch in Rochester, NY" once per day of a multi-day trip) and a
-// meaningful save against LocationIQ's free-tier daily cap. Every unique
-// name's lookup runs in parallel (Promise.all), not serialized.
-// `getGeocoder` is a thunk, not a resolved `Geocoder`, so the caller can defer
-// its own construction cost (e.g. `getGeocoder()` from server/geocoding, which
-// throws if LOCATIONIQ_API_KEY is unset) until we've actually confirmed there's
-// something to geocode — it's only invoked below, after the size===0 early
-// return, and at most once per call regardless of how many names need looking up.
+// One lookup, biased and then judged.
+//
+// `hint` is the model's own coordinates for this place when they are plausible.
+// When present it is BOTH the bias (a tight viewbox) and the acceptance test (a
+// distance threshold) — a result that disagrees with it loses, because the
+// model naming a place and placing it near where it named it is stronger
+// evidence than a fuzzy string match against a global index.
+//
+// With no hint we fall back to `region` for both roles — the trip's own
+// activities, or, on a trip that has none, the coordinates accepted earlier in
+// this same batch (see the bootstrapping in `enrichCommandLocations`). With
+// neither we accept the top match, because there is nothing to check it
+// against, and report it `unchecked` — never `verified`.
+async function resolveOne(
+  geocoder: Geocoder,
+  name: string,
+  hint: LatLng | null,
+  region: BoundingBox | null,
+): Promise<Resolution> {
+  const fallback: Location = hint ? { name, lat: hint.lat, lng: hint.lng } : { name };
+  const viewbox = hint ? boundingBoxAround([hint], HINT_MARGIN_KM) : region;
+
+  let match;
+  try {
+    [match] = await geocoder.forward(name, { limit: 1, ...(viewbox ? { viewbox } : {}) });
+  } catch {
+    // Best-effort by contract: a vendor failure never fails the AI request. It
+    // is reported rather than swallowed, which is the half KI-15 was missing.
+    return { location: fallback, outcome: "failed" };
+  }
+  if (!match) return { location: fallback, outcome: "unverified" };
+
+  const found: Location = {
+    name: match.canonicalName,
+    lat: match.lat,
+    lng: match.lng,
+    ...(match.countryCode ? { countryCode: match.countryCode } : {}),
+  };
+
+  if (hint) {
+    return distanceKm(hint, { lat: match.lat, lng: match.lng }) <= MAX_REFINE_KM
+      ? { location: found, outcome: "verified" }
+      : { location: fallback, outcome: "unverified" };
+  }
+  if (region) {
+    return withinBox(region, { lat: match.lat, lng: match.lng })
+      ? { location: found, outcome: "verified" }
+      : { location: fallback, outcome: "unverified" };
+  }
+  // Nothing to check against. Take it, but do not claim it was verified — and
+  // do not nag the user about it either (see LocationEnrichmentReport).
+  return { location: found, outcome: "unchecked" };
+}
+
 export async function enrichCommandLocations(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,
-): Promise<BatchableCommand[]> {
-  const namesByKey = new Map<string, string>();
+  tripRegion: BoundingBox | null = null,
+): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
+  // Dedupe by normalized name, keeping the first spelling and the first
+  // plausible coordinate hint seen for it.
+  const pending = new Map<string, { name: string; hint: LatLng | null }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
     const key = normalize(command.location.name);
-    if (!namesByKey.has(key)) namesByKey.set(key, command.location.name);
+    const existing = pending.get(key);
+    const hint = plausibleCoords(command.location);
+    if (!existing) {
+      pending.set(key, { name: command.location.name, hint });
+    } else if (!existing.hint && hint) {
+      existing.hint = hint;
+    }
   }
-  if (namesByKey.size === 0) return commands;
+
+  const report = emptyReport();
+  if (pending.size === 0) return { commands, report };
+
+  const entries = Array.from(pending.entries());
+  const attempted = entries.slice(0, MAX_LOOKUPS_PER_BATCH);
+  for (const [, { name }] of entries.slice(MAX_LOOKUPS_PER_BATCH)) report.skipped.push(name);
 
   const geocoder = getGeocoder();
-  const entries = await Promise.all(
-    Array.from(namesByKey.entries()).map(
-      async ([key, name]) => [key, await geocodeOne(geocoder, name)] as const,
-    ),
-  );
-  const geocodedByKey = new Map(entries);
 
-  return commands.map((command) => {
-    if (!hasLocation(command)) return command;
-    const location = geocodedByKey.get(normalize(command.location.name));
-    return location ? { ...command, location } : command;
+  // Region bootstrapping. A brand-new trip has no geocoded activities, so
+  // `tripRegion` is null and the first lookup has nothing to check against.
+  // Lookups are sequential, though, so every coordinate we settle on tells the
+  // rest of the batch where this trip is — the Rochester run anchors on
+  // whichever place resolves first, and a Shropshire match for the next name is
+  // then rejected on region alone, with no model hint needed. Only the first
+  // lookup of a region-less trip can come back `unchecked`.
+  const anchors: LatLng[] = [];
+  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint }]) => {
+    const region = tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
+    const resolution = await resolveOne(geocoder, name, hint, region);
+    report[resolution.outcome].push(name);
+    // Anything we settled on is evidence about where the trip is — including a
+    // rejected lookup's surviving model hint. A `failed` lookup taught us
+    // nothing new, so it contributes nothing.
+    if (resolution.outcome !== "failed") {
+      const coords = plausibleCoords(resolution.location);
+      if (coords) anchors.push(coords);
+    }
+    return [key, resolution.location] as const;
   });
+  const locationByKey = new Map(resolved);
+
+  return {
+    commands: commands.map((command) => {
+      if (!hasLocation(command)) return command;
+      const location = locationByKey.get(normalize(command.location.name));
+      return location ? { ...command, location } : command;
+    }),
+    report,
+  };
 }
