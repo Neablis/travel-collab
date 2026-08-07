@@ -29,7 +29,7 @@
 // test needs LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
-import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
+import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
 import { aiModel } from "@/server/ai/gateway";
@@ -38,7 +38,12 @@ import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTool
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { resolveBatch } from "@/server/ai/batchResolver";
-import { enrichCommandLocations } from "@/server/ai/geocodeEnrichment";
+import {
+  enrichCommandLocations,
+  hasUnverifiedLocations,
+  type LocationEnrichmentReport,
+} from "@/server/ai/geocodeEnrichment";
+import { boundingBoxAround, plausibleCoords } from "@/server/ai/geocodeRegion";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
@@ -268,17 +273,29 @@ export async function handleAiRequest(
     });
   }
 
-  // Best-effort server-side geocode enrichment (ADR-007): the model is never
-  // trusted with real coordinates, so every AddActivity/UpdateActivity with a
-  // `location` gets it replaced with a real geocoder lookup here, right before
-  // the batch is submitted. See geocodeEnrichment.ts for the dedupe/parallel/
-  // fallback behavior.
-  const commands = await enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder());
+  // Server-side geocode enrichment (ADR-007). The model is not trusted with
+  // real coordinates, but neither is the geocoder trusted to overrule the
+  // model: a lookup is biased toward the trip's region and accepted only if it
+  // agrees with what we already believe (KI-15). Best-effort — never fails the
+  // request — and everything it could not verify comes back in `report` and is
+  // said out loud in the message. See geocodeEnrichment.ts.
+  const { commands, report: locationReport } = await enrichCommandLocations(
+    resolvedCommands,
+    () => geocoder ?? getGeocoder(),
+    tripRegionOf(detail),
+  );
 
   const batch = await flushPlanningBatch(tripId, commands, userId);
   if (!batch.ok) {
     return Response.json(
-      { error: batch.error.message, code: batch.error.code, meta, resolvedCommands: commands, resolutionErrors },
+      {
+        error: batch.error.message,
+        code: batch.error.code,
+        meta,
+        resolvedCommands: commands,
+        resolutionErrors,
+        locationReport,
+      },
       { status: STATUS[batch.error.code] ?? 400 },
     );
   }
@@ -292,6 +309,10 @@ export async function handleAiRequest(
   // Everything collected before the cut-off IS applied — truncated, not
   // discarded — so this rides alongside the summary rather than replacing it.
   if (meta.truncated) notices.push(TRUNCATED_NOTICE);
+  // Silence was KI-15's real damage: a wrong pin and a missing pin both read as
+  // success. Anything not positively verified gets said out loud.
+  const geocodeNotice = locationNotice(locationReport);
+  if (geocodeNotice) notices.push(geocodeNotice);
   const message = withNotices(summary, notices);
   return Response.json({
     detail: batch.detail,
@@ -300,7 +321,41 @@ export async function handleAiRequest(
     meta,
     resolvedCommands: commands,
     resolutionErrors,
+    locationReport,
   });
+}
+
+// Padding on the region drawn from a trip's existing activities. Matches
+// TRIP_REGION_MARGIN_KM in geocodeEnrichment — kept here rather than exported
+// because this is the caller's decision about how loosely to read "the trip is
+// around here", not the enricher's.
+const TRIP_REGION_MARGIN_KM = 150;
+
+// The trip's own already-geocoded activities are the only region signal that
+// does not come from the model. A brand-new trip planned in one prompt has
+// none — that is expected, and enrichment falls back to per-place hints and
+// its own within-batch bootstrapping.
+function tripRegionOf(detail: TripDetail) {
+  const points = Object.values(detail.activities)
+    .map((a) => (a.location ? plausibleCoords(a.location) : null))
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
+}
+
+// Turn the enrichment report into one sentence, or nothing. Named places beat
+// a bare count: "3 locations" is not actionable, "The Red Coach Inn" is.
+//
+// `report.unchecked` is deliberately absent: those were accepted with nothing
+// to check them against, which on a freshly planned trip is the common case,
+// and warning about all of them every time would train the user to ignore the
+// warning that matters. They remain in the response payload.
+function locationNotice(report: LocationEnrichmentReport): string | null {
+  if (!hasUnverifiedLocations(report)) return null;
+  const names = [...report.unverified, ...report.failed, ...report.skipped];
+  const shown = names.slice(0, 3).join(", ");
+  const rest = names.length - Math.min(3, names.length);
+  const tail = rest > 0 ? `, and ${rest} more` : "";
+  return `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${shown}${tail} — worth checking on the map.`;
 }
 
 // What the user is told when `meta.truncated` — the step budget ended the run

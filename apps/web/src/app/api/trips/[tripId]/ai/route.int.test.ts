@@ -503,13 +503,20 @@ describe("POST /api/trips/:id/ai", () => {
       expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
     });
 
-    it("falls back to a name-only location when the geocoder finds no match", async () => {
+    // NOTE (Task 5, KI-15 contract change): under the old contract ANY
+    // model-supplied lat/lng was untrusted and unconditionally dropped on a
+    // no-match. Under the new one (Task 1/4), a PLAUSIBLE model coordinate
+    // (unlike the null-island 0,0 sentinel used elsewhere in this describe
+    // block) is treated as a hint: it biases the lookup's viewbox, and if the
+    // geocoder can't confirm it, "enrichment may refine, never relocate"
+    // means we keep the hint rather than discard it — reported `unverified`,
+    // not silently thrown away. This assertion was updated to match; it is
+    // not a weakening, the underlying behavior genuinely changed.
+    it("keeps the model's plausible coordinates as an unverified hint when the geocoder finds no match", async () => {
       const tripId = await seedTrip();
       const geocoder = fakeGeocoder({ "Nowhereville": [] });
       const model = modelWithToolCalls([
         toolCall("AddDay", {}),
-        // The model's own (wrong) guessed lat/lng — must be DROPPED on a
-        // no-match, not persisted as if it were real.
         toolCall("AddActivity", {
           title: "Lunch",
           dayRef: "day 1",
@@ -525,8 +532,14 @@ describe("POST /api/trips/:id/ai", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       const addedId = body.detail.days[0].activityIds[0];
-      expect(body.detail.activities[addedId].location).toEqual({ name: "Nowhereville" });
-      expect(geocoder.forward).toHaveBeenCalledWith("Nowhereville", { limit: 1 });
+      expect(body.detail.activities[addedId].location).toEqual({ name: "Nowhereville", lat: 12, lng: 34 });
+      // Biased by the plausible hint (a tight viewbox around 12,34), not a
+      // bare lookup.
+      expect(geocoder.forward).toHaveBeenCalledWith(
+        "Nowhereville",
+        expect.objectContaining({ limit: 1, viewbox: expect.any(Object) }),
+      );
+      expect(body.locationReport.unverified).toEqual(["Nowhereville"]);
     });
 
     it("falls back to a name-only location when the geocoder rejects, without failing the request", async () => {
@@ -585,6 +598,78 @@ describe("POST /api/trips/:id/ai", () => {
       const body = await res.json();
       expect(body.detail.activities[activityId].location).toBeNull();
       expect(geocoder.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // KI-15's other half: enrichment now reports what it could/couldn't verify,
+  // and the region derived from the trip's own already-geocoded activities is
+  // threaded in as a bias. These pin that the report reaches the response body
+  // and that only the notice-worthy buckets (unverified/failed/skipped) — never
+  // `unchecked` — show up in the user-facing message.
+  describe("geocode enrichment report reaches the user", () => {
+    it("tells the user which locations it could not verify", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({
+        "The Red Coach Inn": [
+          { lat: 52.907918, lng: -2.8901, canonicalName: "Shropshire, England", countryCode: "GB" },
+        ],
+      });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Dinner",
+          dayRef: "day 1",
+          // The model's own coordinates are right; the geocoder's top match
+          // (Shropshire) disagrees badly and must be rejected, not applied.
+          location: { name: "The Red Coach Inn", lat: 43.0866, lng: -79.0628 },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add dinner at the red coach inn", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.message).toContain("couldn't verify");
+      expect(body.message).toContain("The Red Coach Inn");
+      expect(body.locationReport.unverified).toEqual(["The Red Coach Inn"]);
+
+      // And the coordinates the model got right were persisted, not Shropshire.
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location.lat).toBeCloseTo(43.0866, 3);
+    });
+
+    // A freshly seeded trip has no geocoded activities, so a lone lookup with
+    // no model-supplied hint has no region to check against and comes back
+    // `unchecked` — accepted, reported in the payload, and deliberately silent
+    // in the message (see LocationEnrichmentReport.unchecked's comment).
+    it("says nothing extra when a location is accepted with nothing to verify against", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({
+        "Niagara Falls State Park": [
+          { lat: 43.0866, lng: -79.0628, canonicalName: "Niagara Falls State Park, NY, USA", countryCode: "US" },
+        ],
+      });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Falls",
+          dayRef: "day 1",
+          location: { name: "Niagara Falls State Park" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add the falls", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.message).not.toContain("couldn't verify");
+      expect(body.locationReport.unchecked).toEqual(["Niagara Falls State Park"]);
     });
   });
 });
