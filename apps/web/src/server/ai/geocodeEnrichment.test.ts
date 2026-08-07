@@ -227,6 +227,90 @@ describe("enrichCommandLocations", () => {
     ).resolves.toBeDefined();
   });
 
+  // Bug 1 (final whole-branch review): a model hint was previously checked
+  // against ONLY itself, never against an available trip region — so a wrong
+  // hint that happened to sit near the geocoder's top match got reported
+  // `verified`, and that persisted, region-widening "verified" location would
+  // have permanently and silently grown the trip's region on every later
+  // request. Acceptance must agree with every belief in play, not just the
+  // strongest one.
+  it("rejects a hint that disagrees with the trip region, even when the geocoder's match agrees with the hint", async () => {
+    const region = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 }; // a Niagara-area trip
+    const wrongHint = { lat: 52.907918, lng: -2.8901 }; // Shropshire — nowhere near the trip
+    const { geocoder, calls } = fakeGeocoder({
+      "The Red Coach Inn": [
+        { lat: 52.9081, lng: -2.8905, canonicalName: "The Red Lion Coaching Inn, Shropshire, England", countryCode: "GB" },
+      ],
+    });
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Dinner", { name: "The Red Coach Inn", ...wrongHint })],
+      () => geocoder,
+      region,
+    );
+    expect(calls).toEqual(["The Red Coach Inn"]);
+    expect(report.verified).toEqual([]);
+    expect(report.unverified).toEqual(["The Red Coach Inn"]);
+    // Never relocated: the model's own (wrong) hint survives as the fallback
+    // — not the geocoder's Shropshire match, and not silently dropped either.
+    expect(commands[0]).toMatchObject({
+      location: { name: "The Red Coach Inn", lat: wrongHint.lat, lng: wrongHint.lng },
+    });
+  });
+
+  // Companion to the above: a disagreeing hint must not even get to define
+  // its own private viewbox. If it did, the geocoder search itself would be
+  // scoped tightly around the wrong hint, making a "the match agrees with
+  // the hint" result almost inevitable regardless of the region.
+  it("scopes the geocoder search to the trip region, not a disagreeing hint's own viewbox", async () => {
+    const forward = vi.fn(async () => []);
+    const region = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 };
+    await enrichCommandLocations(
+      [addActivity("Dinner", { name: "Somewhere", lat: 52.9, lng: -2.89 })],
+      () => ({ forward }),
+      region,
+    );
+    expect(forward).toHaveBeenCalledWith("Somewhere", { limit: 1, viewbox: region });
+  });
+
+  // Bug 2 (final whole-branch review): dedupe-by-name kept only the FIRST
+  // command's hint, then stamped the ONE resolved location onto every command
+  // sharing that normalized name — including the fallback location for
+  // commands whose own hint disagreed. Two commands can legitimately share a
+  // display name while the model gave them genuinely different coordinates;
+  // the fallback path must rebuild from each command's OWN location, not
+  // reuse whichever command happened to be seen first.
+  it("keeps each command's own coordinates when a shared name's lookup falls back to unverified", async () => {
+    const { geocoder, calls } = fakeGeocoder({ "Lunch in Rochester, NY": [] }); // no match at all
+    const HINT_A = { lat: 43.1566, lng: -77.6088 };
+    const HINT_B = { lat: 41.2033, lng: -77.1945 }; // different, still-plausible coordinates
+    const { commands } = await enrichCommandLocations(
+      [
+        addActivity("Day 1 lunch", { name: "Lunch in Rochester, NY", ...HINT_A }),
+        addActivity("Day 2 lunch", { name: "Lunch in Rochester, NY", ...HINT_B }),
+      ],
+      () => geocoder,
+    );
+    expect(calls).toEqual(["Lunch in Rochester, NY"]); // dedupe still makes one lookup
+    expect(commands[0]).toMatchObject({ location: { name: "Lunch in Rochester, NY", ...HINT_A } });
+    expect(commands[1]).toMatchObject({ location: { name: "Lunch in Rochester, NY", ...HINT_B } });
+  });
+
+  // Same bug, via the `failed` outcome (thrown lookup) rather than `unverified`.
+  it("keeps each command's own coordinates when a shared name's lookup fails", async () => {
+    const { geocoder } = fakeGeocoder({ "Lunch in Rochester, NY": new Error("geocode failed: 429") });
+    const HINT_A = { lat: 43.1566, lng: -77.6088 };
+    const HINT_B = { lat: 41.2033, lng: -77.1945 };
+    const { commands } = await enrichCommandLocations(
+      [
+        addActivity("Day 1 lunch", { name: "Lunch in Rochester, NY", ...HINT_A }),
+        addActivity("Day 2 lunch", { name: "Lunch in Rochester, NY", ...HINT_B }),
+      ],
+      () => geocoder,
+    );
+    expect(commands[0]).toMatchObject({ location: { name: "Lunch in Rochester, NY", ...HINT_A } });
+    expect(commands[1]).toMatchObject({ location: { name: "Lunch in Rochester, NY", ...HINT_B } });
+  });
+
   it("dedupes repeated names to a single lookup and applies it everywhere", async () => {
     const { geocoder, calls } = fakeGeocoder({
       "Lunch in Rochester, NY": [

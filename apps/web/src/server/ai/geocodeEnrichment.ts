@@ -111,17 +111,41 @@ interface Resolution {
 
 // One lookup, biased and then judged.
 //
-// `hint` is the model's own coordinates for this place when they are plausible.
-// When present it is BOTH the bias (a tight viewbox) and the acceptance test (a
-// distance threshold) — a result that disagrees with it loses, because the
-// model naming a place and placing it near where it named it is stronger
-// evidence than a fuzzy string match against a global index.
+// `hint` is the model's own coordinates for this place when they are
+// plausible. `region` is broader, independently-sourced evidence about where
+// the trip is: either its own already-geocoded activities, or — early in a
+// batch, before any of those exist — the coordinates accepted earlier in this
+// same batch (see the bootstrapping in `enrichCommandLocations`).
 //
-// With no hint we fall back to `region` for both roles — the trip's own
-// activities, or, on a trip that has none, the coordinates accepted earlier in
-// this same batch (see the bootstrapping in `enrichCommandLocations`). With
-// neither we accept the top match, because there is nothing to check it
-// against, and report it `unchecked` — never `verified`.
+// A geocoder answer is accepted only if it agrees with EVERY belief we hold,
+// not just the strongest one. This is the fix for the final-review finding
+// (KI-15's second bug): the original version treated `hint` as categorically
+// stronger than `region` and never consulted `region` at all once a `hint`
+// existed. That let a WRONG hint that merely happened to sit near the
+// geocoder's top result get reported `verified` — with a 150km trip region
+// sitting right there, unconsulted, that would have caught it. Because a
+// `verified` location is what a later request's `tripRegion` gets built from
+// (see `tripRegionOf` in handleAiRequest.ts), and bounding boxes there only
+// ever grow, that one bad `verified` would have permanently widened the trip's
+// region to admit the mistake, for every future AI request on that trip.
+//
+// JUDGMENT CALL — what "disagreement" between hint and region means before
+// the geocoder is even consulted: if `hint` sits outside `region`, `hint` is
+// treated as UNTRUSTED for this lookup — for both the viewbox and the
+// acceptance test — and judgment falls back to `region` alone, as though no
+// hint had been supplied. The alternative (region as just one more box to
+// intersect, hint still driving the viewbox) was rejected: biasing the
+// geocoder's *search* toward a hint we already doubt is exactly how a wrong
+// hint manufactures its own corroboration — center the search on Shropshire
+// and "top result near Shropshire" stops being informative. Note this is NOT
+// the same as discarding the hint outright: an untrusted hint still survives
+// as `fallback` below if nothing can be verified, because "never relocate"
+// means keeping the model's own guess even when we can't confirm it. We only
+// refuse to let a doubted hint validate a geocoder match on its own authority.
+//
+// With no hint at all, judgment is `region`-only, same as an untrusted hint.
+// With neither hint nor region, there is nothing to check the top match
+// against, so it is accepted but reported `unchecked` — never `verified`.
 async function resolveOne(
   geocoder: Geocoder,
   name: string,
@@ -129,7 +153,8 @@ async function resolveOne(
   region: BoundingBox | null,
 ): Promise<Resolution> {
   const fallback: Location = hint ? { name, lat: hint.lat, lng: hint.lng } : { name };
-  const viewbox = hint ? boundingBoxAround([hint], HINT_MARGIN_KM) : region;
+  const hintTrusted = hint != null && (region == null || withinBox(region, hint));
+  const viewbox = hintTrusted ? boundingBoxAround([hint], HINT_MARGIN_KM) : region;
 
   let match;
   try {
@@ -147,14 +172,22 @@ async function resolveOne(
     lng: match.lng,
     ...(match.countryCode ? { countryCode: match.countryCode } : {}),
   };
+  const matchPoint: LatLng = { lat: match.lat, lng: match.lng };
 
-  if (hint) {
-    return distanceKm(hint, { lat: match.lat, lng: match.lng }) <= MAX_REFINE_KM
+  if (hintTrusted) {
+    // Belt and suspenders: a trusted hint already sits inside `region` (that
+    // is what "trusted" means), so a match within MAX_REFINE_KM of it will
+    // almost always also be within `region`. Checking both anyway catches the
+    // rare case where the hint sits near the region's own edge and the match
+    // is just far enough past it.
+    const agreesWithHint = distanceKm(hint!, matchPoint) <= MAX_REFINE_KM;
+    const agreesWithRegion = region == null || withinBox(region, matchPoint);
+    return agreesWithHint && agreesWithRegion
       ? { location: found, outcome: "verified" }
       : { location: fallback, outcome: "unverified" };
   }
   if (region) {
-    return withinBox(region, { lat: match.lat, lng: match.lng })
+    return withinBox(region, matchPoint)
       ? { location: found, outcome: "verified" }
       : { location: fallback, outcome: "unverified" };
   }
@@ -170,7 +203,10 @@ export async function enrichCommandLocations(
   sleep?: (ms: number) => Promise<void>,
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
   // Dedupe by normalized name, keeping the first spelling and the first
-  // plausible coordinate hint seen for it.
+  // plausible coordinate hint seen for it. This drives the ONE shared
+  // geocoder lookup per unique name and nothing else — it is not the source
+  // of truth for any individual command's final location. See the per-command
+  // resolution in the final `.map()` below for why that distinction matters.
   const pending = new Map<string, { name: string; hint: LatLng | null }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
@@ -212,15 +248,42 @@ export async function enrichCommandLocations(
       const coords = plausibleCoords(resolution.location);
       if (coords) anchors.push(coords);
     }
-    return [key, resolution.location] as const;
+    return [key, resolution] as const;
   }, sleep);
-  const locationByKey = new Map(resolved);
+  // Keyed by normalized name, one Resolution per unique name — this is still
+  // just the dedupe (one geocoder call per name), not a decision to make every
+  // command sharing that name resolve identically. That decision is made
+  // per-command below.
+  const resolutionByKey = new Map(resolved);
 
   return {
     commands: commands.map((command) => {
       if (!hasLocation(command)) return command;
-      const location = locationByKey.get(normalize(command.location.name));
-      return location ? { ...command, location } : command;
+      const resolution = resolutionByKey.get(normalize(command.location.name));
+      if (!resolution) return command;
+      // `verified`/`unchecked` both carry a real geocoder match (`found`,
+      // stored as `resolution.location`) keyed only by name — reusing it
+      // across every command sharing that name is the intended dedupe: one
+      // real-world place, one lookup, applied everywhere it was asked for.
+      //
+      // `unverified`/`failed` carry a FALLBACK instead, and the bug (final
+      // whole-branch review) was reusing that fallback the same way: it was
+      // built from whichever command's hint happened to dedupe first, then
+      // stamped onto every other command sharing the name — discarding a
+      // second command's own, genuinely different coordinates. Two commands
+      // sharing a display name are not guaranteed to be the same place (the
+      // model may not bother disambiguating "Lunch in Rochester, NY" across
+      // two different days), so when we can't verify anything, the safest
+      // "never relocate" move is to rebuild the fallback from THAT command's
+      // own location — never from another command's. This must stay a
+      // rebuild, not "leave the command as-is": `plausibleCoords` still needs
+      // to run per command to strip a null-island 0,0 sentinel, or that gets
+      // persisted again.
+      const location: Location =
+        resolution.outcome === "verified" || resolution.outcome === "unchecked"
+          ? resolution.location
+          : { name: command.location.name, ...(plausibleCoords(command.location) ?? {}) };
+      return { ...command, location };
     }),
     report,
   };
