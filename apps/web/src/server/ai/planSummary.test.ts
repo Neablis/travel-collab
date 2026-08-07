@@ -54,4 +54,23 @@ describe("summarizeBatch", () => {
     ];
     expect(summarizeBatch(calls, detail)).toBe("Done — removed “an activity”.");
   });
+
+  it("names the new trip name (rename)", () => {
+    const calls: BatchableCommand[] = [{ type: "SetTripName", tripId, name: "Rome & Florence" }];
+    expect(summarizeBatch(calls, detail)).toBe('Done — renamed the trip to "Rome & Florence".');
+  });
+
+  it("states the new date range when both dates are set", () => {
+    const calls: BatchableCommand[] = [
+      { type: "SetTripDates", tripId, startDate: "2027-06-01", endDate: "2027-06-08", newDayIds: [] },
+    ];
+    expect(summarizeBatch(calls, detail)).toBe("Done — set the trip dates to 2027-06-01 – 2027-06-08.");
+  });
+
+  it("falls back to a generic phrase when a date bound is cleared", () => {
+    const calls: BatchableCommand[] = [
+      { type: "SetTripDates", tripId, startDate: null, endDate: null, newDayIds: [] },
+    ];
+    expect(summarizeBatch(calls, detail)).toBe("Done — set the trip dates.");
+  });
 });

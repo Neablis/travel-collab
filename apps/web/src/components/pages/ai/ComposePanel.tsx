@@ -91,6 +91,14 @@ export function ComposePanel(props: PageProps | PlanProps) {
         id={inputId}
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
+        // Enter submits (matching a chat-style prompt box); Shift+Enter still
+        // inserts a newline for a genuinely multi-line request.
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
         placeholder={
           props.surface === "page"
             ? "e.g. Add a packing checklist and the day-by-day itinerary"

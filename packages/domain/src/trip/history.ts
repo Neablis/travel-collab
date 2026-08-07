@@ -212,6 +212,12 @@ function describeEvent(state: TripState | null, event: TripEvent): string {
       return "Dismissed a conflict";
     case "ConflictUndismissed":
       return "Restored a conflict";
+    case "TripNameSet":
+      return `Renamed the trip to "${event.payload.name}"`;
+    case "TripDeleted":
+      return "Deleted the trip";
+    case "TripRestored":
+      return "Restored the trip";
   }
 }
 

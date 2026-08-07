@@ -47,6 +47,61 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Trip list row: richer, human-readable metadata (Mitchell, 2026-08-01, from
+  M8 dogfooding).** The "Your trips" list currently shows each row's
+  `createdAt` as a raw ISO timestamp (`2026-08-01 23:52:35.026+00`) — should be
+  human-readable, and more useful than the creation date anyway: start date,
+  trip length (day count), and cost are all already on `TripSummary`/derivable
+  from `TripDetail` and would tell the user more at a glance than when the row
+  was created.
+
+- **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
+  2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
+  `deletingIds` filter-set, M8/A15 follow-up) and the rename/date/budget
+  optimism fix (TripHeader reading `activeTrip` instead of `trip`) both landed
+  as small, well-scoped fixes. Duplicate (network round-trip before the
+  redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
+  refetch rather than re-inserting the row locally) are lower-value/more work
+  for now — deferred rather than done reflexively.
+
+- **Expose geocoding as a model tool — now scoped into M9 as "Grounding"
+  (`SearchPlaces` + `placeRef`).** Filed 2026-08-01 (Mitchell, M8 dogfooding)
+  as the deferred half of the geocoding work: server-side auto-geocode was
+  landing as the fix for the model guessing `Location.lat/lng` (observed:
+  `lat: 0, lng: 0`), and giving the model a tool to *disambiguate candidates
+  itself* was held back as more steps/tokens for cases "auto-geocode's 'take
+  the top match' can't — e.g. two same-named places in different cities the
+  model needs to pick between using trip context."
+  **The 2026-08-02 dogfood run hit that exact case and the deferral proved
+  wrong.** "The Red Coach Inn" top-matched to a coaching inn in Shropshire,
+  England and overwrote coordinates the model had gotten right; seven more
+  lookups were silently dropped by a rate limit (KI-15). Auto-geocode is not
+  a weaker version of the tool — it is strictly worse than doing nothing when
+  it is confidently wrong, because it launders a guess into a stored fact.
+  Kept here only as the record of why it was deferred and what killed the
+  deferral; the live scope is M9.
+
+- **Contained activities: a meal inside a day-long activity is not a conflict
+  (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
+  raised a `time-overlap` warn, all three the same shape: a long anchor
+  activity (Niagara Falls 09:00–16:00, the Strong Museum 10:00–16:00) and a
+  lunch sitting *inside* it. The AI was not wrong — you *do* eat lunch during
+  a museum day — and the user's reading was "we might want a feature for when
+  the lunch is at the event." So this is not a prompt fix: telling the model
+  the conflict rules would only teach it to stop scheduling lunch, which is
+  worse. **The domain models overlap but has no notion of containment.**
+  Directions to weigh in a brainstorm, not yet decided: (a) real nested/child
+  activities in `packages/domain`; (b) a span/kind distinction so a long
+  activity is a *container* rather than a peer; (c) leave the model alone and
+  refine the rule in `conflicts.ts` — suppress `time-overlap` when one window
+  fully contains the other and the inner one is short; (d) do nothing and let
+  dismissal absorb it (status quo — but three warns on a three-day trip is
+  the AI teaching users to ignore the conflict UI, which is the real cost).
+  Note (c) is the cheapest and (a) is the most honest; the choice depends on
+  whether containment ever needs to mean anything beyond silencing a warn.
+  Deliberately kept out of M9 — it is a `packages/domain` contract question
+  with conflict-detector consequences and deserves its own design pass.
+
 - **AI "Preview" before apply — now scoped into M9.** Kept here only for the
   two implementation directions it records, which M9's design spec has to choose
   between (Mitchell, 2026-07-25): (a) lean on the event-sourcing/history

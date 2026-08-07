@@ -4,8 +4,9 @@
 **Companions:** ADR-003 (event-sourcing scoped to planning), ADR-006
 (`ConflictContext` / timezone — amended by this milestone), ADR-013 (atomic
 batches + optimistic updates), ADR-015 (AI tools derived from schemas),
-`docs/milestones/M8-make-it-real.md`, `docs/known-issues.md` (KI-1, KI-5, KI-12,
-D-1), `AGENTS.md`
+ADR-016 (trip soft delete as a domain event), ADR-017 (duplicate as a server
+operation), `docs/milestones/M8-make-it-real.md`, `docs/known-issues.md` (KI-1,
+KI-5, KI-12, D-1), `AGENTS.md`
 
 ## 1. Goal
 

@@ -33,7 +33,7 @@
 // atomic batch.
 import { randomUUID } from "node:crypto";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
-import { decideTripCommand, evolveTrip, hydrate, type TripState } from "@tc/domain";
+import { daySpan, decideTripCommand, evolveTrip, hydrate, type TripState } from "@tc/domain";
 import { activeConflicts } from "./context";
 import { ID_FIELDS, REF_PARAM_NAMES, refParamName, type IdRole, type RefEntity } from "./idFields";
 
@@ -228,7 +228,28 @@ export function resolveBatch(
     let failure: { code: string; message: string } | undefined;
     for (const [field, role] of Object.entries(spec) as [string, IdRole][]) {
       if (role.role === "mint") {
-        command[field] = mintId();
+        // `newDayIds` is the one array-valued mint field (every other minted
+        // field — dayId, activityId — is a single scalar id). A bare
+        // `mintId()` here would set a STRING where BatchableCommand expects
+        // an array, failing safeParse below and silently dropping every
+        // SetTripDates that needs new days. The exact count is knowable
+        // right here, not guessed: `command.startDate`/`command.endDate` are
+        // already the literal values the model supplied (copied above,
+        // before this loop runs), and `state.days.length` is the SAME
+        // current-day-count decideTripCommand's own SetTripDates case reads
+        // (packages/domain/src/trip/decide.ts) — so this mints precisely
+        // what that case will consume, no more, no less.
+        if (field === "newDayIds") {
+          const startDate = command.startDate as string | null | undefined;
+          const endDate = command.endDate as string | null | undefined;
+          let needed = 0;
+          if (startDate != null && endDate != null) {
+            needed = Math.max(0, daySpan(startDate, endDate) - state.days.length);
+          }
+          command[field] = Array.from({ length: needed }, () => mintId());
+        } else {
+          command[field] = mintId();
+        }
         continue;
       }
       if (role.role !== "ref") continue;

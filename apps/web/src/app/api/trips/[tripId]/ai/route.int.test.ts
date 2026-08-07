@@ -5,6 +5,8 @@ import { db } from "@/server/db/client";
 import { events, pages, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
+import { getGeocoder } from "@/server/geocoding";
+import type { Geocoder, GeocodeResult } from "@/server/geocoding";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -29,6 +31,18 @@ let currentUserId = ACTOR_ID;
 
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
+}));
+
+// Regression coverage for the lazy-geocoder fix: `getGeocoder()` throws if
+// LOCATIONIQ_API_KEY isn't set, so it must never be reached for a page-surface
+// request (Notebook AI-authoring), which never touches location data. Mocked
+// to throw (not just spied on) so an accidental call fails loudly here rather
+// than silently succeeding because this worktree's .env.local happens to carry
+// a real key.
+vi.mock("@/server/geocoding", () => ({
+  getGeocoder: vi.fn(() => {
+    throw new Error("getGeocoder should never be called for a page-surface request");
+  }),
 }));
 
 // Import after the mock so the route picks up the mocked `auth`. Only
@@ -111,6 +125,21 @@ function modelThatNeverStops(toolCalls: FunctionToolCall[]) {
   });
 }
 
+// A fake Geocoder (matching the `Geocoder` interface exactly) keyed by exact
+// query string. Maps a query to either a results array (possibly empty, for
+// the "no match" case) or an Error (for the "vendor threw/rejected" case).
+// `forward` is a vi.fn so tests can assert call count/args — the dedupe test's
+// whole point is that an identical place name across two commands triggers
+// exactly one call.
+function fakeGeocoder(responses: Record<string, GeocodeResult[] | Error>): Geocoder {
+  const forward = vi.fn(async (query: string) => {
+    const r = responses[query];
+    if (r instanceof Error) throw r;
+    return r ?? [];
+  });
+  return { forward } as unknown as Geocoder;
+}
+
 describe("POST /api/trips/:id/ai", () => {
   beforeEach(async () => {
     currentUserId = ACTOR_ID;
@@ -183,6 +212,36 @@ describe("POST /api/trips/:id/ai", () => {
     const body = await res.json();
     expect(body.content).toBeUndefined();
     expect(body.error).toBeDefined();
+  });
+
+  // Regression test: `geocoder` used to be `Geocoder = getGeocoder()`, a
+  // default parameter evaluated at call time whenever omitted — which is
+  // every real request, since route.ts's `POST` calls `handleAiRequest(request,
+  // tripId)` with no 3rd/4th argument. `getGeocoder()` throws if
+  // LOCATIONIQ_API_KEY is unset, so that would have broken page-surface
+  // requests too, even though the geocode-enrichment step only ever runs for
+  // board/combined surfaces. This pins that a page-surface request succeeds
+  // with NO geocoder argument at all (matching POST's real call shape exactly)
+  // and never constructs/calls a geocoder to do it.
+  it("page surface: succeeds with no geocoder argument, and never constructs one", async () => {
+    const tripId = await seedTrip();
+    const model = modelWithToolCalls([
+      toolCall("compose_page", {
+        title: "Trip Notes",
+        blocks: [{ type: "paragraph", text: "Some notes." }],
+      }),
+    ]);
+    const res = await handleAiRequest(
+      req(tripId, { prompt: "compose a notes page", surface: "page", pageContext: { tripId } }),
+      tripId,
+      model,
+      // Deliberately no 4th argument — this is exactly how route.ts's POST
+      // calls handleAiRequest for every real request.
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.content.type).toBe("doc");
+    expect(getGeocoder).not.toHaveBeenCalled();
   });
 
   it("board surface: a tool call is submitted as exactly one atomic batch", async () => {
@@ -365,5 +424,252 @@ describe("POST /api/trips/:id/ai", () => {
     expect(body.resolutionErrors).toHaveLength(1);
     expect(body.resolutionErrors[0]).toMatchObject({ type: "AddActivity", code: "unresolved-ref", index: 2 });
     expect(body.resolutionErrors[0].message).toMatch(/out of range/i);
+  });
+
+  // ADR-007's "pre-command enrichment" was only ever wired into the manual
+  // "Add a place" search — the AI planning path was never connected to a real
+  // geocoder, so the model was left to invent lat/lng itself (observed live:
+  // lat 0, lng 0). These pin the server-side fix: AddActivity/UpdateActivity
+  // commands with a `location` get it replaced by a real geocoder lookup,
+  // deduped per request, run in parallel, and best-effort (never fails the
+  // whole AI request).
+  describe("AI-planned activity locations are geocoded server-side", () => {
+    const GEOCODED: GeocodeResult = {
+      lat: 43.1566,
+      lng: -77.6088,
+      canonicalName: "Rochester, NY, USA",
+      countryCode: "US",
+    };
+
+    it("an AddActivity's location is replaced by the geocoder's result, not the model's guessed lat/lng", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": [GEOCODED] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          // The model's own (wrong) guess — must be discarded, not persisted.
+          location: { name: "Rochester, NY", lat: 0, lng: 0, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({
+        name: "Rochester, NY, USA",
+        lat: 43.1566,
+        lng: -77.6088,
+        countryCode: "US",
+      });
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    it("dedupes identical place-name queries within one request to a single geocoder call", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": [GEOCODED] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", { title: "Day 1 lunch", dayRef: "day 1", location: { name: "Rochester, NY" } }),
+        toolCall("AddActivity", { title: "Day 2 lunch", dayRef: "day 2", location: { name: "Rochester, NY" } }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester on both days", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const activities = Object.values(body.detail.activities as Record<string, { title: string; location: unknown }>);
+      expect(activities).toHaveLength(2);
+      for (const a of activities) {
+        expect(a.location).toEqual({
+          name: "Rochester, NY, USA",
+          lat: 43.1566,
+          lng: -77.6088,
+          countryCode: "US",
+        });
+      }
+      // The whole point: one geocoder call serves both identically-named commands.
+      expect(geocoder.forward).toHaveBeenCalledTimes(1);
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    // NOTE (Task 5, KI-15 contract change): under the old contract ANY
+    // model-supplied lat/lng was untrusted and unconditionally dropped on a
+    // no-match. Under the new one (Task 1/4), a PLAUSIBLE model coordinate
+    // (unlike the null-island 0,0 sentinel used elsewhere in this describe
+    // block) is treated as a hint: it biases the lookup's viewbox, and if the
+    // geocoder can't confirm it, "enrichment may refine, never relocate"
+    // means we keep the hint rather than discard it — reported `unverified`,
+    // not silently thrown away. This assertion was updated to match; it is
+    // not a weakening, the underlying behavior genuinely changed.
+    it("keeps the model's plausible coordinates as an unverified hint when the geocoder finds no match", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Nowhereville": [] });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          location: { name: "Nowhereville", lat: 12, lng: 34, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in nowhereville", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({ name: "Nowhereville", lat: 12, lng: 34 });
+      // Biased by the plausible hint (a tight viewbox around 12,34), not a
+      // bare lookup.
+      expect(geocoder.forward).toHaveBeenCalledWith(
+        "Nowhereville",
+        expect.objectContaining({ limit: 1, viewbox: expect.any(Object) }),
+      );
+      expect(body.locationReport.unverified).toEqual(["Nowhereville"]);
+    });
+
+    it("falls back to a name-only location when the geocoder rejects, without failing the request", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({ "Rochester, NY": new Error("LocationIQ rate limit exceeded") });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        // The model's own (wrong) guessed lat/lng — must be DROPPED when the
+        // lookup throws, not persisted as if it were real.
+        toolCall("AddActivity", {
+          title: "Lunch",
+          dayRef: "day 1",
+          location: { name: "Rochester, NY", lat: 0, lng: 0, countryCode: "US" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add lunch in rochester", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location).toEqual({ name: "Rochester, NY" });
+      expect(geocoder.forward).toHaveBeenCalledWith("Rochester, NY", { limit: 1 });
+    });
+
+    it("does not call the geocoder for an UpdateActivity that clears its location", async () => {
+      const tripId = await seedTrip();
+      const dayId = randomUUID();
+      const activityId = randomUUID();
+      await executeTripCommand({ type: "AddDay", tripId, dayId }, ACTOR_ID);
+      await executeTripCommand(
+        {
+          type: "AddActivity",
+          tripId,
+          activityId,
+          dayId,
+          title: "Museum visit",
+          location: { name: "Some Museum", lat: 1, lng: 2, countryCode: "US" },
+        },
+        ACTOR_ID,
+      );
+      const geocoder = fakeGeocoder({});
+      const model = modelWithToolCalls([
+        toolCall("UpdateActivity", { activityRef: "Museum visit", location: null }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "clear the museum's location", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.detail.activities[activityId].location).toBeNull();
+      expect(geocoder.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // KI-15's other half: enrichment now reports what it could/couldn't verify,
+  // and the region derived from the trip's own already-geocoded activities is
+  // threaded in as a bias. These pin that the report reaches the response body
+  // and that only the notice-worthy buckets (unverified/failed/skipped) — never
+  // `unchecked` — show up in the user-facing message.
+  describe("geocode enrichment report reaches the user", () => {
+    it("tells the user which locations it could not verify", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({
+        "The Red Coach Inn": [
+          { lat: 52.907918, lng: -2.8901, canonicalName: "Shropshire, England", countryCode: "GB" },
+        ],
+      });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Dinner",
+          dayRef: "day 1",
+          // The model's own coordinates are right; the geocoder's top match
+          // (Shropshire) disagrees badly and must be rejected, not applied.
+          location: { name: "The Red Coach Inn", lat: 43.0866, lng: -79.0628 },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add dinner at the red coach inn", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.message).toContain("couldn't verify");
+      expect(body.message).toContain("The Red Coach Inn");
+      expect(body.locationReport.unverified).toEqual(["The Red Coach Inn"]);
+
+      // And the coordinates the model got right were persisted, not Shropshire.
+      const addedId = body.detail.days[0].activityIds[0];
+      expect(body.detail.activities[addedId].location.lat).toBeCloseTo(43.0866, 3);
+    });
+
+    // A freshly seeded trip has no geocoded activities, so a lone lookup with
+    // no model-supplied hint has no region to check against and comes back
+    // `unchecked` — accepted, reported in the payload, and deliberately silent
+    // in the message (see LocationEnrichmentReport.unchecked's comment).
+    it("says nothing extra when a location is accepted with nothing to verify against", async () => {
+      const tripId = await seedTrip();
+      const geocoder = fakeGeocoder({
+        "Niagara Falls State Park": [
+          { lat: 43.0866, lng: -79.0628, canonicalName: "Niagara Falls State Park, NY, USA", countryCode: "US" },
+        ],
+      });
+      const model = modelWithToolCalls([
+        toolCall("AddDay", {}),
+        toolCall("AddActivity", {
+          title: "Falls",
+          dayRef: "day 1",
+          location: { name: "Niagara Falls State Park" },
+        }),
+      ]);
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add the falls", surface: "board" }),
+        tripId,
+        model,
+        geocoder,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.message).not.toContain("couldn't verify");
+      expect(body.locationReport.unchecked).toEqual(["Niagara Falls State Park"]);
+    });
   });
 });

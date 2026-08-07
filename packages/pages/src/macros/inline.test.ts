@@ -4,7 +4,7 @@ import { tripName, tripDates, costTrip, costDay } from "./inline";
 
 const base: TripDetail = {
   tripId: "11111111-1111-1111-1111-111111111111",
-  name: "Japan 2026", startDate: "2026-08-01", currency: "USD", budget: null,
+  name: "Japan 2026", startDate: "2026-08-01", currency: "USD", budget: null, status: "active",
   members: [{ userId: "u1", role: "owner" }],
   days: [
     { dayId: "d0", activityIds: [], date: "2026-08-01", costSubtotal: 5000 },

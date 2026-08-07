@@ -32,11 +32,12 @@ const ANCHORS: (Anchor[] | undefined)[] = [
 const COSTS = [undefined, null, { amountMinor: 1000, currency: "USD" }, { amountMinor: 250_00, currency: "USD" }] as const;
 const CURRENCIES = ["USD", "EUR", "GBP"] as const;
 const BUDGETS = [undefined, null, { amountMinor: 100_00, currency: "USD" }, { amountMinor: 500_00, currency: "USD" }] as const;
+const TRIP_NAMES = ["Renamed A", "Renamed B"] as const;
 
 export type RawOp = { op: number; a: number; b: number; c: number };
 
 export const rawOp = fc.record({
-  op: fc.integer({ min: 0, max: 9 }),
+  op: fc.integer({ min: 0, max: 12 }),
   a: fc.integer({ min: 0, max: 4 }),
   b: fc.integer({ min: 0, max: 4 }),
   c: fc.integer({ min: 0, max: 5 }),
@@ -98,6 +99,16 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
       return { type: "SetTripCurrency", tripId: TRIP, currency: CURRENCIES[raw.b % CURRENCIES.length]! };
     case 9:
       return { type: "SetTripBudget", tripId: TRIP, budget: BUDGETS[raw.b % BUDGETS.length] ?? null };
+    case 10: {
+      // Include the current name sometimes so a same-name rename (a no-op at
+      // the domain level) is exercised too, not just always-different names.
+      const candidates = [TRIP_NAMES[0]!, TRIP_NAMES[1]!, state.name];
+      return { type: "SetTripName", tripId: TRIP, name: candidates[raw.b % candidates.length]! };
+    }
+    case 11:
+      return { type: "DeleteTrip", tripId: TRIP };
+    case 12:
+      return { type: "RestoreTrip", tripId: TRIP };
     default:
       return null;
   }

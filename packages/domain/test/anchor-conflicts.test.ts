@@ -14,6 +14,7 @@ function dated(startDate: string | null, anchors: Anchor[], timeWindow: TripStat
     activities: { [A1]: { title: "Market", timeWindow, location: null, notes: null, anchors, cost: null } },
     dismissedConflictIds: [],
     currency: "USD", budget: null,
+    status: "active",
   };
 }
 

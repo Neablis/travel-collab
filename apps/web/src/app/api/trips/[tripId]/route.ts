@@ -9,6 +9,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   }
   const { tripId } = await params;
   const detail = await getTripDetail(tripId);
+  // A DELETED trip is NOT a 404: it returns 200 with status:"deleted" so the UI
+  // can offer a restore instead of a dead end. Only a genuinely unknown id 404s.
   if (detail === null) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }

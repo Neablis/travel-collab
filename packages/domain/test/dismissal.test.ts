@@ -24,6 +24,7 @@ function conflictedState(): TripState {
     dismissedConflictIds: [],
     currency: "USD",
     budget: null,
+    status: "active",
   };
 }
 

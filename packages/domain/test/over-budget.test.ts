@@ -11,6 +11,7 @@ function stateWith(budgetMinor: number | null, costMinor: number): TripState {
     activities: { [A1]: { title: "Hotel", timeWindow: null, location: null, notes: null, anchors: [], cost: { amountMinor: costMinor, currency: "USD" } } },
     currency: "USD", budget: budgetMinor === null ? null : { amountMinor: budgetMinor, currency: "USD" },
     dismissedConflictIds: [],
+    status: "active",
   };
 }
 

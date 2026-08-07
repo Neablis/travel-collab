@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Conflict } from "./conflict";
-import { TripMember } from "./trip";
+import { TripMember, TripStatus } from "./trip";
 import { Anchor, Location, TimeWindow } from "./activity";
 import { Money } from "./money";
 
@@ -19,6 +19,7 @@ export type ActivityView = z.infer<typeof ActivityView>;
 export const TripDetail = z.object({
   tripId: z.string().uuid(),
   name: z.string(),
+  status: TripStatus,
   startDate: z.string().nullable(),
   currency: z.string(), // ISO-4217, from state (default "USD")
   budget: Money.nullable(),

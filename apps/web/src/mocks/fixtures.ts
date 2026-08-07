@@ -17,6 +17,7 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
     unscheduledCostSubtotal: 0,
     tripCostTotal: 0,
     budgetRemaining: null,
+    status: "active",
     ...overrides,
   };
 }

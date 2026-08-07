@@ -155,3 +155,16 @@ export async function composeAiPlan(
     },
   };
 }
+
+// Task A11's clone endpoint: POST, no body, 201 with the new trip's id. Used
+// by both the trip-list row menu and SettingsSheet's in-trip mirror (A15) —
+// both just need the new id to navigate to.
+export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId: string }>> {
+  const res = await fetch(apiUrl(`/api/trips/${tripId}/duplicate`), { method: "POST" });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  }
+  const data = (await res.json()) as { tripId: string };
+  return { ok: true, value: data };
+}

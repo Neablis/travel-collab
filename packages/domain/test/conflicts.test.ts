@@ -41,6 +41,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
     dismissedConflictIds: [],
     currency: "USD",
     budget: null,
+    status: "active",
   };
 }
 

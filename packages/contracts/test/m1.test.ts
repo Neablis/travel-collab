@@ -81,6 +81,7 @@ describe("M1 contracts", () => {
       startDate: "2027-05-01",
       currency: "USD",
       budget: null,
+      status: "active",
       members: [{ userId: "dev-alice", role: "owner" }],
       days: [{ dayId: DAY, activityIds: [ACT], date: "2027-05-01", costSubtotal: 0 }],
       backlog: [],

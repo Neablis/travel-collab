@@ -13,3 +13,14 @@ export function deriveDayDates(startDate: string | null, dayCount: number): (str
   if (startDate === null) return Array.from({ length: dayCount }, () => null);
   return Array.from({ length: dayCount }, (_, i) => addDaysIso(startDate, i));
 }
+
+// Inclusive day count between two ISO dates. Pure: built from explicit
+// components via Date.UTC, never `new Date()`. Returns 0 or less when `end`
+// precedes `start`; callers treat that as invalid.
+export function daySpan(startIso: string, endIso: string): number {
+  const toUtc = (iso: string): number => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y!, m! - 1, d!);
+  };
+  return Math.floor((toUtc(endIso) - toUtc(startIso)) / 86_400_000) + 1;
+}

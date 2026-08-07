@@ -21,6 +21,7 @@ const baseDetail: TripDetail = {
   unscheduledCostSubtotal: 0,
   tripCostTotal: 12345,
   budgetRemaining: null,
+  status: "active",
 };
 
 const ctx: PageContext = { tripId: baseDetail.tripId };

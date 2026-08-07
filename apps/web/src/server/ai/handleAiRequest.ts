@@ -12,9 +12,24 @@
 // tests call `handleAiRequest` directly with a fake model (ai/test's
 // MockLanguageModelV4) and never touch `POST`'s default, so they never
 // construct `aiModel()` and never hit the network.
+//
+// `geocoder` is different: unlike `model`, it's used by only ONE of the three
+// surfaces (board/combined's enrichment step, well after the `surface ===
+// "page"` branch has already returned), and only when the resolved batch
+// actually has an AddActivity/UpdateActivity with a `location` to look up. A
+// default parameter is evaluated at call time whenever the argument is
+// omitted — which is every real request, since route.ts's `POST` never passes
+// one — so `geocoder: Geocoder = getGeocoder()` here would construct the real
+// LocationIQ geocoder (ADR-007) unconditionally, including for `page`-surface
+// requests that never touch location data at all. `getGeocoder()` throws if
+// LOCATIONIQ_API_KEY is unset, so that would break page-surface (Notebook
+// AI-authoring) on a missing key too. Instead `geocoder` stays optional and is
+// resolved lazily, right where `enrichCommandLocations` needs it — see there.
+// Tests inject a fake `Geocoder` the same way they inject a fake model, so no
+// test needs LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
-import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
+import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
 import { aiModel } from "@/server/ai/gateway";
@@ -23,6 +38,13 @@ import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTool
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { resolveBatch } from "@/server/ai/batchResolver";
+import {
+  enrichCommandLocations,
+  hasUnverifiedLocations,
+  type LocationEnrichmentReport,
+} from "@/server/ai/geocodeEnrichment";
+import { boundingBoxAround, plausibleCoords } from "@/server/ai/geocodeRegion";
+import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -123,6 +145,7 @@ export async function handleAiRequest(
   request: Request,
   tripId: string,
   model: LanguageModel = aiModel(),
+  geocoder?: Geocoder,
 ): Promise<Response> {
   const g = await guard(tripId);
   if ("error" in g) return g.error;
@@ -155,6 +178,8 @@ export async function handleAiRequest(
     "To dismiss a conflict, reference it by its `ref` number in the context's `conflicts` list via `conflictRef` — only conflicts listed there can be dismissed, and never copy a raw conflict id.",
     "All money amounts are integer minor units (cents), never decimals: 5.00 is `amountMinor` 500, so multiply a decimal amount by 100 (500 EUR → 50000).",
     "Codes are case-sensitive — use these exact forms: weekday anchors are lowercase three-letter codes (`mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`); `currency` is an uppercase ISO-4217 code (e.g. `EUR`); a location/anchor country is an uppercase ISO-3166 alpha-2 code (e.g. `IT`).",
+    "Prefer SetTripDates over SetTripStartDate. SetTripDates sets the range AND matches the number of days to it; SetTripStartDate only moves day 1.",
+    'Only set the trip name if the trip still has a placeholder name (for example "New trip") or the user explicitly asked you to rename it. Never rename a trip the user has already named as a side effect of another request.',
     `Context: ${JSON.stringify(envelope)}`,
   ].join("\n");
 
@@ -223,7 +248,7 @@ export async function handleAiRequest(
   // commands in one batch-aware pass: mint new ids, resolve refs against the
   // trip AS THE BATCH BUILDS IT, and drop any command whose ref can't be
   // matched. `resolutionErrors` are the drops — surfaced for the caller.
-  const { commands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
+  const { commands: resolvedCommands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
     tripId,
     actorId: userId,
   });
@@ -231,7 +256,7 @@ export async function handleAiRequest(
   // something the user needs told "couldn't be matched" — only count real drops.
   const skipped = resolutionErrors.filter((e) => e.code !== "no-op");
 
-  if (commands.length === 0) {
+  if (resolvedCommands.length === 0) {
     const history: TripHistory | null = await getTripHistory(tripId);
     return Response.json({
       detail,
@@ -248,10 +273,29 @@ export async function handleAiRequest(
     });
   }
 
+  // Server-side geocode enrichment (ADR-007). The model is not trusted with
+  // real coordinates, but neither is the geocoder trusted to overrule the
+  // model: a lookup is biased toward the trip's region and accepted only if it
+  // agrees with what we already believe (KI-15). Best-effort — never fails the
+  // request — and everything it could not verify comes back in `report` and is
+  // said out loud in the message. See geocodeEnrichment.ts.
+  const { commands, report: locationReport } = await enrichCommandLocations(
+    resolvedCommands,
+    () => geocoder ?? getGeocoder(),
+    tripRegionOf(detail),
+  );
+
   const batch = await flushPlanningBatch(tripId, commands, userId);
   if (!batch.ok) {
     return Response.json(
-      { error: batch.error.message, code: batch.error.code, meta, resolvedCommands: commands, resolutionErrors },
+      {
+        error: batch.error.message,
+        code: batch.error.code,
+        meta,
+        resolvedCommands: commands,
+        resolutionErrors,
+        locationReport,
+      },
       { status: STATUS[batch.error.code] ?? 400 },
     );
   }
@@ -265,6 +309,10 @@ export async function handleAiRequest(
   // Everything collected before the cut-off IS applied — truncated, not
   // discarded — so this rides alongside the summary rather than replacing it.
   if (meta.truncated) notices.push(TRUNCATED_NOTICE);
+  // Silence was KI-15's real damage: a wrong pin and a missing pin both read as
+  // success. Anything not positively verified gets said out loud.
+  const geocodeNotice = locationNotice(locationReport);
+  if (geocodeNotice) notices.push(geocodeNotice);
   const message = withNotices(summary, notices);
   return Response.json({
     detail: batch.detail,
@@ -273,7 +321,41 @@ export async function handleAiRequest(
     meta,
     resolvedCommands: commands,
     resolutionErrors,
+    locationReport,
   });
+}
+
+// Padding on the region drawn from a trip's existing activities. Matches
+// TRIP_REGION_MARGIN_KM in geocodeEnrichment — kept here rather than exported
+// because this is the caller's decision about how loosely to read "the trip is
+// around here", not the enricher's.
+const TRIP_REGION_MARGIN_KM = 150;
+
+// The trip's own already-geocoded activities are the only region signal that
+// does not come from the model. A brand-new trip planned in one prompt has
+// none — that is expected, and enrichment falls back to per-place hints and
+// its own within-batch bootstrapping.
+function tripRegionOf(detail: TripDetail) {
+  const points = Object.values(detail.activities)
+    .map((a) => (a.location ? plausibleCoords(a.location) : null))
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
+}
+
+// Turn the enrichment report into one sentence, or nothing. Named places beat
+// a bare count: "3 locations" is not actionable, "The Red Coach Inn" is.
+//
+// `report.unchecked` is deliberately absent: those were accepted with nothing
+// to check them against, which on a freshly planned trip is the common case,
+// and warning about all of them every time would train the user to ignore the
+// warning that matters. They remain in the response payload.
+function locationNotice(report: LocationEnrichmentReport): string | null {
+  if (!hasUnverifiedLocations(report)) return null;
+  const names = [...report.unverified, ...report.failed, ...report.skipped];
+  const shown = names.slice(0, 3).join(", ");
+  const rest = names.length - Math.min(3, names.length);
+  const tail = rest > 0 ? `, and ${rest} more` : "";
+  return `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${shown}${tail} — worth checking on the map.`;
 }
 
 // What the user is told when `meta.truncated` — the step budget ended the run

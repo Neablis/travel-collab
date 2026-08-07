@@ -53,7 +53,7 @@ describe("M3 anchor + place/time contracts", () => {
 
   it("TripDetail day carries a nullable derived date and activity carries anchors", () => {
     const detail = {
-      tripId: TRIP, name: "Rome", startDate: "2026-10-12", currency: "USD", budget: null,
+      tripId: TRIP, name: "Rome", startDate: "2026-10-12", currency: "USD", budget: null, status: "active",
       members: [{ userId: "u1", role: "owner" }],
       days: [{ dayId: DAY, activityIds: [A1], date: "2026-10-12", costSubtotal: 0 }],
       backlog: [], conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",

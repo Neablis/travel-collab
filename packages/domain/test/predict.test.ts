@@ -15,6 +15,7 @@ const baseState: TripState = {
   dismissedConflictIds: [],
   currency: "USD",
   budget: null,
+  status: "active",
 };
 const detail = () => tripDetailFromState(baseState, "2027-01-01T00:00:00.000Z");
 

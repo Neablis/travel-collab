@@ -24,6 +24,8 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   AddDay: "Add a new day to the trip (the server assigns its id).",
   RemoveDay: 'Remove an existing day (dayRef: "day N" or its dayId); its activities return to the backlog.',
   SetTripStartDate: "Set (or clear, with null) the trip's start date.",
+  SetTripName: "Rename the trip.",
+  SetTripDates: "Set the trip's date range; the server reconciles day count to match it.",
   AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog. ${MONEY_UNITS_NOTE}`,
   UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged. ${MONEY_UNITS_NOTE}`,
   MoveActivity:

@@ -44,6 +44,7 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       dismissedConflictIds: [],
       currency: "USD",
       budget: null,
+      status: "active",
     };
   }
 
@@ -129,5 +130,11 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
         ...state,
         dismissedConflictIds: state.dismissedConflictIds.filter((id) => id !== event.payload.conflictId),
       };
+    case "TripNameSet":
+      return { ...state, name: event.payload.name };
+    case "TripDeleted":
+      return { ...state, status: "deleted" };
+    case "TripRestored":
+      return { ...state, status: "active" };
   }
 }

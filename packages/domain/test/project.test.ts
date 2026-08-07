@@ -30,6 +30,7 @@ describe("projectTripSummaries", () => {
     expect(rome).toEqual({
       tripId: T1,
       name: "Rome 2027",
+      status: "active",
       members: [{ userId: "user-1", role: "owner" }],
       createdAt: "2026-07-07T12:00:00.000Z",
     });
@@ -38,5 +39,35 @@ describe("projectTripSummaries", () => {
   it("throws on an unparseable event (replay totality guard)", () => {
     const bad = { ...envelope(T1, "Rome 2027", "user-1"), payload: { nope: true } };
     expect(() => projectTripSummaries([bad])).toThrow();
+  });
+
+  it("projects name changes and filters nothing (status is carried, not applied)", () => {
+    const created = envelope(T1, "Old", "user-1");
+    const nameSet: EventEnvelope = { ...created, seq: 2, type: "TripNameSet", payload: { tripId: T1, name: "New" } };
+    const deleted: EventEnvelope = { ...created, seq: 3, type: "TripDeleted", payload: { tripId: T1 } };
+
+    const summaries = projectTripSummaries([created, nameSet, deleted]);
+    expect(summaries[0]!.name).toBe("New");
+    expect(summaries[0]!.status).toBe("deleted");
+  });
+
+  it("restores status to active on TripRestored", () => {
+    const created = envelope(T1, "Old", "user-1");
+    const deleted: EventEnvelope = { ...created, seq: 2, type: "TripDeleted", payload: { tripId: T1 } };
+    const restored: EventEnvelope = { ...created, seq: 3, type: "TripRestored", payload: { tripId: T1 } };
+
+    const summaries = projectTripSummaries([created, deleted, restored]);
+    expect(summaries[0]!.status).toBe("active");
+  });
+
+  it("ignores lifecycle events for an unknown stream instead of crashing", () => {
+    const nameSet: EventEnvelope = {
+      ...envelope(T1, "Old", "user-1"),
+      streamId: T2,
+      type: "TripNameSet",
+      payload: { tripId: T2, name: "New" },
+    };
+    expect(() => projectTripSummaries([nameSet])).not.toThrow();
+    expect(projectTripSummaries([nameSet])).toHaveLength(0);
   });
 });

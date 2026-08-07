@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-07-28 — M8: trip lifecycle
+- Added commands: `SetTripName`, `SetTripDates`, `DeleteTrip`, `RestoreTrip`
+- Added events: `TripNameSetV1`, `TripDeletedV1`, `TripRestoredV1`
+- Added: `TripStatus` enum; `status` on `TripSummary` and `TripDetail`
+- `SetTripName`/`SetTripDates` joined `BatchableCommand` (AI-reachable);
+  `DeleteTrip`/`RestoreTrip` deliberately did NOT — destructive and
+  stream-level operations stay out of the derived tool surface
+- `SetTripDates` carries `newDayIds` because the domain may not mint UUIDs
+  (Invariant 4); it supersedes `SetTripStartDate`, which is left in place —
+  deprecation plan deferred (see known-issues KI-15)
+- Why: M8 — a trip could not be renamed or deleted by anyone
+- Consumers updated: `packages/domain`, `apps/web` (routes, projections, AI
+  tools, UI)
+- Breaking? no — additive
+
 ## 2026-07-20 — M7: add page & macro contracts
 - Added: `Page`, `PageContext`, `DayRef`, `MacroNode`, `PageContent`, `MacroKind`,
   `PageSummary`, `CreatePageInput`, `UpdatePageInput`
