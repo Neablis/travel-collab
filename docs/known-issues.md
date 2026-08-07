@@ -179,8 +179,10 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   the coordinates already accepted earlier in the same batch (`anchors`,
   bootstrapped as lookups resolve) — and a result is kept only if it agrees
   with that belief (within `MAX_REFINE_KM`, 50 km, of a hint, or inside the
-  region's box); disagreement means the model's own coordinates survive
-  unchanged and the place is reported `unverified`, never silently overwritten.
+  region's box); disagreement means the model's original guess is kept as-is —
+  its own coordinates when it had a hint, or just the bare name when it had
+  none to begin with — and the place is reported `unverified`, never silently
+  overwritten.
   A Shropshire match against a Niagara Falls hint is now rejected on distance
   alone. Lookups are serialized through `mapRateLimited` at LocationIQ's real
   2 req/sec instead of a `Promise.all` burst, so a 9-name batch no longer 429s
