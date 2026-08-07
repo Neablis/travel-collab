@@ -29,4 +29,24 @@ describe("LocationIQ geocoder adapter", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 429 })));
     await expect(createLocationIQGeocoder("K").forward("x")).rejects.toThrow(/429/);
   });
+
+  it("sends a viewbox as west,south,east,north and omits it when absent", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const geocoder = createLocationIQGeocoder("KEY123");
+    await geocoder.forward("Red Coach Inn", {
+      limit: 1,
+      viewbox: { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 },
+    });
+    const withBox = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(withBox.searchParams.get("viewbox")).toBe("-80,42,-77,44");
+    // Soft bias only — a hard `bounded=1` would return nothing for a place
+    // just outside the box. The acceptance test in geocodeEnrichment guards.
+    expect(withBox.searchParams.get("bounded")).toBeNull();
+
+    await geocoder.forward("Red Coach Inn", { limit: 1 });
+    const withoutBox = new URL(fetchMock.mock.calls[1]![0] as string);
+    expect(withoutBox.searchParams.get("viewbox")).toBeNull();
+  });
 });
