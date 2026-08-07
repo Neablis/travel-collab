@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BatchableCommand } from "@tc/contracts";
 import type { GeocodeResult, Geocoder } from "@/server/geocoding";
-import { enrichCommandLocations } from "./geocodeEnrichment";
+import { enrichCommandLocations, hasUnverifiedLocations, type LocationEnrichmentReport } from "./geocodeEnrichment";
 
 const TRIP = "11111111-1111-4111-8111-111111111111";
 
@@ -137,6 +137,8 @@ describe("enrichCommandLocations", () => {
         addActivity("Dinner", { name: "The Red Coach Inn" }),
       ],
       () => geocoder,
+      null,
+      async () => {},
     );
 
     // First lookup: nothing to check against, so accepted as unchecked.
@@ -163,6 +165,8 @@ describe("enrichCommandLocations", () => {
         addActivity("Museum", { name: "Strong Museum of Play" }),
       ],
       () => geocoder,
+      null,
+      async () => {},
     );
     expect(report.unchecked).toEqual(["Niagara Falls State Park"]);
     expect(report.verified).toEqual(["Strong Museum of Play"]);
@@ -256,23 +260,20 @@ describe("enrichCommandLocations", () => {
     await enrichCommandLocations(
       ["a", "b", "c", "d"].map((n) => addActivity(n, { name: `place ${n}` })),
       () => geocoder,
+      null,
+      async () => {},
     );
     expect(maxInFlight).toBe(1);
   });
 
-  // 15 attempted lookups means 14 real inter-call sleeps at MIN_INTERVAL_MS
-  // (500ms) — enrichCommandLocations exposes no sleep injection point (by
-  // design, matching its production signature), so this test genuinely takes
-  // ~7s of wall clock. That exceeds vitest's default 5000ms per-test timeout,
-  // hence the explicit bump below; it is not evidence of a slow implementation.
   it("caps lookups per batch and reports the remainder as skipped", async () => {
     const { geocoder, calls } = fakeGeocoder({});
     const commands = Array.from({ length: 20 }, (_, i) => addActivity(`a${i}`, { name: `place ${i}` }));
-    const { report } = await enrichCommandLocations(commands, () => geocoder);
+    const { report } = await enrichCommandLocations(commands, () => geocoder, null, async () => {});
     expect(calls.length).toBe(15);
     expect(report.skipped.length).toBe(5);
     expect(report.skipped[0]).toBe("place 15");
-  }, 10000);
+  });
 
   it("ignores a cleared location (null) on UpdateActivity", async () => {
     const getGeocoder = vi.fn(() => { throw new Error("must not construct"); });
@@ -286,5 +287,39 @@ describe("enrichCommandLocations", () => {
     expect(commands).toEqual([command]);
     expect(getGeocoder).not.toHaveBeenCalled();
     expect(report.verified).toEqual([]);
+  });
+});
+
+describe("hasUnverifiedLocations", () => {
+  const emptyReport = (): LocationEnrichmentReport => ({
+    verified: [],
+    unverified: [],
+    unchecked: [],
+    failed: [],
+    skipped: [],
+  });
+
+  it("is false for entries only in unchecked", () => {
+    const report = { ...emptyReport(), unchecked: ["Niagara Falls State Park"] };
+    expect(hasUnverifiedLocations(report)).toBe(false);
+  });
+
+  it("is true for entries only in unverified", () => {
+    const report = { ...emptyReport(), unverified: ["The Red Coach Inn"] };
+    expect(hasUnverifiedLocations(report)).toBe(true);
+  });
+
+  it("is true for entries only in failed", () => {
+    const report = { ...emptyReport(), failed: ["Rate Limited Place"] };
+    expect(hasUnverifiedLocations(report)).toBe(true);
+  });
+
+  it("is true for entries only in skipped", () => {
+    const report = { ...emptyReport(), skipped: ["place 15"] };
+    expect(hasUnverifiedLocations(report)).toBe(true);
+  });
+
+  it("is false for an all-empty report", () => {
+    expect(hasUnverifiedLocations(emptyReport())).toBe(false);
   });
 });

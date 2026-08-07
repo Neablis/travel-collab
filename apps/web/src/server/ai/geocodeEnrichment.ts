@@ -167,6 +167,7 @@ export async function enrichCommandLocations(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,
   tripRegion: BoundingBox | null = null,
+  sleep?: (ms: number) => Promise<void>,
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
   // Dedupe by normalized name, keeping the first spelling and the first
   // plausible coordinate hint seen for it.
@@ -212,7 +213,7 @@ export async function enrichCommandLocations(
       if (coords) anchors.push(coords);
     }
     return [key, resolution.location] as const;
-  });
+  }, sleep);
   const locationByKey = new Map(resolved);
 
   return {
