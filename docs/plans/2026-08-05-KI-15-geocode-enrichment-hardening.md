@@ -671,8 +671,25 @@ consequences, both binding:
     commands: BatchableCommand[],
     getGeocoder: () => Geocoder,
     tripRegion?: BoundingBox | null,
+    sleep?: (ms: number) => Promise<void>,
   ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }>
   ```
+
+> **Amended post-review (2026-08-06), Mitchell's call:** the review that ran
+> against this task's first implementation (commit `11832d4`) found that the
+> code below, as originally written, called `mapRateLimited` with no `sleep`
+> argument — so every multi-lookup test paid real 500ms wall-clock delays
+> (measured: ~9.5s total across this file, one test needing a 10s timeout
+> override). `mapRateLimited` (Task 2) was built with an injectable `sleep`
+> for exactly this reason; this task just never threaded it through. Fixed by
+> adding the fourth `sleep` parameter above, passed straight into the
+> `mapRateLimited` call in Step 3's implementation, defaulting to nothing
+> (i.e. `mapRateLimited`'s own real-timer default) so every production
+> caller is unaffected — only tests inject a no-op. The code block below has
+> **not** been rewritten to show this inline; implementers should add the
+> parameter and one line (`sleep` threaded into the `mapRateLimited` call)
+> on top of what's shown, and tests should pass `async () => {}` as the
+> fourth argument wherever more than one lookup fires in the same test.
 
 - [ ] **Step 1: Write the failing test**
 
