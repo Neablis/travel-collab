@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TEMPLATES, instantiateDefaults } from "./templates";
-import { CreatePageInput, MacroNode } from "@tc/contracts";
+import { CreatePageInput } from "@tc/contracts";
 
 describe("templates", () => {
   it("ships exactly Trip Overview + Day Sheet", () => {
@@ -14,11 +14,15 @@ describe("templates", () => {
     expect(inputs[0]!.context.tripId).toBe(tripId);
     expect(inputs[1]!.context.dayRef).toEqual({ kind: "index", index: 0 }); // Day Sheet binds day 0
   });
-  it("templates embed only registry macro nodes", () => {
+  // Task B3: macro authoring left the primary editing surface in M8, so the
+  // seeded templates no longer plant macro nodes a reader can't add, edit, or
+  // remove themselves. Macro *rendering* is unaffected (see MacroNodeExtension,
+  // registry.test.ts, macros/*.test.ts) — this only asserts the seed content
+  // itself is plain now.
+  it("templates contain no macro nodes", () => {
     const nodes: unknown[] = [];
     const walk = (n: any) => { if (n?.type === "macro") nodes.push(n); (n?.content ?? []).forEach(walk); };
     DEFAULT_TEMPLATES.forEach((t) => walk(t.content));
-    expect(nodes.length).toBeGreaterThan(0);
-    for (const n of nodes) expect(MacroNode.safeParse(n).success).toBe(true);
+    expect(nodes).toHaveLength(0);
   });
 });

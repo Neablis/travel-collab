@@ -3,7 +3,6 @@ import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { TripDetail, PageContext, PageContent } from "@tc/contracts";
 import { MacroNodeExtension } from "./MacroNodeExtension";
-import { MacroSuggestionExtension } from "./useMacroSuggestion";
 import { MacroEditorContext } from "./MacroEditorContext";
 
 export interface PageEditorProps {
@@ -15,13 +14,17 @@ export interface PageEditorProps {
 }
 
 // The rich-text editor for a page: StarterKit's usual marks/blocks, plus the
-// `macro` atom node and its `{{` autocomplete. `detail`/`context` reach each
-// macro's NodeView via `MacroEditorContext`, not extension `storage` — see
-// that file for why (storage updates aren't reactive; a Provider re-render
-// is).
+// `macro` atom node. `detail`/`context` reach each macro's NodeView via
+// `MacroEditorContext`, not extension `storage` — see that file for why
+// (storage updates aren't reactive; a Provider re-render is).
 export function PageEditor({ detail, context, value, onChange, onBindDay }: PageEditorProps) {
   const editor = useEditor({
-    extensions: [StarterKit, MacroNodeExtension, MacroSuggestionExtension],
+    // Macro AUTHORING left the primary surface in M8 (seven macros is not a
+    // vocabulary; the block renderers never had a design pass). RENDERING stays
+    // registered on purpose: page content is stored ProseMirror JSON, so
+    // unregistering this extension would silently DROP existing macro nodes on the
+    // next save. The authoring vocabulary returns in M14.
+    extensions: [StarterKit, MacroNodeExtension],
     // `PageContent` (`@tc/contracts`) is a permissive zod-validated doc shape;
     // TipTap's `Content` type wants a plain `JSONContent`. They describe the
     // same runtime shape (a ProseMirror/TipTap doc), so the cast is safe —
