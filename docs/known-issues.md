@@ -353,7 +353,8 @@ resurfaces when keeping them actually costs something.
 - **Decided:** 2026-07-28 (Mitchell), during the Phase 1 gate review. **Executed in M8.**
 - **What stays:** the `Anchor` contract, the anchor-violation conflict rules in
   `packages/domain/src/trip/conflicts.ts`, and their tests
-  (`anchor-conflicts.test.ts`, `anchors-state.test.ts`).
+  (`anchor-conflicts.test.ts`, `anchors-state.test.ts`,
+  `apps/web/src/server/anchors.int.test.ts`).
 - **What goes:** `apps/web/src/components/board/AnchorEditor.tsx` and every UI
   entry point to it.
 - **Why:** anchors were never made legible. M3's gate proved the *rules* fire,
@@ -366,8 +367,10 @@ resurfaces when keeping them actually costs something.
   hits it should read this entry and *decide* — revive with a real UI, or
   delete the feature — rather than reflexively repairing code no user can
   reach. A comment alone would never have surfaced; a failing test will.
-- **Related dead weight to clear in the same pass:** `ConflictContext.timezone`
-  is injected from `TRIP_TIMEZONE`, documented in ADR-006, and read by no rule.
+- **Related dead weight, cleared:** `ConflictContext.timezone`, injected from
+  `TRIP_TIMEZONE` and read by no rule, was removed in M8 Wave B (Task B2), in
+  the same pass as the anchors-UI retirement. See the Amendment (2026-08-07)
+  in `docs/architecture/ADR-006-conflict-evaluation-context.md`.
 
 ## Deferred design work (tracked elsewhere, pointer only)
 
