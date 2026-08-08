@@ -18,7 +18,6 @@ export const GEO_INFEASIBLE_KM = 150;
 // Facts the pure engine cannot compute itself, injected by the caller (ADR-006).
 export type ConflictContext = {
   isPublicHoliday: (countryCode: string, isoDate: string) => boolean;
-  timezone: string;
 };
 
 // M3 default = the inert stub. `isPublicHoliday: () => true` means a
@@ -26,7 +25,6 @@ export type ConflictContext = {
 // calls the oracle, so wiring `date-holidays` later is a one-line swap.
 export const DEFAULT_CONFLICT_CONTEXT: ConflictContext = {
   isPublicHoliday: () => true,
-  timezone: "America/Los_Angeles",
 };
 
 // DORMANT BY DECISION (Mitchell, 2026-07-28) — known-issues.md § "Dormant by

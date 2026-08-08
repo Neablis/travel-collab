@@ -70,3 +70,25 @@ the domain calls out to.
 - This is the general mechanism for "the conflict engine needs a fact it can't
   compute": future such facts are added to `ConflictContext`, not smuggled into
   `TripState` or fetched inline.
+
+## Amendment — 2026-08-07
+
+`timezone: string` is removed from `ConflictContext`, `DEFAULT_CONFLICT_CONTEXT`,
+and `serverConflictContext()`; `TRIP_TIMEZONE` is dropped from
+`apps/web/src/server/config.ts` (M8 Wave B, Task B2).
+
+It reserved the seam described above, but no rule ever read it — confirmed by
+grep across `packages/` and `apps/web/src` before removal — and M8's Wave A
+review (`docs/known-issues.md` § "Dormant by decision," D-1) flagged it as dead
+weight to clear alongside the anchors-UI retirement. Unlike `publicHoliday`,
+which is a permissive stub genuinely called by the `anchorRule`, `timezone` was
+plumbed and never wired to a call site at all.
+
+The **decision stands**: an injected `ConflictContext` is still the right shape
+for facts the pure engine can't compute, and the pattern established here
+(oracle in, no I/O in the domain) is unchanged. Only the speculative `timezone`
+field is retired — it was added ahead of a consumer, not in response to one.
+When a real time-zone-aware rule (cross-zone travel feasibility, DST-correct
+reasoning) is built, it should add `timezone` (or whatever shape that rule
+actually needs) back to `ConflictContext` deliberately, scoped to what the rule
+reads — not inherit this removed field as if it were still live.
