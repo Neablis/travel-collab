@@ -5,7 +5,7 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-07**
+**Last updated: 2026-08-07 (Wave B merge)**
 
 ## Where we are
 
@@ -26,18 +26,43 @@ geocode-enrichment hardening (a separate reviewed pass on top of Wave A,
 is green including `migrate-production` (migration `0004`, trip status,
 applied to production).
 
-**Wave C and Wave D's scope was trimmed the same day (Mitchell + Claude,
-2026-08-07)** — before starting Wave B, read this. C1–C3 (quick-add, a
-search-to-add button, move-via-menu) and D1–D2 (first-run state, empty
-states) are deferred, not planned to start next: none close a capability gap
-(the existing `+ Add activity` editor and drag-and-drop already do this),
-and they're the kind of surface a separate, already-underway design-tool
+**M8 Wave B is merged.** Landed on `main` 2026-08-07 (fast-forward merge
+`bc2295e`) — Tasks B1–B3, built via `superpowers:subagent-driven-development`
+(fresh implementer + task reviewer per task, plus a final whole-branch
+review). B1 retired the anchors-editing UI (`AnchorEditor.tsx` deleted;
+`ActivityEditor.tsx` no longer authors anchors) while keeping the anchor
+conflict rules and their tests dormant-but-green (D-1). B2 removed the
+unread `ConflictContext.timezone` / `TRIP_TIMEZONE` and amended ADR-006. B3
+pulled the Notebook's `{{` macro-autocomplete out of the editor while
+keeping `MacroNodeExtension` registered, so existing macro nodes still
+render and round-trip through save; the seeded Trip Overview / Day Sheet
+templates are now plain starter text. `pnpm typecheck`, `pnpm lint`, and the
+`@tc/domain`/`@tc/pages` suites are all green on `main`; the `apps/web` unit
+suite is green apart from two pre-existing KI-13-flaky tests
+(`PageScreen.test.tsx`, `TripHeader.test.tsx`) confirmed untouched by this
+branch and passing in isolation.
+
+**One open item from B1:** its production safety check (confirm no live
+trip already carries an anchor, via a `psql` count against
+`PRODUCTION_DATABASE_URL`) was explicitly skipped on Mitchell's instruction
+— `PRODUCTION_DATABASE_URL` isn't available outside CI. If it's ever run and
+returns non-zero, clear those anchors with an `UpdateActivity` command
+(`anchors: []`) per activity, never by writing the projection directly
+(Invariant 1); until then an activity with a pre-existing anchor would keep
+firing an anchor-violation conflict with no UI surface to explain or clear
+it (the dormancy the rest of B1 relies on).
+
+**Wave C and Wave D's scope was trimmed 2026-08-07 (Mitchell + Claude)** —
+before starting either, read this. C1–C3 (quick-add, a search-to-add
+button, move-via-menu) and D1–D2 (first-run state, empty states) are
+deferred, not planned to start next: none close a capability gap (the
+existing `+ Add activity` editor and drag-and-drop already do this), and
+they're the kind of surface a separate, already-underway design-tool
 brainstorm for the product's future look and feel is likely to reshape —
 building them now risks getting redone once M10 lands. C4 (KI-5 sync
 indicator) and D3 (the e2e gate script, resized off the deferred UI) are
 kept. Full reasoning: `docs/milestones/M8-make-it-real.md`'s "Scope trim"
-section and `TODO.md`'s Candidate ideas. **Resume at Task B1** — Wave B is
-unaffected by the trim.
+section and `TODO.md`'s Candidate ideas. **Resume at Task C4.**
 
 - Design spec: `docs/specs/2026-07-28-M8-make-it-real-design.md` (`b547fdd`) —
   8 decisions, each recorded with the alternatives it beat.
@@ -70,10 +95,12 @@ which existed only on a branch.
 
 ## Next action
 
-**Execute M8 Wave B, starting at Task B1** of
-`docs/plans/2026-07-28-M8-make-it-real.md`. Wave A (the trip-lifecycle
-contract change) was its own reviewed step before any UI work (AGENTS.md
-workstream rule), and is done. Background on why the milestone exists:
+**Execute Task C4 (the KI-5 sync indicator), then Task D3 (M8 e2e and gate
+close)** of `docs/plans/2026-07-28-M8-make-it-real.md` (lines 2008 and 2175)
+— the two Wave C/D tasks the 2026-08-07 scope trim kept. C1–C3 and D1–D2 stay
+deferred; do not start them without Mitchell's explicit say-so. Wave A (the
+trip-lifecycle contract change) and Wave B (the anchors/timezone/macro
+subtraction) are both done. Background on why the milestone exists:
 
 **M8 — Make it real** (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate
 review ran on 2026-07-28 without the dogfood data, because the dogfood could not
