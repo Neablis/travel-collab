@@ -29,6 +29,15 @@ export const DEFAULT_CONFLICT_CONTEXT: ConflictContext = {
   timezone: "America/Los_Angeles",
 };
 
+// DORMANT BY DECISION (Mitchell, 2026-07-28) — known-issues.md § "Dormant by
+// decision", D-1. No UI reaches anchors: AnchorEditor and its entry points were
+// removed in M8 because anchors were never made legible (and `publicHoliday`
+// had a permissive stub oracle, so it could never fire at all).
+//
+// These rules and their tests stay ON PURPOSE. If a change of yours breaks
+// them, the build fails — that is the tripwire working. DECIDE: revive anchors
+// with a real UI, or delete the feature. Do not reflexively repair code no user
+// can reach.
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 // Weekday of a YYYY-MM-DD as a pure calendar fact (explicit UTC components — not

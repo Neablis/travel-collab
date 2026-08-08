@@ -8,7 +8,6 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
-import { AnchorEditor } from "./AnchorEditor";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
 
@@ -36,7 +35,10 @@ export function ActivityEditor({
   const [start, setStart] = useState(initial?.timeWindow?.start ?? "");
   const [end, setEnd] = useState(initial?.timeWindow?.end ?? "");
   const [location, setLocation] = useState<Location | null>(initial?.location ?? null);
-  const [anchors, setAnchors] = useState<Anchor[]>(initial?.anchors ?? []);
+  // No UI reaches anchors (D-1, see packages/domain/src/trip/conflicts.ts) — the
+  // editor never lets a user set them, but still round-trips whatever value the
+  // activity already carries so existing anchors aren't silently dropped.
+  const anchors: Anchor[] = initial?.anchors ?? [];
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +92,6 @@ export function ActivityEditor({
           </FormField>
         </div>
         <LocationInput value={location} onChange={setLocation} />
-        <AnchorEditor value={anchors} onChange={setAnchors} />
         <FormField id="activity-cost" label="Cost">
           <MoneyInput value={cost} currency={tripCurrency} onChange={setCost} />
         </FormField>
