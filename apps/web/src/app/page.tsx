@@ -8,16 +8,15 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "../components/ui/heading";
 import { Text } from "../components/ui/text";
-import { DataText } from "../components/ui/data-text";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Card } from "../components/ui/card";
 import { FormField } from "../components/ui/form-field";
 import { EmptyState } from "../components/ui/empty-state";
 import { Popover } from "../components/ui/popover";
 import { Dialog, DialogFooter } from "../components/ui/dialog";
 import { Toast } from "../components/ui/toast";
 import { NextTripHero } from "../components/home/NextTripHero";
+import { TripCard } from "../components/home/TripCard";
 import { duplicateTrip, sendTripCommand } from "../lib/apiClient";
 
 export default function Home() {
@@ -180,50 +179,46 @@ export default function Home() {
       {trips !== null && visibleTrips.length === 0 ? (
         <EmptyState title="Start your first trip" body="No trips yet — create one." />
       ) : (
-        <ul className="mt-6 flex flex-col gap-2">
+        <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {visibleTrips.map((t) => (
-            <Card key={t.tripId} as="li" className="flex items-center justify-between gap-3">
-              <div>
-                <Link href={`/trips/${t.tripId}`} className="text-brand font-medium hover:underline">
-                  {t.name}
-                </Link>
-                <div>
-                  <DataText>{t.createdAt}</DataText>
-                </div>
-              </div>
-              <Popover
-                open={openMenuTripId === t.tripId}
-                onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
-                align="end"
-                contentClassName="w-40 p-1"
-                trigger={
-                  <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
-                    <MoreVertical className="size-3.5" aria-hidden />
-                  </Button>
-                }
-              >
-                <div role="menu" className="flex flex-col">
-                  <Button
-                    role="menuitem"
-                    variant="ghost"
-                    className="justify-start"
-                    onClick={() => void duplicate(t)}
-                  >
-                    Duplicate
-                  </Button>
-                  <Button
-                    role="menuitem"
-                    variant="ghost"
-                    className="justify-start text-danger-ink"
-                    onClick={() => requestDelete(t)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </Popover>
-            </Card>
+            <TripCard
+              key={t.tripId}
+              trip={t}
+              menuSlot={
+                <Popover
+                  open={openMenuTripId === t.tripId}
+                  onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
+                  align="end"
+                  contentClassName="w-40 p-1"
+                  trigger={
+                    <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
+                      <MoreVertical className="size-3.5" aria-hidden />
+                    </Button>
+                  }
+                >
+                  <div role="menu" className="flex flex-col">
+                    <Button
+                      role="menuitem"
+                      variant="ghost"
+                      className="justify-start"
+                      onClick={() => void duplicate(t)}
+                    >
+                      Duplicate
+                    </Button>
+                    <Button
+                      role="menuitem"
+                      variant="ghost"
+                      className="justify-start text-danger-ink"
+                      onClick={() => requestDelete(t)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </Popover>
+              }
+            />
           ))}
-        </ul>
+        </div>
       )}
 
       <Dialog open={confirmTrip !== null} onOpenChange={(open) => !open && setConfirmTrip(null)} title="Delete trip">
