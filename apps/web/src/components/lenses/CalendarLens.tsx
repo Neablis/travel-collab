@@ -4,18 +4,49 @@ import type { TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { Button } from "../ui/button";
+import { chipModel } from "../trip/DayChips";
+import { useFocus } from "../trip/context/FocusProvider";
+import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { cn } from "@/lib/cn";
 import { calendarCells } from "./calendarData";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// Same static-map pattern as DayChips.tsx's CHIP_BG / TimelineLens.tsx's
+// TINT_BG — Tailwind's JIT scanner can't see a template-interpolated
+// `bg-${family}-tint`.
+const TINT_BG: Record<AccentFamily, string> = {
+  brand: "bg-brand-tint",
+  info: "bg-info-tint",
+  success: "bg-success-tint",
+  warning: "bg-warning-tint",
+  danger: "bg-danger-tint",
+};
+
+// Handoff README §"Calendar view": 116px min cell height has no token
+// equivalent — same computed-geometry escape hatch as TimelineLens/MapLens/
+// DayChips' 10px transition label.
+const CELL_MIN_HEIGHT = { minHeight: "116px" };
+
 export function CalendarLens({
   detail,
-  onSelectActivity,
+  // Restyle only: the prop stays in the signature for API consistency with
+  // ScheduleLens/TripBoardScreen's other lenses, but Calendar's own
+  // interaction no longer opens the activity editor per-activity — clicking
+  // an in-trip cell now sets focus (setFocusedDay) like Task 8's DayChips,
+  // per the plan brief ("Calendar cells set focus via useFocus()"). It is
+  // intentionally unused inside this component.
+  onSelectActivity: _onSelectActivity,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
 }) {
   const cells = calendarCells(detail);
+  // Same per-day city derivation Task 8's DayChips established, reused via
+  // chipModel rather than re-deriving it (mirrors TimelineLens.tsx). Indexed
+  // by 0-based day index — cell.ordinal is 1-based, so look up days[ordinal - 1].
+  const days = chipModel(detail);
+  const { setFocusedDay } = useFocus();
 
   return (
     <section>
@@ -24,54 +55,72 @@ export function CalendarLens({
           Set a start date to see the calendar.
         </Text>
       ) : (
-        <div role="grid" aria-label="Trip calendar" className="mt-2 grid grid-cols-7 gap-1">
+        // Handoff README §"Calendar view": 7-column grid with 1px hairline
+        // gaps — gap-px is a stock Tailwind utility (not an arbitrary bracket
+        // value), and the bg-hairline base + bg-paper cells produce the 1px
+        // seam.
+        <div role="grid" aria-label="Trip calendar" className="mt-2 grid grid-cols-7 gap-px bg-hairline">
           {WEEKDAY_LABELS.map((label) => (
-            <div key={label} className="text-center text-xs font-semibold text-slate">
+            <div key={label} className="bg-paper text-center text-xs font-semibold text-slate">
               {label}
             </div>
           ))}
-          {cells.map((cell) => (
-            <div
-              key={cell.date}
-              data-testid="calendar-cell"
-              data-in-trip={cell.inTrip}
-              className={`min-h-12 rounded-sm border border-hairline p-1 ${cell.inTrip ? "bg-brand-tint" : "bg-transparent opacity-40"}`}
-            >
-              <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
-              {cell.inTrip && (
-                <div>
-                  <Text as="span" variant="muted">
-                    Day {cell.ordinal}
-                  </Text>
-                  {cell.activityIds.length > 0 && (
-                    <ul className="m-0 list-none p-0">
-                      {cell.activityIds.map((activityId) => {
-                        const activity = detail.activities[activityId];
-                        if (!activity) return null;
-                        return (
-                          <li key={activityId}>
-                            {onSelectActivity ? (
-                              <Button
-                                variant="ghost"
-                                onClick={() => onSelectActivity(activityId)}
-                                className="h-auto justify-start p-0 text-left text-xs font-normal text-ink underline-offset-2 hover:bg-transparent hover:underline"
-                              >
-                                {activity.title}
-                              </Button>
-                            ) : (
-                              <Text as="span" variant="muted">
-                                {activity.title}
-                              </Text>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
+          {cells.map((cell) => {
+            if (!cell.inTrip || cell.ordinal === undefined) {
+              return (
+                <div
+                  key={cell.date}
+                  data-testid="calendar-cell"
+                  data-in-trip={false}
+                  className="bg-paper p-1 opacity-40"
+                  // eslint-disable-next-line no-restricted-syntax -- 116px min cell height (handoff spec) has no token equivalent
+                  style={CELL_MIN_HEIGHT}
+                >
+                  <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            }
+
+            const ordinal = cell.ordinal;
+            const day = days[ordinal - 1];
+            const accent = dayAccentFor(day?.city ?? null);
+            const firstActivityId = cell.activityIds[0];
+            const firstStopTitle = firstActivityId ? detail.activities[firstActivityId]?.title : undefined;
+            const moreCount = cell.activityIds.length - 1;
+
+            return (
+              <Button
+                key={cell.date}
+                variant="ghost"
+                data-testid="calendar-cell"
+                data-in-trip={true}
+                aria-label={`Day ${ordinal}${day?.city ? `, ${day.city}` : ""}`}
+                onClick={() => setFocusedDay(ordinal - 1)}
+                className={cn(
+                  "h-auto flex-col items-start justify-start gap-0.5 rounded-none p-1 text-left hover:opacity-90",
+                  TINT_BG[accent.tint],
+                )}
+                // eslint-disable-next-line no-restricted-syntax -- 116px min cell height (handoff spec) has no token equivalent
+                style={CELL_MIN_HEIGHT}
+              >
+                <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
+                <Text as="span" variant="muted" className="w-full truncate text-xs font-semibold">
+                  Day {ordinal}
+                </Text>
+                {day?.city && (
+                  <Text as="span" variant="muted" className="w-full truncate text-xs">
+                    {day.city}
+                  </Text>
+                )}
+                {firstStopTitle && (
+                  <Text as="span" variant="muted" className="w-full truncate text-xs">
+                    {firstStopTitle}
+                  </Text>
+                )}
+                {moreCount > 0 && <DataText size="xs">+{moreCount} more</DataText>}
+              </Button>
+            );
+          })}
         </div>
       )}
     </section>
