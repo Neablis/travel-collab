@@ -15,6 +15,8 @@ import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { chipModel } from "@/components/trip/DayChips";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useFocus } from "@/components/trip/context/FocusProvider";
+import { GhostProposal } from "@/components/assistant/GhostProposal";
+import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
 import { initialsFor } from "@/lib/initials";
 import { formatTripDate } from "@/lib/formatDate";
@@ -454,6 +456,18 @@ export function TimelineLens({
                   />
                 );
               })}
+              {/* Task 15 (M9 Preview shell): one sample assistant proposal
+                  ("ghost") card, rendered only in the currently-focused day —
+                  never every day, since a real assistant would propose into
+                  the day the user is actually looking at, not blanket every
+                  row. Reuses the same registered "timeline-ghost" Preview id
+                  as the per-activity "Ask" button above (Task 10); the
+                  registry allows one id to back multiple surfaces. */}
+              {isFocused && (
+                <Preview id="timeline-ghost">
+                  <GhostProposal proposal={PREVIEW_GHOST_PROPOSAL} onKeep={() => {}} onDiscard={() => {}} />
+                </Preview>
+              )}
             </div>
           </div>
         );

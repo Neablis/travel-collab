@@ -2,11 +2,20 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorHost } from "@/components/trip/context/EditorHost";
-import { FocusProvider } from "@/components/trip/context/FocusProvider";
+import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
 import { tripDetailFixture } from "@/mocks/fixtures";
 import { TimelineLens } from "./TimelineLens";
 
 afterEach(cleanup);
+
+// jsdom doesn't implement Element.scrollIntoView; TimelineLens's
+// focus-scroll effect (unchanged by Task 15) calls it whenever focusedDay
+// changes. No prior test ever actually changed focusedDay while mounted, so
+// this gap was latent — Task 15's focus-control tests are the first to
+// trigger it. Stub it locally rather than touching the shared
+// vitest.setup.ts for a jsdom limitation this file's tests are the first to
+// hit.
+Element.prototype.scrollIntoView ??= () => {};
 
 function detailFixture() {
   return tripDetailFixture({
@@ -31,6 +40,31 @@ function renderLens(detail = detailFixture(), onSelectActivity = vi.fn()) {
     <FocusProvider>
       <EditorHost>
         <TimelineLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>
+    </FocusProvider>,
+  );
+}
+
+// Task 15: focusedDay lives in FocusProvider, one level above TimelineLens,
+// with no control inside TimelineLens itself that sets it (DayChips owns
+// that in the real app) — this small harness exposes a button that calls
+// setFocusedDay directly, the same shape as FocusProvider.test.tsx's own
+// Probe, so the ghost-card-appears-when-focused behavior can be exercised
+// without pulling DayChips into this test.
+function renderLensWithFocusControl(detail = detailFixture()) {
+  function Harness() {
+    const { setFocusedDay } = useFocus();
+    return (
+      <>
+        <button onClick={() => setFocusedDay(0)}>focus day 0</button>
+        <TimelineLens detail={detail} />
+      </>
+    );
+  }
+  return render(
+    <FocusProvider>
+      <EditorHost>
+        <Harness />
       </EditorHost>
     </FocusProvider>,
   );
@@ -81,6 +115,22 @@ describe("TimelineLens", () => {
     const region = document.querySelector('[data-preview-id="timeline-ghost"]');
     expect(region).not.toBeNull();
     expect(within(region as HTMLElement).getByRole("button", { name: "Ask" })).not.toBeNull();
+  });
+
+  it("renders no ghost-proposal card when no day is focused (#15)", () => {
+    renderLensWithFocusControl();
+    expect(screen.queryByTestId("ghost-proposal-g1")).toBeNull();
+  });
+
+  it("renders the sample ghost-proposal card in the focused day, inside the timeline-ghost Preview region (#15)", async () => {
+    renderLensWithFocusControl();
+    await userEvent.click(screen.getByRole("button", { name: "focus day 0" }));
+    const card = screen.getByTestId("ghost-proposal-g1");
+    const region = card.closest('[data-preview-id="timeline-ghost"]');
+    expect(region).not.toBeNull();
+    expect(within(card).getByText("Add teamLab Planets")).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "Keep" })).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "Discard" })).not.toBeNull();
   });
 
   it("shows a real gap leg (not a fabricated travel time) between two timed activities, and a straight-line distance only when both have coordinates", () => {
