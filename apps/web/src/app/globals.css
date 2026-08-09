@@ -92,4 +92,18 @@
       grid-template-columns: 1.15fr 1fr;
     }
   }
+
+  /* AssistantRail (Task 14, M9 preview shell): handoff README "Assistant
+     rail" — below 1180px the rail becomes a fixed overlay with a scrim
+     behind it; at/above 1180px it reads as a persistent side rail with no
+     scrim. That's a breakpoint decision, which only a real CSS rule (not an
+     inline style) can express. */
+  .assistant-rail-scrim {
+    display: none;
+  }
+  @media (max-width: 1179px) {
+    .assistant-rail-scrim {
+      display: block;
+    }
+  }
 }

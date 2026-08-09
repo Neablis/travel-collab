@@ -14,9 +14,12 @@ import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
 import { TabStrip } from "@/components/ui/tab-strip";
 import { PageContainer } from "@/components/ui/page-container";
+import { Preview } from "@/components/ui/preview";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { ComposePanel } from "@/components/pages/ai/ComposePanel";
+import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { PREVIEW_CONTEXT_LINE, PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 
@@ -75,9 +78,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // horizontal padding without doubling up. Chrome that's shared across all
   // lenses (the tab strip, the error banner) gets its padding from this
   // PageContainer width="full" wrapper instead.
-  // Board is capped to content width (#31) now that its columns wrap instead
-  // of scrolling horizontally — only Map remains full-bleed.
+  // Board is capped to content width (#31) — its columns scroll horizontally
+  // (Task 11) rather than wrapping, so only Map remains full-bleed.
   const isFullLens = lens === "Map";
+
+  // Task 14 (M9 Preview shell): the assistant's real-shaped context line —
+  // "Looking at Day N" once a day is focused (Task 4's FocusProvider,
+  // already read above for the day chips), else a sensible trip-wide
+  // default. Presentational only; nothing downstream reacts to it yet.
+  const assistantContextLine = focusedDay !== null ? `Looking at Day ${focusedDay + 1}` : PREVIEW_CONTEXT_LINE;
 
   return (
     <>
@@ -148,6 +157,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           </PageContainer>
         )}
       </div>
+      {/* Task 14 (M9 Preview shell): the assistant rail — sample suggestions
+          + quick-asks + no-op handlers per the plan's real prop contract.
+          Mounted once here (like ActivityEditorSheet below) so it's present
+          regardless of which lens is active; it's fixed-position internally,
+          so it doesn't affect any lens's own layout. Wrapped in <Preview>
+          (Task 3's seam), which shields pointer events and stamps the
+          "Preview · M9" chip — none of these handlers fire yet. */}
+      <Preview id="assistant-rail">
+        <AssistantRail
+          contextLine={assistantContextLine}
+          suggestions={PREVIEW_SUGGESTIONS}
+          quickAsks={PREVIEW_QUICK_ASKS}
+          onAsk={() => {}}
+          onKeepGhost={() => {}}
+          onDismiss={() => {}}
+          onHide={() => {}}
+        />
+      </Preview>
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
