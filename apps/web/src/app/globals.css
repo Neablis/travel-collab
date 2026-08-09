@@ -106,4 +106,16 @@
       display: block;
     }
   }
+
+  /* Task 14 fix: <Preview id="assistant-rail">'s own wrapper div must match
+     AssistantRail's own <aside> box (fixed inset-y-0 right-0, 356px wide) so
+     Preview's absolutely-positioned "Preview · M9" badge has a real,
+     correctly-positioned containing block instead of collapsing to
+     zero-height wherever TripBoardScreen's normal flow places it — the
+     rail's own contents are `position: fixed` and contribute nothing to
+     flow. Mirrors AssistantRail.tsx's own 356px `<aside>` width; see the
+     handoff README width note there. */
+  .assistant-rail-panel {
+    width: 356px;
+  }
 }

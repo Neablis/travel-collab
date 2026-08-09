@@ -163,8 +163,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           regardless of which lens is active; it's fixed-position internally,
           so it doesn't affect any lens's own layout. Wrapped in <Preview>
           (Task 3's seam), which shields pointer events and stamps the
-          "Preview · M9" chip — none of these handlers fire yet. */}
-      <Preview id="assistant-rail">
+          "Preview · M9" chip — none of these handlers fire yet.
+          Fix (Task 14 review): AssistantRail's own contents are
+          `position: fixed` (a viewport-relative scrim + the `<aside>` rail
+          itself), so they contribute zero height to normal flow and
+          Preview's `relative` wrapper — the containing block for its
+          absolute "Preview · M9" badge — collapses to a zero-size box
+          wherever this <Preview> falls in TripBoardScreen's flow, instead
+          of sitting at the rail's actual on-screen position. Giving
+          Preview's own wrapper the same fixed inset-y-0 right-0 + 356px box
+          as AssistantRail's <aside> (via .assistant-rail-panel, globals.css)
+          gives it real, correctly-positioned dimensions, so the badge
+          anchors to the visible rail's corner. This does not double-clip
+          the scrim: `position: fixed` is viewport-relative regardless of an
+          ancestor's own position, unless that ancestor sets
+          transform/filter/perspective/will-change, which none here do. */}
+      <Preview id="assistant-rail" className="assistant-rail-panel fixed inset-y-0 right-0 z-50">
         <AssistantRail
           contextLine={assistantContextLine}
           suggestions={PREVIEW_SUGGESTIONS}
