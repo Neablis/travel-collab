@@ -164,13 +164,23 @@ export default function Home() {
           New trip
         </Button>
       </div>
-      {error && (
+      {/* Only rendered while the dialog is closed — while it's open, the
+          same `error` state renders inside the Dialog below instead, so a
+          failed createTrip (which keeps the dialog open) doesn't leave its
+          message stranded behind the Dialog's overlay (Radix Portal renders
+          after <main> in DOM order, so a sibling here would paint under it). */}
+      {error && !newTripOpen && (
         <Text role="alert" variant="secondary" className="mt-2 text-danger-ink">
           {error}
         </Text>
       )}
       <Dialog open={newTripOpen} onOpenChange={setNewTripOpen} title="New trip">
         <form onSubmit={createTrip} className="flex flex-col gap-3">
+          {error && (
+            <Text role="alert" variant="secondary" className="text-danger-ink">
+              {error}
+            </Text>
+          )}
           <FormField id="trip-name" label="Trip name">
             <Input
               id="trip-name"
