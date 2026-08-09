@@ -1,18 +1,54 @@
 "use client";
 
-import type { TripDetail } from "@tc/contracts";
-import { Heading } from "../ui/heading";
-import { Text } from "../ui/text";
-import { DataText } from "../ui/data-text";
-import { EmptyState } from "../ui/empty-state";
-import { Button } from "../ui/button";
-import { useEditor } from "../trip/context/EditorHost";
+import { useEffect, useMemo, useRef } from "react";
+import { AlertTriangle } from "lucide-react";
+import type { ActivityView, Location, TripDetail, TripMember } from "@tc/contracts";
+import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
+import { DataText } from "@/components/ui/data-text";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Preview } from "@/components/ui/preview";
+import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
+import { chipModel } from "@/components/trip/DayChips";
+import { useEditor } from "@/components/trip/context/EditorHost";
+import { useFocus } from "@/components/trip/context/FocusProvider";
+import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { initialsFor } from "@/lib/initials";
+import { formatTripDate } from "@/lib/formatDate";
+import { cn } from "@/lib/cn";
 import { timelineRows, type TimelineRow } from "./timelineData";
 
-const DAY_START_MIN = 6 * 60; // 06:00
-const DAY_END_MIN = 22 * 60; // 22:00
-const DAY_SPAN_MIN = DAY_END_MIN - DAY_START_MIN;
-const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
+// Tailwind (v4, `@theme`-driven) only emits utilities it can see as literal
+// text — a template-interpolated `bg-${family}-tint` never appears as a whole
+// string anywhere and would silently fail to generate. Same static-map
+// pattern as DayChips.tsx's CHIP_BG/DOT_BG and NextTripHero's
+// STAT_TILE_TONE_CLASSES.
+const TINT_BG: Record<AccentFamily, string> = {
+  brand: "bg-brand-tint",
+  info: "bg-info-tint",
+  success: "bg-success-tint",
+  warning: "bg-warning-tint",
+  danger: "bg-danger-tint",
+};
+const SOLID_BG: Record<AccentFamily, string> = {
+  brand: "bg-brand",
+  info: "bg-info",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+};
+// "danger"/"warning"/"success"/"info" carry a `-ink` token; "brand" doesn't
+// (its darkest tone is `-pressed`) — mirrors KeepDayFlag.tsx's INK_TEXT.
+const INK_TEXT: Record<AccentFamily, string> = {
+  brand: "text-brand-pressed",
+  info: "text-info-ink",
+  success: "text-success-ink",
+  warning: "text-warning-ink",
+  danger: "text-danger-ink",
+};
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -20,7 +56,7 @@ function toMinutes(time: string): number {
 }
 
 function toTimeString(minutes: number): string {
-  const clamped = Math.min(DAY_END_MIN, Math.max(DAY_START_MIN, minutes));
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
   const h = Math.floor(clamped / 60)
     .toString()
     .padStart(2, "0");
@@ -28,24 +64,206 @@ function toTimeString(minutes: number): string {
   return `${h}:${m}`;
 }
 
-function clampPercent(minutes: number): number {
-  const pct = ((minutes - DAY_START_MIN) / DAY_SPAN_MIN) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
+const DAY_START_MIN = 6 * 60; // 06:00 — only used as the fallback default for a day with no timed activities yet, no longer drawn as a visible axis
+const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
 
-const AXIS_TICKS = [6, 9, 12, 15, 18, 21].map((h) => ({
-  minute: h * 60,
-  label: h === 12 ? "12p" : h < 12 ? `${h}a` : `${h - 12}p`,
-}));
-
-// The day-foot "+" trigger's timeWindow: start right after the day's last
-// timed activity ends (so a new activity slots in chronologically without
-// the user having to retype a time), or the start of the visible day window
-// if there are no timed activities yet.
+// The day-foot "+ Add stop" trigger's timeWindow: start right after the
+// day's last timed activity ends (so a new activity slots in chronologically
+// without the user having to retype a time), or DAY_START_MIN if there are
+// no timed activities yet. Unchanged from the pre-restyle implementation.
 function nextSlot(row: TimelineRow): { start: string; end: string } {
   const lastEnd = row.timed.reduce((max, item) => Math.max(max, toMinutes(item.end)), DAY_START_MIN);
   const start = row.timed.length > 0 ? lastEnd : DAY_START_MIN;
   return { start: toTimeString(start), end: toTimeString(start + DEFAULT_SLOT_MIN) };
+}
+
+// Real, honest sum of each timed activity's own duration (end − start) —
+// NOT the elapsed span from first start to last end, which would count idle
+// gaps as "out" time. This is the stop-meter's mono "Xh Ym out" figure.
+function totalScheduledMinutes(row: TimelineRow): number {
+  return row.timed.reduce((sum, item) => sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)), 0);
+}
+
+function formatDuration(minutes: number, suffix: string): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m ${suffix}`;
+  if (m === 0) return `${h}h ${suffix}`;
+  return `${h}h ${m}m ${suffix}`;
+}
+
+// A day's route line (day-header row 2): the distinct real place names
+// (ActivityView.location.name) visited that day, in chronological order,
+// consecutive duplicates collapsed, capped with a "+N more" tail — the same
+// "no field for this, so the closest honest proxy is location.name"
+// stance DayChips.tsx's cityFor documents, just applied to every stop in the
+// day instead of only the first. The handoff's row-2 example also appends a
+// distance ("· 5.4 km on foot") — there is no honest way to fill that for an
+// entire day (would require every consecutive pair to carry real
+// coordinates), so per the task brief it is simply omitted rather than
+// fabricated; individual legs (below) show a real distance when they can.
+const ROUTE_MAX_STOPS = 3;
+function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): string | null {
+  const names: string[] = [];
+  for (const item of [...row.timed, ...row.untimed]) {
+    const name = activities[item.activityId]?.location?.name;
+    if (name && names[names.length - 1] !== name) names.push(name);
+  }
+  if (names.length === 0) return null;
+  const shown = names.slice(0, ROUTE_MAX_STOPS);
+  const extra = names.length - shown.length;
+  return extra > 0 ? `${shown.join(" → ")} → +${extra} more` : shown.join(" → ");
+}
+
+// Local copy of straight-line (great-circle) distance. Deliberately NOT
+// imported from packages/domain (packages/domain/src/trip/conflicts.ts's
+// haversineKm) — the UI layer must never import @tc/domain (AGENTS.md
+// architecture boundary, CI-enforced). A ~10-line haversine is generic
+// public math, not domain logic, so a second small copy here is the
+// sanctioned way to derive an honest straight-line distance for a leg
+// without crossing that boundary.
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// A gap "counts" as a leg only when it's positive — back-to-back or
+// overlapping activities (a real conflict scenario, flagged separately by
+// the Badge below) have no honest elapsed gap to report.
+const GAP_WARNING_THRESHOLD_MIN = 30;
+
+function locationCoords(location: Location | null | undefined): { lat: number; lng: number } | null {
+  return location?.lat !== undefined && location?.lng !== undefined ? { lat: location.lat, lng: location.lng } : null;
+}
+
+// Handoff README §2 "Legs": indented dotted left border, mono travel time,
+// optional warning-tint gap pill. There is no real travel-time/distance data
+// source reachable from the UI (see haversineKm's comment above) — so the
+// mono text is the real elapsed gap between one activity's end and the
+// next's start (both real TimeWindow strings already on hand), and the
+// pill fires only past GAP_WARNING_THRESHOLD_MIN. A real straight-line
+// distance is appended, honestly labeled "direct" (never "travel time" or
+// "walking time", which would imply a transport mode and speed this app has
+// no basis for), only when BOTH endpoints carry real lat/lng — otherwise the
+// distance is omitted rather than guessed.
+function Leg({ prevEnd, nextStart, prevLocation, nextLocation }: {
+  prevEnd: string;
+  nextStart: string;
+  prevLocation: Location | null | undefined;
+  nextLocation: Location | null | undefined;
+}) {
+  const gap = toMinutes(nextStart) - toMinutes(prevEnd);
+  if (gap <= 0) return null;
+
+  const from = locationCoords(prevLocation);
+  const to = locationCoords(nextLocation);
+  const distanceKm = from && to ? haversineKm(from, to) : null;
+
+  return (
+    <div className="grid grid-cols-[92px_1fr] gap-4">
+      <div />
+      <div
+        data-testid="timeline-leg"
+        className="ml-px flex flex-wrap items-center gap-2 border-l-2 border-dotted border-border-strong py-1.5 pl-3.5"
+      >
+        <DataText size="xs" className="text-slate">
+          {formatDuration(gap, "gap")}
+          {distanceKm !== null && ` · ~${distanceKm.toFixed(1)} km direct`}
+        </DataText>
+        {gap > GAP_WARNING_THRESHOLD_MIN && (
+          <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning-ink">Long gap</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Handoff README §2 "Activity rows": 92px right-aligned time column, a Card
+// with a 4px full-height accent rail, title, optional conflict Badge, place
+// line, optional note block, and a right column with an attributee avatar +
+// ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
+function ActivityRow({ start, end, activity, accent, hasConflict, member, onSelectActivity }: {
+  start: string | null;
+  end: string | null;
+  activity: ActivityView;
+  accent: AccentFamily;
+  hasConflict: boolean;
+  member: TripMember | undefined;
+  onSelectActivity?: (activityId: string) => void;
+}) {
+  return (
+    <div data-testid={`timeline-item-${activity.activityId}`} className="grid grid-cols-[92px_1fr] items-start gap-4">
+      <div className="pt-3 text-right">
+        {start && (
+          <DataText size="sm" className="block text-ink">
+            {start}
+          </DataText>
+        )}
+        {end && <DataText size="xs" className="block">{end}</DataText>}
+      </div>
+      <Card className="flex items-stretch gap-3 rounded-lg p-4">
+        <div aria-hidden className={cn("w-1 shrink-0 self-stretch rounded-full", SOLID_BG[accent])} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-[15px] font-semibold text-ink">{activity.title}</span>
+            {hasConflict && (
+              <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
+                <AlertTriangle className="size-3" aria-hidden />
+              </Badge>
+            )}
+          </div>
+          {/* ActivityView has no separate "area" field (packages/contracts
+              src/activity.ts) — this is just the place name (location.name),
+              the same single-string proxy DayChips.tsx's cityFor documents. */}
+          {activity.location && (
+            <Text as="span" variant="secondary" className="mt-1 block">
+              {activity.location.name}
+            </Text>
+          )}
+          {activity.notes && (
+            <div className="mt-1.5 rounded-sm bg-paper px-2 py-1.5 text-sm text-slate">{activity.notes}</div>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {/* TripMember (packages/contracts src/trip.ts) carries only a
+              userId, no display name and no per-activity "who's this for"
+              field — the trip's first member is a generic, reasonable stand-in
+              for "attributee avatar" rather than fabricated assignment data. */}
+          {member && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate">{member.userId}</span>
+              <span
+                aria-hidden
+                className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-moss text-[10px] font-semibold text-slate"
+              >
+                {initialsFor(member.userId)}
+              </span>
+            </div>
+          )}
+          <div className="flex gap-0.5">
+            <Preview id="timeline-ghost">
+              <Button variant="ghost" size="sm">
+                Ask
+              </Button>
+            </Preview>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`timeline-edit-${activity.activityId}`}
+              onClick={() => onSelectActivity?.(activity.activityId)}
+            >
+              Edit
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 export function TimelineLens({
@@ -56,130 +274,162 @@ export function TimelineLens({
   onSelectActivity?: (activityId: string) => void;
 }) {
   const rows = timelineRows(detail);
+  // Same per-day city derivation Task 8's DayChips established (first
+  // scheduled activity's location.name) — reused via chipModel rather than
+  // re-deriving it, so the day header's accent/pill and the day-chips row
+  // above always agree on the same day's color and city.
+  const days = useMemo(() => chipModel(detail), [detail]);
   const { openCreate } = useEditor();
+  const { focusedDay } = useFocus();
+  const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  // Mirrors Board.tsx's conflictIds Set: every activityId named as a subject
+  // of any live conflict, badge-worthy regardless of dismissal (same as the
+  // Board lens today).
+  const conflictActivityIds = useMemo(() => new Set(detail.conflicts.flatMap((c) => c.subjects)), [detail.conflicts]);
+
+  useEffect(() => {
+    if (focusedDay === null) return;
+    headerRefs.current[focusedDay]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedDay]);
 
   if (rows.length === 0) {
     return <EmptyState title="No days yet." />;
   }
 
   return (
-    <div data-testid="timeline-lens" className="flex flex-col gap-4">
-      {rows.map((row) => (
-        <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="rounded-md border border-hairline p-2">
-          <Heading level={3} className="mb-1.5">
-            Day {row.ordinal}
-            {row.date && (
-              <>
-                {" · "}
-                <DataText as="span" size="base" className="font-normal">
-                  {row.date}
-                </DataText>
-              </>
-            )}
-          </Heading>
+    <div data-testid="timeline-lens" className="mx-auto flex max-w-[920px] flex-col gap-5">
+      {rows.map((row, index) => {
+        const chip = days[index];
+        const accent = dayAccentFor(chip?.city ?? null);
+        const isFocused = focusedDay === index;
+        const stopCount = row.timed.length + row.untimed.length;
+        const outMinutes = totalScheduledMinutes(row);
+        const route = routeSummary(row, detail.activities);
+        // chip.transitionTo only fires when this day's derived city differs
+        // from the PREVIOUS day's — the previous day's own city is the
+        // honest "from" half of the travel pill (chipModel doesn't carry it
+        // directly, but it's just the prior index's chip).
+        const fromCity = index > 0 ? (days[index - 1]?.city ?? null) : null;
+        const isTravelDay = chip?.transitionTo !== null && chip?.transitionTo !== undefined;
 
-          <div className="relative mb-0.5 h-3.5">
-            {AXIS_TICKS.map((tick) => (
-              <DataText
-                key={tick.minute}
-                as="span"
-                size="xs"
-                className="absolute top-0"
-                // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
-                style={{ left: `${clampPercent(tick.minute)}%` }}
-              >
-                {tick.label}
-              </DataText>
-            ))}
-          </div>
-
-          <div
-            className="relative rounded-sm border border-hairline bg-moss"
-            // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
-            style={{ height: 40, marginBottom: row.untimed.length > 0 ? 8 : 0 }}
-          >
-            {AXIS_TICKS.map((tick) => (
-              <div
-                key={tick.minute}
-                className="absolute inset-y-0 border-l border-hairline"
-                // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
-                style={{ left: `${clampPercent(tick.minute)}%` }}
-              />
-            ))}
-            {row.timed.map((item) => {
-              const left = clampPercent(toMinutes(item.start));
-              const right = clampPercent(toMinutes(item.end));
-              const width = Math.max(right - left, 1);
-              const geometry = {
-                left: `${left}%`,
-                width: `${width}%`,
-                top: 4,
-                bottom: 4,
-              };
-              const blockClassName =
-                "absolute overflow-hidden text-ellipsis whitespace-nowrap rounded-sm border border-brand bg-brand-tint px-1.5 py-0.5 text-xs text-brand-pressed";
-              return onSelectActivity ? (
-                <Button
-                  key={item.activityId}
-                  variant="ghost"
-                  data-testid={`timeline-item-${item.activityId}`}
-                  title={`${item.title} (${item.start}–${item.end})`}
-                  onClick={() => onSelectActivity(item.activityId)}
-                  className={`${blockClassName} h-auto justify-start border-brand text-left hover:bg-brand-tint`}
-                  // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
-                  style={geometry}
-                >
-                  {item.title}
-                </Button>
-              ) : (
-                <div
-                  key={item.activityId}
-                  data-testid={`timeline-item-${item.activityId}`}
-                  title={`${item.title} (${item.start}–${item.end})`}
-                  className={blockClassName}
-                  // eslint-disable-next-line no-restricted-syntax -- computed geometry (position math), not tokenable
-                  style={geometry}
-                >
-                  {item.title}
-                </div>
-              );
-            })}
-          </div>
-
-          {row.untimed.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5">
-              {row.untimed.map((item) =>
-                onSelectActivity ? (
-                  <li key={item.activityId} data-testid={`timeline-untimed-${item.activityId}`}>
-                    <Button
-                      variant="ghost"
-                      onClick={() => onSelectActivity(item.activityId)}
-                      className="h-auto rounded-sm bg-moss px-2 py-0.5 text-xs font-normal text-ink hover:bg-moss"
-                    >
-                      {item.title}
-                    </Button>
-                  </li>
-                ) : (
-                  <li key={item.activityId} data-testid={`timeline-untimed-${item.activityId}`} className="rounded-sm bg-moss px-2 py-0.5 text-xs text-ink">
-                    <Text as="span" variant="muted">
-                      {item.title}
-                    </Text>
-                  </li>
-                ),
+        return (
+          <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="flex flex-col">
+            <div
+              ref={(el) => {
+                headerRefs.current[index] = el;
+              }}
+              data-testid={`timeline-dayhead-${row.dayId}`}
+              className={cn(
+                "flex flex-col gap-2 rounded-xl p-3",
+                TINT_BG[accent.tint],
+                isFocused && "outline outline-2 outline-offset-2 outline-brand",
               )}
-            </ul>
-          )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Heading level={3} className={cn("shrink-0", INK_TEXT[accent.ink])}>
+                  Day {row.ordinal}
+                </Heading>
+                {row.date && (
+                  <DataText size="sm" className={cn("shrink-0", INK_TEXT[accent.ink])}>
+                    {formatTripDate(row.date)}
+                  </DataText>
+                )}
+                {isTravelDay ? (
+                  <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink">
+                    {fromCity ?? "?"} <span className="text-slate">→</span> {chip?.transitionTo}
+                  </span>
+                ) : (
+                  chip?.city && (
+                    <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink">
+                      {chip.city}
+                    </span>
+                  )
+                )}
+                <div className="flex-1" />
+                <span className="flex shrink-0 items-center gap-2 rounded-full bg-surface px-2.5 py-1">
+                  <span className="flex items-center gap-0.5" aria-hidden>
+                    {Array.from({ length: stopCount }, (_, dotIndex) => (
+                      <span key={dotIndex} className={cn("h-1.5 w-1.5 rounded-full", SOLID_BG[accent.solid])} />
+                    ))}
+                  </span>
+                  <DataText size="xs" className="text-ink">
+                    {formatDuration(outMinutes, "out")}
+                  </DataText>
+                </span>
+                <Preview id="keep-day-flag">
+                  <KeepDayFlag dayIndex={index} accent={accent.ink} />
+                </Preview>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid={`timeline-add-${row.dayId}`}
+                  onClick={() => openCreate({ dayId: row.dayId, timeWindow: nextSlot(row) })}
+                >
+                  Add stop
+                </Button>
+              </div>
+              <div className={cn("flex flex-wrap items-baseline gap-1.5 font-mono text-xs", INK_TEXT[accent.ink])}>
+                <span>
+                  {stopCount} stop{stopCount === 1 ? "" : "s"}
+                </span>
+                {route && (
+                  <>
+                    <span>·</span>
+                    <span>{route}</span>
+                  </>
+                )}
+              </div>
+            </div>
 
-          <Button
-            variant="ghost"
-            data-testid={`timeline-add-${row.dayId}`}
-            onClick={() => openCreate({ dayId: row.dayId, timeWindow: nextSlot(row) })}
-            className="mt-1.5 h-auto rounded-sm px-2 py-0.5 text-xs font-normal text-slate hover:bg-moss hover:text-ink"
-          >
-            + Add activity
-          </Button>
-        </div>
-      ))}
+            <div className="flex flex-col gap-3 pt-4">
+              {row.timed.map((item, itemIndex) => {
+                const activity = detail.activities[item.activityId];
+                if (!activity) return null;
+                const prev = row.timed[itemIndex - 1];
+                const prevActivity = prev ? detail.activities[prev.activityId] : undefined;
+                return (
+                  <div key={item.activityId} className="flex flex-col gap-3">
+                    {prev && (
+                      <Leg
+                        prevEnd={prev.end}
+                        nextStart={item.start}
+                        prevLocation={prevActivity?.location}
+                        nextLocation={activity.location}
+                      />
+                    )}
+                    <ActivityRow
+                      start={item.start}
+                      end={item.end}
+                      activity={activity}
+                      accent={accent.solid}
+                      hasConflict={conflictActivityIds.has(item.activityId)}
+                      member={detail.members[0]}
+                      onSelectActivity={onSelectActivity}
+                    />
+                  </div>
+                );
+              })}
+              {row.untimed.map((item) => {
+                const activity = detail.activities[item.activityId];
+                if (!activity) return null;
+                return (
+                  <ActivityRow
+                    key={item.activityId}
+                    start={null}
+                    end={null}
+                    activity={activity}
+                    accent={accent.solid}
+                    hasConflict={conflictActivityIds.has(item.activityId)}
+                    member={detail.members[0]}
+                    onSelectActivity={onSelectActivity}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

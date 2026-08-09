@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 
 import { LensRouter } from "../trip/context/LensRouter";
 import { EditorHost } from "../trip/context/EditorHost";
+import { FocusProvider } from "../trip/context/FocusProvider";
 import { ScheduleLens } from "./ScheduleLens";
 import { tripDetailFixture } from "../../mocks/fixtures";
 
@@ -27,11 +28,13 @@ describe("ScheduleLens Timeline/Calendar switch (#27)", () => {
   it("renders the subtle-variant switch (no nested moss tab strip) and still toggles views", async () => {
     const detail = tripDetailFixture();
     render(
-      <EditorHost>
-        <LensRouter>
-          <ScheduleLens detail={detail} />
-        </LensRouter>
-      </EditorHost>,
+      <FocusProvider>
+        <EditorHost>
+          <LensRouter>
+            <ScheduleLens detail={detail} />
+          </LensRouter>
+        </EditorHost>
+      </FocusProvider>,
     );
 
     const group = screen.getByRole("radiogroup", { name: "Schedule view" });
