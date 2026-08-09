@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 
 export type TripCardProps = {
@@ -80,6 +81,24 @@ export function TripCard({ trip, menuSlot }: TripCardProps) {
       </div>
 
       <div className="mt-auto flex items-center justify-between pt-1">
+        <div
+          className="flex flex-wrap items-center"
+          role="group"
+          aria-label={`${trip.members.length} traveler${trip.members.length === 1 ? "" : "s"}`}
+        >
+          {trip.members.map((member, i) => (
+            <div
+              key={member.userId}
+              aria-hidden
+              className={cn(
+                "grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint text-[9px] font-semibold text-brand-pressed",
+                i > 0 && "-ml-2",
+              )}
+            >
+              {initialsFor(member.userId)}
+            </div>
+          ))}
+        </div>
         <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
       </div>
     </Card>

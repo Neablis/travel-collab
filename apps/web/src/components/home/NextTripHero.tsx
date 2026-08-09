@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
+import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
@@ -35,16 +36,6 @@ function StatTile({ tone, value, label }: { tone: StatTileTone; value: string; l
       <div className="mt-1 text-xs">{label}</div>
     </div>
   );
-}
-
-// Two initials from a member's userId, e.g. "dev-alice" -> "DA". TripMember
-// (packages/contracts/src/trip.ts) only carries a userId, no display name —
-// this is a cosmetic stand-in for a real avatar/initial, not sourced from any
-// name field that doesn't exist on the DTO.
-function initialsFor(userId: string): string {
-  const parts = userId.split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  const chars = parts.length >= 2 ? [parts[0]![0], parts[1]![0]] : [...userId.replace(/[^a-zA-Z0-9]/g, "")].slice(0, 2);
-  return chars.join("").toUpperCase() || "?";
 }
 
 // Sparkline (Task 5) needs a per-day stop count, but TripSummary (what the

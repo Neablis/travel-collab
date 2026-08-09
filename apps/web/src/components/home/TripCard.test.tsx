@@ -18,6 +18,17 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   };
 }
 
+// Two members instead of the single-member default fixture, so the "one
+// avatar per member" assertion below is actually meaningful (not vacuously
+// true for a length-1 array).
+const twoMemberTrip = () =>
+  tripSummaryFixture({
+    members: [
+      { userId: "dev-alice", role: "owner" },
+      { userId: "dev-bob", role: "owner" },
+    ],
+  });
+
 describe("TripCard", () => {
   it("renders the trip name as a display heading, a state badge, an accent bar, and the actions menu with Duplicate/Delete", () => {
     const trip = tripSummaryFixture();
@@ -56,5 +67,16 @@ describe("TripCard", () => {
 
     render(<TripCard trip={trip} />);
     expect(screen.getByTestId("accent-bar").className).toBe(firstClass);
+  });
+
+  it("renders a footer avatar stack with one avatar per member, alongside the state badge", () => {
+    const trip = twoMemberTrip();
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: /2 travelers/i });
+    expect(group.children.length).toBe(trip.members.length);
+
+    // Still shows the state badge next to the avatars, not in place of it.
+    expect(screen.getByText(/active/i)).toBeTruthy();
   });
 });
