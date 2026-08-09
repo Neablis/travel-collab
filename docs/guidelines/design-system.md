@@ -45,8 +45,9 @@ optically larger).
   (`p-[13px]`) are banned by lint — if a spacing need doesn't fit the grid, the
   design is wrong, not the grid.
 - **Radii:** `rounded-sm` 6px (badges, inputs, small controls) · `rounded-md`
-  8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels). Pill radius
-  (`rounded-full`) only on status `Badge`.
+  8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels) · `rounded-xl`
+  14px (day headers, stat tiles) · `rounded-2xl` 16px (day columns) · `rounded-full`
+  999px (pills, avatars).
 - **Shadows:** two levels only. `shadow-raised` (`0 1px 2px rgb(21 29 46 /
   0.06)`) for cards that must lift off a tinted background; `shadow-overlay`
   (`0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08)`) for
