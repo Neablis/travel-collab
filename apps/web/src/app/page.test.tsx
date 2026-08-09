@@ -124,7 +124,11 @@ describe("Home trip actions", () => {
     await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
 
     await screen.findByRole("alert");
-    expect(screen.getByText("Japan")).toBeTruthy();
+    // Two "Japan"s now render: the next-trip hero heading and the trip-list
+    // row link — assert the row link specifically survived the failed
+    // delete (the hero also renders "Japan" as its `Heading level={2}`,
+    // making a bare `getByText("Japan")` ambiguous).
+    expect(screen.getByRole("link", { name: "Japan" })).toBeTruthy();
   });
 
   it("duplicates a trip and navigates to the copy", async () => {

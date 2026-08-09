@@ -17,6 +17,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { Popover } from "../components/ui/popover";
 import { Dialog, DialogFooter } from "../components/ui/dialog";
 import { Toast } from "../components/ui/toast";
+import { NextTripHero } from "../components/home/NextTripHero";
 import { duplicateTrip, sendTripCommand } from "../lib/apiClient";
 
 export default function Home() {
@@ -126,6 +127,12 @@ export default function Home() {
   }
 
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
+  // "Next trip" (README §1 next-trip hero): TripSummary carries no start
+  // date (packages/contracts/src/trip.ts), so there's no real "first
+  // upcoming by start date" to compute — per the M10 plan, this uses the
+  // first trip in the list instead of adding a server-side date field
+  // (presentational-only rule). Revisit once TripSummary gains a start date.
+  const nextTrip = visibleTrips[0] ?? null;
 
   if (unauthenticated) {
     return (
@@ -164,6 +171,12 @@ export default function Home() {
           {error}
         </Text>
       )}
+      {nextTrip && (
+        <div className="mt-6">
+          <NextTripHero trip={nextTrip} />
+        </div>
+      )}
+
       {trips !== null && visibleTrips.length === 0 ? (
         <EmptyState title="Start your first trip" body="No trips yet — create one." />
       ) : (
