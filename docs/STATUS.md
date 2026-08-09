@@ -5,28 +5,42 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-08 (M8 gate closed)**
+**Last updated: 2026-08-08 (M10 kicked off, brought forward ahead of M9)**
 
 ## Where we are
 
 **M0–M8 are all complete and merged.** M8 ("Make it real") closed its gate
-2026-08-08 — see `docs/milestones/M8-make-it-real.md`'s retro. `docs/milestones/
-README.md`'s Current milestone pointer is now **M9**.
+2026-08-08 — see `docs/milestones/M8-make-it-real.md`'s retro.
 
-**Phase 1's gate has NOT been met yet.** Every milestone through M8 is ticked,
-but the gate is "Mitchell plans a real trip end-to-end and needs no other
-tool," and that dogfood run hasn't happened since M8 closed the floor it was
-blocked on (a trip couldn't be renamed or deleted before M8). **The next
-roadmap item is the Phase 1 gate review with Mitchell — not diving into M9.**
-`TODO.md` carries this as its own unchecked line between M8 and Phase 2.
+**The Phase 1 gate review with Mitchell is done (2026-08-08).** M8 closed the
+floor it was blocked on (a trip couldn't be renamed or deleted before M8), and
+the dogfood run ("Mitchell plans a real trip end-to-end and needs no other
+tool") passed the same day.
+
+**Current milestone is M10, not M9** — see
+`docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md`.
+An external design team delivered a high-fidelity redesign of the whole
+product, including specs for M9's (Assistant/proposals) and M11's (Playbooks)
+not-yet-built surfaces, which removed the design-uncertainty reason M10 had
+originally been ordered *after* M9. New order:
+`M8 ✓ → [Phase 1 gate review ✓] → M10 (now) → M9 → M11 → …`. `docs/milestones/
+README.md`'s Current milestone pointer is now **M10**; `docs/milestones/
+M10-visual-craft.md` carries the rewritten scope/exit-gate. M10 is executing
+via `docs/plans/2026-08-08-M10-redesign-incorporation.md` (UI-only visual pass:
+real restyle of Home/Trip-plan + inert `<Preview>` shells for M9/M11).
 
 ## In flight
 
-**Nothing in flight.** M8 is fully closed: Wave A (trip lifecycle, PR #21,
-merged 2026-08-07), Wave B (anchors-UI retirement, `ConflictContext.timezone`
-removal, Notebook macro-authoring pullback — merged 2026-08-07, commit
-`bc2295e`), and Wave C/D's kept tasks — **C4** (the KI-5 sync indicator,
-`SyncIndicator.tsx` in `TripHeader`) and **D3** (the M8 e2e gate script,
+**M10 — Visual craft pass, in progress** (started 2026-08-08). Executing
+`docs/plans/2026-08-08-M10-redesign-incorporation.md` task-by-task via
+subagent-driven development. See that plan file (until its gate-close removes
+it) or this file's next update for per-task progress.
+
+M8 is fully closed: Wave A (trip lifecycle, PR #21, merged 2026-08-07), Wave B
+(anchors-UI retirement, `ConflictContext.timezone` removal, Notebook
+macro-authoring pullback — merged 2026-08-07, commit `bc2295e`), and Wave C/D's
+kept tasks — **C4** (the KI-5 sync indicator, `SyncIndicator.tsx` in
+`TripHeader`) and **D3** (the M8 e2e gate script,
 `apps/web/e2e/m8-make-it-real.spec.ts`) — are all done and merged to this
 branch. C1–C3 (quick-add, search-to-add, move-via-menu) and D1–D2 (first-run
 state, empty states) remain **deferred** per the 2026-08-07 scope trim; do
@@ -98,11 +112,11 @@ which existed only on a branch.
 
 ## Next action
 
-**The Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end
-using only the product (no other tool). This is what M8 existed to unblock: a
-trip couldn't be renamed or deleted before M8, so the 2026-07-28 review ran
-without dogfood data. That floor is now closed, and every milestone through
-M8 is done — this review is the actual next `TODO.md` line, not M9 work.
+**Execute M10's plan task-by-task** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`),
+then close its gate per the rewritten `docs/milestones/M10-visual-craft.md`
+exit gate (before/after screenshots, KI-2/3/4 closed or re-deferred,
+presentational-only diff verified, all tests incl. e2e green, retro appended).
+M9 resumes once M10's gate closes.
 
 Background on why M8 existed: **M8 — Make it real**
 (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate review ran on

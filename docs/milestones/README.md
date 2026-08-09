@@ -48,8 +48,8 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
+| M10 | Visual craft pass | **Executes before M9 — see the 2026-08-08 reorder note below.** The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against an external design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
 | M9 | AI as a planning partner | Thread contract, streaming, propose→review→approve before commit, a refine turn, and the observability that does not exist today (persisted `meta`, replay harness, fixed eval set). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here** |
-| M10 | Visual craft pass | The "make it beautiful" pass, design-sync driven, once the surface inventory is stable. Deliberately after M9, which adds a whole new interaction surface |
 
 ## Phase 3 — Outward
 
@@ -80,6 +80,15 @@ for collaboration later landing on a product people already want to join.
   and closed per-milestone design specs were deliberately NOT rewritten** — they
   were true when written, and this table is how to read them.
 
+- **Reorder (2026-08-08), ADR-018.** M10 "Visual craft pass" executes *before*
+  M9, not after, despite its higher number — an external design-team handoff
+  specified M9's (and M11's) not-yet-built surfaces, removing the
+  design-uncertainty reason the original M9-then-M10 ordering existed for. New
+  execution order: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M9 → M11 → M12 →
+  M13 → M14`. Milestone *numbers* are unchanged — this is an execution-order
+  swap, not a renumbering — see `docs/milestones/M10-visual-craft.md` and the
+  ADR for the full argument.
+
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
   community objects in M11.
@@ -98,7 +107,7 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M9** — AI as a planning partner (see
-`M9-ai-planning-partner.md`). M8's gate closed 2026-08-08 (see
-`M8-make-it-real.md`'s retro); the Phase 1 gate review with Mitchell is the
-actual next action per `TODO.md` before M9 work starts.
+Current milestone: **M10** — Visual craft pass, brought forward ahead of M9
+(see `M10-visual-craft.md` and ADR-018). M8's gate closed 2026-08-08 (see
+`M8-make-it-real.md`'s retro) and the Phase 1 gate review with Mitchell
+completed the same day; M9 resumes once M10's gate closes.

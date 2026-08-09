@@ -32,14 +32,16 @@ Where the work actually stands right now: `docs/STATUS.md`.
       ergonomics tasks and Wave D's first-run/empty-state tasks trimmed from
       scope 2026-08-07 — see Candidate ideas below; C4 (KI-5 sync indicator)
       and D3 (e2e gate script) closed the gate.)*
-- [ ] **Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end.
-      The 2026-07-28 review deferred this behind M8: the gate could not be
-      attempted because a trip cannot be renamed or deleted.
+- [x] **Phase 1 gate review with Mitchell** — done 2026-08-08. The 2026-07-28
+      review had deferred this behind M8 (a trip could not be renamed or
+      deleted); M8 closed that floor and the dogfood review passed.
 
 ## Phase 2 — A product worth using
 
-- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
 - [ ] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
+      *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Executing via
+      `docs/plans/2026-08-08-M10-redesign-incorporation.md`.)*
+- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
 
 ## Phase 3 — Outward
 
