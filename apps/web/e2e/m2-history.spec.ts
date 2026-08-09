@@ -30,6 +30,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await signInAsDevUser(page, "alice");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();

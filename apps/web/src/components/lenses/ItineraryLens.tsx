@@ -58,8 +58,8 @@ export function ItineraryLens({
   return (
     <div data-testid="itinerary-lens" className="flex flex-col gap-4">
       {days.map((day) => (
-        <section key={day.dayId} data-testid={`itinerary-day-${day.dayId}`} className="rounded-md border border-hairline p-2">
-          <Heading level={3} className="mb-1.5">
+        <section key={day.dayId} data-testid={`itinerary-day-${day.dayId}`} className="rounded-lg border border-hairline bg-surface p-3">
+          <Heading level={3} className="mb-2">
             Day {day.ordinal}
             {day.date && (
               <>
@@ -81,15 +81,15 @@ export function ItineraryLens({
               </TBody>
             </Table>
           )}
-          <div className="mt-1.5 flex justify-between border-t border-hairline bg-moss px-2 py-1.5 text-sm font-medium">
+          <div className="mt-2 flex justify-between rounded-md border-t border-hairline bg-moss px-2.5 py-2 text-sm font-medium">
             <span>Day subtotal</span>
             <DataText>{formatAmount(day.costSubtotal, detail.currency)}</DataText>
           </div>
         </section>
       ))}
 
-      <section data-testid="itinerary-unscheduled" className="rounded-md border border-hairline p-2">
-        <Heading level={3} className="mb-1.5">
+      <section data-testid="itinerary-unscheduled" className="rounded-lg border border-hairline bg-surface p-3">
+        <Heading level={3} className="mb-2">
           Unscheduled
         </Heading>
         {unscheduled.length === 0 ? (
@@ -105,7 +105,7 @@ export function ItineraryLens({
         )}
       </section>
 
-      <footer data-testid="itinerary-footer" className="flex justify-between border-t border-border-strong pt-2 font-semibold">
+      <footer data-testid="itinerary-footer" className="flex justify-between border-t border-border-strong pt-3 font-semibold">
         <span>Trip total</span>
         <span>
           <DataText>{formatAmount(detail.tripCostTotal, detail.currency)}</DataText>

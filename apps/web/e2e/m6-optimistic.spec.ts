@@ -8,6 +8,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   const tripName = `Oslo ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
@@ -43,6 +44,7 @@ test("a rejected change reverts and shows an error", async ({ page }) => {
   const tripName = `Bergen ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();

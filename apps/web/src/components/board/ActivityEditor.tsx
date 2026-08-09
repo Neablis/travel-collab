@@ -60,8 +60,8 @@ export function ActivityEditor({
   }
 
   return (
-    <Card as="div">
-      <form onSubmit={submit} className="grid gap-1.5">
+    <Card as="div" className="rounded-lg p-4">
+      <form onSubmit={submit} className="grid gap-3">
         <FormField id="activity-title" label="Activity title">
           <Input
             id="activity-title"
@@ -71,7 +71,7 @@ export function ActivityEditor({
             onChange={(e) => setTitle(e.target.value)}
           />
         </FormField>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           <FormField id="activity-start-time" label="Start time">
             <Input
               id="activity-start-time"
@@ -105,8 +105,8 @@ export function ActivityEditor({
           />
         </FormField>
         {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
-        <div className="flex gap-1.5">
-          <Button type="submit" variant="secondary" className="font-semibold">
+        <div className="flex gap-2 pt-1">
+          <Button type="submit" variant="primary">
             Save
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>

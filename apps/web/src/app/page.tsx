@@ -25,6 +25,13 @@ export default function Home() {
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // New-trip is now a Dialog (page head "New trip" trigger, README §1) rather
+  // than an always-visible inline form. Single-step: CreateTrip
+  // (packages/contracts/src/trip.ts) only ever carries a name — no
+  // destination/dates/pace/tags field exists on the command, so there is
+  // nowhere honest to send a multi-step wizard's extra input. See M10 plan
+  // Task 13 notes: deliberately deferred, not built, pending a contract change.
+  const [newTripOpen, setNewTripOpen] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
   const [toast, setToast] = useState<{ tripId: string; name: string } | null>(null);
@@ -65,6 +72,7 @@ export default function Home() {
       return;
     }
     setName("");
+    setNewTripOpen(false);
     await load();
   }
 
@@ -150,26 +158,38 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       <SpeedInsights />
-      <Heading level={1}>Your trips</Heading>
-      <form onSubmit={createTrip} className="mt-4 flex items-end gap-2">
-        <FormField id="trip-name" label="Trip name">
-          <Input
-            id="trip-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Trip name"
-            aria-label="Trip name"
-          />
-        </FormField>
-        <Button type="submit" variant="primary">
-          Create trip
+      <div className="flex items-center justify-between gap-3">
+        <Heading level={1}>Your trips</Heading>
+        <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
+          New trip
         </Button>
-      </form>
+      </div>
       {error && (
         <Text role="alert" variant="secondary" className="mt-2 text-danger-ink">
           {error}
         </Text>
       )}
+      <Dialog open={newTripOpen} onOpenChange={setNewTripOpen} title="New trip">
+        <form onSubmit={createTrip} className="flex flex-col gap-3">
+          <FormField id="trip-name" label="Trip name">
+            <Input
+              id="trip-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Trip name"
+              aria-label="Trip name"
+            />
+          </FormField>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setNewTripOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Create trip
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
       {nextTrip && (
         <div className="mt-6">
           <NextTripHero trip={nextTrip} />

@@ -17,7 +17,7 @@ export function DailyOverviewLens({ detail }: { detail: TripDetail }) {
   }
 
   return (
-    <div data-testid="daily-overview-lens" className="flex flex-col gap-2">
+    <div data-testid="daily-overview-lens" className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
       <Table>
         <THead>
           <TR>

@@ -23,6 +23,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();

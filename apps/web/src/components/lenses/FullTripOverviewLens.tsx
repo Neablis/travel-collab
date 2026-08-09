@@ -13,7 +13,7 @@ export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
   const overview = tripOverview(detail);
 
   return (
-    <section aria-label="Full trip overview" className="flex flex-col gap-3">
+    <section aria-label="Full trip overview" className="flex flex-col gap-4">
       <header>
         <Heading level={2}>{detail.name}</Heading>
         {overview.dateRange ? (
@@ -33,7 +33,7 @@ export function FullTripOverviewLens({ detail }: { detail: TripDetail }) {
         )}
       </header>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-surface p-3">
         <div className="flex justify-between font-semibold">
           <span>Trip total</span>
           <DataText>{formatMoney(overview.tripCostTotal, overview.currency)}</DataText>

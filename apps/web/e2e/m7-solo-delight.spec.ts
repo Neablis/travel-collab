@@ -53,6 +53,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   const tripName = `Faro ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
@@ -105,6 +106,7 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   const tripName = `Lagos ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
@@ -153,6 +155,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   const tripName = `Sintra ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
