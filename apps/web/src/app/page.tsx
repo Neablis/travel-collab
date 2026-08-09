@@ -17,6 +17,10 @@ import { Dialog, DialogFooter } from "../components/ui/dialog";
 import { Toast } from "../components/ui/toast";
 import { NextTripHero } from "../components/home/NextTripHero";
 import { TripCard } from "../components/home/TripCard";
+import { PlaybooksStrip } from "../components/home/PlaybooksStrip";
+import { WorthYourAttention } from "../components/home/WorthYourAttention";
+import { PREVIEW_PLAYBOOKS, PREVIEW_ATTENTION } from "../components/home/preview-fixtures";
+import { Preview } from "../components/ui/preview";
 import { duplicateTrip, sendTripCommand } from "../lib/apiClient";
 
 export default function Home() {
@@ -250,6 +254,27 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      {/* Task 16 Preview shells (README §1 home layout): "Your Playbooks"
+          strip after the all-trips grid, then "Worth your attention" last.
+          The handoff shows both as part of the normal home layout
+          regardless of trip count (they're cross-trip surfaces, not
+          per-trip ones), so — unlike NextTripHero/the trips grid above —
+          these render unconditionally rather than gating on `visibleTrips`.
+          Real fixture data + no-op: both are entirely inert inside their
+          own <Preview> seam (Task 3), which shields pointer events and
+          stamps the "Preview · M9"/"Preview · M11" chip. */}
+      <div className="mt-6">
+        <Preview id="home-playbooks-strip">
+          <PlaybooksStrip playbooks={PREVIEW_PLAYBOOKS} />
+        </Preview>
+      </div>
+
+      <div className="mt-6">
+        <Preview id="home-worth-attention">
+          <WorthYourAttention items={PREVIEW_ATTENTION} />
+        </Preview>
+      </div>
 
       <Dialog open={confirmTrip !== null} onOpenChange={(open) => !open && setConfirmTrip(null)} title="Delete trip">
         <Text variant="secondary">

@@ -118,4 +118,20 @@
   .assistant-rail-panel {
     width: 356px;
   }
+
+  /* PlaybooksStrip (Task 16, M11 preview shell): handoff README "Your
+     Playbooks" grid is 4-col, collapsing to 2-col at 1180px — the same
+     breakpoint number Task 14 used for the assistant rail's scrim, so this
+     mirrors that rule rather than approximating with Tailwind's default
+     `xl:` (1280px). A real `@media` rule is required either way; Tailwind
+     bracket syntax (`xl:grid-cols-[...]`) would trip the element wall's
+     "no arbitrary values" check. */
+  .playbooks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 1180px) {
+    .playbooks-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
 }
