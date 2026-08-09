@@ -76,3 +76,20 @@
     @apply bg-paper font-sans text-base text-ink antialiased;
   }
 }
+
+@layer components {
+  /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
+     equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
+     would trip the color-wall's "no arbitrary values" check with no inline-style
+     escape hatch that preserves the `lg:` (>=1024px) breakpoint — inline styles
+     can't express a media query. A tiny named utility, mirroring the token
+     pattern above, keeps it a real CSS rule instead of a per-render bracket value. */
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1024px) {
+    .hero-grid {
+      grid-template-columns: 1.15fr 1fr;
+    }
+  }
+}

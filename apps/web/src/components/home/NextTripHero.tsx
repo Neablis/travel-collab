@@ -91,11 +91,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
 
   return (
     <Card raised className="overflow-hidden p-0">
-      <div
-        className="grid grid-cols-1"
-        // eslint-disable-next-line no-restricted-syntax -- two-column ratio (1.15fr/1fr) has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern; supported widths are >=1024px (design-system.md), where this always applies
-        style={{ gridTemplateColumns: "1.15fr 1fr" }}
-      >
+      <div className="grid hero-grid">
         <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <Badge variant="brand">Next trip</Badge>
