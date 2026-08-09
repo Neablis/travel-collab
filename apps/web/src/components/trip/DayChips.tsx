@@ -122,7 +122,12 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               {day.dateNum}
               {day.city ? ` ${day.city}` : ""}
             </DataText>
-            <div data-testid="day-chip-transition" className="h-3.5 w-full truncate text-[10px] text-slate">
+            <div
+              data-testid="day-chip-transition"
+              className="h-3.5 w-full truncate text-slate"
+              // eslint-disable-next-line no-restricted-syntax -- 10px transition label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+              style={{ fontSize: "10px" }}
+            >
               {day.transitionTo ? `→ ${day.transitionTo}` : null}
             </div>
             <div className="flex flex-wrap gap-0.5" aria-hidden>

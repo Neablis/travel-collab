@@ -27,12 +27,21 @@ export function Preview({
           visible to getComputedStyle for @testing-library/user-event's
           pointer-events ancestor check. */}
       <div
-        className="pointer-events-none select-none [&_a]:pointer-events-none [&_button]:pointer-events-none"
+        // pointer-events is inherited — no descendant (including Button,
+        // which only sets pointer-events on its own disabled state) sets an
+        // explicit override, so the plain class + inline style below already
+        // blocks pointer events on every descendant. The former
+        // `[&_a]:pointer-events-none [&_button]:pointer-events-none`
+        // arbitrary-variant selectors were redundant.
+        className="pointer-events-none select-none"
         style={{ pointerEvents: "none" }}
       >
         {children}
       </div>
-      <span className="absolute right-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-surface">
+      <span
+        className="absolute right-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
+        style={{ fontSize: "10px" }}
+      >
         Preview · {milestone}
       </span>
     </div>

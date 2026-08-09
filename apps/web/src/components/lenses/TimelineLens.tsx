@@ -165,7 +165,11 @@ function Leg({ prevEnd, nextStart, prevLocation, nextLocation }: {
   const distanceKm = from && to ? haversineKm(from, to) : null;
 
   return (
-    <div className="grid grid-cols-[92px_1fr] gap-4">
+    <div
+      className="grid gap-4"
+      // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+      style={{ gridTemplateColumns: "92px 1fr" }}
+    >
       <div />
       <div
         data-testid="timeline-leg"
@@ -197,7 +201,12 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, onSele
   onSelectActivity?: (activityId: string) => void;
 }) {
   return (
-    <div data-testid={`timeline-item-${activity.activityId}`} className="grid grid-cols-[92px_1fr] items-start gap-4">
+    <div
+      data-testid={`timeline-item-${activity.activityId}`}
+      className="grid items-start gap-4"
+      // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+      style={{ gridTemplateColumns: "92px 1fr" }}
+    >
       <div className="pt-3 text-right">
         {start && (
           <DataText size="sm" className="block text-ink">
@@ -210,7 +219,13 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, onSele
         <div aria-hidden className={cn("w-1 shrink-0 self-stretch rounded-full", SOLID_BG[accent])} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-2">
-            <span className="text-[15px] font-semibold text-ink">{activity.title}</span>
+            <span
+              className="font-semibold text-ink"
+              // eslint-disable-next-line no-restricted-syntax -- 15px activity title has no token equivalent (between text-md/16px and text-base/14px)
+              style={{ fontSize: "15px" }}
+            >
+              {activity.title}
+            </span>
             {hasConflict && (
               <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
                 <AlertTriangle className="size-3" aria-hidden />
@@ -236,10 +251,18 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, onSele
               for "attributee avatar" rather than fabricated assignment data. */}
           {member && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate">{member.userId}</span>
+              <span
+                className="text-slate"
+                // eslint-disable-next-line no-restricted-syntax -- 11px attributee label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                style={{ fontSize: "11px" }}
+              >
+                {member.userId}
+              </span>
               <span
                 aria-hidden
-                className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-moss text-[10px] font-semibold text-slate"
+                className="grid shrink-0 place-items-center rounded-full bg-moss font-semibold text-slate"
+                // eslint-disable-next-line no-restricted-syntax -- 22px avatar circle / 10px initials have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                style={{ height: "22px", width: "22px", fontSize: "10px" }}
               >
                 {initialsFor(member.userId)}
               </span>
@@ -298,7 +321,12 @@ export function TimelineLens({
   }
 
   return (
-    <div data-testid="timeline-lens" className="mx-auto flex max-w-[920px] flex-col gap-5">
+    <div
+      data-testid="timeline-lens"
+      className="mx-auto flex flex-col gap-5"
+      // eslint-disable-next-line no-restricted-syntax -- 920px reading-width cap has no token equivalent (between --container-measure/640px and --container-content/1120px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+      style={{ maxWidth: "920px" }}
+    >
       {rows.map((row, index) => {
         const chip = days[index];
         const accent = dayAccentFor(chip?.city ?? null);

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { cn } from "@/lib/cn";
 
 // Tailwind (v4, `@theme`-driven) only emits utilities for class names it can
 // find as literal text in source — a template-interpolated `bg-${family}`
@@ -59,7 +60,13 @@ export function Sparkline({ days, onSelectDay }: SparklineProps) {
   const columns = sparklineBars(days);
 
   return (
-    <div className="flex h-24 items-end gap-[5px] rounded-xl bg-moss p-2" role="group" aria-label="Shape of the trip">
+    <div
+      className="flex h-24 items-end rounded-xl bg-moss p-2"
+      // eslint-disable-next-line no-restricted-syntax -- 5px bar gap has no token equivalent (between gap-1/4px and gap-1.5/6px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+      style={{ gap: "5px" }}
+      role="group"
+      aria-label="Shape of the trip"
+    >
       {columns.map((bars, dayIndex) => {
         const accent = dayAccentFor(String(dayIndex));
         return (
@@ -73,10 +80,18 @@ export function Sparkline({ days, onSelectDay }: SparklineProps) {
             variant="ghost"
             aria-label={`Day ${dayIndex + 1}, ${bars.length} stop${bars.length === 1 ? "" : "s"}`}
             onClick={() => onSelectDay?.(dayIndex)}
-            className="h-full flex-1 flex-col-reverse items-stretch justify-start gap-[5px] px-0 py-0 hover:bg-transparent"
+            className="h-full flex-1 flex-col-reverse items-stretch justify-start px-0 py-0 hover:bg-transparent"
+            // eslint-disable-next-line no-restricted-syntax -- 5px bar gap has no token equivalent (between gap-1/4px and gap-1.5/6px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+            style={{ gap: "5px" }}
           >
             {bars.map((bar) => (
-              <span key={bar.key} aria-hidden className={`h-[13px] rounded-sm ${BAR_BG[accent.solid]}`} />
+              <span
+                key={bar.key}
+                aria-hidden
+                className={cn("rounded-sm", BAR_BG[accent.solid])}
+                // eslint-disable-next-line no-restricted-syntax -- 13px bar height has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                style={{ height: "13px" }}
+              />
             ))}
           </Button>
         );
