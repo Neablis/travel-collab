@@ -7,6 +7,8 @@ import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
+import { chipModel } from "@/components/trip/DayChips";
+import { dayAccentFor } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
@@ -39,6 +41,11 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
     () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
     [trip.conflicts],
   );
+
+  // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
+  // use (chipModel → dayAccentFor), so a day's column tint here always agrees
+  // with its chip and its Timeline-view header color.
+  const days = useMemo(() => chipModel(trip), [trip]);
 
   useEffect(() => {
     return monitorForElements({
@@ -93,10 +100,11 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
       >
         <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
       </Column>
-      {/* Day columns wrap into rows instead of scrolling horizontally
-          (#31/#23/#4/#10). Adjacency for drag is dayId-based, not DOM order,
-          so wrapping doesn't affect drop logic. */}
-      <div className="flex flex-wrap gap-3">
+      {/* Handoff README §"Day columns view": horizontally scrolling 268px
+          columns rather than wrapping into rows. Adjacency for drag is
+          dayId-based, not DOM order, so the switch from wrap to scroll
+          doesn't affect drop logic. */}
+      <div className="flex gap-3 overflow-x-auto pb-1">
         {trip.days.map((day, index) => (
           <Column
             key={day.dayId}
@@ -105,6 +113,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             activityIds={day.activityIds}
             activities={trip.activities}
             conflictIds={conflictIds}
+            accent={dayAccentFor(days[index]?.city ?? null).tint}
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
