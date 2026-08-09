@@ -49,19 +49,17 @@ export function AssistantRail({
   return (
     <>
       {/* Handoff README "Assistant rail": below 1180px the rail becomes a
-          fixed overlay panel with a rgba(21,29,46,0.32) scrim behind it. The
-          rail itself stays mounted at every width — this is a Preview shell,
-          so it should stay inspectable at any viewport rather than hiding
-          behind a toggle that Preview's pointer-events shield would make
-          unreachable anyway. Only the scrim's visibility is a breakpoint
-          decision, and a media query can't be expressed as an inline style,
-          so it's a named class (globals.css), mirroring NextTripHero's
-          `.hero-grid` precedent. */}
+          fixed overlay panel with a translucent `--color-ink` scrim behind
+          it. The rail itself stays mounted at every width — this is a
+          Preview shell, so it should stay inspectable at any viewport
+          rather than hiding behind a toggle that Preview's pointer-events
+          shield would make unreachable anyway. Only the scrim's visibility
+          is a breakpoint decision, and a media query can't be expressed as
+          an inline style, so it's a named class (globals.css), mirroring
+          NextTripHero's `.hero-grid` precedent. */}
       <div
         aria-hidden
-        className="assistant-rail-scrim fixed inset-0 z-40"
-        // eslint-disable-next-line no-restricted-syntax -- rgba(21,29,46,0.32) scrim (handoff spec) has no token equivalent
-        style={{ backgroundColor: "rgba(21, 29, 46, 0.32)" }}
+        className="assistant-rail-scrim fixed inset-0 z-40 bg-ink/32"
       />
       <aside
         aria-label="Assistant"
