@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +9,8 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
+import { fetchTripDetail } from "@/lib/apiClient";
+import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
@@ -43,21 +47,17 @@ function initialsFor(userId: string): string {
   return chars.join("").toUpperCase() || "?";
 }
 
-// Sparkline (Task 5) needs a per-day stop count, but TripSummary carries no
-// day/stop data at all (only tripId/name/status/members/createdAt) — that
-// lives on TripDetail, which this presentational hero deliberately doesn't
-// fetch (out of scope for a summary-list card). Until a later task wires a
-// real day shape in here, this renders a small deterministic placeholder
-// (seeded from tripId, not Math.random, so it's stable across renders/SSR)
-// so the "shape of the trip" panel has something to show. Simulated, not
-// real trip data — see the Task 6 report.
-function placeholderDays(tripId: string): SparklineDay[] {
-  const seed = tripId.replace(/-/g, "");
-  return Array.from({ length: 7 }, (_, i) => {
-    const code = seed.charCodeAt(i % seed.length) || 0;
-    return { stops: 1 + ((code + i) % 4) };
-  });
-}
+// Sparkline (Task 5) needs a per-day stop count, but TripSummary (what the
+// trips list fetches) carries no day/stop data at all (only
+// tripId/name/status/members/createdAt) — that lives on TripDetail. Rather
+// than fabricate numbers, this fetches the real TripDetail on mount and
+// derives the sparkline from its `days` array. `null` means "no real data
+// to show yet" (still loading, or the fetch failed) — the render below
+// never falls back to invented bars for that state.
+type SparklineFetchState =
+  | { status: "loading" }
+  | { status: "ready"; days: SparklineDay[] }
+  | { status: "error" };
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
@@ -73,6 +73,31 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     ? null
     : Math.max(0, Math.floor((Date.now() - created.getTime()) / 86_400_000));
 
+  // Real TripDetail, fetched on mount (and again if the hero starts
+  // rendering a different trip) — the source for both the sparkline and the
+  // real start date below. See the SparklineFetchState comment above for why
+  // "loading"/"error" never render fabricated bars.
+  const [sparkline, setSparkline] = useState<SparklineFetchState>({ status: "loading" });
+  const [startDate, setStartDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSparkline({ status: "loading" });
+    setStartDate(null);
+    void fetchTripDetail(trip.tripId).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setSparkline({ status: "ready", days: result.value.days.map((d) => ({ stops: d.activityIds.length })) });
+        setStartDate(result.value.startDate);
+      } else {
+        setSparkline({ status: "error" });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trip.tripId]);
+
   return (
     <Card raised className="overflow-hidden p-0">
       <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr]">
@@ -84,13 +109,22 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           <div>
             <Heading level={2}>{trip.name}</Heading>
             {/* Meta row (README: "dates · length · cities") — TripSummary
-                carries none of those (no start date, no day/city data), so
-                this shows only the one date-shaped field the DTO actually
-                has: when the trip was created. */}
-            {createdLabel && (
+                itself carries none of those (no start date, no day/city
+                data), but TripDetail (fetched above, for the sparkline)
+                does have a real start date. Prefer that once it's in; until
+                then (or if the fetch fails), fall back to the one
+                date-shaped field TripSummary actually has: when the trip
+                was created. */}
+            {startDate !== null ? (
               <div className="mt-1.5">
-                <DataText size="sm">Created {createdLabel}</DataText>
+                <DataText size="sm">{formatTripDate(startDate)}</DataText>
               </div>
+            ) : (
+              createdLabel && (
+                <div className="mt-1.5">
+                  <DataText size="sm">Created {createdLabel}</DataText>
+                </div>
+              )
             )}
           </div>
 
@@ -132,7 +166,19 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           </div>
           <div className="mt-4">
-            <Sparkline days={placeholderDays(trip.tripId)} />
+            {sparkline.status === "ready" ? (
+              <Sparkline days={sparkline.days} />
+            ) : (
+              // Honest placeholder for "not loaded yet" / "failed to load" —
+              // no fabricated bar data renders in either case.
+              <div
+                role="status"
+                aria-label="Shape of the trip"
+                className="flex h-24 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
+              >
+                {sparkline.status === "loading" ? "Loading…" : "Unavailable"}
+              </div>
+            )}
           </div>
         </div>
       </div>
