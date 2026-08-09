@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { dragCardTo, signInAsDevUser } from "./helpers";
 
-test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", async ({ page }) => {
+test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide.
@@ -44,7 +44,7 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   // TripDateControl (M8/A14) stages date fields locally and only commits via
   // an explicit "Set dates" click, dispatching SetTripDates. Wait for that
   // command's POST to resolve before closing the sheet — later assertions
-  // (the conflict badge) depend on the commit having landed.
+  // (the day column's date label) depend on the commit having landed.
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
@@ -77,11 +77,10 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await page.getByRole("option", { name: "Kyoto, Japan" }).click();
   await expect(page.getByText("Kyoto, Japan")).toBeVisible();
 
-  // -- add a dayOfWeek anchor (default: weekdays mon-fri) that day 1's
-  // Saturday violates --
-  await page.getByLabel("anchor kind").selectOption("dayOfWeek");
-  await page.getByRole("button", { name: "Add anchor" }).click();
-  await expect(page.getByText("Days: mon, tue, wed, thu, fri")).toBeVisible();
+  // D-1 (Wave B, commit 7ff1a40): the anchor-editing UI was retired
+  // (AnchorEditor.tsx deleted) — anchor rules stay dormant with no UI left
+  // to author them, so there's no "add an anchor" step here anymore. Save
+  // directly.
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Fushimi Inari")).toBeVisible();
 
@@ -103,10 +102,14 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await expect(page.locator(".map-lens-canvas")).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
 
-  // -- anchor-violation conflict badge (day 1 = Saturday, anchor excludes it) --
-  await expect(day1.getByRole("img", { name: "conflict" })).toBeVisible();
-
-  // -- shift the start date so the anchor is satisfied; badge clears --
+  // -- shift the start date; day 1's own date label reflects the change --
+  // (D-1: this used to also assert an anchor-violation conflict badge
+  // toggling off across the shift/clear/undo below — anchors have no UI to
+  // author since Wave B, so there's no conflict to badge. The day column's
+  // date label is still directly observable and still proves SetTripDates
+  // commits/undoes correctly, which was always the actual point of this
+  // section.)
+  await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
   // 2026-10-12 is a Monday.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("Start date").fill("2026-10-12");
@@ -127,20 +130,20 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
     page.getByRole("button", { name: "Set dates" }).click(),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
-  await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
+  await expect(day1.getByText(/day 1.*oct 12/i)).toBeVisible();
 
-  // -- clear the date: date-based anchors go dormant --
+  // -- clear the date --
   // #19: a one-item "Date options" popover was replaced by a direct "Clear
   // date" X next to the date in Settings (only shown when a date is set), so
   // there's no popover to open first.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
   await page.getByRole("button", { name: "Close" }).click();
-  await expect(day1.getByRole("img", { name: "conflict" })).not.toBeVisible();
+  await expect(day1.getByText("Day 1", { exact: true })).toBeVisible();
 
-  // -- undo the shift: dates and the conflict return --
-  // The "Clear dates" click and the date shift are each their own change; two undos
-  // get back to the pre-shift (Saturday) state where the anchor is violated.
+  // -- undo twice: back to the pre-shift start date --
+  // The "Clear date" click and the date shift are each their own change; two
+  // undos get back to the original 2026-10-10 state.
   // Wait for each undo's command POST to resolve before firing the next one —
   // undo is an ordinary optimistic-concurrency-checked command, and firing
   // both clicks back-to-back can race the trip's version and silently no-op.
@@ -162,5 +165,5 @@ test("place & time: dates, geocoded pin, anchor violation, shift/clear/undo", as
   await page.getByRole("button", { name: "Trip settings" }).click();
   await expect(page.getByLabel("Start date")).toHaveValue("2026-10-10");
   await page.getByRole("button", { name: "Close" }).click();
-  await expect(day1.getByRole("img", { name: "conflict" })).toBeVisible();
+  await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
 });

@@ -17,6 +17,7 @@ import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
+import { SyncIndicator } from "./SyncIndicator";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name, now renameable inline — task A13) + a budget-vs-total
@@ -129,6 +130,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
         </div>
 
         <div className="flex items-center gap-0.5">
+          <SyncIndicator pending={pending} className="mr-2" />
           {preview.seq === null && (
             <UndoRedoControls
               canUndo={history?.canUndo ?? false}
