@@ -168,7 +168,7 @@ describe("TripHeader delete/undo (A15)", () => {
     await waitFor(() =>
       expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId: "x" }),
     );
-    const toast = await screen.findByRole("status");
+    const toast = await screen.findByTestId("toast");
     expect(toast.textContent).toMatch(/deleted "japan"/i);
   });
 
@@ -176,7 +176,7 @@ describe("TripHeader delete/undo (A15)", () => {
     await renderHeader();
     await deleteViaSettings();
 
-    const toast = await screen.findByRole("status");
+    const toast = await screen.findByTestId("toast");
     // Scoped to the toast: TripHeader's own UndoRedoControls also has a
     // button named "Undo" for history undo, unrelated to this toast's action.
     await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
@@ -184,7 +184,7 @@ describe("TripHeader delete/undo (A15)", () => {
     await waitFor(() =>
       expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "RestoreTrip", tripId: "x" }),
     );
-    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("toast")).toBeNull());
     expect(pushMock).not.toHaveBeenCalled();
   });
 
@@ -192,7 +192,7 @@ describe("TripHeader delete/undo (A15)", () => {
     await renderHeader();
     await deleteViaSettings();
 
-    const toast = await screen.findByRole("status");
+    const toast = await screen.findByTestId("toast");
     await userEvent.click(within(toast).getByRole("button", { name: /dismiss/i }));
 
     expect(pushMock).toHaveBeenCalledWith("/");
@@ -238,7 +238,7 @@ describe("TripHeader delete/undo (A15)", () => {
     // The undo toast is still up (its 8s auto-dismiss hasn't fired, and this
     // test never advances any timers) — but trip.status already reflects the
     // delete, proving the reconciliation isn't waiting on the toast to close.
-    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(await screen.findByTestId("toast")).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("tripStatus").textContent).toBe("deleted"));
   });
 });

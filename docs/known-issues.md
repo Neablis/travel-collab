@@ -98,6 +98,15 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   rather than a `beforeunload` prompt or forced queue flush. Worth deciding
   alongside M13 (collaboration), where concurrent multi-actor writes make
   silent client-side loss more consequential.
+- **M8 (Task C4) landed the first half of the fix path:** `TripHeader` now
+  renders a `SyncIndicator` (`role="status"`, "Saving…" / "All changes
+  saved") fed from `useTrip().pending`, so unconfirmed work is visible before
+  the user navigates away. Deliberately no `beforeunload` guard — that was
+  never the recorded direction. **The underlying silent-drop-on-navigation
+  risk is still open**: the indicator makes the risk visible, it doesn't
+  close it, and it remains real for anyone who navigates away without
+  reading it. Revisit alongside M13, where concurrent multi-actor writes
+  make the silent loss more consequential.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-6 — `listPages` lazy-instantiation race on concurrent first visits
