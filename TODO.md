@@ -26,10 +26,12 @@ Where the work actually stands right now: `docs/STATUS.md`.
 - [x] **M6 Atomic changes** → `docs/milestones/M6-atomic-changes.md`
 - [x] **M7 Solo delight** → `docs/milestones/M7-solo-delight.md`
       *(Trip templates moved to M11 during this milestone.)*
-- [ ] **M8 Make it real** → `docs/milestones/M8-make-it-real.md`
-      *(Wave A merged 2026-08-07 via PR #21. Wave C's ergonomics tasks and
-      Wave D's first-run/empty-state tasks trimmed from scope the same day —
-      see Candidate ideas below.)*
+- [x] **M8 Make it real** → `docs/milestones/M8-make-it-real.md`
+      *(Gate closed 2026-08-08. Wave A merged 2026-08-07 via PR #21; Wave B
+      (anchors/timezone/macro subtraction) merged the same day; Wave C's
+      ergonomics tasks and Wave D's first-run/empty-state tasks trimmed from
+      scope 2026-08-07 — see Candidate ideas below; C4 (KI-5 sync indicator)
+      and D3 (e2e gate script) closed the gate.)*
 - [ ] **Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end.
       The 2026-07-28 review deferred this behind M8: the gate could not be
       attempted because a trip cannot be renamed or deleted.
@@ -68,11 +70,13 @@ Captured so they aren't lost; not committed to a milestone yet.
   polish. **Kept, not deferred:** the KI-5 visible-sync-state indicator
   (correctness/trust, not ergonomics — doesn't depend on quick-add existing)
   and the M8 e2e gate script, resized to exercise the existing
-  add-activity/drag-and-drop flow. Full detail in
-  `docs/plans/2026-07-28-M8-make-it-real.md`'s Wave C/D headers (tasks left
-  in place, marked DEFERRED) and `docs/milestones/M8-make-it-real.md`'s
-  "Scope trim" section. Revisit once M10's direction is set — these are
-  exactly the kind of task that direction should inform, not the reverse.
+  add-activity/drag-and-drop flow. Full reasoning in
+  `docs/milestones/M8-make-it-real.md`'s "Scope trim" section — the original
+  step-by-step plan (`docs/plans/2026-07-28-M8-make-it-real.md`, including
+  the deferred C1–C3/D1–D2 task write-ups) was deleted at M8's gate close
+  per `docs/plans/README.md`'s staging-area rule. Revisit once M10's
+  direction is set — these are exactly the kind of task that direction
+  should inform, not the reverse.
 
 - **Trip list row: richer, human-readable metadata (Mitchell, 2026-08-01, from
   M8 dogfooding).** The "Your trips" list currently shows each row's

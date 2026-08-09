@@ -42,7 +42,7 @@ for collaboration later landing on a product people already want to join.
 | M5 | Design foundations | Tailwind design system: tokens, documented palette, styled primitives and composites, then a re-skin of every existing surface. Answered "is it consistent" — not "is it obvious" (M8) or "is it beautiful" (M10) |
 | M6 | Atomic changes | Client/generator-declared command groups committed as one atomic batch, so undo/redo/revert treat them as a single change. Optimistic updates added mid-milestone |
 | M7 | Solo delight | Dynamic pages with typed macros, lazily-instantiated templates, a Notebook route outside time-travel, schema-derived constrained AI via Vercel AI Gateway |
-| M8 | Make it real | Trip lifecycle (name, dates, archive/delete, duplicate — `SetTripName` does not exist today, **done, PR #21**); anchors retired from the UI but kept dormant (**done**); Notebook pulled back to plain notes. **Interaction design lives here.** *(Core-loop ergonomics — search-to-add, quick add, moving activities — and first-run/empty states trimmed from scope 2026-08-07; see that milestone's file and `TODO.md`'s Candidate ideas.)* |
+| M8 | Make it real | **Done, gate closed 2026-08-08.** Trip lifecycle (name, dates, archive/delete, duplicate — `SetTripName` did not exist before this, PR #21); anchors retired from the UI but kept dormant; Notebook pulled back to plain notes; KI-5 sync indicator. **Interaction design lives here.** *(Core-loop ergonomics — search-to-add, quick add, moving activities — and first-run/empty states trimmed from scope 2026-08-07; see that milestone's file and `TODO.md`'s Candidate ideas.)* |
 
 ## Phase 2 — A product worth using
 
@@ -98,4 +98,7 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M8** — Make it real (see `M8-make-it-real.md`).
+Current milestone: **M9** — AI as a planning partner (see
+`M9-ai-planning-partner.md`). M8's gate closed 2026-08-08 (see
+`M8-make-it-real.md`'s retro); the Phase 1 gate review with Mitchell is the
+actual next action per `TODO.md` before M9 work starts.
