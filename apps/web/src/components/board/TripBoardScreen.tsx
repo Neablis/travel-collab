@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
+import { useFocus } from "@/components/trip/context/FocusProvider";
 import { LENSES, useLens } from "@/components/trip/context/LensRouter";
+import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { ScheduleLens } from "@/components/lenses/ScheduleLens";
 import { ItineraryLens } from "@/components/lenses/ItineraryLens";
@@ -22,6 +24,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
   const { lens, setLens } = useLens();
   const { openEdit } = useEditor();
+  // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
+  // page.tsx), so this hook must run unconditionally before the early
+  // returns below — the day chips (Task 8) below the tab strip both read and
+  // set it.
+  const { focusedDay, setFocusedDay } = useFocus();
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -83,6 +90,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           options={LENSES.map((l) => ({ value: l, label: l }))}
           aria-label="Trip view"
         />
+        {/* Task 8: day-chips row, real TripDetail data, presentational-only
+            except for setting focus (Task 4's FocusProvider) — no lens or
+            command change. Lives under the tab strip so it's visible across
+            every lens, not just Board. */}
+        <div className="mt-2">
+          <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
+        </div>
       </PageContainer>
       <div inert={preview.seq !== null ? true : undefined}>
         {isFullLens ? (

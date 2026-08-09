@@ -8,6 +8,7 @@ import { TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
+import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
@@ -39,11 +40,13 @@ vi.mock("next/navigation", () => ({
 function renderScreen(tripId: string) {
   return render(
     <TripProvider tripId={tripId}>
-      <EditorHost>
-        <LensRouter>
-          <TripBoardScreen tripId={tripId} />
-        </LensRouter>
-      </EditorHost>
+      <FocusProvider>
+        <EditorHost>
+          <LensRouter>
+            <TripBoardScreen tripId={tripId} />
+          </LensRouter>
+        </EditorHost>
+      </FocusProvider>
     </TripProvider>,
   );
 }
@@ -351,12 +354,14 @@ describe("TripBoardScreen", () => {
 
     render(
       <TripProvider tripId={fixture.tripId}>
-        <EditorHost>
-          <LensRouter>
-            <TripBoardScreen tripId={fixture.tripId} />
-            <OpenCreateButton />
-          </LensRouter>
-        </EditorHost>
+        <FocusProvider>
+          <EditorHost>
+            <LensRouter>
+              <TripBoardScreen tripId={fixture.tripId} />
+              <OpenCreateButton />
+            </LensRouter>
+          </EditorHost>
+        </FocusProvider>
       </TripProvider>,
     );
 
