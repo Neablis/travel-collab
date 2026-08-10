@@ -26,15 +26,11 @@ describe("preview registry ↔ usage", () => {
   it("every used <Preview id> is registered", () => {
     for (const id of used) expect(PREVIEW_REGISTRY).toHaveProperty(id);
   });
-  // TODO(remove skip after Task 18): shells land incrementally across Tasks
-  // 10, 14-18, so most registry entries are legitimately still unused for
-  // most of that span — an `used.size === 0` guard only covers the very
-  // first moment (before Task 10's first real <Preview> usage) and starts
-  // failing on every not-yet-built shell the instant any one shell exists.
-  // Skip the "no orphans" half entirely until Task 18 finishes the last
-  // shell; the "every used id is registered" test above still runs
-  // unconditionally throughout.
-  it.skip("every registered id is used at least once (no orphans)", () => {
+  // Task 18 is the last shell task in the M10 plan (Tasks 10, 14-18 landed
+  // each registry entry's real <Preview id> usage incrementally) — every
+  // registry entry now has a real usage somewhere in the app, so this guard
+  // runs for real from here on.
+  it("every registered id is used at least once (no orphans)", () => {
     for (const id of Object.keys(PREVIEW_REGISTRY) as PreviewId[]) {
       expect(used, `registry entry "${id}" is unused — remove it`).toContain(id);
     }

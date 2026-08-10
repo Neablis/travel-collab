@@ -184,4 +184,22 @@ describe("Home trip actions", () => {
     // Dialog must still be open — createTrip does not close it on failure.
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
   });
+
+  // Task 18: the head's "Start from a Playbook" link is a real navigation
+  // control (unlike the /playbooks route it points to, which is entirely
+  // Preview-shielded) — it must render outside any Preview region and carry
+  // a real href, not merely appear in the markup.
+  it("renders a real, navigable Start from a Playbook link outside any Preview region", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    const link = await screen.findByRole("link", { name: /start from a playbook/i });
+    expect(link.getAttribute("href")).toBe("/playbooks");
+    expect(link.closest("[data-preview-id]")).toBeNull();
+  });
 });

@@ -280,14 +280,17 @@ describe("TripHeader restyle (Task 9)", () => {
     expect(getEditorState()).toEqual({ mode: "create", prefill: undefined });
   });
 
-  // Share and Add a saved day are Task 18's Preview seams — Task 9 only
-  // reserves their slot in the layout. They must render but do nothing:
-  // no dispatch, no navigation, no editor state change.
-  it("Share and Add a saved day are inert placeholders", async () => {
+  // Share and Add a saved day (ShareButton/AddSavedDayButton, Task 18) are
+  // each self-wrapped in their own <Preview> — genuinely pointer-events
+  // shielded, not just unwired Buttons, so a click on either must actually
+  // fail to land (same assertion shape as preview.test.tsx/
+  // KeepDayDialog.test.tsx's inert-control tests) and nothing downstream
+  // fires: no dispatch, no navigation, no editor state change.
+  it("Share and Add a saved day are genuinely inert: pointer-events shielded, never fire", async () => {
     const { getEditorState } = await renderHeader();
 
-    await userEvent.click(screen.getByRole("button", { name: "Share" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add a saved day" }));
+    await expect(userEvent.click(screen.getByRole("button", { name: "Share" }))).rejects.toThrow();
+    await expect(userEvent.click(screen.getByRole("button", { name: "Add a saved day" }))).rejects.toThrow();
 
     expect(sendTripCommandMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();

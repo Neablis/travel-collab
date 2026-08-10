@@ -20,6 +20,8 @@ import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
 import { SyncIndicator } from "./SyncIndicator";
+import { ShareButton } from "./ShareButton";
+import { AddSavedDayButton } from "./AddSavedDayButton";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name, now renameable inline — task A13) + a budget-vs-total
@@ -154,15 +156,12 @@ export function TripHeader({ tripId }: { tripId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             {/* Handoff §2 action cluster: ghost "Share" · secondary "Add a
                 saved day" · primary "Add stop". Share and Add-a-saved-day
-                are Task 18's Preview seams — this task only reserves their
-                slot and position. Deliberately NOT wrapped in <Preview>
-                (that's Task 18's job, which will replace these two with
-                ShareButton/AddSavedDayButton `<Preview>` components); for
-                now they're plain Buttons with no onClick, which makes them
-                inert by construction rather than wired to any real or fake
-                behavior. */}
-            <Button variant="ghost">Share</Button>
-            <Button variant="secondary">Add a saved day</Button>
+                are each self-wrapped in their own <Preview> internally
+                (ShareButton.tsx / AddSavedDayButton.tsx, Task 18), so this
+                header just mounts them like any other control — no local
+                Preview wrap or onClick needed here. */}
+            <ShareButton />
+            <AddSavedDayButton />
             <Button variant="primary" onClick={() => openCreate()}>
               Add stop
             </Button>

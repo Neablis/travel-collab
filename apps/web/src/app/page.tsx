@@ -8,7 +8,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "../components/ui/heading";
 import { Text } from "../components/ui/text";
-import { Button } from "../components/ui/button";
+import { Button, buttonVariants } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { FormField } from "../components/ui/form-field";
 import { EmptyState } from "../components/ui/empty-state";
@@ -21,7 +21,9 @@ import { PlaybooksStrip } from "../components/home/PlaybooksStrip";
 import { WorthYourAttention } from "../components/home/WorthYourAttention";
 import { PREVIEW_PLAYBOOKS, PREVIEW_ATTENTION } from "../components/home/preview-fixtures";
 import { Preview } from "../components/ui/preview";
+import { ShareButton } from "../components/trip/ShareButton";
 import { duplicateTrip, sendTripCommand } from "../lib/apiClient";
+import { cn } from "../lib/cn";
 
 export default function Home() {
   const router = useRouter();
@@ -162,11 +164,20 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       <SpeedInsights />
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Heading level={1}>Your trips</Heading>
-        <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
-          New trip
-        </Button>
+        {/* README §1 head: "New trip" primary + a real (not Preview-wrapped)
+            "Start from a Playbook" link — the link itself navigates for
+            real; it's the /playbooks route's own content that's the Preview
+            seam (Task 18). */}
+        <div className="flex items-center gap-2">
+          <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
+            Start from a Playbook
+          </Link>
+          <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
+            New trip
+          </Button>
+        </div>
       </div>
       {/* Only rendered while the dialog is closed — while it's open, the
           same `error` state renders inside the Dialog below instead, so a
@@ -206,7 +217,7 @@ export default function Home() {
       </Dialog>
       {nextTrip && (
         <div className="mt-6">
-          <NextTripHero trip={nextTrip} />
+          <NextTripHero trip={nextTrip} shareSlot={<ShareButton variant="secondary" />} />
         </div>
       )}
 

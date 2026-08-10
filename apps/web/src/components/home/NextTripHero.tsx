@@ -16,8 +16,9 @@ import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
   trip: TripSummary;
-  // Filled by the caller with the Preview-wrapped Share button (Task 18) —
-  // the hero itself stays behavior-free about sharing (brief, Interfaces).
+  // Filled by the caller (app/page.tsx, Task 18) with a secondary-variant
+  // <ShareButton> (components/trip/ShareButton.tsx) — the hero itself stays
+  // behavior-free about sharing (brief, Interfaces).
   shareSlot?: ReactNode;
 };
 
