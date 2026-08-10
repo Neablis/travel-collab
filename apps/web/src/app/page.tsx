@@ -153,7 +153,7 @@ export default function Home() {
         <Heading level={1}>travel-collab</Heading>
         <Link
           href="/api/auth/signin?callbackUrl=/"
-          className="mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-3.5 text-base font-medium text-ink transition-colors hover:bg-moss"
+          className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
         >
           Sign in
         </Link>

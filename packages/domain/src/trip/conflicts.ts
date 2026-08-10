@@ -6,8 +6,17 @@ import { rollupCosts } from "./costs";
 
 // 2-decimal display formatter (ADR-008 M4 simplification); pure and deterministic
 // so the stored conflict description reproduces under the golden rebuild.
+// Thousands-grouped to match the UI's `formatAmount`/`formatMoney`
+// (apps/web/src/components/lenses/formatMoney.ts, #22) — KI-2 fix: the
+// over-budget conflict description and lens totals now render the same
+// string for the same amount instead of silently disagreeing on grouping.
 function fmt(minor: number, currency: string): string {
-  return `${(minor / 100).toFixed(2)} ${currency}`;
+  const sign = minor < 0 ? "-" : "";
+  const grouped = (Math.abs(minor) / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${sign}${grouped} ${currency}`;
 }
 
 // Same-day activities further apart than this are flagged as impossible

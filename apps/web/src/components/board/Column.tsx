@@ -39,7 +39,6 @@ export function Column({
   onRemoveActivity,
   onRemoveDay,
   onAddActivity,
-  sectionRef,
   fullWidth = false,
   children,
 }: {
@@ -56,10 +55,6 @@ export function Column({
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
   onAddActivity?: () => void;
-  // Ref to the column's outer <section>, for callers that need to reach the
-  // section element directly. Not used for drag-drop, which keeps its own
-  // internal <ul> ref below.
-  sectionRef?: (el: HTMLElement | null) => void;
   // Backlog renders as a full-width strip above the day grid rather than a
   // fixed-width column in the horizontally scrolling row (#31).
   fullWidth?: boolean;
@@ -82,7 +77,6 @@ export function Column({
 
   return (
     <section
-      ref={sectionRef}
       data-testid={dayId === null ? "backlog-column" : "day-column"}
       className={cn(
         "flex flex-col rounded-2xl p-2",

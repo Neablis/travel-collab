@@ -95,7 +95,7 @@ export function MapLens({
     <div data-testid="map-lens" className="map-lens flex flex-col gap-4">
       {pins.length > 0 ? (
         // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
-        <div ref={containerRef} className="map-lens-canvas grow overflow-hidden rounded-lg border border-hairline" style={{ width: "100%", minHeight: 480, height: "70vh" }} />
+        <div ref={containerRef} className="map-lens-canvas overflow-hidden rounded-lg border border-hairline" style={{ width: "100%", minHeight: 480, height: "70vh" }} />
       ) : (
         <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
           No located activities yet — add a place to see it on the map.

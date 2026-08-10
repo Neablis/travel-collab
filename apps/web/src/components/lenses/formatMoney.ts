@@ -3,10 +3,10 @@
 // stay readable (e.g. `1,111,106.00 USD`). `formatAmount` is the grouped number
 // alone (no currency), for composite displays like the header's cost/budget
 // glance; `formatMoney` appends the currency. Both are negative-aware for
-// budgetRemaining. NOTE: the domain's own `fmt`
-// (packages/domain/src/trip/conflicts.ts), used in over-budget conflict text,
-// is not grouped — the UI layer can't reach it this wave, so grouped lens
-// totals and the ungrouped conflict string can differ; flagged to Mitchell.
+// budgetRemaining. The domain's own `fmt` (packages/domain/src/trip/conflicts.ts),
+// used in over-budget conflict text, mirrors this same grouping (KI-2 fix) so a
+// given amount renders identically whether it comes from a lens total or a
+// conflict description.
 export function formatAmount(amountMinor: number): string {
   const sign = amountMinor < 0 ? "-" : "";
   const grouped = (Math.abs(amountMinor) / 100).toLocaleString("en-US", {

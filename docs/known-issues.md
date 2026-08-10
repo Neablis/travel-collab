@@ -13,53 +13,44 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-2 — Money formatting differs between UI and domain conflict text
-- **Severity:** cosmetic
-- **Area:** `apps/web/src/components/lenses/formatMoney.ts` vs. the domain's
-  `fmt` in `packages/domain/src/trip/conflicts.ts`
-- **Symptom:** the UI groups thousands (`1,111,106.00 USD`, added in M5 Wave-3
-  for comment #22), but the **over-budget conflict banner text is generated in
-  `packages/domain`** and stays ungrouped, so the same amount can render two
-  ways. Accepted knowingly: `packages/domain` was off-limits to that UI-only
-  wave. **Fix path:** when a domain change is next in scope, group `fmt` to
-  match (or move money formatting to a shared contracts-level helper).
-- **First noted:** 2026-07-13 (M5 Wave-3).
-
 ### KI-3 — Minor M5 re-skin cosmetic/cleanup notes
 - **Severity:** cosmetic / cleanup
 - **Area:** `apps/web/src` (various)
-- Collected small findings from the Wave-1/Wave-2 reviews, none blocking:
-  - Trip "currency" field label renders lowercase — pre-existing copy, not a
-    re-skin change; reads as a raw word, not "you're setting the trip budget".
-  - Sign-in link (Track A) is a real `<a>` styled as a secondary button but
-    missing the focus-ring / `cursor-pointer` a real `Button` has.
-  - `text-danger-ink` used as a raw utility in a couple of places instead of a
-    `Text` variant.
-  - `Board.tsx` carries an unspecified `items-start` on its flex layout.
-  - Near-duplicate link-button `className` strings across 3 lens files (DRY).
-- **First noted:** 2026-07-11/12 (M5 Wave 1/2).
-
-### KI-4 — Minor M5 Wave-3 cosmetic/dead-code notes
-- **Severity:** cosmetic / cleanup
-- **Area:** `apps/web/src` (various)
-- Non-blocking findings from the Wave-3 per-task + final whole-branch reviews
-  (all shipped as-is by decision — no wrong behavior reachable by a user):
-  - `board/Column.tsx` — the `sectionRef` prop is now dead (its only caller,
-    the removed day-pager `scrollToDay`, is gone); safe to delete the prop,
-    its type, and the `ref={sectionRef}` wiring in a cleanup pass.
-  - `lenses/MapLens.tsx` — the `grow` class on `.map-lens-canvas` is inert (no
-    flex/bounded-height ancestor); the `minHeight`/`height: 70vh` inline styles
-    do the sizing. Harmless dead class.
-  - `lenses/TimelineLens.tsx` — the hour-gridline `<div>`s lack
-    `pointer-events-none`; non-blocking today (buttons paint on top), but worth
-    adding before any click-to-create-at-time affordance lands on the bar.
-  - `lenses/TimelineLens.tsx` — axis tick labels are left-aligned at their
-    `left:%`, so the last label ("9p") can clip against the row's right edge at
-    narrow widths (centering needs an inline `translateX(-50%)`, which is
-    allowed under the geometry inline-style exception).
-  - `ui/segmented-control.tsx` — a redundant `gap-0.5` base class is overridden
-    in the subtle variant (cosmetic).
-- **First noted:** 2026-07-13 (M5 Wave 3).
+- Collected small findings from the Wave-1/Wave-2 reviews:
+  - ~~Trip "currency" field label renders lowercase~~ — **FIXED** (Task 19,
+    2026-08-09): `TripMoneySettings.tsx`'s `FormField` label and the
+    `NativeSelect`'s `aria-label` both now read "Currency".
+  - ~~Sign-in link (Track A) is a real `<a>` styled as a secondary button but
+    missing the focus-ring / `cursor-pointer` a real `Button` has~~ — **FIXED**
+    (Task 19, 2026-08-09): both sign-in links (`app/page.tsx` and
+    `board/TripBoardScreen.tsx`, the latter previously fully unstyled) now
+    reuse `buttonVariants({ variant: "secondary" })` from
+    `components/ui/button.tsx` instead of a hand-rolled/missing className, so
+    they get the same focus ring and `cursor-pointer` a real `Button` has.
+  - `text-danger-ink` used as a raw utility instead of a `Text` variant —
+    **RE-DEFERRED** (Task 19, 2026-08-09): re-checked against the current
+    (post-M10-restyle) tree and this is no longer "a couple of places" — it's
+    now used in 10+ files (`form-field.tsx`, `banner.tsx`, `badge.tsx`,
+    `NextTripHero.tsx`, `PlaybooksStrip.tsx`, `LocationInput.tsx`,
+    `ActivityEditor.tsx`, `PlaybookCard.tsx`, `KeepDayFlag.tsx`,
+    `EmptyChip.tsx`, `TimelineLens.tsx`, `app/page.tsx`), mostly as static
+    `Record<AccentFamily, string>` tone-lookup tables — a legitimate,
+    repo-wide convention for accent/tone lookups now, not a stray
+    inconsistency. Centralizing it into a `Text` variant would be a
+    cross-cutting refactor of 10+ files, out of proportion to a cosmetic nit.
+    Left open; revisit if a `Text`-variant-based tone system is designed
+    deliberately rather than as a side effect of this cleanup.
+  - ~~`Board.tsx` carries an unspecified `items-start` on its flex layout~~ —
+    **CLOSED BY RESTYLE** (Task 19, 2026-08-09): Task 11's M10 restyle
+    rewrote `Board.tsx`'s flex layout; `items-start` no longer appears
+    anywhere in the file.
+  - ~~Near-duplicate link-button `className` strings across 3 lens files
+    (DRY)~~ — **CLOSED BY RESTYLE** (Task 19, 2026-08-09): the M10 restyle
+    removed every `<Link>` from `apps/web/src/components/lenses/*.tsx`
+    (confirmed via grep) — the surface this applied to no longer exists.
+- **First noted:** 2026-07-11/12 (M5 Wave 1/2). **Partially resolved:**
+  2026-08-09 (Task 19) — the `text-danger-ink` bullet stays open by
+  deliberate re-defer; everything else above is fixed or closed by restyle.
 
 ### KI-5 — Optimistic commands can be silently lost on abrupt navigation before the send queue drains
 - **Severity:** correctness (data loss, no error surfaced)
@@ -351,6 +342,58 @@ needs action — skip this section when triaging.
   - **Minor cleanups:** the "generate a fresh random UUID" system-prompt instruction now covers `AddDay.dayId` (not just `activityId`); the system prompt now spells out the case-sensitive enum/code formats (`Weekday` `mon`..`sun`, uppercase ISO-4217 currency, uppercase ISO-3166 country) that otherwise fail at the tool-time Zod boundary.
   - Also hardened alongside: the planning tools now build each command via `BatchableCommand.safeParse` (a shared `collect()` choke point) instead of an unchecked `as` cast, so a resolver/schema drift fails at the tool with a clear error instead of relying solely on the downstream batch re-parse. `pageTools.ts` was audited and found clean (closed-enum macro names, server-resolved day binding).
 - **First noted:** 2026-07-24 (M7, post-real-model testing; full audit via subagent). **Resolved:** 2026-07-24 (M7; RemoveDay/DismissConflict/Money/prompt fixes + `collect()` parse boundary).
+
+### KI-2 — Money formatting differs between UI and domain conflict text — RESOLVED
+- **Severity:** cosmetic
+- **Area:** `apps/web/src/components/lenses/formatMoney.ts` vs. the domain's
+  `fmt` in `packages/domain/src/trip/conflicts.ts`
+- **Symptom:** the UI groups thousands (`1,111,106.00 USD`, added in M5 Wave-3
+  for comment #22), but the **over-budget conflict banner text is generated in
+  `packages/domain`** and stayed ungrouped, so the same amount could render
+  two ways. Accepted knowingly at the time: `packages/domain` was off-limits
+  to that UI-only wave.
+- **Fix (2026-08-09, Task 19):** grouped the domain's `fmt` the same way —
+  `Math.abs(minor) / 100` through `toLocaleString("en-US", { minimumFractionDigits:
+  2, maximumFractionDigits: 2 })` with a manual sign prefix, mirroring
+  `formatAmount`'s own construction in `formatMoney.ts`. This is a real
+  `packages/domain` change — an explicitly pre-approved, one-time exception to
+  M10's "zero diff to `packages/`" rule (Mitchell, mid-session decision on
+  Task 19); it does not reopen `packages/domain` generally.
+- **Proof:** `packages/domain/test/over-budget.test.ts` adds a case asserting
+  the over-budget conflict description renders `"Trip total (1,111,107.00
+  USD) exceeds the budget (1.00 USD) by 1,111,106.00 USD."` for a
+  budget/cost pair chosen so the difference matches
+  `formatMoney.test.ts`'s existing `111110600` minor-unit grouping fixture —
+  same amount, same grouped string, on both surfaces.
+- **First noted:** 2026-07-13 (M5 Wave-3). **Resolved:** 2026-08-09 (Task 19).
+
+### KI-4 — Minor M5 Wave-3 cosmetic/dead-code notes — RESOLVED
+- **Severity:** cosmetic / cleanup
+- **Area:** `apps/web/src` (various)
+- Non-blocking findings from the Wave-3 per-task + final whole-branch reviews
+  (all shipped as-is by decision — no wrong behavior reachable by a user);
+  all five closed in Task 19 (2026-08-09):
+  - **FIXED:** `board/Column.tsx` — the `sectionRef` prop was dead (its only
+    caller, the removed day-pager `scrollToDay`, was already gone); deleted
+    the prop, its type, and the `ref={sectionRef}` wiring. `Board.tsx` never
+    passed `sectionRef` to `<Column>`, so no call site changed.
+  - **FIXED:** `lenses/MapLens.tsx` — removed the inert `grow` class from
+    `.map-lens-canvas`; the `minHeight`/`height: 70vh` inline styles do the
+    actual sizing, unchanged.
+  - **CLOSED BY OBSOLESCENCE:** `lenses/TimelineLens.tsx` — the hour-gridline
+    `<div>`s lacking `pointer-events-none`. Task 10's structural rewrite
+    (horizontal Gantt-bar-with-hour-axis → vertical day-header + activity-row
+    list) removed the hour-gridline code entirely; there is nothing left in
+    the file for this bullet to apply to.
+  - **CLOSED BY OBSOLESCENCE:** `lenses/TimelineLens.tsx` — axis tick labels
+    clipping at narrow widths. Same Task 10 rewrite; there is no axis-tick-
+    label code left in the file.
+  - **FIXED:** `ui/segmented-control.tsx` — verified the claim first (the
+    base `gap-0.5` class *was* redundant: `cn`'s `twMerge` silently dropped
+    it in favor of the subtle variant's `gap-3` on every render). Moved
+    `gap-0.5` into the pill-only branch so no dead class is emitted for
+    either variant; the merged output is identical to before.
+- **First noted:** 2026-07-13 (M5 Wave 3). **Resolved:** 2026-08-09 (Task 19).
 
 ## Dormant by decision
 

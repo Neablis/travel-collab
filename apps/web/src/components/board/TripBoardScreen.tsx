@@ -12,6 +12,7 @@ import { ItineraryLens } from "@/components/lenses/ItineraryLens";
 import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
 import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
+import { buttonVariants } from "@/components/ui/button";
 import { TabStrip } from "@/components/ui/tab-strip";
 import { PageContainer } from "@/components/ui/page-container";
 import { Preview } from "@/components/ui/preview";
@@ -22,6 +23,7 @@ import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_CONTEXT_LINE, PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
+import { cn } from "@/lib/cn";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
@@ -47,7 +49,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     return (
       <PageContainer width="full">
         <Heading level={1}>travel-collab</Heading>
-        <Link href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}>Sign in</Link>
+        <Link
+          href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}
+          className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
+        >
+          Sign in
+        </Link>
       </PageContainer>
     );
   }
