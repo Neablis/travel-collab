@@ -112,10 +112,12 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             aria-pressed={isFocused}
             onClick={() => onSelect(index)}
             className={cn(
-              "h-auto w-[92px] shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
+              "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
               CHIP_BG[accent.solid],
               isFocused && "ring-2 ring-brand",
             )}
+            // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+            style={{ width: "92px" }}
           >
             <span className="text-xs font-semibold text-ink">{day.dow}</span>
             <DataText size="xs" className="w-full truncate">
@@ -132,7 +134,12 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             </div>
             <div className="flex flex-wrap gap-0.5" aria-hidden>
               {Array.from({ length: day.stops }, (_, dotIndex) => (
-                <span key={dotIndex} className={cn("h-[3px] w-2 rounded-full", DOT_BG[accent.solid])} />
+                <span
+                  key={dotIndex}
+                  className={cn("w-2 rounded-full", DOT_BG[accent.solid])}
+                  // eslint-disable-next-line no-restricted-syntax -- 3px stop-dot height has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                  style={{ height: "3px" }}
+                />
               ))}
             </div>
           </Button>

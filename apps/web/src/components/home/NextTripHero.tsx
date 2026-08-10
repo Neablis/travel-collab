@@ -125,9 +125,11 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 key={member.userId}
                 aria-hidden
                 className={cn(
-                  "grid size-[30px] place-items-center rounded-full border-2 border-surface bg-brand-tint text-[11px] font-semibold text-brand-pressed",
+                  "grid place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed",
                   i > 0 && "-ml-2",
                 )}
+                // eslint-disable-next-line no-restricted-syntax -- 30px avatar circle + 11px initials text have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                style={{ height: "30px", width: "30px", fontSize: "11px" }}
               >
                 {initialsFor(member.userId)}
               </div>

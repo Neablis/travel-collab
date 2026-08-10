@@ -64,7 +64,9 @@ export function TripCard({ trip, menuSlot }: TripCardProps) {
         <div
           data-testid="accent-bar"
           aria-hidden
-          className={cn("h-1.5 w-[46px] rounded-full", ACCENT_BAR_BG[accent.solid])}
+          className={cn("h-1.5 rounded-full", ACCENT_BAR_BG[accent.solid])}
+          // eslint-disable-next-line no-restricted-syntax -- 46px accent bar width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+          style={{ width: "46px" }}
         />
         {menuSlot}
       </div>
@@ -91,9 +93,11 @@ export function TripCard({ trip, menuSlot }: TripCardProps) {
               key={member.userId}
               aria-hidden
               className={cn(
-                "grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint text-[9px] font-semibold text-brand-pressed",
+                "grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed",
                 i > 0 && "-ml-2",
               )}
+              // eslint-disable-next-line no-restricted-syntax -- 9px initials text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+              style={{ fontSize: "9px" }}
             >
               {initialsFor(member.userId)}
             </div>
