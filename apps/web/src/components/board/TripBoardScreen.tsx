@@ -97,72 +97,82 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   return (
     <>
-      <TripHeader tripId={tripId} />
-      <PageContainer width="full">
-        {error !== null && <p role="alert">{error}</p>}
-        <TabStrip
-          value={lens}
-          onValueChange={setLens}
-          options={LENSES.map((l) => ({ value: l, label: l }))}
-          aria-label="Trip view"
-        />
-        {/* Task 8: day-chips row, real TripDetail data, presentational-only
-            except for setting focus (Task 4's FocusProvider) — no lens or
-            command change. Lives under the tab strip so it's visible across
-            every lens, not just Board. */}
-        <div className="mt-2">
-          <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
+      {/* .trip-board-content (globals.css, gate-verification fix): reserves
+          356px of right padding at >=1180px so real content (day columns,
+          header actions) never sits underneath the fixed-position Assistant
+          rail below — see that class's comment for the full story (the
+          rail's own <Preview> wrapper hit-tests across its whole box since
+          only its inner children carry pointer-events:none; unrelated to
+          the separate m8-make-it-real.spec.ts drag-to-day-3 regression,
+          which was page-height overflow — see Board.tsx). */}
+      <div className="trip-board-content">
+        <TripHeader tripId={tripId} />
+        <PageContainer width="full">
+          {error !== null && <p role="alert">{error}</p>}
+          <TabStrip
+            value={lens}
+            onValueChange={setLens}
+            options={LENSES.map((l) => ({ value: l, label: l }))}
+            aria-label="Trip view"
+          />
+          {/* Task 8: day-chips row, real TripDetail data, presentational-only
+              except for setting focus (Task 4's FocusProvider) — no lens or
+              command change. Lives under the tab strip so it's visible across
+              every lens, not just Board. */}
+          <div className="mt-2">
+            <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
+          </div>
+        </PageContainer>
+        <div inert={preview.seq !== null ? true : undefined}>
+          {isFullLens ? (
+            <PageContainer width="full">
+              {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
+            </PageContainer>
+          ) : (
+            <PageContainer width="content">
+              {lens === "Board" && (
+                <div className="mb-3">
+                  {/* The AI route executes the model's plan as one atomic batch
+                      server-side (Task 5.3), so there's nothing for the client to
+                      predict — we reconcile in place from the authoritative
+                      { detail, history } the response already returns (no refetch,
+                      no page reload; ComposePanel's summary stays on screen). */}
+                  <ComposePanel tripId={tripId} surface="board" onApplied={applyOutcome} />
+                </div>
+              )}
+              {lens === "Board" && (
+                <Board
+                  trip={activeTrip}
+                  callbacks={{
+                    onMove: (activityId, toDayId, position) =>
+                      void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+                    onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
+                    onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
+                    onAddActivity: (value: ActivityFormValue) =>
+                      void dispatch({
+                        type: "AddActivity",
+                        tripId,
+                        activityId: crypto.randomUUID(),
+                        title: value.title,
+                        timeWindow: value.timeWindow ?? undefined,
+                        location: value.location ?? undefined,
+                        notes: value.notes ?? undefined,
+                        anchors: value.anchors,
+                        cost: value.cost ?? undefined,
+                      }),
+                    onUpdateActivity: updateActivity,
+                    onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+                    onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+                  }}
+                />
+              )}
+              {lens === "Schedule" && <ScheduleLens detail={activeTrip} onSelectActivity={openEdit} />}
+              {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
+              {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
+              {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
+            </PageContainer>
+          )}
         </div>
-      </PageContainer>
-      <div inert={preview.seq !== null ? true : undefined}>
-        {isFullLens ? (
-          <PageContainer width="full">
-            {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
-          </PageContainer>
-        ) : (
-          <PageContainer width="content">
-            {lens === "Board" && (
-              <div className="mb-3">
-                {/* The AI route executes the model's plan as one atomic batch
-                    server-side (Task 5.3), so there's nothing for the client to
-                    predict — we reconcile in place from the authoritative
-                    { detail, history } the response already returns (no refetch,
-                    no page reload; ComposePanel's summary stays on screen). */}
-                <ComposePanel tripId={tripId} surface="board" onApplied={applyOutcome} />
-              </div>
-            )}
-            {lens === "Board" && (
-              <Board
-                trip={activeTrip}
-                callbacks={{
-                  onMove: (activityId, toDayId, position) =>
-                    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
-                  onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
-                  onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                  onAddActivity: (value: ActivityFormValue) =>
-                    void dispatch({
-                      type: "AddActivity",
-                      tripId,
-                      activityId: crypto.randomUUID(),
-                      title: value.title,
-                      timeWindow: value.timeWindow ?? undefined,
-                      location: value.location ?? undefined,
-                      notes: value.notes ?? undefined,
-                      anchors: value.anchors,
-                      cost: value.cost ?? undefined,
-                    }),
-                  onUpdateActivity: updateActivity,
-                  onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
-                  onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-                }}
-              />
-            )}
-            {lens === "Schedule" && <ScheduleLens detail={activeTrip} onSelectActivity={openEdit} />}
-            {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
-            {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
-            {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
-          </PageContainer>
-        )}
       </div>
       {/* Task 14 (M9 Preview shell): the assistant rail — sample suggestions
           + quick-asks + no-op handlers per the plan's real prop contract.
