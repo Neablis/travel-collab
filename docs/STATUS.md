@@ -5,36 +5,48 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-08 (M10 kicked off, brought forward ahead of M9)**
+**Last updated: 2026-08-10 (M10 gate closed)**
 
 ## Where we are
 
-**M0–M8 are all complete and merged.** M8 ("Make it real") closed its gate
-2026-08-08 — see `docs/milestones/M8-make-it-real.md`'s retro.
+**M0–M10 are all complete and merged.** M8 ("Make it real") closed its gate
+2026-08-08; M10 ("Visual craft pass", brought forward ahead of M9 per ADR-018)
+closed its gate 2026-08-10 — see `docs/milestones/M10-visual-craft.md`'s retro
+for the full writeup, including three real regressions found and fixed only
+by the gate's own full e2e run (per-task review couldn't see them).
 
 **The Phase 1 gate review with Mitchell is done (2026-08-08).** M8 closed the
 floor it was blocked on (a trip couldn't be renamed or deleted before M8), and
 the dogfood run ("Mitchell plans a real trip end-to-end and needs no other
 tool") passed the same day.
 
-**Current milestone is M10, not M9** — see
-`docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md`.
-An external design team delivered a high-fidelity redesign of the whole
-product, including specs for M9's (Assistant/proposals) and M11's (Playbooks)
+**Current milestone is M9** — see `docs/milestones/README.md`'s Current
+milestone pointer. M10 executed ahead of M9 per
+`docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md`: an
+external design team delivered a high-fidelity redesign of the whole product,
+including specs for M9's (Assistant/proposals) and M11's (Playbooks)
 not-yet-built surfaces, which removed the design-uncertainty reason M10 had
-originally been ordered *after* M9. New order:
-`M8 ✓ → [Phase 1 gate review ✓] → M10 (now) → M9 → M11 → …`. `docs/milestones/
-README.md`'s Current milestone pointer is now **M10**; `docs/milestones/
-M10-visual-craft.md` carries the rewritten scope/exit-gate. M10 is executing
-via `docs/plans/2026-08-08-M10-redesign-incorporation.md` (UI-only visual pass:
-real restyle of Home/Trip-plan + inert `<Preview>` shells for M9/M11).
+originally been ordered *after* M9. Order: `M8 ✓ → [Phase 1 gate review ✓] →
+M10 ✓ → M9 (now) → M11 → …`.
 
 ## In flight
 
-**M10 — Visual craft pass, in progress** (started 2026-08-08). Executing
-`docs/plans/2026-08-08-M10-redesign-incorporation.md` task-by-task via
-subagent-driven development. See that plan file (until its gate-close removes
-it) or this file's next update for per-task progress.
+**Nothing in flight.** M10 is fully closed — see the milestone file's retro
+for what shipped (real restyle of Home/Trip-plan; inert `<Preview>` shells for
+every M9/M11 surface the handoff specified; KI-2/3/4 cosmetic debt closed or
+re-deferred) and what it found along the way (a Board drag-and-drop
+regression, a Tailwind cascade-order bug, and two e2e locator/navigation
+races — all fixed; full writeup in the retro, including a process note about
+independently re-verifying a subagent's "pre-existing, out of scope" claim
+that turned out to be wrong). `docs/plans/2026-08-08-M10-redesign-incorporation.md`
+is deleted as of this gate close per `docs/plans/README.md`'s staging-area
+rule.
+
+**One approved, intentional exception to M10's presentational-only rule:**
+KI-2's fix required a `packages/domain` change (`conflicts.ts`'s `fmt`,
+grouped to match the UI's money formatting) — Mitchell explicitly chose "fix
+it anyway, escalate the diff" over re-deferring when this was raised mid-build.
+Recorded in the M10 retro and in `docs/known-issues.md`.
 
 M8 is fully closed: Wave A (trip lifecycle, PR #21, merged 2026-08-07), Wave B
 (anchors-UI retirement, `ConflictContext.timezone` removal, Notebook

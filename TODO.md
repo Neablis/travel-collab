@@ -38,9 +38,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 ## Phase 2 — A product worth using
 
-- [ ] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
-      *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Executing via
-      `docs/plans/2026-08-08-M10-redesign-incorporation.md`.)*
+- [x] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
+      *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Gate closed
+      2026-08-10.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
 
 ## Phase 3 — Outward

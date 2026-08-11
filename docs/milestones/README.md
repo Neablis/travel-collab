@@ -48,7 +48,7 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
-| M10 | Visual craft pass | **Executes before M9 — see the 2026-08-08 reorder note below.** The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against an external design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
+| M10 | Visual craft pass | **Done, gate closed 2026-08-10** (executed before M9 — see the 2026-08-08 reorder note below). The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against an external design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
 | M9 | AI as a planning partner | Thread contract, streaming, propose→review→approve before commit, a refine turn, and the observability that does not exist today (persisted `meta`, replay harness, fixed eval set). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here** |
 
 ## Phase 3 — Outward
@@ -107,7 +107,8 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M10** — Visual craft pass, brought forward ahead of M9
-(see `M10-visual-craft.md` and ADR-018). M8's gate closed 2026-08-08 (see
-`M8-make-it-real.md`'s retro) and the Phase 1 gate review with Mitchell
-completed the same day; M9 resumes once M10's gate closes.
+Current milestone: **M9** — AI as a planning partner (see
+`M9-ai-planning-partner.md`). M10's gate closed 2026-08-10 (see
+`M10-visual-craft.md`'s retro) — the visual craft pass brought forward per
+ADR-018 is complete; M8's gate closed 2026-08-08 and the Phase 1 gate review
+with Mitchell completed the same day.
