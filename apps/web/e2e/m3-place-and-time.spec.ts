@@ -58,8 +58,8 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // option within it, instead of a standalone "Calendar" top-level tab.
   await page.getByRole("tab", { name: "Schedule" }).click();
   await page.getByRole("radio", { name: "Calendar" }).click();
-  await expect(page.getByText("Day 1")).toBeVisible();
-  await expect(page.getByText("Day 2")).toBeVisible();
+  await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Board" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for Board's own content to mount before

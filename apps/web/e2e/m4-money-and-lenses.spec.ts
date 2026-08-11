@@ -113,6 +113,6 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText(/exceeds the budget/)).toBeVisible();
 
   // -- dismiss the (now-restored) warning: it stays dismissed --
-  await page.getByRole("button", { name: /Dismiss/ }).click();
+  await page.getByRole("button", { name: /^Dismiss:/ }).click();
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 });
