@@ -129,6 +129,84 @@ describe("NextTripHero", () => {
     expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
   });
 
+  it("shows an honest empty placeholder, not a blank box, when every day has zero stops", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        startDate: "2027-04-01",
+        days: [
+          { dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", activityIds: [], date: "2027-04-01", costSubtotal: 0 },
+        ],
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    const placeholder = await screen.findByRole("status", { name: /shape of the trip/i });
+    expect(placeholder.textContent).toMatch(/no stops planned yet/i);
+    expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
+  });
+
+  // Regression: dayAccentFor used to be keyed by day index inside Sparkline,
+  // so the same real city landed on two different colors depending on which
+  // day it fell on (e.g. a 3-day Rochester trip). This exercises the real
+  // wiring (chipModel's cityFor, sourced from each day's first located
+  // activity) end to end, not just Sparkline's own hashing in isolation.
+  it("gives two days in the same real city the same sparkline bar color", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        startDate: "2027-04-01",
+        days: [
+          {
+            dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            activityIds: ["2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e"],
+            date: "2027-04-01",
+            costSubtotal: 0,
+          },
+          {
+            dayId: "5f607182-93a4-4e1f-2a3b-4c5d6e7f8091",
+            activityIds: ["6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5"],
+            date: "2027-04-02",
+            costSubtotal: 0,
+          },
+        ],
+        activities: {
+          "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e": {
+            activityId: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e",
+            title: "Coffee",
+            timeWindow: null,
+            location: { name: "Rochester", lat: 43.1566, lng: -77.6088, countryCode: "US" },
+            notes: null,
+            anchors: [],
+            cost: null,
+          },
+          "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5": {
+            activityId: "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5",
+            title: "Lunch",
+            timeWindow: null,
+            location: { name: "Rochester", lat: 43.1566, lng: -77.6088, countryCode: "US" },
+            notes: null,
+            anchors: [],
+            cost: null,
+          },
+        },
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    const [day1, day2] = within(sparklineGroup).getAllByRole("button");
+    const day1Bar = day1!.querySelector("span")!.className;
+    const day2Bar = day2!.querySelector("span")!.className;
+    const bgClass = day1Bar.split(" ").find((c) => c.startsWith("bg-"));
+    expect(bgClass).toBeDefined();
+    expect(day2Bar).toContain(bgClass);
+  });
+
   it("does not render an Open plan link to any other trip", async () => {
     const trip = tripSummaryFixture({ tripId: "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a", name: "Rome" });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });

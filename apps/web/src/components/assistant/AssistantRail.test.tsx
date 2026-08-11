@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Preview } from "@/components/ui/preview";
 import { AssistantRail, type Suggestion } from "./AssistantRail";
 
 afterEach(cleanup);
@@ -22,37 +22,37 @@ const suggestions: Suggestion[] = [
   },
 ];
 
-function renderRail() {
+function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail>> = {}) {
   return render(
-    <Preview id="assistant-rail">
-      <AssistantRail
-        contextLine="Looking at Day 2 · Kyoto"
-        suggestions={suggestions}
-        quickAsks={["Where am I overbooked?", "Find a rainy-day swap"]}
-        onAsk={vi.fn()}
-        onKeepGhost={vi.fn()}
-        onDismiss={vi.fn()}
-        onHide={vi.fn()}
-      />
-    </Preview>,
+    <AssistantRail
+      contextLine="Looking at Day 2 · Kyoto"
+      suggestions={suggestions}
+      quickAsks={["Where am I overbooked?", "Find a rainy-day swap"]}
+      onAsk={vi.fn()}
+      onKeepGhost={vi.fn()}
+      onDismiss={vi.fn()}
+      onHide={vi.fn()}
+      {...overrides}
+    />,
   );
 }
 
+// M10 redesign-feedback follow-up: the rail is no longer wrapped in a single
+// outer <Preview id="assistant-rail"> — its header/context line/ask box are
+// real (the same composeAiPlan feature the old standalone ComposePanel used
+// to expose directly), while "What I noticed" suggestions and the quick-ask
+// chips stay behind their own, narrower <Preview> wraps internally (still
+// M9, nothing generates a real suggestion yet).
 describe("AssistantRail", () => {
-  it("renders entirely inside the assistant-rail preview region", () => {
-    const { container } = renderRail();
-    const region = container.querySelector('[data-preview-id="assistant-rail"]');
-    expect(region).not.toBeNull();
-    expect(region?.textContent).toContain("Looking at Day 2 · Kyoto");
-  });
-
   it("renders the context line", () => {
     renderRail();
     expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
   });
 
-  it("renders a suggestion card per fixture entry, with location, title, body and CTA", () => {
-    renderRail();
+  it("renders a suggestion card per fixture entry, inert inside its own Preview region", () => {
+    const { container } = renderRail();
+    const region = container.querySelector('[data-preview-id="assistant-suggestions"]');
+    expect(region).not.toBeNull();
     for (const s of suggestions) {
       expect(screen.getByText(s.location)).not.toBeNull();
       expect(screen.getByText(s.title)).not.toBeNull();
@@ -62,20 +62,62 @@ describe("AssistantRail", () => {
     expect(screen.getAllByRole("button", { name: "Dismiss" })).toHaveLength(suggestions.length);
   });
 
-  it("renders quick-ask chips", () => {
-    renderRail();
+  it("does not call onKeepGhost when a suggestion's CTA is clicked — the shield swallows it", async () => {
+    const onKeepGhost = vi.fn();
+    renderRail({ onKeepGhost });
+    await userEvent.click(screen.getByRole("button", { name: suggestions[0]!.cta })).catch(() => {});
+    expect(onKeepGhost).not.toHaveBeenCalled();
+  });
+
+  it("renders quick-ask chips, inert inside their own Preview region", () => {
+    const { container } = renderRail();
+    const region = container.querySelector('[data-preview-id="assistant-quick-asks"]');
+    expect(region).not.toBeNull();
     expect(screen.getByRole("button", { name: "Where am I overbooked?" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Find a rainy-day swap" })).not.toBeNull();
   });
 
-  it("renders an Ask input and submit control", () => {
-    renderRail();
-    expect(screen.getByPlaceholderText(/ask/i)).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Ask" })).not.toBeNull();
+  it("does not call onAsk when a quick-ask chip is clicked — the shield swallows it", async () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk });
+    await userEvent.click(screen.getByRole("button", { name: "Where am I overbooked?" })).catch(() => {});
+    expect(onAsk).not.toHaveBeenCalled();
   });
 
-  it("renders a Hide control", () => {
-    renderRail();
-    expect(screen.getByRole("button", { name: "Hide" })).not.toBeNull();
+  it("the Ask box is real: typing and submitting calls onAsk with the typed text", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk });
+    const input = screen.getByPlaceholderText(/ask about this day/i);
+    fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
+    expect((input as HTMLInputElement).value).toBe("");
+  });
+
+  it("submits on Enter", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk });
+    const input = screen.getByPlaceholderText(/ask about this day/i);
+    fireEvent.change(input, { target: { value: "Cheapest way between cities" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAsk).toHaveBeenCalledWith("Cheapest way between cities");
+  });
+
+  it("disables the Ask input/button and shows a busy label while asking", () => {
+    renderRail({ asking: true });
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Asking…" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows an inline error when the last ask failed", () => {
+    renderRail({ askError: "The model is unavailable right now." });
+    expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now.");
+  });
+
+  it("the Hide control is real: clicking it calls onHide", () => {
+    const onHide = vi.fn();
+    renderRail({ onHide });
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(onHide).toHaveBeenCalledOnce();
   });
 });

@@ -13,6 +13,19 @@ import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
 
+// The Assistant rail's real Ask box calls composeAiPlan directly (M10
+// redesign-feedback follow-up) — mocked the same way ComposePanel.test.tsx
+// mocks it, rather than adding a real /api/trips/:id/ai MSW handler this
+// file otherwise has no use for.
+const composeAiPlanMock = vi.fn();
+vi.mock("@/lib/apiClient", async (orig) => {
+  const actual = await orig<typeof import("@/lib/apiClient")>();
+  return {
+    ...actual,
+    composeAiPlan: (...args: unknown[]) => composeAiPlanMock(...args),
+  };
+});
+
 // LensRouter derives lens/view from the URL via next/navigation — mock it the
 // same way F5's context.test.tsx does, with the URL as the store. Unlike that
 // test (which only asserts the router.replace call), TripBoardScreen's tests
@@ -56,6 +69,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   search = new URLSearchParams("");
   replaceSpy.mockClear();
+  composeAiPlanMock.mockReset();
 });
 afterEach(() => {
   server.resetHandlers();
@@ -114,10 +128,12 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByText(/Viewing version/)).toBeNull());
   });
 
-  it("switches between Board, Map and Schedule (Timeline + Calendar) lenses", async () => {
-    // Task L1: Schedule is now a real ScheduleLens with a Timeline/Calendar
-    // SegmentedControl toggle — only one inner view renders at a time
-    // (previously, pre-L1, both were rendered stacked as an interim measure).
+  it("switches between Day columns, Map (via More) and Timeline/Calendar lenses", async () => {
+    // TripViewTabs.tsx (M10 redesign-feedback follow-up): the top-level
+    // strip now shows exactly 3 peer tabs (Timeline / Day columns /
+    // Calendar) per the design handoff, with Timeline/Calendar driving
+    // ScheduleLens's `view` directly instead of routing through a nested
+    // SegmentedControl. Map/Itinerary/Daily/Trip moved behind a "More" menu.
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -125,16 +141,17 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.getByTestId("backlog-column")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Map" }));
+    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Map" }));
     expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
     expect(await screen.findByText("No days yet.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Calendar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Board" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Day columns" }));
     expect(await screen.findByTestId("backlog-column")).toBeTruthy();
   });
 
@@ -145,8 +162,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Schedule" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Calendar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     await screen.findByText("Set a start date to see the calendar.");
 
     // P2 surface move: TripDateControl re-homed into SettingsSheet (#15) —
@@ -234,20 +250,23 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
   });
 
-  it("switches to the Itinerary, Daily, and Trip lenses", async () => {
+  it("switches to the Itinerary, Daily, and Trip lenses via the More menu", async () => {
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Itinerary" }));
+    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Itinerary" }));
     expect(await screen.findByTestId("itinerary-lens")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Daily" }));
+    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Daily overview" }));
     expect(await screen.findByTestId("daily-overview-lens")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Trip" }));
+    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Full trip" }));
     expect(await screen.findByRole("region", { name: "Full trip overview" })).toBeTruthy();
   });
 
@@ -306,7 +325,8 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Itinerary" }));
+    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Itinerary" }));
     await screen.findByTestId("itinerary-lens");
 
     // The row label is "<place> · <title>" — click the activity to openEdit.
@@ -388,5 +408,59 @@ describe("TripBoardScreen", () => {
     );
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  // M10 redesign-feedback follow-up: the standalone board-level "Ask AI to
+  // plan" box (ComposePanel) is removed — the Assistant rail's own Ask box
+  // covers the same real feature now, and having both on screen at once was
+  // exactly the "which one is real" confusion this removal fixes.
+  it("does not render the standalone board-level AI compose box", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryByLabelText(/ask ai to plan/i)).toBeNull();
+  });
+
+  it("the Assistant rail's Ask box submits a real composeAiPlan call and reconciles the board", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    composeAiPlanMock.mockResolvedValue({
+      ok: true,
+      value: {
+        detail: tripDetailFixture({
+          tripId: fixture.tripId,
+          days: [{ dayId: "new-day", activityIds: [], date: null, costSubtotal: 0 }],
+        }),
+        history: historyFixture(fixture.tripId),
+        message: "Added a day.",
+      },
+    });
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryAllByTestId("day-column")).toHaveLength(0);
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Add a day" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    expect(composeAiPlanMock).toHaveBeenCalledWith(fixture.tripId, "Add a day", "board");
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+  });
+
+  it("the Assistant rail can be hidden and shown again, reclaiming the reserved layout width", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 });

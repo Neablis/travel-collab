@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useFocus } from "@/components/trip/context/FocusProvider";
-import { LENSES, useLens } from "@/components/trip/context/LensRouter";
+import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { ScheduleLens } from "@/components/lenses/ScheduleLens";
@@ -12,28 +13,32 @@ import { ItineraryLens } from "@/components/lenses/ItineraryLens";
 import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
 import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
-import { buttonVariants } from "@/components/ui/button";
-import { TabStrip } from "@/components/ui/tab-strip";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { PageContainer } from "@/components/ui/page-container";
-import { Preview } from "@/components/ui/preview";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
-import { ComposePanel } from "@/components/pages/ai/ComposePanel";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { PREVIEW_CONTEXT_LINE, PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
+import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
+import { composeAiPlan } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
-  const { lens, setLens } = useLens();
+  const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) below the tab strip both read and
   // set it.
   const { focusedDay, setFocusedDay } = useFocus();
+  // The rail's own "Hide"/re-show is real layout chrome now, not AI
+  // behavior gated behind M9 — see AssistantRail.tsx's header comment.
+  const [assistantOpen, setAssistantOpen] = useState(true);
+  const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [askError, setAskError] = useState<string | null>(null);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -80,6 +85,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       cost: value.cost,
     });
 
+  // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
+  // the same composeAiPlan("board") call the old standalone ComposePanel
+  // used to make directly, just triggered from the rail instead. The server
+  // executes the model's plan as one atomic batch (Task 5.3) and returns the
+  // resulting { detail, history } already reconciled — applyOutcome is the
+  // same reconciler ComposePanel's board surface used, no refetch needed.
+  const submitAssistantAsk = async (text: string) => {
+    setAskStatus("loading");
+    setAskError(null);
+    const result = await composeAiPlan(tripId, text, "board");
+    if (!result.ok) {
+      setAskStatus("error");
+      setAskError(result.error.message);
+      return;
+    }
+    applyOutcome(result.value);
+    setAskStatus("idle");
+  };
+
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
   // px-0) so a non-full lens's own PageContainer width="content" can own
   // horizontal padding without doubling up. Chrome that's shared across all
@@ -89,32 +113,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // (Task 11) rather than wrapping, so only Map remains full-bleed.
   const isFullLens = lens === "Map";
 
-  // Task 14 (M9 Preview shell): the assistant's real-shaped context line —
-  // "Looking at Day N" once a day is focused (Task 4's FocusProvider,
-  // already read above for the day chips), else a sensible trip-wide
-  // default. Presentational only; nothing downstream reacts to it yet.
-  const assistantContextLine = focusedDay !== null ? `Looking at Day ${focusedDay + 1}` : PREVIEW_CONTEXT_LINE;
+  // The assistant's context line — "Looking at Day N" once a day is focused
+  // (Task 4's FocusProvider, already read above for the day chips), else
+  // the trip itself. Used to say "Looking at all three of your trips" (a
+  // fabricated cross-trip claim from when the whole rail was still a
+  // Preview fixture) — now that the ask box is real and scoped to this one
+  // trip's real composeAiPlan call, the fallback has to be honest about
+  // that scope too.
+  const assistantContextLine = focusedDay !== null ? `Looking at Day ${focusedDay + 1}` : `Looking at ${activeTrip.name}`;
 
   return (
     <>
-      {/* .trip-board-content (globals.css, gate-verification fix): reserves
-          356px of right padding at >=1180px so real content (day columns,
-          header actions) never sits underneath the fixed-position Assistant
-          rail below — see that class's comment for the full story (the
-          rail's own <Preview> wrapper hit-tests across its whole box since
-          only its inner children carry pointer-events:none; unrelated to
-          the separate m8-make-it-real.spec.ts drag-to-day-3 regression,
-          which was page-height overflow — see Board.tsx). */}
-      <div className="trip-board-content">
+      {/* .trip-board-content (globals.css): reserves 356px of right padding
+          at >=1180px so real content (day columns, header actions) never
+          sits underneath the fixed-position Assistant rail below — dropped
+          via .assistant-hidden when the rail itself is hidden, so hiding it
+          actually reclaims the width rather than leaving a dead gutter. */}
+      <div className={cn("trip-board-content", !assistantOpen && "assistant-hidden")}>
         <TripHeader tripId={tripId} />
         <PageContainer width="full">
           {error !== null && <p role="alert">{error}</p>}
-          <TabStrip
-            value={lens}
-            onValueChange={setLens}
-            options={LENSES.map((l) => ({ value: l, label: l }))}
-            aria-label="Trip view"
-          />
+          <TripViewTabs />
           {/* Task 8: day-chips row, real TripDetail data, presentational-only
               except for setting focus (Task 4's FocusProvider) — no lens or
               command change. Lives under the tab strip so it's visible across
@@ -130,16 +149,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             </PageContainer>
           ) : (
             <PageContainer width="content">
-              {lens === "Board" && (
-                <div className="mb-3">
-                  {/* The AI route executes the model's plan as one atomic batch
-                      server-side (Task 5.3), so there's nothing for the client to
-                      predict — we reconcile in place from the authoritative
-                      { detail, history } the response already returns (no refetch,
-                      no page reload; ComposePanel's summary stays on screen). */}
-                  <ComposePanel tripId={tripId} surface="board" onApplied={applyOutcome} />
-                </div>
-              )}
               {lens === "Board" && (
                 <Board
                   trip={activeTrip}
@@ -174,38 +183,36 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           )}
         </div>
       </div>
-      {/* Task 14 (M9 Preview shell): the assistant rail — sample suggestions
-          + quick-asks + no-op handlers per the plan's real prop contract.
+      {/* The assistant rail — real header/context/ask box (composeAiPlan,
+          same as the removed standalone ComposePanel used to call directly)
+          + still-Preview suggestions/quick-asks (AssistantRail.tsx wraps
+          those two internally now, narrower than the old whole-rail wrap).
           Mounted once here (like ActivityEditorSheet below) so it's present
           regardless of which lens is active; it's fixed-position internally,
-          so it doesn't affect any lens's own layout. Wrapped in <Preview>
-          (Task 3's seam), which shields pointer events and stamps the
-          "Preview · M9" chip — none of these handlers fire yet.
-          Fix (Task 14 review): AssistantRail's own contents are
-          `position: fixed` (a viewport-relative scrim + the `<aside>` rail
-          itself), so they contribute zero height to normal flow and
-          Preview's `relative` wrapper — the containing block for its
-          absolute "Preview · M9" badge — collapses to a zero-size box
-          wherever this <Preview> falls in TripBoardScreen's flow, instead
-          of sitting at the rail's actual on-screen position. Giving
-          Preview's own wrapper the same fixed inset-y-0 right-0 + 356px box
-          as AssistantRail's <aside> (via .assistant-rail-panel, globals.css)
-          gives it real, correctly-positioned dimensions, so the badge
-          anchors to the visible rail's corner. This does not double-clip
-          the scrim: `position: fixed` is viewport-relative regardless of an
-          ancestor's own position, unless that ancestor sets
-          transform/filter/perspective/will-change, which none here do. */}
-      <Preview id="assistant-rail" className="assistant-rail-panel fixed inset-y-0 right-0 z-50">
+          so it doesn't affect any lens's own layout. Unmounted entirely
+          (not just visually hidden) when the user hides it, so its fixed
+          scrim/aside don't linger in the DOM. */}
+      {assistantOpen ? (
         <AssistantRail
           contextLine={assistantContextLine}
           suggestions={PREVIEW_SUGGESTIONS}
           quickAsks={PREVIEW_QUICK_ASKS}
-          onAsk={() => {}}
+          onAsk={(text) => void submitAssistantAsk(text)}
+          asking={askStatus === "loading"}
+          askError={askStatus === "error" ? askError : null}
           onKeepGhost={() => {}}
           onDismiss={() => {}}
-          onHide={() => {}}
+          onHide={() => setAssistantOpen(false)}
         />
-      </Preview>
+      ) : (
+        <Button
+          variant="secondary"
+          onClick={() => setAssistantOpen(true)}
+          className="fixed right-0 top-1/2 z-50 -translate-y-1/2 rounded-r-none border-r-0 px-2 py-3 text-xs shadow-raised"
+        >
+          Assistant
+        </Button>
+      )}
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}

@@ -1,14 +1,14 @@
 import type { Suggestion } from "./AssistantRail";
 import type { Proposal } from "./GhostProposal";
 
-// Sample data for the M9 assistant-rail Preview shell (Task 14). Sourced in
-// spirit from the design handoff prototype's own fixtures
+// Sample data for the still-Preview half of the assistant rail (Task 14;
+// narrowed to just suggestions/quick-asks by the M10 redesign-feedback
+// follow-up — the rail's ask box itself is real now, see AssistantRail.tsx).
+// Sourced in spirit from the design handoff prototype's own fixtures
 // (`~/Downloads/design_handoff_trip_planner/Trip Planner Redesign.dc.html`,
 // `suggestionData()`/`quickAsks` for the Japan trip) so the Preview reads as
 // a real assistant surface rather than lorem-ipsum placeholders. M9 replaces
 // these with the live suggestion/quick-ask source; the shape stays the same.
-
-export const PREVIEW_CONTEXT_LINE = "Looking at all three of your trips";
 
 export const PREVIEW_SUGGESTIONS: Suggestion[] = [
   {

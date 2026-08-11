@@ -11,7 +11,8 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // -- set the trip currency to EUR --
   // P2 surface move (#12b): currency/budget moved from the always-visible
@@ -46,7 +47,10 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText("Travel insurance")).toBeVisible();
 
   // -- Itinerary lens: per-day subtotal and unscheduled section --
-  await page.getByRole("tab", { name: "Itinerary" }).click();
+  // Itinerary/Daily/Trip moved behind TripViewTabs.tsx's "More" menu (M10
+  // redesign-feedback follow-up) — no longer top-level tabs.
+  await page.getByRole("button", { name: /More views/ }).click();
+  await page.getByRole("menuitem", { name: "Itinerary" }).click();
   await expect(page.getByText("420.00 EUR").first()).toBeVisible();
   await expect(page.getByText("Unscheduled")).toBeVisible();
   await expect(page.getByText("99.00 EUR").first()).toBeVisible();
@@ -59,17 +63,19 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // per-activity cost cell equals the day subtotal), so asserting on that text
   // alone can hit a strict-mode violation mid-transition. Wait for the Daily
   // lens's own container to mount first, disambiguating which lens is live.
-  await page.getByRole("tab", { name: "Daily" }).click();
+  await page.getByRole("button", { name: /More views/ }).click();
+  await page.getByRole("menuitem", { name: "Daily overview" }).click();
   await expect(page.getByTestId("daily-overview-lens")).toBeVisible();
   await expect(page.getByText("420.00 EUR")).toBeVisible();
 
   // -- Trip lens: total renders --
-  await page.getByRole("tab", { name: "Trip" }).click();
+  await page.getByRole("button", { name: /More views/ }).click();
+  await page.getByRole("menuitem", { name: "Full trip" }).click();
   await expect(page.getByText("519.00 EUR")).toBeVisible();
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.
-  await page.getByRole("tab", { name: "Board" }).click();
+  await page.getByRole("tab", { name: "Day columns" }).click();
 
   // -- set a budget below the total: over-budget warning appears --
   // MoneyInput debounces/commits on blur (avoids firing one SetTripBudget

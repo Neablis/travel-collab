@@ -107,18 +107,6 @@
     }
   }
 
-  /* Task 14 fix: <Preview id="assistant-rail">'s own wrapper div must match
-     AssistantRail's own <aside> box (fixed inset-y-0 right-0, 356px wide) so
-     Preview's absolutely-positioned "Preview · M9" badge has a real,
-     correctly-positioned containing block instead of collapsing to
-     zero-height wherever TripBoardScreen's normal flow places it — the
-     rail's own contents are `position: fixed` and contribute nothing to
-     flow. Mirrors AssistantRail.tsx's own 356px `<aside>` width; see the
-     handoff README width note there. */
-  .assistant-rail-panel {
-    width: 356px;
-  }
-
   /* PlaybooksStrip (Task 16, M11 preview shell): handoff README "Your
      Playbooks" grid is 4-col, collapsing to 2-col at 1180px — the same
      breakpoint number Task 14 used for the assistant rail's scrim, so this
@@ -164,6 +152,12 @@
   @media (min-width: 1180px) {
     .trip-board-content {
       padding-right: 356px;
+    }
+    /* Hiding the rail (TripBoardScreen.tsx's real Hide toggle, M10
+       redesign-feedback follow-up) reclaims this reserved width instead of
+       leaving a dead gutter where the rail used to be. */
+    .trip-board-content.assistant-hidden {
+      padding-right: 0;
     }
   }
 }

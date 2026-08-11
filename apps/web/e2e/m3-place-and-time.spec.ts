@@ -27,7 +27,8 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("button", { name: "+ Add day" }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -53,14 +54,13 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     page.getByRole("button", { name: "Set dates" }).click(),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
-  // Task L1: Timeline/Calendar merged into a single "Schedule" lens with a
-  // SegmentedControl toggle — click the Schedule tab, then the Calendar
-  // option within it, instead of a standalone "Calendar" top-level tab.
-  await page.getByRole("tab", { name: "Schedule" }).click();
-  await page.getByRole("radio", { name: "Calendar" }).click();
+  // TripViewTabs.tsx (M10 redesign-feedback follow-up): Calendar is its own
+  // top-level tab now, matching the design handoff's 3-tab strip — no more
+  // Schedule->Calendar two-step through a nested SegmentedControl.
+  await page.getByRole("tab", { name: "Calendar" }).click();
   await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Board" }).click();
+  await page.getByRole("tab", { name: "Day columns" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for Board's own content to mount before
   // interacting with it, so we're not still hitting the Schedule lens's own
@@ -90,8 +90,10 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await dragCardTo(fushimi, day1);
   await expect(day1.getByText("Fushimi Inari")).toBeVisible();
 
-  // Assert the map pin.
-  await page.getByRole("tab", { name: "Map" }).click();
+  // Assert the map pin. Map moved behind TripViewTabs.tsx's "More" menu
+  // (M10 redesign-feedback follow-up) — it's no longer a top-level tab.
+  await page.getByRole("button", { name: /More views/ }).click();
+  await page.getByRole("menuitem", { name: "Map" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for the Map lens to mount before asserting.
   await expect(page.getByTestId("map-lens")).toBeVisible();
@@ -101,7 +103,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // located activities yet" empty state) confirms Fushimi Inari's geocode
   // landed.
   await expect(page.locator(".map-lens-canvas")).toBeVisible();
-  await page.getByRole("tab", { name: "Board" }).click();
+  await page.getByRole("tab", { name: "Day columns" }).click();
 
   // -- shift the start date; day 1's own date label reflects the change --
   // (D-1: this used to also assert an anchor-violation conflict badge

@@ -10,7 +10,11 @@ export function TabStrip<T extends string>({
   options,
   "aria-label": ariaLabel,
 }: {
-  value: T;
+  // `undefined` is for a caller whose selection can legitimately fall
+  // outside this strip's own options (TripViewTabs: the trip view is on one
+  // of the 4 lenses tucked behind its "More" menu) — every tab just renders
+  // unselected in that case, same as passing a value that matches no option.
+  value: T | undefined;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
   "aria-label": string;

@@ -4,7 +4,14 @@
 export const PREVIEW_REGISTRY = {
   "home-worth-attention": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
   "home-playbooks-strip": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
-  "assistant-rail": { milestone: "M9", wiredUpBy: "M9 AI thread" },
+  // The rail's chrome (header/Hide) and ask box are real as of the M10
+  // redesign-feedback follow-up — composeAiPlan, the same real M7 feature
+  // the board's old ComposePanel used to expose directly. Only the
+  // proactive half (suggestions the assistant notices on its own, and the
+  // quick-ask nudge chips) is still M9/not-built — narrower Preview wraps
+  // than the old single whole-rail "assistant-rail" entry this replaces.
+  "assistant-suggestions": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
+  "assistant-quick-asks": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
   "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
   "keep-day-flag": { milestone: "M11", wiredUpBy: "M11 keep-a-day" },
   "keep-day-dialog": { milestone: "M11", wiredUpBy: "M11 keep-a-day" },

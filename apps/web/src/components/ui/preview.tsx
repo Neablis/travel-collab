@@ -52,8 +52,23 @@ export function Preview({
       >
         {children}
       </div>
+      {/* Anchored OUTSIDE the box's own top-right corner (negative offsets,
+          not the `right-2 top-2` this replaced) so the badge never sits on
+          top of the host's real content — confirmed via getBoundingClientRect
+          that on a compact host (e.g. AddSavedDayButton, 134x36px) an
+          inside-corner badge covered most of the button's own label text,
+          not just a harmless corner. Hanging mostly outside the box instead
+          means it overlaps at most a sliver of the host's border/padding,
+          regardless of host size, with no per-host tuning needed.
+          `max-w-full truncate` covers the remaining case: a host narrower
+          than the badge's own natural text width (e.g. a bare "Share"
+          button, ~67px, next to a ~90px badge) — without a cap the badge
+          stays full-width and swallows the host regardless of offset;
+          capped, it clips to the host's own width instead. This only
+          affects rendered layout, not textContent, so it doesn't change
+          what `getByText(/Preview/)` finds in tests. */}
       <span
-        className="absolute right-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
+        className="absolute -right-1.5 -top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
         style={{ fontSize: "10px" }}
       >
         Preview · {milestone}

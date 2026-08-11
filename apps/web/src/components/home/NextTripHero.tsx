@@ -9,6 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
+import { chipModel } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
@@ -39,12 +40,15 @@ function StatTile({ tone, value, label }: { tone: StatTileTone; value: string; l
   );
 }
 
-// Sparkline (Task 5) needs a per-day stop count, but TripSummary (what the
-// trips list fetches) carries no day/stop data at all (only
+// Sparkline (Task 5) needs a per-day stop count and city, but TripSummary
+// (what the trips list fetches) carries no day/stop/city data at all (only
 // tripId/name/status/members/createdAt) — that lives on TripDetail. Rather
 // than fabricate numbers, this fetches the real TripDetail on mount and
-// derives the sparkline from its `days` array. `null` means "no real data
-// to show yet" (still loading, or the fetch failed) — the render below
+// derives the sparkline from its `days` array via DayChips.tsx's
+// `chipModel` (the same real per-day city derivation DayChips/Board/
+// CalendarLens already use, so this trip's colors agree everywhere rather
+// than reinventing a second, divergent city lookup). `null` means "no real
+// data to show yet" (still loading, or the fetch failed) — the render below
 // never falls back to invented bars for that state.
 type SparklineFetchState =
   | { status: "loading" }
@@ -79,7 +83,10 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     void fetchTripDetail(trip.tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
-        setSparkline({ status: "ready", days: result.value.days.map((d) => ({ stops: d.activityIds.length })) });
+        setSparkline({
+          status: "ready",
+          days: chipModel(result.value).map((d) => ({ stops: d.stops, city: d.city })),
+        });
         setStartDate(result.value.startDate);
       } else {
         setSparkline({ status: "error" });
@@ -160,17 +167,27 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           </div>
           <div className="mt-4">
-            {sparkline.status === "ready" ? (
+            {sparkline.status === "ready" && sparkline.days.some((d) => d.stops > 0) ? (
               <Sparkline days={sparkline.days} />
             ) : (
-              // Honest placeholder for "not loaded yet" / "failed to load" —
-              // no fabricated bar data renders in either case.
+              // Honest placeholder for every case with no bars to draw:
+              // not loaded yet, failed to load, no days yet, or days with
+              // zero stops (previously rendered as an unexplained blank
+              // moss box — sparklineBars legitimately returns 0 bars per
+              // day here, which isn't a bug, but showing nothing at all
+              // read as broken rather than empty).
               <div
                 role="status"
                 aria-label="Shape of the trip"
                 className="flex h-24 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
               >
-                {sparkline.status === "loading" ? "Loading…" : "Unavailable"}
+                {sparkline.status === "loading"
+                  ? "Loading…"
+                  : sparkline.status === "error"
+                    ? "Unavailable"
+                    : sparkline.days.length === 0
+                      ? "No days yet"
+                      : "No stops planned yet"}
               </div>
             )}
           </div>

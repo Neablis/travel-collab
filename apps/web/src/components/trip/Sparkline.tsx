@@ -17,11 +17,12 @@ const BAR_BG: Record<AccentFamily, string> = {
 
 // The "shape of the trip" sparkline (README §1 next-trip hero): one
 // clickable column per day, each column a stack of small bars — one bar
-// per stop that day. This component only knows `{ stops: number }` per
-// day; mapping a real TripDetail's days into that shape is the caller's
-// job (Task 6's hero), keeping this component free of the `packages/contracts`
-// dependency.
-export type SparklineDay = { stops: number };
+// per stop that day. This component only knows `{ stops: number, city:
+// string | null }` per day; mapping a real TripDetail's days into that
+// shape is the caller's job (Task 6's hero, reusing DayChips.tsx's
+// `chipModel`/`cityFor` derivation), keeping this component free of the
+// `packages/contracts` dependency.
+export type SparklineDay = { stops: number; city: string | null };
 
 export type SparklineBar = { key: string };
 
@@ -53,9 +54,10 @@ export type SparklineProps = {
 // hero, on a `--color-moss` background, 96px tall. Each day is a clickable
 // column of ~13px stacked bars (one per stop) with 5px gaps between both
 // bars and columns; bars are tinted with that day's accent (Task 2's
-// `dayAccentFor`, keyed by day index since this component doesn't know
-// city names) so the sparkline previews the same per-day color language
-// used elsewhere in the redesign.
+// `dayAccentFor`, keyed by the day's real city, not its index — the same
+// city must render the same color everywhere, matching TripCard/DayChips/
+// Board/CalendarLens) so the sparkline previews the same per-day color
+// language used elsewhere in the redesign.
 export function Sparkline({ days, onSelectDay }: SparklineProps) {
   const columns = sparklineBars(days);
 
@@ -68,7 +70,7 @@ export function Sparkline({ days, onSelectDay }: SparklineProps) {
       aria-label="Shape of the trip"
     >
       {columns.map((bars, dayIndex) => {
-        const accent = dayAccentFor(String(dayIndex));
+        const accent = dayAccentFor(days[dayIndex]?.city);
         return (
           // The Button primitive's default (secondary/md) chrome — border,
           // surface fill, fixed height, horizontal padding — is overridden

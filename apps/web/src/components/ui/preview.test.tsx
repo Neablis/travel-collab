@@ -5,14 +5,14 @@ import { Preview } from "./preview";
 
 describe("Preview", () => {
   it("renders children and a milestone chip", () => {
-    render(<Preview id="assistant-rail">{<span>rail body</span>}</Preview>);
+    render(<Preview id="assistant-suggestions">{<span>rail body</span>}</Preview>);
     expect(screen.getByText("rail body")).toBeTruthy();
     expect(screen.getByText(/Preview · M9/)).toBeTruthy();
   });
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();
     render(
-      <Preview id="assistant-rail">
+      <Preview id="assistant-suggestions">
         <button onClick={onClick}>Ask</button>
       </Preview>,
     );
@@ -20,7 +20,7 @@ describe("Preview", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
   it("marks the region aria-disabled", () => {
-    render(<Preview id="assistant-rail">body</Preview>);
+    render(<Preview id="assistant-suggestions">body</Preview>);
     expect(screen.getByRole("group", { hidden: true }).getAttribute("aria-disabled")).toBe("true");
   });
 });

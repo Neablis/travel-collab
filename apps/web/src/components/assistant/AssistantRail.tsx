@@ -5,14 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { Preview } from "@/components/ui/preview";
 
-// Task 14 (M9 Preview shell): this is the assistant rail's real prop
-// contract per the M10 plan — sample data + no-op handlers today (fed by
-// preview-fixtures.ts), so M9 only has to swap the data source and wire real
-// handlers later, never rebuild the component shape. The caller always
-// mounts this inside <Preview id="assistant-rail"> (Task 3's seam), which
-// shields pointer events and stamps the "Preview · M9" chip, so none of the
-// callbacks below actually fire yet.
+// M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
+// title, Hide) and its ask box are the SAME real conversational feature the
+// board's old ComposePanel already shipped in M7 — composeAiPlan against a
+// real trip — just relocated into this rail, per Mitchell's read of the
+// design ("the sidebar IS the AI agent we have today, just moved"). Only the
+// PROACTIVE half is still M9/not-built: the "What I noticed" suggestion
+// cards (nothing generates real ones yet) and the quick-ask chips (nudges of
+// things to ask), each wrapped in their own <Preview> below — narrower than
+// the old single whole-rail wrap this replaces, so the real ask box stays
+// usable while those two still read as previews.
 export type Suggestion = {
   id: string;
   location: string;
@@ -26,6 +30,8 @@ export function AssistantRail({
   suggestions,
   quickAsks,
   onAsk,
+  asking = false,
+  askError = null,
   onKeepGhost,
   onDismiss,
   onHide,
@@ -34,6 +40,11 @@ export function AssistantRail({
   suggestions: Suggestion[];
   quickAsks: string[];
   onAsk: (text: string) => void;
+  /** True while a real composeAiPlan request from this rail is in flight. */
+  asking?: boolean;
+  /** Set when the last real ask failed — rendered inline, not a toast, so it
+   * stays visible next to the box the user just submitted from. */
+  askError?: string | null;
   onKeepGhost: (id: string) => void;
   onDismiss: (id: string) => void;
   onHide: () => void;
@@ -41,7 +52,7 @@ export function AssistantRail({
   const [ask, setAsk] = useState("");
 
   const submitAsk = () => {
-    if (ask.trim() === "") return;
+    if (ask.trim() === "" || asking) return;
     onAsk(ask);
     setAsk("");
   };
@@ -89,46 +100,64 @@ export function AssistantRail({
         </div>
 
         <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3.5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate">What I noticed</div>
-          {suggestions.map((suggestion) => (
-            <Card key={suggestion.id} className="flex flex-col gap-2">
-              <div className="flex items-center gap-1.5">
-                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                <span className="font-mono text-xs text-slate">{suggestion.location}</span>
-              </div>
-              <div className="text-sm font-semibold leading-snug text-ink">{suggestion.title}</div>
-              <p className="text-sm leading-relaxed text-slate">{suggestion.body}</p>
-              <div className="flex gap-1.5 pt-0.5">
-                <Button variant="secondary" size="sm" onClick={() => onKeepGhost(suggestion.id)}>
-                  {suggestion.cta}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => onDismiss(suggestion.id)}>
-                  Dismiss
-                </Button>
-              </div>
-            </Card>
-          ))}
+          {/* Still M9: nothing generates a real suggestion yet. Narrower than
+              the old whole-rail Preview wrap — the real ask box below stays
+              usable regardless. */}
+          <Preview id="assistant-suggestions">
+            <div className="flex flex-col gap-2.5">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate">What I noticed</div>
+              {suggestions.map((suggestion) => (
+                <Card key={suggestion.id} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                    <span className="font-mono text-xs text-slate">{suggestion.location}</span>
+                  </div>
+                  <div className="text-sm font-semibold leading-snug text-ink">{suggestion.title}</div>
+                  <p className="text-sm leading-relaxed text-slate">{suggestion.body}</p>
+                  <div className="flex gap-1.5 pt-0.5">
+                    <Button variant="secondary" size="sm" onClick={() => onKeepGhost(suggestion.id)}>
+                      {suggestion.cta}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onDismiss(suggestion.id)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </Preview>
         </div>
 
         <div className="border-t border-hairline px-4 py-3">
-          <div className="mb-2.5 flex flex-wrap gap-1.5">
-            {quickAsks.map((quickAsk) => (
-              <Button
-                key={quickAsk}
-                variant="ghost"
-                size="sm"
-                className="rounded-full bg-moss text-slate hover:bg-moss"
-                onClick={() => onAsk(quickAsk)}
-              >
-                {quickAsk}
-              </Button>
-            ))}
-          </div>
+          {/* Still M9: these are canned nudges of what to ask, not derived
+              from anything real — the real Ask box right below works today
+              regardless of whether a chip was ever clicked. */}
+          <Preview id="assistant-quick-asks" className="mb-2.5 block">
+            <div className="flex flex-wrap gap-1.5">
+              {quickAsks.map((quickAsk) => (
+                <Button
+                  key={quickAsk}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full bg-moss text-slate hover:bg-moss"
+                  onClick={() => onAsk(quickAsk)}
+                >
+                  {quickAsk}
+                </Button>
+              ))}
+            </div>
+          </Preview>
+          {askError !== null && (
+            <p role="alert" className="mb-1.5 text-xs text-danger">
+              {askError}
+            </p>
+          )}
           <div className="flex gap-1.5">
             <Input
               placeholder="Ask about this day…"
               value={ask}
               onChange={(e) => setAsk(e.target.value)}
+              disabled={asking}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -136,8 +165,8 @@ export function AssistantRail({
                 }
               }}
             />
-            <Button variant="primary" size="sm" onClick={submitAsk}>
-              Ask
+            <Button variant="primary" size="sm" onClick={submitAsk} disabled={asking || ask.trim() === ""}>
+              {asking ? "Asking…" : "Ask"}
             </Button>
           </div>
         </div>
