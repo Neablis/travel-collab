@@ -9,7 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
-import { cityFor } from "@/components/trip/DayChips";
+import { cityFor, parseLocalDate } from "@/components/trip/DayChips";
 import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
@@ -98,6 +98,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           status: "ready",
           days: days.map((day) => ({
             city: cityFor(day, activities),
+            dayNumber: day.date === null ? null : parseLocalDate(day.date).getDate(),
             stops: day.activityIds.map((id) => {
               const timeWindow = activities[id]?.timeWindow;
               return { durationMinutes: timeWindow ? minutesBetween(timeWindow.start, timeWindow.end) : null };
@@ -190,25 +191,18 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           </div>
           <div className="mt-4">
-            {sparkline.status === "ready" && sparkline.days.some((d) => d.stops.length > 0) ? (
+            {sparkline.status === "ready" && sparkline.days.length > 0 ? (
+              // Sparkline itself handles a day with zero stops gracefully
+              // (an empty, day-numbered slot) — the placeholder below is
+              // only for states where there's no real day data at all yet.
               <Sparkline days={sparkline.days} />
             ) : (
-              // Honest placeholder for every case with no bars to draw: not
-              // loaded yet, failed to load, no days yet, or days with zero
-              // stops (previously rendered as an unexplained blank moss box
-              // — showing nothing at all read as broken rather than empty).
               <div
                 role="status"
                 aria-label="Shape of the trip"
                 className="flex h-16 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
               >
-                {sparkline.status === "loading"
-                  ? "Loading…"
-                  : sparkline.status === "error"
-                    ? "Unavailable"
-                    : sparkline.days.length === 0
-                      ? "No days yet"
-                      : "No stops planned yet"}
+                {sparkline.status === "loading" ? "Loading…" : sparkline.status === "error" ? "Unavailable" : "No days yet"}
               </div>
             )}
           </div>

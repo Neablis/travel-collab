@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { tripDetailFixture } from "@/mocks/fixtures";
@@ -94,12 +94,15 @@ describe("NextTripHero", () => {
     // Sparkline: one bar per stop across both days (3 + 1 = 4), asserting
     // the exact count derived from the mocked TripDetail.days/activityIds,
     // not just "some bars exist" — what proves this isn't fabricated data.
+    // Plus a day-number label per day (April 1 and April 2 from the
+    // fixture's dates).
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
     const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(bars.length).toBe(4);
-    // The day-2 bar (index 3) is the only one with the day-break margin.
-    expect((bars[3] as HTMLElement).style.marginLeft).toBe("10px");
-    expect((bars[0] as HTMLElement).style.marginLeft).toBe("");
+    // "1"/"2" collide with the stat tiles' own values elsewhere on the page
+    // (travelers/days-planning/need-a-decision), so scope to the sparkline.
+    expect(within(sparklineGroup).getByText("1")).toBeTruthy();
+    expect(within(sparklineGroup).getByText("2")).toBeTruthy();
   });
 
   it("shows a loading placeholder, never fabricated bars, before the TripDetail fetch resolves", async () => {
@@ -131,7 +134,25 @@ describe("NextTripHero", () => {
     expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
   });
 
-  it("shows an honest empty placeholder, not a blank box, when every day has zero stops", async () => {
+  it("shows an honest 'No days yet' placeholder only when the trip has no days at all", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({ tripId: trip.tripId, days: [] }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    const placeholder = await screen.findByRole("status", { name: /shape of the trip/i });
+    expect(placeholder.textContent).toMatch(/no days yet/i);
+    expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
+  });
+
+  // Regression: a day with zero stops used to make the whole sparkline fall
+  // back to a "No stops planned yet" placeholder (or, for a multi-day trip,
+  // silently drop that one day's group entirely) — a real 4-day trip whose
+  // 4th day had no activities yet only ever showed 3 groups. It must render
+  // the sparkline with an empty (but still day-numbered) slot for that day.
+  it("still renders the sparkline group, with an empty day-numbered slot, when a day has zero stops", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
@@ -139,15 +160,33 @@ describe("NextTripHero", () => {
         tripId: trip.tripId,
         startDate: "2027-04-01",
         days: [
-          { dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", activityIds: [], date: "2027-04-01", costSubtotal: 0 },
+          {
+            dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            activityIds: ["2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e"],
+            date: "2027-04-01",
+            costSubtotal: 0,
+          },
+          { dayId: "5f607182-93a4-4e1f-2a3b-4c5d6e7f8091", activityIds: [], date: "2027-04-02", costSubtotal: 0 },
         ],
+        activities: {
+          "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e": {
+            activityId: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e",
+            title: "Coffee",
+            timeWindow: null,
+            location: null,
+            notes: null,
+            anchors: [],
+            cost: null,
+          },
+        },
       }),
     });
     render(<NextTripHero trip={trip} />);
 
-    const placeholder = await screen.findByRole("status", { name: /shape of the trip/i });
-    expect(placeholder.textContent).toMatch(/no stops planned yet/i);
-    expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
+    const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    expect(sparklineGroup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1); // only day 1 has a stop
+    expect(within(sparklineGroup).getByText("1")).toBeTruthy(); // day 1's number
+    expect(within(sparklineGroup).getByText("2")).toBeTruthy(); // day 2's number, even though it's empty
   });
 
   // Regression: Sparkline used to key its accent by day index, so the same

@@ -12,7 +12,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   const days = page.getByTestId("day-column");
   const before = await days.count();
@@ -48,7 +48,7 @@ test("a rejected change reverts and shows an error", async ({ page }) => {
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // Force the single-command endpoint (AddDay is sent via sendTripCommand,
   // not the batch endpoint — see apiClient.ts) to fail server-side. A short
