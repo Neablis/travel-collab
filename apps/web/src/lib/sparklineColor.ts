@@ -27,7 +27,10 @@
 // raw color literals" rule (design-system.md) for exactly this reason —
 // check-color-wall.mjs excludes it by name, the same carve-out
 // globals.css already has for defining the token values themselves.
-const SPARKLINE_PALETTE = [
+// Exported (only) so sparklineColor.test.ts can assert membership against
+// the real list instead of duplicating these hex values as literal strings
+// in a second file — every raw color literal lives here, nowhere else.
+export const SPARKLINE_PALETTE = [
   "#2a78d6", // blue
   "#eb6834", // orange
   "#1baf7a", // aqua

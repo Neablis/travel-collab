@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sparklineColorFor } from "./sparklineColor";
+import { SPARKLINE_PALETTE, sparklineColorFor } from "./sparklineColor";
 
 describe("sparklineColorFor", () => {
   it("is deterministic per city", () => {
@@ -17,16 +17,7 @@ describe("sparklineColorFor", () => {
     expect(colors.size).toBeGreaterThan(1);
   });
   it("only ever returns a hex from the validated 8-hue palette", () => {
-    const VALID = new Set([
-      "#2a78d6",
-      "#eb6834",
-      "#1baf7a",
-      "#eda100",
-      "#e87ba4",
-      "#008300",
-      "#4a3aa7",
-      "#e34948",
-    ]);
+    const VALID = new Set(SPARKLINE_PALETTE);
     for (const city of ["Tokyo", "Kyoto", "Osaka", "Nikkō", "Hakone", "Naoshima", "", null, undefined]) {
       expect(VALID).toContain(sparklineColorFor(city));
     }
