@@ -43,18 +43,19 @@ export function parseLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-// TripDetail carries no explicit "city" field anywhere (packages/contracts
-// src/detail.ts) — the closest available proxy is the first scheduled
-// activity's location name (e.g. "Tsukiji Market" — a place, not really a
-// city, but the only string TripDetail actually carries for where a day
-// happens). Falls through subsequent activityIds if the first has no
-// location; null if none of the day's activities have one. Same
-// "don't fabricate a field that isn't there" stance as the TripSummary city
-// comments in NextTripHero.tsx / TripCard.tsx.
+// The first scheduled activity's location.city (packages/contracts'
+// Location.city — the geocoder's own structured city/town/village, distinct
+// from the full place-name label). Falls back to location.name only for a
+// location that predates that field, or one with no city-level address
+// component at all (e.g. an ocean crossing, or a manually-typed place) — a
+// real but imprecise stand-in, matching the same "don't fabricate a field
+// that isn't there" stance as the TripSummary city comments in
+// NextTripHero.tsx / TripCard.tsx. Falls through subsequent activityIds if
+// the first has no location; null if none of the day's activities have one.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (const activityId of day.activityIds) {
     const location = activities[activityId]?.location;
-    if (location) return location.name;
+    if (location) return location.city ?? location.name;
   }
   return null;
 }

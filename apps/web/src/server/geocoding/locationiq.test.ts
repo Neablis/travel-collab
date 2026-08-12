@@ -25,6 +25,40 @@ describe("LocationIQ geocoder adapter", () => {
     expect(url.searchParams.get("limit")).toBe("3");
   });
 
+  it("extracts city from the address breakdown, falling back through town/village/hamlet", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
+      new Response(
+        JSON.stringify([
+          {
+            lat: "43.1566",
+            lon: "-77.6088",
+            display_name: "National Museum of Play at The Strong, Rochester, Monroe County, New York, 14607, USA",
+            address: { country_code: "us", city: "Rochester" },
+          },
+          {
+            lat: "43.0896",
+            lon: "-79.0849",
+            display_name: "Niagara Falls, City of Niagara Falls, Niagara County, New York, 14301, USA",
+            address: { country_code: "us", town: "Niagara Falls" }, // no `city` key — Nominatim uses `town` for this settlement size
+          },
+          {
+            lat: "1",
+            lon: "1",
+            display_name: "somewhere with no city-level address component",
+            address: { country_code: "us" },
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await createLocationIQGeocoder("KEY123").forward("Rochester");
+    expect(results[0]!.city).toBe("Rochester");
+    expect(results[1]!.city).toBe("Niagara Falls");
+    expect(results[2]!.city).toBeUndefined();
+  });
+
   it("throws on a non-OK response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 429 })));
     await expect(createLocationIQGeocoder("K").forward("x")).rejects.toThrow(/429/);

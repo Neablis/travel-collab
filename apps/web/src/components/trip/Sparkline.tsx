@@ -9,7 +9,8 @@ import { sparklineColorFor } from "@/lib/sparklineColor";
 // ever showing 3 groups). This component only knows each stop's real
 // duration (minutes, or null when the activity has no timeWindow to derive
 // one from), each day's real city, and each day's real day-of-month number
-// (or null when the day has no date set, rendered as "—"); mapping a real
+// (or null when the day has no date set, rendered as that day's 1-indexed
+// position instead); mapping a real
 // TripDetail into that shape is the caller's job (NextTripHero.tsx, reusing
 // DayChips.tsx's `cityFor`/`parseLocalDate`), keeping this component free
 // of the `packages/contracts` dependency.
@@ -65,23 +66,19 @@ export function shapeOf(days: SparklineDay[]): SparklineDayGroup[] {
 
 export type CitySegment = { key: string; label: string };
 
-// Contiguous same-city day runs, in trip order — "Tokyo · 5 nights" for a
-// multi-day stay, "Nikkō day trip" for a single-day one. A run with no known
-// city (no located activity yet) is skipped rather than rendering a
-// fabricated "Unknown" pill.
+// Every distinct city visited anywhere in the trip, in first-appearance
+// order, each with a count of how many stops (not days) happened there —
+// not grouped by contiguous same-city day runs, so a city revisited later
+// in the trip (a return leg) still counts as one line, not two. A day with
+// no known city (no located activity yet) contributes nothing, rather than
+// a fabricated "Unknown" entry.
 export function citySegmentsFor(days: SparklineDay[]): CitySegment[] {
-  const segments: CitySegment[] = [];
-  let i = 0;
-  while (i < days.length) {
-    const city = days[i]!.city;
-    let span = 1;
-    while (i + span < days.length && days[i + span]!.city === city) span++;
-    if (city !== null) {
-      segments.push({ key: String(i), label: span === 1 ? `${city} day trip` : `${city} · ${span} nights` });
-    }
-    i += span;
+  const counts = new Map<string, number>();
+  for (const day of days) {
+    if (day.city === null) continue;
+    counts.set(day.city, (counts.get(day.city) ?? 0) + day.stops.length);
   }
-  return segments;
+  return Array.from(counts, ([city, count]) => ({ key: city, label: `${city} · ${count}` }));
 }
 
 export type SparklineProps = { days: SparklineDay[] };
@@ -89,10 +86,12 @@ export type SparklineProps = { days: SparklineDay[] };
 // README §1: "Shape of the trip" — right panel of the next-trip hero.
 // Structure: a 64px-tall row of day columns (each `flex: max(stops, 1)`, so
 // an empty day still reserves its own blank slot rather than collapsing to
-// nothing), a day-number label under each column (real date-of-month, or
-// "—" when the day has no date), and — when at least one day has a known
-// city — a row of city-segment pills underneath, matching the handoff's
-// "Tokyo · 5 nights" / "Nikkō day trip" summary row.
+// nothing; a day's own stops render flush against each other with no gap —
+// one column per day, a stepped skyline of that day's stops, not one column
+// per stop), a day-number label under each column (real date-of-month, or
+// the day's 1-indexed position when it has no date), and — when at least
+// one day has a known city — a row listing every distinct city visited
+// with its stop count underneath ("Tokyo · 6"), not a per-day-run legend.
 export function Sparkline({ days }: SparklineProps) {
   const groups = shapeOf(days);
   const segments = citySegmentsFor(days);
@@ -108,15 +107,15 @@ export function Sparkline({ days }: SparklineProps) {
           {groups.map((group) => (
             <div
               key={group.key}
-              className="flex h-full items-end"
-              // eslint-disable-next-line no-restricted-syntax -- 4px within-day bar gap is the handoff's exact spec value; flex-grow shares row width by real stop count (min 1, so an empty day still reserves a blank slot instead of vanishing)
-              style={{ gap: "4px", flex: `${Math.max(group.bars.length, 1)} 1 0%` }}
+              className="flex h-full items-end overflow-hidden rounded-sm"
+              // eslint-disable-next-line no-restricted-syntax -- flex-grow shares row width by real stop count (min 1, so an empty day still reserves a blank slot instead of vanishing); no gap between a day's own bars — they're one column, a stepped skyline of that day's stops, not separate columns of their own
+              style={{ flex: `${Math.max(group.bars.length, 1)} 1 0%` }}
             >
               {group.bars.map((bar) => (
                 <span
                   key={bar.key}
                   aria-hidden
-                  className="flex-1 rounded-sm"
+                  className="flex-1"
                   // eslint-disable-next-line no-restricted-syntax -- height/color are per-stop computed data (real duration, hashed city), not design constants
                   style={{ height: `${bar.heightPct}%`, backgroundColor: group.color }}
                 />
@@ -129,14 +128,17 @@ export function Sparkline({ days }: SparklineProps) {
           // eslint-disable-next-line no-restricted-syntax -- matches the bar row's own 10px day-group gap so labels stay aligned under their column
           style={{ gap: "10px" }}
         >
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <div
               key={group.key}
               className="text-center font-mono text-xs text-slate"
               // eslint-disable-next-line no-restricted-syntax -- flex-grow shares label-row width by real stop count, matching the bar row's own per-day flex-basis so labels stay aligned under their column
               style={{ flex: `${Math.max(group.bars.length, 1)} 1 0%` }}
             >
-              {group.dayNumber ?? "—"}
+              {/* Real date-of-month when the day has one; otherwise its
+                  1-indexed position in the trip — a number either way, not
+                  a bare dash, for a trip with no dates set at all. */}
+              {group.dayNumber ?? index + 1}
             </div>
           ))}
         </div>

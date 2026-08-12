@@ -64,37 +64,39 @@ describe("shapeOf", () => {
     expect(groups[0]!.color).toBe(groups[2]!.color);
   });
 
-  it("shows a dash when a day has no set date", () => {
+  it("passes through a null dayNumber unchanged when a day has no set date (the render layer picks the fallback)", () => {
     const groups = shapeOf([{ city: "Rochester", dayNumber: null, stops: [] }]);
     expect(groups[0]!.dayNumber).toBeNull();
   });
 });
 
 describe("citySegmentsFor", () => {
-  it("groups contiguous same-city days into one segment", () => {
+  it("lists every distinct city once, with a stop count across the whole trip", () => {
     const segments = citySegmentsFor([
-      { city: "Tokyo", dayNumber: 1, stops: [] },
-      { city: "Tokyo", dayNumber: 2, stops: [] },
-      { city: "Kyoto", dayNumber: 3, stops: [] },
+      { city: "Tokyo", dayNumber: 1, stops: [{ durationMinutes: 30 }, { durationMinutes: 30 }] },
+      { city: "Tokyo", dayNumber: 2, stops: [{ durationMinutes: 30 }] },
+      { city: "Kyoto", dayNumber: 3, stops: [{ durationMinutes: 30 }] },
     ]);
-    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 2 nights", "Kyoto day trip"]);
+    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 3", "Kyoto · 1"]);
   });
 
-  it("re-segments when the same city reappears non-contiguously (a return trip)", () => {
+  // A city revisited later in the trip (a return leg) is still one line
+  // with a combined count, not a separate entry per visit.
+  it("combines a city's stops even when it's revisited non-contiguously", () => {
     const segments = citySegmentsFor([
-      { city: "Tokyo", dayNumber: 1, stops: [] },
-      { city: "Nikkō", dayNumber: 2, stops: [] },
-      { city: "Tokyo", dayNumber: 3, stops: [] },
+      { city: "Tokyo", dayNumber: 1, stops: [{ durationMinutes: 30 }] },
+      { city: "Nikkō", dayNumber: 2, stops: [{ durationMinutes: 30 }, { durationMinutes: 30 }] },
+      { city: "Tokyo", dayNumber: 3, stops: [{ durationMinutes: 30 }] },
     ]);
-    expect(segments.map((s) => s.label)).toEqual(["Tokyo day trip", "Nikkō day trip", "Tokyo day trip"]);
+    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 2", "Nikkō · 2"]);
   });
 
   it("skips days with no known city rather than fabricating a label", () => {
     const segments = citySegmentsFor([
-      { city: null, dayNumber: 1, stops: [] },
-      { city: "Kyoto", dayNumber: 2, stops: [] },
+      { city: null, dayNumber: 1, stops: [{ durationMinutes: 30 }] },
+      { city: "Kyoto", dayNumber: 2, stops: [{ durationMinutes: 30 }] },
     ]);
-    expect(segments.map((s) => s.label)).toEqual(["Kyoto day trip"]);
+    expect(segments.map((s) => s.label)).toEqual(["Kyoto · 1"]);
   });
 });
 
@@ -111,7 +113,7 @@ describe("Sparkline", () => {
     expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(3);
   });
 
-  it("renders a day-number label under every day, including an empty one, with a dash for no date", () => {
+  it("renders a day-number label under every day, including an empty one, falling back to the day's position when it has no date", () => {
     render(
       <Sparkline
         days={[
@@ -122,7 +124,7 @@ describe("Sparkline", () => {
       />,
     );
     expect(screen.getByText("6")).toBeTruthy();
-    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy(); // the empty day's 1-indexed position, not a bare dash
     expect(screen.getByText("8")).toBeTruthy();
   });
 
@@ -137,8 +139,8 @@ describe("Sparkline", () => {
       />,
     );
     const list = screen.getByRole("list", { name: "Cities visited" });
-    expect(screen.getByText("Tokyo · 2 nights")).toBeTruthy();
-    expect(screen.getByText("Kyoto day trip")).toBeTruthy();
+    expect(screen.getByText("Tokyo · 2")).toBeTruthy();
+    expect(screen.getByText("Kyoto · 1")).toBeTruthy();
     expect(list.querySelectorAll('[role="listitem"]')).toHaveLength(2);
   });
 

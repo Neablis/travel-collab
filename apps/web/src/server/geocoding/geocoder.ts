@@ -15,6 +15,12 @@ export interface GeocodeResult {
   lng: number;
   canonicalName: string;
   countryCode?: string; // ISO-3166 alpha-2, uppercase
+  // The result's city (or nearest equivalent — town/village/hamlet), from
+  // the geocoder's own structured address data — distinct from
+  // canonicalName, which is the full place label. Undefined when the
+  // geocoder's address breakdown has no city-level component for this
+  // result.
+  city?: string;
 }
 
 export interface GeocodeOptions {

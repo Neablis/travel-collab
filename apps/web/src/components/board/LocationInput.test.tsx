@@ -27,6 +27,27 @@ describe("LocationInput", () => {
     );
   });
 
+  it("passes the geocoder's structured city through to the picked Location", async () => {
+    server.use(
+      http.get("/api/geocode", () =>
+        HttpResponse.json({
+          results: [{ lat: 43.1566, lng: -77.6088, canonicalName: "The Strong, Rochester, NY, USA", countryCode: "US", city: "Rochester" }],
+        }),
+      ),
+    );
+    const onChange = vi.fn();
+    render(<LocationInput value={null} onChange={onChange} />);
+    await userEvent.type(screen.getByPlaceholderText(/place/i), "Strong Museum");
+    await userEvent.click(screen.getByRole("button", { name: /search/i }));
+    const pick = await screen.findByRole("option", { name: /The Strong, Rochester/i });
+    await userEvent.click(pick);
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "The Strong, Rochester, NY, USA", city: "Rochester" }),
+      ),
+    );
+  });
+
   it("renders results as a listbox with primary and secondary text", async () => {
     const onChange = vi.fn();
     render(<LocationInput value={null} onChange={onChange} />);
