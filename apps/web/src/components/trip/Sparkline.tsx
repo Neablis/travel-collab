@@ -1,103 +1,101 @@
-import { Button } from "@/components/ui/button";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
-import { cn } from "@/lib/cn";
+import { sparklineColorFor } from "@/lib/sparklineColor";
 
-// Tailwind (v4, `@theme`-driven) only emits utilities for class names it can
-// find as literal text in source — a template-interpolated `bg-${family}`
-// never appears as a whole string anywhere and would silently fail to
-// generate the rule. This mirrors the same static-map pattern `badge.tsx`
-// uses for its variant → class lookup.
-const BAR_BG: Record<AccentFamily, string> = {
-  brand: "bg-brand",
-  info: "bg-info",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
+// The "shape of the trip" sparkline (README §1 next-trip hero): one bar per
+// stop (not per day), in day order, so a day's width in the row reflects how
+// many stops it has. This component only knows each stop's real duration (in
+// minutes, or null when the activity has no timeWindow to derive one from)
+// and each day's real city; mapping a real TripDetail into that shape is the
+// caller's job (NextTripHero.tsx, reusing DayChips.tsx's `cityFor`), keeping
+// this component free of the `packages/contracts` dependency.
+export type SparklineStop = { durationMinutes: number | null };
+export type SparklineDay = { city: string | null; stops: SparklineStop[] };
+
+export type SparklineBar = {
+  key: string;
+  /** 0-100: the percentage of the container's fixed height this bar fills. */
+  heightPct: number;
+  /** True for the first bar of a day after the first — the day-boundary gap
+   * (an extra 10px margin, on top of the row's own 4px bar gap) that visibly
+   * separates one day's stops from the next. */
+  breakBefore: boolean;
+  color: string;
 };
 
-// The "shape of the trip" sparkline (README §1 next-trip hero): one
-// clickable column per day, each column a stack of small bars — one bar
-// per stop that day. This component only knows `{ stops: number, city:
-// string | null }` per day; mapping a real TripDetail's days into that
-// shape is the caller's job (Task 6's hero, reusing DayChips.tsx's
-// `chipModel`/`cityFor` derivation), keeping this component free of the
-// `packages/contracts` dependency.
-export type SparklineDay = { stops: number; city: string | null };
+// A stop with no real duration data still needs a visible bar — flooring it
+// (rather than, say, defaulting to some fabricated "average" height) keeps
+// every rendered bar honestly grounded in either a real duration or the
+// floor, never an invented in-between number.
+const HEIGHT_FLOOR_PCT = 35;
 
-export type SparklineBar = { key: string };
+// Pure: no DOM, fully testable standalone. Height is each stop's real
+// duration normalized against the trip's single longest stop (clamped at the
+// floor so a short stop, e.g. a 20-minute coffee next to a 4-hour museum
+// visit, stays visible rather than collapsing to a sliver); a day with zero
+// located-in-time stops (or a trip where nothing has a real duration at all)
+// falls back to the floor for every bar rather than fabricating variation.
+export function shapeOf(days: SparklineDay[]): SparklineBar[] {
+  let maxDuration = 0;
+  for (const day of days) {
+    for (const stop of day.stops) {
+      if (stop.durationMinutes !== null) maxDuration = Math.max(maxDuration, stop.durationMinutes);
+    }
+  }
 
-export type SparklineBarsOptions = {
-  /** Cap the number of bars drawn per day, so a day with many stops doesn't
-   * blow out the 96px-tall container. Undefined means "no cap". */
-  maxBarsPerDay?: number;
-};
-
-// Pure: given the per-day stop counts, return one array of bars per day —
-// no DOM, no random keys tied to render order, fully testable standalone.
-export function sparklineBars(
-  days: SparklineDay[],
-  opts: SparklineBarsOptions = {},
-): SparklineBar[][] {
-  const { maxBarsPerDay } = opts;
-  return days.map((day, dayIndex) => {
-    const count = Math.max(0, maxBarsPerDay === undefined ? day.stops : Math.min(day.stops, maxBarsPerDay));
-    return Array.from({ length: count }, (_, barIndex) => ({ key: `${dayIndex}-${barIndex}` }));
+  const bars: SparklineBar[] = [];
+  days.forEach((day, dayIndex) => {
+    const color = sparklineColorFor(day.city);
+    day.stops.forEach((stop, stopIndex) => {
+      const heightPct =
+        stop.durationMinutes === null || maxDuration === 0
+          ? HEIGHT_FLOOR_PCT
+          : Math.max(HEIGHT_FLOOR_PCT, (stop.durationMinutes / maxDuration) * 100);
+      bars.push({
+        key: `${dayIndex}-${stopIndex}`,
+        heightPct,
+        breakBefore: dayIndex > 0 && stopIndex === 0,
+        color,
+      });
+    });
   });
+  return bars;
 }
 
-export type SparklineProps = {
-  days: SparklineDay[];
-  onSelectDay?: (index: number) => void;
-};
+export type SparklineProps = { days: SparklineDay[] };
 
 // README §1: "Shape of the trip" sparkline — right panel of the next-trip
-// hero, on a `--color-moss` background, 96px tall. Each day is a clickable
-// column of ~13px stacked bars (one per stop) with 5px gaps between both
-// bars and columns; bars are tinted with that day's accent (Task 2's
-// `dayAccentFor`, keyed by the day's real city, not its index — the same
-// city must render the same color everywhere, matching TripCard/DayChips/
-// Board/CalendarLens) so the sparkline previews the same per-day color
-// language used elsewhere in the redesign.
-export function Sparkline({ days, onSelectDay }: SparklineProps) {
-  const columns = sparklineBars(days);
+// hero, on a `--color-moss` background, 64px tall (the home-card size; a
+// detail-view usage would be 72px, matching PlaybookCard.tsx's own shape
+// strip — no such usage exists yet, so this doesn't take a height prop
+// until one does). A single flex row (not one container per day): every
+// bar is `flex: 1`, so day widths fall out naturally from stop counts
+// rather than being forced equal, and `breakBefore`'s extra margin is what
+// actually marks day boundaries. Each bar is colored by its own day's real
+// city (lib/sparklineColor.ts) so the sparkline previews the same per-day
+// color language used elsewhere, without needing a per-day wrapper element.
+export function Sparkline({ days }: SparklineProps) {
+  const bars = shapeOf(days);
 
   return (
     <div
-      className="flex h-24 items-end rounded-xl bg-moss p-2"
-      // eslint-disable-next-line no-restricted-syntax -- 5px bar gap has no token equivalent (between gap-1/4px and gap-1.5/6px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-      style={{ gap: "5px" }}
+      className="flex h-16 items-end rounded-xl bg-moss p-2"
+      // eslint-disable-next-line no-restricted-syntax -- 4px bar gap is the handoff's exact spec value, matching Sparkline's prior computed-geometry escape hatch
+      style={{ gap: "4px" }}
       role="group"
       aria-label="Shape of the trip"
     >
-      {columns.map((bars, dayIndex) => {
-        const accent = dayAccentFor(days[dayIndex]?.city);
-        return (
-          // The Button primitive's default (secondary/md) chrome — border,
-          // surface fill, fixed height, horizontal padding — is overridden
-          // here via className (tailwind-merge dedupes the conflicting
-          // utilities): a column has no card look of its own, just the
-          // stacked bars against the shared moss background.
-          <Button
-            key={dayIndex}
-            variant="ghost"
-            aria-label={`Day ${dayIndex + 1}, ${bars.length} stop${bars.length === 1 ? "" : "s"}`}
-            onClick={() => onSelectDay?.(dayIndex)}
-            className="h-full flex-1 flex-col-reverse items-stretch justify-start px-0 py-0 hover:bg-transparent"
-            // eslint-disable-next-line no-restricted-syntax -- 5px bar gap has no token equivalent (between gap-1/4px and gap-1.5/6px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-            style={{ gap: "5px" }}
-          >
-            {bars.map((bar) => (
-              <span
-                key={bar.key}
-                aria-hidden
-                className={cn("rounded-sm", BAR_BG[accent.solid])}
-                // eslint-disable-next-line no-restricted-syntax -- 13px bar height has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-                style={{ height: "13px" }}
-              />
-            ))}
-          </Button>
-        );
-      })}
+      {bars.map((bar) => (
+        <span
+          key={bar.key}
+          aria-hidden
+          className="flex-1 rounded-sm"
+          // eslint-disable-next-line no-restricted-syntax -- height/color are per-stop computed data (real duration, hashed city), not design constants; marginLeft is the handoff's exact 10px day-break spec value
+          style={{
+            height: `${bar.heightPct}%`,
+            backgroundColor: bar.color,
+            marginLeft: bar.breakBefore ? "10px" : undefined,
+          }}
+        />
+      ))}
     </div>
   );
 }

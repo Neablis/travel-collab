@@ -3,6 +3,11 @@
 // actual <Preview id> usage.
 export const PREVIEW_REGISTRY = {
   "home-worth-attention": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
+  // "Need a decision" isn't tracked anywhere in the app yet — no surface
+  // detects or surfaces a decision the way the Assistant's own "What I
+  // noticed" cards will. Grouped with M9 as the closest thematic fit
+  // (proactive noticing), not a milestone commitment of its own yet.
+  "home-decisions": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
   "home-playbooks-strip": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   // The rail's chrome (header/Hide) and ask box are real as of the M10
   // redesign-feedback follow-up — composeAiPlan, the same real M7 feature

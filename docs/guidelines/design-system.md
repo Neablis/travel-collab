@@ -257,7 +257,13 @@ form fields going forward:
 Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`):
 
 1. **No raw color literals** — CI grep: hex/rgb/hsl in `apps/web/src` outside
-   `globals.css` fails the build.
+   `globals.css` fails the build. One narrow, deliberate second exception:
+   `lib/sparklineColor.ts`, which hashes a city name to one of 8 validated
+   categorical hues for the home hero's "Shape of the trip" sparkline — the
+   one surface needing a color per real, unbounded city name rather than the
+   5 reusable semantic tokens below. The 8-hue cap (not the app's 5, not an
+   arbitrary/wider count) is a measured accessibility limit, not a style
+   choice — see that file's header comment for the validation behind it.
 2. **No inline `style={{…}}`** outside an explicit allowlist (drag transforms,
    maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
    applies to `src/**/*.tsx` outside `components/ui/**` (and outside

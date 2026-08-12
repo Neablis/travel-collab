@@ -9,7 +9,8 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
-import { chipModel } from "@/components/trip/DayChips";
+import { cityFor } from "@/components/trip/DayChips";
+import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
@@ -40,20 +41,29 @@ function StatTile({ tone, value, label }: { tone: StatTileTone; value: string; l
   );
 }
 
-// Sparkline (Task 5) needs a per-day stop count and city, but TripSummary
-// (what the trips list fetches) carries no day/stop/city data at all (only
-// tripId/name/status/members/createdAt) — that lives on TripDetail. Rather
-// than fabricate numbers, this fetches the real TripDetail on mount and
-// derives the sparkline from its `days` array via DayChips.tsx's
-// `chipModel` (the same real per-day city derivation DayChips/Board/
-// CalendarLens already use, so this trip's colors agree everywhere rather
-// than reinventing a second, divergent city lookup). `null` means "no real
+// Sparkline needs each stop's real duration and each day's real city, but
+// TripSummary (what the trips list fetches) carries no day/activity/city
+// data at all (only tripId/name/status/members/createdAt) — that lives on
+// TripDetail. Rather than fabricate numbers, this fetches the real
+// TripDetail on mount and derives the sparkline from its `days`/`activities`
+// directly: city via DayChips.tsx's `cityFor` (the same real per-day city
+// derivation DayChips/Board/CalendarLens already use, so this trip's colors
+// agree everywhere rather than reinventing a second, divergent lookup), and
+// each stop's duration from its own `timeWindow` (end minus start; null when
+// the activity has no timeWindow to derive one from — Sparkline floors
+// those bars rather than fabricating a duration). `null` means "no real
 // data to show yet" (still loading, or the fetch failed) — the render below
 // never falls back to invented bars for that state.
 type SparklineFetchState =
   | { status: "loading" }
   | { status: "ready"; days: SparklineDay[] }
   | { status: "error" };
+
+function minutesBetween(start: string, end: string): number {
+  const [startH, startM] = start.split(":").map(Number) as [number, number];
+  const [endH, endM] = end.split(":").map(Number) as [number, number];
+  return endH * 60 + endM - (startH * 60 + startM);
+}
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
@@ -83,9 +93,16 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     void fetchTripDetail(trip.tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
+        const { days, activities } = result.value;
         setSparkline({
           status: "ready",
-          days: chipModel(result.value).map((d) => ({ stops: d.stops, city: d.city })),
+          days: days.map((day) => ({
+            city: cityFor(day, activities),
+            stops: day.activityIds.map((id) => {
+              const timeWindow = activities[id]?.timeWindow;
+              return { durationMinutes: timeWindow ? minutesBetween(timeWindow.start, timeWindow.end) : null };
+            }),
+          })),
         });
         setStartDate(result.value.startDate);
       } else {
@@ -146,12 +163,18 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
 
           <div className="grid grid-cols-3 gap-2.5 pt-0.5">
             <StatTile tone="brand" value={String(trip.members.length)} label="travelers" />
-            {/* "days planning" (createdAt -> now) and "decisions" (below)
-                stand in for the mock's "stops planned"/"not booked"/"need a
-                decision" tiles, which need stop and booking data TripSummary
-                doesn't carry. See the Task 6 report for the full rationale. */}
+            {/* "days planning" (createdAt -> now) stands in for the mock's
+                "stops planned"/"not booked" tiles, which need stop/booking
+                data TripSummary doesn't carry. See the Task 6 report for the
+                full rationale. "Need a decision" (below) isn't a real
+                feature yet at all — no surface anywhere in the app detects
+                or tracks a decision the way the Assistant's own "What I
+                noticed" cards will — so it's a Preview shell like those,
+                not just an honest placeholder value. */}
             <StatTile tone="warning" value={daysPlanning === null ? "—" : String(daysPlanning)} label="days planning" />
-            <StatTile tone="danger" value="—" label="decisions · not tracked yet" />
+            <Preview id="home-decisions">
+              <StatTile tone="danger" value="2" label="need a decision" />
+            </Preview>
           </div>
 
           <div className="mt-0.5 flex items-center gap-2">
@@ -167,19 +190,17 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           </div>
           <div className="mt-4">
-            {sparkline.status === "ready" && sparkline.days.some((d) => d.stops > 0) ? (
+            {sparkline.status === "ready" && sparkline.days.some((d) => d.stops.length > 0) ? (
               <Sparkline days={sparkline.days} />
             ) : (
-              // Honest placeholder for every case with no bars to draw:
-              // not loaded yet, failed to load, no days yet, or days with
-              // zero stops (previously rendered as an unexplained blank
-              // moss box — sparklineBars legitimately returns 0 bars per
-              // day here, which isn't a bug, but showing nothing at all
-              // read as broken rather than empty).
+              // Honest placeholder for every case with no bars to draw: not
+              // loaded yet, failed to load, no days yet, or days with zero
+              // stops (previously rendered as an unexplained blank moss box
+              // — showing nothing at all read as broken rather than empty).
               <div
                 role="status"
                 aria-label="Shape of the trip"
-                className="flex h-24 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
+                className="flex h-16 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
               >
                 {sparkline.status === "loading"
                   ? "Loading…"

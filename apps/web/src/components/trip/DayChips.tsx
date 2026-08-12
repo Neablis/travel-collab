@@ -51,7 +51,7 @@ function parseLocalDate(iso: string): Date {
 // location; null if none of the day's activities have one. Same
 // "don't fabricate a field that isn't there" stance as the TripSummary city
 // comments in NextTripHero.tsx / TripCard.tsx.
-function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
+export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (const activityId of day.activityIds) {
     const location = activities[activityId]?.location;
     if (location) return location.name;
