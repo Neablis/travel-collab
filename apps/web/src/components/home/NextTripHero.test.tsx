@@ -91,14 +91,13 @@ describe("NextTripHero", () => {
 
     expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId);
 
-    // Sparkline: one bar per stop across both days (3 + 1 = 4), asserting
+    // Sparkline: one block per stop across both days (3 + 1 = 4), asserting
     // the exact count derived from the mocked TripDetail.days/activityIds,
-    // not just "some bars exist" — what proves this isn't fabricated data.
-    // Plus a day-number label per day (April 1 and April 2 from the
-    // fixture's dates).
+    // not just "some blocks exist" — what proves this isn't fabricated data.
+    // Plus a day-number label per day (the trip's day 1 and day 2).
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
-    const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
-    expect(bars.length).toBe(4);
+    const blocks = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
+    expect(blocks.length).toBe(4);
     // "1"/"2" collide with the stat tiles' own values elsewhere on the page
     // (travelers/days-planning/need-a-decision), so scope to the sparkline.
     expect(within(sparklineGroup).getByText("1")).toBeTruthy();
@@ -193,8 +192,8 @@ describe("NextTripHero", () => {
   // real city landed on two different colors depending on which day it fell
   // on (e.g. a 3-day Rochester trip). This exercises the real wiring
   // (cityFor, sourced from each day's first located activity) end to end,
-  // not just Sparkline's own hashing in isolation.
-  it("gives two days in the same real city the same sparkline bar color", async () => {
+  // not just Sparkline's own color assignment in isolation.
+  it("gives two days in the same real city the same sparkline block color", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
@@ -243,27 +242,33 @@ describe("NextTripHero", () => {
     const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(bars).toHaveLength(2);
     // jsdom normalizes an inline hex color to its computed form on read, so
-    // compare the two bars against each other rather than against the raw
-    // sparklineColorFor hex string.
+    // compare the two blocks against each other rather than against the raw
+    // palette hex string.
     expect((bars[0] as HTMLElement).style.backgroundColor).not.toBe("");
     expect((bars[0] as HTMLElement).style.backgroundColor).toBe((bars[1] as HTMLElement).style.backgroundColor);
   });
 
-  // The other half of the real algorithm: bar height comes from each stop's
-  // real timeWindow duration, normalized against the trip's longest stop —
-  // not a fabricated/uniform value.
-  it("sizes sparkline bars by each stop's real duration, normalized against the trip's longest stop", async () => {
+  // The other half of the real algorithm: a column's height is that day's
+  // real stop COUNT, so every block is the same size no matter how long the
+  // stop itself runs. A 20-minute coffee and a 4-hour museum visit are two
+  // equal blocks — duration deliberately does not size them (it used to,
+  // which made one long stop out-rank a packed day of short ones).
+  //
+  // Same fixture also pins the day label to the day's 1-indexed position in
+  // the trip, not its calendar date: this day is April 15, and it must still
+  // read "1".
+  it("stacks equal blocks by stop count, ignoring duration, and labels the day by trip position not date", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
       value: tripDetailFixture({
         tripId: trip.tripId,
-        startDate: "2027-04-01",
+        startDate: "2027-04-15",
         days: [
           {
             dayId: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
             activityIds: ["2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e", "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f"],
-            date: "2027-04-01",
+            date: "2027-04-15",
             costSubtotal: 0,
           },
         ],
@@ -280,7 +285,7 @@ describe("NextTripHero", () => {
           "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f": {
             activityId: "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f",
             title: "Museum",
-            timeWindow: { start: "10:00", end: "14:00" }, // 240 minutes — the trip's longest
+            timeWindow: { start: "10:00", end: "14:00" }, // 240 minutes — 12x the coffee, same block
             location: null,
             notes: null,
             anchors: [],
@@ -292,10 +297,11 @@ describe("NextTripHero", () => {
     render(<NextTripHero trip={trip} />);
 
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
-    const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
-    expect(bars).toHaveLength(2);
-    expect((bars[0] as HTMLElement).style.height).toBe("35%"); // 20/240 floored
-    expect((bars[1] as HTMLElement).style.height).toBe("100%"); // the longest stop itself
+    const blocks = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
+    expect(blocks).toHaveLength(2);
+    expect((blocks[0] as HTMLElement).style.height).toBe((blocks[1] as HTMLElement).style.height);
+    expect(within(sparklineGroup).getByText("1")).toBeTruthy(); // trip day 1, not April "15"
+    expect(within(sparklineGroup).queryByText("15")).toBeNull();
   });
 
   it("wraps the 'need a decision' stat tile in a Preview region", async () => {

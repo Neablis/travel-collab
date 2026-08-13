@@ -1,25 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { SPARKLINE_PALETTE, sparklineColorFor } from "./sparklineColor";
+import { SPARKLINE_PALETTE, sparklineColorsFor } from "./sparklineColor";
 
-describe("sparklineColorFor", () => {
-  it("is deterministic per city", () => {
-    expect(sparklineColorFor("Tokyo")).toEqual(sparklineColorFor("Tokyo"));
+describe("sparklineColorsFor", () => {
+  // The whole reason this replaced a per-city hash: independent hashes
+  // collided within a single trip (a real 14-day Japan trip drew Tokyo,
+  // Hakone and Kyoto in one identical orange). Order assignment makes that
+  // impossible up to the palette's size.
+  it("gives every distinct city in a trip its own color, up to the palette's 8 slots", () => {
+    const cities = ["Tokyo", "Nikkō", "Hakone", "Kyoto", "Osaka", "Naoshima", "Hiroshima", "Kanazawa"];
+    const colors = sparklineColorsFor(cities);
+    expect(new Set(colors.values()).size).toBe(8);
   });
-  it("gives a stable fallback for empty/nullish city", () => {
-    expect(sparklineColorFor(null)).toEqual(sparklineColorFor(undefined));
-    expect(sparklineColorFor(null)).toEqual(sparklineColorFor(""));
+
+  it("assigns slots in first-appearance order, not alphabetically or by name", () => {
+    const colors = sparklineColorsFor(["Osaka", "Tokyo"]);
+    expect(colors.get("Osaka")).toBe(SPARKLINE_PALETTE[0]);
+    expect(colors.get("Tokyo")).toBe(SPARKLINE_PALETTE[1]);
   });
-  it("spreads distinct cities across more than one color", () => {
-    // Only 8 slots, so any single pair can legitimately collide — assert
-    // spread across a handful of cities instead of one hardcoded pair.
-    const cities = ["Tokyo", "Kyoto", "Osaka", "Nikkō", "Hakone", "Naoshima", "Rochester", "Rome"];
-    const colors = new Set(cities.map((c) => sparklineColorFor(c)));
-    expect(colors.size).toBeGreaterThan(1);
+
+  // A return leg is the same city, so it keeps the color it was given the
+  // first time rather than consuming a second slot.
+  it("keeps one color for a city revisited later in the trip", () => {
+    const colors = sparklineColorsFor(["Tokyo", "Kyoto", "Tokyo"]);
+    expect(colors.size).toBe(2);
+    expect(colors.get("Tokyo")).toBe(SPARKLINE_PALETTE[0]);
+    expect(colors.get("Kyoto")).toBe(SPARKLINE_PALETTE[1]);
   });
+
+  it("skips days with no known city rather than assigning them a slot", () => {
+    const colors = sparklineColorsFor([null, "Tokyo", null]);
+    expect(colors.size).toBe(1);
+    expect(colors.get("Tokyo")).toBe(SPARKLINE_PALETTE[0]);
+  });
+
+  // Beyond 8 cities the palette has nothing left to give — wrapping is the
+  // honest outcome, not an invented 9th hue that would fail the CVD floors
+  // the palette was validated against.
+  it("wraps to the start of the palette past its 8 slots", () => {
+    const cities = Array.from({ length: 9 }, (_, i) => `City ${i}`);
+    const colors = sparklineColorsFor(cities);
+    expect(colors.get("City 8")).toBe(colors.get("City 0"));
+  });
+
   it("only ever returns a hex from the validated 8-hue palette", () => {
-    const VALID = new Set(SPARKLINE_PALETTE);
-    for (const city of ["Tokyo", "Kyoto", "Osaka", "Nikkō", "Hakone", "Naoshima", "", null, undefined]) {
-      expect(VALID).toContain(sparklineColorFor(city));
+    const VALID = new Set<string>(SPARKLINE_PALETTE);
+    for (const color of sparklineColorsFor(["Tokyo", "Kyoto", "Osaka", "Nikkō"]).values()) {
+      expect(VALID).toContain(color);
     }
   });
 });

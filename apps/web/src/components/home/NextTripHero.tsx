@@ -9,7 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
-import { cityFor, parseLocalDate } from "@/components/trip/DayChips";
+import { cityFor } from "@/components/trip/DayChips";
 import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
@@ -41,29 +41,21 @@ function StatTile({ tone, value, label }: { tone: StatTileTone; value: string; l
   );
 }
 
-// Sparkline needs each stop's real duration and each day's real city, but
-// TripSummary (what the trips list fetches) carries no day/activity/city
-// data at all (only tripId/name/status/members/createdAt) — that lives on
-// TripDetail. Rather than fabricate numbers, this fetches the real
-// TripDetail on mount and derives the sparkline from its `days`/`activities`
-// directly: city via DayChips.tsx's `cityFor` (the same real per-day city
-// derivation DayChips/Board/CalendarLens already use, so this trip's colors
-// agree everywhere rather than reinventing a second, divergent lookup), and
-// each stop's duration from its own `timeWindow` (end minus start; null when
-// the activity has no timeWindow to derive one from — Sparkline floors
-// those bars rather than fabricating a duration). `null` means "no real
-// data to show yet" (still loading, or the fetch failed) — the render below
-// never falls back to invented bars for that state.
+// Sparkline needs each day's real stop count and real city, but TripSummary
+// (what the trips list fetches) carries no day/activity/city data at all
+// (only tripId/name/status/members/createdAt) — that lives on TripDetail.
+// Rather than fabricate numbers, this fetches the real TripDetail on mount
+// and derives the graph from its `days`/`activities` directly: the stop
+// count straight off the day's own `activityIds`, and the city via
+// DayChips.tsx's `cityFor` (the same real per-day city derivation
+// DayChips/Board/CalendarLens already use, so this trip's colors agree
+// everywhere rather than reinventing a second, divergent lookup). `null`
+// means "no real data to show yet" (still loading, or the fetch failed) —
+// the render below never falls back to invented columns for that state.
 type SparklineFetchState =
   | { status: "loading" }
   | { status: "ready"; days: SparklineDay[] }
   | { status: "error" };
-
-function minutesBetween(start: string, end: string): number {
-  const [startH, startM] = start.split(":").map(Number) as [number, number];
-  const [endH, endM] = end.split(":").map(Number) as [number, number];
-  return endH * 60 + endM - (startH * 60 + startM);
-}
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
@@ -98,11 +90,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           status: "ready",
           days: days.map((day) => ({
             city: cityFor(day, activities),
-            dayNumber: day.date === null ? null : parseLocalDate(day.date).getDate(),
-            stops: day.activityIds.map((id) => {
-              const timeWindow = activities[id]?.timeWindow;
-              return { durationMinutes: timeWindow ? minutesBetween(timeWindow.start, timeWindow.end) : null };
-            }),
+            stopCount: day.activityIds.length,
           })),
         });
         setStartDate(result.value.startDate);
@@ -187,8 +175,14 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         </div>
 
         <div className="bg-moss p-6">
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between gap-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
+            {/* A column's height is its stop COUNT, not its hours — nothing
+                else on the panel says so, and the graph is ambiguous with
+                a duration reading without it. */}
+            {sparkline.status === "ready" && sparkline.days.length > 0 && (
+              <div className="text-xs text-slate">stops per day</div>
+            )}
           </div>
           <div className="mt-4">
             {sparkline.status === "ready" && sparkline.days.length > 0 ? (
@@ -200,7 +194,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
               <div
                 role="status"
                 aria-label="Shape of the trip"
-                className="flex h-16 items-center justify-center rounded-xl bg-moss p-2 text-xs text-slate"
+                className="flex h-24 items-center justify-center rounded-xl p-2 text-xs text-slate"
               >
                 {sparkline.status === "loading" ? "Loading…" : sparkline.status === "error" ? "Unavailable" : "No days yet"}
               </div>

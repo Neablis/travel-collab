@@ -1,5 +1,5 @@
-// Deterministic city -> bar color for the home hero's "Shape of the trip"
-// sparkline (Sparkline.tsx). Deliberately its OWN small palette, not a
+// City -> block color for the home hero's "Shape of the trip" graph
+// (Sparkline.tsx). Deliberately its OWN small palette, not a
 // dayAccentFor swap: dayAccentFor's 5 semantic design tokens (brand/info/
 // success/warning/danger) stay exactly as they are for every other city-
 // accented surface in the app (DayChips, Board, TimelineLens, CalendarLens,
@@ -41,14 +41,38 @@ export const SPARKLINE_PALETTE = [
   "#e34948", // red
 ] as const;
 
-// Stable string hash (djb2) — same construction as dayAccent.ts's, applied
-// to a wider index space (8 slots here vs. dayAccent.ts's 5).
-function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
+// A day whose city isn't known yet (no located activity on it) gets a muted
+// neutral rather than a palette hue — it isn't a 9th city, and giving it a
+// real color would claim a distinction the data doesn't support. Referenced
+// as a token, so it re-skins with everything else.
+export const UNKNOWN_CITY_COLOR = "var(--color-border-strong)";
 
-export function sparklineColorFor(city: string | null | undefined): string {
-  return SPARKLINE_PALETTE[hash(city ?? "") % SPARKLINE_PALETTE.length]!;
+// Assigns each distinct city in ONE trip its own palette slot, in
+// first-appearance order.
+//
+// This deliberately replaced a per-city string hash (djb2, mirroring
+// dayAccent.ts). Hashing gave a city the same color across every trip, but
+// it could not deliver the property that actually matters and that the
+// palette was chosen for: two cities in the SAME trip staying visually
+// distinct. Independent hashes collide — a real 14-day Japan trip rendered
+// Tokyo, Hakone and Kyoto in one identical orange, which on a graph where
+// color is the only city signal reads as one continuous city. Assigning by
+// order instead makes the first 8 distinct cities mutually distinct by
+// construction, which is the strongest guarantee 8 hues can give (see the
+// palette note above for why going wider fails CVD checks).
+//
+// Cross-trip stability is what's traded away, and it costs nothing: no other
+// surface colors by real city name (DayChips/Board/TimelineLens/CalendarLens
+// all use dayAccentFor's 5 semantic tokens), so there is no second rendering
+// of "Tokyo" anywhere for this to disagree with.
+//
+// Past 8 cities the palette wraps and colors repeat — unavoidable, and
+// preferable to inventing a 9th hue that fails the CVD floors.
+export function sparklineColorsFor(cities: readonly (string | null)[]): Map<string, string> {
+  const colors = new Map<string, string>();
+  for (const city of cities) {
+    if (city === null || colors.has(city)) continue;
+    colors.set(city, SPARKLINE_PALETTE[colors.size % SPARKLINE_PALETTE.length]!);
+  }
+  return colors;
 }
