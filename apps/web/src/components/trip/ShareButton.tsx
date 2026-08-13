@@ -16,7 +16,7 @@ export function ShareButton({
   variant?: VariantProps<typeof buttonVariants>["variant"];
 }) {
   return (
-    <Preview id="share-button">
+    <Preview id="share-button" size="compact">
       <Button type="button" variant={variant}>
         Share
       </Button>

@@ -10,7 +10,7 @@ import { Preview } from "@/components/ui/preview";
 export default function PlaybooksPage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <Preview id="playbooks-route">
+      <Preview id="playbooks-route" size="container">
         <PlaybooksScreen playbooks={PREVIEW_PLAYBOOK_CARDS} />
       </Preview>
     </main>

@@ -5,14 +5,18 @@ import { Preview } from "./preview";
 
 describe("Preview", () => {
   it("renders children and a milestone chip", () => {
-    render(<Preview id="assistant-suggestions">{<span>rail body</span>}</Preview>);
+    render(
+      <Preview id="assistant-suggestions" size="container">
+        {<span>rail body</span>}
+      </Preview>,
+    );
     expect(screen.getByText("rail body")).toBeTruthy();
     expect(screen.getByText(/Preview · M9/)).toBeTruthy();
   });
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();
     render(
-      <Preview id="assistant-suggestions">
+      <Preview id="assistant-suggestions" size="container">
         <button onClick={onClick}>Ask</button>
       </Preview>,
     );
@@ -20,7 +24,19 @@ describe("Preview", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
   it("marks the region aria-disabled", () => {
-    render(<Preview id="assistant-suggestions">body</Preview>);
+    render(
+      <Preview id="assistant-suggestions" size="container">
+        body
+      </Preview>,
+    );
     expect(screen.getByRole("group", { hidden: true }).getAttribute("aria-disabled")).toBe("true");
+  });
+  it("renders an icon badge instead of the text pill when compact", () => {
+    render(
+      <Preview id="assistant-suggestions" size="compact">
+        body
+      </Preview>,
+    );
+    expect(screen.queryByText(/Preview · M9/)).toBeNull();
   });
 });

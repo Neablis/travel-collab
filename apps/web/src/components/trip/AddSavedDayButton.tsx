@@ -12,7 +12,7 @@ import { Preview } from "@/components/ui/preview";
 // the Preview shield swallows the click regardless.
 export function AddSavedDayButton() {
   return (
-    <Preview id="add-saved-day">
+    <Preview id="add-saved-day" size="compact">
       <Button type="button" variant="secondary">
         Add a saved day
       </Button>

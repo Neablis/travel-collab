@@ -39,7 +39,7 @@ export function KeepDayDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Keep this day">
-      <Preview id="keep-day-dialog">
+      <Preview id="keep-day-dialog" size="container">
         <div className="flex flex-col gap-3">
           <FormField id={nameId} label="Name">
             <Input id={nameId} placeholder="e.g. A day in Nakameguro" />

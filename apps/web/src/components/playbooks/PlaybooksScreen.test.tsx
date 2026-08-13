@@ -14,7 +14,7 @@ afterEach(cleanup);
 // does render inside the "playbooks-route" region, matching the route.
 function renderScreen() {
   return render(
-    <Preview id="playbooks-route">
+    <Preview id="playbooks-route" size="container">
       <PlaybooksScreen playbooks={PREVIEW_PLAYBOOK_CARDS} />
     </Preview>,
   );

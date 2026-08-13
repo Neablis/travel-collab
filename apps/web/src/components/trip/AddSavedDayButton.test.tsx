@@ -16,9 +16,10 @@ describe("AddSavedDayButton", () => {
     expect(region?.textContent).toContain("Add a saved day");
   });
 
-  it("shows the Preview · M11 chip", () => {
+  it("shows the M11 milestone via tooltip (compact icon badge, not a text chip)", () => {
     render(<AddSavedDayButton />);
-    expect(screen.getByText(/Preview/).textContent).toMatch(/M11/);
+    const region = document.querySelector('[data-preview-id="add-saved-day"]');
+    expect(region?.getAttribute("title")).toMatch(/M11/);
   });
 
   it("is genuinely inert: pointer-events shielded, never fires", async () => {

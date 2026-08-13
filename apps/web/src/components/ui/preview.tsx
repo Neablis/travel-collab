@@ -1,3 +1,4 @@
+import { Construction } from "lucide-react";
 import { PREVIEW_REGISTRY, type PreviewId } from "@/lib/preview-registry";
 
 // A caller's own positioning class (e.g. TripBoardScreen's assistant-rail
@@ -15,11 +16,13 @@ const POSITION_KEYWORD = /\b(?:fixed|absolute|sticky)\b/;
 
 export function Preview({
   id,
+  size,
   note,
   children,
   className,
 }: {
   id: PreviewId;
+  size: "compact" | "container";
   note?: string;
   children: React.ReactNode;
   className?: string;
@@ -32,7 +35,7 @@ export function Preview({
       aria-disabled="true"
       data-preview-id={id}
       title={note ?? `Coming in ${milestone}`}
-      className={`${callerSetsPosition ? "" : "relative "}${className ?? ""}`}
+      className={`${callerSetsPosition ? "" : "relative "}${size === "container" ? "border border-dotted border-border-strong rounded-lg " : ""}${className ?? ""}`}
     >
       {/* Shield: renders above children, swallows pointer events so no control
           inside a Preview ever fires. children keep their real markup/prop API.
@@ -67,12 +70,18 @@ export function Preview({
           capped, it clips to the host's own width instead. This only
           affects rendered layout, not textContent, so it doesn't change
           what `getByText(/Preview/)` finds in tests. */}
-      <span
-        className="absolute -right-1.5 -top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
-        style={{ fontSize: "10px" }}
-      >
-        Preview · {milestone}
-      </span>
+      {size === "container" ? (
+        <span
+          className="absolute -right-1.5 -top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
+          style={{ fontSize: "10px" }}
+        >
+          Preview · {milestone}
+        </span>
+      ) : (
+        <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink/80">
+          <Construction className="size-3.5 text-surface" aria-hidden />
+        </span>
+      )}
     </div>
   );
 }

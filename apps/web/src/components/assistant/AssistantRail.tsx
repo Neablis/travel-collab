@@ -103,7 +103,7 @@ export function AssistantRail({
           {/* Still M9: nothing generates a real suggestion yet. Narrower than
               the old whole-rail Preview wrap — the real ask box below stays
               usable regardless. */}
-          <Preview id="assistant-suggestions">
+          <Preview id="assistant-suggestions" size="container">
             <div className="flex flex-col gap-2.5">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate">What I noticed</div>
               {suggestions.map((suggestion) => (
@@ -132,7 +132,7 @@ export function AssistantRail({
           {/* Still M9: these are canned nudges of what to ask, not derived
               from anything real — the real Ask box right below works today
               regardless of whether a chip was ever clicked. */}
-          <Preview id="assistant-quick-asks" className="mb-2.5 block">
+          <Preview id="assistant-quick-asks" size="compact" className="mb-2.5 block">
             <div className="flex flex-wrap gap-1.5">
               {quickAsks.map((quickAsk) => (
                 <Button

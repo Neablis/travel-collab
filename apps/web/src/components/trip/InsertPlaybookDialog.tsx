@@ -73,7 +73,7 @@ export function InsertPlaybookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Add a saved day to a trip">
-      <Preview id="insert-playbook">
+      <Preview id="insert-playbook" size="container">
         <div className="flex flex-col gap-3.5">
           <FormField id={playbookId} label="Which Playbook">
             <NativeSelect

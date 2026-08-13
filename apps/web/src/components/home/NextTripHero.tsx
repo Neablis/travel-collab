@@ -173,7 +173,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 noticed" cards will — so it's a Preview shell like those,
                 not just an honest placeholder value. */}
             <StatTile tone="warning" value={daysPlanning === null ? "—" : String(daysPlanning)} label="days planning" />
-            <Preview id="home-decisions">
+            <Preview id="home-decisions" size="container">
               <StatTile tone="danger" value="2" label="need a decision" />
             </Preview>
           </div>

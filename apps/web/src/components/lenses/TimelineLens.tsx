@@ -271,7 +271,7 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, onSele
             </div>
           )}
           <div className="flex gap-0.5">
-            <Preview id="timeline-ghost">
+            <Preview id="timeline-ghost" size="compact">
               <Button variant="ghost" size="sm">
                 Ask
               </Button>
@@ -387,7 +387,7 @@ export function TimelineLens({
                     {formatDuration(outMinutes, "out")}
                   </DataText>
                 </span>
-                <Preview id="keep-day-flag">
+                <Preview id="keep-day-flag" size="compact">
                   <KeepDayFlag dayIndex={index} accent={accent.ink} />
                 </Preview>
                 <Button
@@ -464,7 +464,7 @@ export function TimelineLens({
                   as the per-activity "Ask" button above (Task 10); the
                   registry allows one id to back multiple surfaces. */}
               {isFocused && (
-                <Preview id="timeline-ghost">
+                <Preview id="timeline-ghost" size="container">
                   <GhostProposal proposal={PREVIEW_GHOST_PROPOSAL} onKeep={() => {}} onDiscard={() => {}} />
                 </Preview>
               )}

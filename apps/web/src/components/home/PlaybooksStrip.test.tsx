@@ -26,7 +26,7 @@ const playbooks: PlaybookCard[] = [
 
 function renderStrip() {
   return render(
-    <Preview id="home-playbooks-strip">
+    <Preview id="home-playbooks-strip" size="container">
       <PlaybooksStrip playbooks={playbooks} />
     </Preview>,
   );

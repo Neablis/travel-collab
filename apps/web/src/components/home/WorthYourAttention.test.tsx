@@ -22,7 +22,7 @@ const items: AttentionRow[] = [
 
 function renderPanel() {
   return render(
-    <Preview id="home-worth-attention">
+    <Preview id="home-worth-attention" size="container">
       <WorthYourAttention items={items} />
     </Preview>,
   );

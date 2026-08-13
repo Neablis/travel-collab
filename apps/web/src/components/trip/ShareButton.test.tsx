@@ -17,9 +17,10 @@ describe("ShareButton", () => {
     expect(region?.textContent).toContain("Share");
   });
 
-  it("shows the Preview · M11 chip", () => {
+  it("shows the M11 milestone via tooltip (compact icon badge, not a text chip)", () => {
     render(<ShareButton />);
-    expect(screen.getByText(/Preview/).textContent).toMatch(/M11/);
+    const region = document.querySelector('[data-preview-id="share-button"]');
+    expect(region?.getAttribute("title")).toMatch(/M11/);
   });
 
   it("defaults to the ghost variant (trip header call site)", () => {

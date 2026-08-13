@@ -276,13 +276,13 @@ export default function Home() {
           own <Preview> seam (Task 3), which shields pointer events and
           stamps the "Preview · M9"/"Preview · M11" chip. */}
       <div className="mt-6">
-        <Preview id="home-playbooks-strip">
+        <Preview id="home-playbooks-strip" size="container">
           <PlaybooksStrip playbooks={PREVIEW_PLAYBOOKS} />
         </Preview>
       </div>
 
       <div className="mt-6">
-        <Preview id="home-worth-attention">
+        <Preview id="home-worth-attention" size="container">
           <WorthYourAttention items={PREVIEW_ATTENTION} />
         </Preview>
       </div>

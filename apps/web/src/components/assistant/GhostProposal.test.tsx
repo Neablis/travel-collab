@@ -17,7 +17,7 @@ const proposal: Proposal = {
 describe("GhostProposal", () => {
   it("renders the proposal title and why, plus Keep/Discard, inside the timeline-ghost Preview region", () => {
     render(
-      <Preview id="timeline-ghost">
+      <Preview id="timeline-ghost" size="container">
         <GhostProposal proposal={proposal} onKeep={vi.fn()} onDiscard={vi.fn()} />
       </Preview>,
     );
@@ -34,7 +34,7 @@ describe("GhostProposal", () => {
     const onKeep = vi.fn();
     const onDiscard = vi.fn();
     render(
-      <Preview id="timeline-ghost">
+      <Preview id="timeline-ghost" size="container">
         <GhostProposal proposal={proposal} onKeep={onKeep} onDiscard={onDiscard} />
       </Preview>,
     );
