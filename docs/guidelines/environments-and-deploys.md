@@ -20,4 +20,7 @@ Rules (ADR-004 + M1 retro):
   against the preview branch. Safe because previews are disposable (Task 0c).
 - Resetting the preview branch (or local db):
   `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
-  — temporary scaffolding, see the header of `apps/web/scripts/db-reset.mjs`.
+  — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
+  --filter web db:reseed` wipes and refills with realistic data in one shot
+  (`db:reset --yes` + `db:seed`, `.env.local`'s `DATABASE_URL` picked up
+  automatically) — see `apps/web/scripts/db-seed.mjs`.

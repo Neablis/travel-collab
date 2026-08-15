@@ -39,6 +39,12 @@ packages/contracts  ←  apps/web (UI)  — via the typed API client only
 5. Contract changes ship as their own commit/PR *before* the feature that
    needs them. Agents working in parallel sync at contracts — this ordering is
    what prevents collisions.
+6. If the change touches a command (new/renamed/retyped field): run
+   `pnpm --filter web db:seed` against a local dev server. It POSTs real
+   command payloads through the real API, so it fails loudly on exactly this
+   kind of drift — cheaper than finding out a command silently stopped
+   validating the next time someone tries to seed local data. See
+   `apps/web/scripts/db-seed.mjs`'s header for what it does and doesn't catch.
 
 ## Parallel agent workstreams
 

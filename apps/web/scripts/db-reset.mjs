@@ -1,8 +1,16 @@
-// TEMPORARY SCAFFOLDING (M2 Task 0c, M1 retro follow-up) — remove or fold into
-// a real seed/fixture story before release (ADR-004: "DB resets are cheap").
+// Originally temporary scaffolding (M2 Task 0c, M1 retro follow-up); the
+// "real seed/fixture story" it was waiting on is db-seed.mjs, and `pnpm
+// db:reseed` chains this + that for a one-command wipe-and-refill.
 // Truncates the event log + projections on whatever DATABASE_URL points at.
+// (Doesn't touch the `pages` table — Notebook content — a real gap if you
+// need those cleared too; TRUNCATE it by hand until this script covers it.)
 // Deliberately requires an explicit DATABASE_URL (no config default): pointing
-// a destructive tool somewhere should never happen implicitly.
+// a destructive tool somewhere should never happen implicitly. `--env-file-
+// if-exists=.env.local` (package.json) fills it in from the local dev file
+// when present, same as db-seed.mjs and the drizzle-kit scripts — it does
+// NOT override an already-exported DATABASE_URL (Node's own precedence),
+// so `DATABASE_URL=<preview-url> pnpm --filter web db:reset` still targets
+// the value you gave it, not whatever .env.local happens to have.
 import { createInterface } from "node:readline/promises";
 import pg from "pg";
 
