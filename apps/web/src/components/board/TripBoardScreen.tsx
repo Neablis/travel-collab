@@ -163,7 +163,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <div className={cn("trip-board-content", !assistant.open && "assistant-hidden")}>
         <TripHeader tripId={tripId}>
           <TripViewTabs />
-          <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
+          {/* Task 2.3: MapRail replaces the chips row's job in map view — the
+              two side by side would be redundant, and the chips row's own
+              horizontal scroll makes no sense floating over a full-bleed map. */}
+          {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
         </TripHeader>
         {error !== null && (
           <PageContainer width="full">
@@ -172,7 +175,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         )}
         <div inert={preview.seq !== null ? true : undefined}>
           {isFullLens ? (
-            <PageContainer width="full">
+            // px-0: Task 2.3 makes the Map lens genuinely full-bleed
+            // ("mapwrap" in the handoff) — the default px-6 gutter would
+            // leave the rail's 16px inset reading as ~40px instead.
+            <PageContainer width="full" className="px-0">
               {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
             </PageContainer>
           ) : (

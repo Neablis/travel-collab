@@ -478,6 +478,25 @@ describe("TripBoardScreen", () => {
   });
 });
 
+describe("map view hides the day-chips row", () => {
+  it("hides the day-chips row in map view", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Map" }));
+
+    expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Day columns" }));
+    expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
+  });
+});
+
 describe("assistant rail visibility", () => {
   it("starts hidden below the 1180px overlay breakpoint", async () => {
     setViewportMatches({ "(min-width: 1180px)": false });

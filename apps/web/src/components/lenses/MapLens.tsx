@@ -1,13 +1,29 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
+import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
+import { mapDays, routeLine, type MapDay } from "./mapRailData";
+import { MapRail } from "./MapRail";
+import { MapFocusCard } from "./MapFocusCard";
+import { MapLegend } from "./MapLegend";
 
-const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+// Handoff `current/…dc.html:630-668`: the muted "positron" basemap so the
+// day accents (routes, markers) are the only colour that carries meaning —
+// the old "liberty" style's own colourful landuse/POI fills competed with them.
+const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+
+function accentVar(accent: MapDay["accent"]): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
+}
+
+function layerIdFor(dayId: string): string {
+  return `route-${dayId}`;
+}
 
 export function MapLens({
   detail,
@@ -17,9 +33,15 @@ export function MapLens({
   onSelectActivity?: (activityId: string) => void;
 }) {
   const { openCreate } = useEditor();
+  const { focusedDay, setFocusedDay } = useFocus();
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<import("maplibre-gl").Map | null>(null);
+  const [ready, setReady] = useState(false);
+  const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
   const pins = activityPins(detail);
   const unlocated = unlocatedActivities(detail);
+  const days = mapDays(detail);
+  const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -33,30 +55,32 @@ export function MapLens({
 
     import("maplibre-gl").then(({ Map, Marker, LngLatBounds }) => {
       if (cancelled || !el) return;
+      LngLatBoundsRef.current = LngLatBounds;
 
       map = new Map({
         container: el,
         style: STYLE_URL,
+        // A static initial view (the first located pin, unweighted by day) —
+        // never a fitBounds() call here. fitBounds is reserved entirely for
+        // responding to a real focus change below; calling it on mount too
+        // would be indistinguishable from "the whole trip" being the focused
+        // day, which it isn't.
         center: [firstPin.lng, firstPin.lat],
         zoom: 10,
       });
+      mapRef.current = map;
 
-      // The "liberty" style's POI layers reference sprite icons (e.g.
-      // "office") that don't always resolve; without a fallback, maplibre
-      // logs a console error per missing id. A blank placeholder silences
-      // this — the icon slot just renders empty, which is already the
-      // effective behavior when this fires.
+      // The "liberty"-era POI layers referenced sprite icons that don't
+      // always resolve; without a fallback, maplibre logs a console error
+      // per missing id. A blank placeholder silences this — the icon slot
+      // just renders empty, which is already the effective behavior when
+      // this fires. Kept for "positron" too: no guarantee every future style
+      // swap ships every referenced sprite.
       map.on("styleimagemissing", (e: { id: string }) => {
         if (map?.hasImage(e.id)) return;
         map?.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
       });
 
-      // Double-click on the map is the create-mode trigger (ADR-011 R2): it
-      // seeds the editor's prefill with the clicked coordinates instead of a
-      // dayId, demonstrating a second, distinct prefill shape from the same
-      // openCreate() entry point. No other maplibre behavior changes — this
-      // only adds a listener (maplibre's default dblclick-to-zoom still
-      // fires alongside it, matching stock map interaction expectations).
       map.on("dblclick", (e: import("maplibre-gl").MapMouseEvent) => {
         const { lng, lat } = e.lngLat;
         openCreate({
@@ -64,26 +88,67 @@ export function MapLens({
         });
       });
 
-      // Marker color is a maplibre-gl runtime option, not a CSS class — it
-      // requires a literal color string at construction time. It is read from
-      // the live --color-brand CSS variable rather than hardcoded, so the
-      // marker always tracks the design token.
-      const brandColor = getComputedStyle(document.documentElement).getPropertyValue("--color-brand").trim() || undefined;
+      map.on("load", () => {
+        if (cancelled || !map) return;
 
-      const bounds = new LngLatBounds();
-      for (const pin of pins) {
-        const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
-        if (onSelectActivity) {
-          marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
-          marker.getElement().style.cursor = "pointer";
+        // One line source+layer per day with 2+ located stops. Sources and
+        // layers must not be touched before "load" fires — the style isn't
+        // ready synchronously after `new Map(...)`.
+        for (const day of days) {
+          if (day.stops.length < 2) continue;
+          const id = layerIdFor(day.dayId);
+          map.addSource(id, {
+            type: "geojson",
+            data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: routeLine(day) } },
+          });
+          map.addLayer({
+            id,
+            type: "line",
+            source: id,
+            paint: {
+              "line-color": accentVar(day.accent),
+              "line-width": 3,
+              // No focused day yet on first paint (see the focus effect
+              // below for what happens once one is picked) — every route
+              // draws at full strength until a focus dims the others.
+              "line-opacity": 1,
+            },
+          });
         }
-        bounds.extend([pin.lng, pin.lat]);
-      }
-      map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
+
+        // Backlog-located pins belong to no day, so they get no accent —
+        // same neutral brand marker this lens always drew before per-day
+        // colouring existed.
+        const brandColor = accentVar("brand") || undefined;
+        for (const day of days) {
+          for (const stop of day.stops) {
+            const marker = new Marker(accentVar(day.accent) ? { color: accentVar(day.accent) } : undefined)
+              .setLngLat([stop.lng, stop.lat])
+              .addTo(map);
+            if (onSelectActivity) {
+              marker.getElement().addEventListener("click", () => onSelectActivity(stop.activityId));
+              marker.getElement().style.cursor = "pointer";
+            }
+          }
+        }
+        const dayStopIds = new Set(days.flatMap((d) => d.stops.map((s) => s.activityId)));
+        for (const pin of pins) {
+          if (dayStopIds.has(pin.activityId)) continue; // already drawn above, with its day's accent
+          const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
+          if (onSelectActivity) {
+            marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
+            marker.getElement().style.cursor = "pointer";
+          }
+        }
+
+        setReady(true);
+      });
     });
 
     return () => {
       cancelled = true;
+      setReady(false);
+      mapRef.current = null;
       if (typeof window !== "undefined") {
         map?.remove();
       }
@@ -91,16 +156,34 @@ export function MapLens({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
+  // Focus-driven camera + opacity, kept separate from the creation effect
+  // above so clicking a rail day never tears down and rebuilds the whole map
+  // instance — only the camera and each layer's line-opacity change.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+
+    for (const day of days) {
+      if (day.stops.length < 2) continue;
+      const opacity = focusedDay === null || day.index === focusedDay ? 1 : 0.55;
+      map.setPaintProperty(layerIdFor(day.dayId), "line-opacity", opacity);
+    }
+
+    // Handoff: "if the focused day has fewer than one located stop, do
+    // nothing — hold the previous viewport, and let MapFocusCard explain."
+    // Lurching to the whole-trip bounds on an empty day is exactly the
+    // behaviour this guard avoids.
+    if (focusedMapDay === null || focusedMapDay.stops.length < 1) return;
+
+    const LngLatBounds = LngLatBoundsRef.current;
+    if (!LngLatBounds) return;
+    const bounds = focusedMapDay.stops.reduce((b, s) => b.extend([s.lng, s.lat]), new LngLatBounds());
+    map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focusedDay]);
+
   return (
-    <div data-testid="map-lens" className="map-lens flex flex-col gap-4">
-      {pins.length > 0 ? (
-        // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
-        <div ref={containerRef} className="map-lens-canvas overflow-hidden rounded-lg border border-hairline" style={{ width: "100%", minHeight: 480, height: "70vh" }} />
-      ) : (
-        <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
-          No located activities yet — add a place to see it on the map.
-        </Text>
-      )}
+    <div data-testid="map-lens" className="map-lens flex flex-col gap-2">
       {unlocated.length > 0 && (
         <Button
           variant="ghost"
@@ -110,6 +193,22 @@ export function MapLens({
         >
           {unlocated.length} {unlocated.length === 1 ? "activity has" : "activities have"} no location — add a place
         </Button>
+      )}
+      {pins.length > 0 ? (
+        <div
+          className="map-lens-canvas relative min-h-0 flex-1 overflow-hidden border-t border-hairline bg-paper"
+          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
+          style={{ minHeight: 480, height: "70vh" }}
+        >
+          <div ref={containerRef} className="absolute inset-0" />
+          <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+          <MapFocusCard day={focusedMapDay} />
+          <MapLegend />
+        </div>
+      ) : (
+        <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
+          No located activities yet — add a place to see it on the map.
+        </Text>
       )}
     </div>
   );

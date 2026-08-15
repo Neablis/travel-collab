@@ -1,3 +1,4 @@
+import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { MapDay } from "./mapRailData";
 
@@ -28,7 +29,7 @@ export function MapFocusCard({ day }: { day: MapDay | null }) {
       style={{ left: "300px", bottom: "18px", width: "256px", zIndex: 3 }}
     >
       <div className="flex items-center gap-1.5">
-        <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${DOT_BG[day.accent]}`} />
+        <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", DOT_BG[day.accent])} />
         <span className="text-sm font-bold text-ink">{day.city ?? day.label}</span>
       </div>
       {stat !== null && <div className="font-mono text-xs text-slate">{stat}</div>}
