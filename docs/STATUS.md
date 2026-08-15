@@ -5,28 +5,92 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-08 (M8 gate closed)**
+**Last updated: 2026-08-14 (M10 gate reopened — Wave 2 planned, not started)**
 
 ## Where we are
 
-**M0–M8 are all complete and merged.** M8 ("Make it real") closed its gate
-2026-08-08 — see `docs/milestones/M8-make-it-real.md`'s retro. `docs/milestones/
-README.md`'s Current milestone pointer is now **M9**.
+**M0–M8 are complete and merged. M10 is in flight, not done.** M8 ("Make it
+real") closed its gate 2026-08-08. M10 ("Visual craft pass", brought forward
+ahead of M9 per ADR-018) closed a **Wave-1** gate 2026-08-10 — but on branch
+`claude/m10-trip-planner-visual-7bbacf` (PR #23), which **is still unmerged**,
+so nothing of M10 is on `main`.
 
-**Phase 1's gate has NOT been met yet.** Every milestone through M8 is ticked,
-but the gate is "Mitchell plans a real trip end-to-end and needs no other
-tool," and that dogfood run hasn't happened since M8 closed the floor it was
-blocked on (a trip couldn't be renamed or deleted before M8). **The next
-roadmap item is the Phase 1 gate review with Mitchell — not diving into M9.**
-`TODO.md` carries this as its own unchecked line between M8 and Phase 2.
+**M10's gate was reopened 2026-08-14** after an external design review Mitchell
+requested. Two findings, neither of which the Wave-1 gate could have caught:
+
+1. **The design handoff had moved two generations.** Wave 1 was built against a
+   1,412-line prototype; `~/Downloads/design_handoff_update/` contains a
+   2,048-line version (688 changed lines — this is the one that added the **Map
+   view**) and a 2,623-line current version (+612/−37 — the **unscheduled rack**,
+   **budget and per-stop costs**, **overlap warnings**, the **Trip settings
+   sheet**, **add-a-day**, and the **header meta pill**).
+2. **Three blocking defects in Wave 1's own new assistant rail.** The worst: the
+   rail's scrim (`fixed inset-0 z-40`, pointer events on, no click handler) makes
+   the entire trip page inert below 1180px. The e2e suite is structurally blind
+   to it — `apps/web/playwright.config.ts` sets no `viewport`, so all 11 specs
+   run at Playwright's 1280px default, above the 1179px breakpoint where the
+   scrim turns on. That is why the gate passed 11/11 against a production build
+   while the page was dead at 1100px.
+
+**The Phase 1 gate review with Mitchell is done (2026-08-08).**
+
+**Current milestone is M10, Wave 2.** M9 does not start until it passes. Order:
+`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M9 → M11 → …`.
 
 ## In flight
 
-**Nothing in flight.** M8 is fully closed: Wave A (trip lifecycle, PR #21,
-merged 2026-08-07), Wave B (anchors-UI retirement, `ConflictContext.timezone`
-removal, Notebook macro-authoring pullback — merged 2026-08-07, commit
-`bc2295e`), and Wave C/D's kept tasks — **C4** (the KI-5 sync indicator,
-`SyncIndicator.tsx` in `TripHeader`) and **D3** (the M8 e2e gate script,
+**M10 Wave 2 — planned, not started. This is the resume-from-here point.**
+
+The plan is written and ready to execute task-by-task:
+
+- **Index:** `docs/plans/2026-08-14-M10-redesign-delta.md` — goal, global
+  constraints, file map, phase order. **Read this first.**
+- **Phases:** `docs/plans/M10-delta/phase-N-*.md`, ten files, 28 tasks. Execute
+  one file at a time, in order. Each is self-contained, carries its own literal
+  design values, and includes real test code — written so a smaller model can
+  run it without re-deriving anything.
+- **Findings it came from:**
+  `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
+- **Design source of truth:**
+  `~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`
+  (2,623 lines). `previous/` is for reading the diff only. The bundle's own
+  `AGENT-PROMPT.md` claims `previous/` is what we built from — **it is not**;
+  we built from the older 1,412-line file, which is why there are two
+  generations of drift.
+
+**Start with Phase 0.** Its three tasks are bugs, not design gaps, and
+everything else is hard to verify while the trip page is inert below 1180px.
+
+**The scoping rule for all of Wave 2** (Mitchell, 2026-08-14): *build on what
+exists in the data model; implement the UI for things we can't build today and
+wrap those in the under-construction `<Preview>` treatment.* Reviewing the
+contracts against the design showed most of what it needs is already modelled —
+`ActivityView.cost`, `trip.budget`/`currency`, `TripDetail.tripCostTotal` and
+`.budgetRemaining` (**server-computed; never re-sum them client-side**),
+`trip.backlog`, `Location.lat/lng`, and the `time-overlap` / `over-budget`
+conflict rules. Only confirmed-vs-estimate cost state, "was on day N"
+provenance, and invite roles are genuinely missing, and those get Previews
+rather than contract changes.
+
+**PR #23 is still open and unmerged.** Wave 2 builds on it. The Wave-1 record in
+`docs/milestones/M10-visual-craft.md` stands as written — it was true against the
+handoff generation available then — with a "Gate reopened" section appended
+rather than the closed record being rewritten.
+
+**Wave 1's own plan** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`) was
+deleted at its gate close per `docs/plans/README.md`'s staging-area rule.
+
+**One approved, intentional exception to M10's presentational-only rule:**
+KI-2's fix required a `packages/domain` change (`conflicts.ts`'s `fmt`,
+grouped to match the UI's money formatting) — Mitchell explicitly chose "fix
+it anyway, escalate the diff" over re-deferring when this was raised mid-build.
+Recorded in the M10 retro and in `docs/known-issues.md`.
+
+M8 is fully closed: Wave A (trip lifecycle, PR #21, merged 2026-08-07), Wave B
+(anchors-UI retirement, `ConflictContext.timezone` removal, Notebook
+macro-authoring pullback — merged 2026-08-07, commit `bc2295e`), and Wave C/D's
+kept tasks — **C4** (the KI-5 sync indicator, `SyncIndicator.tsx` in
+`TripHeader`) and **D3** (the M8 e2e gate script,
 `apps/web/e2e/m8-make-it-real.spec.ts`) — are all done and merged to this
 branch. C1–C3 (quick-add, search-to-add, move-via-menu) and D1–D2 (first-run
 state, empty states) remain **deferred** per the 2026-08-07 scope trim; do
@@ -98,11 +162,11 @@ which existed only on a branch.
 
 ## Next action
 
-**The Phase 1 gate review with Mitchell** — dogfood a real trip end-to-end
-using only the product (no other tool). This is what M8 existed to unblock: a
-trip couldn't be renamed or deleted before M8, so the 2026-07-28 review ran
-without dogfood data. That floor is now closed, and every milestone through
-M8 is done — this review is the actual next `TODO.md` line, not M9 work.
+**Execute M10's plan task-by-task** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`),
+then close its gate per the rewritten `docs/milestones/M10-visual-craft.md`
+exit gate (before/after screenshots, KI-2/3/4 closed or re-deferred,
+presentational-only diff verified, all tests incl. e2e green, retro appended).
+M9 resumes once M10's gate closes.
 
 Background on why M8 existed: **M8 — Make it real**
 (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate review ran on

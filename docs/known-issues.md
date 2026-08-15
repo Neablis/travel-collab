@@ -13,53 +13,44 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-2 — Money formatting differs between UI and domain conflict text
-- **Severity:** cosmetic
-- **Area:** `apps/web/src/components/lenses/formatMoney.ts` vs. the domain's
-  `fmt` in `packages/domain/src/trip/conflicts.ts`
-- **Symptom:** the UI groups thousands (`1,111,106.00 USD`, added in M5 Wave-3
-  for comment #22), but the **over-budget conflict banner text is generated in
-  `packages/domain`** and stays ungrouped, so the same amount can render two
-  ways. Accepted knowingly: `packages/domain` was off-limits to that UI-only
-  wave. **Fix path:** when a domain change is next in scope, group `fmt` to
-  match (or move money formatting to a shared contracts-level helper).
-- **First noted:** 2026-07-13 (M5 Wave-3).
-
 ### KI-3 — Minor M5 re-skin cosmetic/cleanup notes
 - **Severity:** cosmetic / cleanup
 - **Area:** `apps/web/src` (various)
-- Collected small findings from the Wave-1/Wave-2 reviews, none blocking:
-  - Trip "currency" field label renders lowercase — pre-existing copy, not a
-    re-skin change; reads as a raw word, not "you're setting the trip budget".
-  - Sign-in link (Track A) is a real `<a>` styled as a secondary button but
-    missing the focus-ring / `cursor-pointer` a real `Button` has.
-  - `text-danger-ink` used as a raw utility in a couple of places instead of a
-    `Text` variant.
-  - `Board.tsx` carries an unspecified `items-start` on its flex layout.
-  - Near-duplicate link-button `className` strings across 3 lens files (DRY).
-- **First noted:** 2026-07-11/12 (M5 Wave 1/2).
-
-### KI-4 — Minor M5 Wave-3 cosmetic/dead-code notes
-- **Severity:** cosmetic / cleanup
-- **Area:** `apps/web/src` (various)
-- Non-blocking findings from the Wave-3 per-task + final whole-branch reviews
-  (all shipped as-is by decision — no wrong behavior reachable by a user):
-  - `board/Column.tsx` — the `sectionRef` prop is now dead (its only caller,
-    the removed day-pager `scrollToDay`, is gone); safe to delete the prop,
-    its type, and the `ref={sectionRef}` wiring in a cleanup pass.
-  - `lenses/MapLens.tsx` — the `grow` class on `.map-lens-canvas` is inert (no
-    flex/bounded-height ancestor); the `minHeight`/`height: 70vh` inline styles
-    do the sizing. Harmless dead class.
-  - `lenses/TimelineLens.tsx` — the hour-gridline `<div>`s lack
-    `pointer-events-none`; non-blocking today (buttons paint on top), but worth
-    adding before any click-to-create-at-time affordance lands on the bar.
-  - `lenses/TimelineLens.tsx` — axis tick labels are left-aligned at their
-    `left:%`, so the last label ("9p") can clip against the row's right edge at
-    narrow widths (centering needs an inline `translateX(-50%)`, which is
-    allowed under the geometry inline-style exception).
-  - `ui/segmented-control.tsx` — a redundant `gap-0.5` base class is overridden
-    in the subtle variant (cosmetic).
-- **First noted:** 2026-07-13 (M5 Wave 3).
+- Collected small findings from the Wave-1/Wave-2 reviews:
+  - ~~Trip "currency" field label renders lowercase~~ — **FIXED** (Task 19,
+    2026-08-09): `TripMoneySettings.tsx`'s `FormField` label and the
+    `NativeSelect`'s `aria-label` both now read "Currency".
+  - ~~Sign-in link (Track A) is a real `<a>` styled as a secondary button but
+    missing the focus-ring / `cursor-pointer` a real `Button` has~~ — **FIXED**
+    (Task 19, 2026-08-09): both sign-in links (`app/page.tsx` and
+    `board/TripBoardScreen.tsx`, the latter previously fully unstyled) now
+    reuse `buttonVariants({ variant: "secondary" })` from
+    `components/ui/button.tsx` instead of a hand-rolled/missing className, so
+    they get the same focus ring and `cursor-pointer` a real `Button` has.
+  - `text-danger-ink` used as a raw utility instead of a `Text` variant —
+    **RE-DEFERRED** (Task 19, 2026-08-09): re-checked against the current
+    (post-M10-restyle) tree and this is no longer "a couple of places" — it's
+    now used in 10+ files (`form-field.tsx`, `banner.tsx`, `badge.tsx`,
+    `NextTripHero.tsx`, `PlaybooksStrip.tsx`, `LocationInput.tsx`,
+    `ActivityEditor.tsx`, `PlaybookCard.tsx`, `KeepDayFlag.tsx`,
+    `EmptyChip.tsx`, `TimelineLens.tsx`, `app/page.tsx`), mostly as static
+    `Record<AccentFamily, string>` tone-lookup tables — a legitimate,
+    repo-wide convention for accent/tone lookups now, not a stray
+    inconsistency. Centralizing it into a `Text` variant would be a
+    cross-cutting refactor of 10+ files, out of proportion to a cosmetic nit.
+    Left open; revisit if a `Text`-variant-based tone system is designed
+    deliberately rather than as a side effect of this cleanup.
+  - ~~`Board.tsx` carries an unspecified `items-start` on its flex layout~~ —
+    **CLOSED BY RESTYLE** (Task 19, 2026-08-09): Task 11's M10 restyle
+    rewrote `Board.tsx`'s flex layout; `items-start` no longer appears
+    anywhere in the file.
+  - ~~Near-duplicate link-button `className` strings across 3 lens files
+    (DRY)~~ — **CLOSED BY RESTYLE** (Task 19, 2026-08-09): the M10 restyle
+    removed every `<Link>` from `apps/web/src/components/lenses/*.tsx`
+    (confirmed via grep) — the surface this applied to no longer exists.
+- **First noted:** 2026-07-11/12 (M5 Wave 1/2). **Partially resolved:**
+  2026-08-09 (Task 19) — the `text-danger-ink` bullet stays open by
+  deliberate re-defer; everything else above is fixed or closed by restyle.
 
 ### KI-5 — Optimistic commands can be silently lost on abrupt navigation before the send queue drains
 - **Severity:** correctness (data loss, no error surfaced)
@@ -163,6 +154,40 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it isn't fixed:** the two halves need different work and a product decision. Naming needs a new `SetTripName` command through the full pipeline (command + event + `decideTripCommand`/`evolveTrip` + contracts changelog) — small but a genuine contract change, and it's worth deciding first whether an AI should silently rename a trip the user already named. Dates need only a prompt nudge, but "7 days starting when?" has no answer without asking the user, and the AI surface has no clarification round-trip.
 - **Mitigation:** none today — the user renames and sets dates by hand after generation.
 - **First noted:** 2026-07-26 (live test of the `MAX_STEPS` fix).
+
+### KI-16 — The assistant rail's scrim makes the whole trip page inert below 1180px
+- **Severity:** correctness (the page does not respond to input at all)
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx` (the scrim div), `apps/web/src/app/globals.css:101-108`
+- **Symptom:** on any viewport narrower than 1180px, every control on `/trips/[tripId]` is dead — tabs, day chips, activity cards, Add stop, edit, remove, drag and drop. Measured live at 1100x800: `document.elementFromPoint(200, 500)` returns `div.assistant-rail-scrim` over a day column, and clicking the "Timeline" tab does nothing.
+- **Why it happens:** the rail always renders `<div aria-hidden className="assistant-rail-scrim fixed inset-0 z-40 bg-ink/32" />` with `pointer-events: auto` and **no click handler**. `globals.css` turns it on at `max-width: 1179px`. In the design prototype the scrim is `onClick={{ closeAsst }}` — dismissing the rail is its only purpose. Ours blocks and dismisses nothing.
+- **Why the gate missed it:** see KI-19.
+- **Fix:** M10 Wave 2, Phase 0 Task 0.1 — make the scrim a real `<button aria-label="Close the assistant" onClick={onHide}>`.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-17 — Sheets and dialogs render underneath the assistant rail
+- **Severity:** correctness (more than half of the most-used form is unreachable)
+- **Area:** `apps/web/src/components/ui/sheet.tsx:29-30`, `apps/web/src/components/ui/dialog.tsx:11-12`
+- **Symptom:** with the rail open at 1280px, the Add-stop / edit-activity sheet is covered on its right ~356px, including its title and its Close button. Measured: `[role="dialog"]` spans x 640-1280 with `z-index: auto`; `aside[aria-label="Assistant"]` spans x 924-1280 with `z-index: 50`.
+- **Why it happens:** neither primitive sets **any** z-index, so Radix's portalled content stacks purely by DOM order and loses to a fixed `z-50` sibling rendered outside the portal.
+- **Note for the fix:** `z-[60]` is a **build failure** — `scripts/check-color-wall.mjs:28` rejects any `className` containing `[`, and Tailwind's default z scale stops at 50. Use a named class in `globals.css`, matching `.assistant-rail-scrim` / `.trip-board-content` precedent.
+- **Fix:** M10 Wave 2, Phase 0 Task 0.2.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-18 — Day accents collide: Kyoto and Osaka render identically
+- **Severity:** correctness (the accent system's entire purpose is defeated)
+- **Area:** `apps/web/src/lib/dayAccent.ts`
+- **Symptom:** `dayAccentFor` is `djb2(city) % 5` over five families. Run over real city names, **seven of thirteen land on `danger`** (Kyoto, Osaka, Niagara Falls, Lisbon, Paris, Barcelona, Portland), three on `info`, two on `success`, one on `brand`. The design handoff's own headline trip — Tokyo -> Kyoto -> Osaka — renders Kyoto and Osaka the same colour. A day with **no** located activity hashes the empty string into `info` and renders bright blue, visually claiming to be a city of its own.
+- **Why it happens:** the prototype used ten buckets **with linear collision probing** (`cityBuckets()`); only the bucketing was carried over, not the probing — and the probing is the part that guarantees distinctness.
+- **Fix:** M10 Wave 2, Phase 8 — resolve a whole trip's cities at once (`dayAccents(cities)`), probe forward on collision, and give "no city known" an explicit neutral.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it
+- **Severity:** reliability (the gate cannot see a class of real defect)
+- **Area:** `apps/web/playwright.config.ts`
+- **Symptom:** M10 Wave 1's gate passed 11/11 specs against a production build while the trip page was completely inert below 1180px (KI-16). The config sets `use: { baseURL }` and **no `viewport`**, so every spec runs at Playwright's 1280x720 default — above the 1179px breakpoint at which the blocking scrim turns on.
+- **Why it matters beyond KI-16:** the app has real breakpoint-dependent behaviour (the rail's overlay mode, the hero's 1040px collapse, the Playbooks strip's 1180px reflow). None of it is exercised. A responsive gate that only ever runs at one width is not a responsive gate.
+- **Fix:** M10 Wave 2 makes a narrow-viewport project (or at least one sub-1180px spec) a **gate condition**, not a nice-to-have.
+- **First noted:** 2026-08-14 (external design review of PR #23).
 
 ### KI-13 — `pnpm check` is not reliably green: jsdom component tests time out under parallel load
 - **Severity:** reliability (false failures; no product impact)
@@ -351,6 +376,58 @@ needs action — skip this section when triaging.
   - **Minor cleanups:** the "generate a fresh random UUID" system-prompt instruction now covers `AddDay.dayId` (not just `activityId`); the system prompt now spells out the case-sensitive enum/code formats (`Weekday` `mon`..`sun`, uppercase ISO-4217 currency, uppercase ISO-3166 country) that otherwise fail at the tool-time Zod boundary.
   - Also hardened alongside: the planning tools now build each command via `BatchableCommand.safeParse` (a shared `collect()` choke point) instead of an unchecked `as` cast, so a resolver/schema drift fails at the tool with a clear error instead of relying solely on the downstream batch re-parse. `pageTools.ts` was audited and found clean (closed-enum macro names, server-resolved day binding).
 - **First noted:** 2026-07-24 (M7, post-real-model testing; full audit via subagent). **Resolved:** 2026-07-24 (M7; RemoveDay/DismissConflict/Money/prompt fixes + `collect()` parse boundary).
+
+### KI-2 — Money formatting differs between UI and domain conflict text — RESOLVED
+- **Severity:** cosmetic
+- **Area:** `apps/web/src/components/lenses/formatMoney.ts` vs. the domain's
+  `fmt` in `packages/domain/src/trip/conflicts.ts`
+- **Symptom:** the UI groups thousands (`1,111,106.00 USD`, added in M5 Wave-3
+  for comment #22), but the **over-budget conflict banner text is generated in
+  `packages/domain`** and stayed ungrouped, so the same amount could render
+  two ways. Accepted knowingly at the time: `packages/domain` was off-limits
+  to that UI-only wave.
+- **Fix (2026-08-09, Task 19):** grouped the domain's `fmt` the same way —
+  `Math.abs(minor) / 100` through `toLocaleString("en-US", { minimumFractionDigits:
+  2, maximumFractionDigits: 2 })` with a manual sign prefix, mirroring
+  `formatAmount`'s own construction in `formatMoney.ts`. This is a real
+  `packages/domain` change — an explicitly pre-approved, one-time exception to
+  M10's "zero diff to `packages/`" rule (Mitchell, mid-session decision on
+  Task 19); it does not reopen `packages/domain` generally.
+- **Proof:** `packages/domain/test/over-budget.test.ts` adds a case asserting
+  the over-budget conflict description renders `"Trip total (1,111,107.00
+  USD) exceeds the budget (1.00 USD) by 1,111,106.00 USD."` for a
+  budget/cost pair chosen so the difference matches
+  `formatMoney.test.ts`'s existing `111110600` minor-unit grouping fixture —
+  same amount, same grouped string, on both surfaces.
+- **First noted:** 2026-07-13 (M5 Wave-3). **Resolved:** 2026-08-09 (Task 19).
+
+### KI-4 — Minor M5 Wave-3 cosmetic/dead-code notes — RESOLVED
+- **Severity:** cosmetic / cleanup
+- **Area:** `apps/web/src` (various)
+- Non-blocking findings from the Wave-3 per-task + final whole-branch reviews
+  (all shipped as-is by decision — no wrong behavior reachable by a user);
+  all five closed in Task 19 (2026-08-09):
+  - **FIXED:** `board/Column.tsx` — the `sectionRef` prop was dead (its only
+    caller, the removed day-pager `scrollToDay`, was already gone); deleted
+    the prop, its type, and the `ref={sectionRef}` wiring. `Board.tsx` never
+    passed `sectionRef` to `<Column>`, so no call site changed.
+  - **FIXED:** `lenses/MapLens.tsx` — removed the inert `grow` class from
+    `.map-lens-canvas`; the `minHeight`/`height: 70vh` inline styles do the
+    actual sizing, unchanged.
+  - **CLOSED BY OBSOLESCENCE:** `lenses/TimelineLens.tsx` — the hour-gridline
+    `<div>`s lacking `pointer-events-none`. Task 10's structural rewrite
+    (horizontal Gantt-bar-with-hour-axis → vertical day-header + activity-row
+    list) removed the hour-gridline code entirely; there is nothing left in
+    the file for this bullet to apply to.
+  - **CLOSED BY OBSOLESCENCE:** `lenses/TimelineLens.tsx` — axis tick labels
+    clipping at narrow widths. Same Task 10 rewrite; there is no axis-tick-
+    label code left in the file.
+  - **FIXED:** `ui/segmented-control.tsx` — verified the claim first (the
+    base `gap-0.5` class *was* redundant: `cn`'s `twMerge` silently dropped
+    it in favor of the subtle variant's `gap-3` on every render). Moved
+    `gap-0.5` into the pill-only branch so no dead class is emitted for
+    either variant; the merged output is identical to before.
+- **First noted:** 2026-07-13 (M5 Wave 3). **Resolved:** 2026-08-09 (Task 19).
 
 ## Dormant by decision
 
