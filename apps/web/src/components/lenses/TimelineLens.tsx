@@ -18,6 +18,7 @@ import { useFocus } from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
 import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
@@ -117,23 +118,6 @@ function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): s
   return extra > 0 ? `${shown.join(" → ")} → +${extra} more` : shown.join(" → ");
 }
 
-// Local copy of straight-line (great-circle) distance. Deliberately NOT
-// imported from packages/domain (packages/domain/src/trip/conflicts.ts's
-// haversineKm) — the UI layer must never import @tc/domain (AGENTS.md
-// architecture boundary, CI-enforced). A ~10-line haversine is generic
-// public math, not domain logic, so a second small copy here is the
-// sanctioned way to derive an honest straight-line distance for a leg
-// without crossing that boundary.
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
 // A gap "counts" as a leg only when it's positive — back-to-back or
 // overlapping activities (a real conflict scenario, flagged separately by
 // the Badge below) have no honest elapsed gap to report.
@@ -145,7 +129,7 @@ function locationCoords(location: Location | null | undefined): { lat: number; l
 
 // Handoff README §2 "Legs": indented dotted left border, mono travel time,
 // optional warning-tint gap pill. There is no real travel-time/distance data
-// source reachable from the UI (see haversineKm's comment above) — so the
+// source reachable from the UI (see lib/geo.ts's haversineKm comment) — so the
 // mono text is the real elapsed gap between one activity's end and the
 // next's start (both real TimeWindow strings already on hand), and the
 // pill fires only past GAP_WARNING_THRESHOLD_MIN. A real straight-line
