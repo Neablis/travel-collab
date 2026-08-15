@@ -12,6 +12,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
 import { makeTripHandlers } from "@/mocks/handlers";
+import { setViewportMatches } from "../../../vitest.setup";
 
 // The Assistant rail's real Ask box calls composeAiPlan directly (M10
 // redesign-feedback follow-up) — mocked the same way ComposePanel.test.tsx
@@ -70,6 +71,7 @@ beforeEach(() => {
   search = new URLSearchParams("");
   replaceSpy.mockClear();
   composeAiPlanMock.mockReset();
+  setViewportMatches({ "(min-width: 1180px)": true });
 });
 afterEach(() => {
   server.resetHandlers();
@@ -462,5 +464,39 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+});
+
+describe("assistant rail visibility", () => {
+  it("starts hidden below the 1180px overlay breakpoint", async () => {
+    setViewportMatches({ "(min-width: 1180px)": false });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+    expect(screen.getByRole("button", { name: /assistant/i })).toBeTruthy();
+  });
+
+  it("starts shown at or above the breakpoint", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
+  });
+
+  it("keeps the rail hidden after the user hides it, even at a wide viewport", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 });

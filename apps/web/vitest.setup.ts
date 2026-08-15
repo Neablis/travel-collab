@@ -17,3 +17,28 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 afterEach(() => {
   cleanup();
 });
+
+// jsdom ships no matchMedia. Components that adapt to a breakpoint (the
+// assistant rail's 1180px overlay threshold) call it on mount, so without this
+// every test rendering them throws. Default: no query matches — i.e. tests run
+// at the "narrow" end unless a test overrides it via setViewportMatches below.
+const mediaMatches = new Map<string, boolean>();
+
+export function setViewportMatches(matches: Record<string, boolean>): void {
+  mediaMatches.clear();
+  for (const [query, value] of Object.entries(matches)) mediaMatches.set(query, value);
+}
+
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: mediaMatches.get(query) ?? false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}

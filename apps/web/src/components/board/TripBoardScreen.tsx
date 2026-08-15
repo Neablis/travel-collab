@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
@@ -25,6 +25,37 @@ import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 
+// Handoff `current/…dc.html:1111-1119`: the rail is an inline column at wide
+// widths and an overlay below 1180px, where it starts hidden so it never covers
+// the plan. A resize moves it back and forth — but only until the user makes
+// their own choice, after which their preference wins at every width.
+function useAssistantVisibility() {
+  const [open, setOpen] = useState(true);
+  const userChose = useRef(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1180px)");
+    const sync = () => {
+      if (!userChose.current) setOpen(mq.matches);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  return {
+    open,
+    show: () => {
+      userChose.current = true;
+      setOpen(true);
+    },
+    hide: () => {
+      userChose.current = true;
+      setOpen(false);
+    },
+  };
+}
+
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
   const { lens } = useLens();
@@ -36,7 +67,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { focusedDay, setFocusedDay } = useFocus();
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
-  const [assistantOpen, setAssistantOpen] = useState(true);
+  const assistant = useAssistantVisibility();
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
 
@@ -129,7 +160,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           sits underneath the fixed-position Assistant rail below — dropped
           via .assistant-hidden when the rail itself is hidden, so hiding it
           actually reclaims the width rather than leaving a dead gutter. */}
-      <div className={cn("trip-board-content", !assistantOpen && "assistant-hidden")}>
+      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden")}>
         <TripHeader tripId={tripId} />
         <PageContainer width="full">
           {error !== null && <p role="alert">{error}</p>}
@@ -192,7 +223,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           so it doesn't affect any lens's own layout. Unmounted entirely
           (not just visually hidden) when the user hides it, so its fixed
           scrim/aside don't linger in the DOM. */}
-      {assistantOpen ? (
+      {assistant.open ? (
         <AssistantRail
           contextLine={assistantContextLine}
           suggestions={PREVIEW_SUGGESTIONS}
@@ -202,12 +233,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           askError={askStatus === "error" ? askError : null}
           onKeepGhost={() => {}}
           onDismiss={() => {}}
-          onHide={() => setAssistantOpen(false)}
+          onHide={assistant.hide}
         />
       ) : (
         <Button
           variant="secondary"
-          onClick={() => setAssistantOpen(true)}
+          onClick={assistant.show}
           className="fixed right-0 top-1/2 z-50 -translate-y-1/2 rounded-r-none border-r-0 px-2 py-3 text-xs shadow-raised"
         >
           Assistant
