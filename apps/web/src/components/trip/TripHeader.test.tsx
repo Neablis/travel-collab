@@ -280,17 +280,18 @@ describe("TripHeader restyle (Task 9)", () => {
     expect(getEditorState()).toEqual({ mode: "create", prefill: undefined });
   });
 
-  // Share and Add a saved day (ShareButton/AddSavedDayButton, Task 18) are
-  // each self-wrapped in their own <Preview> — genuinely pointer-events
-  // shielded, not just unwired Buttons, so a click on either must actually
-  // fail to land (same assertion shape as preview.test.tsx/
+  // Share (ShareButton, Task 18) is self-wrapped in its own <Preview> —
+  // genuinely pointer-events shielded, not just an unwired Button, so a click
+  // must actually fail to land (same assertion shape as preview.test.tsx/
   // KeepDayDialog.test.tsx's inert-control tests) and nothing downstream
-  // fires: no dispatch, no navigation, no editor state change.
-  it("Share and Add a saved day are genuinely inert: pointer-events shielded, never fire", async () => {
+  // fires: no dispatch, no navigation, no editor state change. Add a saved
+  // day moved out of the header entirely (Task 1.4, M10 Wave 2 — the design
+  // moved it into the plan flow; Phase 6 rebuilds it there), so it's no
+  // longer part of this component to assert on.
+  it("Share is genuinely inert: pointer-events shielded, never fires", async () => {
     const { getEditorState } = await renderHeader();
 
     await expect(userEvent.click(screen.getByRole("button", { name: "Share" }))).rejects.toThrow();
-    await expect(userEvent.click(screen.getByRole("button", { name: "Add a saved day" }))).rejects.toThrow();
 
     expect(sendTripCommandMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();

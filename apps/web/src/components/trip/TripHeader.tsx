@@ -6,22 +6,21 @@ import { useRouter } from "next/navigation";
 import { Clock, Pencil, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
-import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Toast } from "@/components/ui/toast";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { formatTripDate } from "@/lib/formatDate";
+import { tripSpend } from "@/lib/cost";
 import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
 import { SyncIndicator } from "./SyncIndicator";
 import { ShareButton } from "./ShareButton";
-import { AddSavedDayButton } from "./AddSavedDayButton";
+import { TripMetaPill } from "./TripMetaPill";
+import { BudgetChip } from "./BudgetChip";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name, now renameable inline — task A13) + a budget-vs-total
@@ -132,90 +131,85 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               </Button>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-3">
-            {activeTrip.startDate !== null && (
-              <DataText size="sm">{formatTripDate(activeTrip.startDate)}</DataText>
-            )}
-            {activeTrip.budget !== null && (
-              <BudgetMeter
-                cost={activeTrip.tripCostTotal}
-                budget={activeTrip.budget.amountMinor}
-                currency={activeTrip.currency}
-              />
-            )}
-          </div>
+          {/* Handoff `current/…dc.html:255-296`: the meta pill (dates, day/
+              stop/city counts, crew) replaces the bare start date + BudgetMeter
+              glance — TripMetaPill.tsx (Task 1.4). */}
+          <TripMetaPill detail={activeTrip} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
 
-        {/* Right side: the new handoff action cluster (ghost Share ·
-            secondary Add-a-saved-day · primary Add stop), then the
-            pre-existing sync/undo-redo/history/settings cluster — grouped
-            under one flex-wrap container so the outer row keeps its
-            two-child justify-between split (info block vs. everything
-            else) as it wraps at narrow widths. */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Handoff §2 action cluster: ghost "Share" · secondary "Add a
-                saved day" · primary "Add stop". Share and Add-a-saved-day
-                are each self-wrapped in their own <Preview> internally
-                (ShareButton.tsx / AddSavedDayButton.tsx, Task 18), so this
-                header just mounts them like any other control — no local
-                Preview wrap or onClick needed here. */}
-            <ShareButton />
-            <AddSavedDayButton />
-            <Button variant="primary" onClick={() => openCreate()}>
-              Add stop
-            </Button>
+        {/* Right side: the handoff action cluster (ghost Trip settings · ghost
+            Share · primary Add stop), then the pre-existing sync/undo-redo/
+            history cluster, then the BudgetChip underneath — a column so the
+            outer row keeps its two-child justify-between split (info block vs.
+            everything else) as it wraps at narrow widths. "Add a saved day"
+            moved out of the header entirely (Task 1.4) — the design moved it
+            into the plan flow; Phase 6 rebuilds it there. */}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {preview.seq === null && (
+                <Button variant="ghost" size="icon" aria-label="Trip settings" onClick={() => setSettingsOpen(true)}>
+                  <Settings className="size-3.5" aria-hidden />
+                </Button>
+              )}
+              {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
+                  Share is self-wrapped in its own <Preview> internally
+                  (ShareButton.tsx, Task 18), so this header just mounts it like
+                  any other control — no local Preview wrap or onClick needed
+                  here. */}
+              <ShareButton />
+              <Button variant="primary" onClick={() => openCreate()}>
+                Add stop
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-0.5">
+              <SyncIndicator pending={pending} className="mr-2" />
+              {preview.seq === null && (
+                <UndoRedoControls
+                  canUndo={history?.canUndo ?? false}
+                  canRedo={history?.canRedo ?? false}
+                  onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+                  onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+                  isBusy={pending}
+                />
+              )}
+              {/* The Popover stays mounted during preview (not gated on
+                  preview.seq === null like undo/redo/settings) — HistoryPanel's
+                  "Viewing version N (read-only)" banner and its Revert/Back-to-now
+                  controls must remain reachable while previewing a past state. */}
+              <Popover
+                open={historyOpen || preview.seq !== null}
+                // #18: dismissing the popover (outside-click or Escape) while
+                // previewing a past state also exits the preview ("back to now"),
+                // so you never end up with a closed popover still pinned to an old
+                // version. The wider content gives the entries + preview controls
+                // room (#16/#17).
+                onOpenChange={(open) => {
+                  setHistoryOpen(open);
+                  if (!open && preview.seq !== null) preview.exit();
+                }}
+                align="end"
+                contentClassName="w-96"
+                trigger={
+                  <Button variant="ghost" aria-label="History">
+                    <Clock className="size-3.5" aria-hidden />
+                    History
+                  </Button>
+                }
+              >
+                <HistoryPanel
+                  history={history}
+                  previewSeq={preview.seq}
+                  onPreview={(seq) => void preview.enter(seq)}
+                  onExitPreview={preview.exit}
+                  onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
+                />
+              </Popover>
+            </div>
           </div>
 
-          <div className="flex items-center gap-0.5">
-            <SyncIndicator pending={pending} className="mr-2" />
-            {preview.seq === null && (
-              <UndoRedoControls
-                canUndo={history?.canUndo ?? false}
-                canRedo={history?.canRedo ?? false}
-                onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-                onRedo={() => void dispatch({ type: "RedoChange", tripId })}
-                isBusy={pending}
-              />
-            )}
-            {/* The Popover stays mounted during preview (not gated on
-                preview.seq === null like undo/redo/settings) — HistoryPanel's
-                "Viewing version N (read-only)" banner and its Revert/Back-to-now
-                controls must remain reachable while previewing a past state. */}
-            <Popover
-              open={historyOpen || preview.seq !== null}
-              // #18: dismissing the popover (outside-click or Escape) while
-              // previewing a past state also exits the preview ("back to now"),
-              // so you never end up with a closed popover still pinned to an old
-              // version. The wider content gives the entries + preview controls
-              // room (#16/#17).
-              onOpenChange={(open) => {
-                setHistoryOpen(open);
-                if (!open && preview.seq !== null) preview.exit();
-              }}
-              align="end"
-              contentClassName="w-96"
-              trigger={
-                <Button variant="ghost" aria-label="History">
-                  <Clock className="size-3.5" aria-hidden />
-                  History
-                </Button>
-              }
-            >
-              <HistoryPanel
-                history={history}
-                previewSeq={preview.seq}
-                onPreview={(seq) => void preview.enter(seq)}
-                onExitPreview={preview.exit}
-                onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
-              />
-            </Popover>
-            {preview.seq === null && (
-              <Button variant="ghost" size="icon" aria-label="Trip settings" onClick={() => setSettingsOpen(true)}>
-                <Settings className="size-3.5" aria-hidden />
-              </Button>
-            )}
-          </div>
+          <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
 
