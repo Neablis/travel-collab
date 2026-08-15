@@ -155,6 +155,40 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Mitigation:** none today — the user renames and sets dates by hand after generation.
 - **First noted:** 2026-07-26 (live test of the `MAX_STEPS` fix).
 
+### KI-16 — The assistant rail's scrim makes the whole trip page inert below 1180px
+- **Severity:** correctness (the page does not respond to input at all)
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx` (the scrim div), `apps/web/src/app/globals.css:101-108`
+- **Symptom:** on any viewport narrower than 1180px, every control on `/trips/[tripId]` is dead — tabs, day chips, activity cards, Add stop, edit, remove, drag and drop. Measured live at 1100x800: `document.elementFromPoint(200, 500)` returns `div.assistant-rail-scrim` over a day column, and clicking the "Timeline" tab does nothing.
+- **Why it happens:** the rail always renders `<div aria-hidden className="assistant-rail-scrim fixed inset-0 z-40 bg-ink/32" />` with `pointer-events: auto` and **no click handler**. `globals.css` turns it on at `max-width: 1179px`. In the design prototype the scrim is `onClick={{ closeAsst }}` — dismissing the rail is its only purpose. Ours blocks and dismisses nothing.
+- **Why the gate missed it:** see KI-19.
+- **Fix:** M10 Wave 2, Phase 0 Task 0.1 — make the scrim a real `<button aria-label="Close the assistant" onClick={onHide}>`.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-17 — Sheets and dialogs render underneath the assistant rail
+- **Severity:** correctness (more than half of the most-used form is unreachable)
+- **Area:** `apps/web/src/components/ui/sheet.tsx:29-30`, `apps/web/src/components/ui/dialog.tsx:11-12`
+- **Symptom:** with the rail open at 1280px, the Add-stop / edit-activity sheet is covered on its right ~356px, including its title and its Close button. Measured: `[role="dialog"]` spans x 640-1280 with `z-index: auto`; `aside[aria-label="Assistant"]` spans x 924-1280 with `z-index: 50`.
+- **Why it happens:** neither primitive sets **any** z-index, so Radix's portalled content stacks purely by DOM order and loses to a fixed `z-50` sibling rendered outside the portal.
+- **Note for the fix:** `z-[60]` is a **build failure** — `scripts/check-color-wall.mjs:28` rejects any `className` containing `[`, and Tailwind's default z scale stops at 50. Use a named class in `globals.css`, matching `.assistant-rail-scrim` / `.trip-board-content` precedent.
+- **Fix:** M10 Wave 2, Phase 0 Task 0.2.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-18 — Day accents collide: Kyoto and Osaka render identically
+- **Severity:** correctness (the accent system's entire purpose is defeated)
+- **Area:** `apps/web/src/lib/dayAccent.ts`
+- **Symptom:** `dayAccentFor` is `djb2(city) % 5` over five families. Run over real city names, **seven of thirteen land on `danger`** (Kyoto, Osaka, Niagara Falls, Lisbon, Paris, Barcelona, Portland), three on `info`, two on `success`, one on `brand`. The design handoff's own headline trip — Tokyo -> Kyoto -> Osaka — renders Kyoto and Osaka the same colour. A day with **no** located activity hashes the empty string into `info` and renders bright blue, visually claiming to be a city of its own.
+- **Why it happens:** the prototype used ten buckets **with linear collision probing** (`cityBuckets()`); only the bucketing was carried over, not the probing — and the probing is the part that guarantees distinctness.
+- **Fix:** M10 Wave 2, Phase 8 — resolve a whole trip's cities at once (`dayAccents(cities)`), probe forward on collision, and give "no city known" an explicit neutral.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
+### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it
+- **Severity:** reliability (the gate cannot see a class of real defect)
+- **Area:** `apps/web/playwright.config.ts`
+- **Symptom:** M10 Wave 1's gate passed 11/11 specs against a production build while the trip page was completely inert below 1180px (KI-16). The config sets `use: { baseURL }` and **no `viewport`**, so every spec runs at Playwright's 1280x720 default — above the 1179px breakpoint at which the blocking scrim turns on.
+- **Why it matters beyond KI-16:** the app has real breakpoint-dependent behaviour (the rail's overlay mode, the hero's 1040px collapse, the Playbooks strip's 1180px reflow). None of it is exercised. A responsive gate that only ever runs at one width is not a responsive gate.
+- **Fix:** M10 Wave 2 makes a narrow-viewport project (or at least one sub-1180px spec) a **gate condition**, not a nice-to-have.
+- **First noted:** 2026-08-14 (external design review of PR #23).
+
 ### KI-13 — `pnpm check` is not reliably green: jsdom component tests time out under parallel load
 - **Severity:** reliability (false failures; no product impact)
 - **Area:** `apps/web` unit suite — `TripBoardScreen`, `PageScreen`, `MoneyInput`, `LocationInput`, `TripProvider` tests; `pnpm check` = `typecheck && lint && test` recursively

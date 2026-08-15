@@ -38,10 +38,16 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 ## Phase 2 — A product worth using
 
-- [x] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
-      *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Gate closed
-      2026-08-10.)*
+- [ ] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
+      *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Wave 1's gate
+      closed 2026-08-10 on PR #23, then **reopened 2026-08-14** by an external
+      design review: the handoff had moved two generations since Wave 1 was
+      built, and Wave 1's own assistant rail introduced three blocking defects.
+      Wave 2 closes the delta — plan at
+      `docs/plans/2026-08-14-M10-redesign-delta.md`, findings at
+      `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
+      *(Blocked on M10's Wave-2 gate — do not start early.)*
 
 ## Phase 3 — Outward
 

@@ -1,10 +1,15 @@
 # M10 — Visual craft pass
 
-**Status:** Done. Gate closed 2026-08-10. Brought forward ahead of M9
+**Status:** **Gate reopened 2026-08-14 — a second wave is in flight.** The first
+wave's gate closed 2026-08-10 and its record below stands as written; it was true
+against the handoff generation available at the time. An external review on
+2026-08-14 found that generation had since been superseded twice, and that the
+wave introduced three blocking defects its own gate could not see. See
+**"Gate reopened"** at the end of this file. Brought forward ahead of M9
 (2026-08-08) — see
 `docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md` and
 the design record, `docs/specs/2026-08-08-M10-redesign-incorporation-design.md`.
-Order: `M8 ✓ → [Phase 1 gate review ✓] → M10 ✓ (this) → M9 → M11 → …`.
+Order: `M8 ✓ → [Phase 1 gate review ✓] → M10 (this, Wave 2 in flight) → M9 → M11 → …`.
 
 ## Why this moved ahead of M9
 
@@ -234,3 +239,145 @@ consistently applied.
   commit body, not just the subject, if this ever needs revisiting. `Preview`'s
   new conditional-`relative` logic (fix commit `f29cb6c`) has no dedicated
   unit test guarding the branch.
+
+---
+
+# Gate reopened — Wave 2 (the redesign delta), 2026-08-14
+
+**Trigger:** an external design review of PR #23 (`docs/design-feedback/
+2026-08-14-M10-redesign-external-review.md`), requested by Mitchell because the
+branch visibly did not match the designs.
+
+**Decision (Mitchell, 2026-08-14):** M10 does not close on PR #23 alone. The
+delta is a second wave inside this same milestone rather than a new milestone —
+PR #23 is unmerged, so the gate above closed on a branch, not on `main`, and the
+milestone's own first exit-gate line ("every surface matches the handoff") is
+not satisfied against the current design.
+
+## Why the first wave's gate passed anyway
+
+Nothing in the Wave-1 record below was dishonest. Two structural reasons it
+could pass while the product did not match:
+
+1. **The design moved twice, and the branch was built against the oldest
+   generation.** Line counts, verified by real text diff:
+
+   | version | lines | vs. prior |
+   |---|---|---|
+   | `design_handoff_trip_planner/` — what Wave 1 was built from, cited in the M10 spec | 1,412 | — |
+   | `design_handoff_update/previous/` | 2,048 | 688 changed lines |
+   | `design_handoff_update/current/` | 2,623 | +612 / −37 |
+
+   The `1412 → previous` generation added the **Map view** — which is why the
+   review initially recorded "the Map has no design at all." It does; Wave 1
+   simply never saw it. The `previous → current` generation added the
+   **unscheduled rack**, **budget and per-stop costs**, **overlap warnings**, the
+   **Trip settings sheet**, **"Add a day" / end-of-trip**, and the **header meta
+   pill**. (The update bundle's own `AGENT-PROMPT.md` describes `previous/` as
+   "the version our current implementation was built from" — that is wrong, and
+   is why there are two generations of drift here rather than one.)
+
+2. **The e2e suite structurally could not see the worst defect.**
+   `apps/web/playwright.config.ts` sets no `viewport`, so every spec runs at
+   Playwright's 1280×720 default. The assistant scrim is gated
+   `@media (max-width: 1179px)`. The suite therefore ran 11/11 green against a
+   production build while the entire trip page was **inert** at any width below
+   1180px. This is the milestone's most transferable lesson: *a responsive gate
+   that only ever runs at one width is not a responsive gate.*
+
+## What the review found (full detail in the design-feedback file)
+
+**Three blocking defects, all in surfaces Wave 1 itself introduced:**
+
+- The assistant scrim (`fixed inset-0 z-40`, `pointer-events: auto`, **no click
+  handler**) sits over the whole trip page below 1180px. Measured:
+  `document.elementFromPoint(200, 500)` returns the scrim, and clicking the
+  Timeline tab does nothing. In the prototype the scrim's only job is to dismiss
+  the rail.
+- The activity `Sheet` renders **underneath** the rail. The sheet spans
+  x 640→1280 at `z-index: auto`; the rail spans x 924→1280 at `z-index: 50`.
+  356 of 640px — title and close button included — are covered.
+- Below 1180px the rail also *covers* content, because `.trip-board-content`
+  reserves its 356px only at `min-width: 1180px`.
+
+**Structural drift:** the tab strip and day-chips row are not inside the sticky
+header (measured at `scrollY 422`: header pinned at 147px, tabs at −274px, chips
+at −236px); there is no global app header on any route, so `/playbooks` has no
+way back; the add-stop sheet is still the pre-M10 editor.
+
+**A correctness bug in the day accents:** `dayAccentFor` is `djb2(city) % 5`.
+Over real city names, seven of thirteen land on `danger`, and the handoff's own
+headline trip — **Tokyo → Kyoto → Osaka — renders Kyoto and Osaka identically**.
+The prototype used ten buckets *with linear collision probing*; the probing is
+what mattered, and it was not carried over.
+
+## Wave 2 scope
+
+Governed by Mitchell's scoping rule, 2026-08-14: *"build upon what exists in the
+data model, and implement the UI only for things we can't build today and wrap in
+the under construction UI."*
+
+The plan is `docs/plans/2026-08-14-M10-redesign-delta.md` (an index) plus one
+file per phase in `docs/plans/M10-delta/`. Ten phases, 28 tasks.
+
+**Ships real**, because the data model already supports it — a finding that
+materially shrank this wave:
+
+| the design needs | already in the codebase |
+|---|---|
+| cost per stop | `ActivityView.cost: Money` |
+| budget + currency per trip | `trip.budget`, `trip.currency` |
+| a trip cost total and remaining | `TripDetail.tripCostTotal`, `.budgetRemaining` — **summed server-side; do not recompute** |
+| unscheduled / parked stops | `trip.backlog` + `MoveActivity(toDayId: null)` |
+| overlap detection and per-pair dismissal | the `time-overlap` conflict rule and `DismissConflict` |
+| over-budget state | the `over-budget` conflict rule |
+| days holding zero stops | already valid |
+| coordinates on stops, for map routes | `Location.lat/lng`, populated by LocationIQ |
+
+**Marked incomplete** behind the existing `<Preview>` seam, because we do not
+model it and are deliberately not adding it: confirmed-vs-estimate cost state;
+"was on day N" provenance; the Booked/Holds/Travel budget breakdown categories;
+invite roles and "Invite someone" (`TripMember.role` exists but `"owner"` is its
+only value, and there is no display name); the map legend's on-foot-vs-transit
+split; add-stop's "who is in" and suggested places; the new-trip wizard's
+destination chips, pace, tags and assistant-draft; "Add a saved day" (M11).
+
+**Deliberately deferred:** routing. LocationIQ's directions API does work on the
+existing key (probed 2026-08-14: a walking route returns GeoJSON geometry,
+1342.1 m, 982.3 s), but it needs a server route, a cache and a rate-limit
+strategy — a behaviour change, not a visual pass. It is also no longer needed:
+the `1412 → previous` generation replaced the invented "29 min · Metro" leg text
+with free time before the next stop, removing the design's dependency on
+transport data. Map routes are straight lines.
+
+## Wave 2 exit gate
+
+- [ ] Phase 0's three defects fixed, each verified at 1100px in a real browser,
+      not only in unit tests.
+- [ ] **`playwright.config.ts` gains a narrow-viewport project** (or at least one
+      spec that drives the trip page below 1180px), so the gap that let Wave 1
+      pass cannot recur. This is the gate condition, not a nice-to-have.
+- [ ] Every surface in `design_handoff_update/current/` is either built or behind
+      a registered `<Preview>` — no third state.
+- [ ] `dayAccents` gives Tokyo / Kyoto / Osaka three distinct families, and a day
+      with no known city renders an explicit neutral rather than a hashed family.
+- [ ] No new `packages/` or `apps/web/src/server` diff beyond Wave 1's
+      already-approved `conflicts.ts` exception.
+- [ ] The registry↔usage sync test stays green with every new `<Preview>`
+      registered.
+- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm --filter web test`,
+      `pnpm --filter web test:int`, and the full e2e suite green against a
+      production build, twice.
+- [ ] Wave 2 retro appended here; `README.md`, `TODO.md` and `docs/STATUS.md`
+      flipped in the same gate-close commit; the phase plans deleted per
+      `docs/plans/README.md`.
+
+## Carried into `known-issues.md` rather than fixed
+
+Itinerary / Daily-overview / Full-trip lenses lose their nav entry when the tab
+strip collapses to the design's four (Timeline / Day columns / Calendar / Map) —
+their code and `?lens=` URLs keep working. This finally answers the Wave-1 retro's
+open "should we collapse the lens set" question: **yes, in the nav; no, in the
+code.** Also carried: the unmodelled fields listed above, and the fact that the
+home hero picks `trips[0]` rather than the next trip by date, because
+`TripSummary` still carries no start date.
