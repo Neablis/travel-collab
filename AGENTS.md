@@ -33,6 +33,20 @@ presented with trade-offs and get explicit approval before files or code are
 created. Challenge weak ideas directly; record decisions in ADRs after they are
 made, not before.
 
+**Default to subagent delegation for implementation work** (writing code,
+editing files, running tests) — via the Agent tool / `subagent-driven-development`
+— rather than doing it directly in the main conversation thread. This keeps the
+main thread's context lean across a long multi-task session: a subagent's own
+reads/edits/tool traffic don't accumulate there, only its report does. State the
+delegation choice before starting each task or phase, not after the fact.
+
+Live, iterative debugging against a running dev server or browser session is the
+standing exception — a subagent can't share that session, and the tight
+try-something/read-result loop doesn't survive a handoff. But say so explicitly
+at the point of that decision: name the specific reason delegation doesn't fit,
+and say plainly that delegation is off for this piece of work, rather than
+silently falling back to inline work without flagging it.
+
 ## The module map (structural law)
 
 Modules own their data and commands; they reference other modules by ID only.
