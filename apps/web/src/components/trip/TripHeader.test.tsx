@@ -61,7 +61,7 @@ beforeEach(() => {
   });
 });
 
-async function renderHeader() {
+async function renderHeader(children?: React.ReactNode) {
   let editorState: ReturnType<typeof useEditor>["state"] | undefined;
   function EditorStateSpy() {
     editorState = useEditor().state;
@@ -71,7 +71,7 @@ async function renderHeader() {
     <TripProvider tripId="x">
       <EditorHost>
         <EditorStateSpy />
-        <TripHeader tripId="x" />
+        <TripHeader tripId="x">{children}</TripHeader>
       </EditorHost>
       <TripStatusProbe />
     </TripProvider>,
@@ -295,5 +295,18 @@ describe("TripHeader restyle (Task 9)", () => {
     expect(sendTripCommandMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
     expect(getEditorState()).toEqual({ mode: null });
+  });
+
+  it("keeps the view tabs and day chips inside the sticky header", async () => {
+    await renderHeader(
+      <>
+        <div role="tablist" aria-label="Trip view" />
+        <div role="group" aria-label="Days" />
+      </>,
+    );
+
+    const header = screen.getByRole("banner", { name: "Trip" });
+    expect(header.contains(screen.getByRole("tablist", { name: "Trip view" }))).toBe(true);
+    expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true);
   });
 });

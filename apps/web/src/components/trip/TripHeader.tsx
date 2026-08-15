@@ -30,7 +30,7 @@ import { AddSavedDayButton } from "./AddSavedDayButton";
 // chrome from lens content below (#14). No editable date/budget inputs live
 // here — those moved to SettingsSheet (comments 15, 12b); the name is the one
 // piece of identity that's directly editable in the chrome itself.
-export function TripHeader({ tripId }: { tripId: string }) {
+export function TripHeader({ tripId, children }: { tripId: string; children?: React.ReactNode }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
   // pending queue (the same value TripBoardScreen/ActivityEditorSheet already
@@ -91,7 +91,7 @@ export function TripHeader({ tripId }: { tripId: string }) {
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
 
   return (
-    <header className="sticky top-0 z-10 border-b border-hairline bg-surface px-4 py-3">
+    <header aria-label="Trip" className="sticky top-14 z-10 border-b border-hairline bg-surface px-6 pt-3.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <nav className="flex items-center gap-3">
@@ -218,6 +218,12 @@ export function TripHeader({ tripId }: { tripId: string }) {
           </div>
         </div>
       </div>
+
+      {/* Handoff `current/…dc.html:249`: the tab strip and the day-chips row
+          live INSIDE the sticky container, not after it. Before this they
+          scrolled away while the header kept 147px of chrome pinned, so the two
+          rows you actually navigate with were the first things to disappear. */}
+      {children !== undefined && <div className="flex flex-col gap-3 pt-3 pb-3">{children}</div>}
 
       <SettingsSheet
         tripId={tripId}

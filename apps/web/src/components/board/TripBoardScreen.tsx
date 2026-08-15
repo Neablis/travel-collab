@@ -161,18 +161,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           via .assistant-hidden when the rail itself is hidden, so hiding it
           actually reclaims the width rather than leaving a dead gutter. */}
       <div className={cn("trip-board-content", !assistant.open && "assistant-hidden")}>
-        <TripHeader tripId={tripId} />
-        <PageContainer width="full">
-          {error !== null && <p role="alert">{error}</p>}
+        <TripHeader tripId={tripId}>
           <TripViewTabs />
-          {/* Task 8: day-chips row, real TripDetail data, presentational-only
-              except for setting focus (Task 4's FocusProvider) — no lens or
-              command change. Lives under the tab strip so it's visible across
-              every lens, not just Board. */}
-          <div className="mt-2">
-            <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
-          </div>
-        </PageContainer>
+          <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />
+        </TripHeader>
+        {error !== null && (
+          <PageContainer width="full">
+            <p role="alert">{error}</p>
+          </PageContainer>
+        )}
         <div inert={preview.seq !== null ? true : undefined}>
           {isFullLens ? (
             <PageContainer width="full">
