@@ -4,6 +4,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 // transforms and the map's stacking context are undefined.
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
+import { AppHeader } from "@/components/AppHeader";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-next-display" });
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-next-sans" });
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
+        <AppHeader />
         {children}
         <Analytics />
       </body>
