@@ -47,30 +47,26 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText("Travel insurance")).toBeVisible();
 
   // -- Itinerary lens: per-day subtotal and unscheduled section --
-  // Itinerary/Daily/Trip moved behind TripViewTabs.tsx's "More" menu (M10
-  // redesign-feedback follow-up) — no longer top-level tabs.
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page.getByRole("menuitem", { name: "Itinerary" }).click();
+  // Itinerary/Daily/Trip have no nav entry at all as of M10 Wave 2's four-tab
+  // strip (KI-20) — they kept their LensRouter entries and `?lens=` URLs, so
+  // that's how the e2e suite reaches them too.
+  const gotoLens = (lens: string) => {
+    const url = new URL(page.url());
+    url.searchParams.set("lens", lens);
+    return page.goto(url.toString());
+  };
+  await gotoLens("Itinerary");
   await expect(page.getByText("420.00 EUR").first()).toBeVisible();
   await expect(page.getByText("Unscheduled")).toBeVisible();
   await expect(page.getByText("99.00 EUR").first()).toBeVisible();
 
   // -- Daily lens: per-day count/subtotal --
-  // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
-  // update, not instant — right after the click the previous lens (Itinerary)
-  // is still mounted. Itinerary's own markup coincidentally also renders
-  // "420.00 EUR" twice for this fixture (a single $420 activity means its
-  // per-activity cost cell equals the day subtotal), so asserting on that text
-  // alone can hit a strict-mode violation mid-transition. Wait for the Daily
-  // lens's own container to mount first, disambiguating which lens is live.
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page.getByRole("menuitem", { name: "Daily overview" }).click();
+  await gotoLens("Daily");
   await expect(page.getByTestId("daily-overview-lens")).toBeVisible();
   await expect(page.getByText("420.00 EUR")).toBeVisible();
 
   // -- Trip lens: total renders --
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page.getByRole("menuitem", { name: "Full trip" }).click();
+  await gotoLens("Trip");
   await expect(page.getByText("519.00 EUR")).toBeVisible();
 
   // The conflict banner only renders on the Board lens; switch there for the

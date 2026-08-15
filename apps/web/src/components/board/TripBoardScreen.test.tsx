@@ -51,6 +51,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceSpy }),
 }));
 
+// Itinerary/Daily/Trip lost their nav entry in M10 Wave 2's four-tab strip
+// (TripViewTabs.tsx, Task 1.2 — KI-20) but kept their LensRouter entries and
+// `?lens=` URLs, so tests that need one of them navigate the same way a real
+// URL change would: mutate the mocked search and notify the listeners
+// `replaceSpy` itself notifies above.
+function navigateToLens(lens: string) {
+  search = new URLSearchParams(`lens=${lens}`);
+  listeners.forEach((l) => l());
+}
+
 function renderScreen(tripId: string) {
   return render(
     <TripProvider tripId={tripId}>
@@ -130,12 +140,13 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByText(/Viewing version/)).toBeNull());
   });
 
-  it("switches between Day columns, Map (via More) and Timeline/Calendar lenses", async () => {
-    // TripViewTabs.tsx (M10 redesign-feedback follow-up): the top-level
-    // strip now shows exactly 3 peer tabs (Timeline / Day columns /
-    // Calendar) per the design handoff, with Timeline/Calendar driving
-    // ScheduleLens's `view` directly instead of routing through a nested
-    // SegmentedControl. Map/Itinerary/Daily/Trip moved behind a "More" menu.
+  it("switches between Day columns, Map and Timeline/Calendar lenses", async () => {
+    // TripViewTabs.tsx (M10 Wave 2, Task 1.2): the top-level strip now shows
+    // exactly 4 peer tabs (Timeline / Day columns / Calendar / Map) per the
+    // design handoff, with Timeline/Calendar driving ScheduleLens's `view`
+    // directly instead of routing through a nested SegmentedControl. Map is a
+    // peer tab again, not behind a "More" menu; Itinerary/Daily/Trip have no
+    // nav entry at all (KI-20).
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -143,8 +154,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.getByTestId("backlog-column")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Map" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
@@ -252,23 +262,25 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
   });
 
-  it("switches to the Itinerary, Daily, and Trip lenses via the More menu", async () => {
+  it("renders the Itinerary, Daily, and Trip lenses, reachable only by URL (KI-20 — no nav entry)", async () => {
+    // TripViewTabs.tsx (M10 Wave 2, Task 1.2) dropped the "More" menu these
+    // three lenses used to be reachable through; they kept their LensRouter
+    // entries and `?lens=` URLs (KI-20), so this drives navigation the same
+    // way a real URL change would — through the mocked search/listeners
+    // this file's top-level `next/navigation` mock uses for `replaceSpy`.
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Itinerary" }));
+    navigateToLens("Itinerary");
     expect(await screen.findByTestId("itinerary-lens")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Daily overview" }));
+    navigateToLens("Daily");
     expect(await screen.findByTestId("daily-overview-lens")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Full trip" }));
+    navigateToLens("Trip");
     expect(await screen.findByRole("region", { name: "Full trip overview" })).toBeTruthy();
   });
 
@@ -327,8 +339,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /More views/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Itinerary" }));
+    navigateToLens("Itinerary");
     await screen.findByTestId("itinerary-lens");
 
     // The row label is "<place> · <title>" — click the activity to openEdit.

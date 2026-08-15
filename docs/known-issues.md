@@ -189,6 +189,13 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix:** M10 Wave 2 makes a narrow-viewport project (or at least one sub-1180px spec) a **gate condition**, not a nice-to-have.
 - **First noted:** 2026-08-14 (external design review of PR #23).
 
+### KI-20 — Itinerary, Daily overview and Full-trip lenses have no navigation entry
+- **Severity:** cosmetic (no code path is broken; a real feature is unreachable through the UI)
+- **Area:** `apps/web/src/components/trip/TripViewTabs.tsx`, `apps/web/src/components/trip/context/LensRouter.tsx`
+- **Symptom:** M10's four-tab strip (Timeline / Day columns / Calendar / Map) matches the redesign, which never contemplated the other three. Their components, `LensRouter` entries and `?lens=` URLs all still work — only the nav affordance is gone.
+- **Fix:** decide whether to re-home or retire them.
+- **First noted:** 2026-08-14 (M10 Wave 2, Phase 1, Task 1.2).
+
 ### KI-13 — `pnpm check` is not reliably green: jsdom component tests time out under parallel load
 - **Severity:** reliability (false failures; no product impact)
 - **Area:** `apps/web` unit suite — `TripBoardScreen`, `PageScreen`, `MoneyInput`, `LocationInput`, `TripProvider` tests; `pnpm check` = `typecheck && lint && test` recursively

@@ -90,10 +90,9 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await dragCardTo(fushimi, day1);
   await expect(day1.getByText("Fushimi Inari")).toBeVisible();
 
-  // Assert the map pin. Map moved behind TripViewTabs.tsx's "More" menu
-  // (M10 redesign-feedback follow-up) — it's no longer a top-level tab.
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page.getByRole("menuitem", { name: "Map" }).click();
+  // Assert the map pin. Map is one of the four peer view tabs (M10 Wave 2,
+  // Task 1.2) — no longer behind a "More" menu.
+  await page.getByRole("tab", { name: "Map" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for the Map lens to mount before asserting.
   await expect(page.getByTestId("map-lens")).toBeVisible();
