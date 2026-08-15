@@ -120,4 +120,24 @@ describe("AssistantRail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(onHide).toHaveBeenCalledOnce();
   });
+
+  it("dismisses the rail when the scrim is clicked", async () => {
+    const onHide = vi.fn();
+    renderRail({ onHide });
+
+    await userEvent.click(screen.getByRole("button", { name: "Close the assistant" }));
+
+    expect(onHide).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not leave an inert pointer-blocking layer over the page", () => {
+    renderRail();
+
+    const scrim = document.querySelector(".assistant-rail-scrim");
+    expect(scrim).not.toBeNull();
+    // A blocking layer must be a real control, not an aria-hidden div — otherwise
+    // it swallows every click on the page behind it (the 1100px dead-page bug).
+    expect(scrim?.tagName).toBe("BUTTON");
+    expect(scrim?.getAttribute("aria-hidden")).toBeNull();
+  });
 });

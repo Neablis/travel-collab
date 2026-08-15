@@ -68,9 +68,15 @@ export function AssistantRail({
           is a breakpoint decision, and a media query can't be expressed as
           an inline style, so it's a named class (globals.css), mirroring
           NextTripHero's `.hero-grid` precedent. */}
-      <div
-        aria-hidden
-        className="assistant-rail-scrim fixed inset-0 z-40 bg-ink/32"
+      {/* Handoff `current/…dc.html:546`: the scrim's job is to dismiss the rail.
+          It was previously an aria-hidden div with pointer-events on and no
+          handler, which made it a full-page click sink — below 1180px, where
+          globals.css turns it on, every control on the trip page became inert. */}
+      <button
+        type="button"
+        aria-label="Close the assistant"
+        onClick={onHide}
+        className="assistant-rail-scrim fixed inset-0 z-40 cursor-default bg-ink/32"
       />
       <aside
         aria-label="Assistant"
