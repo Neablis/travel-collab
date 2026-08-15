@@ -72,6 +72,10 @@ export function AssistantRail({
           It was previously an aria-hidden div with pointer-events on and no
           handler, which made it a full-page click sink — below 1180px, where
           globals.css turns it on, every control on the trip page became inert. */}
+      {/* eslint-disable-next-line no-restricted-syntax -- a full-viewport invisible
+          click-catcher, not a visible control; the Button primitive's styling
+          (padding, focus ring, variants) doesn't fit a layer whose only job is to
+          swallow clicks outside the rail. */}
       <button
         type="button"
         aria-label="Close the assistant"
