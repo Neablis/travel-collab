@@ -42,3 +42,15 @@ if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// jsdom ships no ResizeObserver (MapLens.tsx uses one to re-trigger maplibre's
+// tile cover after the container's real size settles — see that file's own
+// comment). No test needs it to actually fire a resize; it only needs to
+// exist so `new ResizeObserver(...)` doesn't throw.
+if (typeof window !== "undefined" && typeof window.ResizeObserver !== "function") {
+  window.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+}

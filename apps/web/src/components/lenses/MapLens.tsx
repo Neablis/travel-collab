@@ -52,6 +52,7 @@ export function MapLens({
 
     let cancelled = false;
     let map: import("maplibre-gl").Map | undefined;
+    let resizeObserver: ResizeObserver | undefined;
 
     import("maplibre-gl").then(({ Map, Marker, LngLatBounds }) => {
       if (cancelled || !el) return;
@@ -69,6 +70,21 @@ export function MapLens({
         zoom: 10,
       });
       mapRef.current = map;
+
+      // maplibre computes which tiles it needs from the container's size at
+      // the moment it evaluates its internal tile cover — reading that size
+      // before this container's own layout has settled leaves it thinking a
+      // 0×0 viewport needs zero tiles, and (confirmed live: sources register
+      // but every "sourcedata" event stays isSourceLoaded:false forever,
+      // "load" never fires) its own ResizeObserver-based recovery doesn't
+      // reliably kick it loose on its own here. A real OS-level window
+      // resize does unstick it — proof the fix is exactly "tell it to
+      // measure again" — so do that ourselves instead of hoping a real
+      // resize happens to occur, and keep doing it for the container's
+      // whole lifetime (the assistant rail toggling, or an actual window
+      // resize, both change this element's real size later too).
+      resizeObserver = new ResizeObserver(() => map?.resize());
+      resizeObserver.observe(el);
 
       // The "liberty"-era POI layers referenced sprite icons that don't
       // always resolve; without a fallback, maplibre logs a console error
@@ -149,6 +165,7 @@ export function MapLens({
       cancelled = true;
       setReady(false);
       mapRef.current = null;
+      resizeObserver?.disconnect();
       if (typeof window !== "undefined") {
         map?.remove();
       }
@@ -196,11 +213,11 @@ export function MapLens({
       )}
       {pins.length > 0 ? (
         <div
-          className="map-lens-canvas relative min-h-0 flex-1 overflow-hidden border-t border-hairline bg-paper"
-          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs
+          className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
+          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
           style={{ minHeight: 480, height: "70vh" }}
         >
-          <div ref={containerRef} className="absolute inset-0" />
+          <div ref={containerRef} className="h-full w-full" />
           <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
           <MapFocusCard day={focusedMapDay} />
           <MapLegend />

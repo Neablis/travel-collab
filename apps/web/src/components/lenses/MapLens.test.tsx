@@ -64,6 +64,7 @@ vi.mock("maplibre-gl", () => {
     getLayer() {
       return undefined;
     }
+    resize() {}
     fitBounds(...args: unknown[]) {
       fitBoundsMock(...args);
     }
