@@ -160,4 +160,12 @@
       padding-right: 0;
     }
   }
+
+  /* Radix portals render outside the React tree that holds the assistant rail
+     (a fixed z-50 aside), so overlay surfaces need an explicit layer above it.
+     Tailwind's scale stops at z-50 and the color wall bans z-[60], so this is
+     a named class. Every dialog/sheet/popover surface uses it. */
+  .overlay-layer {
+    z-index: 60;
+  }
 }
