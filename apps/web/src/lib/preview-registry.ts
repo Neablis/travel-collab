@@ -24,6 +24,7 @@ export const PREVIEW_REGISTRY = {
   "insert-playbook": { milestone: "M11", wiredUpBy: "M11 insert-a-Playbook" },
   "share-button": { milestone: "M11", wiredUpBy: "M11 share links" },
   "add-saved-day": { milestone: "M11", wiredUpBy: "M11 add-a-saved-day" },
+  "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;
