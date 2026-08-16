@@ -54,7 +54,8 @@ export function onMapRailTuningChange(listener: () => void): () => void {
 }
 
 declare global {
-   
+  // `var` is how TS augments globalThis; the project's `no-var` rule isn't
+  // enabled, so no disable comment is needed here.
   var __tuneMapRail: ((next?: Partial<MapRailTuning> | null) => MapRailTuning) | undefined;
 }
 

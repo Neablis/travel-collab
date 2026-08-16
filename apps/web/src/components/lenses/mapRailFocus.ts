@@ -24,8 +24,17 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /**
  * Scroll travel to manufacture for a geared rail. `dayCount - 1` (not
- * `dayCount`) so that focus advances exactly one day per `scrollPxPerDay`
- * pixels — which is what makes the constant mean what its name says.
+ * `dayCount`) so the full geared range spans exactly the days there are to
+ * reach — day 1 at scrollTop 0, the last day at the range's end — which is
+ * what the sweeping focus line relies on to land the boundaries correctly.
+ *
+ * `scrollPxPerDay` is consequently the travel's *average* cost per day
+ * change, not an exact one: with `n` uniformly-spaced items the sweep's `n-1`
+ * transitions land at even steps of `1/n` of the range, so each actually
+ * costs `(n-1)/n × scrollPxPerDay` — e.g. ~223px at the default 240 for a
+ * 14-day trip, not 240 itself. The gap narrows as trips get longer and is
+ * imperceptible in practice; call it out here rather than let the name imply
+ * more precision than the geometry delivers.
  */
 export function gearedTravel(dayCount: number, scrollPxPerDay: number): number {
   return Math.max(0, (dayCount - 1) * scrollPxPerDay);

@@ -235,26 +235,54 @@ bounds, matching the rail's own border/inset). The `position: absolute` fallback
 was not needed.
 
 **A second issue surfaced during this verification, unrelated to sticky
-itself:** `clip` (`overflow: hidden`) is still a scroll container as far as the
-browser's own accessibility/focus handling is concerned. Tabbing to a rail
-button the track's transform had scrolled outside the clip's visible band made
-Chromium natively scroll `clip` to reveal it — silently adding a second,
-uncoordinated offset on top of the track's transform. Confirmed reproducible
-with real keyboard `Tab` navigation (`clip.scrollTop` moved from `0` to values
-in the hundreds of pixels).
+itself, and revised once during the final whole-branch review — the full
+sequence is recorded here because getting it wrong twice is exactly the
+failure mode this branch exists to break.**
 
-This could **not** be caught with a `scroll` listener on `clip`: verified with
-an instrumented capture-phase listener that Chromium performs this
-repositioning *without* dispatching a `scroll` event on the element — there is
-nothing to hook. Fixed with a lightweight poll instead (`MapRail.tsx`, the
-`clipScrollGuard` `setInterval`, 100ms): it resets `clip.scrollTop` to `0`
-whenever the browser has silently moved it, regardless of *why*. The
-container's own scroll — which the browser performs as the other half of the
-same focus-into-view pass — is left untouched and continues to drive focus
-tracking normally through the existing scroll handler. Re-verified after the
-fix with both the MCP preview browser and a standalone Playwright script
-against the running dev server: `clip.scrollTop` reads `0` after `Tab`-ing
-through the rail, with no visual misalignment.
+`clip` was originally `overflow: hidden`, which is still a scroll container as
+far as the browser's own keyboard-focus handling is concerned. Tabbing to a
+rail button the track's transform had scrolled outside the clip's visible band
+made Chromium natively scroll `clip` to reveal it — silently adding a second,
+uncoordinated offset on top of the track's transform. Confirmed reproducible
+with real keyboard `Tab` navigation.
+
+The first fix attempt reset `clip.scrollTop` to `0` on a 100ms poll (reasoned,
+incorrectly, that Chromium doesn't dispatch a `scroll` event for this
+particular repositioning — a claim the final review's own independent
+reproduction contradicted; the likely cause was the verifying browser tab's
+own render-timing quirks, not real Chromium behavior, a discrepancy worth
+recording rather than quietly correcting). That poll masked the symptom
+without fixing the cause: `container` never scrolled to compensate, so it left
+the focused button **entirely clipped out of view** while holding keyboard
+focus — a live-verified accessibility regression, not merely an animation
+glitch (confirmed with a Playwright reproduction: after 10 Tabs, the focused
+button sat entirely outside the clip's visible band; `container.scrollTop`
+stayed `0` throughout).
+
+**Fixed properly** two ways, both in `MapRail.tsx`:
+
+1. `clip`'s class changed from `overflow-hidden` to `overflow-clip`.
+   `overflow: clip` still constrains scrollable overflow — the gearing math is
+   unaffected — but creates no scrollport of its own, so there is nothing left
+   for the browser to scroll natively. The browser instead scrolls `container`
+   (the real, intended scroll container), which already flows through the
+   existing `handleScroll` → `paint()`/`evaluate()` pipeline.
+2. That alone left the focused button only *partially* revealed: the
+   browser's native scroll-into-view heuristic assumes the ordinary linear
+   relationship between `scrollTop` and visual position, which this rail's
+   gearing deliberately breaks (a geared pixel of `scrollTop` moves the track
+   by far less than one visual pixel). A `focusin` listener on `container`
+   corrects this using the rail's own gearing math — the same `geometry` the
+   scroll effect already maintains — computing the exact `scrollTop` that
+   centers the focused day and setting it directly, deferred one tick
+   (`setTimeout(…, 0)`) so it runs after, and wins over, the browser's own
+   partial attempt.
+
+Verified with a standalone Playwright script driving real `Tab` key
+navigation across every button position (2, 5, 8, 10, 12, 13 Tabs from Day 1):
+the focused button lands fully within the clip's visible bounds every time,
+including at the Day 14 boundary. Regression-tested in
+`e2e/m10-map-rail.spec.ts`.
 
 ## Tuning
 
@@ -402,4 +430,9 @@ polyfill leave `vitest.setup.ts` entirely.
 - Sticky pinning confirmed live, or the absolute fallback adopted and the reason
   recorded here.
 - Playwright spec passes against a production build; unit suites pass.
-- `IntersectionObserver` no longer appears anywhere in `apps/web/src`.
+- `IntersectionObserver` no longer appears as live code anywhere in
+  `apps/web/src` — `grep -rn "IntersectionObserver" apps/web/src` returns two
+  hits, both inside explanatory prose comments about why it was replaced, not
+  API usage.
+- Tab-ing through the rail leaves the focused day fully visible inside the
+  clip's bounds at every position, including the boundaries.

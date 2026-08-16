@@ -74,7 +74,9 @@ export function MapRail({
     const geometry = { items: [] as RailItem[], viewportHeight: 0, contentHeight: 0 };
 
     const travelFor = (scrollPxPerDay: number) =>
-      geometry.contentHeight > geometry.viewportHeight ? gearedTravel(days.length, scrollPxPerDay) : 0;
+      geometry.contentHeight > geometry.viewportHeight
+        ? gearedTravel(geometry.items.length, scrollPxPerDay)
+        : 0;
 
     const currentScroll = (scrollPxPerDay: number) =>
       railScrollGeometry({
@@ -174,33 +176,43 @@ export function MapRail({
     const unsubscribeTuning = onMapRailTuningChange(measure);
     container.addEventListener("scroll", handleScroll, { passive: true });
 
-    // `clip` is `overflow: hidden`, but that still makes it a scroll
-    // container the browser will natively scroll to bring a focused
-    // descendant into view (e.g. Tab-ing to a button the track's transform
-    // has currently scrolled it out of the clip's visible band). Its own
-    // scrollTop is otherwise always 0 — position is entirely the track's
-    // transform's job — so any such native scroll would silently add a
-    // second, uncoordinated offset on top of that transform.
-    //
-    // This can't be caught on a `scroll` listener the way the container's
-    // own scroll is: verified live that Chromium repositions an
-    // `overflow: hidden` box's content for a focused descendant WITHOUT
-    // dispatching a `scroll` event on it (confirmed with an instrumented
-    // capture-phase listener — scrollTop moved, the event never fired), so
-    // there is nothing to hook. A lightweight poll is the only mechanism
-    // that reliably observes and corrects it regardless of *why* scrollTop
-    // moved. The container's own scroll (which the browser performs as
-    // part of the same focus-into-view pass) is left alone and drives focus
-    // tracking normally through `handleScroll` above.
-    const clipScrollGuard = setInterval(() => {
-      if (clip.scrollTop !== 0) clip.scrollTop = 0;
-    }, 100);
+    // Tab-ing to a button the track's transform has scrolled outside the
+    // visible band makes the browser natively scroll `container` to reveal
+    // it (verified live) — but its heuristic assumes an ordinary linear
+    // relationship between scrollTop and visual position, which gearing
+    // breaks (a geared pixel of scrollTop moves the track by far less than
+    // one visual pixel), so the browser's own attempt lands the button only
+    // partially inside the band. This corrects it using the actual gearing
+    // math the rest of the component already runs, deferred one tick so it
+    // runs after — and so wins over — the browser's own attempt.
+    const focusRailButtonIntoView = (index: number) => {
+      const item = geometry.items.find((i) => i.index === index);
+      if (!item) return;
+      const naturalTravel = Math.max(0, geometry.contentHeight - geometry.viewportHeight);
+      const travel = travelFor(readMapRailTuning().scrollPxPerDay);
+      if (naturalTravel <= 0 || travel <= 0) return;
+      const desiredOffset = Math.min(
+        Math.max(item.offsetTop + item.height / 2 - geometry.viewportHeight / 2, 0),
+        naturalTravel,
+      );
+      container.scrollTop = (desiredOffset / naturalTravel) * travel;
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      for (const [index, el] of buttonsRef.current) {
+        if (el === event.target) {
+          setTimeout(() => focusRailButtonIntoView(index), 0);
+          return;
+        }
+      }
+    };
+    container.addEventListener("focusin", handleFocusIn);
 
     return () => {
       resizeObserver.disconnect();
       unsubscribeTuning();
       container.removeEventListener("scroll", handleScroll);
-      clearInterval(clipScrollGuard);
+      container.removeEventListener("focusin", handleFocusIn);
       if (trailingTimer) clearTimeout(trailingTimer);
       if (frame !== 0) cancelAnimationFrame(frame);
     };
@@ -222,11 +234,27 @@ export function MapRail({
       <div ref={spacerRef} data-rail-spacer style={{ height: "auto" }}>
         {/* Sticky, so the compositor pins the day list to the rail's viewport
             as the spacer scrolls past — the only per-frame JS write is the
-            track transform below. overflow:hidden matters: without it the
+            track transform below. Clipping matters: without it the
             overflowing buttons would extend the container's own scrollable
-            area and corrupt the gearing math. */}
+            area and corrupt the gearing math. `overflow-clip`, not
+            `overflow-hidden`: `hidden` still makes this box a scroll
+            container the browser will natively scroll to bring a focused
+            descendant into view (e.g. Tab-ing to a button the track's
+            transform has scrolled outside the visible band), and since this
+            box's own position is entirely the track's transform's job,
+            that native scroll stacks a second, uncoordinated offset on top
+            and leaves the focused button clipped out of view once anything
+            corrects it back — a real, live-verified regression (confirmed
+            with a focused Playwright reproduction: after 10 Tabs the
+            focused button sat ~500px below the clip's visible band while
+            holding focus). `overflow: clip` still constrains scrollable
+            overflow for the gearing math (verified: container.scrollHeight
+            unaffected) but creates no scrollport of its own, so there is
+            nothing for the browser to scroll here — it scrolls the real
+            container instead, which already flows through `handleScroll`
+            above and correctly brings the focused button into view. */}
         {/* eslint-disable-next-line no-restricted-syntax -- height is measured geometry, set from the effect above */}
-        <div ref={clipRef} className="sticky top-0 overflow-hidden" style={{ height: "auto" }}>
+        <div ref={clipRef} className="sticky top-0 overflow-clip" style={{ height: "auto" }}>
           {/* eslint-disable-next-line no-restricted-syntax -- transform is the geared scroll offset, not a themeable value */}
           <div ref={trackRef} data-rail-track style={{ willChange: "transform" }}>
             {days.map((day) => {
