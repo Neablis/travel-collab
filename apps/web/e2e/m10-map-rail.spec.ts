@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createMappedTrip, signInAsDevUser } from "./helpers";
+import { gearedTravel } from "../src/components/lenses/mapRailFocus";
+import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
 
 const DAY_COUNT = 14;
 
@@ -47,6 +49,17 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   }));
   expect(scrollHeight).toBeGreaterThan(clientHeight * 3);
 
+  // -- gearing holds at the tuned rate: scrollPxPerDay of travel per day --
+  // Reads the live tuning default rather than a hardcoded number, so this
+  // assertion keeps holding after Task 6 settles a different scrollPxPerDay.
+  // A generous +/-40px tolerance absorbs sub-pixel layout rounding without
+  // being loose enough to miss the gearing being wired to the wrong rate.
+  const { scrollPxPerDay } = readMapRailTuning();
+  const expectedTravel = gearedTravel(DAY_COUNT, scrollPxPerDay);
+  const actualTravel = scrollHeight - clientHeight;
+  expect(actualTravel).toBeGreaterThan(expectedTravel - 40);
+  expect(actualTravel).toBeLessThan(expectedTravel + 40);
+
   // -- scrolling from top to bottom visits every day, in order, none skipped --
   // This is the regression test for the two defects that made this feature
   // fail: focus that stuck on Day 1 mid-scroll, and a fixed focus line that
@@ -75,6 +88,16 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   expect(dayNumbers).toEqual(Array.from({ length: DAY_COUNT }, (_, i) => i + 1));
 
   // -- the last day is reached at the bottom boundary --
+  // The scan above already ends at (or past) the bottom via `ceil`-ed steps,
+  // so re-setting scrollTop to the same max value would fire no native
+  // `scroll` event and this would tautologically re-read the scan's own last
+  // result. Dip away from the bottom first so the following jump is a real,
+  // observed scroll.
+  await page.evaluate(() => {
+    const el = document.querySelector('[aria-label="Days"]')!;
+    el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - 500);
+  });
+  await page.waitForTimeout(120);
   await page.evaluate(() => {
     const el = document.querySelector('[aria-label="Days"]')!;
     el.scrollTop = el.scrollHeight;
@@ -90,6 +113,11 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   expect(dayNumberOf(await focusedDayLabel(page))).toBe(1);
 
   // -- clicking still focuses directly, unchanged by any of the above --
+  // A settle wait matches every other read in this file: click's own
+  // scrollIntoViewIfNeeded can itself fire the rail's throttled scroll
+  // handler, whose trailing edge (up to scrollThrottleMs later) could
+  // otherwise race the click's direct onFocus call.
   await rail.getByRole("button").nth(6).click();
+  await page.waitForTimeout(120);
   expect(dayNumberOf(await focusedDayLabel(page))).toBe(7);
 });
