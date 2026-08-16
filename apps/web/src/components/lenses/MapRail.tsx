@@ -74,28 +74,48 @@ export function MapRail({
   // change never re-enters this path.
   //
   // Picking "the most visible day" also has to handle two edge cases:
-  //   - Ties: several short day rows can be simultaneously at (or near) 100%
-  //     visibility, especially near the bottom of the list. Iterating `days`
-  //     in index order and using `>=` (not `>`) means a later day always
-  //     wins a tie over an earlier one — never structurally stuck on
-  //     whichever day happened to be inserted first.
-  //   - Scroll boundaries: even with that tie-break, ratio math can still
-  //     leave the true last day under-favoured once it's the only thing left
-  //     to scroll to. When the rail is scrolled to (within BOUNDARY_EPSILON_PX
-  //     of) its max scrollTop, focus is forced to the last day outright —
-  //     guaranteeing it's always reachable by scrolling to the bottom, which
-  //     is more robust than relying on ratio math to get every layout right.
+  //   - Many-at-once visibility: with short day rows and a tall-enough rail
+  //     viewport, several days can be simultaneously at (or near) 100%
+  //     intersection ratio at once — not a rare edge case here, the common
+  //     one (measured live: ~95px-tall buttons in a ~600px viewport puts up
+  //     to 6 days at ratio ~1 simultaneously). Ratio can't disambiguate
+  //     between them, so "most visible" is decided by position instead:
+  //     whichever day's own center is closest to the rail's own viewport
+  //     center (the standard scroll-spy technique) — exactly one button is
+  //     closest at any given scroll position, so this naturally produces a
+  //     smooth, progressive one-day-at-a-time change as the user scrolls,
+  //     regardless of how many buttons fit on screen at once. A day still
+  //     has to clear a minimum-visibility bar (isIntersecting / ratio > 0)
+  //     to be a candidate at all, so something scrolled fully out of view is
+  //     never picked just for having a nearby center.
+  //   - Scroll boundaries: center-distance math can still leave the true
+  //     last day under-favoured once it's the only thing left to scroll to
+  //     (its center never quite reaches the viewport's center). When the
+  //     rail is scrolled to (within BOUNDARY_EPSILON_PX of) its max
+  //     scrollTop, focus is forced to the last day outright — guaranteeing
+  //     it's always reachable by scrolling to the bottom, which is more
+  //     robust than relying on position math to get every layout right.
   //     Symmetric handling at the top prefers the first day for consistency.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || typeof IntersectionObserver !== "function") return;
 
-    const ratios = new Map<number, number>();
+    type DayGeometry = { ratio: number; intersecting: boolean; centerY: number | null };
+    const geometryByIndex = new Map<number, DayGeometry>();
+    // A real IntersectionObserverEntry's rootBounds is the root's (this
+    // container's) own client rect, delivered alongside every entry — reused
+    // across evaluations rather than re-queried via getBoundingClientRect(),
+    // keeping this consistent with the existing IntersectionObserver-based
+    // architecture instead of introducing a parallel measurement path.
+    let rootCenterY: number | null = null;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           const index = Number((entry.target as HTMLElement).dataset.dayIndex);
-          ratios.set(index, entry.intersectionRatio);
+          const rect = entry.boundingClientRect;
+          const centerY = rect ? (rect.top + rect.bottom) / 2 : null;
+          geometryByIndex.set(index, { ratio: entry.intersectionRatio, intersecting: entry.isIntersecting, centerY });
+          if (entry.rootBounds) rootCenterY = (entry.rootBounds.top + entry.rootBounds.bottom) / 2;
         }
       },
       { root: container, threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
@@ -115,15 +135,22 @@ export function MapRail({
       } else if (atTop) {
         bestIndex = days[0]!.index;
       } else {
-        bestIndex = days[0]!.index;
-        let bestRatio = -1;
+        let closestIndex: number | undefined;
+        let closestDistance = Number.POSITIVE_INFINITY;
         for (const d of days) {
-          const ratio = ratios.get(d.index) ?? 0;
-          if (ratio >= bestRatio) {
-            bestRatio = ratio;
-            bestIndex = d.index;
+          const geometry = geometryByIndex.get(d.index);
+          if (!geometry) continue;
+          if (!geometry.intersecting && geometry.ratio <= 0) continue;
+          const distance =
+            geometry.centerY !== null && rootCenterY !== null
+              ? Math.abs(geometry.centerY - rootCenterY)
+              : Number.POSITIVE_INFINITY;
+          if (closestIndex === undefined || distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = d.index;
           }
         }
+        bestIndex = closestIndex ?? days[0]!.index;
       }
 
       if (bestIndex !== lastEmittedRef.current) {

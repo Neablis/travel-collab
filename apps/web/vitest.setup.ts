@@ -63,7 +63,21 @@ if (typeof window !== "undefined" && typeof window.ResizeObserver !== "function"
 // triggerIntersection lets a test hand-craft the entries a real browser would
 // have produced and have them delivered to whichever observer(s) are
 // currently watching those elements.
-type FakeIntersectionEntry = { target: Element; isIntersecting: boolean; intersectionRatio: number };
+//
+// boundingClientRect/rootBounds are optional and intentionally minimal (just
+// enough to compute a center Y, not every real DOMRectReadOnly field) — a
+// real IntersectionObserverEntry always carries both, but MapRail.tsx's
+// center-distance selection only needs `top`/`bottom` out of each, and most
+// existing tests only care about the ratio/isIntersecting minimum-visibility
+// gate, not position, so those fields stay optional here.
+type FakeRect = { top: number; bottom: number };
+type FakeIntersectionEntry = {
+  target: Element;
+  isIntersecting: boolean;
+  intersectionRatio: number;
+  boundingClientRect?: FakeRect;
+  rootBounds?: FakeRect | null;
+};
 type IntersectionCallback = (entries: FakeIntersectionEntry[]) => void;
 
 const activeIntersectionObservers = new Set<{ callback: IntersectionCallback; elements: Set<Element> }>();

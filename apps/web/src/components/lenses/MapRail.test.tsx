@@ -86,15 +86,32 @@ describe("MapRail", () => {
       );
       const [, secondButton, thirdButton] = screen.getAllByRole("button");
       const rail = screen.getByLabelText("Days");
+      const rootBounds = { top: 0, bottom: 600 }; // rail viewport center = 300
 
-      triggerIntersection([{ target: secondButton!, isIntersecting: true, intersectionRatio: 0.9 }]);
+      triggerIntersection([
+        {
+          target: secondButton!,
+          isIntersecting: true,
+          intersectionRatio: 0.9,
+          boundingClientRect: { top: 200, bottom: 300 }, // center 250, distance 50
+          rootBounds,
+        },
+      ]);
       fireEvent.scroll(rail);
       expect(onFocus).toHaveBeenLastCalledWith(1);
 
-      // Scrolling continues (never stops) and day 3 overtakes day 2 as most
-      // visible — once the light throttle window has passed, the rail
-      // reacts to the new dominant day.
-      triggerIntersection([{ target: thirdButton!, isIntersecting: true, intersectionRatio: 0.95 }]);
+      // Scrolling continues (never stops) and day 3's center lands nearer the
+      // rail's own center than day 2's remembered position — once the light
+      // throttle window has passed, the rail reacts to the new closest day.
+      triggerIntersection([
+        {
+          target: thirdButton!,
+          isIntersecting: true,
+          intersectionRatio: 0.95,
+          boundingClientRect: { top: 260, bottom: 340 }, // center 300, distance 0
+          rootBounds,
+        },
+      ]);
       vi.advanceTimersByTime(50);
       fireEvent.scroll(rail);
 
@@ -113,17 +130,34 @@ describe("MapRail", () => {
       );
       const [, secondButton, thirdButton] = screen.getAllByRole("button");
       const rail = screen.getByLabelText("Days");
+      const rootBounds = { top: 0, bottom: 600 }; // rail viewport center = 300
 
       // Leading scroll event reacts immediately.
-      triggerIntersection([{ target: secondButton!, isIntersecting: true, intersectionRatio: 0.6 }]);
+      triggerIntersection([
+        {
+          target: secondButton!,
+          isIntersecting: true,
+          intersectionRatio: 0.6,
+          boundingClientRect: { top: 150, bottom: 250 }, // center 200, distance 100
+          rootBounds,
+        },
+      ]);
       fireEvent.scroll(rail);
       expect(onFocus).toHaveBeenCalledTimes(1);
       expect(onFocus).toHaveBeenLastCalledWith(1);
 
       // A burst of further scroll events lands inside the same throttle
       // window — only a single trailing evaluation should fire, not one per
-      // event.
-      triggerIntersection([{ target: thirdButton!, isIntersecting: true, intersectionRatio: 0.9 }]);
+      // event. Day 3's center is now the one nearest the rail's center.
+      triggerIntersection([
+        {
+          target: thirdButton!,
+          isIntersecting: true,
+          intersectionRatio: 0.9,
+          boundingClientRect: { top: 260, bottom: 340 }, // center 300, distance 0
+          rootBounds,
+        },
+      ]);
       fireEvent.scroll(rail);
       fireEvent.scroll(rail);
       fireEvent.scroll(rail);
@@ -194,7 +228,7 @@ describe("MapRail", () => {
       expect(onFocus).toHaveBeenCalledWith(1);
     });
 
-    it("breaks a visibility-ratio tie toward the later day, not the first one that happens to tie", () => {
+    it("prefers the day closest to the rail's center over one that merely ties on ratio", () => {
       vi.useFakeTimers();
       const onFocus = vi.fn();
       render(
@@ -207,15 +241,49 @@ describe("MapRail", () => {
       const [first, second] = screen.getAllByRole("button");
       const rail = screen.getByLabelText("Days");
 
-      // Both days report the same, fully-visible ratio — the earliest day
-      // must not structurally win just by being iterated first.
+      // Both days report the same, fully-visible ratio — ratio alone can't
+      // break the tie. Day 1 sits centered in the rail's own viewport; day 2
+      // sits near its bottom edge. Position decides, and it favors the
+      // EARLIER day here — the opposite of the old (wrong) "ties go to the
+      // later day" rule, proving ratio is no longer what's compared.
+      const rootBounds = { top: 0, bottom: 600 }; // center 300
       triggerIntersection([
-        { target: first!, isIntersecting: true, intersectionRatio: 1 },
-        { target: second!, isIntersecting: true, intersectionRatio: 1 },
+        { target: first!, isIntersecting: true, intersectionRatio: 1, boundingClientRect: { top: 250, bottom: 350 }, rootBounds },
+        { target: second!, isIntersecting: true, intersectionRatio: 1, boundingClientRect: { top: 500, bottom: 590 }, rootBounds },
       ]);
       fireEvent.scroll(rail);
 
-      expect(onFocus).toHaveBeenCalledWith(1);
+      expect(onFocus).toHaveBeenCalledWith(0);
+    });
+
+    it("when many days are simultaneously at full ratio, focus tracks whichever is closest to the rail's center — not the last one tied on ratio", () => {
+      // Mirrors the measured live bug: ~95px-tall day buttons in a ~600px
+      // rail viewport put up to 6 days at intersectionRatio ~1 simultaneously.
+      // The old ratio-tie-break (">=", later day wins) jumped straight to
+      // the 6th day the instant any tie occurred. Only the day whose own
+      // center is nearest the rail's center should be picked.
+      vi.useFakeTimers();
+      const onFocus = vi.fn();
+      const days = Array.from({ length: 6 }, (_, i) => day({ index: i, dayId: `d${i + 1}`, label: `Day ${i + 1}` }));
+      render(<MapRail days={days} focusedDay={null} onFocus={onFocus} />);
+      const buttons = screen.getAllByRole("button");
+      const rail = screen.getByLabelText("Days");
+
+      const rootBounds = { top: 0, bottom: 600 }; // center 300
+      triggerIntersection(
+        buttons.map((target, i) => ({
+          target,
+          isIntersecting: true,
+          intersectionRatio: 1,
+          boundingClientRect: { top: i * 95, bottom: i * 95 + 95 },
+          rootBounds,
+        })),
+      );
+      fireEvent.scroll(rail);
+
+      // Day 4 (index 3) spans 285-380, center 332.5 — closest to 300 of the
+      // six (distance 32.5, vs. 252.5/157.5/62.5/127.5/222.5 for the rest).
+      expect(onFocus).toHaveBeenCalledWith(3);
     });
 
     it("focuses the actual last day when the rail is scrolled to its bottom, even if an earlier day ties on ratio", () => {
