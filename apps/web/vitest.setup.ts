@@ -43,16 +43,50 @@ if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
     }) as MediaQueryList;
 }
 
-// jsdom ships no ResizeObserver (MapLens.tsx uses one to re-trigger maplibre's
-// tile cover after the container's real size settles — see that file's own
-// comment). No test needs it to actually fire a resize; it only needs to
-// exist so `new ResizeObserver(...)` doesn't throw.
+// jsdom ships no ResizeObserver. Two components need one: MapLens.tsx (to
+// re-trigger maplibre's tile cover once the container's real size settles) and
+// MapRail.tsx (to re-measure its day buttons' offsets when layout changes).
+//
+// MapLens only needs the constructor not to throw. MapRail needs a test to be
+// able to say "layout changed, measure again" — so this is a real, if minimal,
+// polyfill plus a small test-control surface, the same shape as
+// setViewportMatches above.
+//
+// Note what triggerResize deliberately is NOT: it does not hand the component
+// any geometry. It only prompts a re-measure, exactly as a real ResizeObserver
+// does; the component then reads the (test-installed, static) layout itself.
+// The IntersectionObserver fixture this replaces did the opposite — it fed
+// fabricated per-scroll positions that no real browser ever delivers, which is
+// why the suite passed while the feature was broken. Do not reintroduce that.
+const activeResizeObservers = new Set<{ callback: () => void; elements: Set<Element> }>();
+
+export function triggerResize(): void {
+  for (const observer of activeResizeObservers) {
+    if (observer.elements.size > 0) observer.callback();
+  }
+}
+
 if (typeof window !== "undefined" && typeof window.ResizeObserver !== "function") {
-  window.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  };
+  class ResizeObserverPolyfill {
+    callback: () => void;
+    elements = new Set<Element>();
+
+    constructor(callback: () => void) {
+      this.callback = callback;
+      activeResizeObservers.add(this);
+    }
+    observe(el: Element): void {
+      this.elements.add(el);
+    }
+    unobserve(el: Element): void {
+      this.elements.delete(el);
+    }
+    disconnect(): void {
+      activeResizeObservers.delete(this);
+      this.elements.clear();
+    }
+  }
+  window.ResizeObserver = ResizeObserverPolyfill as unknown as typeof ResizeObserver;
 }
 
 // jsdom ships no IntersectionObserver (MapRail.tsx uses one, scoped to its own
