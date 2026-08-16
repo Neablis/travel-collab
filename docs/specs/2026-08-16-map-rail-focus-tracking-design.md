@@ -226,6 +226,36 @@ Fallback if it misbehaves: `position: absolute` track with
 scroll in JS rather than via the compositor. Definitely works, marginally more
 jitter-prone because the pinning is no longer compositor-driven.
 
+**Verified live (2026-08-16), against the seeded 14-day Japan fixture in a real
+Chromium tab.** `position: sticky` holds correctly — the day list stays pinned
+inside the rail's rounded border through the full scroll range, with no drift or
+tearing observed (checked by reading `clip.getBoundingClientRect()` against the
+rail's own rect mid-scroll: the clip's box stayed within ~1px of the rail's
+bounds, matching the rail's own border/inset). The `position: absolute` fallback
+was not needed.
+
+**A second issue surfaced during this verification, unrelated to sticky
+itself:** `clip` (`overflow: hidden`) is still a scroll container as far as the
+browser's own accessibility/focus handling is concerned. Tabbing to a rail
+button the track's transform had scrolled outside the clip's visible band made
+Chromium natively scroll `clip` to reveal it — silently adding a second,
+uncoordinated offset on top of the track's transform. Confirmed reproducible
+with real keyboard `Tab` navigation (`clip.scrollTop` moved from `0` to values
+in the hundreds of pixels).
+
+This could **not** be caught with a `scroll` listener on `clip`: verified with
+an instrumented capture-phase listener that Chromium performs this
+repositioning *without* dispatching a `scroll` event on the element — there is
+nothing to hook. Fixed with a lightweight poll instead (`MapRail.tsx`, the
+`clipScrollGuard` `setInterval`, 100ms): it resets `clip.scrollTop` to `0`
+whenever the browser has silently moved it, regardless of *why*. The
+container's own scroll — which the browser performs as the other half of the
+same focus-into-view pass — is left untouched and continues to drive focus
+tracking normally through the existing scroll handler. Re-verified after the
+fix with both the MCP preview browser and a standalone Playwright script
+against the running dev server: `clip.scrollTop` reads `0` after `Tab`-ing
+through the rail, with no visual misalignment.
+
 ## Tuning
 
 All knobs live in one module, `mapRailTuning.ts`, and are adjustable **live in
@@ -289,10 +319,21 @@ every day is still reachable — scroll slowly end to end and watch that
 describes, and it is invisible unless specifically looked for: the rail still
 feels responsive while quietly skipping days.
 
-**Starting point:** `scrollPxPerDay: 240`, roughly 5× the current ~52px/day,
-targeting the "1–2 seconds per day at a deliberate pace" Mitchell described.
-This is a calculated starting point, **not a validated one** — tune it live
-against the 14-day Japan fixture before treating it as settled.
+**Settled (2026-08-16):** `scrollPxPerDay: 240` — kept at its calculated
+starting point, roughly 5× the prior ~52px/day, targeting the "1–2 seconds per
+day at a deliberate pace" Mitchell described. Verified live against the seeded
+14-day Japan fixture in a real Chromium tab: a full top-to-bottom sweep visits
+all 14 days in order with none skipped or repeated, both boundaries land on the
+correct day, and 240px is comfortably larger than a single scroll-wheel/trackpad
+tick, so landing on a specific day doesn't require pixel-precision.
+
+Honest caveat: this pass verified *correctness and coverage* of the default,
+not subjective feel — an agent can drive a scroll programmatically and confirm
+nothing breaks, but "does this feel too fast/slow" is a human judgment this
+session couldn't make for Mitchell. The knob is live-tunable with zero rebuild
+(`__tuneMapRail({ scrollPxPerDay: N })`), so if 240 doesn't feel right once
+Mitchell tries it himself, changing it is a one-line console call away — see
+Procedure below.
 
 **Procedure.** `pnpm db:reseed`, open the trip's map lens, scroll the rail at a
 natural pace, and adjust with `__tuneMapRail` until landing on a specific day
