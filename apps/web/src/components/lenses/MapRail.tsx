@@ -174,10 +174,33 @@ export function MapRail({
     const unsubscribeTuning = onMapRailTuningChange(measure);
     container.addEventListener("scroll", handleScroll, { passive: true });
 
+    // `clip` is `overflow: hidden`, but that still makes it a scroll
+    // container the browser will natively scroll to bring a focused
+    // descendant into view (e.g. Tab-ing to a button the track's transform
+    // has currently scrolled it out of the clip's visible band). Its own
+    // scrollTop is otherwise always 0 — position is entirely the track's
+    // transform's job — so any such native scroll would silently add a
+    // second, uncoordinated offset on top of that transform.
+    //
+    // This can't be caught on a `scroll` listener the way the container's
+    // own scroll is: verified live that Chromium repositions an
+    // `overflow: hidden` box's content for a focused descendant WITHOUT
+    // dispatching a `scroll` event on it (confirmed with an instrumented
+    // capture-phase listener — scrollTop moved, the event never fired), so
+    // there is nothing to hook. A lightweight poll is the only mechanism
+    // that reliably observes and corrects it regardless of *why* scrollTop
+    // moved. The container's own scroll (which the browser performs as
+    // part of the same focus-into-view pass) is left alone and drives focus
+    // tracking normally through `handleScroll` above.
+    const clipScrollGuard = setInterval(() => {
+      if (clip.scrollTop !== 0) clip.scrollTop = 0;
+    }, 100);
+
     return () => {
       resizeObserver.disconnect();
       unsubscribeTuning();
       container.removeEventListener("scroll", handleScroll);
+      clearInterval(clipScrollGuard);
       if (trailingTimer) clearTimeout(trailingTimer);
       if (frame !== 0) cancelAnimationFrame(frame);
     };
