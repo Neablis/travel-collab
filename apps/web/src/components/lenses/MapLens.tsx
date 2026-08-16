@@ -21,6 +21,15 @@ function accentVar(accent: MapDay["accent"]): string {
   return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
 }
 
+// The neutral tone a non-focused day's route line shifts to — keeping its
+// own accent hue at reduced opacity read as "still colourful", not
+// "ghosted", once checked live. A shared grey (matching the legend's own
+// "rest of trip" swatch) reads as de-emphasized the way the focused day's
+// pins already do.
+function ghostRouteColor(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue("--color-slate").trim();
+}
+
 function layerIdFor(dayId: string): string {
   return `route-${dayId}`;
 }
@@ -38,6 +47,12 @@ export function MapLens({
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
+  // Keyed by MapDay.index, so the focus effect below can ghost/un-ghost a
+  // day's pins the same way it dims/undims that day's route line — populated
+  // once in the "load" handler's marker loop, read (never mutated in place)
+  // by the focus effect. Backlog-located pins (belong to no day) are never
+  // added here, so they're structurally excluded from ghosting.
+  const markersByDayRef = useRef<Map<number, import("maplibre-gl").Marker[]>>(new Map());
   const pins = activityPins(detail);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
@@ -137,6 +152,7 @@ export function MapLens({
         // colouring existed.
         const brandColor = accentVar("brand") || undefined;
         for (const day of days) {
+          const dayMarkers: import("maplibre-gl").Marker[] = [];
           for (const stop of day.stops) {
             const marker = new Marker(accentVar(day.accent) ? { color: accentVar(day.accent) } : undefined)
               .setLngLat([stop.lng, stop.lat])
@@ -145,7 +161,10 @@ export function MapLens({
               marker.getElement().addEventListener("click", () => onSelectActivity(stop.activityId));
               marker.getElement().style.cursor = "pointer";
             }
+            marker.getElement().style.transition = "opacity 150ms";
+            dayMarkers.push(marker);
           }
+          markersByDayRef.current.set(day.index, dayMarkers);
         }
         const dayStopIds = new Set(days.flatMap((d) => d.stops.map((s) => s.activityId)));
         for (const pin of pins) {
@@ -165,6 +184,7 @@ export function MapLens({
       cancelled = true;
       setReady(false);
       mapRef.current = null;
+      markersByDayRef.current = new Map();
       resizeObserver?.disconnect();
       if (typeof window !== "undefined") {
         map?.remove();
@@ -181,9 +201,37 @@ export function MapLens({
     if (!ready || !map) return;
 
     for (const day of days) {
-      if (day.stops.length < 2) continue;
-      const opacity = focusedDay === null || day.index === focusedDay ? 1 : 0.55;
-      map.setPaintProperty(layerIdFor(day.dayId), "line-opacity", opacity);
+      const focused = focusedDay === null || day.index === focusedDay;
+
+      if (day.stops.length >= 2) {
+        const layerId = layerIdFor(day.dayId);
+        // Ghosting a non-focused route is two changes together: a lower
+        // opacity floor than pins get (a thin line reads even fainter than a
+        // pin at the same opacity, so it needs to drop further — tuned live
+        // against the marker ghosting below) AND a shift off the day's own
+        // accent hue to a shared neutral, since the accent hue alone at
+        // reduced opacity still read as "that day's colour, just fainter"
+        // rather than genuinely de-emphasized.
+        map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
+        map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+      }
+
+      // Pins read smaller than a route line and sit on a coloured basemap, so
+      // they need more contrast to still register as "de-emphasized" — a
+      // lower floor than the route lines' 0.55.
+      //
+      // Marker#setOpacity, not element.style.opacity directly: maplibre's own
+      // Marker class re-applies its internal _opacity to the DOM element on
+      // every map render (moveend/render events, e.g. from the fitBounds()
+      // camera jump or a setPaintProperty-triggered repaint below) via a
+      // private _updateOpacity() handler — confirmed live, a direct style
+      // write visibly took effect for a frame and then silently reverted to
+      // full strength once the map's next render pass ran. setOpacity feeds
+      // the value maplibre itself re-applies, so it survives those renders.
+      const markerOpacity = focused ? 1 : 0.35;
+      for (const marker of markersByDayRef.current.get(day.index) ?? []) {
+        marker.setOpacity(String(markerOpacity));
+      }
     }
 
     // Handoff: "if the focused day has fewer than one located stop, do
@@ -195,7 +243,14 @@ export function MapLens({
     const LngLatBounds = LngLatBoundsRef.current;
     if (!LngLatBounds) return;
     const bounds = focusedMapDay.stops.reduce((b, s) => b.extend([s.lng, s.lat]), new LngLatBounds());
-    map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    // animate: false — a focus change (rail click or scroll) is meant to
+    // jump the camera straight to the new day, not glide/ease there; the
+    // default fitBounds animation read as slow and disorienting when
+    // scrolling through many days quickly. padding/maxZoom are looser than
+    // the original 60/15 so a focused day's stops get breathing room instead
+    // of filling the viewport edge-to-edge — tuned live against the actual
+    // trip fixture.
+    map.fitBounds(bounds, { padding: 100, maxZoom: 13, animate: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusedDay]);
 

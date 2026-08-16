@@ -15,16 +15,28 @@ import { MapLens } from "./MapLens";
 // `vi.hoisted` because `vi.mock` factories run before the rest of the module
 // evaluates — these spies need to exist by the time the factory closure
 // captures them, and also be importable by the tests below to assert on.
-const { addLayerMock, addSourceMock, fitBoundsMock, mapOnLoad, setPaintPropertyMock } = vi.hoisted(() => ({
-  addLayerMock: vi.fn(),
-  addSourceMock: vi.fn(),
-  fitBoundsMock: vi.fn(),
-  mapOnLoad: vi.fn(),
-  setPaintPropertyMock: vi.fn(),
-}));
+const { addLayerMock, addSourceMock, fitBoundsMock, mapOnLoad, setPaintPropertyMock, markerInstances } = vi.hoisted(
+  () => ({
+    addLayerMock: vi.fn(),
+    addSourceMock: vi.fn(),
+    fitBoundsMock: vi.fn(),
+    mapOnLoad: vi.fn(),
+    setPaintPropertyMock: vi.fn(),
+    // Real maplibre's Marker#getElement() returns the *same* DOM node on
+    // every call — this array of constructed instances (each with a stable
+    // element) lets a test find "the marker for stop N" and assert on the
+    // opacity MapLens applies to its element, mirroring how it asserts on
+    // route-layer opacity via setPaintPropertyMock above.
+    markerInstances: [] as { element: HTMLDivElement; getElement: () => HTMLDivElement }[],
+  }),
+);
 
 vi.mock("maplibre-gl", () => {
   class Marker {
+    element = document.createElement("div");
+    constructor() {
+      markerInstances.push(this);
+    }
     setLngLat() {
       return this;
     }
@@ -32,7 +44,21 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
     getElement() {
-      return document.createElement("div");
+      return this.element;
+    }
+    // Real maplibre doesn't accept a direct `element.style.opacity` write as
+    // the source of truth — Marker owns an internal _opacity field that its
+    // own render-driven _updateOpacity() reapplies to the DOM on every map
+    // render, silently reverting any out-of-band style write (confirmed
+    // live: a direct style.opacity assignment took effect for one frame,
+    // then reverted to full strength on the map's next render pass). Only
+    // Marker#setOpacity feeds that internal field, so MapLens calls this
+    // method, not element.style.opacity, to ghost/un-ghost a marker — this
+    // stub applies it to the element the same way, so assertions on
+    // getElement().style.opacity below still reflect what MapLens set.
+    setOpacity(opacity: string) {
+      this.element.style.opacity = opacity;
+      return this;
     }
   }
   class LngLatBounds {
@@ -141,6 +167,20 @@ function detailWithTwoDays(): TripDetail {
   });
 }
 
+function detailWithBacklogPin(): TripDetail {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
+    backlog: ["c1"],
+    activities: {
+      a1: locatedActivity("a1", 41.89, 12.49),
+      a2: locatedActivity("a2", 41.9, 12.48),
+      // Located, but not on any day — a "backlog-located" pin, drawn with no
+      // day accent and outside the per-day focus loop entirely.
+      c1: locatedActivity("c1", 40.0, 10.0),
+    },
+  });
+}
+
 function detailWithEmptyDay(): TripDetail {
   return tripDetailFixture({
     days: [
@@ -198,5 +238,155 @@ describe("MapLens", () => {
     await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
 
     expect(fitBoundsMock).not.toHaveBeenCalled();
+  });
+
+  it("jumps the camera to a focused day's bounds instantly, with no glide animation", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+
+    const [, options] = fitBoundsMock.mock.calls[0]!;
+    expect((options as { animate?: boolean }).animate).toBe(false);
+  });
+
+  describe("route ghosting on focus", () => {
+    it("dims the non-focused day's route further than a faint fade and gives it a neutral colour", async () => {
+      // detailWithTwoDays()'s d1/d2 hash to the "danger"/"success" accent
+      // families respectively (derived from each day's first stop id, "a1"
+      // and "b1" — see dayAccentFor's djb2 hash). The actual values don't
+      // matter — only that each token resolves to something distinct — so
+      // opaque markers stand in for real hex colours (the color-wall script
+      // forbids raw color literals outside globals.css, tests included).
+      document.documentElement.style.setProperty("--color-danger", "TEST-DANGER");
+      document.documentElement.style.setProperty("--color-success", "TEST-SUCCESS");
+      document.documentElement.style.setProperty("--color-slate", "TEST-SLATE");
+      // setPaintPropertyMock accumulates calls across every test in this
+      // file (nothing clears it between tests) — clear it so the upcoming
+      // waitFor genuinely waits for THIS render's own calls, instead of
+      // resolving instantly against a leftover call from an earlier test.
+      setPaintPropertyMock.mockClear();
+
+      renderMap(detailWithTwoDays(), { focusedDay: 0 });
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      const lastCall = (layerId: string, prop: string) =>
+        setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === prop).at(-1)!;
+
+      const focusedOpacity = lastCall("route-d1", "line-opacity");
+      const ghostedOpacity = lastCall("route-d2", "line-opacity");
+      expect(focusedOpacity[2]).toBe(1);
+      expect(ghostedOpacity[2]).toBeLessThan(0.55); // strictly ghostier than the old faint-fade value
+      expect(ghostedOpacity[2]).toBeGreaterThan(0);
+
+      const focusedColor = lastCall("route-d1", "line-color");
+      const ghostedColor = lastCall("route-d2", "line-color");
+      // The focused day keeps its own accent colour; the non-focused day
+      // shifts to a shared neutral tone rather than its accent at low opacity.
+      expect(ghostedColor[2]).not.toBe(focusedColor[2]);
+      expect(ghostedColor[2]).toBe("TEST-SLATE");
+    });
+
+    it("restores a day's own accent colour and full opacity once it becomes the focused day", async () => {
+      // See the previous test for why these are opaque markers, not real hex.
+      document.documentElement.style.setProperty("--color-danger", "TEST-DANGER");
+      document.documentElement.style.setProperty("--color-success", "TEST-SUCCESS");
+      document.documentElement.style.setProperty("--color-slate", "TEST-SLATE");
+      // See the previous test's comment — clear so the waitFor calls below
+      // wait for this render's own effects, not a leftover call.
+      setPaintPropertyMock.mockClear();
+      const detail = detailWithTwoDays();
+      useFocusMock.mockReturnValue({ focusedDay: 0, setFocusedDay: vi.fn() });
+      const { rerender } = render(
+        <EditorHost>
+          <MapLens detail={detail} onSelectActivity={vi.fn()} />
+        </EditorHost>,
+      );
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      useFocusMock.mockReturnValue({ focusedDay: 1, setFocusedDay: vi.fn() });
+      rerender(
+        <EditorHost>
+          <MapLens detail={detail} onSelectActivity={vi.fn()} />
+        </EditorHost>,
+      );
+
+      await waitFor(() => {
+        const latestOpacity = setPaintPropertyMock.mock.calls
+          .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-opacity")
+          .at(-1)!;
+        expect(latestOpacity[2]).toBe(1);
+      });
+      const latestColor = setPaintPropertyMock.mock.calls
+        .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-color")
+        .at(-1)!;
+      expect(latestColor[2]).toBe("TEST-SUCCESS");
+    });
+  });
+
+  describe("marker ghosting on focus", () => {
+    it("ghosts every non-focused day's markers and keeps the focused day's markers full-strength", async () => {
+      markerInstances.length = 0;
+      renderMap(detailWithTwoDays(), { focusedDay: 0 });
+      await waitFor(() => expect(markerInstances).toHaveLength(4));
+
+      const [a1, a2, b1, b2] = markerInstances;
+
+      // Day 0's stops (a1, a2) are focused — full strength.
+      expect(a1!.getElement().style.opacity).toBe("1");
+      expect(a2!.getElement().style.opacity).toBe("1");
+
+      // Day 1's stops (b1, b2) are not focused — ghosted.
+      expect(Number(b1!.getElement().style.opacity)).toBeLessThan(1);
+      expect(Number(b1!.getElement().style.opacity)).toBeGreaterThan(0);
+      expect(b1!.getElement().style.opacity).toBe(b2!.getElement().style.opacity);
+    });
+
+    it("keeps every marker full-strength when nothing is focused", async () => {
+      markerInstances.length = 0;
+      renderMap(detailWithTwoDays(), { focusedDay: null });
+      await waitFor(() => expect(markerInstances).toHaveLength(4));
+
+      for (const marker of markerInstances) {
+        expect(marker.getElement().style.opacity).toBe("1");
+      }
+    });
+
+    it("re-ghosts the previously-focused day's markers and un-ghosts the newly-focused day's when focus changes", async () => {
+      markerInstances.length = 0;
+      const onSelectActivity = vi.fn();
+      const detail = detailWithTwoDays();
+      useFocusMock.mockReturnValue({ focusedDay: 0, setFocusedDay: vi.fn() });
+      const { rerender } = render(
+        <EditorHost>
+          <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+        </EditorHost>,
+      );
+      await waitFor(() => expect(markerInstances).toHaveLength(4));
+      const [a1, , b1] = markerInstances;
+      expect(a1!.getElement().style.opacity).toBe("1");
+      expect(Number(b1!.getElement().style.opacity)).toBeLessThan(1);
+
+      useFocusMock.mockReturnValue({ focusedDay: 1, setFocusedDay: vi.fn() });
+      rerender(
+        <EditorHost>
+          <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+        </EditorHost>,
+      );
+
+      await waitFor(() => expect(b1!.getElement().style.opacity).toBe("1"));
+      expect(Number(a1!.getElement().style.opacity)).toBeLessThan(1);
+    });
+
+    it("leaves backlog-located markers (belonging to no day) untouched by focus", async () => {
+      markerInstances.length = 0;
+      renderMap(detailWithBacklogPin(), { focusedDay: 0 });
+      await waitFor(() => expect(markerInstances).toHaveLength(3));
+
+      // a1, a2 (day 0's stops), then c1 (backlog, drawn in the second loop).
+      // It belongs to no day, so the focus effect never touches its element
+      // at all — style.opacity stays unset ("", full-strength in a real
+      // browser), not merely "set to 1".
+      const backlogMarker = markerInstances[2]!;
+      expect(backlogMarker.getElement().style.opacity).toBe("");
+    });
   });
 });

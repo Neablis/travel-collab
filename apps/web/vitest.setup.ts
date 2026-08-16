@@ -54,3 +54,49 @@ if (typeof window !== "undefined" && typeof window.ResizeObserver !== "function"
     disconnect(): void {}
   };
 }
+
+// jsdom ships no IntersectionObserver (MapRail.tsx uses one, scoped to its own
+// scrollable container, to track which day button is how visible as the rail
+// scrolls). jsdom can't do real layout/visibility, so no test can make a real
+// observer fire truthfully — instead, like setViewportMatches above, this is a
+// real (if minimal) polyfill plus a small exported test-control surface:
+// triggerIntersection lets a test hand-craft the entries a real browser would
+// have produced and have them delivered to whichever observer(s) are
+// currently watching those elements.
+type FakeIntersectionEntry = { target: Element; isIntersecting: boolean; intersectionRatio: number };
+type IntersectionCallback = (entries: FakeIntersectionEntry[]) => void;
+
+const activeIntersectionObservers = new Set<{ callback: IntersectionCallback; elements: Set<Element> }>();
+
+export function triggerIntersection(entries: FakeIntersectionEntry[]): void {
+  for (const observer of activeIntersectionObservers) {
+    const relevant = entries.filter((entry) => observer.elements.has(entry.target));
+    if (relevant.length > 0) observer.callback(relevant);
+  }
+}
+
+if (typeof window !== "undefined" && typeof window.IntersectionObserver !== "function") {
+  class IntersectionObserverPolyfill {
+    callback: IntersectionCallback;
+    elements = new Set<Element>();
+
+    constructor(callback: IntersectionCallback) {
+      this.callback = callback;
+      activeIntersectionObservers.add(this);
+    }
+    observe(el: Element): void {
+      this.elements.add(el);
+    }
+    unobserve(el: Element): void {
+      this.elements.delete(el);
+    }
+    disconnect(): void {
+      activeIntersectionObservers.delete(this);
+      this.elements.clear();
+    }
+    takeRecords(): FakeIntersectionEntry[] {
+      return [];
+    }
+  }
+  window.IntersectionObserver = IntersectionObserverPolyfill as unknown as typeof IntersectionObserver;
+}

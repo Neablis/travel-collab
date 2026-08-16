@@ -1,7 +1,22 @@
+import { useEffect, useRef } from "react";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
 import type { MapDay } from "./mapRailData";
+
+// A light leading+trailing throttle on scroll-driven focus evaluation: the
+// first scroll event of a burst reacts immediately (so focus jumps promptly,
+// not after scrolling stops), and further events inside the same window
+// collapse into a single trailing evaluation instead of firing once per
+// pixel. Mitchell's explicit feedback: he expects focus to "jump" live as he
+// scrolls, not wait for scrolling to fully stop — a prior "settle after
+// 150ms of no scroll events" debounce read as sluggish and was rejected.
+const SCROLL_THROTTLE_MS = 50;
+
+// Tolerance (px) for "the rail is scrolled to its scroll boundary" — real
+// browsers can leave a sub-pixel remainder at max scrollTop depending on
+// zoom/DPI, so an exact equality check would be flaky.
+const BOUNDARY_EPSILON_PX = 4;
 
 // Tailwind's JIT can't see a template-interpolated `bg-${accent}-tint` —
 // same static-Record pattern as DayChips.tsx's CHIP_BG.
@@ -34,8 +49,124 @@ export function MapRail({
   focusedDay: number | null;
   onFocus: (index: number) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonsRef = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const onFocusRef = useRef(onFocus);
+  onFocusRef.current = onFocus;
+  const lastEmittedRef = useRef(focusedDay);
+  lastEmittedRef.current = focusedDay;
+
+  // Scroll-driven focus: as the user scrolls the rail's own list, whichever
+  // day button is most visible in the rail's viewport becomes focused — the
+  // same onFocus callback a click already uses, so this is additive, not a
+  // parallel code path. An IntersectionObserver (scoped to this container as
+  // its `root`) tracks how visible each day is; a native `scroll` listener
+  // on the same container decides *when* to act on that data, lightly
+  // throttled (see SCROLL_THROTTLE_MS) purely to avoid re-evaluating on
+  // every single scroll pixel — NOT debounced to wait for scrolling to stop.
+  // The dominant day is meant to change live, promptly, while the user is
+  // still scrolling. Deliberately does NOT fire from the observer's initial
+  // (mount-time) callback, since that is not the user scrolling — only a
+  // real "scroll" event triggers an evaluation, so mounting never silently
+  // overrides whatever focus the caller started with. There is also no
+  // "scroll the focused day into view" effect here (not asked for, and it
+  // would create a feedback loop with this one), so a click-driven focus
+  // change never re-enters this path.
+  //
+  // Picking "the most visible day" also has to handle two edge cases:
+  //   - Ties: several short day rows can be simultaneously at (or near) 100%
+  //     visibility, especially near the bottom of the list. Iterating `days`
+  //     in index order and using `>=` (not `>`) means a later day always
+  //     wins a tie over an earlier one — never structurally stuck on
+  //     whichever day happened to be inserted first.
+  //   - Scroll boundaries: even with that tie-break, ratio math can still
+  //     leave the true last day under-favoured once it's the only thing left
+  //     to scroll to. When the rail is scrolled to (within BOUNDARY_EPSILON_PX
+  //     of) its max scrollTop, focus is forced to the last day outright —
+  //     guaranteeing it's always reachable by scrolling to the bottom, which
+  //     is more robust than relying on ratio math to get every layout right.
+  //     Symmetric handling at the top prefers the first day for consistency.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver !== "function") return;
+
+    const ratios = new Map<number, number>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const index = Number((entry.target as HTMLElement).dataset.dayIndex);
+          ratios.set(index, entry.intersectionRatio);
+        }
+      },
+      { root: container, threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
+    );
+    for (const el of buttonsRef.current.values()) observer.observe(el);
+
+    const evaluate = () => {
+      if (days.length === 0) return;
+      const hasOverflow = container.scrollHeight > container.clientHeight;
+      const atBottom =
+        hasOverflow && container.scrollTop + container.clientHeight >= container.scrollHeight - BOUNDARY_EPSILON_PX;
+      const atTop = hasOverflow && container.scrollTop <= BOUNDARY_EPSILON_PX;
+
+      let bestIndex: number;
+      if (atBottom) {
+        bestIndex = days[days.length - 1]!.index;
+      } else if (atTop) {
+        bestIndex = days[0]!.index;
+      } else {
+        bestIndex = days[0]!.index;
+        let bestRatio = -1;
+        for (const d of days) {
+          const ratio = ratios.get(d.index) ?? 0;
+          if (ratio >= bestRatio) {
+            bestRatio = ratio;
+            bestIndex = d.index;
+          }
+        }
+      }
+
+      if (bestIndex !== lastEmittedRef.current) {
+        lastEmittedRef.current = bestIndex;
+        onFocusRef.current(bestIndex);
+      }
+    };
+
+    let lastRun = 0;
+    let trailingTimer: ReturnType<typeof setTimeout> | undefined;
+    const handleScroll = () => {
+      const now = Date.now();
+      if (now - lastRun >= SCROLL_THROTTLE_MS) {
+        if (trailingTimer) {
+          clearTimeout(trailingTimer);
+          trailingTimer = undefined;
+        }
+        lastRun = now;
+        evaluate();
+      } else if (!trailingTimer) {
+        trailingTimer = setTimeout(
+          () => {
+            trailingTimer = undefined;
+            lastRun = Date.now();
+            evaluate();
+          },
+          SCROLL_THROTTLE_MS - (now - lastRun),
+        );
+      }
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      container.removeEventListener("scroll", handleScroll);
+      if (trailingTimer) clearTimeout(trailingTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-observing on every day identity change (not every focus/onFocus change) is intentional; onFocus/focusedDay are read via refs above instead
+  }, [days.map((d) => d.dayId).join(",")]);
+
   return (
     <div
+      ref={containerRef}
       aria-label="Days"
       className="absolute overflow-y-auto rounded-2xl border border-hairline bg-surface shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- 268px rail width + 16px inset + z-index 4 have no token equivalent, matching AssistantRail's computed-geometry pattern
@@ -47,6 +178,11 @@ export function MapRail({
           // eslint-disable-next-line no-restricted-syntax -- a rich custom list-item control, not a Button-variant action; Button's base classes always carry `disabled:opacity-50` in the string regardless of state, which would defeat the "inactive days don't grey out" contract this element's className is asserted against
           <button
             key={day.dayId}
+            ref={(el) => {
+              if (el) buttonsRef.current.set(day.index, el);
+              else buttonsRef.current.delete(day.index);
+            }}
+            data-day-index={day.index}
             type="button"
             aria-current={active ? "true" : undefined}
             onClick={() => onFocus(day.index)}
