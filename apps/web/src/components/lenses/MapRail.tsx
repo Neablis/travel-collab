@@ -182,26 +182,57 @@ export function MapRail({
     // relationship between scrollTop and visual position, which gearing
     // breaks (a geared pixel of scrollTop moves the track by far less than
     // one visual pixel), so the browser's own attempt lands the button only
-    // partially inside the band. This corrects it using the actual gearing
-    // math the rest of the component already runs, deferred one tick so it
+    // partially inside the band. This corrects it, deferred one tick so it
     // runs after — and so wins over — the browser's own attempt.
+    //
+    // Critically, this does NOT just "center the button in the viewport": an
+    // earlier version did exactly that, and it disagreed with what
+    // `pickFocusedDay` would then read back for most indices (the two are
+    // different questions — centering asks "where should this button sit
+    // on screen", pickFocusedDay asks "which button is the sweeping focus
+    // line closest to"), so clicking a day could silently re-focus and
+    // rescroll to a *different* day. This instead solves `pickFocusedDay`'s
+    // own equation for the `scrollTop` that puts the sweep line exactly on
+    // this item's center — i.e. the inverse of `focusLine = offset +
+    // viewportHeight × lerp(focusLineStart, focusLineEnd, progress)` with
+    // `offset = progress × naturalTravel` — so the button that receives
+    // focus is *always* the one `pickFocusedDay` reports next, at any
+    // tuning, not only the sweep's default 0/1 focus-line span.
     const focusRailButtonIntoView = (index: number) => {
       const item = geometry.items.find((i) => i.index === index);
       if (!item) return;
       const naturalTravel = Math.max(0, geometry.contentHeight - geometry.viewportHeight);
-      const travel = travelFor(readMapRailTuning().scrollPxPerDay);
+      const tuning = readMapRailTuning();
+      const travel = travelFor(tuning.scrollPxPerDay);
       if (naturalTravel <= 0 || travel <= 0) return;
-      const desiredOffset = Math.min(
-        Math.max(item.offsetTop + item.height / 2 - geometry.viewportHeight / 2, 0),
-        naturalTravel,
+      const center = item.offsetTop + item.height / 2;
+      const span = naturalTravel + geometry.viewportHeight * (tuning.focusLineEnd - tuning.focusLineStart);
+      const progress = Math.min(Math.max(span > 0 ? (center - geometry.viewportHeight * tuning.focusLineStart) / span : 0, 0), 1);
+      // The sweep line is a single point within the viewport band, not "the
+      // item's center" — near either end of the range it can sit close
+      // enough to an edge that the item's own height pokes past it (most
+      // visible at the very first/last day). Nudge the offset just enough
+      // to keep the whole item on screen; that nudge stays well inside this
+      // item's own zone (sweep transitions are spaced a full button height
+      // apart), so pickFocusedDay still reads back this same index after.
+      const idealOffset = progress * naturalTravel;
+      const offset = Math.min(
+        Math.max(idealOffset, item.offsetTop + item.height - geometry.viewportHeight),
+        item.offsetTop,
       );
-      container.scrollTop = (desiredOffset / naturalTravel) * travel;
+      const clampedOffset = Math.min(Math.max(offset, 0), naturalTravel);
+      container.scrollTop = (clampedOffset / naturalTravel) * travel;
     };
+    let focusCorrectionTimer: ReturnType<typeof setTimeout> | undefined;
     const handleFocusIn = (event: FocusEvent) => {
       if (!(event.target instanceof HTMLElement)) return;
       for (const [index, el] of buttonsRef.current) {
         if (el === event.target) {
-          setTimeout(() => focusRailButtonIntoView(index), 0);
+          if (focusCorrectionTimer) clearTimeout(focusCorrectionTimer);
+          focusCorrectionTimer = setTimeout(() => {
+            focusCorrectionTimer = undefined;
+            focusRailButtonIntoView(index);
+          }, 0);
           return;
         }
       }
@@ -214,6 +245,7 @@ export function MapRail({
       container.removeEventListener("scroll", handleScroll);
       container.removeEventListener("focusin", handleFocusIn);
       if (trailingTimer) clearTimeout(trailingTimer);
+      if (focusCorrectionTimer) clearTimeout(focusCorrectionTimer);
       if (frame !== 0) cancelAnimationFrame(frame);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measuring on day identity change only; onFocus/focusedDay are read via refs above
@@ -252,7 +284,13 @@ export function MapRail({
             unaffected) but creates no scrollport of its own, so there is
             nothing for the browser to scroll here — it scrolls the real
             container instead, which already flows through `handleScroll`
-            above and correctly brings the focused button into view. */}
+            above — but only partially: the browser's own scroll-into-view
+            heuristic assumes an ordinary linear scrollTop-to-position
+            relationship, which this rail's gearing breaks, so it lands the
+            button only partially inside the band (confirmed live: e.g. 26px
+            still clipped at 8 Tabs). The effect's `focusRailButtonIntoView`
+            (see the `focusin` listener below) completes the reveal using
+            the rail's actual gearing math. */}
         {/* eslint-disable-next-line no-restricted-syntax -- height is measured geometry, set from the effect above */}
         <div ref={clipRef} className="sticky top-0 overflow-clip" style={{ height: "auto" }}>
           {/* eslint-disable-next-line no-restricted-syntax -- transform is the geared scroll offset, not a themeable value */}
