@@ -219,11 +219,11 @@ point of discovery, not retroactively.
 
 ---
 
-## Suggested `AGENTS.md` amendments (Mitchell's call, not landed here)
+## `AGENTS.md` amendments
 
-Two short additions to "Working agreement with Mitchell," in the same spirit
-as the existing subagent-delegation paragraph — drafted here for review, not
-applied:
+Mitchell approved both proposals; they now live in "Working agreement with
+Mitchell," right after the existing subagent-delegation paragraph
+(`AGENTS.md:43-53`):
 
 > **Recognize an error loop and stop, don't retry through it.** If the same
 > class of fix has been attempted twice without resolving the issue — or a
@@ -237,6 +237,3 @@ applied:
 > A new design choice the plan didn't anticipate — especially one where a
 > competent engineer could reasonably choose differently — does, even under
 > auto-mode license. Ask first; verify and report after.
-
-If either lands, they'd sit well right after the existing subagent-
-delegation paragraph in `AGENTS.md:29-48`.

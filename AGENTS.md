@@ -47,6 +47,19 @@ at the point of that decision: name the specific reason delegation doesn't fit,
 and say plainly that delegation is off for this piece of work, rather than
 silently falling back to inline work without flagging it.
 
+**Recognize an error loop and stop, don't retry through it.** If the same
+class of fix has been attempted twice without resolving the issue — or a
+test/build suite fails with a *different* random subset each run — stop
+before a third attempt. Check for an external cause (`ps aux`, `docker ps`,
+disk/network) if the failure looks environmental; if the cause isn't yours to
+fix, say so and ask rather than keep retrying.
+
+**Pause before a plan-deviating design decision, not just after.** A
+mechanical fix (a wrong comment, a stale doc claim) doesn't need a pause. A
+new design choice the plan didn't anticipate — especially one where a
+competent engineer could reasonably choose differently — does, even under
+auto-mode license. Ask first; verify and report after.
+
 ## The module map (structural law)
 
 Modules own their data and commands; they reference other modules by ID only.
