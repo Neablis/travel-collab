@@ -287,10 +287,11 @@ export function MapRail({
             above — but only partially: the browser's own scroll-into-view
             heuristic assumes an ordinary linear scrollTop-to-position
             relationship, which this rail's gearing breaks, so it lands the
-            button only partially inside the band (confirmed live: e.g. 26px
-            still clipped at 8 Tabs). The effect's `focusRailButtonIntoView`
-            (see the `focusin` listener below) completes the reveal using
-            the rail's actual gearing math. */}
+            button only partially inside the band (confirmed live: tens to
+            hundreds of pixels still clipped, worse near either end of the
+            range and under rapid Tab bursts). The effect's
+            `focusRailButtonIntoView` (see the `focusin` listener below)
+            completes the reveal using the rail's actual gearing math. */}
         {/* eslint-disable-next-line no-restricted-syntax -- height is measured geometry, set from the effect above */}
         <div ref={clipRef} className="sticky top-0 overflow-clip" style={{ height: "auto" }}>
           {/* eslint-disable-next-line no-restricted-syntax -- transform is the geared scroll offset, not a themeable value */}

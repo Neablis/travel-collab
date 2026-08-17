@@ -259,7 +259,9 @@ glitch (confirmed with a Playwright reproduction: after 10 Tabs, the focused
 button sat entirely outside the clip's visible band; `container.scrollTop`
 stayed `0` throughout).
 
-**Fixed properly** two ways, both in `MapRail.tsx`:
+**Fixed properly** two ways, both in `MapRail.tsx` — and the second one went
+through a revision of its own, recorded here in full for the same reason as
+above.
 
 1. `clip`'s class changed from `overflow-hidden` to `overflow-clip`.
    `overflow: clip` still constrains scrollable overflow — the gearing math is
@@ -270,19 +272,45 @@ stayed `0` throughout).
 2. That alone left the focused button only *partially* revealed: the
    browser's native scroll-into-view heuristic assumes the ordinary linear
    relationship between `scrollTop` and visual position, which this rail's
-   gearing deliberately breaks (a geared pixel of `scrollTop` moves the track
-   by far less than one visual pixel). A `focusin` listener on `container`
-   corrects this using the rail's own gearing math — the same `geometry` the
-   scroll effect already maintains — computing the exact `scrollTop` that
-   centers the focused day and setting it directly, deferred one tick
-   (`setTimeout(…, 0)`) so it runs after, and wins over, the browser's own
-   partial attempt.
+   gearing deliberately breaks. A `focusin` listener on `container` completes
+   the reveal, deferred one tick (`setTimeout(…, 0)`) so it runs after, and
+   wins over, the browser's own partial attempt.
 
-Verified with a standalone Playwright script driving real `Tab` key
-navigation across every button position (2, 5, 8, 10, 12, 13 Tabs from Day 1):
-the focused button lands fully within the clip's visible bounds every time,
-including at the Day 14 boundary. Regression-tested in
-`e2e/m10-map-rail.spec.ts`.
+   **The first version of this listener centered the focused button in the
+   viewport** — and a subsequent review round found that was a second,
+   worse regression: centering asks a different question than
+   `pickFocusedDay` asks ("where should this button sit on screen" vs.
+   "which button is the sweeping focus line closest to"), and the two
+   disagreed for most day indices. The observable symptom: clicking Day 4
+   could silently re-focus and rescroll to Day 1 — the click's own
+   `onFocus(3)` fires, then the centering correction scrolls to where it
+   thinks Day 4 belongs, and the resulting native scroll re-runs
+   `evaluate()`/`pickFocusedDay`, which reads a *different* day off the
+   now-moved geometry. Broken for days 4/5/6 in a live reproduction; only
+   day 7 happened to survive, which is the one index the e2e suite's single
+   click assertion covered — an insufficient-coverage gap fixed alongside
+   this (see `e2e/m10-map-rail.spec.ts`'s keyboard-focus-visibility test).
+
+   **Fixed by inverting `pickFocusedDay`'s own equation** instead: solves
+   `focusLine = offset + viewportHeight × lerp(focusLineStart, focusLineEnd,
+   progress)` (with `offset = progress × naturalTravel`) for the `progress`
+   that puts the sweep line exactly on the target item's center, so the
+   button that receives focus is *always* the one `pickFocusedDay` reports
+   back afterward — at any tuning, not only the sweep's default 0/1 span.
+   A visibility clamp handles the case where the sweep line, being a single
+   point rather than the item's center, sits close enough to either end of
+   the range that the item's own height pokes past the viewport edge (most
+   visible at the very last day); the clamp nudges the offset just enough
+   to keep the whole item on screen, and — verified algebraically, not just
+   asserted — that nudge never moves far enough to make a neighboring item
+   the nearer one, so `pickFocusedDay` still reads back the same index.
+
+Verified with a standalone Playwright script across every Tab position 1
+through 13 from Day 1, every direct click on all 14 days, and Shift+Tab
+navigating backwards from Day 14: keyboard focus and `aria-current` agree at
+every position, the focused button lands fully within the clip's visible
+bounds every time including at the Day 14 boundary, and clicking each day
+lands on the day clicked. Regression-tested in `e2e/m10-map-rail.spec.ts`.
 
 ## Tuning
 
