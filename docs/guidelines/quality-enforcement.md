@@ -24,7 +24,18 @@
 
 typecheck → lint (including boundary rules) → unit → integration (Postgres
 service container) → e2e smoke → golden tests. All green or it doesn't merge.
-`pnpm check` runs the same set locally — run it before claiming done.
+
+`pnpm check` (typecheck + lint + unit) is the fast subset with no
+infrastructure dependency — run it constantly while iterating. It does
+**not** run integration or e2e, since those need a running Postgres
+(`pnpm setup` once, then `docker compose up -d` or equivalent) and, for e2e,
+installed Playwright browsers. Run those explicitly before claiming done on
+anything that touches the server or a user-facing flow:
+`pnpm test:int` (`apps/web`'s `*.int.test.ts` against real Postgres) and
+`pnpm --filter web test:e2e` (or scope to one spec while iterating, e.g.
+`pnpm --filter web test:e2e m10-map-rail`) — see
+`environments-and-deploys.md` for the one-time env setup. None of the three
+commands need you to `export` DATABASE_URL by hand.
 
 ## Definition of done (restated from AGENTS.md — the checklist)
 
