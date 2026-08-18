@@ -48,8 +48,8 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
+| M10 | Visual craft pass | **In flight — Wave 2.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
 | M9 | AI as a planning partner | Thread contract, streaming, propose→review→approve before commit, a refine turn, and the observability that does not exist today (persisted `meta`, replay harness, fixed eval set). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here** |
-| M10 | Visual craft pass | The "make it beautiful" pass, design-sync driven, once the surface inventory is stable. Deliberately after M9, which adds a whole new interaction surface |
 
 ## Phase 3 — Outward
 
@@ -80,6 +80,15 @@ for collaboration later landing on a product people already want to join.
   and closed per-milestone design specs were deliberately NOT rewritten** — they
   were true when written, and this table is how to read them.
 
+- **Reorder (2026-08-08), ADR-018.** M10 "Visual craft pass" executes *before*
+  M9, not after, despite its higher number — an external design-team handoff
+  specified M9's (and M11's) not-yet-built surfaces, removing the
+  design-uncertainty reason the original M9-then-M10 ordering existed for. New
+  execution order: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M9 → M11 → M12 →
+  M13 → M14`. Milestone *numbers* are unchanged — this is an execution-order
+  swap, not a renumbering — see `docs/milestones/M10-visual-craft.md` and the
+  ADR for the full argument.
+
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
   community objects in M11.
@@ -98,7 +107,19 @@ Placement notes (decided 2026-07-07):
   (Atomic changes is now M6, …, Rich layer M11). Phase 1 is now M0–M7. Forward
   milestone-pointers updated to match in the same change.
 
-Current milestone: **M9** — AI as a planning partner (see
-`M9-ai-planning-partner.md`). M8's gate closed 2026-08-08 (see
-`M8-make-it-real.md`'s retro); the Phase 1 gate review with Mitchell is the
-actual next action per `TODO.md` before M9 work starts.
+- **Gate reopened (2026-08-14).** M10's Wave-1 gate closed 2026-08-10 on branch
+  `claude/m10-trip-planner-visual-7bbacf` (PR #23, still unmerged). An external
+  review that Mitchell requested — `docs/design-feedback/2026-08-14-M10-redesign-
+  external-review.md` — found two things the gate could not have caught: the
+  design handoff had advanced **two** generations since the version Wave 1 was
+  built from (1,412 → 2,048 → 2,623 lines), and Wave 1's own new assistant rail
+  introduced three blocking defects, the worst of which the e2e suite is
+  structurally blind to (`playwright.config.ts` sets no `viewport`, so every spec
+  runs at 1280px, above the 1179px breakpoint where the page-blocking scrim turns
+  on). **Wave 2** closes the delta; plan at `docs/plans/2026-08-14-M10-redesign-
+  delta.md`. Milestone numbers and order are unchanged.
+
+Current milestone: **M10 — Visual craft pass, Wave 2** (see
+`M10-visual-craft.md`'s "Gate reopened" section). M8's gate closed 2026-08-08 and
+the Phase 1 gate review with Mitchell completed the same day; **M9 does not start
+until M10's Wave-2 gate passes.**

@@ -30,10 +30,11 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await signInAsDevUser(page, "alice");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "+ Add day" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
@@ -61,7 +62,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: /^Dismiss:/ }).click());
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // survived the reload
 
   // -- undo / redo (dismissal is an ordinary change) --
@@ -80,7 +81,12 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();
   await expect(page.getByText(/Viewing version \d+ \(read-only\)/)).toBeVisible();
   await expect(day1.getByText("Vatican Museums")).not.toBeVisible(); // past state
-  await page.getByRole("button", { name: "Dismiss", exact: true }).click(); // #16b: was "Back to now"
+  // #16b: was "Back to now". Scoped to the open History popover (role="dialog"
+  // on Radix Popover.Content) — plain "Dismiss" also matches AssistantRail's
+  // per-suggestion Dismiss buttons (Task 14's M9 Preview shell, always
+  // mounted regardless of lens), which would otherwise make this a strict-mode
+  // violation.
+  await page.getByRole("dialog").getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
 
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();

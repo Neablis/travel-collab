@@ -45,8 +45,9 @@ optically larger).
   (`p-[13px]`) are banned by lint — if a spacing need doesn't fit the grid, the
   design is wrong, not the grid.
 - **Radii:** `rounded-sm` 6px (badges, inputs, small controls) · `rounded-md`
-  8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels). Pill radius
-  (`rounded-full`) only on status `Badge`.
+  8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels) · `rounded-xl`
+  14px (day headers, stat tiles) · `rounded-2xl` 16px (day columns) · `rounded-full`
+  999px (pills, avatars).
 - **Shadows:** two levels only. `shadow-raised` (`0 1px 2px rgb(21 29 46 /
   0.06)`) for cards that must lift off a tinted background; `shadow-overlay`
   (`0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08)`) for
@@ -256,7 +257,13 @@ form fields going forward:
 Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`):
 
 1. **No raw color literals** — CI grep: hex/rgb/hsl in `apps/web/src` outside
-   `globals.css` fails the build.
+   `globals.css` fails the build. One narrow, deliberate second exception:
+   `lib/sparklineColor.ts`, which hashes a city name to one of 8 validated
+   categorical hues for the home hero's "Shape of the trip" sparkline — the
+   one surface needing a color per real, unbounded city name rather than the
+   5 reusable semantic tokens below. The 8-hue cap (not the app's 5, not an
+   arbitrary/wider count) is a measured accessibility limit, not a style
+   choice — see that file's header comment for the validation behind it.
 2. **No inline `style={{…}}`** outside an explicit allowlist (drag transforms,
    maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
    applies to `src/**/*.tsx` outside `components/ui/**` (and outside

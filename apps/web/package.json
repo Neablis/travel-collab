@@ -13,14 +13,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run -c vitest.unit.config.ts",
     "test:int": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "NODE_OPTIONS=--import=./scripts/preload-dotenv.mjs playwright test",
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",
-    "db:reset": "node scripts/db-reset.mjs"
+    "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
+    "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.mjs",
+    "db:reseed": "pnpm db:reset --yes && pnpm db:seed"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.26",
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^3.0.0",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-popover": "^1.1.19",

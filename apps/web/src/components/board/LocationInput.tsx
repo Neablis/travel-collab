@@ -7,7 +7,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 
-type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string };
+type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string };
 
 export function LocationInput({
   value,
@@ -33,7 +33,7 @@ export function LocationInput({
   }
 
   function pick(r: GeocodeResult) {
-    onChange({ name: r.canonicalName, lat: r.lat, lng: r.lng, countryCode: r.countryCode });
+    onChange({ name: r.canonicalName, lat: r.lat, lng: r.lng, countryCode: r.countryCode, city: r.city });
     setResults([]);
   }
 

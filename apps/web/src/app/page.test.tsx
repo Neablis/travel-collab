@@ -124,7 +124,11 @@ describe("Home trip actions", () => {
     await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
 
     await screen.findByRole("alert");
-    expect(screen.getByText("Japan")).toBeTruthy();
+    // Two "Japan"s now render: the next-trip hero heading and the trip-list
+    // row link — assert the row link specifically survived the failed
+    // delete (the hero also renders "Japan" as its `Heading level={2}`,
+    // making a bare `getByText("Japan")` ambiguous).
+    expect(screen.getByRole("link", { name: "Japan" })).toBeTruthy();
   });
 
   it("duplicates a trip and navigates to the copy", async () => {
@@ -150,5 +154,52 @@ describe("Home trip actions", () => {
       expect.objectContaining({ method: "POST" }),
     );
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+  });
+
+  it("shows the create-trip error inside the still-open New-trip dialog on failure", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips") && init?.method === "POST") {
+        return jsonResponse({ error: "name already taken" }, 400);
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({ trips: [tripSummaryFixture()] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /new trip/i });
+    await userEvent.type(within(dialog).getByLabelText(/trip name/i), "Iceland");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create trip$/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/name already taken/i);
+    // The error is rendered inside the dialog's content, not as a sibling
+    // that would be visually stranded behind the Dialog's overlay.
+    expect(within(dialog).getByRole("alert").textContent).toMatch(/name already taken/i);
+    // Dialog must still be open — createTrip does not close it on failure.
+    expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
+  });
+
+  // Task 18: the head's "Start from a Playbook" link is a real navigation
+  // control (unlike the /playbooks route it points to, which is entirely
+  // Preview-shielded) — it must render outside any Preview region and carry
+  // a real href, not merely appear in the markup.
+  it("renders a real, navigable Start from a Playbook link outside any Preview region", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    const link = await screen.findByRole("link", { name: /start from a playbook/i });
+    expect(link.getAttribute("href")).toBe("/playbooks");
+    expect(link.closest("[data-preview-id]")).toBeNull();
   });
 });

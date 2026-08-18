@@ -22,8 +22,8 @@ export function Sheet({
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 bg-ink/40" />
-        <RadixDialog.Content className="fixed inset-y-0 right-0 flex w-full max-w-measure flex-col gap-3 bg-surface p-5 shadow-overlay">
+        <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
+        <RadixDialog.Content className="overlay-layer fixed inset-y-0 right-0 flex w-full max-w-measure flex-col gap-3 bg-surface p-5 shadow-overlay">
           <div className="flex items-start justify-between gap-3">
             <RadixDialog.Title asChild>
               <Heading level={3}>{title}</Heading>

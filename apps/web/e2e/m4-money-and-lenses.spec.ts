@@ -7,10 +7,12 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   const tripName = `Porto ${Date.now()}`;
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // -- set the trip currency to EUR --
   // P2 surface move (#12b): currency/budget moved from the always-visible
@@ -45,30 +47,31 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText("Travel insurance")).toBeVisible();
 
   // -- Itinerary lens: per-day subtotal and unscheduled section --
-  await page.getByRole("tab", { name: "Itinerary" }).click();
+  // Itinerary/Daily/Trip have no nav entry at all as of M10 Wave 2's four-tab
+  // strip (KI-20) — they kept their LensRouter entries and `?lens=` URLs, so
+  // that's how the e2e suite reaches them too.
+  const gotoLens = (lens: string) => {
+    const url = new URL(page.url());
+    url.searchParams.set("lens", lens);
+    return page.goto(url.toString());
+  };
+  await gotoLens("Itinerary");
   await expect(page.getByText("420.00 EUR").first()).toBeVisible();
   await expect(page.getByText("Unscheduled")).toBeVisible();
   await expect(page.getByText("99.00 EUR").first()).toBeVisible();
 
   // -- Daily lens: per-day count/subtotal --
-  // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
-  // update, not instant — right after the click the previous lens (Itinerary)
-  // is still mounted. Itinerary's own markup coincidentally also renders
-  // "420.00 EUR" twice for this fixture (a single $420 activity means its
-  // per-activity cost cell equals the day subtotal), so asserting on that text
-  // alone can hit a strict-mode violation mid-transition. Wait for the Daily
-  // lens's own container to mount first, disambiguating which lens is live.
-  await page.getByRole("tab", { name: "Daily" }).click();
+  await gotoLens("Daily");
   await expect(page.getByTestId("daily-overview-lens")).toBeVisible();
   await expect(page.getByText("420.00 EUR")).toBeVisible();
 
   // -- Trip lens: total renders --
-  await page.getByRole("tab", { name: "Trip" }).click();
+  await gotoLens("Trip");
   await expect(page.getByText("519.00 EUR")).toBeVisible();
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.
-  await page.getByRole("tab", { name: "Board" }).click();
+  await page.getByRole("tab", { name: "Day columns" }).click();
 
   // -- set a budget below the total: over-budget warning appears --
   // MoneyInput debounces/commits on blur (avoids firing one SetTripBudget
@@ -112,6 +115,6 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText(/exceeds the budget/)).toBeVisible();
 
   // -- dismiss the (now-restored) warning: it stays dismissed --
-  await page.getByRole("button", { name: /Dismiss/ }).click();
+  await page.getByRole("button", { name: /^Dismiss:/ }).click();
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 });

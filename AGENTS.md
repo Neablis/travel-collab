@@ -33,6 +33,33 @@ presented with trade-offs and get explicit approval before files or code are
 created. Challenge weak ideas directly; record decisions in ADRs after they are
 made, not before.
 
+**Default to subagent delegation for implementation work** (writing code,
+editing files, running tests) — via the Agent tool / `subagent-driven-development`
+— rather than doing it directly in the main conversation thread. This keeps the
+main thread's context lean across a long multi-task session: a subagent's own
+reads/edits/tool traffic don't accumulate there, only its report does. State the
+delegation choice before starting each task or phase, not after the fact.
+
+Live, iterative debugging against a running dev server or browser session is the
+standing exception — a subagent can't share that session, and the tight
+try-something/read-result loop doesn't survive a handoff. But say so explicitly
+at the point of that decision: name the specific reason delegation doesn't fit,
+and say plainly that delegation is off for this piece of work, rather than
+silently falling back to inline work without flagging it.
+
+**Recognize an error loop and stop, don't retry through it.** If the same
+class of fix has been attempted twice without resolving the issue — or a
+test/build suite fails with a *different* random subset each run — stop
+before a third attempt. Check for an external cause (`ps aux`, `docker ps`,
+disk/network) if the failure looks environmental; if the cause isn't yours to
+fix, say so and ask rather than keep retrying.
+
+**Pause before a plan-deviating design decision, not just after.** A
+mechanical fix (a wrong comment, a stale doc claim) doesn't need a pause. A
+new design choice the plan didn't anticipate — especially one where a
+competent engineer could reasonably choose differently — does, even under
+auto-mode license. Ask first; verify and report after.
+
 ## The module map (structural law)
 
 Modules own their data and commands; they reference other modules by ID only.

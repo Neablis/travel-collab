@@ -21,10 +21,10 @@ export function TripMoneySettings({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <FormField id="trip-currency" label="currency">
+      <FormField id="trip-currency" label="Currency">
         <NativeSelect
           id="trip-currency"
-          aria-label="currency"
+          aria-label="Currency"
           value={currency}
           onChange={(e) => onCommand({ type: "SetTripCurrency", tripId, currency: e.target.value })}
         >

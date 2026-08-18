@@ -7,7 +7,20 @@ export type Lens = (typeof LENSES)[number];
 export const SCHEDULE_VIEWS = ["Timeline", "Calendar"] as const;
 export type ScheduleView = (typeof SCHEDULE_VIEWS)[number];
 
-type LensCtx = { lens: Lens; view: ScheduleView; setLens: (l: Lens) => void; setView: (v: ScheduleView) => void };
+type LensCtx = {
+  lens: Lens;
+  view: ScheduleView;
+  setLens: (l: Lens) => void;
+  setView: (v: ScheduleView) => void;
+  // Sets both in one URL write. TripViewTabs.tsx's Timeline/Calendar tabs
+  // need lens="Schedule" AND a specific view together — calling setLens then
+  // setView separately in the same handler is a lost update, since each
+  // reads the same pre-click `params` closure: the second call's
+  // `new URLSearchParams(params)` doesn't see the first call's change (React
+  // hasn't re-rendered yet), so the second `router.replace` silently
+  // clobbers the first instead of merging with it.
+  setLensAndView: (l: Lens, v: ScheduleView) => void;
+};
 const Ctx = createContext<LensCtx | null>(null);
 export const useLens = () => {
   const v = useContext(Ctx);
@@ -38,6 +51,12 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
       }, // one direction: click → URL → derive
       setView: (v) => {
         const n = new URLSearchParams(params);
+        n.set("view", v);
+        write(n);
+      },
+      setLensAndView: (l, v) => {
+        const n = new URLSearchParams(params);
+        n.set("lens", l);
         n.set("view", v);
         write(n);
       },

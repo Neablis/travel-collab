@@ -4,11 +4,24 @@ import { readFileSync } from "node:fs";
 // THE COLOR WALL (design-system.md "Enforcement"): raw color literals live in
 // exactly one file. Files on the pending list are pre-M5 surfaces awaiting
 // re-skin; the list only ever shrinks (deleted by the task that re-skins them).
+//
+// lib/sparklineColor.ts is a second, deliberate exception alongside
+// globals.css — not pre-M5 debt, a permanent one: it hashes a city name to
+// one of 8 validated categorical hues for the home hero's "Shape of the
+// trip" sparkline, the one surface that needs a color per real, unbounded
+// city name rather than the app's 5 reusable semantic tokens (brand/info/
+// success/warning/danger). See that file's own header comment for why 8
+// hues, not the design system's 5 or an arbitrary/wider count.
 const pending = new Set(JSON.parse(readFileSync("scripts/design-wall-pending.json", "utf8")));
 const files = execSync("git ls-files 'apps/web/src/**/*.ts' 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css'", { encoding: "utf8" })
   .split("\n")
   .filter(Boolean)
-  .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f));
+  .filter(
+    (f) =>
+      f !== "apps/web/src/app/globals.css" &&
+      f !== "apps/web/src/lib/sparklineColor.ts" &&
+      !pending.has(f),
+  );
 
 const colorLiteral = /(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
 const arbitraryValue = /className={?["'`][^"'`]*\[/;

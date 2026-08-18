@@ -8,8 +8,8 @@ export function Dialog({ open, onOpenChange, title, children }: { open: boolean;
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 bg-ink/40" />
-        <RadixDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-surface p-5 shadow-overlay">
+        <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
+        <RadixDialog.Content className="overlay-layer fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-surface p-5 shadow-overlay">
           <div className="mb-3 flex items-start justify-between gap-3">
             <RadixDialog.Title asChild>
               <Heading level={3}>{title}</Heading>

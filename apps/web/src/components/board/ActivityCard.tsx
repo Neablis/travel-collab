@@ -56,7 +56,7 @@ export function ActivityCard({
       data-testid={`activity-card-${activity.activityId}`}
       // eslint-disable-next-line no-restricted-syntax -- drag opacity is computed per-frame by pragmatic-drag-and-drop state, not expressible as a token class
       style={{ opacity: dragging ? 0.5 : 1 }}
-      className="mb-1.5 cursor-grab p-2.5"
+      className="mb-1.5 cursor-grab p-3"
     >
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-1.5">

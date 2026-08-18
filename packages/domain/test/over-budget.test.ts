@@ -30,4 +30,21 @@ describe("over-budget rule", () => {
     expect(conflicts[0]!.id).toBe(`over-budget:${TRIP}`);
     expect(conflicts[0]!.subjects).toEqual([TRIP]);
   });
+
+  // KI-2: the conflict description's money formatting must match the UI's
+  // `formatMoney` (apps/web/src/components/lenses/formatMoney.ts, #22) —
+  // thousands-grouped, two decimals — so the same amount never renders two
+  // different ways depending on which surface displays it. Mirrors
+  // apps/web/src/components/lenses/formatMoney.test.ts's grouping case
+  // (111110600 minor -> "1,111,106.00 USD") with cost minus budget landing on
+  // the same amount.
+  it("groups thousands in the description the same way the UI's formatMoney does (#22, KI-2)", () => {
+    const budgetMinor = 100;
+    const costMinor = 111110700; // costMinor - budgetMinor = 111110600 -> "1,111,106.00"
+    const conflicts = detectConflicts(stateWith(budgetMinor, costMinor));
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]!.description).toBe(
+      "Trip total (1,111,107.00 USD) exceeds the budget (1.00 USD) by 1,111,106.00 USD.",
+    );
+  });
 });

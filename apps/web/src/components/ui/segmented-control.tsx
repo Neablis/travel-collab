@@ -19,8 +19,8 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex gap-0.5",
-        variant === "pill" ? "rounded-md bg-moss p-0.5" : "gap-3",
+        "inline-flex",
+        variant === "pill" ? "gap-0.5 rounded-md bg-moss p-0.5" : "gap-3",
       )}
     >
       {options.map((o) => (

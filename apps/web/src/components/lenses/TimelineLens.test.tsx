@@ -1,8 +1,21 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorHost } from "@/components/trip/context/EditorHost";
+import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
 import { tripDetailFixture } from "@/mocks/fixtures";
 import { TimelineLens } from "./TimelineLens";
+
+afterEach(cleanup);
+
+// jsdom doesn't implement Element.scrollIntoView; TimelineLens's
+// focus-scroll effect (unchanged by Task 15) calls it whenever focusedDay
+// changes. No prior test ever actually changed focusedDay while mounted, so
+// this gap was latent — Task 15's focus-control tests are the first to
+// trigger it. Stub it locally rather than touching the shared
+// vitest.setup.ts for a jsdom limitation this file's tests are the first to
+// hit.
+Element.prototype.scrollIntoView ??= () => {};
 
 function detailFixture() {
   return tripDetailFixture({
@@ -13,7 +26,7 @@ function detailFixture() {
         activityId: "timed1",
         title: "Colosseum tour",
         timeWindow: { start: "09:00", end: "11:00" },
-        location: null,
+        location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
         notes: null,
         anchors: [],
         cost: null,
@@ -22,15 +35,183 @@ function detailFixture() {
   });
 }
 
-describe("TimelineLens", () => {
-  it("renders an hour axis so block times are readable (#28)", () => {
-    render(
+function renderLens(detail = detailFixture(), onSelectActivity = vi.fn()) {
+  return render(
+    <FocusProvider>
       <EditorHost>
-        <TimelineLens detail={detailFixture()} onSelectActivity={vi.fn()} />
-      </EditorHost>,
+        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>
+    </FocusProvider>,
+  );
+}
+
+// Task 15: focusedDay lives in FocusProvider, one level above TimelineLens,
+// with no control inside TimelineLens itself that sets it (DayChips owns
+// that in the real app) — this small harness exposes a button that calls
+// setFocusedDay directly, the same shape as FocusProvider.test.tsx's own
+// Probe, so the ghost-card-appears-when-focused behavior can be exercised
+// without pulling DayChips into this test.
+function renderLensWithFocusControl(detail = detailFixture()) {
+  function Harness() {
+    const { setFocusedDay } = useFocus();
+    return (
+      <>
+        <button onClick={() => setFocusedDay(0)}>focus day 0</button>
+        <TimelineLens detail={detail} />
+      </>
     );
-    expect(screen.getAllByText("6a").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("12p").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("9p").length).toBeGreaterThan(0);
+  }
+  return render(
+    <FocusProvider>
+      <EditorHost>
+        <Harness />
+      </EditorHost>
+    </FocusProvider>,
+  );
+}
+
+describe("TimelineLens", () => {
+  it("renders a day header with the day ordinal, stop count, and derived city (#28)", () => {
+    renderLens();
+    expect(screen.getByText("Day 1")).not.toBeNull();
+    // "Colosseum, Rome, Italy" legitimately appears twice: once in the day
+    // header's derived-city pill/route summary, once in the activity row's
+    // place line — scope to the header to assert the former specifically.
+    const header = screen.getByTestId("timeline-dayhead-d1");
+    expect(within(header).getAllByText(/Colosseum, Rome, Italy/).length).toBeGreaterThan(0);
+    // Stop-meter: real elapsed duration of the one 09:00–11:00 activity.
+    expect(screen.getByText("2h out")).not.toBeNull();
+  });
+
+  it("renders the activity's real start/end time and title as a row (not a percentage-positioned block)", () => {
+    renderLens();
+    const row = screen.getByTestId("timeline-item-timed1");
+    expect(within(row).getByText("09:00")).not.toBeNull();
+    expect(within(row).getByText("11:00")).not.toBeNull();
+    expect(within(row).getByText("Colosseum tour")).not.toBeNull();
+  });
+
+  it("still calls onSelectActivity (Edit) with the activity id, unchanged behavior", async () => {
+    const onSelectActivity = vi.fn();
+    renderLens(detailFixture(), onSelectActivity);
+    await userEvent.click(screen.getByTestId("timeline-edit-timed1"));
+    expect(onSelectActivity).toHaveBeenCalledWith("timed1");
+  });
+
+  it("wires the Add stop trigger to openCreate without throwing (unchanged EditorHost call shape)", async () => {
+    renderLens();
+    await expect(userEvent.click(screen.getByTestId("timeline-add-d1"))).resolves.not.toThrow();
+  });
+
+  it("renders the keep-day flag inert, inside the keep-day-flag Preview region", () => {
+    renderLens();
+    const region = document.querySelector('[data-preview-id="keep-day-flag"]');
+    expect(region).not.toBeNull();
+    expect(within(region as HTMLElement).getByRole("button", { name: "Keep day 1" })).not.toBeNull();
+  });
+
+  it("renders the ghost Ask affordance inert, inside the timeline-ghost Preview region", () => {
+    renderLens();
+    const region = document.querySelector('[data-preview-id="timeline-ghost"]');
+    expect(region).not.toBeNull();
+    expect(within(region as HTMLElement).getByRole("button", { name: "Ask" })).not.toBeNull();
+  });
+
+  it("renders no ghost-proposal card when no day is focused (#15)", () => {
+    renderLensWithFocusControl();
+    expect(screen.queryByTestId("ghost-proposal-g1")).toBeNull();
+  });
+
+  it("renders the sample ghost-proposal card in the focused day, inside the timeline-ghost Preview region (#15)", async () => {
+    renderLensWithFocusControl();
+    await userEvent.click(screen.getByRole("button", { name: "focus day 0" }));
+    const card = screen.getByTestId("ghost-proposal-g1");
+    const region = card.closest('[data-preview-id="timeline-ghost"]');
+    expect(region).not.toBeNull();
+    expect(within(card).getByText("Add teamLab Planets")).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "Keep" })).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "Discard" })).not.toBeNull();
+  });
+
+  it("shows a real gap leg (not a fabricated travel time) between two timed activities, and a straight-line distance only when both have coordinates", () => {
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        a1: {
+          activityId: "a1",
+          title: "Colosseum tour",
+          timeWindow: { start: "09:00", end: "10:00" },
+          location: { name: "Colosseum", lat: 41.8902, lng: 12.4922 },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        a2: {
+          activityId: "a2",
+          title: "Roman Forum",
+          timeWindow: { start: "11:00", end: "12:00" },
+          location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+    renderLens(detail);
+    const leg = screen.getByTestId("timeline-leg");
+    expect(within(leg).getByText(/1h gap/)).not.toBeNull();
+    expect(within(leg).getByText(/km direct/)).not.toBeNull();
+    // 60 minutes > the 30-minute warning threshold.
+    expect(within(leg).getByText("Long gap")).not.toBeNull();
+  });
+
+  it("omits the leg's distance (never fabricates one) when either activity has no coordinates", () => {
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        a1: {
+          activityId: "a1",
+          title: "Colosseum tour",
+          timeWindow: { start: "09:00", end: "10:00" },
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        a2: {
+          activityId: "a2",
+          title: "Roman Forum",
+          timeWindow: { start: "10:10", end: "11:00" },
+          location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+    renderLens(detail);
+    const leg = screen.getByTestId("timeline-leg");
+    expect(within(leg).getByText("10m gap")).not.toBeNull();
+    expect(within(leg).queryByText(/km direct/)).toBeNull();
+    // 10 minutes is under the warning threshold.
+    expect(within(leg).queryByText("Long gap")).toBeNull();
+  });
+
+  it("still renders untimed activities as rows the caller can select", async () => {
+    const onSelectActivity = vi.fn();
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["u1"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        u1: { activityId: "u1", title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    renderLens(detail, onSelectActivity);
+    await userEvent.click(screen.getByTestId("timeline-edit-u1"));
+    expect(onSelectActivity).toHaveBeenCalledWith("u1");
+  });
+
+  it("renders an empty state when the trip has no days", () => {
+    renderLens(tripDetailFixture({ days: [] }));
+    expect(screen.getByText("No days yet.")).not.toBeNull();
   });
 });

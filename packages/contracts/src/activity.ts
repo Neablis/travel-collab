@@ -35,6 +35,15 @@ export const Location = z
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
     countryCode: z.string().regex(/^[A-Z]{2}$/).optional(), // populated by the geocoder (ADR-007)
+    // Populated by the geocoder from its structured address data (city, or
+    // the nearest equivalent — town/village/hamlet), distinct from `name`
+    // (the full place label, e.g. "National Museum of Play at The Strong,
+    // Rochester, Monroe County, New York, 14607, USA"). Optional: manually-
+    // entered locations, or a geocoder result with no city-level address
+    // component, carry no city. cityFor() (DayChips.tsx) prefers this over
+    // `name` for grouping/coloring by city; falls back to `name` when a
+    // location predates this field or never had one.
+    city: z.string().min(1).max(200).optional(),
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",

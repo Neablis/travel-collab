@@ -31,10 +31,12 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 
   await signInAsDevUser(page, "alice");
 
+  await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
+  // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // -- a 3-day date range (TripDateControl mints day ids to match the span,
   // decide.ts's SetTripDates handling) --
@@ -85,7 +87,12 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   const renameInput = page.getByRole("textbox", { name: /trip name/i });
   await renameInput.fill(renamedTripName);
   await Promise.all([waitForCommand(page), renameInput.press("Enter")]);
-  await expect(page.getByText(renamedTripName)).toBeVisible();
+  // getByRole("heading", ...), not getByText: the Assistant rail's real
+  // context line ("Looking at {trip name}", M10 redesign-feedback follow-up)
+  // now also contains the renamed trip's name as a substring — Playwright's
+  // getByText matches substrings by default, so it resolves to both that
+  // <div> and TripHeader's actual h2 unless scoped to the heading role.
+  await expect(page.getByRole("heading", { name: renamedTripName, level: 2 })).toBeVisible();
 
   await expect(page.getByText(/all changes saved/i)).toBeVisible(); // KI-5, C4
 

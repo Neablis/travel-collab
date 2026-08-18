@@ -31,6 +31,12 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // than a mocked context — this exercises the real dispatch -> sendTripCommand
 // path, matching how the header's SetTripName dispatch actually resolves.
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
+// Task 9: TripHeader's new "Add stop" button calls useEditor().openCreate(),
+// so it now needs an EditorHost ancestor (the real app tree provides one —
+// trips/[tripId]/page.tsx wraps TripBoardScreen, which mounts TripHeader, in
+// <EditorHost>). Same StateSpy pattern board.test.tsx uses to observe
+// openCreate's effect on EditorHost's state without mocking useEditor.
+import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
 
 // A15-fix regression probe: mounted alongside TripHeader under the same
@@ -55,14 +61,23 @@ beforeEach(() => {
   });
 });
 
-async function renderHeader() {
+async function renderHeader(children?: React.ReactNode) {
+  let editorState: ReturnType<typeof useEditor>["state"] | undefined;
+  function EditorStateSpy() {
+    editorState = useEditor().state;
+    return null;
+  }
   render(
     <TripProvider tripId="x">
-      <TripHeader tripId="x" />
+      <EditorHost>
+        <EditorStateSpy />
+        <TripHeader tripId="x">{children}</TripHeader>
+      </EditorHost>
       <TripStatusProbe />
     </TripProvider>,
   );
   await waitFor(() => expect(screen.getByText("Japan")).toBeTruthy());
+  return { getEditorState: () => editorState };
 }
 
 describe("TripHeader rename", () => {
@@ -240,5 +255,59 @@ describe("TripHeader delete/undo (A15)", () => {
     // delete, proving the reconciliation isn't waiting on the toast to close.
     expect(await screen.findByTestId("toast")).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("tripStatus").textContent).toBe("deleted"));
+  });
+});
+
+// Task 9: restyled header adds a neutral state Badge next to the trip name
+// and a real "Add stop" trigger alongside the Task 18 Share/Add-a-saved-day
+// placeholder slots. This only covers the new markup/wiring — every
+// pre-existing behavior above (rename, sync, undo/redo, history, delete/
+// undo-delete) is untouched by the restyle and stays covered by the
+// describe blocks above.
+describe("TripHeader restyle (Task 9)", () => {
+  it("renders a neutral status Badge with the trip's status", async () => {
+    await renderHeader();
+
+    const badge = screen.getByText("Active");
+    expect(badge.className).toMatch(/bg-moss/);
+  });
+
+  it("Add stop opens the portable editor with no dayId prefill", async () => {
+    const { getEditorState } = await renderHeader();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+
+    expect(getEditorState()).toEqual({ mode: "create", prefill: undefined });
+  });
+
+  // Share (ShareButton, Task 18) is self-wrapped in its own <Preview> —
+  // genuinely pointer-events shielded, not just an unwired Button, so a click
+  // must actually fail to land (same assertion shape as preview.test.tsx/
+  // KeepDayDialog.test.tsx's inert-control tests) and nothing downstream
+  // fires: no dispatch, no navigation, no editor state change. Add a saved
+  // day moved out of the header entirely (Task 1.4, M10 Wave 2 — the design
+  // moved it into the plan flow; Phase 6 rebuilds it there), so it's no
+  // longer part of this component to assert on.
+  it("Share is genuinely inert: pointer-events shielded, never fires", async () => {
+    const { getEditorState } = await renderHeader();
+
+    await expect(userEvent.click(screen.getByRole("button", { name: "Share" }))).rejects.toThrow();
+
+    expect(sendTripCommandMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(getEditorState()).toEqual({ mode: null });
+  });
+
+  it("keeps the view tabs and day chips inside the sticky header", async () => {
+    await renderHeader(
+      <>
+        <div role="tablist" aria-label="Trip view" />
+        <div role="group" aria-label="Days" />
+      </>,
+    );
+
+    const header = screen.getByRole("banner", { name: "Trip" });
+    expect(header.contains(screen.getByRole("tablist", { name: "Trip view" }))).toBe(true);
+    expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true);
   });
 });

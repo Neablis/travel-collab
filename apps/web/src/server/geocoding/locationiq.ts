@@ -6,7 +6,12 @@ type LocationIQRow = {
   lat: string;
   lon: string;
   display_name: string;
-  address?: { country_code?: string };
+  // Nominatim-style address breakdown (LocationIQ's `addressdetails=1`,
+  // already requested below). `city` is present for a genuine city-level
+  // result; smaller settlements come back under `town`/`village`/`hamlet`
+  // instead — checked in that order, the same specificity order Nominatim
+  // itself uses when deciding which one to populate.
+  address?: { country_code?: string; city?: string; town?: string; village?: string; hamlet?: string };
 };
 
 export function createLocationIQGeocoder(apiKey: string): Geocoder {
@@ -32,6 +37,7 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
         lng: Number(r.lon),
         canonicalName: r.display_name,
         countryCode: r.address?.country_code?.toUpperCase(),
+        city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
       }));
     },
   };

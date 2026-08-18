@@ -53,6 +53,9 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-full: 999px;
 
   --shadow-raised: 0 1px 2px rgb(21 29 46 / 0.06);
   --shadow-overlay: 0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08);
@@ -71,5 +74,98 @@
 @layer base {
   body {
     @apply bg-paper font-sans text-base text-ink antialiased;
+  }
+}
+
+@layer components {
+  /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
+     equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
+     would trip the color-wall's "no arbitrary values" check with no inline-style
+     escape hatch that preserves the `lg:` (>=1024px) breakpoint — inline styles
+     can't express a media query. A tiny named utility, mirroring the token
+     pattern above, keeps it a real CSS rule instead of a per-render bracket value. */
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1024px) {
+    .hero-grid {
+      grid-template-columns: 1.15fr 1fr;
+    }
+  }
+
+  /* AssistantRail (Task 14, M9 preview shell): handoff README "Assistant
+     rail" — below 1180px the rail becomes a fixed overlay with a scrim
+     behind it; at/above 1180px it reads as a persistent side rail with no
+     scrim. That's a breakpoint decision, which only a real CSS rule (not an
+     inline style) can express. */
+  .assistant-rail-scrim {
+    display: none;
+  }
+  @media (max-width: 1179px) {
+    .assistant-rail-scrim {
+      display: block;
+    }
+  }
+
+  /* PlaybooksStrip (Task 16, M11 preview shell): handoff README "Your
+     Playbooks" grid is 4-col, collapsing to 2-col at 1180px — the same
+     breakpoint number Task 14 used for the assistant rail's scrim, so this
+     mirrors that rule rather than approximating with Tailwind's default
+     `xl:` (1280px). A real `@media` rule is required either way; Tailwind
+     bracket syntax (`xl:grid-cols-[...]`) would trip the element wall's
+     "no arbitrary values" check. */
+  .playbooks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 1180px) {
+    .playbooks-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Gate-verification fix (post-Task-18): AssistantRail's <Preview> wrapper
+     is `position: fixed; right: 0; width: 356px` at every viewport width
+     (Task 14's own choice, so the shell stays inspectable below 1180px too;
+     preview.tsx's own comment covers the Tailwind cascade-order bug that
+     used to leave it stuck at `position: relative` instead) — but only its
+     INNER children wrapper carries pointer-events:none (design-system.md's
+     Preview contract only ever shielded the shell's own content, never
+     claimed to reserve layout space). The outer wrapper itself has no
+     pointer-events override, so by default it still hit-tests across its
+     whole 356px-wide, full-height box. TripBoardScreen's real content (day
+     columns, dialogs, buttons) is laid out with no awareness of the rail and
+     can end up geometrically underneath that strip at ordinary desktop
+     widths — anything there becomes unclickable. (This is a real but
+     separate bug from the m8-make-it-real.spec.ts drag-to-day-3 timeout —
+     that one turned out to be page-height overflow pushing day columns below
+     the viewport fold, fixed in Board.tsx via autoScrollWindowForElements;
+     the rail's own wrapper was never actually position:fixed while that bug
+     was live, so it couldn't have been in the way.) Reserving the same 356px
+     as right padding on the real content — only at the same >=1180px
+     breakpoint where the rail behaves as a persistent (not overlay) panel,
+     matching the handoff's own "persistent side rail" framing — keeps real
+     content out from under it instead of trying to punch pointer-events
+     holes through a shell that has genuine visible content of its own. */
+  .trip-board-content {
+    padding-right: 0;
+  }
+  @media (min-width: 1180px) {
+    .trip-board-content {
+      padding-right: 356px;
+    }
+    /* Hiding the rail (TripBoardScreen.tsx's real Hide toggle, M10
+       redesign-feedback follow-up) reclaims this reserved width instead of
+       leaving a dead gutter where the rail used to be. */
+    .trip-board-content.assistant-hidden {
+      padding-right: 0;
+    }
+  }
+
+  /* Radix portals render outside the React tree that holds the assistant rail
+     (a fixed z-50 aside), so overlay surfaces need an explicit layer above it.
+     Tailwind's scale stops at z-50 and the color wall bans z-[60], so this is
+     a named class. Every dialog/sheet/popover surface uses it. */
+  .overlay-layer {
+    z-index: 60;
   }
 }

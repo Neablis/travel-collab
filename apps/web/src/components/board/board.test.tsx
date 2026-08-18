@@ -134,15 +134,16 @@ describe("Board", () => {
     expect(getEditorState()).toEqual({ mode: "edit", activityId: A2 });
   });
 
-  // Day columns wrap into rows instead of scrolling horizontally
-  // (#31/#23/#4/#10): no pager, no edge-shadow, no stack/scroll breakpoint —
-  // just a flex-wrap grid. Backlog is a full-width strip above the grid.
-  it("day columns lay out in a wrapping row (no horizontal scroll)", () => {
+  // Handoff README §"Day columns view": day columns scroll horizontally in a
+  // single row (268px each) instead of wrapping — no pager, no edge-shadow,
+  // no stack/scroll breakpoint, just an overflow-x-auto row. Backlog stays a
+  // full-width strip above the row, outside the scroll container.
+  it("day columns lay out in a horizontally scrolling row", () => {
     renderBoard(fixture(), noopCallbacks());
-    // Backlog is now a full-width strip above the grid; the grid wrapper holds day columns.
-    const dayGrid = screen.getAllByTestId("day-column")[0]!.parentElement;
-    expect(dayGrid?.className).toContain("flex-wrap");
-    expect(dayGrid?.className).not.toContain("overflow-x-auto");
+    // Backlog is a full-width strip above the row; the row wrapper holds day columns.
+    const dayRow = screen.getAllByTestId("day-column")[0]!.parentElement;
+    expect(dayRow?.className).toContain("overflow-x-auto");
+    expect(dayRow?.className).not.toContain("flex-wrap");
     expect(screen.queryByLabelText("Jump to day")).toBeNull();
   });
 
@@ -152,5 +153,47 @@ describe("Board", () => {
     const dropList = day.querySelector("ul");
     expect(dropList?.className).toContain("flex-1");
     expect(dropList?.className).toMatch(/min-h-/);
+  });
+
+  // Handoff README §"Day columns view": 268px columns, 16px radius
+  // (rounded-2xl), tinted per-day via dayAccentFor — same city derivation as
+  // Tasks 8/10's chipModel, so the day column agrees with its Timeline
+  // header/chip color. This fixture's activities carry no location, so
+  // dayAccentFor(null) resolves deterministically to the "info" family.
+  it("a day column is 268px wide, rounded-2xl, and tinted by dayAccentFor", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const day = screen.getAllByTestId("day-column")[0]!;
+    expect(day.className).toContain("rounded-2xl");
+    expect(day.className).toContain("bg-info-tint");
+    expect((day as HTMLElement).style.width).toBe("268px");
+  });
+
+  // The backlog is a full-width strip, not part of the horizontal scroll —
+  // it keeps the neutral bg-moss treatment (no day to tint) and no fixed
+  // width.
+  it("the backlog column stays full-width and untinted", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const backlog = screen.getByTestId("backlog-column");
+    expect(backlog.className).toContain("w-full");
+    expect(backlog.className).toContain("bg-moss");
+    expect((backlog as HTMLElement).style.width).toBe("");
+  });
+
+  // Handoff README §"Day columns view": "a dashed '+ Add' button per
+  // column" — the dashed affordance is consistent regardless of whether the
+  // day already has cards (this fixture's Day 1 has two), not collapsed to a
+  // bare "+" once populated.
+  it("a populated day column still shows the dashed + Add affordance", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const addButton = screen.getByRole("button", { name: "Add activity to Day 1" });
+    expect(addButton.textContent).toContain("+ Add");
+    expect(addButton.className).toContain("border-dashed");
+  });
+
+  // Handoff README §"Day columns view": compact cards (12px padding).
+  it("activity cards use 12px padding", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const card = screen.getByTestId(`activity-card-${A1}`);
+    expect(card.className).toContain("p-3");
   });
 });

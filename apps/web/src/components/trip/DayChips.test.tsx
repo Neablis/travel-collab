@@ -1,0 +1,181 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { tripDetailFixture } from "@/mocks/fixtures";
+import { chipModel, DayChips } from "./DayChips";
+
+afterEach(cleanup);
+
+const day1 = "11111111-1111-4111-8111-111111111111";
+const day2 = "22222222-2222-4222-8222-222222222222";
+const day3 = "33333333-3333-4333-8333-333333333333";
+const tokyoActivity = "44444444-4444-4444-8444-444444444444";
+const osakaActivity = "55555555-5555-4555-8555-555555555555";
+const noLocationActivity = "66666666-6666-4666-8666-666666666666";
+
+describe("chipModel", () => {
+  it("emits one entry per day, with stops derived from activityIds.length", () => {
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 },
+      ],
+      activities: {
+        [tokyoActivity]: {
+          activityId: tokyoActivity,
+          title: "Shibuya crossing",
+          timeWindow: null,
+          location: { name: "Tokyo" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+
+    const chips = chipModel(detail);
+    expect(chips).toHaveLength(2);
+    expect(chips[0]!.stops).toBe(1);
+    expect(chips[1]!.stops).toBe(0);
+  });
+
+  it("sets transitionTo only when the derived city actually changes between consecutive days", () => {
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: day2, activityIds: [tokyoActivity], date: "2027-06-02", costSubtotal: 0 }, // same city, no transition
+        { dayId: day3, activityIds: [osakaActivity], date: "2027-06-03", costSubtotal: 0 }, // city changes
+      ],
+      activities: {
+        [tokyoActivity]: {
+          activityId: tokyoActivity,
+          title: "Shibuya crossing",
+          timeWindow: null,
+          location: { name: "Tokyo" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        [osakaActivity]: {
+          activityId: osakaActivity,
+          title: "Osaka castle",
+          timeWindow: null,
+          location: { name: "Osaka" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+
+    const chips = chipModel(detail);
+    // Day 0 has no previous day, so no transition regardless of city.
+    expect(chips[0]!.transitionTo).toBeNull();
+    // Day 1's city ("Tokyo") matches day 0's ("Tokyo") — no transition.
+    expect(chips[1]!.transitionTo).toBeNull();
+    // Day 2's city ("Osaka") differs from day 1's ("Tokyo") — transition fires.
+    expect(chips[2]!.transitionTo).toBe("Osaka");
+  });
+
+  it("derives city null and skips a transition when no scheduled activity has a location", () => {
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: day2, activityIds: [noLocationActivity], date: "2027-06-02", costSubtotal: 0 },
+      ],
+      activities: {
+        [tokyoActivity]: {
+          activityId: tokyoActivity,
+          title: "Shibuya crossing",
+          timeWindow: null,
+          location: { name: "Tokyo" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        [noLocationActivity]: {
+          activityId: noLocationActivity,
+          title: "Flight",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+
+    const chips = chipModel(detail);
+    expect(chips[1]!.city).toBeNull();
+    // Current day's city is null, so no transition even though the previous
+    // day had a real city.
+    expect(chips[1]!.transitionTo).toBeNull();
+  });
+
+  it("falls through to a later activity's location when an earlier one has none", () => {
+    const detail = tripDetailFixture({
+      days: [{ dayId: day1, activityIds: [noLocationActivity, tokyoActivity], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        [noLocationActivity]: {
+          activityId: noLocationActivity,
+          title: "Flight",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        [tokyoActivity]: {
+          activityId: tokyoActivity,
+          title: "Shibuya crossing",
+          timeWindow: null,
+          location: { name: "Tokyo" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+
+    expect(chipModel(detail)[0]!.city).toBe("Tokyo");
+  });
+
+  it("falls back to a sensible label instead of crashing when date is null", () => {
+    const detail = tripDetailFixture({
+      days: [{ dayId: day1, activityIds: [], date: null, costSubtotal: 0 }],
+    });
+
+    const chips = chipModel(detail);
+    expect(() => chipModel(detail)).not.toThrow();
+    expect(chips[0]!.dow).toBe("Day 1");
+    expect(chips[0]!.dateNum).toBe("");
+  });
+});
+
+describe("DayChips", () => {
+  const days = [
+    { dow: "Tue", dateNum: "1", city: "Tokyo", transitionTo: null, stops: 2 },
+    { dow: "Wed", dateNum: "2", city: "Osaka", transitionTo: "Osaka", stops: 1 },
+  ];
+
+  it("renders one chip per day", () => {
+    render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+  });
+
+  it("calls onSelect with the day's index when a chip is clicked", async () => {
+    const onSelect = vi.fn();
+    render(<DayChips days={days} focusedDay={null} onSelect={onSelect} />);
+    await userEvent.click(screen.getAllByRole("button")[1]!);
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("always renders the transition slot element, even when there is no transition", () => {
+    render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
+    const slots = screen.getAllByTestId("day-chip-transition");
+    expect(slots).toHaveLength(2);
+    // day[0] has transitionTo: null — the slot node still exists, just empty.
+    expect(slots[0]!.textContent).toBe("");
+    expect(slots[1]!.textContent).toBe("→ Osaka");
+  });
+});
