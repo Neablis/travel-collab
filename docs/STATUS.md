@@ -5,15 +5,19 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-14 (M10 gate reopened — Wave 2 planned, not started)**
+**Last updated: 2026-08-17 (M10 Wave 2 — Phases 0-2 done; Phase 3 is next)**
 
 ## Where we are
 
 **M0–M8 are complete and merged. M10 is in flight, not done.** M8 ("Make it
 real") closed its gate 2026-08-08. M10 ("Visual craft pass", brought forward
-ahead of M9 per ADR-018) closed a **Wave-1** gate 2026-08-10 — but on branch
-`claude/m10-trip-planner-visual-7bbacf` (PR #23), which **is still unmerged**,
-so nothing of M10 is on `main`.
+ahead of M9 per ADR-018) closed a **Wave-1** gate 2026-08-10 on branch
+`claude/m10-trip-planner-visual-7bbacf` (PR #23). **PR #23 merged to `main`
+2026-08-17**, carrying Wave 1 plus Wave-2 Phases 0-2 (blockers, structure,
+map) — the PR had grown to 79 commits / 161 files and was split rather than
+held open until the full Wave-2 gate closed; see the milestone file's "PR #23
+merged as a partial delta" section for why, and note that **this does not
+close M10's gate** (below). Wave-2 Phases 3-9 continue on a follow-up branch.
 
 **M10's gate was reopened 2026-08-14** after an external design review Mitchell
 requested. Two findings, neither of which the Wave-1 gate could have caught:
@@ -39,9 +43,56 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 
 ## In flight
 
-**M10 Wave 2 — planned, not started. This is the resume-from-here point.**
+**M10 Wave 2 — Phases 0, 1 and 2 done; Phase 3 (the unscheduled rack) is the
+resume-from-here point.** Progress below was reconstructed 2026-08-17 from the
+code and commit history, not from a task-by-task log kept during the work —
+this file had not been updated since the plan was written, so treat this
+section as the source of truth over anything phase-status-shaped said earlier
+in this file.
 
-The plan is written and ready to execute task-by-task:
+- **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
+  control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
+  `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
+  KI-16 and KI-17 are marked RESOLVED in `docs/known-issues.md` accordingly
+  (2026-08-17, closing a doc-lag from this same review — the fixes had landed
+  2026-08-14 but the entries weren't updated at the time).
+- **Phase 1 (structure) — done.** Global `AppHeader` with Trips/Playbooks nav
+  (`6308440`), four peer view tabs replacing the "More" popover (`7bac066`),
+  tabs and day chips pinned inside the sticky header (`47c83ba`), header meta
+  pill and budget chip wired to real trip data (`5d91917`).
+- **Phase 2 (map) — done, plus more.** `MapRail`, `MapFocusCard` and
+  `mapRailData` all shipped (`5c099ae`, `6123cfb`, `2701db1`, `3ebaa7d`). This
+  grew into its own sub-effort beyond the phase file's scope — map-rail
+  scroll-focus tracking got a dedicated design doc, plan and retro
+  (`7ab4387`, `2f15cb7`, `04311b3` … `3251ea3`), landing 2026-08-14 through
+  2026-08-16 and closing with two process amendments adopted into `AGENTS.md`
+  (`6708fb3`). It also filed **KI-21** (intermittent `dragCardTo` flakiness
+  under load, confirmed unrelated to any branch's code — see the entry).
+- **Phases 3-9 — not started.** Verified by absence, not just by an unchecked
+  plan file (the phase files' own `- [ ]` step markers are never checked
+  regardless of completion, so they aren't a reliable signal on their own):
+  - **Phase 3 (rack):** `UnscheduledRack.tsx`, `unscheduledRack.ts`,
+    `EndOfTrip.tsx`, `lib/time.ts` don't exist. `Board.tsx` still renders the
+    backlog as the old column.
+  - **Phase 4 (budget):** `SettingsSheet.tsx` last touched 2026-08-06 (M8,
+    pre-redesign). No per-stop cost in `TimelineLens`. KI-2 not re-closed
+    against the current design.
+  - **Phase 5 (overlaps):** no `OverlapWarning.tsx` / `overlapData.ts`; no
+    `time-overlap` handling in `TimelineLens`.
+  - **Phase 6 (add-a-day, empty states):** depends on Phase 3; untouched.
+  - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
+    (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
+  - **Phase 8 (polish, incl. home):** the home hero/cards that exist
+    (`NextTripHero`, `TripCard`) are Wave-1 work from 2026-08-08 to 08-11,
+    predating this plan. Task 8.5's specific fixes are unapplied —
+    `NextTripHero.tsx:154` still hardcodes `label="travelers"` (no
+    singularization), no `page-date-line` testid, no "All trips" heading, the
+    third stat tile is still the fabricated `value="2"`. Task 8.2's day-accent
+    collision-probing fix (KI-18) is also unapplied — `lib/dayAccent.ts` has
+    no probing logic yet.
+  - **Phase 9 (gate):** not run.
+
+The plan itself:
 
 - **Index:** `docs/plans/2026-08-14-M10-redesign-delta.md` — goal, global
   constraints, file map, phase order. **Read this first.**
@@ -58,8 +109,12 @@ The plan is written and ready to execute task-by-task:
   we built from the older 1,412-line file, which is why there are two
   generations of drift.
 
-**Start with Phase 0.** Its three tasks are bugs, not design gaps, and
-everything else is hard to verify while the trip page is inert below 1180px.
+**Start with Phase 3** (`docs/plans/M10-delta/phase-3-rack.md`) — Phases 0 and
+1 it depends on are both merged to `main`. Phases 6 and 7 depend on it too, so
+it unblocks the most follow-on work. Phases 4, 5 and 8 are independent of each
+other and of Phase 3, and could go in parallel if split across sessions.
+Branch from current `main`, not from PR #23's old branch — that branch is
+merged and its diff against `main` is now empty.
 
 **The scoping rule for all of Wave 2** (Mitchell, 2026-08-14): *build on what
 exists in the data model; implement the UI for things we can't build today and
@@ -72,10 +127,11 @@ conflict rules. Only confirmed-vs-estimate cost state, "was on day N"
 provenance, and invite roles are genuinely missing, and those get Previews
 rather than contract changes.
 
-**PR #23 is still open and unmerged.** Wave 2 builds on it. The Wave-1 record in
-`docs/milestones/M10-visual-craft.md` stands as written — it was true against the
-handoff generation available then — with a "Gate reopened" section appended
-rather than the closed record being rewritten.
+**PR #23 merged to `main` 2026-08-17** (see "Where we are" above). The Wave-1
+record in `docs/milestones/M10-visual-craft.md` stands as written — it was
+true against the handoff generation available then — with "Gate reopened" and
+"PR #23 merged as a partial delta" sections appended rather than the closed
+record being rewritten.
 
 **Wave 1's own plan** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`) was
 deleted at its gate close per `docs/plans/README.md`'s staging-area rule.
@@ -162,11 +218,17 @@ which existed only on a branch.
 
 ## Next action
 
-**Execute M10's plan task-by-task** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`),
-then close its gate per the rewritten `docs/milestones/M10-visual-craft.md`
-exit gate (before/after screenshots, KI-2/3/4 closed or re-deferred,
-presentational-only diff verified, all tests incl. e2e green, retro appended).
-M9 resumes once M10's gate closes.
+**Execute M10 Wave 2's plan task-by-task, starting at Phase 3**
+(`docs/plans/M10-delta/phase-3-rack.md`) — Phases 0-2 are done; see "In
+flight" above. Continue through Phase 9's gate
+(`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
+closed or re-deferred, presentational-only diff verified, all tests incl. e2e
+green, retro appended. M9 resumes once M10's gate closes.
+
+(`docs/plans/2026-08-08-M10-redesign-incorporation.md`, referenced by this
+line in earlier updates, was Wave 1's plan — it was deleted at Wave 1's gate
+close per `docs/plans/README.md`'s staging-area rule. Wave 2's plan lives at
+`docs/plans/2026-08-14-M10-redesign-delta.md` instead.)
 
 Background on why M8 existed: **M8 — Make it real**
 (`docs/milestones/M8-make-it-real.md`). The Phase 1 gate review ran on

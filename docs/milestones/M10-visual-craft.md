@@ -372,6 +372,24 @@ transport data. Map routes are straight lines.
       flipped in the same gate-close commit; the phase plans deleted per
       `docs/plans/README.md`.
 
+## PR #23 merged as a partial delta, 2026-08-17
+
+**Decision (Mitchell, 2026-08-17):** PR #23 had grown to 79 commits / 161 files
+(+16,387/−1,526) across Wave 1 plus Wave 2 Phases 0-2 — too large to review as
+one unit. Rather than hold it open until the full Wave-2 exit gate above is
+satisfied, Phases 0-2 (blockers, structure, map — see `docs/STATUS.md`'s "In
+flight" section for what each shipped) merged to `main` on their own, and
+Phases 3-9 continue on a new branch/PR.
+
+**This does not close M10's gate.** The Wave-2 exit gate checklist above is
+unchanged and still governs the milestone as a whole — before/after
+screenshots, the narrow-viewport e2e project, every design surface built or
+`<Preview>`-wrapped, `dayAccents` collision probing, the full test suite twice,
+and this retro section, all still pending against Phases 3-9. Splitting the PR
+only changes how the diff reached `main`, not what "done" means for M10.
+`TODO.md`'s M10 line and `docs/STATUS.md`'s "Where we are" stay unchecked/open
+until that gate passes for real.
+
 ## Carried into `known-issues.md` rather than fixed
 
 Itinerary / Daily-overview / Full-trip lenses lose their nav entry when the tab
