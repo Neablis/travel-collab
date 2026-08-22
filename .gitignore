@@ -10,7 +10,9 @@ coverage/
 .turbo/
 playwright-report/
 test-results/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/skills
 .vercel/
 .worktrees/
 

@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/sync-launch-config.mjs 2>/dev/null || true",
+            "statusMessage": "Syncing worktree launch config..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/check-destructive-git.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}
