@@ -281,6 +281,20 @@ pnpm --filter web db:migrate && pnpm --filter web db:reseed
 That is **16, not the 17 CI and docker-compose use** — fine for running the
 suites, but do not treat it as a version-faithful check.
 
+**E2E in a container has a second blocker.** `@playwright/test` 1.61.1 expects
+chromium build **1228**; preinstalled remote environments ship **1194**, and
+they forbid `playwright install`. Every spec then dies at
+`browserType.launch: Executable doesn't exist`. The full chromium binary is
+present — `/opt/pw-browsers/chromium` — so a `launchOptions.executablePath`
+pointing there is the documented fix for these environments. **Do not commit
+that override into `playwright.config.ts`**: it is environment-specific, it
+would be wrong on a normal machine, and Phase 9 edits that file to add the
+narrow-viewport project. Keep it in a local, uncommitted config, or run the
+suite where the browsers match. Locally none of this applies.
+
+**Phase 3's gate is an e2e spec** (`m10-unscheduled-rack.spec.ts`), so sort a
+working browser out before you reach Task 3.3 Step 5 rather than at it.
+
 **Baseline verified clean on this branch, 2026-08-22**, on a fresh
 `pnpm install --frozen-lockfile`:
 
