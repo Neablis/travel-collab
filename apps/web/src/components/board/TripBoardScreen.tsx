@@ -127,6 +127,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const submitAssistantAsk = async (text: string) => {
     setAskStatus("loading");
     setAskError(null);
+    setAskSimulated(false);
     const result = await composeAiPlan(tripId, text, "board");
     if (!result.ok) {
       setAskStatus("error");
