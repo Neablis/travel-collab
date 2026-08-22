@@ -22,6 +22,19 @@ const suggestions: Suggestion[] = [
   },
 ];
 
+// Required-prop fixture for tests that assert on a specific optional prop
+// (e.g. `simulated`) without needing renderRail's override merging — mirrors
+// the same values renderRail defaults to below.
+const baseProps: React.ComponentProps<typeof AssistantRail> = {
+  contextLine: "Looking at Day 2 · Kyoto",
+  suggestions,
+  quickAsks: ["Where am I overbooked?", "Find a rainy-day swap"],
+  onAsk: vi.fn(),
+  onKeepGhost: vi.fn(),
+  onDismiss: vi.fn(),
+  onHide: vi.fn(),
+};
+
 function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail>> = {}) {
   return render(
     <AssistantRail
@@ -139,5 +152,15 @@ describe("AssistantRail", () => {
     // it swallows every click on the page behind it (the 1100px dead-page bug).
     expect(scrim?.tagName).toBe("BUTTON");
     expect(scrim?.getAttribute("aria-hidden")).toBeNull();
+  });
+
+  it("shows a Simulated badge when the last answer came from the server, not a model", () => {
+    render(<AssistantRail {...baseProps} simulated />);
+    expect(screen.getByText("Simulated")).not.toBeNull();
+  });
+
+  it("shows no badge for a real answer", () => {
+    render(<AssistantRail {...baseProps} />);
+    expect(screen.queryByText("Simulated")).toBeNull();
   });
 });

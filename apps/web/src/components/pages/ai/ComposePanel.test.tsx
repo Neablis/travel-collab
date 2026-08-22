@@ -25,6 +25,7 @@ beforeEach(() => {
       detail: tripDetailFixture({ tripId: "x" }),
       history: historyFixture("x"),
       message: "Done — added a day.",
+      simulated: false,
     },
   });
 });

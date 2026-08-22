@@ -448,6 +448,7 @@ describe("TripBoardScreen", () => {
         }),
         history: historyFixture(fixture.tripId),
         message: "Added a day.",
+        simulated: false,
       },
     });
     renderScreen(fixture.tripId);
