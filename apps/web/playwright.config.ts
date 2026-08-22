@@ -4,6 +4,7 @@ import { DATABASE_URL } from "./src/server/config";
 
 export default defineConfig({
   testDir: "./e2e",
+  reporter: "line",
   use: { baseURL: BASE_URL },
   webServer: {
     command: process.env.CI ? "pnpm start" : "pnpm dev",
