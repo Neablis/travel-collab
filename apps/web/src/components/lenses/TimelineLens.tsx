@@ -358,9 +358,11 @@ export function TimelineLens({
         const fromCity = index > 0 ? (days[index - 1]?.city ?? null) : null;
         const isTravelDay = chip?.transitionTo !== null && chip?.transitionTo !== undefined;
         // Day-header cost chip (design values table): the day's own real
-        // total, read via daySpend (never re-summed client-side — cost.ts's
-        // own header comment on why) and rendered through formatMoney keyed
-        // off the trip's own currency, same as every other money surface.
+        // total, read via daySpend, which itself reads the server-computed
+        // `days[].costSubtotal` rather than re-summing activity costs
+        // client-side (cost.ts's own header comment on why) — rendered
+        // through formatMoney keyed off the trip's own currency, same as
+        // every other money surface.
         const { total: dayTotal } = daySpend(detail, row.dayId);
 
         return (
