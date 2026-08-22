@@ -70,8 +70,16 @@ Explorer talks to the discovery endpoint at
 (and Production) environment, opening the Toolbar on a preview deploy lets a
 reviewer flip `ai-live` to "Live" for their own browser session only — the
 dashboard's stored value, and every other visitor's requests, are
-unaffected. With `FLAGS_SECRET` unset (e.g. local dev), the endpoint 401s —
-there's no Toolbar to serve locally, so that's expected, not a bug.
+unaffected. With `FLAGS_SECRET` unset (e.g. local dev), a bare unauthenticated
+probe 401s; a request carrying an `Authorization` header with no
+`FLAGS_SECRET` configured 500s instead (see the route file's comment) —
+either way there's no Toolbar to serve locally, so that's expected, not a bug.
+
+`FLAGS_SECRET` is itself a spend-control credential on this deployment, not
+just an auth token for the discovery endpoint: anyone holding it can override
+`ai-live` to "Live" for their own session via the Flags Explorer toolbar
+cookie, which does spend real tokens. Handle it with the same care as
+`AI_GATEWAY_API_KEY`.
 
 **`AI_LIVE` must never be set in a Vercel environment.** It's a local/CI-only
 escape hatch inside `aiLive()` that short-circuits the flag entirely before

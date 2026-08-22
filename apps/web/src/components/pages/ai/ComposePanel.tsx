@@ -118,7 +118,11 @@ export function ComposePanel(props: PageProps | PlanProps) {
       {message !== null && message !== "" && (
         <p role="status" className="text-sm text-slate">{message}</p>
       )}
-      {simulated && <Badge variant="info">Simulated</Badge>}
+      {simulated && (
+        <Badge variant="info" role="status">
+          Simulated
+        </Badge>
+      )}
       <div className="flex justify-end">
         <Button
           variant="primary"

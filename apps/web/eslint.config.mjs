@@ -19,9 +19,12 @@ export default [
     // `.well-known` routes join that shell: they are protocol endpoints served
     // to tooling, not UI, and their paths are fixed by the spec that defines
     // them (the Flags Explorer requires exactly .well-known/vercel/flags), so
-    // they cannot be moved under src/app/api to inherit its exemption.
+    // they cannot be moved under src/app/api to inherit its exemption. Scoped
+    // to `route.ts` files only (not the whole `.well-known/**` tree) so a
+    // future non-route file placed under `.well-known` doesn't inherit the
+    // exemption for free.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**"],
+    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts"],
     rules: {
       "no-restricted-imports": [
         "error",

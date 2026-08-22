@@ -163,7 +163,7 @@ export function AssistantRail({
             </div>
           </Preview>
           {simulated && (
-            <Badge variant="info" className="mb-1.5 self-start">
+            <Badge variant="info" className="mb-1.5 self-start" role="status">
               Simulated
             </Badge>
           )}
