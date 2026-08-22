@@ -18,6 +18,9 @@ import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
+import { fitIntoDay } from "@/components/trip/unscheduledRack";
+import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
 import { composeAiPlan } from "@/lib/apiClient";
@@ -70,6 +73,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  // Collapsed by default (Phase 3's design). Deliberately plain local state:
+  // Task 3.3 replaces it with a `rackDisclosure` reducer that also has to
+  // handle a drag auto-opening the drawer and closing it again afterwards.
+  const [rackOpen, setRackOpen] = useState(false);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -115,6 +122,40 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       anchors: value.anchors,
       cost: value.cost,
     });
+
+  // The unscheduled rack's contents: trip.backlog is the source of truth for
+  // "parked", and each id resolves through activities. `area` reuses the same
+  // city-else-name fallback DayChips.cityFor documents — location.city is the
+  // geocoder's own city component, and .name is the only stand-in for a
+  // location that predates that field or has no city-level component at all.
+  // A backlog id with no matching activity is dropped rather than rendered as
+  // a blank card.
+  const rackItems = activeTrip.backlog.flatMap((activityId) => {
+    const activity = activeTrip.activities[activityId];
+    if (activity === undefined) return [];
+    return [{ activityId, title: activity.title, area: activity.location?.city ?? activity.location?.name ?? null }];
+  });
+  const rackDayOptions = activeTrip.days.map((day, index) => ({
+    value: day.dayId,
+    label: dayLabel(activeTrip.startDate, index),
+  }));
+
+  // Scheduling from the rack is two commands, not one: MoveActivity puts the
+  // stop on the day (the backlog↔day move the store already models), then
+  // UpdateActivity gives it the real times fitIntoDay picks from the day's
+  // existing windows. Both go through dispatch, so both land in the existing
+  // undo history like every other mutation — no special-casing needed.
+  const assignFromRack = (activityId: string, dayId: string) => {
+    const day = activeTrip.days.find((d) => d.dayId === dayId);
+    if (day === undefined) return;
+
+    const existing = day.activityIds
+      .map((id) => activeTrip.activities[id]?.timeWindow)
+      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
+
+    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
+  };
 
   // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
   // the same composeAiPlan("board") call the old standalone ComposePanel
@@ -251,6 +292,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
       <ActivityEditorSheet />
+      {/* The unscheduled rack (Phase 3): mounted here, outside the lens
+          switch, because the design has the drawer present in every view.
+          It pins itself to the bottom of the viewport via `.unscheduled-rack`
+          (globals.css) — see that rule for why `fixed`, not the design's
+          `sticky`, is what actually pins it from this position in the DOM. */}
+      <UnscheduledRack
+        items={rackItems}
+        dayOptions={rackDayOptions}
+        open={rackOpen}
+        onToggle={() => setRackOpen((v) => !v)}
+        onAssign={assignFromRack}
+      />
     </>
   );
 }

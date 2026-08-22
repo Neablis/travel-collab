@@ -25,6 +25,7 @@ export const PREVIEW_REGISTRY = {
   "share-button": { milestone: "M11", wiredUpBy: "M11 share links" },
   "add-saved-day": { milestone: "M11", wiredUpBy: "M11 add-a-saved-day" },
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
+  "rack-provenance": { milestone: "M11", wiredUpBy: "Who parked a stop, and which day it came from — no field models either" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

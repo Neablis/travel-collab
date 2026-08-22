@@ -161,6 +161,39 @@
     }
   }
 
+  /* UnscheduledRack (Phase 3, Task 3.2): the design specifies
+     `position: sticky; bottom: 0; margin-top: auto` — which only pins when the
+     drawer is the last child of a full-height flex column that is itself
+     taller than the viewport. TripBoardScreen mounts the rack outside the lens
+     switch (like ActivityEditorSheet) so it is present in every view, and from
+     there it is the last box in normal flow: its sticky containing block has
+     zero slack below it, so `sticky` degrades to `static` and the drawer would
+     scroll off the bottom of a long board instead of staying pinned. `fixed`
+     is what actually delivers the design's intent — "a drawer pinned to the
+     bottom of the plan area, present in every view" — from that DOM position.
+     A named class rather than Tailwind because the right inset below needs a
+     media query and a sibling combinator, neither of which a utility class
+     (or an inline style) can express, and the color wall bans bracket values.
+     That inset mirrors `.trip-board-content`'s own 356px reservation at
+     >=1180px so the drawer stops short of the fixed Assistant rail instead of
+     running underneath it — keyed off the same `.assistant-hidden` marker
+     TripBoardScreen already sets, so hiding the rail reclaims the width here
+     too. The upward shadow is `--shadow-raised` mirrored (this is the one file
+     where a color literal may appear); z-index is the design's own 20, applied
+     as a plain `z-20` utility on the element. */
+  .unscheduled-rack {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
+  }
+  @media (min-width: 1180px) {
+    .trip-board-content:not(.assistant-hidden) ~ .unscheduled-rack {
+      right: 356px;
+    }
+  }
+
   /* Radix portals render outside the React tree that holds the assistant rail
      (a fixed z-50 aside), so overlay surfaces need an explicit layer above it.
      Tailwind's scale stops at z-50 and the color wall bans z-[60], so this is
