@@ -88,7 +88,9 @@ a stop) is unmodelled, and that goes behind one `<Preview id="rack-provenance">`
 | `apps/web/src/app/globals.css` | 3.2 | modify — named classes for the rack |
 | `apps/web/src/components/board/Board.tsx` | 3.3 | modify — rack drop branch; **delete** the Backlog `<Column>` at `114-127` |
 | `apps/web/src/components/board/Column.tsx` | 3.3 | modify — remove the `isOver` drag highlight at `103` |
-| `apps/web/src/components/board/board.test.tsx` | 3.3 | modify — **see trap #2 below before starting this** |
+| `apps/web/src/components/board/resolveDrop.ts` + `.test.ts` | 3.3 | **create** — pure drop routing, extracted from Board's monitor |
+| `apps/web/src/components/trip/rackDisclosure.ts` + `.test.ts` | 3.3 | **create** — pure auto-open ownership reducer |
+| `apps/web/e2e/m10-unscheduled-rack.spec.ts` | 3.3 | **create** — the real gate for the drag behaviour |
 
 Every line reference in the phase file was checked against the tree on
 2026-08-22 and is accurate.
@@ -103,25 +105,29 @@ the checkbox. `docs/STATUS.md`'s "In flight" section reconstructs what each
 completed phase actually shipped, commit by commit — trust that over any
 checkbox.
 
-**2. Task 3.3 Step 1 tells you to reuse a drag-test mechanism that does not
-exist.** The phase file says *"`board.test.tsx` already drives
-pragmatic-drag-and-drop in tests — read how it simulates a drag before writing
-`dropOnRack` / `startDrag` and reuse that mechanism. Do not invent a new one."*
+**2. Task 3.3's test strategy was rewritten on 2026-08-22 — the version you'll
+read is already correct, but know why.** The original Task 3.3 told the executor
+to reuse a pragmatic-drag-and-drop simulation in `board.test.tsx` and forbade
+inventing a new one. That file has **zero** drag simulation, and no jsdom drag
+harness exists anywhere in the repo — the only drag simulation is `dragCardTo`
+in `e2e/helpers.ts`, driving real Chromium.
 
-That is **wrong**, verified 2026-08-22: `board.test.tsx` is 199 lines and
-contains **zero** drag simulation. Its only `drop`-shaped references are CSS
-assertions about a column's drop list. Repo-wide, the only drag simulation is
-`dragCardTo` in `apps/web/e2e/helpers.ts` — **Playwright, against a real
-browser**. There is no jsdom drag harness anywhere, almost certainly because
-pragmatic-drag-and-drop depends on native HTML5 drag events that jsdom does not
-meaningfully implement (`dragCardTo`'s own comments explain how delicate the
-recognition window is even in real Chromium).
+It turned out not to be a judgement call. pdnd 2.0.1's element adapter binds the
+native `dragstart`, bails if `!event.dataTransfer`, then calls
+`dataTransfer.setData` and reads `dataTransfer.types`. **jsdom 29.1.1 — this
+repo's version — defines neither `DataTransfer` nor `DragEvent`**; constructing
+a `DragEvent` throws. A jsdom drag test would mean fabricating the entire browser
+drag substrate and then asserting against the fabrication, which is precisely
+what `vitest.setup.ts` forbids in its own comment ("*it fed fabricated per-scroll
+positions that no real browser ever delivers, which is why the suite passed while
+the feature was broken. Do not reintroduce that*").
 
-So the plan forbids inventing a mechanism, and the mechanism it points you at
-isn't there. **This is exactly the case `AGENTS.md` covers: "Pause before a
-plan-deviating design decision, not just after."** Stop and ask which way to go
-— a jsdom harness, moving Task 3.3's coverage to Playwright, or something else.
-Do not quietly build a drag harness and carry on.
+Task 3.3 now splits by layer: two pure modules — `board/resolveDrop.ts` (which
+mutation a drop means) and `trip/rackDisclosure.ts` (auto-open ownership) — carry
+the logic and are unit-tested properly, while the drag itself is proven in a new
+`e2e/m10-unscheduled-rack.spec.ts`. Both pure modules come with real test code in
+the phase file. **Do not put routing or ownership logic back inline in the
+monitor** — that is what made the original untestable.
 
 **3. The design handoff bundle is not on disk.** The plan names
 `~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`
@@ -175,6 +181,17 @@ the plan's snippet shows single quotes — match the file, not the snippet.
 `scripts/check-lint-wall.mjs`. If you need domain logic in the UI, either it is
 already exposed on `TripDetail`, or you write a small local copy with a comment
 explaining why (precedent: `lib/geo.ts`).
+
+**11. Phase 9's gate-spec snippet calls two helpers that don't match the repo.**
+Same class as trap #2, found the same way. Its sample spec calls
+`signInAsDevUser(page)` — the real signature is `signInAsDevUser(page, username)`,
+and every existing spec passes `"alice"` — and `openSeededTrip(page)`, which
+**does not exist**. `e2e/helpers.ts` exports exactly three things: `dragCardTo`,
+`signInAsDevUser`, `createMappedTrip`. Use `createMappedTrip(page, name, dayCount)`
+and navigate to `/trips/${tripId}` as the other specs do, and give the trip a
+unique name prefix — parallel workers share one database. Treat the phase files'
+sample code as intent, and check helper signatures against `e2e/helpers.ts`
+before pasting.
 
 **10. The presentational-only rule.** No new `packages/` or `apps/web/src/server`
 diff beyond Wave 1's already-approved `conflicts.ts` exception. If a task appears
@@ -233,7 +250,10 @@ Two `AGENTS.md` amendments adopted from the map-rail retro apply directly here,
 and both are in play in Phase 3:
 
 - **Recognize an error loop and stop, don't retry through it** (traps #4, #5).
-- **Pause before a plan-deviating design decision, not just after** (trap #2).
+- **Pause before a plan-deviating design decision, not just after.** Trap #2 was
+  resolved at planning time precisely so you don't have to make that call
+  mid-task — but the rule still applies to anything else the plan didn't
+  anticipate.
 
 ## Definition of done for Wave 2
 
