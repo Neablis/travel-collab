@@ -288,4 +288,80 @@ describe("Home trip cards' planned-of-budget line", () => {
     expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
     expect(within(peruBlock!).queryByText("No budget yet")).toBeNull();
   });
+
+  // Regression test: a genuine network-level failure (fetch() itself
+  // rejecting -- offline, DNS, CORS -- not an HTTP-level { ok: false })
+  // must not leave an earlier round's real line stranded on screen looking
+  // current. Promise.all is fail-fast, so one rejected per-trip fetch used
+  // to abort the whole round's .then(...), leaving whatever was set by the
+  // previous successful round untouched.
+  it("clears a real planned-of-budget line rather than leaving it stale when a later round's fetch rejects at the network level", async () => {
+    const thirdTripId = "11112222-3333-4444-5555-666677778888";
+    let secondTripCallCount = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${thirdTripId}/commands`)) {
+        return jsonResponse({
+          detail: tripDetailFixture({ tripId: thirdTripId, name: "Chile" }),
+          history: historyFixture(thirdTripId),
+        });
+      }
+      if (url.endsWith(`/api/trips/${secondTripId}`)) {
+        secondTripCallCount += 1;
+        if (secondTripCallCount === 1) {
+          return jsonResponse({
+            trip: tripDetailFixture({
+              tripId: secondTripId,
+              budget: { amountMinor: 50_000, currency: "USD" },
+              tripCostTotal: 12_500,
+              budgetRemaining: 37_500,
+            }),
+          });
+        }
+        // Second round: a network-level failure -- fetch() itself rejects,
+        // not an HTTP error response.
+        throw new Error("network down");
+      }
+      if (url.endsWith(`/api/trips/${thirdTripId}`)) {
+        return jsonResponse({ trip: tripDetailFixture({ tripId: thirdTripId, budget: null }) });
+      }
+      if (url.endsWith(`/api/trips/${tripId}`)) {
+        return jsonResponse({ trip: tripDetailFixture({ tripId, budget: null }) });
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({
+          trips: [
+            tripSummaryFixture(),
+            tripSummaryFixture({ tripId: secondTripId, name: "Peru" }),
+            tripSummaryFixture({ tripId: thirdTripId, name: "Chile" }),
+          ],
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const peruHeading = await screen.findByRole("heading", { name: "Peru" });
+    const peruBlock = peruHeading.closest("div");
+    expect(peruBlock).not.toBeNull();
+    expect(
+      await within(peruBlock!).findByText(`${formatMoney(12_500, "USD")} planned of ${formatMoney(50_000, "USD")}`),
+    ).toBeTruthy();
+
+    // Delete the third trip: this changes the visible trip-id set (Chile
+    // drops out), triggering a new fetch round for the remaining trips --
+    // the same kind of trip-added/removed/reordered trigger described in
+    // the effect's own bug. Peru's own TripDetail fetch rejects in this
+    // round.
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for chile/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^delete$/i })); // confirm dialog
+
+    await waitFor(() => expect(secondTripCallCount).toBeGreaterThanOrEqual(2));
+    // The stale line from round 1 must not survive a round whose fetch
+    // rejected -- it must be cleared, not left showing outdated data.
+    await waitFor(() => expect(within(peruBlock!).queryByText(/planned of/)).toBeNull());
+  });
 });

@@ -166,17 +166,28 @@ export default function Home() {
   const visibleTripIds = visibleTrips.map((t) => t.tripId).join(",");
   useEffect(() => {
     const ids = visibleTripIds === "" ? [] : visibleTripIds.split(",");
-    if (ids.length === 0) {
-      setPlannedOfBudgetById({});
-      return;
-    }
+    // Clear synchronously before the async work: a trip-set change always
+    // shows honest absence while its round is in flight (consistent with
+    // first-load behavior), and a round that never completes (e.g. because
+    // one fetch rejects below) can't leave a previous round's data lingering
+    // on screen as a stale, mistaken-for-current figure.
+    setPlannedOfBudgetById({});
+    if (ids.length === 0) return;
     let cancelled = false;
     void Promise.all(
       ids.map(async (tripId) => {
-        const result = await fetchTripDetail(tripId);
-        return result.ok
-          ? ([tripId, plannedOfBudgetLine(tripSpend(result.value), result.value.currency)] as const)
-          : null;
+        try {
+          const result = await fetchTripDetail(tripId);
+          return result.ok
+            ? ([tripId, plannedOfBudgetLine(tripSpend(result.value), result.value.currency)] as const)
+            : null;
+        } catch {
+          // A network-level failure (offline, DNS, CORS) rejects rather than
+          // resolving with { ok: false }. Promise.all is fail-fast, so one
+          // rejection here would otherwise take down every other trip's
+          // result in this round. Treat it the same as an HTTP failure.
+          return null;
+        }
       }),
     ).then((entries) => {
       if (cancelled) return;
