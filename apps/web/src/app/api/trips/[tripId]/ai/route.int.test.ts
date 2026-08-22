@@ -7,6 +7,7 @@ import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
 import { getGeocoder } from "@/server/geocoding";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
+import { simulatedModel } from "@/server/ai/simulatedModel";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -676,7 +677,6 @@ describe("POST /api/trips/:id/ai", () => {
   describe("simulated mode", () => {
     it("applies a real plan and marks it simulated", async () => {
       const tripId = await seedTrip();
-      const { simulatedModel } = await import("@/server/ai/simulatedModel");
       const res = await handleAiRequest(
         req(tripId, { prompt: "plan me something", surface: "board" }),
         tripId,
@@ -705,7 +705,6 @@ describe("POST /api/trips/:id/ai", () => {
     // the simulated path never touched LocationIQ.
     it("never reaches the geocoder, because it emits no locations", async () => {
       const tripId = await seedTrip();
-      const { simulatedModel } = await import("@/server/ai/simulatedModel");
       const res = await handleAiRequest(
         req(tripId, { prompt: "plan me something", surface: "board" }),
         tripId,
@@ -719,7 +718,6 @@ describe("POST /api/trips/:id/ai", () => {
 
     it("composes a valid page on the page surface", async () => {
       const tripId = await seedTrip();
-      const { simulatedModel } = await import("@/server/ai/simulatedModel");
       const res = await handleAiRequest(
         req(tripId, { prompt: "write me a page", surface: "page", pageContext: { tripId } }),
         tripId,
@@ -735,7 +733,6 @@ describe("POST /api/trips/:id/ai", () => {
     // its plan once per remaining step. Two days, not sixty-four.
     it("applies the plan exactly once despite the 32-step budget", async () => {
       const tripId = await seedTrip();
-      const { simulatedModel } = await import("@/server/ai/simulatedModel");
       const res = await handleAiRequest(
         req(tripId, { prompt: "plan me something", surface: "board" }),
         tripId,

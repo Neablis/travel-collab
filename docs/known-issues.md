@@ -296,6 +296,55 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   contract to change. Fixing it means schematizing the whole envelope and
   routing both AI client functions through it.
 
+### KI-23 — The simulated model's `combined` surface never composes a page
+- **Severity:** cleanup (product fidelity, not correctness)
+- **Area:** `apps/web/src/server/ai/simulatedModel.ts`
+- `doGenerate` maps `surface === "page"` to `pageCalls()` and everything else
+  (`"board"` and `"combined"`) to `planCalls()`. A real, live `combined`
+  request composes both a page and board activities (`handleAiRequest.ts`
+  exposes both tool sets for that surface). So with the `ai-live` flag off, a
+  `combined`-surface ask only ever produces board changes — the simulation
+  under-represents what live `combined` mode can actually do. Not a
+  correctness bug (the response is still marked `simulated: true` and the
+  board changes it does make are real), just a demo-fidelity gap. Fixing it
+  means having `combined` emit both `planCalls()` and `pageCalls()` and
+  updating `simulatedModel.test.ts`'s expectations accordingly.
+
+### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented
+- **Severity:** cleanup (defense-in-depth, not a live bypass)
+- **Area:** `apps/web/src/server/ai/modelSelection.ts`
+- "Never set `AI_LIVE` in a Vercel environment" is documented in
+  `.env.example`, `docs/guidelines/environments-and-deploys.md`, ADR-019, and
+  `modelSelection.ts`'s own comment — but the only enforcement is a
+  module-load `console.warn` when `process.env.VERCEL && process.env.AI_LIVE
+  !== undefined`. If `AI_LIVE=true` were ever actually set on Vercel, it would
+  still fully override the `ai-live` flag (and the dashboard/Toolbar controls
+  built around it) with only a log line as evidence. A stronger fix — making
+  `AI_LIVE` inert on Vercel, so it can only force *simulated*, never *live* —
+  was deliberately not applied during the 2026-08-19 branch's final review:
+  it trades away an emergency escape hatch (a way to force AI on from a
+  Vercel env if the Flags product itself misbehaves) that the project owner
+  may want to keep. Recorded here as an open decision rather than a bug;
+  revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
+  decides the escape hatch isn't worth the risk.
+
+### KI-25 — The simulated-AI e2e guarantee depends on how the dev server was started
+- **Severity:** reliability (test-environment gap, no product impact)
+- **Area:** `apps/web/playwright.config.ts`, `apps/web/e2e/m10-simulated-ai.spec.ts`
+- `playwright.config.ts` sets `AI_LIVE: "false"` in `webServer.env`, but
+  `reuseExistingServer: !process.env.CI` means that env block is only applied
+  when Playwright starts a *fresh* server — the normal CI path. Locally,
+  `pnpm test:e2e` against an already-running dev server (the common case when
+  iterating) ignores `webServer.env` entirely and uses whatever `AI_LIVE`
+  that server actually has, which could be `true` from a developer's
+  `.env.local`. Mitigated, not eliminated: `m10-simulated-ai.spec.ts` asserts
+  `body.simulated === true` on the captured API response directly (added
+  2026-08-22), so the test fails loudly rather than silently making a real
+  provider call if this happens — but it does mean a local run's "pass" isn't
+  by itself proof no real model was contacted, only CI's is. Full fix would
+  require a per-spec server override or `reuseExistingServer: false` for this
+  one spec, which Playwright doesn't support cleanly without splitting config.
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here

@@ -11,8 +11,9 @@
 // a 401.
 //
 // The path is fixed by the Flags Explorer and is NOT under src/app/api, so
-// eslint.config.mjs carries an explicit exemption for src/app/.well-known/**
-// to let this file import @/server/*. See the comment there.
+// eslint.config.mjs carries an explicit exemption for
+// src/app/.well-known/**/route.ts (route handlers only, not the whole
+// directory) to let this file import @/server/*. See the comment there.
 import { createFlagsDiscoveryEndpoint, getProviderData } from "flags/next";
 import * as flags from "@/server/flags";
 

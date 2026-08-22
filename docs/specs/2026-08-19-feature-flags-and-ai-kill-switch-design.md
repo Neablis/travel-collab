@@ -162,6 +162,16 @@ export async function selectAiModel(): Promise<{ model: LanguageModel; simulated
 }
 ```
 
+> **Implementation note (2026-08-19, during Task 5):** the `model ? { model,
+> simulated: false } : ...` sketch above turned out to contradict this same
+> spec's own §7 test requirements — an injected `simulatedModel(...)` must
+> report `simulated: true`, which the literal code above cannot produce. The
+> shipped code derives `simulated` by checking the injected model's identity
+> against `SIMULATED_MODEL_ID` instead, falling through to `selectAiModel()`
+> only when no model is injected. See ADR-019 for the final behavior; this
+> section is left as originally written for the reasoning it still carries
+> (the flag is never consulted when a model is injected either way).
+
 Two consequences worth stating plainly:
 
 - **Every existing test is unaffected.** They all inject a model, so they never
@@ -337,6 +347,9 @@ by a test:
    Edge Config or an environment variable, and **only `server/flags.ts` changes** —
    §2 through §7 are provider-agnostic by construction. Confirming this is the
    first task of the plan, before any code is written.
+   **Resolved 2026-08-19:** `npx vercel flags ls` confirmed the Flags product
+   is enabled on this account; the SDK-and-adapter path in this spec was built
+   as written, no fallback needed.
 2. **Simulated plans write real events.** A visitor exercising the assistant
    permanently mutates that trip's history. This is the intended behavior — it is
    what makes the demo real — but it is not a read-only preview mode, and the
