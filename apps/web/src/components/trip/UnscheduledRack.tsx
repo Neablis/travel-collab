@@ -1,13 +1,25 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Preview } from "@/components/ui/preview";
+import { cn } from "@/lib/cn";
 
-export type RackItem = { activityId: string; title: string; area: string | null };
+export type RackItem = {
+  activityId: string;
+  title: string;
+  area: string | null;
+  // A parked stop usually has no time (unscheduling strips it), but a stop
+  // created unscheduled can still carry one — so the compact card shows the
+  // real window when there is one and the design's "No time yet" when there
+  // isn't, rather than asserting "No time yet" over a time the trip holds.
+  timeWindow: { start: string; end: string } | null;
+};
 
 // Phase 3 design values (`current/…dc.html:671-707`, transcribed in
 // docs/plans/M10-delta/phase-3-rack.md): the "Unscheduled" drawer that
@@ -20,9 +32,10 @@ export type RackItem = { activityId: string; title: string; area: string | null 
 // `z-20` is the design's own z-index and deliberately sits below the
 // Assistant rail (z-50) and `.overlay-layer` (z-60).
 //
-// This task is rendering + assignment only. The drawer is also meant to be a
-// drag source and drop target (auto-opening while a stop is dragged); Task
-// 3.3 adds that on top of this shell.
+// Task 3.3 makes the drawer a real drag participant: the whole <section> is a
+// drop target (so a drop anywhere on it unschedules — the design's full-rect
+// hit test, and it works while the drawer is still collapsed), and each card
+// is a draggable that can be pulled back onto a day.
 export function UnscheduledRack({
   items,
   dayOptions,
@@ -36,12 +49,39 @@ export function UnscheduledRack({
   onToggle: () => void;
   onAssign: (activityId: string, dayId: string) => void;
 }) {
+  const ref = useRef<HTMLElement>(null);
+  const [isOver, setIsOver] = useState(false);
   const Caret = open ? ChevronDown : ChevronRight;
+
+  // Registered on the outer <section>, which is always rendered — the card row
+  // below only exists while the drawer is open, and the drawer has to be
+  // droppable from the moment a drag starts, before the auto-open lands.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      getData: () => ({ rack: true }),
+      onDragEnter: () => setIsOver(true),
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
+    });
+  }, []);
+
   return (
     <section
+      ref={ref}
+      data-testid="unscheduled-rack"
       data-bldrop="1"
       aria-label="Unscheduled"
-      className="unscheduled-rack z-20 border-t border-hairline bg-surface"
+      // The drop affordance is a tint that fades in and out under the drawer
+      // (transition-colors) rather than a hard highlight — see this task's
+      // report for why this is the honest simple version of the design's
+      // "cross-fade the drag proxy" note.
+      className={cn(
+        "unscheduled-rack z-20 border-t border-hairline transition-colors duration-200",
+        isOver ? "bg-brand-tint" : "bg-surface",
+      )}
     >
       {/* The whole bar is the toggle (the design's "toggle row": flex,
           align-items center, gap 12px, padding 9px 26px). Rendered through
@@ -76,6 +116,13 @@ export function UnscheduledRack({
           Unscheduled
         </span>
         <Badge variant="neutral">{items.length}</Badge>
+        {/* The design's "hint" (12px --color-slate, beside the toggle). The
+            handoff table specifies the element but never its copy, and the
+            prototype is not in the repo; this wording was written for it
+            rather than recovered, and describes what the drawer holds so it
+            stays true whether the rack is empty or full. Swap it if the
+            handoff's own string turns up. */}
+        <span className="text-xs font-normal normal-case text-slate">Stops with no day yet</span>
       </Button>
       {/* Collapsed means *not rendered*, not merely hidden: nothing parked
           should be reachable by keyboard or by a text query while the drawer
@@ -96,71 +143,115 @@ export function UnscheduledRack({
             </p>
           ) : (
             items.map((item) => (
-              <div
-                key={item.activityId}
-                data-blstop=""
-                className="cursor-grab rounded-lg"
-                // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX) and touch-action, which Tailwind's touch-none would express but only alongside a width this scale can't
-                style={{ flex: "0 0 208px", touchAction: "none" }}
-              >
-                <Card className="flex h-full flex-col gap-2 rounded-lg p-3">
-                  <div>
-                    <div
-                      className="font-semibold text-ink"
-                      // eslint-disable-next-line no-restricted-syntax -- 13.5px/1.3 card title sits between Tailwind's text-sm (13px) and text-base (14px)
-                      style={{ fontSize: "13.5px", lineHeight: 1.3 }}
-                    >
-                      {item.title}
-                    </div>
-                    {item.area !== null ? (
-                      <div
-                        className="text-xs text-slate"
-                        // eslint-disable-next-line no-restricted-syntax -- 2px offset is below Tailwind's spacing floor (mt-0.5 = 2px exists, but pairs with the 12px line box above only by coincidence)
-                        style={{ marginTop: "2px" }}
-                      >
-                        {item.area}
-                      </div>
-                    ) : null}
-                  </div>
-                  {/* Provenance is not modelled: no field records who parked a
-                      stop or which day it came from, so the line describes
-                      what it will say rather than fabricating either. */}
-                  <Preview id="rack-provenance" size="compact">
-                    <div
-                      className="text-slate"
-                      // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor
-                      style={{ fontSize: "11.5px" }}
-                    >
-                      Who parked it · which day it came from
-                    </div>
-                  </Preview>
-                  {/* Accessible name is the bare "Add to day"; the first
-                      option's "Add to day…" is the visible placeholder. The
-                      select stays pinned to `value=""` so it reads as an
-                      action, not a stored choice — assigning moves the stop
-                      out of the rack entirely. */}
-                  <NativeSelect
-                    aria-label="Add to day"
-                    className="mt-auto w-full"
-                    value=""
-                    onChange={(event) => {
-                      const dayId = event.target.value;
-                      if (dayId !== "") onAssign(item.activityId, dayId);
-                    }}
-                  >
-                    <option value="">Add to day…</option>
-                    {dayOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </Card>
-              </div>
+              <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} />
             ))
           )}
         </div>
       ) : null}
     </section>
+  );
+}
+
+function RackCard({
+  item,
+  dayOptions,
+  onAssign,
+}: {
+  item: RackItem;
+  dayOptions: { value: string; label: string }[];
+  onAssign: (activityId: string, dayId: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  // Same payload shape ActivityCard's draggable carries ({ activityId }), so
+  // Board's monitor routes a card dragged out of the rack exactly like one
+  // dragged between days — resolveDrop needs no rack-source special case.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return draggable({
+      element: el,
+      getInitialData: () => ({ activityId: item.activityId }),
+      onDragStart: () => setDragging(true),
+      onDrop: () => setDragging(false),
+    });
+  }, [item.activityId]);
+
+  return (
+    <div
+      ref={ref}
+      data-testid="rack-card"
+      data-blstop=""
+      className="cursor-grab rounded-lg transition-opacity duration-200"
+      // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as ActivityCard's)
+      style={{ flex: "0 0 208px", touchAction: "none", opacity: dragging ? 0.5 : 1 }}
+    >
+      <Card className="flex h-full flex-col gap-2 rounded-lg p-3">
+        <div>
+          <div
+            className="font-semibold text-ink"
+            // eslint-disable-next-line no-restricted-syntax -- 13.5px/1.3 card title sits between Tailwind's text-sm (13px) and text-base (14px)
+            style={{ fontSize: "13.5px", lineHeight: 1.3 }}
+          >
+            {item.title}
+          </div>
+          {item.area !== null ? (
+            <div
+              className="text-xs text-slate"
+              // eslint-disable-next-line no-restricted-syntax -- 2px offset is below Tailwind's spacing floor (mt-0.5 = 2px exists, but pairs with the 12px line box above only by coincidence)
+              style={{ marginTop: "2px" }}
+            >
+              {item.area}
+            </div>
+          ) : null}
+          {/* The design's compact card treatment is "title, area, 'No time
+              yet'" — the third line is what makes a parked stop legible as
+              unscheduled at a glance. */}
+          <div
+            className="text-xs text-slate"
+            // eslint-disable-next-line no-restricted-syntax -- 2px offset is below Tailwind's spacing floor, matching the area line above
+            style={{ marginTop: "2px" }}
+          >
+            {item.timeWindow === null
+              ? "No time yet"
+              : `${item.timeWindow.start}–${item.timeWindow.end}`}
+          </div>
+        </div>
+        {/* Provenance is not modelled: no field records who parked a
+            stop or which day it came from, so the line describes
+            what it will say rather than fabricating either. */}
+        <Preview id="rack-provenance" size="compact">
+          <div
+            className="text-slate"
+            // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor
+            style={{ fontSize: "11.5px" }}
+          >
+            Who parked it · which day it came from
+          </div>
+        </Preview>
+        {/* Accessible name is the bare "Add to day"; the first
+            option's "Add to day…" is the visible placeholder. The
+            select stays pinned to `value=""` so it reads as an
+            action, not a stored choice — assigning moves the stop
+            out of the rack entirely. */}
+        <NativeSelect
+          aria-label="Add to day"
+          className="mt-auto w-full"
+          value=""
+          onChange={(event) => {
+            const dayId = event.target.value;
+            if (dayId !== "") onAssign(item.activityId, dayId);
+          }}
+        >
+          <option value="">Add to day…</option>
+          {dayOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </NativeSelect>
+      </Card>
+    </div>
   );
 }

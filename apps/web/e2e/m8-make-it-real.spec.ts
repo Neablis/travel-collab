@@ -47,32 +47,36 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await page.getByRole("button", { name: /close/i }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(3);
 
-  // -- existing "+ Add activity" editor (ActivityEditor.tsx), same pattern as
-  // m1-board.spec.ts. Only the backlog's button carries this exact accessible
-  // name (Column.tsx gives each day column's button its own
-  // "Add activity to Day N" aria-label instead), so this is never ambiguous
-  // even though it's clicked twice. --
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  // -- existing activity editor (ActivityEditor.tsx), same pattern as
+  // m1-board.spec.ts. Task 3.3 deleted the Backlog column that used to carry
+  // the "+ Add activity" trigger; the header's "Add stop" is the same
+  // openCreate() with no dayId, and it is unambiguous too (each day column's
+  // own button is labelled "Add activity to Day N"). What it creates is parked
+  // in the Unscheduled drawer, which starts collapsed. --
+  const rack = page.getByTestId("unscheduled-rack");
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Coffee");
   await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Save" }).click()]);
-  await expect(page.getByText("Coffee")).toBeVisible();
+  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await expect(rack.getByTestId("rack-card").filter({ hasText: "Coffee" })).toBeVisible();
 
   // Existing location search (LocationInput.tsx), same pattern as
   // m3-place-and-time.spec.ts — no dedicated AddPlaceButton exists.
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Niagara Falls");
   await page.getByLabel("Place name").fill("Niagara Falls");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByRole("option", { name: /niagara falls/i }).click();
   await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Save" }).click()]);
-  // exact: true — the card also shows the geocoded location subtitle
-  // ("· Niagara Falls, ON, Canada"), which otherwise doubles the match.
-  await expect(page.getByText("Niagara Falls", { exact: true })).toBeVisible();
+  // Scoped to the rack card rather than a bare text match: a rack card shows
+  // the title and the geocoded area, and the area for this place is itself
+  // "Niagara Falls", so a text locator would be ambiguous.
+  await expect(rack.getByTestId("rack-card").filter({ hasText: "Niagara Falls" })).toBeVisible();
 
   // -- reorder: existing drag-and-drop (dragCardTo), same pattern as
   // m1-board.spec.ts/m3-place-and-time.spec.ts — no per-card "move to…" menu
   // exists. --
-  const coffee = page.getByTestId(/activity-card-/).filter({ hasText: "Coffee" });
+  const coffee = rack.getByTestId("rack-card").filter({ hasText: "Coffee" });
   const day3 = page.getByTestId("day-column").nth(2);
   await Promise.all([waitForCommand(page), dragCardTo(coffee, day3)]);
   await expect(day3.getByText("Coffee")).toBeVisible();

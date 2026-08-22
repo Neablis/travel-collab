@@ -20,6 +20,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/unscheduledRack";
+import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
@@ -73,10 +74,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
-  // Collapsed by default (Phase 3's design). Deliberately plain local state:
-  // Task 3.3 replaces it with a `rackDisclosure` reducer that also has to
-  // handle a drag auto-opening the drawer and closing it again afterwards.
-  const [rackOpen, setRackOpen] = useState(false);
+  // Collapsed by default (Phase 3's design). The open flag is paired with who
+  // opened it, because a drag auto-opens the drawer and must only re-close the
+  // ones it opened itself — that rule lives in `rackDisclosure` (a pure
+  // reducer with its own unit tests), not here.
+  const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
+  const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -133,7 +136,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const rackItems = activeTrip.backlog.flatMap((activityId) => {
     const activity = activeTrip.activities[activityId];
     if (activity === undefined) return [];
-    return [{ activityId, title: activity.title, area: activity.location?.city ?? activity.location?.name ?? null }];
+    return [
+      {
+        activityId,
+        title: activity.title,
+        area: activity.location?.city ?? activity.location?.name ?? null,
+        timeWindow: activity.timeWindow,
+      },
+    ];
   });
   const rackDayOptions = activeTrip.days.map((day, index) => ({
     value: day.dayId,
@@ -155,6 +165,32 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
     void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
+  };
+
+  // The mirror image of assignFromRack, and two commands for the same reason:
+  // MoveActivity(toDayId: null) parks the stop, then UpdateActivity clears the
+  // window — the design's "unscheduling strips the times". They are two
+  // separate dispatches, so they are two separate batches in the event log and
+  // therefore two separate undos (the same granularity assignFromRack already
+  // has). A batch would need dispatchBatch, which would make unscheduling
+  // atomic in a way scheduling isn't; keeping the two symmetrical is the more
+  // predictable of the two. Clearing an already-empty window is a server-side
+  // no-op (harmlessly swallowed by TripProvider), so a stop that had no time
+  // costs only one undo.
+  const unscheduleActivity = (activityId: string) => {
+    void dispatch({
+      type: "MoveActivity",
+      tripId,
+      activityId,
+      toDayId: null,
+      position: activeTrip.backlog.filter((id) => id !== activityId).length,
+    });
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: null });
+    // The drop that got here also raised `dragEnd`, which re-closes a drawer
+    // the drag itself opened. A park is the one drop that must not close it —
+    // the drawer would shut over the stop just put in it — so ownership passes
+    // to the user here.
+    onRackEvent({ type: "parked" });
   };
 
   // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
@@ -230,6 +266,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   callbacks={{
                     onMove: (activityId, toDayId, position) =>
                       void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+                    onUnschedule: unscheduleActivity,
+                    onDragStart: () => onRackEvent({ type: "dragStart" }),
+                    onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                     onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
                     onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
                     onAddActivity: (value: ActivityFormValue) =>
@@ -300,8 +339,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <UnscheduledRack
         items={rackItems}
         dayOptions={rackDayOptions}
-        open={rackOpen}
-        onToggle={() => setRackOpen((v) => !v)}
+        open={rack.open}
+        onToggle={() => onRackEvent({ type: "toggle" })}
         onAssign={assignFromRack}
       />
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
@@ -28,6 +28,10 @@ const TINT_BG: Record<AccentFamily, string> = {
 // escape hatch for genuine one-off geometry.
 const DAY_COLUMN_WIDTH_PX = 268;
 
+// A Column is a dated day column and nothing else now (Task 3.3): the
+// unscheduled pool moved out of the board entirely, into the Unscheduled
+// drawer, so `dayId` is always a real day and the old full-width/backlog
+// variant — plus its `fullWidth` and `children` props — is gone.
 export function Column({
   title,
   dayId,
@@ -39,53 +43,43 @@ export function Column({
   onRemoveActivity,
   onRemoveDay,
   onAddActivity,
-  fullWidth = false,
-  children,
 }: {
   title: string;
-  dayId: string | null; // null = backlog
+  dayId: string;
   activityIds: string[];
   activities: Record<string, ActivityView>;
   conflictIds: ReadonlySet<string>;
   // Per-day tint (Task 2's dayAccentFor, keyed off the same chipModel city
-  // derivation Tasks 8/10 use) — undefined for the backlog, which stays a
-  // neutral bg-moss strip rather than claiming a day's color.
-  accent?: AccentFamily;
+  // derivation Tasks 8/10 use).
+  accent: AccentFamily;
   onEditActivity: (activityId: string) => void;
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
   onAddActivity?: () => void;
-  // Backlog renders as a full-width strip above the day grid rather than a
-  // fixed-width column in the horizontally scrolling row (#31).
-  fullWidth?: boolean;
-  children?: ReactNode;
 }) {
   const ref = useRef<HTMLUListElement>(null);
-  const [isOver, setIsOver] = useState(false);
 
+  // No hover tint: the Phase 3 design keeps only the insertion line and the
+  // floating time chip as drag feedback, so this target carries no onDragEnter
+  // /onDragLeave state of its own any more.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     return dropTargetForElements({
       element: el,
       getData: () => ({ dayId }),
-      onDragEnter: () => setIsOver(true),
-      onDragLeave: () => setIsOver(false),
-      onDrop: () => setIsOver(false),
     });
   }, [dayId]);
 
   return (
     <section
-      data-testid={dayId === null ? "backlog-column" : "day-column"}
+      data-testid="day-column"
       className={cn(
-        "flex flex-col rounded-2xl p-2",
-        accent ? TINT_BG[accent] : "bg-moss",
-        fullWidth ? "w-full" : "shrink-0",
-        dayId !== null && "min-h-44", // dated day cards get a comfortable min height
+        "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",
+        TINT_BG[accent],
       )}
       // eslint-disable-next-line no-restricted-syntax -- 268px day-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-      style={fullWidth ? undefined : { width: DAY_COLUMN_WIDTH_PX }}
+      style={{ width: DAY_COLUMN_WIDTH_PX }}
     >
       <header className="flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">{title}</span>
@@ -95,14 +89,7 @@ export function Column({
           </Button>
         )}
       </header>
-      <ul
-        ref={ref}
-        className={cn(
-          "m-0 flex-1 list-none rounded-sm p-1",
-          dayId !== null ? "min-h-24" : "min-h-12",
-          isOver && "bg-brand-tint",
-        )}
-      >
+      <ul ref={ref} className="m-0 min-h-24 flex-1 list-none rounded-sm p-1">
         {activityIds.map((id) => {
           const activity = activities[id];
           if (activity === undefined) return null;
@@ -133,7 +120,6 @@ export function Column({
           + Add
         </Button>
       )}
-      {children}
     </section>
   );
 }

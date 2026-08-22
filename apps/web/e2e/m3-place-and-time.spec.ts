@@ -63,12 +63,15 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("tab", { name: "Day columns" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for Board's own content to mount before
-  // interacting with it, so we're not still hitting the Schedule lens's own
-  // per-day "+ Add activity" triggers (same accessible name, one per day).
-  await expect(page.getByTestId("backlog-column")).toBeVisible();
+  // interacting with it. (Task 3.3 deleted the Backlog column this used to
+  // wait for; a day column is the equivalent proof the Board lens is up.)
+  await expect(page.getByTestId("day-column").first()).toBeVisible();
 
   // -- add an activity, geocode a place, assert a map pin --
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  // "Add stop" (TripHeader) is the create-with-no-dayId trigger now that the
+  // Backlog column's "+ Add activity" is gone; the stop lands in the
+  // Unscheduled drawer, which is collapsed until opened.
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Fushimi Inari");
   await page.getByLabel("Place name").fill("Kyoto");
   await page.getByRole("button", { name: "Search" }).click();
@@ -83,9 +86,12 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // to author them, so there's no "add an anchor" step here anymore. Save
   // directly.
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText("Fushimi Inari")).toBeVisible();
 
-  const fushimi = page.getByTestId(/activity-card-/).filter({ hasText: "Fushimi Inari" });
+  const rack = page.getByTestId("unscheduled-rack");
+  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  const fushimi = rack.getByTestId("rack-card").filter({ hasText: "Fushimi Inari" });
+  await expect(fushimi).toBeVisible();
+
   const day1 = page.getByTestId("day-column").nth(0);
   await dragCardTo(fushimi, day1);
   await expect(day1.getByText("Fushimi Inari")).toBeVisible();

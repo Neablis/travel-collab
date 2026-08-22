@@ -28,23 +28,29 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "+ Add day" }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  // "Add stop" (TripHeader) creates with no dayId — the Backlog column and its
+  // "+ Add activity" button were deleted in Task 3.3, so a stop created this
+  // way is parked in the Unscheduled drawer until it is dragged onto a day.
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Flight to Rome");
   await page.getByLabel("cost (EUR)").last().fill("420.00");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText("Flight to Rome")).toBeVisible();
 
-  const flight = page.getByTestId(/activity-card-/).filter({ hasText: "Flight to Rome" });
+  const rack = page.getByTestId("unscheduled-rack");
+  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  const flight = rack.getByTestId("rack-card").filter({ hasText: "Flight to Rome" });
+  await expect(flight).toBeVisible();
+
   const day1 = page.getByTestId("day-column").nth(0);
   await dragCardTo(flight, day1);
   await expect(day1.getByText("Flight to Rome")).toBeVisible();
 
-  // -- add an unscheduled (trip-level) costed activity: stays in the backlog --
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  // -- add an unscheduled (trip-level) costed activity: stays parked --
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Travel insurance");
   await page.getByLabel("cost (EUR)").last().fill("99.00");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText("Travel insurance")).toBeVisible();
+  await expect(rack.getByTestId("rack-card").filter({ hasText: "Travel insurance" })).toBeVisible();
 
   // -- Itinerary lens: per-day subtotal and unscheduled section --
   // Itinerary/Daily/Trip have no nav entry at all as of M10 Wave 2's four-tab
@@ -57,7 +63,10 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   };
   await gotoLens("Itinerary");
   await expect(page.getByText("420.00 EUR").first()).toBeVisible();
-  await expect(page.getByText("Unscheduled")).toBeVisible();
+  // Scoped to the Itinerary lens's own section heading: the Unscheduled drawer
+  // (mounted in every lens since M10 Phase 3) carries the same word in its
+  // toggle bar, which would make a bare text locator ambiguous.
+  await expect(page.getByTestId("itinerary-unscheduled").getByRole("heading", { name: "Unscheduled" })).toBeVisible();
   await expect(page.getByText("99.00 EUR").first()).toBeVisible();
 
   // -- Daily lens: per-day count/subtotal --
