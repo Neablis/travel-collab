@@ -11,17 +11,24 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
+import { formatMoney } from "@/components/lenses/formatMoney";
 
 export function ActivityCard({
   activity,
   dayId,
   hasConflict,
+  currency,
   onEdit,
   onRemove,
 }: {
   activity: ActivityView;
   dayId: string | null;
   hasConflict: boolean;
+  // Currency is trip-level, never per-event (decision, 2026-08-14) — the same
+  // pattern TimelineLens/BudgetChip/DailyOverviewLens already follow: the
+  // caller threads its own trip.currency down, this never reads Money.currency
+  // off the activity's own cost.
+  currency: string;
   onEdit: () => void;
   onRemove: () => void;
 }) {
@@ -80,6 +87,15 @@ export function ActivityCard({
         <DataText size="xs">{activity.timeWindow.start}–{activity.timeWindow.end}</DataText>
       )}
       {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
+      {/* Task 4.1 (M10 Phase 4): the board's per-stop cost, same treatment as
+          TimelineLens's card — mono, formatMoney (KI-2), honest "No cost
+          yet" for the null/undefined case. `activity.cost` truthiness
+          already covers both. */}
+      {activity.cost ? (
+        <DataText size="xs" className="block">{formatMoney(activity.cost.amountMinor, currency)}</DataText>
+      ) : (
+        <DataText size="xs" className="block">No cost yet</DataText>
+      )}
     </Card>
   );
 }

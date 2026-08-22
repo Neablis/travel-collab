@@ -462,6 +462,17 @@ needs action — skip this section when triaging.
   `formatMoney.test.ts`'s existing `111110600` minor-unit grouping fixture —
   same amount, same grouped string, on both surfaces.
 - **First noted:** 2026-07-13 (M5 Wave-3). **Resolved:** 2026-08-09 (Task 19).
+- **Re-confirmed (2026-08-22, Task 4.1, M10 Phase 4):** extended the gate to
+  every new per-stop/per-day/per-trip cost surface added this task —
+  `TimelineLens`'s activity-row cost and day-header cost chip, the board
+  `ActivityCard`'s cost, and `NextTripHero`'s "planned of budget" line — all
+  route through `formatMoney`, keyed off the trip's own `currency` (never a
+  per-`Money` read). Audit: `grep -rn "amountMinor" apps/web/src/components |
+  grep -v formatMoney` turns up only test fixture literals, `MoneyInput`'s own
+  edit-field parsing (no currency suffix needed there), and
+  `ItineraryLens.tsx`'s `formatAmount` alias (`import { formatMoney as
+  formatAmount }` — already the real formatter under a local name). No
+  violations found; the entry still reads true.
 
 ### KI-16 — The assistant rail's scrim makes the whole trip page inert below 1180px — RESOLVED
 - **Severity:** correctness (the page does not respond to input at all)

@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { costedTripDetailFixture, tripDetailFixture } from "@/mocks/fixtures";
 
 const fetchTripDetailMock = vi.fn();
 
@@ -321,5 +321,36 @@ describe("NextTripHero", () => {
     const openLink = screen.getByRole("link", { name: /open plan/i });
     expect(openLink.getAttribute("href")).toBe("/trips/9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a");
     await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId));
+  });
+
+  // Task 4.1 (M10 Phase 4): the "planned of budget" line derived from the real
+  // TripDetail this component already fetches (tripSpend + formatMoney — the
+  // same KI-2 convention every other money surface uses, not a "$"-prefixed
+  // hand-formatted string).
+  it("shows planned spend against the budget once the real TripDetail loads", async () => {
+    const trip = tripSummaryFixture();
+    // costedTripDetailFixture: tripCostTotal 49100 minor, budget 100000 minor, USD.
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: costedTripDetailFixture() });
+    render(<NextTripHero trip={trip} />);
+
+    expect(await screen.findByText("491.00 USD planned of 1,000.00 USD")).toBeTruthy();
+  });
+
+  it("shows an honest 'No budget yet' only once it knows the loaded trip truly has none", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) }); // budget: null
+    render(<NextTripHero trip={trip} />);
+
+    expect(await screen.findByText("No budget yet")).toBeTruthy();
+  });
+
+  it("renders no planned-spend line while the TripDetail fetch is still loading or has failed", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    const trip = tripSummaryFixture();
+    render(<NextTripHero trip={trip} />);
+
+    await screen.findByRole("status", { name: /shape of the trip/i });
+    expect(screen.queryByText(/planned of/)).toBeNull();
+    expect(screen.queryByText("No budget yet")).toBeNull();
   });
 });
