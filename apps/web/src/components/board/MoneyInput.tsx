@@ -79,7 +79,7 @@ export function MoneyInput({
   return (
     <Input
       id={id}
-      type="text" inputMode="decimal" aria-label={`cost (${currency})`} placeholder={`0.00 ${currency}`}
+      type="text" inputMode="decimal" aria-label={id ? undefined : `cost (${currency})`} placeholder={`0.00 ${currency}`}
       value={display}
       onChange={(e) => setDisplay(e.target.value)}
       onBlur={(e) => {

@@ -108,6 +108,19 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
     expect(screen.getByText(/no cost yet/i)).toBeTruthy();
   });
 
+  it("hides the budget meter (but still shows the status line) when no budget is set", () => {
+    const noBudgetSpend: TripSpend = {
+      total: 150_000,
+      unpriced: 2,
+      budget: null,
+      remaining: null,
+      over: false,
+    };
+    renderSheet(vi.fn(), { spend: noBudgetSpend });
+    expect(screen.queryByTestId("budget-meter-fill")).toBeNull();
+    expect(screen.getByText("No budget set")).toBeTruthy();
+  });
+
   it("lists real members", () => {
     renderSettings({ open: true });
     expect(screen.getByText("dev-alice")).toBeTruthy();

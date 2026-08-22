@@ -250,9 +250,15 @@ describe("TimelineLens", () => {
   });
 
   it("totals the day's costs in the day header", () => {
+    // costSubtotal (9999) is deliberately DIFFERENT from the sum of the two
+    // activities' own costs below (3000 + 3700 = 6700): this proves the day
+    // header renders the server-computed costSubtotal field rather than
+    // silently re-summing the activities' costs client-side — the two would
+    // be indistinguishable, and re-summing client-side is exactly the KI-2
+    // bug class this phase (M10 Phase 4) exists to close.
     const detail = tripDetailFixture({
       currency: "USD",
-      days: [{ dayId: "day-1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 6700 }],
+      days: [{ dayId: "day-1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 9999 }],
       activities: {
         a1: {
           activityId: "a1",
@@ -275,6 +281,6 @@ describe("TimelineLens", () => {
       },
     });
     renderLens(detail);
-    expect(screen.getByTestId("day-cost-day-1").textContent).toContain("67.00 USD");
+    expect(screen.getByTestId("day-cost-day-1").textContent).toContain("99.99 USD");
   });
 });

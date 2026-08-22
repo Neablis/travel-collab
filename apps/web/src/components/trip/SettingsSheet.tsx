@@ -169,7 +169,9 @@ export function SettingsSheet({
 
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <BudgetMeter cost={spend.total} budget={spend.budget ?? 0} currency={currency} />
+              {spend.budget !== null && (
+                <BudgetMeter cost={spend.total} budget={spend.budget} currency={currency} />
+              )}
               <Text as="span" className="text-xs text-slate">
                 {statusLine}
               </Text>
