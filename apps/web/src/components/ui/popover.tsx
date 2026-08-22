@@ -30,7 +30,7 @@ export function Popover({
           align={align}
           sideOffset={6}
           className={cn(
-            "z-50 w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
+            "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
             contentClassName,
           )}
         >
