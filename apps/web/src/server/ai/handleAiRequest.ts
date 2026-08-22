@@ -6,10 +6,11 @@
 // validation. The route file just re-exports POST, which calls this.
 //
 // Model selection: `handleAiRequest` takes an OPTIONAL `model`. When a caller
-// injects one — which is every test in route.int.test.ts, and nothing else —
-// it is used as-is and no flag is consulted, so test behavior is unchanged
-// from before the kill switch existed. When none is injected, which is every
-// real request, `selectAiModel()` decides: the real gateway model when the
+// injects one — every test in route.int.test.ts except one, which omits it on
+// purpose to exercise the no-model path (see its own comment) — it is used
+// as-is and no flag is consulted, so test behavior is otherwise unchanged from
+// before the kill switch existed. When none is injected, which is every real
+// request, `selectAiModel()` decides: the real gateway model when the
 // `ai-live` flag is on, the simulated model when it is off. The default
 // parameter form (`model: LanguageModel = aiModel()`) could not survive that
 // change, because a default is evaluated at call time and would construct the
