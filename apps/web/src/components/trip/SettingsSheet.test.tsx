@@ -1,6 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TripMember } from "@tc/contracts";
+import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -26,7 +28,23 @@ beforeEach(() => {
   duplicateTripMock.mockReset();
 });
 
-function renderSheet(onDeleted = vi.fn()) {
+const defaultSpend: TripSpend = {
+  total: 150_000,
+  unpriced: 2,
+  budget: 500_000,
+  remaining: 350_000,
+  over: false,
+};
+
+const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
+
+// Existing A15 helper, extended (not replaced) with the two new required
+// props (#5, controller ruling) — every existing call site below keeps
+// working unchanged since both take defaults.
+function renderSheet(
+  onDeleted = vi.fn(),
+  overrides: { spend?: TripSpend; members?: TripMember[] } = {},
+) {
   render(
     <SettingsSheet
       tripId={tripId}
@@ -38,12 +56,63 @@ function renderSheet(onDeleted = vi.fn()) {
       dayCount={0}
       currency="USD"
       budget={null}
+      spend={overrides.spend ?? defaultSpend}
+      members={overrides.members ?? defaultMembers}
       onCommand={vi.fn()}
       onDeleted={onDeleted}
     />,
   );
   return { onDeleted };
 }
+
+// New helper for the redesign's own coverage (brief's Step 1 snippets) — a
+// thin wrapper around renderSheet that makes the budget-remaining override
+// (the thing every new test below actually varies) a one-liner.
+function renderSettings(
+  opts: { open?: boolean; budgetRemaining?: number | null; members?: TripMember[] } = {},
+) {
+  const remaining = "budgetRemaining" in opts ? opts.budgetRemaining! : defaultSpend.remaining;
+  const spend: TripSpend = {
+    ...defaultSpend,
+    remaining,
+    over: remaining !== null && remaining < 0,
+  };
+  renderSheet(vi.fn(), { spend, members: opts.members });
+}
+
+describe("SettingsSheet redesign (Task 4.2)", () => {
+  it("shows the trip name, read-only dates and the budget fields", () => {
+    renderSettings({ open: true });
+
+    expect(screen.getByLabelText("Trip name")).toBeTruthy();
+    expect(screen.getByText("Dates")).toBeTruthy();
+    expect(screen.getByLabelText("Total for the trip")).toBeTruthy();
+    expect(screen.getByLabelText("Currency")).toBeTruthy();
+  });
+
+  it("warns when the trip is over budget", () => {
+    renderSettings({ open: true, budgetRemaining: -82_000 });
+    // No @testing-library/jest-dom in this repo (grep confirms no other test
+    // uses toHaveTextContent) — match textContent directly, same pattern as
+    // TripDateControl.test.tsx's dialog-text assertion.
+    expect(screen.getByRole("status").textContent).toMatch(/over/i);
+  });
+
+  it("does not warn when the trip is within budget", () => {
+    renderSettings({ open: true, budgetRemaining: 731_500 });
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("counts stops with no cost", () => {
+    renderSettings({ open: true });
+    expect(screen.getByText(/no cost yet/i)).toBeTruthy();
+  });
+
+  it("lists real members", () => {
+    renderSettings({ open: true });
+    expect(screen.getByText("dev-alice")).toBeTruthy();
+  });
+});
 
 describe("SettingsSheet delete/duplicate (A15)", () => {
   it("confirms before deleting, then reports success (with the outcome) via onDeleted", async () => {

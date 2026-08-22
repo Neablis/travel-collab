@@ -26,6 +26,8 @@ export const PREVIEW_REGISTRY = {
   "add-saved-day": { milestone: "M11", wiredUpBy: "M11 add-a-saved-day" },
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
   "cost-estimate-state": { milestone: "M11", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
+  "budget-breakdown": { milestone: "M11", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
+  "trip-invites": { milestone: "M13", wiredUpBy: "Invites and non-owner roles — TripMember.role is literal \"owner\"" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;
