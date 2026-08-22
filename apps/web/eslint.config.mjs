@@ -16,8 +16,12 @@ export default [
   {
     // THE LINT WALL (AGENTS.md): UI code may not touch the domain package or
     // server internals. Route handlers and src/server are the exempt shell.
+    // `.well-known` routes join that shell: they are protocol endpoints served
+    // to tooling, not UI, and their paths are fixed by the spec that defines
+    // them (the Flags Explorer requires exactly .well-known/vercel/flags), so
+    // they cannot be moved under src/app/api to inherit its exemption.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/server/**", "src/app/api/**"],
+    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**"],
     rules: {
       "no-restricted-imports": [
         "error",
