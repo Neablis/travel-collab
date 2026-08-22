@@ -782,5 +782,28 @@ describe("POST /api/trips/:id/ai", () => {
         if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
       }
     });
+
+    // The flip side of the test above: flag ON but no gateway key configured.
+    // selectAiModel()'s live branch calls aiModel(), which throws — this must
+    // come back as the handler's standard error envelope (503), not a bare
+    // unhandled-rejection 500.
+    it("returns a 503 envelope when the flag is on but no gateway key is set", async () => {
+      const tripId = await seedTrip();
+      const priorLive = process.env.AI_LIVE;
+      const priorKey = process.env.AI_GATEWAY_API_KEY;
+      process.env.AI_LIVE = "true";
+      delete process.env.AI_GATEWAY_API_KEY;
+      try {
+        const res = await handleAiRequest(req(tripId, { prompt: "plan me something", surface: "board" }), tripId);
+        expect(res.status).toBe(503);
+        const body = (await res.json()) as { error: string; simulated: boolean };
+        expect(body.simulated).toBe(false);
+        expect(body.error).toContain("model selection failed");
+      } finally {
+        if (priorLive === undefined) delete process.env.AI_LIVE;
+        else process.env.AI_LIVE = priorLive;
+        if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
+      }
+    });
   });
 });

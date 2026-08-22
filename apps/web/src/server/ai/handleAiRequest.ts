@@ -181,9 +181,26 @@ export async function handleAiRequest(
   // directly, to exercise its plan-application behavior without flipping
   // AI_LIVE — so `model` alone can't decide this, only its identity can). No
   // model => ask the flag, which already returns this same shape.
-  const selected = model
-    ? { model, simulated: requestedModelId(model) === SIMULATED_MODEL_ID }
-    : await selectAiModel(surface);
+  let selected: { model: LanguageModel; simulated: boolean };
+  if (model) {
+    selected = { model, simulated: requestedModelId(model) === SIMULATED_MODEL_ID };
+  } else {
+    // Reachable once the ai-live flag is on but AI_GATEWAY_API_KEY is unset:
+    // selectAiModel()'s live branch calls aiModel(), which throws in that case
+    // (see gateway.ts). Without this try/catch that throw becomes a bare
+    // unhandled-rejection 500 instead of this file's standard error envelope
+    // — pre-existing under the old default-parameter form too, but now
+    // reachable by flipping a flag on a public deployment rather than only by
+    // a local misconfiguration.
+    try {
+      selected = await selectAiModel(surface);
+    } catch (err) {
+      return Response.json(
+        { error: `model selection failed: ${errorMessage(err)}`, simulated: false },
+        { status: 503 },
+      );
+    }
+  }
   const activeModel = selected.model;
   const { simulated } = selected;
   const baseNotices = simulated ? [SIMULATED_NOTICE] : [];
