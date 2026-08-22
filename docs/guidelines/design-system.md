@@ -226,6 +226,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Popover` | Anchored Radix Popover; History, clear-date, row menus. State-controlled (`open`/`onOpenChange`), no `PopoverTrigger` |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
 | `BudgetMeter` | Header spent-vs-budget glance (#30): fill bar (`bg-brand` under budget, `bg-warning` over, clamped at 100%) + `DataText` label (`cost of budget currency`, `text-warning-ink` when over). Fill width is computed geometry via inline `style` — same pattern as `TimelineLens`'s position math |
+| `Preview` | Marks not-yet-built UI so a shell is never mistaken for a feature. **`size` is required, no default:** `compact` = circular construction-icon badge, for a button or single control; `container` = dotted `border-border-strong` + the `Preview · {milestone}` pill, for a section, dialog or route. Children render exactly as they would unwrapped, but inert (`pointer-events: none`, `role="group"`, `aria-disabled`), so removing the wrapper when the feature ships is a one-line change. Every `id` must exist in `lib/preview-registry.ts` **and** every registry entry must be used — `preview-registry.test.ts` enforces both directions and skips `*.test.tsx`, so a usage that lives only in a test does not count. Rationale and rejected alternatives: `docs/specs/2026-08-12-preview-component-space-aware-design.md` |
 
 `TabStrip`/`SegmentedControl` are deliberately hand-rolled, not Radix — see
 `apps/web/src/components/ui/tab-strip.tsx`. They are the one sanctioned

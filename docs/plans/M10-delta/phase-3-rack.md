@@ -320,7 +320,10 @@ git commit -m "feat(web): sticky unscheduled rack backed by trip.backlog"
 **Files:**
 - Modify: `apps/web/src/components/trip/UnscheduledRack.tsx`
 - Modify: `apps/web/src/components/board/Board.tsx`, `Column.tsx`
-- Test: `apps/web/src/components/board/board.test.tsx`
+- Create: `apps/web/src/components/board/resolveDrop.ts`, `resolveDrop.test.ts`
+- Create: `apps/web/src/components/trip/rackDisclosure.ts`, `rackDisclosure.test.ts`
+- Create: `apps/web/e2e/m10-unscheduled-rack.spec.ts`
+- **Not** `board.test.tsx` — see "Where this task's tests go" below.
 
 **Drag-and-drop facts from the existing code** (`ActivityCard.tsx:31-50`):
 
@@ -334,57 +337,212 @@ git commit -m "feat(web): sticky unscheduled rack backed by trip.backlog"
 So the rack needs: `dropTargetForElements` with `getData: () => ({ rack: true })`,
 `draggable` on each card, and a new branch in Board's existing `onDrop`.
 
-- [ ] **Step 1: Write the failing tests**
+---
 
-```tsx
-it("unschedules a stop dropped on the rack, stripping its times", async () => {
-  const { onMove, onUpdateActivity } = renderBoardWithRack();     // this file's helper style
+### Where this task's tests go, and why — read before writing any test
 
-  await dropOnRack("activity-1");
+**An earlier draft of this task told you to reuse a drag simulation in
+`board.test.tsx`. There isn't one, and there cannot usefully be one.** Corrected
+2026-08-22 against the tree; the evidence, so you don't have to re-derive it:
 
-  expect(onMove).toHaveBeenCalledWith("activity-1", null, expect.any(Number));
-  expect(onUpdateActivity).toHaveBeenCalledWith("activity-1", expect.objectContaining({ timeWindow: null }));
-});
+- `board.test.tsx` is 199 lines and contains **zero** drag simulation. Its only
+  `drop`-shaped lines are CSS assertions about a column's drop list.
+- Repo-wide, the only drag simulation is `dragCardTo` in `apps/web/e2e/helpers.ts`
+  — **Playwright, against real Chromium**. Six e2e specs use it. No jsdom drag
+  harness exists anywhere.
+- `@atlaskit/pragmatic-drag-and-drop@2.0.1`'s element adapter binds the **native**
+  `dragstart` (`dist/es2019/adapter/element-adapter.js:31`), returns immediately
+  if `!event.dataTransfer` (line 48), and then calls `event.dataTransfer.setData`
+  (lines 173, 211) and reads `event.dataTransfer.types` (line 187).
+- **jsdom 29.1.1 — the version this repo runs — has neither.** Verified:
+  `window.DataTransfer` is `undefined`, `window.DragEvent` is `undefined`, and
+  `new window.DragEvent(...)` throws `is not a constructor`.
 
-it("opens the drawer while a stop is being dragged", async () => {
-  renderBoardWithRack();
+So a jsdom drag test would mean hand-building `DragEvent` **and** a `DataTransfer`
+stub with working `setData`/`getData`/`types` — fabricating the browser substrate
+the library sits on, then asserting against the fabrication. `vitest.setup.ts`
+already forbids exactly this, in its own words:
 
-  await startDrag("activity-1");
+> *"The IntersectionObserver fixture this replaces did the opposite — it fed
+> fabricated per-scroll positions that no real browser ever delivers, which is
+> why the suite passed while the feature was broken. Do not reintroduce that."*
 
-  expect(screen.getByText("Souvenir shopping")).toBeTruthy();
-});
+That is the map-rail retro's lesson, and it applies here unchanged: a green jsdom
+drag suite would be **evidence of nothing**. This is not a judgement call between
+two workable designs — one of them does not work — so no check-in is needed
+before proceeding. **Split the task by layer instead:**
 
-it("re-closes a drawer it opened itself when the drag ends elsewhere", async () => {
-  renderBoardWithRack();
+| What | Layer | Where |
+|---|---|---|
+| Which callback a drop resolves to (rack vs. day vs. card-edge, and the same-list index correction) | pure function, no DOM | `board/resolveDrop.ts` + `.test.ts` (unit) |
+| Whether the drawer should re-close after a drag (auto-open ownership) | pure reducer, no DOM | `trip/rackDisclosure.ts` + `.test.ts` (unit) |
+| Rendering, count, empty state, "Add to day…" | jsdom | `UnscheduledRack.test.tsx` (Task 3.2, already written) |
+| The drag itself — into the rack, back out, auto-open, Escape-cancel | **real browser** | `e2e/m10-unscheduled-rack.spec.ts` (new) |
 
-  await startDrag("activity-1");
-  await dropOnDay("day-2");
+The two pure modules are where the actual bugs in this task will live. Extracting
+them is not test-ceremony — it is what makes the logic checkable at all.
 
-  expect(screen.queryByText("Souvenir shopping")).toBeNull();
+- [ ] **Step 1: Extract the drop routing, and unit-test it**
+
+Move `listFor` (`Board.tsx:28-32`) and `containerOf` (`Board.tsx:34-37`) into a
+new `apps/web/src/components/board/resolveDrop.ts` together with the body of the
+existing `onDrop`, as one pure function. Board's `monitorForElements` then
+becomes a thin adapter that calls it and dispatches the result.
+
+```ts
+// apps/web/src/components/board/resolveDrop.ts
+import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import type { TripDetail } from "@tc/contracts";
+
+export type DropOutcome =
+  | { kind: "unschedule"; activityId: string }
+  | { kind: "move"; activityId: string; toDayId: string | null; position: number };
+
+/**
+ * Pure resolution of a pragmatic-drag-and-drop drop into the mutation it means.
+ * `targetData` is `location.current.dropTargets[0].data` — innermost target
+ * first. Returns null when the drop is a no-op (no activity, no target).
+ *
+ * This is separated from the monitor deliberately: pdnd is driven by native
+ * HTML5 drag events that jsdom cannot produce (no DataTransfer, no DragEvent),
+ * so the routing decision is only checkable if it does not need a drag to run.
+ */
+export function resolveDrop(
+  trip: TripDetail,
+  sourceData: Record<string, unknown>,
+  targetData: Record<string, unknown> | undefined,
+): DropOutcome | null;
+```
+
+Tests — these are the real coverage for this task:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { resolveDrop } from "./resolveDrop";
+
+// Build with this file's existing fixture style; day-1 holds a1,a2 and day-2 holds a3.
+const trip = fixture();
+
+describe("resolveDrop", () => {
+  it("routes a drop on the rack to unschedule", () => {
+    expect(resolveDrop(trip, { activityId: "a1" }, { rack: true })).toEqual({
+      kind: "unschedule",
+      activityId: "a1",
+    });
+  });
+
+  it("appends when dropped on a day column", () => {
+    expect(resolveDrop(trip, { activityId: "a3" }, { dayId: "day-1" })).toEqual({
+      kind: "move", activityId: "a3", toDayId: "day-1", position: 2,
+    });
+  });
+
+  it("inserts before a card when the closest edge is the top", () => {
+    const target = { cardActivityId: "a2", dayId: "day-1", ...topEdge() };
+    expect(resolveDrop(trip, { activityId: "a3" }, target)).toMatchObject({ position: 1 });
+  });
+
+  it("corrects the index when moving down within the same list", () => {
+    // a1 (index 0) dropped below a2 (index 1): naive insert is 2, but removing
+    // a1 first shifts everything left, so the correct position is 1.
+    const target = { cardActivityId: "a2", dayId: "day-1", ...bottomEdge() };
+    expect(resolveDrop(trip, { activityId: "a1" }, target)).toMatchObject({ position: 1 });
+  });
+
+  it("does not correct the index when moving between lists", () => {
+    const target = { cardActivityId: "a2", dayId: "day-1", ...bottomEdge() };
+    expect(resolveDrop(trip, { activityId: "a3" }, target)).toMatchObject({ position: 2 });
+  });
+
+  it("is a no-op without an activity id or without a target", () => {
+    expect(resolveDrop(trip, {}, { rack: true })).toBeNull();
+    expect(resolveDrop(trip, { activityId: "a1" }, undefined)).toBeNull();
+  });
+
+  it("prefers the rack over a day id on the same target", () => {
+    // Guards the branch order: the rack check must come first, so a rack
+    // target that also carries a stale dayId still unschedules.
+    expect(resolveDrop(trip, { activityId: "a1" }, { rack: true, dayId: "day-1" })).toMatchObject({
+      kind: "unschedule",
+    });
+  });
 });
 ```
 
-`board.test.tsx` already drives pragmatic-drag-and-drop in tests — **read how it
-simulates a drag before writing `dropOnRack` / `startDrag`** and reuse that
-mechanism. Do not invent a new one.
+`topEdge()`/`bottomEdge()` must produce whatever `attachClosestEdge` writes onto
+the data object, so that `extractClosestEdge` reads it back. Build them by
+calling `attachClosestEdge` itself rather than hand-writing its internal symbol
+key — that key is private and will change under you.
 
-- [ ] **Step 2: Run and confirm they fail**
+- [ ] **Step 2: Extract the drawer's auto-open ownership, and unit-test it**
 
-- [ ] **Step 3: Implement**
+The rule "auto-open on drag start; re-close afterwards **only if the drag opened
+it**" is a state machine, and it is the part most likely to be wrong. Keep it out
+of the component:
+
+```ts
+// apps/web/src/components/trip/rackDisclosure.ts
+export type RackDisclosure = { open: boolean; openedByDrag: boolean };
+export type RackEvent = { type: "toggle" } | { type: "dragStart" } | { type: "dragEnd" };
+
+export function rackDisclosure(state: RackDisclosure, event: RackEvent): RackDisclosure;
+```
+
+```ts
+const shut = { open: false, openedByDrag: false };
+
+it("opens on drag start and records that the drag opened it", () => {
+  expect(rackDisclosure(shut, { type: "dragStart" })).toEqual({ open: true, openedByDrag: true });
+});
+
+it("re-closes a drawer the drag opened", () => {
+  const dragged = rackDisclosure(shut, { type: "dragStart" });
+  expect(rackDisclosure(dragged, { type: "dragEnd" })).toEqual(shut);
+});
+
+it("leaves a drawer the user opened alone", () => {
+  const byUser = rackDisclosure(shut, { type: "toggle" });
+  const dragged = rackDisclosure(byUser, { type: "dragStart" });
+  expect(rackDisclosure(dragged, { type: "dragEnd" })).toEqual({ open: true, openedByDrag: false });
+});
+
+it("hands ownership to the user if they toggle mid-drag", () => {
+  const dragged = rackDisclosure(shut, { type: "dragStart" });
+  const kept = rackDisclosure(dragged, { type: "toggle" });
+  expect(rackDisclosure(kept, { type: "dragEnd" }).open).toBe(true);
+});
+```
+
+Escape needs no separate event: pragmatic-drag-and-drop fires its normal
+`onDrop`/cancel path on Escape, so wire both to `dragEnd`. **Do not add a key
+listener** — the third test above is what proves the cancel path re-closes
+correctly.
+
+- [ ] **Step 3: Run both unit suites and confirm they fail**
+
+```bash
+pnpm --filter web vitest run -c vitest.unit.config.ts src/components/board/resolveDrop.test.ts src/components/trip/rackDisclosure.test.ts
+```
+
+- [ ] **Step 4: Implement**
 
 1. Register the drawer as a drop target; each card as a `draggable` carrying
    `{ activityId }`.
-2. In `Board.tsx`'s `onDrop`, add a branch before the existing ones: if the
-   target's data has `rack === true`, call a new
-   `callbacks.onUnschedule(activityId)` rather than `onMove`. Implement
-   `onUnschedule` in `TripBoardScreen` as `MoveActivity(toDayId: null)` **plus**
+2. Reduce `Board.tsx`'s `onDrop` to a thin adapter over Step 1's
+   `resolveDrop`: read `source.data` and `location.current.dropTargets[0]?.data`,
+   call `resolveDrop`, and switch on the outcome — `move` to
+   `callbacks.onMove`, `unschedule` to a new `callbacks.onUnschedule`. **No
+   routing logic stays in the monitor**; that is the whole point of the
+   extraction, and anything left behind is untestable. Implement `onUnschedule`
+   in `TripBoardScreen` as `MoveActivity(toDayId: null)` **plus**
    `UpdateActivity({ timeWindow: null })` — the design's "unscheduling strips the
    times".
-3. Auto-open: in the same `monitorForElements`, add `onDragStart` to open the
-   drawer, recording that *it* opened it; on `onDrop` and on cancel, close it
-   again only if it was auto-opened. Escape cancels — pragmatic-drag-and-drop
-   already fires its cancel path on Escape, so hook that rather than adding a
-   key listener.
+3. Auto-open: drive Step 2's `rackDisclosure` reducer from the same
+   `monitorForElements` — `onDragStart` dispatches `{ type: "dragStart" }`, and
+   `onDrop` (which pdnd also fires on an Escape cancel) dispatches
+   `{ type: "dragEnd" }`. The rack's own toggle dispatches `{ type: "toggle" }`.
+   **Do not add a key listener**, and do not reimplement the ownership rule in
+   the component — the reducer already holds it.
 4. Cross-fade the drag proxy over the drawer: swap the proxy's rendered content
    with a CSS opacity transition. **Do not add a transform** — the library owns
    the proxy's transform and fighting it produces a jumping ghost.
@@ -396,17 +554,102 @@ mechanism. Do not invent a new one.
    `onDragEnter`/`onDragLeave` handlers. The design keeps only the insertion line
    and the floating time chip.
 
-- [ ] **Step 4: Run tests; verify in the browser**
+
+- [ ] **Step 5: The e2e spec — this is the real gate for this task**
+
+Create `apps/web/e2e/m10-unscheduled-rack.spec.ts`. This is where the drag
+behaviour is actually proven. `dragCardTo(source, target)` takes two locators and
+works against any target, so a rack drop needs no new helper.
+
+```ts
+import { expect, test } from "@playwright/test";
+import { createMappedTrip, dragCardTo, signInAsDevUser } from "./helpers";
+
+test("a stop can be dragged into the unscheduled rack and back onto a day", async ({ page }) => {
+  // Drag sequences with settle waits at both ends run well past the 30s default.
+  test.setTimeout(90_000);
+  // Distinct prefix from other specs' trip names — parallel workers share a DB.
+  const tripName = `Rack ${Date.now()}`;
+  await signInAsDevUser(page, "alice");
+  const tripId = await createMappedTrip(page, tripName, 3);
+
+  await page.goto(`/trips/${tripId}`);
+  const rack = page.getByTestId("unscheduled-rack");
+  const card = page.getByTestId("activity-card").first();
+  const title = await card.innerText();
+
+  // -- the drawer auto-opens as the drag starts --
+  await expect(rack).toBeVisible();
+  await expect(page.getByTestId("rack-card")).toHaveCount(0);
+
+  await dragCardTo(card, rack);
+
+  // -- dropping on the rack unschedules and strips the time window --
+  await expect(page.getByTestId("rack-card")).toHaveCount(1);
+  await expect(rack.getByText(title, { exact: false })).toBeVisible();
+  await expect(rack.getByText(/no time yet/i)).toBeVisible();
+
+  // -- and back out onto a day --
+  await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").nth(1));
+
+  await expect(page.getByTestId("rack-card")).toHaveCount(0);
+});
+
+test("undo reverses an unschedule", async ({ page }) => {
+  test.setTimeout(90_000);
+  const tripName = `RackUndo ${Date.now()}`;
+  await signInAsDevUser(page, "alice");
+  const tripId = await createMappedTrip(page, tripName, 2);
+
+  await page.goto(`/trips/${tripId}`);
+  await dragCardTo(page.getByTestId("activity-card").first(), page.getByTestId("unscheduled-rack"));
+  await expect(page.getByTestId("rack-card")).toHaveCount(1);
+
+  // Unscheduling is two commands (MoveActivity + UpdateActivity), so it takes
+  // two undos unless they are dispatched as one batch — assert whichever the
+  // implementation actually does, and say which in the commit message.
+  await page.getByRole("button", { name: /undo/i }).click();
+
+  await expect(page.getByTestId("rack-card")).toHaveCount(0);
+});
+```
+
+Add whatever `data-testid`s these need as you implement — `unscheduled-rack`,
+`rack-card`, and reuse the existing `activity-card` / `day-column` ids.
+
+Run it:
+
+```bash
+pnpm --filter web test:e2e -- m10-unscheduled-rack
+```
+
+**Expect flakiness here, and do not chase it — KI-21.** `dragCardTo` fails
+intermittently under load, on a *different* assertion each run, confirmed
+unrelated to any branch's code. Before treating a failure as a regression:
+re-run once, and check `ps aux` sorted by CPU for an external consumer.
+`AGENTS.md`: if a suite fails differently each run, **stop before a third
+attempt** and look for an environmental cause.
+
+
+- [ ] **Step 6: Verify in the browser**
 
 Drag a stop from Day 1 into the rack — the drawer opens as the drag starts, the
 proxy becomes a compact card over it, and dropping strips the times. Drag it back
 onto a day. Undo reverses each.
 
-- [ ] **Step 5: Run the phase gate and commit**
+- [ ] **Step 7: Run the phase gate and commit**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm --filter web test && node scripts/check-color-wall.mjs
-git add apps/web/src/components/trip/UnscheduledRack.tsx apps/web/src/components/board/Board.tsx apps/web/src/components/board/Column.tsx apps/web/src/components/board/board.test.tsx apps/web/src/components/board/TripBoardScreen.tsx
+git add apps/web/src/components/trip/UnscheduledRack.tsx \
+        apps/web/src/components/trip/rackDisclosure.ts \
+        apps/web/src/components/trip/rackDisclosure.test.ts \
+        apps/web/src/components/board/Board.tsx \
+        apps/web/src/components/board/Column.tsx \
+        apps/web/src/components/board/resolveDrop.ts \
+        apps/web/src/components/board/resolveDrop.test.ts \
+        apps/web/src/components/board/TripBoardScreen.tsx \
+        apps/web/e2e/m10-unscheduled-rack.spec.ts
 git commit -m "feat(web): drag stops into and out of the unscheduled rack"
 ```
 
@@ -422,3 +665,8 @@ git commit -m "feat(web): drag stops into and out of the unscheduled rack"
 - [ ] The day-column drag highlight is gone; only the insertion line remains.
 - [ ] Both directions undo with the existing history controls.
 - [ ] `rack-provenance` is registered and the registry↔usage test is green.
+- [ ] `resolveDrop` and `rackDisclosure` are pure, unit-tested, and hold **all**
+      the routing and auto-open-ownership logic — none left inline in the monitor.
+- [ ] `e2e/m10-unscheduled-rack.spec.ts` passes in a real browser. That spec, not
+      the unit suite, is this task's proof: jsdom cannot drive
+      pragmatic-drag-and-drop at all (no `DataTransfer`, no `DragEvent`).

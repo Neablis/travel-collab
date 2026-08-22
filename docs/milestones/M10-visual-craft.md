@@ -372,6 +372,20 @@ transport data. Map routes are straight lines.
       flipped in the same gate-close commit; the phase plans deleted per
       `docs/plans/README.md`.
 
+**Environment note for the two suite-running gate lines above (2026-08-22).**
+`test:int` and `test:e2e` both need real Postgres — locally that is
+`docker compose up -d`. In a **remote container** docker is usually
+unavailable; a local Postgres 16 cluster works as a substitute (commands in
+the Wave-2 kickoff brief), though it is not the 17 CI uses. E2E has a second
+container-only blocker: `@playwright/test` 1.61.1 expects chromium build
+1228, the preinstalled browsers are 1194, and these environments forbid
+`playwright install` — every spec fails to launch a browser until it is
+pointed at the chromium that is present. **Neither affects a local machine**,
+and neither is an app defect; both are listed here so a gate run in a
+container is not mistaken for a red suite. Verified 2026-08-22: unit
+501/501 and int 72/72 green on `main`; e2e not established in this
+environment.
+
 ## PR #23 merged as a partial delta, 2026-08-17
 
 **Decision (Mitchell, 2026-08-17):** PR #23 had grown to 79 commits / 161 files
