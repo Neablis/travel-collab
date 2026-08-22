@@ -12,6 +12,13 @@ env:
   # (production mode) unless the platform sets this itself (Vercel does).
   # CI runs `next start` for e2e, so it must opt in explicitly.
   AUTH_TRUST_HOST: "true"
+  # Belt-and-suspenders for the environments guideline's claim that AI_LIVE
+  # lives in ".env.local / the CI env": route.int.test.ts's one
+  # no-model-injected test already pins AI_LIVE itself per-test, and
+  # playwright.config.ts's webServer.env sets it for e2e, but setting it here
+  # too means a workflow-level env var backs that claim rather than only
+  # test-level plumbing.
+  AI_LIVE: "false"
 
 jobs:
   # No Postgres, no build — pure static analysis, so it's the fastest lane

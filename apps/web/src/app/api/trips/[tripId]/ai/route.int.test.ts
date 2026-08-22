@@ -7,6 +7,7 @@ import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
 import { getGeocoder } from "@/server/geocoding";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
+import { simulatedModel } from "@/server/ai/simulatedModel";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -670,6 +671,136 @@ describe("POST /api/trips/:id/ai", () => {
       const body = await res.json();
       expect(body.message).not.toContain("couldn't verify");
       expect(body.locationReport.unchecked).toEqual(["Niagara Falls State Park"]);
+    });
+  });
+
+  describe("simulated mode", () => {
+    it("applies a real plan and marks it simulated", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "plan me something", surface: "board" }),
+        tripId,
+        simulatedModel("board"),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        simulated: boolean;
+        message: string;
+        detail: { days: unknown[]; activities: Record<string, unknown> };
+        meta: { simulated: boolean; model: { requested: string } };
+      };
+
+      // Simulated, and saying so in both channels.
+      expect(body.simulated).toBe(true);
+      expect(body.meta.simulated).toBe(true);
+      expect(body.message).toContain("Simulated response");
+      expect(body.meta.model.requested).toBe("simulated/no-op");
+
+      // And genuinely applied — this is what separates it from a canned refusal.
+      expect(body.detail.days).toHaveLength(2);
+      expect(Object.keys(body.detail.activities)).toHaveLength(3);
+    });
+
+    // The geocoding mock throws on any call, so reaching this line at all proves
+    // the simulated path never touched LocationIQ.
+    it("never reaches the geocoder, because it emits no locations", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "plan me something", surface: "board" }),
+        tripId,
+        simulatedModel("board"),
+      );
+      const body = (await res.json()) as { locationReport: { unverified: string[]; failed: string[]; skipped: string[] } };
+      expect(body.locationReport.unverified).toEqual([]);
+      expect(body.locationReport.failed).toEqual([]);
+      expect(body.locationReport.skipped).toEqual([]);
+    });
+
+    it("composes a valid page on the page surface", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "write me a page", surface: "page", pageContext: { tripId } }),
+        tripId,
+        simulatedModel("page"),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { simulated: boolean; content: unknown };
+      expect(body.simulated).toBe(true);
+      expect(validateComposedPage(body.content as never)).not.toHaveProperty("error");
+    });
+
+    // The 32-step budget is the hazard: a model that re-emits every step applies
+    // its plan once per remaining step. Two days, not sixty-four.
+    it("applies the plan exactly once despite the 32-step budget", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "plan me something", surface: "board" }),
+        tripId,
+        simulatedModel("board"),
+      );
+      const body = (await res.json()) as { detail: { days: unknown[] }; meta: { steps: number } };
+      expect(body.detail.days).toHaveLength(2);
+      expect(body.meta.steps).toBe(2); // one step of tool calls, one to stop
+    });
+
+    it("marks an injected model as not simulated", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add a day", surface: "board" }),
+        tripId,
+        modelWithToolCalls([toolCall("AddDay", {})]),
+      );
+      const body = (await res.json()) as { simulated: boolean; message: string };
+      expect(body.simulated).toBe(false);
+      expect(body.message).not.toContain("Simulated response");
+    });
+
+    // The spec's core promise, stated as a test: with AI off the endpoint works
+    // on a deployment carrying no AI_GATEWAY_API_KEY at all. This is the ONLY
+    // test in this file that omits the model argument, so it is the only one
+    // exercising the real selectAiModel() path — AI_LIVE short-circuits before
+    // the Vercel adapter is consulted, so no request scope and no network are
+    // needed. If aiModel() ever creeps back onto the off path, this fails.
+    it("serves a request with no model injected and no gateway key set", async () => {
+      const tripId = await seedTrip();
+      const priorLive = process.env.AI_LIVE;
+      const priorKey = process.env.AI_GATEWAY_API_KEY;
+      process.env.AI_LIVE = "false";
+      delete process.env.AI_GATEWAY_API_KEY;
+      try {
+        const res = await handleAiRequest(req(tripId, { prompt: "plan me something", surface: "board" }), tripId);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { simulated: boolean; detail: { days: unknown[] } };
+        expect(body.simulated).toBe(true);
+        expect(body.detail.days).toHaveLength(2);
+      } finally {
+        if (priorLive === undefined) delete process.env.AI_LIVE;
+        else process.env.AI_LIVE = priorLive;
+        if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
+      }
+    });
+
+    // The flip side of the test above: flag ON but no gateway key configured.
+    // selectAiModel()'s live branch calls aiModel(), which throws — this must
+    // come back as the handler's standard error envelope (503), not a bare
+    // unhandled-rejection 500.
+    it("returns a 503 envelope when the flag is on but no gateway key is set", async () => {
+      const tripId = await seedTrip();
+      const priorLive = process.env.AI_LIVE;
+      const priorKey = process.env.AI_GATEWAY_API_KEY;
+      process.env.AI_LIVE = "true";
+      delete process.env.AI_GATEWAY_API_KEY;
+      try {
+        const res = await handleAiRequest(req(tripId, { prompt: "plan me something", surface: "board" }), tripId);
+        expect(res.status).toBe(503);
+        const body = (await res.json()) as { error: string; simulated: boolean };
+        expect(body.simulated).toBe(false);
+        expect(body.error).toContain("model selection failed");
+      } finally {
+        if (priorLive === undefined) delete process.env.AI_LIVE;
+        else process.env.AI_LIVE = priorLive;
+        if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
+      }
     });
   });
 });

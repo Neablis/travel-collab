@@ -107,7 +107,7 @@ export async function composeAiPage(
   tripId: string,
   prompt: string,
   pageContext: PageContext,
-): Promise<ApiResult<PageContent>> {
+): Promise<ApiResult<{ content: PageContent; simulated: boolean }>> {
   const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -120,14 +120,16 @@ export async function composeAiPage(
       error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
     };
   }
-  const data = (await res.json()) as { content: unknown };
-  return { ok: true, value: PageContent.parse(data.content) };
+  const data = (await res.json()) as { content: unknown; simulated?: unknown };
+  return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
 }
 
 // The plan surface returns the same detail/history as a command batch, plus a
 // human-readable `message` summarizing what the AI applied (or why nothing
 // was) — surfaced to the user by ComposePanel.
-export type PlanOutcome = CommandOutcome & { message: string };
+// `simulated` is true when the ai-live flag is off: the change really applied,
+// but the server composed it rather than a model. Surfaced so the UI can say so.
+export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
 
 export async function composeAiPlan(
   tripId: string,
@@ -146,12 +148,18 @@ export async function composeAiPlan(
       error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
     };
   }
-  const data = (await res.json()) as { detail: unknown; history: unknown; message?: unknown };
+  const data = (await res.json()) as {
+    detail: unknown;
+    history: unknown;
+    message?: unknown;
+    simulated?: unknown;
+  };
   return {
     ok: true,
     value: {
       ...parseOutcome(data),
       message: typeof data.message === "string" ? data.message : "",
+      simulated: data.simulated === true,
     },
   };
 }
