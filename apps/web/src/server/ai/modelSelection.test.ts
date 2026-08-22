@@ -52,6 +52,17 @@ describe("aiLive", () => {
     }
     expect(aiLiveFlag).not.toHaveBeenCalled();
   });
+
+  // aiLiveFlag()'s own `defaultValue: false` only covers a throw/undefined
+  // from inside the SDK's `decide` — it does NOT cover readOverrides /
+  // decryptOverrides throwing earlier in getRun(), which happens when
+  // FLAGS_SECRET is unset/malformed and a stray override cookie is present.
+  // aiLive() must fail closed (simulated) rather than let that throw become
+  // an unhandled rejection out of handleAiRequest.
+  it("resolves to false, not rejects, when the flag throws", async () => {
+    aiLiveFlag.mockRejectedValue(new Error("readOverrides: invalid FLAGS_SECRET"));
+    await expect(aiLive()).resolves.toBe(false);
+  });
 });
 
 describe("selectAiModel", () => {
