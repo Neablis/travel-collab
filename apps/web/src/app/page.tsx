@@ -22,7 +22,8 @@ import { WorthYourAttention } from "../components/home/WorthYourAttention";
 import { PREVIEW_PLAYBOOKS, PREVIEW_ATTENTION } from "../components/home/preview-fixtures";
 import { Preview } from "../components/ui/preview";
 import { ShareButton } from "../components/trip/ShareButton";
-import { duplicateTrip, sendTripCommand } from "../lib/apiClient";
+import { duplicateTrip, sendTripCommand, fetchTripDetail } from "../lib/apiClient";
+import { tripSpend, plannedOfBudgetLine } from "../lib/cost";
 import { cn } from "../lib/cn";
 
 export default function Home() {
@@ -48,6 +49,16 @@ export default function Home() {
   // optimistic mechanism. A failure removes the id again, bringing the row
   // back; a success leaves it removed permanently via the `trips` filter below.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  // Per-card "{planned} planned of {budget}" lines (Task 4.1, M10 Phase 4),
+  // keyed by tripId. TripSummary (what /api/trips returns) carries no cost
+  // fields at all, so this grid — unlike NextTripHero, which already has its
+  // one trip's real TripDetail — fetches each visible trip's own TripDetail
+  // itself below and computes the same line via the shared
+  // plannedOfBudgetLine helper. A trip whose fetch is still pending or
+  // failed simply has no entry here: TripCard already renders nothing for a
+  // missing plannedOfBudget prop, so that's honest absence, not a fabricated
+  // or stale line.
+  const [plannedOfBudgetById, setPlannedOfBudgetById] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const res = await fetch("/api/trips");
@@ -147,6 +158,39 @@ export default function Home() {
   // (presentational-only rule). Revisit once TripSummary gains a start date.
   const nextTrip = visibleTrips[0] ?? null;
 
+  // One TripDetail fetch per visible grid trip (keyed by a joined id string
+  // so this only refires when the actual set of visible ids changes, not on
+  // every render): TripSummary has no cost fields, and there is no batch
+  // endpoint for "cost for these N trips" — accepted N-fetch cost (Task 4.1
+  // brief), not something to cache/paginate/batch around here.
+  const visibleTripIds = visibleTrips.map((t) => t.tripId).join(",");
+  useEffect(() => {
+    const ids = visibleTripIds === "" ? [] : visibleTripIds.split(",");
+    if (ids.length === 0) {
+      setPlannedOfBudgetById({});
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      ids.map(async (tripId) => {
+        const result = await fetchTripDetail(tripId);
+        return result.ok
+          ? ([tripId, plannedOfBudgetLine(tripSpend(result.value), result.value.currency)] as const)
+          : null;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const entry of entries) {
+        if (entry !== null) next[entry[0]] = entry[1];
+      }
+      setPlannedOfBudgetById(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleTripIds]);
+
   if (unauthenticated) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-8">
@@ -229,6 +273,7 @@ export default function Home() {
             <TripCard
               key={t.tripId}
               trip={t}
+              plannedOfBudget={plannedOfBudgetById[t.tripId]}
               menuSlot={
                 <Popover
                   open={openMenuTripId === t.tripId}

@@ -82,8 +82,8 @@ describe("TripCard", () => {
 
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
   // TripCard can't derive this line itself — it only ever renders whatever
-  // already-formatted string the caller (NextTripHero, which has the real
-  // TripDetail) hands it.
+  // already-formatted string the caller (page.tsx, which fetches each
+  // visible trip's own TripDetail and computes this line itself) hands it.
   it("shows planned spend against the budget", () => {
     const trip = tripSummaryFixture();
     render(<TripCard trip={trip} plannedOfBudget="$908.50 planned of $1,640.00" />);

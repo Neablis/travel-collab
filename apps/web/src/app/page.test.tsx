@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture } from "@/mocks/fixtures";
+import { formatMoney } from "@/components/lenses/formatMoney";
 
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -201,5 +202,90 @@ describe("Home trip actions", () => {
     const link = await screen.findByRole("link", { name: /start from a playbook/i });
     expect(link.getAttribute("href")).toBe("/playbooks");
     expect(link.closest("[data-preview-id]")).toBeNull();
+  });
+});
+
+// Task 4.1 (M10 Phase 4): TripCard's plannedOfBudget prop already renders
+// correctly (TripCard.test.tsx) and NextTripHero already computes its own
+// line from a real TripDetail fetch — but page.tsx is the caller for every
+// grid card (NextTripHero and TripCard are siblings here, not caller/callee),
+// so it must fetch each visible trip's own TripDetail and pass the computed
+// line down itself.
+describe("Home trip cards' planned-of-budget line", () => {
+  const secondTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
+
+  it("gives each visible trip card its own real planned-of-budget line once its TripDetail fetch resolves", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith(`/api/trips/${secondTripId}`)) {
+        return jsonResponse({
+          trip: tripDetailFixture({
+            tripId: secondTripId,
+            budget: { amountMinor: 50_000, currency: "USD" },
+            tripCostTotal: 12_500,
+            budgetRemaining: 37_500,
+          }),
+        });
+      }
+      if (url.endsWith(`/api/trips/${tripId}`)) {
+        return jsonResponse({ trip: tripDetailFixture({ tripId, budget: null }) });
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({
+          trips: [tripSummaryFixture(), tripSummaryFixture({ tripId: secondTripId, name: "Peru" })],
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    // Second trip only ever appears in the grid (the hero renders the
+    // first trip), so this line proves the grid card computed it itself
+    // from its own real TripDetail fetch, not something threaded through
+    // NextTripHero (which never renders or calls TripCard).
+    expect(await screen.findByText(`${formatMoney(12_500, "USD")} planned of ${formatMoney(50_000, "USD")}`)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`));
+  });
+
+  it("renders a grid card without a planned-of-budget line while its own TripDetail fetch is still pending or has failed (no fabricated or stale line)", async () => {
+    let resolveSecond: (r: Response) => void;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith(`/api/trips/${secondTripId}`)) {
+        return new Promise<Response>((resolve) => {
+          resolveSecond = resolve;
+        });
+      }
+      if (url.endsWith(`/api/trips/${tripId}`)) {
+        return jsonResponse({ trip: tripDetailFixture({ tripId, budget: null }) });
+      }
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({
+          trips: [tripSummaryFixture(), tripSummaryFixture({ tripId: secondTripId, name: "Peru" })],
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    // Scope to the Peru card's own block (not the whole page) — the first
+    // trip's card and the hero both legitimately show "No budget yet" in
+    // this fixture, which would otherwise make a page-wide assertion pass
+    // for the wrong reason.
+    const peruHeading = await screen.findByRole("heading", { name: "Peru" });
+    const peruBlock = peruHeading.closest("div");
+    expect(peruBlock).not.toBeNull();
+    expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
+    expect(within(peruBlock!).queryByText("No budget yet")).toBeNull();
+
+    // Resolving with an error afterward must not retroactively fabricate one.
+    resolveSecond!(jsonResponse({ error: "boom" }, 500));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`)));
+    expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
+    expect(within(peruBlock!).queryByText("No budget yet")).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
+import { formatMoney } from "@/components/lenses/formatMoney";
 
 // Currency is trip-level, never per-event (decision, 2026-08-14), so every
 // amount here shares detail.currency and callers format once with it. No
@@ -40,6 +41,17 @@ export function tripSpend(detail: TripDetail): TripSpend {
     remaining: detail.budgetRemaining,
     over: detail.budgetRemaining !== null && detail.budgetRemaining < 0,
   };
+}
+
+// "{planned} planned of {budget}" (or the honest "No budget yet") — shared by
+// every caller that has a real TripDetail in hand (NextTripHero for its own
+// single trip, page.tsx for each visible grid trip, Task 4.1/M10 Phase 4).
+// Takes the already-computed TripSpend rather than a TripDetail directly so
+// callers that already called tripSpend() for other reasons don't recompute it.
+export function plannedOfBudgetLine(spend: TripSpend, currency: string): string {
+  return spend.budget === null
+    ? "No budget yet"
+    : `${formatMoney(spend.total, currency)} planned of ${formatMoney(spend.budget, currency)}`;
 }
 
 export function daySpend(detail: TripDetail, dayId: string): { total: number; unpriced: number } {

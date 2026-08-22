@@ -14,8 +14,7 @@ import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
-import { tripSpend } from "@/lib/cost";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
@@ -108,12 +107,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           })),
         });
         setStartDate(detail.startDate);
-        const spend = tripSpend(detail);
-        setPlannedOfBudget(
-          spend.budget === null
-            ? "No budget yet"
-            : `${formatMoney(spend.total, detail.currency)} planned of ${formatMoney(spend.budget, detail.currency)}`,
-        );
+        setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
       } else {
         setSparkline({ status: "error" });
       }
