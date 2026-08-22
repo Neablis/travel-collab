@@ -39,7 +39,16 @@ test("a simulated AI answer is badged and still really changes the trip", async 
   // box fires the same composeAiPlan(tripId, text, "board") call the old
   // standalone ComposePanel used to make directly.
   await page.getByPlaceholder("Ask about this day…").fill("plan me a couple of days");
-  await Promise.all([waitForAiResponse(page), page.keyboard.press("Enter")]);
+  const [response] = await Promise.all([waitForAiResponse(page), page.keyboard.press("Enter")]);
+
+  // Assert the response body directly, not just the badge: playwright.config.ts's
+  // AI_LIVE: "false" only applies when Playwright starts its own server
+  // (reuseExistingServer is true outside CI), so a locally-running dev server
+  // started with AI_LIVE=true in .env.local would silently make a real model
+  // call while this test still passed on the badge/content assertions alone.
+  // Failing on `simulated` directly makes that misconfiguration loud.
+  const body = (await response.json()) as { simulated: boolean };
+  expect(body.simulated).toBe(true);
 
   // Marked as simulated: AssistantRail.tsx only renders this Badge when the
   // rail's last composeAiPlan response came back with simulated: true.
