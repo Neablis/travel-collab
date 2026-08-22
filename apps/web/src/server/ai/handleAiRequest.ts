@@ -5,13 +5,20 @@
 // — any other export (like this function) fails `next build`'s route-shape
 // validation. The route file just re-exports POST, which calls this.
 //
-// Model injection: `handleAiRequest` takes an optional `model` (an AI SDK
-// `LanguageModel`) that defaults to `aiModel()`. The route's `POST` never
-// passes one, so the only path that can ever reach a real provider is a real
-// request hitting the real deployed/dev route with AI_GATEWAY_API_KEY set —
-// tests call `handleAiRequest` directly with a fake model (ai/test's
-// MockLanguageModelV4) and never touch `POST`'s default, so they never
-// construct `aiModel()` and never hit the network.
+// Model selection: `handleAiRequest` takes an OPTIONAL `model`. When a caller
+// injects one — which is every test in route.int.test.ts, and nothing else —
+// it is used as-is and no flag is consulted, so test behavior is unchanged
+// from before the kill switch existed. When none is injected, which is every
+// real request, `selectAiModel()` decides: the real gateway model when the
+// `ai-live` flag is on, the simulated model when it is off. The default
+// parameter form (`model: LanguageModel = aiModel()`) could not survive that
+// change, because a default is evaluated at call time and would construct the
+// gateway client — and throw on a missing AI_GATEWAY_API_KEY — before the flag
+// could be read.
+//
+// Selection happens AFTER guard() on purpose: guard() is where the session is
+// established, so the per-user targeting described in the design spec's §6 can
+// later be added to the flag declaration without moving this call site.
 //
 // `geocoder` is different: unlike `model`, it's used by only ONE of the three
 // surfaces (board/combined's enrichment step, well after the `surface ===
@@ -32,7 +39,8 @@ import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
-import { aiModel } from "@/server/ai/gateway";
+import { selectAiModel } from "@/server/ai/modelSelection";
+import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { buildEnvelope, type AiSurface } from "@/server/ai/context";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
@@ -88,6 +96,9 @@ const AI_MAX_RETRIES = 2;
 // metadata, not part of the domain contract; safe to ignore on the client.
 interface AiCallMeta {
   model: { requested: string; served: string | null };
+  // True when no provider was contacted — the plan came from simulatedModel
+  // because the ai-live flag is off. See modelSelection.ts.
+  simulated: boolean;
   finishReason: string;
   // True when the run ended because `stopWhen` fired while the model still
   // wanted to call tools — the plan is UNFINISHED, not complete. A model that
@@ -123,9 +134,15 @@ function requestedModelId(model: LanguageModel): string {
   return typeof model === "string" ? model : model.modelId;
 }
 
-function buildAiMeta(result: AiResultLike, model: LanguageModel, durationMs: number): AiCallMeta {
+function buildAiMeta(
+  result: AiResultLike,
+  model: LanguageModel,
+  durationMs: number,
+  simulated: boolean,
+): AiCallMeta {
   return {
     model: { requested: requestedModelId(model), served: result.finalStep?.response?.modelId ?? null },
+    simulated,
     finishReason: result.finishReason,
     truncated: result.finishReason === "tool-calls",
     steps: result.steps.length,
@@ -144,7 +161,7 @@ function buildAiMeta(result: AiResultLike, model: LanguageModel, durationMs: num
 export async function handleAiRequest(
   request: Request,
   tripId: string,
-  model: LanguageModel = aiModel(),
+  model?: LanguageModel,
   geocoder?: Geocoder,
 ): Promise<Response> {
   const g = await guard(tripId);
@@ -156,6 +173,19 @@ export async function handleAiRequest(
     return Response.json({ error: "malformed request" }, { status: 400 });
   }
   const { prompt, surface, pageContext } = parsed.data;
+
+  // Injected model => that exact model is used and the flag is never consulted;
+  // "simulated" is derived from whether the injected model IS simulatedModel's
+  // sentinel (route.int.test.ts's "simulated mode" tests inject simulatedModel()
+  // directly, to exercise its plan-application behavior without flipping
+  // AI_LIVE — so `model` alone can't decide this, only its identity can). No
+  // model => ask the flag, which already returns this same shape.
+  const selected = model
+    ? { model, simulated: requestedModelId(model) === SIMULATED_MODEL_ID }
+    : await selectAiModel(surface);
+  const activeModel = selected.model;
+  const { simulated } = selected;
+  const baseNotices = simulated ? [SIMULATED_NOTICE] : [];
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
   // The ID rules matter: planning tools (Move/Update/Remove) require the
@@ -189,7 +219,7 @@ export async function handleAiRequest(
     const startedAt = Date.now();
     try {
       result = await generateText({
-        model,
+        model: activeModel,
         system,
         prompt,
         tools,
@@ -198,11 +228,15 @@ export async function handleAiRequest(
       });
     } catch (err) {
       return Response.json(
-        { error: `model call failed: ${errorMessage(err)}`, meta: failedMeta(model, Date.now() - startedAt) },
+        {
+          error: `model call failed: ${errorMessage(err)}`,
+          simulated,
+          meta: failedMeta(activeModel, Date.now() - startedAt, simulated),
+        },
         { status: 422 },
       );
     }
-    const meta = buildAiMeta(result, model, Date.now() - startedAt);
+    const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -213,13 +247,13 @@ export async function handleAiRequest(
       | undefined;
     if (!composed) {
       // meta.toolCalls shows what the model DID do instead of composing.
-      return Response.json({ error: "model did not compose a page", meta }, { status: 422 });
+      return Response.json({ error: "model did not compose a page", simulated, meta }, { status: 422 });
     }
     const validated = validateComposedPage(composed.output.content);
     if ("error" in validated) {
-      return Response.json({ error: validated.error, meta }, { status: 422 });
+      return Response.json({ error: validated.error, simulated, meta }, { status: 422 });
     }
-    return Response.json({ content: validated, meta });
+    return Response.json({ content: validated, simulated, meta });
   }
 
   // board | combined
@@ -229,7 +263,7 @@ export async function handleAiRequest(
   const startedAt = Date.now();
   try {
     gen = await generateText({
-      model,
+      model: activeModel,
       system,
       prompt,
       tools,
@@ -238,11 +272,15 @@ export async function handleAiRequest(
     });
   } catch (err) {
     return Response.json(
-      { error: `model call failed: ${errorMessage(err)}`, meta: failedMeta(model, Date.now() - startedAt) },
+      {
+        error: `model call failed: ${errorMessage(err)}`,
+        simulated,
+        meta: failedMeta(activeModel, Date.now() - startedAt, simulated),
+      },
       { status: 422 },
     );
   }
-  const meta = buildAiMeta(gen, model, Date.now() - startedAt);
+  const meta = buildAiMeta(gen, activeModel, Date.now() - startedAt, simulated);
 
   // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
   // commands in one batch-aware pass: mint new ids, resolve refs against the
@@ -265,8 +303,9 @@ export async function handleAiRequest(
         skipped.length > 0
           ? "I couldn't match that to anything on your trip, so nothing was applied. Try naming the days and activities as they appear on the board."
           : "I couldn't turn that into any changes, so nothing was applied.",
-        meta.truncated ? [TRUNCATED_NOTICE] : [],
+        [...baseNotices, ...(meta.truncated ? [TRUNCATED_NOTICE] : [])],
       ),
+      simulated,
       meta,
       resolvedCommands: [],
       resolutionErrors,
@@ -291,6 +330,7 @@ export async function handleAiRequest(
       {
         error: batch.error.message,
         code: batch.error.code,
+        simulated,
         meta,
         resolvedCommands: commands,
         resolutionErrors,
@@ -300,7 +340,7 @@ export async function handleAiRequest(
     );
   }
   const summary = summarizeBatch(commands, detail);
-  const notices: string[] = [];
+  const notices: string[] = [...baseNotices];
   if (skipped.length > 0) {
     notices.push(
       `${skipped.length} other change${skipped.length === 1 ? "" : "s"} couldn't be matched and ${skipped.length === 1 ? "was" : "were"} skipped.`,
@@ -318,6 +358,7 @@ export async function handleAiRequest(
     detail: batch.detail,
     history: batch.history,
     message,
+    simulated,
     meta,
     resolvedCommands: commands,
     resolutionErrors,
@@ -364,6 +405,11 @@ function locationNotice(report: LocationEnrichmentReport): string | null {
 const TRUNCATED_NOTICE =
   "I didn't finish the whole plan before running out of room — ask me to continue and I'll pick up from here.";
 
+// What the user is told when the ai-live flag is off. The plan they are looking
+// at is real — it applied, it is undoable, it is in the history — but no model
+// wrote it, and nothing about the response should let that be mistaken.
+const SIMULATED_NOTICE = "Simulated response — AI is disabled on this deployment.";
+
 // Parenthesised caveats appended to a message, so the summary of what DID apply
 // always leads.
 function withNotices(message: string, notices: string[]): string {
@@ -372,9 +418,14 @@ function withNotices(message: string, notices: string[]): string {
 
 // Minimal meta for the model-call-failure path, where there is no result to
 // read — just which model was attempted and how long before it gave up.
-function failedMeta(model: LanguageModel, durationMs: number): Pick<AiCallMeta, "model" | "maxRetries" | "durationMs"> {
+function failedMeta(
+  model: LanguageModel,
+  durationMs: number,
+  simulated: boolean,
+): Pick<AiCallMeta, "model" | "simulated" | "maxRetries" | "durationMs"> {
   return {
     model: { requested: requestedModelId(model), served: null },
+    simulated,
     maxRetries: AI_MAX_RETRIES,
     durationMs,
   };
