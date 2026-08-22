@@ -74,22 +74,63 @@ content lives in ADR-019, this file, and the known-issues entries above.
 
 ## In flight
 
-**M10 Wave 2 — Phases 0, 1 and 2 done; Phase 3 (the unscheduled rack) is the
-resume-from-here point.** Progress below was reconstructed 2026-08-17 from the
-code and commit history, not from a task-by-task log kept during the work —
-this file had not been updated since the plan was written, so treat this
-section as the source of truth over anything phase-status-shaped said earlier
-in this file.
+**M10 Wave 2 — Phases 0, 1, 2 and 3 done; Phase 4 (budget), 5 (overlaps), 6
+(growth), 7 (forms) and 8 (polish) are all now unblocked and available to
+pick up next.** Progress below was reconstructed 2026-08-17 from the code and
+commit history, not from a task-by-task log kept during the work; Phase 3's
+own entry (below) is a live record from the session that built and verified
+it, 2026-08-22.
 
-**Between that reconstruction (2026-08-17) and now, one off-roadmap insert
-landed and nothing else:** feature flags and the AI kill switch (2026-08-19,
-`5c5379e`..`b865537`, PR #24 — see "Where we are" above and ADR-019). It
-includes `apps/web/src/server/flags.ts`, `apps/web/src/server/ai/{modelSelection,
-simulatedModel}.ts`, `handleAiRequest.ts`, the `.well-known` discovery route,
-a "Simulated" badge in `AssistantRail`/`ComposePanel`/`TripBoardScreen`, CI/e2e
-config, and this documentation — but **nothing in Phases 0-9 below**, and no
-board/lens/timeline code the resume-from-here Phase 3 work touches. **Phase 3
-is still exactly where work resumes.**
+**Between the 2026-08-17 reconstruction and Phase 3 landing, one off-roadmap
+insert also merged to `main` and was pulled into this branch:** feature flags
+and the AI kill switch (2026-08-19, `5c5379e`..`b865537`, PR #24 — see "Where
+we are" above and ADR-019). It includes `apps/web/src/server/flags.ts`,
+`apps/web/src/server/ai/{modelSelection, simulatedModel}.ts`,
+`handleAiRequest.ts`, the `.well-known` discovery route, a "Simulated" badge
+in `AssistantRail`/`ComposePanel`/`TripBoardScreen`, CI/e2e config, and its own
+documentation — independent of Phase 3's board/lens/timeline work, merged into
+this branch via `origin/main` alongside the corrected phase-3-rack.md plan.
+
+- **Phase 3 (rack) — done, 2026-08-22.** `lib/time.ts` (`toMinutes`/
+  `toTimeString`, moved from `TimelineLens.tsx`), `unscheduledRack.ts`
+  (`fitIntoDay`), `UnscheduledRack.tsx` (the sticky bottom drawer, mounted
+  once in `TripBoardScreen` outside the lens switch so it's present in all
+  four views), `board/resolveDrop.ts` (pure drop routing extracted from
+  Board's monitor) and `trip/rackDisclosure.ts` (pure auto-open-ownership
+  reducer) all shipped (`a635221`, `70d20ab`, `52faaae`). The full-width
+  Backlog `<Column>` and its `isOver` drag highlight are gone from
+  `Board.tsx`/`Column.tsx`. `rack-provenance` is registered behind a
+  `<Preview>` since "was on Day X" / who-parked-it provenance isn't modelled.
+  Verified by walking the exit checklist item by item in a real browser
+  (all four views show the drawer; "Add to day…" and drag-to-rack both use
+  real `fitIntoDay` time windows and strip them on unschedule; both
+  directions — assign and unschedule — undo correctly, including the
+  two-undo case where an unschedule's `MoveActivity`+`UpdateActivity` pair
+  isn't batched) rather than by inference from the e2e pass alone. Unit
+  (95 files / 544 tests), int (12 files / 79 tests against real Postgres),
+  typecheck and lint are all green; `e2e/m10-unscheduled-rack.spec.ts`
+  (the phase's real gate, since jsdom cannot drive pragmatic-drag-and-drop —
+  no `DataTransfer`/`DragEvent`) passes cleanly, twice. The five pre-existing
+  e2e specs this phase's selector changes touch (`m1-board`, `m2-history`,
+  `m3-place-and-time`, `m4-money-and-lenses`, `m8-make-it-real`) were diffed
+  against their pre-Phase-3 versions to confirm the "+ Add activity" →
+  "Add stop" rename and the new rack-scoped locators are equivalent-or-more-
+  precise, not loosened. `m1-board` and `m4-money-and-lenses` are flaky under
+  load exactly as **KI-21** already documents (a different specific
+  drag-adjacent assertion fails each run); a single-worker run against a
+  pre-warmed dev server (see below) got both green, and a full-suite run
+  passed 13/15 with only those two specs' known flakiness remaining.
+  **New, worth knowing for the next session verifying e2e in a container:**
+  dev-mode Turbopack's cold-compile delay on first navigation to a route
+  (here, `/trips/[tripId]`, confirmed directly — first hit 3.8s, second hit
+  0.2s) is enough on its own to blow a 5s assertion timeout and looks exactly
+  like a real regression; hitting the route once to warm it (or running
+  against a production build) rules this out before treating a "stuck on
+  Loading…" failure as code-caused.
+- **Next up:** Phase 4 (budget) and Phase 5 (overlaps) are independent of
+  everything else and of each other. Phase 6 (add-a-day, empty states) and
+  Phase 7 (forms) both depended on Phase 3 and are now unblocked. Phase 8
+  (polish) is independent too; Phase 9 (gate) is last, after all of 4-8.
 
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
@@ -109,18 +150,17 @@ is still exactly where work resumes.**
   2026-08-16 and closing with two process amendments adopted into `AGENTS.md`
   (`6708fb3`). It also filed **KI-21** (intermittent `dragCardTo` flakiness
   under load, confirmed unrelated to any branch's code — see the entry).
-- **Phases 3-9 — not started.** Verified by absence, not just by an unchecked
+- **Phase 3 — done.** See the detailed entry above.
+- **Phases 4-9 — not started.** Verified by absence, not just by an unchecked
   plan file (the phase files' own `- [ ]` step markers are never checked
   regardless of completion, so they aren't a reliable signal on their own):
-  - **Phase 3 (rack):** `UnscheduledRack.tsx`, `unscheduledRack.ts`,
-    `EndOfTrip.tsx`, `lib/time.ts` don't exist. `Board.tsx` still renders the
-    backlog as the old column.
   - **Phase 4 (budget):** `SettingsSheet.tsx` last touched 2026-08-06 (M8,
     pre-redesign). No per-stop cost in `TimelineLens`. KI-2 not re-closed
     against the current design.
   - **Phase 5 (overlaps):** no `OverlapWarning.tsx` / `overlapData.ts`; no
     `time-overlap` handling in `TimelineLens`.
-  - **Phase 6 (add-a-day, empty states):** depends on Phase 3; untouched.
+  - **Phase 6 (add-a-day, empty states):** depended on Phase 3 (now done, so
+    unblocked); untouched otherwise.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
     (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
@@ -150,12 +190,12 @@ The plan itself:
   we built from the older 1,412-line file, which is why there are two
   generations of drift.
 
-**Start with Phase 3** (`docs/plans/M10-delta/phase-3-rack.md`) — Phases 0 and
-1 it depends on are both merged to `main`. Phases 6 and 7 depend on it too, so
-it unblocks the most follow-on work. Phases 4, 5 and 8 are independent of each
-other and of Phase 3, and could go in parallel if split across sessions.
-Branch from current `main`, not from PR #23's old branch — that branch is
-merged and its diff against `main` is now empty.
+**Phase 3 is done — pick up at Phase 4, 5, 6, 7 or 8 next**
+(`docs/plans/M10-delta/phase-{4,5,6,7,8}-*.md`). Phases 6 and 7 depended on
+Phase 3 and are now unblocked. Phases 4, 5 and 8 are independent of everything
+else and could go in parallel if split across sessions. Phase 9 (gate) is
+last, after all of 4-8 land. Branch from current `main`, not from PR #23's old
+branch — that branch is merged and its diff against `main` is now empty.
 
 **The scoping rule for all of Wave 2** (Mitchell, 2026-08-14): *build on what
 exists in the data model; implement the UI for things we can't build today and
