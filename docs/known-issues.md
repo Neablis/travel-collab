@@ -350,6 +350,29 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
 
+### D-2 — `TripDateControl` had no UI mount point — RESOLVED
+- **Decided (2026-08-22, Task 4.2, M10 Phase 4):** at the time, read as a
+  deliberate "dormant, not deleted" hold, same standing principle as D-1
+  (below, still open) gives anchors.
+- **Correction (2026-08-22, M10 Phase 4, restore-date-editing task):** this
+  was wrong — the product owner confirmed the read-only Dates row was an
+  *unintentional* capability loss, not a deferral, and asked for it back.
+  Unlike D-1, there was never a design decision to make dates read-only; the
+  redesign spec simply didn't give `TripDateControl` a new home when it
+  re-laid-out the settings sheet.
+- **Fix:** the settings sheet's Dates row (`SettingsSheet.tsx`) is a real
+  trigger again — clicking it opens a `Popover` that mounts
+  `TripDateControl` unmodified, the same click-a-row/open-a-small-control
+  idiom `TripHeader`'s own History popover uses. `TripDateControl.tsx` itself
+  was never touched (its `SetTripDates`/`SetTripStartDate` dispatch logic,
+  shrink-confirm dialog, and `TripDateControl.test.tsx`'s 7 tests are
+  byte-identical) — only its mount point changed. This also fixed
+  `e2e/m3-place-and-time.spec.ts` and `e2e/m8-make-it-real.spec.ts` (M8's own
+  milestone gate spec), both of which had been failing waiting for a
+  `Start date` field with nowhere to appear.
+- **First noted:** 2026-08-22 (Task 4.2). **Resolved:** 2026-08-22 (same day,
+  restore-date-editing task).
+
 ### KI-14 — A dismissed conflict stayed dismissed forever, silently suppressing a re-created problem — RESOLVED
 - **Severity:** correctness (a real, current conflict was hidden from the user with no signal)
 - **Area:** `packages/domain/src/trip/decide.ts` (`lapsedDismissals`), `TripState.dismissedConflictIds`
@@ -547,31 +570,6 @@ resurfaces when keeping them actually costs something.
   `TRIP_TIMEZONE` and read by no rule, was removed in M8 Wave B (Task B2), in
   the same pass as the anchors-UI retirement. See the Amendment (2026-08-07)
   in `docs/architecture/ADR-006-conflict-evaluation-context.md`.
-
-### D-2 — `TripDateControl`: component kept, no current UI mounts it
-- **Decided:** 2026-08-22 (Task 4.2, M10 Phase 4 — controller ruling, same
-  standing principle as D-1: capability is never removed just because the
-  current design has no surface for it).
-- **What stays:** `apps/web/src/components/lenses/TripDateControl.tsx` in
-  full — its `SetTripDates`/`SetTripStartDate` dispatch logic, shrink-confirm
-  dialog, and its own unit coverage (`TripDateControl.test.tsx`, 7 tests,
-  still green and still the sole place that command-dispatch logic is
-  exercised).
-- **What went away:** its only mount point. The redesigned trip settings
-  sheet (`SettingsSheet.tsx`) now shows a **read-only** Dates row (per the
-  redesign spec) instead of rendering `TripDateControl` — confirmed via grep
-  (`grep -rn "TripDateControl" apps/web/src`) that, outside its own
-  definition/test file and two explanatory code comments, nothing under
-  `apps/web/src` renders `<TripDateControl`. There is currently no way to
-  change a trip's start/end dates through the UI at all.
-- **Why:** the redesign's settings sheet (`current/…dc.html:849-900`) treats
-  dates as a read-only summary row, not an editable control — mirroring the
-  same "dormant, not deleted" treatment D-1 gives anchors.
-- **The tripwire:** `TripDateControl.test.tsx` stays in the suite and stays
-  green, so the dispatch logic itself can't silently rot even with no caller.
-  Whoever next needs date editing back in the UI (a future settings redesign,
-  or Phase 6's "Add a day" work) should re-mount this component rather than
-  reimplement its range/shrink-confirm logic from scratch.
 
 ## Deferred design work (tracked elsewhere, pointer only)
 

@@ -167,15 +167,17 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByTestId("backlog-column")).toBeTruthy();
   });
 
-  it("shows a read-only Dates row in Trip settings (Task 4.2 redesign)", async () => {
-    // Task 4.2 moved date editing out of the settings sheet entirely — the
-    // sheet's Dates row is now read-only, and TripDateControl (the command-
-    // dispatch logic previously exercised end-to-end here) no longer mounts
-    // anywhere in the app (see docs/known-issues.md). That dispatch logic
-    // itself is still fully covered directly in TripDateControl.test.tsx;
-    // this test only confirms the new integration: opening Trip settings
-    // shows the real trip dates as plain read-only text, not an editable
-    // control.
+  it("opens TripDateControl from the clickable Dates row in Trip settings (restored, M10 Phase 4)", async () => {
+    // Task 4.2's redesign shipped the sheet's Dates row read-only, leaving
+    // TripDateControl (the only way to actually change a trip's dates) with
+    // no mount point anywhere in the app — an unintentional capability loss
+    // (product-owner ruling, 2026-08-22; see docs/known-issues.md's former
+    // D-2 entry). This test confirms the real integration once restored:
+    // opening Trip settings and clicking the Dates row opens a Popover
+    // containing TripDateControl, pre-filled with the trip's real dates.
+    // TripDateControl's own dispatch logic (SetTripDates/SetTripStartDate,
+    // shrink-confirm) stays covered directly in TripDateControl.test.tsx; the
+    // sheet's onCommand pass-through is covered in SettingsSheet.test.tsx.
     const fixture = tripDetailFixture({ startDate: "2027-06-01" });
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -183,8 +185,13 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
 
-    expect(await screen.findByText("Dates")).toBeTruthy();
+    const datesRow = await screen.findByRole("button", { name: "Dates" });
     expect(screen.queryByLabelText("Start date")).toBeNull();
+
+    fireEvent.click(datesRow);
+
+    const startInput = (await screen.findByLabelText("Start date")) as HTMLInputElement;
+    expect(startInput.value).toBe("2027-06-01");
   });
 
   it("shows the conflict badge for an anchor-violating activity and clears it once the trip date resolves the conflict", async () => {

@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripMember } from "@tc/contracts";
+import type { TripCommand, TripMember } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -40,11 +40,14 @@ const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
 
 // Existing A15 helper, extended (not replaced) with the two new required
 // props (#5, controller ruling) — every existing call site below keeps
-// working unchanged since both take defaults.
+// working unchanged since both take defaults. Further extended (this task)
+// with an optional onCommand override so the Dates-row wiring tests can
+// capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
   onDeleted = vi.fn(),
-  overrides: { spend?: TripSpend; members?: TripMember[] } = {},
+  overrides: { spend?: TripSpend; members?: TripMember[]; onCommand?: (command: TripCommand) => void } = {},
 ) {
+  const onCommand = overrides.onCommand ?? vi.fn();
   render(
     <SettingsSheet
       tripId={tripId}
@@ -58,11 +61,11 @@ function renderSheet(
       budget={null}
       spend={overrides.spend ?? defaultSpend}
       members={overrides.members ?? defaultMembers}
-      onCommand={vi.fn()}
+      onCommand={onCommand}
       onDeleted={onDeleted}
     />,
   );
-  return { onDeleted };
+  return { onDeleted, onCommand };
 }
 
 // New helper for the redesign's own coverage (brief's Step 1 snippets) — a
@@ -81,7 +84,7 @@ function renderSettings(
 }
 
 describe("SettingsSheet redesign (Task 4.2)", () => {
-  it("shows the trip name, read-only dates and the budget fields", () => {
+  it("shows the trip name, the dates row and the budget fields", () => {
     renderSettings({ open: true });
 
     expect(screen.getByLabelText("Trip name")).toBeTruthy();
@@ -124,6 +127,36 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
   it("lists real members", () => {
     renderSettings({ open: true });
     expect(screen.getByText("dev-alice")).toBeTruthy();
+  });
+});
+
+describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
+  // Not asserting Popover/TripDateControl's own mechanics — those are
+  // Popover's and TripDateControl.test.tsx's tested territory — just that
+  // the wiring here is real: clicking the row actually mounts
+  // TripDateControl.
+  it("opens TripDateControl when the Dates row is clicked", async () => {
+    renderSheet();
+
+    expect(screen.queryByLabelText("Start date")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+
+    expect(await screen.findByLabelText("Start date")).toBeTruthy();
+  });
+
+  it("forwards a committed date change to the sheet's own onCommand as SetTripDates", async () => {
+    const { onCommand } = renderSheet(vi.fn(), { onCommand: vi.fn() });
+
+    await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+    await userEvent.type(await screen.findByLabelText("Start date"), "2027-01-05");
+    await userEvent.click(screen.getByRole("button", { name: "Set dates" }));
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripDates", tripId, startDate: "2027-01-05" }),
+      ),
+    );
   });
 });
 

@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
+import { Popover } from "@/components/ui/popover";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
+import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatTripDate } from "@/lib/formatDate";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import type { TripSpend } from "@/lib/cost";
@@ -49,15 +51,16 @@ function datesLabel(startDate: string | null, endDate: string | null): string {
 // comment 12b): budget/currency and the start date are set-once/rare operations, so
 // they belong in a raised Sheet, not permanent chrome.
 //
-// Redesign (Task 4.2, current/…dc.html:849-900): dates are now a read-only
-// row here — TripDateControl (the only way to actually change them) is not
-// mounted anywhere in the new design and is intentionally left un-deleted
-// (Mitchell's standing decision: capability isn't removed just because the
-// current design has no surface for it). See docs/known-issues.md for the
-// resulting no-caller note. TripMoneySettings keeps its existing
+// Redesign (Task 4.2, current/…dc.html:849-900) shipped the Dates row as
+// read-only, leaving TripDateControl (the only way to actually change dates)
+// with no mount point anywhere in the app — an unintentional capability loss,
+// not a deliberate deferral (product-owner ruling, 2026-08-22, superseding
+// the D-2 known-issues entry). Fix: the Dates row is now a real trigger —
+// clicking it opens a Popover containing TripDateControl, the same
+// click-a-row/open-a-small-control idiom TripHeader's own History popover
+// uses (TripHeader.tsx, ~line 181). TripMoneySettings keeps its existing
 // handlers/aria-labels and dispatch logic byte-identical — this task only
-// re-homes/relabels its JSX (see that component) and re-lays-out this sheet
-// around it.
+// touches the Dates row.
 //
 // A15: Delete/Duplicate mirror the trip-list row menu (page.tsx), but dispatch
 // via `sendTripCommand`/`duplicateTrip` directly rather than through
@@ -79,11 +82,9 @@ export function SettingsSheet({
   onOpenChange,
   startDate,
   endDate,
-  // No longer read directly here (it existed only to size TripDateControl's
-  // newDayIds) — kept as a prop so TripHeader's call site doesn't need a
-  // second, unrelated change, and because TripDateControl (which still
-  // needs it) could be re-mounted here again without a prop-shape change.
-  dayCount: _dayCount,
+  // Re-mounted use (this task): sizes TripDateControl's newDayIds when a
+  // range grows past the trip's current day count.
+  dayCount,
   currency,
   budget,
   spend,
@@ -113,6 +114,7 @@ export function SettingsSheet({
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [datesOpen, setDatesOpen] = useState(false);
 
   async function handleDelete() {
     setBusy(true);
@@ -152,16 +154,43 @@ export function SettingsSheet({
           <Input id="trip-name-setting" value={tripName} readOnly />
         </FormField>
 
-        {/* Read-only dates row (redesign spec) — 1px hairline border,
-            8px radius, 10px/12px padding. */}
-        <div className="flex items-center justify-between rounded-lg border border-hairline px-3 py-2.5">
-          <Text as="span" className="text-xs text-slate">
-            Dates
-          </Text>
-          <DataText size="sm" className="text-ink">
-            {datesLabel(startDate, endDate)}
-          </DataText>
-        </div>
+        {/* Clickable dates row (this task, restoring TripDateControl's mount
+            point) — same 1px hairline border, 8px radius, 10px/12px padding
+            the read-only row had, now as a Popover trigger Button so the row
+            looks unchanged except for the added interactive affordance.
+            aria-label is set explicitly (not derived from datesLabel) so the
+            e2e specs' getByRole("button", { name: "Dates" }) stays stable
+            regardless of the displayed date value. */}
+        <Popover
+          open={datesOpen}
+          onOpenChange={setDatesOpen}
+          align="end"
+          trigger={
+            <Button
+              variant="ghost"
+              aria-label="Dates"
+              className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
+            >
+              <Text as="span" className="text-xs text-slate">
+                Dates
+              </Text>
+              <DataText size="sm" className="text-ink">
+                {datesLabel(startDate, endDate)}
+              </DataText>
+            </Button>
+          }
+        >
+          <TripDateControl
+            tripId={tripId}
+            startDate={startDate}
+            endDate={endDate}
+            dayCount={dayCount}
+            onCommand={(command) => {
+              onCommand(command);
+              setDatesOpen(false);
+            }}
+          />
+        </Popover>
 
         <div>
           <SectionHeading>Budget</SectionHeading>
