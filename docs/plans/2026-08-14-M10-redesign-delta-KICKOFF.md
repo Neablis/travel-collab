@@ -182,6 +182,10 @@ the plan's snippet shows single quotes — match the file, not the snippet.
 already exposed on `TripDetail`, or you write a small local copy with a comment
 explaining why (precedent: `lib/geo.ts`).
 
+**10. The presentational-only rule.** No new `packages/` or `apps/web/src/server`
+diff beyond Wave 1's already-approved `conflicts.ts` exception. If a task appears
+to need one, **stop and ask**.
+
 **11. Phase 9's gate-spec snippet calls two helpers that don't match the repo.**
 Same class as trap #2, found the same way. Its sample spec calls
 `signInAsDevUser(page)` — the real signature is `signInAsDevUser(page, username)`,
@@ -193,9 +197,39 @@ unique name prefix — parallel workers share one database. Treat the phase file
 sample code as intent, and check helper signatures against `e2e/helpers.ts`
 before pasting.
 
-**10. The presentational-only rule.** No new `packages/` or `apps/web/src/server`
-diff beyond Wave 1's already-approved `conflicts.ts` exception. If a task appears
-to need one, **stop and ask**.
+**12. Every file and line reference in the phase files was swept on 2026-08-22 —
+one was wrong, and it is now fixed.** So you can lean on the rest. What the sweep
+covered and found:
+
+- Every backticked path across all ten phase files was resolved against the tree.
+  The only unresolvable ones are files the plan itself creates (`lib/time.ts`,
+  `unscheduledRack.ts`, `overlapData.ts`, `OverlapWarning.tsx`, `EndOfTrip.tsx`,
+  `NewTripWizard.tsx`, `place.ts`, and Task 3.3's new modules). No phase points
+  at a file that should exist and doesn't.
+- Every `File.ext:NNN` reference was checked against that file's real length.
+  **One was out of range:** `phase-6-growth.md` cited `Board.tsx:158` for the
+  `AddDay` dispatch, twice. `Board.tsx` is 154 lines, and `git log -S` shows
+  `type: "AddDay"` has **never** appeared in it — it only takes an `onAddDay`
+  callback (typed at line 20, wired to the button at line 148). The real dispatch
+  is `TripBoardScreen.tsx:192`. Both citations now say so.
+- Spot-checked the load-bearing refs the phases tell you to edit at:
+  `Column.tsx:125-135` (the dashed "+ Add" button), `TimelineLens.tsx:76-80`
+  (`nextSlot`), `Column.tsx:103` (the `isOver` highlight),
+  `ActivityCard.tsx:31-50` (the draggable), `detail.ts:35` (`backlog`) — all
+  accurate.
+- `phase-3-rack.md` cites the Backlog block as `114-127` in one place and
+  `116-127` in another. Both are right: `114` includes the explanatory comment
+  the delete should take with it, `116` is the `<Column>` element alone.
+
+Note that Board.tsx was **not** drifting — it hasn't been touched since before
+the plan was written. That citation was simply wrong when authored. Still, once
+you land Phase 3 (which deletes ~14 lines from `Board.tsx`), later phases' line
+numbers into that file will shift for real. Search by symbol, not by line.
+
+**13. One gotcha in the `<Preview>` registry sync test.** It walks `src/**` for
+`<Preview id>` usages but **skips `*.test.tsx` and `preview.tsx`**. So registering
+`rack-provenance` and only rendering it inside `UnscheduledRack.test.tsx` will
+fail the "no orphans" assertion — the usage has to be in real app code.
 
 ## Commands
 

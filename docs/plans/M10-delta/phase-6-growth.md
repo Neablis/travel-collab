@@ -40,9 +40,11 @@ in a dashed column matching the day columns' 268px width. The per-day add row is
 
 ## What is real and what is Preview
 
-- **`AddDay` is a real command** — `Board.tsx:158` already dispatches it
+- **`AddDay` is a real command** — `TripBoardScreen.tsx:192` already dispatches it
   (`{ type: "AddDay", tripId, dayId: crypto.randomUUID() }`). Adding a day is a
-  genuine build.
+  genuine build. (Corrected 2026-08-22: this cited `Board.tsx:158`, which is
+  past that file's end and never held the dispatch — `Board.tsx` only takes an
+  `onAddDay` callback, typed at line 20 and wired to the button at line 148.)
 - **Days holding zero stops are already valid** in the projection. The empty-day
   renderings are honest, not shells.
 - **"Add a saved day" and the three Playbook shortcuts are M11.** The
@@ -128,7 +130,8 @@ it("says nothing is planned on an in-trip day with no stops", () => {
 - [ ] **Step 3: Implement**
 
 1. `EndOfTrip.tsx` — to the copy table above. `onAddDay` is wired in
-   `TripBoardScreen` to the same `AddDay` dispatch `Board.tsx:158` already uses,
+   `TripBoardScreen` to the same `AddDay` dispatch `TripBoardScreen.tsx:192`
+   already uses,
    followed by scrolling the new day into view (the timeline already keeps
    `headerRefs`; append and scroll the last one).
 2. Render `<EndOfTrip>` after the last day in `TimelineLens`.
