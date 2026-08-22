@@ -177,6 +177,16 @@ entry *or* if an entry is never used. Add the entry in the **same commit** as
 the usage. The file uses double quotes and a `{ milestone, wiredUpBy }` shape;
 the plan's snippet shows single quotes — match the file, not the snippet.
 
+`size` is required and has no default. `compact` = circular construction-icon
+badge, for a button or single control; `container` = dotted border plus the
+`Preview · {milestone}` pill, for a section, dialog or route. Every phase tells
+you which to pass, so you should not have to choose — but if you do, the
+reasoning (and three rejected alternatives, including runtime size detection)
+is in **`docs/specs/2026-08-12-preview-component-space-aware-design.md`**.
+Nothing linked to that spec until now, and `docs/guidelines/design-system.md`
+had no `Preview` entry at all; it is in the Composites inventory as of
+2026-08-22.
+
 **9. No UI module may import `@tc/domain`** — CI enforces it via
 `scripts/check-lint-wall.mjs`. If you need domain logic in the UI, either it is
 already exposed on `TripDetail`, or you write a small local copy with a comment
@@ -251,6 +261,26 @@ pnpm --filter web vitest run -c vitest.unit.config.ts src/components/trip/unsche
 Note `pnpm lint` **already runs** `check-color-wall.mjs`, so Phase 3's gate
 command runs it twice. Harmless, not a mistake to fix.
 
+**Getting a database.** `test:int` and `test:e2e` both need real Postgres.
+Locally that is `docker compose up -d` (the repo's `docker-compose.yml`, Postgres
+17 on port 5433) — if it is down, your machine probably restarted; start it again
+and move on. **In a remote container docker is typically unavailable.** Postgres
+16 server binaries are usually installed even so, and a local cluster works
+(verified 2026-08-22):
+
+```bash
+export PGDATA=/var/lib/postgresql/tcdata
+mkdir -p $PGDATA && chown postgres:postgres $PGDATA && chmod 700 $PGDATA
+su postgres -c "/usr/lib/postgresql/16/bin/initdb -D $PGDATA -U postgres --auth=trust"
+su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D $PGDATA -o '-p 5433' -l $PGDATA/server.log start"
+psql postgres://postgres@localhost:5433/postgres -c "create database travel;"
+cp .env.example apps/web/.env.local   # trim to DATABASE_URL / AUTH_SECRET / AUTH_DEV_LOGIN
+pnpm --filter web db:migrate && pnpm --filter web db:reseed
+```
+
+That is **16, not the 17 CI and docker-compose use** — fine for running the
+suites, but do not treat it as a version-faithful check.
+
 **Baseline verified clean on this branch, 2026-08-22**, on a fresh
 `pnpm install --frozen-lockfile`:
 
@@ -261,9 +291,11 @@ command runs it twice. Harmless, not a mistake to fix.
   (`environment 86.4s`, normal range per KI-13 — the pathological runs that
   issue describes show 400–1400s).
 
+- `pnpm --filter web test:int` — **12 files / 72 tests, all passing**, 14.4s,
+  against a real Postgres 16 cluster.
+
 So anything red after you start is yours, not inherited — but still read trap
-#4 before believing it. `test:int` (needs Postgres) and `test:e2e` were **not**
-run for this baseline.
+#4 before believing it.
 
 ## How to work
 
