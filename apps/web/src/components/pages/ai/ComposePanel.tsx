@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { PageContent, PageContext } from "@tc/contracts";
 import { composeAiPage, composeAiPlan, type CommandOutcome } from "@/lib/apiClient";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -48,12 +49,17 @@ export function ComposePanel(props: PageProps | PlanProps) {
   // panel's own state (not a transient toast) so it stays visible after the
   // board refetches in place — the user's confirmation of the applied edit.
   const [message, setMessage] = useState<string | null>(null);
+  // True when the last result was composed by the server because the ai-live
+  // flag is off, on either surface — the change/draft is real, the authorship
+  // is not a model.
+  const [simulated, setSimulated] = useState(false);
 
   const submit = async () => {
     if (prompt.trim() === "") return;
     setStatus("loading");
     setError(null);
     setMessage(null);
+    setSimulated(false);
 
     if (props.surface === "page") {
       const result = await composeAiPage(props.tripId, prompt, props.pageContext);
@@ -62,7 +68,8 @@ export function ComposePanel(props: PageProps | PlanProps) {
         setStatus("error");
         return;
       }
-      props.onApply(result.value);
+      setSimulated(result.value.simulated);
+      props.onApply(result.value.content);
       setStatus("idle");
       setPrompt("");
       return;
@@ -75,6 +82,7 @@ export function ComposePanel(props: PageProps | PlanProps) {
       return;
     }
     setMessage(result.value.message);
+    setSimulated(result.value.simulated);
     props.onApplied(result.value);
     setStatus("idle");
     setPrompt("");
@@ -109,6 +117,11 @@ export function ComposePanel(props: PageProps | PlanProps) {
       {error !== null && <p role="alert" className="text-sm text-danger">{error}</p>}
       {message !== null && message !== "" && (
         <p role="status" className="text-sm text-slate">{message}</p>
+      )}
+      {simulated && (
+        <Badge variant="info" role="status">
+          Simulated
+        </Badge>
       )}
       <div className="flex justify-end">
         <Button

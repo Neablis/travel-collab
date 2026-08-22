@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -32,6 +33,7 @@ export function AssistantRail({
   onAsk,
   asking = false,
   askError = null,
+  simulated = false,
   onKeepGhost,
   onDismiss,
   onHide,
@@ -45,6 +47,9 @@ export function AssistantRail({
   /** Set when the last real ask failed — rendered inline, not a toast, so it
    * stays visible next to the box the user just submitted from. */
   askError?: string | null;
+  /** True when the last answer was composed by the server because the ai-live
+   * flag is off. The change is real; the authorship is not a model. */
+  simulated?: boolean;
   onKeepGhost: (id: string) => void;
   onDismiss: (id: string) => void;
   onHide: () => void;
@@ -157,6 +162,11 @@ export function AssistantRail({
               ))}
             </div>
           </Preview>
+          {simulated && (
+            <Badge variant="info" className="mb-1.5 self-start" role="status">
+              Simulated
+            </Badge>
+          )}
           {askError !== null && (
             <p role="alert" className="mb-1.5 text-xs text-danger">
               {askError}

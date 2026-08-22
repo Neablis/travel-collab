@@ -5,7 +5,8 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-17 (M10 Wave 2 — Phases 0-2 done; Phase 3 is next)**
+**Last updated: 2026-08-19 (feature flags + AI kill switch landed as an
+off-roadmap insert; M10 Wave 2 Phase 3 remains next)**
 
 ## Where we are
 
@@ -41,6 +42,36 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 **Current milestone is M10, Wave 2.** M9 does not start until it passes. Order:
 `M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M9 → M11 → …`.
 
+**2026-08-19: feature flagging and an AI kill switch landed as a deliberate
+off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
+creep past the current milestone's gate to be called out rather than
+silently absorbed — this is that call-out. The driving need was external to
+the roadmap: the app is about to be shared publicly, and
+`AI_GATEWAY_API_KEY` (ADR-015) sat behind `/api/trips/:id/ai` with nothing
+stopping an authenticated visitor from calling it in a loop. The Flags SDK
+(Vercel adapter) is now the project's first flag mechanism; its first and
+only consumer is an `ai-live` flag that swaps the injected model rather than
+branching the handler, so "off" still exercises the real pipeline and marks
+the response `simulated: true`. See ADR-019
+(`docs/architecture/ADR-019-feature-flags-and-simulated-model-seam.md`) and
+the design spec
+(`docs/specs/2026-08-19-feature-flags-and-ai-kill-switch-design.md`). **This
+does not reopen or move M10's gate** — M10 Wave 2 Phase 3 (the unscheduled
+rack) remains exactly the resume-from-here point described below.
+
+**This insert closed 2026-08-22, PR #24.** Task-by-task implementation review
+plus a final whole-branch security review (no kill-switch bypass found) both
+passed; a fix wave addressed 2 Important findings (a fail-closed gap in
+`aiLive()` when the Flags service errors before `decide()` runs, and the
+flag-on/no-gateway-key case returning a bare 500 instead of the handler's
+standard error envelope) and several Minor ones (a11y, lint-wall scoping,
+doc accuracy). Mitchell manually verified the deployed behavior end to end
+before merge. Two items were deliberately left open rather than folded in —
+see `docs/known-issues.md` KI-23 and KI-24. The plan
+(`docs/plans/2026-08-19-feature-flags-and-ai-kill-switch.md`) is removed in
+this same commit per `docs/plans/README.md`'s staging-area rule; its durable
+content lives in ADR-019, this file, and the known-issues entries above.
+
 ## In flight
 
 **M10 Wave 2 — Phases 0, 1 and 2 done; Phase 3 (the unscheduled rack) is the
@@ -49,6 +80,16 @@ code and commit history, not from a task-by-task log kept during the work —
 this file had not been updated since the plan was written, so treat this
 section as the source of truth over anything phase-status-shaped said earlier
 in this file.
+
+**Between that reconstruction (2026-08-17) and now, one off-roadmap insert
+landed and nothing else:** feature flags and the AI kill switch (2026-08-19,
+`5c5379e`..`b865537`, PR #24 — see "Where we are" above and ADR-019). It
+includes `apps/web/src/server/flags.ts`, `apps/web/src/server/ai/{modelSelection,
+simulatedModel}.ts`, `handleAiRequest.ts`, the `.well-known` discovery route,
+a "Simulated" badge in `AssistantRail`/`ComposePanel`/`TripBoardScreen`, CI/e2e
+config, and this documentation — but **nothing in Phases 0-9 below**, and no
+board/lens/timeline code the resume-from-here Phase 3 work touches. **Phase 3
+is still exactly where work resumes.**
 
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,

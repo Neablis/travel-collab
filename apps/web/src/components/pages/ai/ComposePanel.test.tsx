@@ -25,6 +25,9 @@ beforeEach(() => {
       detail: tripDetailFixture({ tripId: "x" }),
       history: historyFixture("x"),
       message: "Done — added a day.",
+      // Untyped mock (vi.fn()), so tsc doesn't require this — kept for
+      // realism/consistency with the real PlanOutcome shape, not correctness.
+      simulated: false,
     },
   });
 });

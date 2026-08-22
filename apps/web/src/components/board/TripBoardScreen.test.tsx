@@ -456,6 +456,7 @@ describe("TripBoardScreen", () => {
         }),
         history: historyFixture(fixture.tripId),
         message: "Added a day.",
+        simulated: false,
       },
     });
     renderScreen(fixture.tripId);
@@ -468,6 +469,40 @@ describe("TripBoardScreen", () => {
 
     expect(composeAiPlanMock).toHaveBeenCalledWith(fixture.tripId, "Add a day", "board");
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+  });
+
+  it("clears a stale Simulated badge when a follow-up ask fails", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    composeAiPlanMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: tripDetailFixture({ tripId: fixture.tripId }),
+        history: historyFixture(fixture.tripId),
+        message: "Did a thing.",
+        simulated: true,
+      },
+    });
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "First ask" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
+
+    // A second ask that fails must not leave the previous answer's Simulated
+    // badge on screen next to the new error — that would misattribute a
+    // request that never produced a new answer at all.
+    composeAiPlanMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 500, message: "The model is unavailable right now." },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Second ask" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
+    expect(screen.queryByText("Simulated")).toBeNull();
   });
 
   it("the Assistant rail can be hidden and shown again, reclaiming the reserved layout width", async () => {

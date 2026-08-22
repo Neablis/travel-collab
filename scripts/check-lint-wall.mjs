@@ -37,3 +37,14 @@ if (!predict.passed) {
 } else {
   console.log("lint wall OK: @tc/predict import (predict subpath allowed) correctly passes");
 }
+
+const serverInternals = lintFixture(
+  "lint_wall_server_fixture",
+  'import "@/server/flags";\nexport default function Fixture() { return null; }\n',
+);
+if (serverInternals.passed) {
+  console.error("LINT WALL BREACHED: @/server/* import from UI was NOT flagged");
+  process.exitCode = 1;
+} else {
+  console.log("lint wall OK: @/server/* import from UI correctly rejected");
+}

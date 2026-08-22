@@ -282,6 +282,69 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   2. **Parallel burst against a 2 req/sec vendor.** `enrichCommandLocations` fires every unique name concurrently via `Promise.all`. **LocationIQ's free tier is 5,000/day but rate-limited to 2 requests/second**, so a 9-name batch 429s on most of them; `forward` throws on `!res.ok`, and `geocodeOne`'s bare `catch { return { name } }` swallows every one into a coordinate-less `Location` indistinguishable from "this place does not exist". The dedupe/parallelism was written as a free-tier *saving* (daily cap) and is counterproductive against the *per-second* limit that actually binds.
 - **First noted:** 2026-08-02 (Mitchell, M8 dogfooding — trip `13fc0d33`).
 
+### KI-22 — The AI response envelope is not in `packages/contracts`
+- **Severity:** cleanup
+- **Area:** `apps/web/src/server/ai/handleAiRequest.ts`, `apps/web/src/lib/apiClient.ts`
+- The `/api/trips/:id/ai` response (`message`, `meta`, `simulated`,
+  `resolvedCommands`, `resolutionErrors`, `locationReport`) is assembled ad hoc
+  in the handler and parsed loosely by the client — `message` and `simulated`
+  are read with `typeof` / `=== true` guards rather than through a schema. This
+  sits against Invariant 5 ("contracts change by protocol, not by drift"): the
+  envelope is a cross-boundary type that lives in neither `packages/contracts`
+  nor the contracts changelog. It surfaced while adding `simulated`
+  (2026-08-19), which needed no changelog entry precisely because there is no
+  contract to change. Fixing it means schematizing the whole envelope and
+  routing both AI client functions through it.
+
+### KI-23 — The simulated model's `combined` surface never composes a page
+- **Severity:** cleanup (product fidelity, not correctness)
+- **Area:** `apps/web/src/server/ai/simulatedModel.ts`
+- `doGenerate` maps `surface === "page"` to `pageCalls()` and everything else
+  (`"board"` and `"combined"`) to `planCalls()`. A real, live `combined`
+  request composes both a page and board activities (`handleAiRequest.ts`
+  exposes both tool sets for that surface). So with the `ai-live` flag off, a
+  `combined`-surface ask only ever produces board changes — the simulation
+  under-represents what live `combined` mode can actually do. Not a
+  correctness bug (the response is still marked `simulated: true` and the
+  board changes it does make are real), just a demo-fidelity gap. Fixing it
+  means having `combined` emit both `planCalls()` and `pageCalls()` and
+  updating `simulatedModel.test.ts`'s expectations accordingly.
+
+### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented
+- **Severity:** cleanup (defense-in-depth, not a live bypass)
+- **Area:** `apps/web/src/server/ai/modelSelection.ts`
+- "Never set `AI_LIVE` in a Vercel environment" is documented in
+  `.env.example`, `docs/guidelines/environments-and-deploys.md`, ADR-019, and
+  `modelSelection.ts`'s own comment — but the only enforcement is a
+  module-load `console.warn` when `process.env.VERCEL && process.env.AI_LIVE
+  !== undefined`. If `AI_LIVE=true` were ever actually set on Vercel, it would
+  still fully override the `ai-live` flag (and the dashboard/Toolbar controls
+  built around it) with only a log line as evidence. A stronger fix — making
+  `AI_LIVE` inert on Vercel, so it can only force *simulated*, never *live* —
+  was deliberately not applied during the 2026-08-19 branch's final review:
+  it trades away an emergency escape hatch (a way to force AI on from a
+  Vercel env if the Flags product itself misbehaves) that the project owner
+  may want to keep. Recorded here as an open decision rather than a bug;
+  revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
+  decides the escape hatch isn't worth the risk.
+
+### KI-25 — The simulated-AI e2e guarantee depends on how the dev server was started
+- **Severity:** reliability (test-environment gap, no product impact)
+- **Area:** `apps/web/playwright.config.ts`, `apps/web/e2e/m10-simulated-ai.spec.ts`
+- `playwright.config.ts` sets `AI_LIVE: "false"` in `webServer.env`, but
+  `reuseExistingServer: !process.env.CI` means that env block is only applied
+  when Playwright starts a *fresh* server — the normal CI path. Locally,
+  `pnpm test:e2e` against an already-running dev server (the common case when
+  iterating) ignores `webServer.env` entirely and uses whatever `AI_LIVE`
+  that server actually has, which could be `true` from a developer's
+  `.env.local`. Mitigated, not eliminated: `m10-simulated-ai.spec.ts` asserts
+  `body.simulated === true` on the captured API response directly (added
+  2026-08-22), so the test fails loudly rather than silently making a real
+  provider call if this happens — but it does mean a local run's "pass" isn't
+  by itself proof no real model was contacted, only CI's is. Full fix would
+  require a per-spec server override or `reuseExistingServer: false` for this
+  one spec, which Playwright doesn't support cleanly without splitting config.
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
