@@ -253,6 +253,45 @@ form fields going forward:
   autocomplete wiring. No combobox primitive exists yet — this convention is
   established here for Task C1 to implement against when it lands.
 
+### Element-prop convention: pass stable elements, not fresh ones
+
+Some of our components take a **React element** as a prop rather than children —
+`Popover`'s `trigger`, `Banner`'s `actions`. Build those elements **once** and
+keep their identity stable across renders: hoist them to module scope when they
+are static, or `useMemo`/`useCallback` them when they close over state.
+
+A fresh element on every render makes Radix re-render in a loop and **hard-locks
+the main thread** — the tab stops responding, with no error and nothing in the
+console to point at. This is not hypothetical: it happened in the design
+prototype, which is why `.design-sync/handoff/SPEC.md` §5 calls it out, and the
+same components are ours.
+
+```tsx
+// Wrong — a new element every render.
+<Popover trigger={<button aria-label="Account menu">SK</button>}>…</Popover>
+
+// Right — identity is stable.
+const trigger = useMemo(
+  () => <button aria-label="Account menu">{initials}</button>,
+  [initials],
+);
+<Popover trigger={trigger}>…</Popover>
+```
+
+The same applies to any future prop typed `ReactElement` / `ReactNode` that a
+Radix primitive forwards a ref into. When adding one, say so in its
+`.prompt.md`.
+
+### Helper text has no `Hint` component — and does not need one
+
+A 12px slate helper line is never hand-rolled. Inside a form row it is
+`FormField`'s `hint` (which renders `Text variant="muted"` and swaps to the
+error text when `error` is set); standing alone — beside a toggle, under a
+control — it is `Text variant="muted"` directly. Generally: an element the
+design describes only by size and colour is almost always a design-system
+component used plainly. Check `.design-sync/docs-stubs/<Name>.md` for the prop
+shape before concluding a component is missing.
+
 ## Enforcement
 
 Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`):

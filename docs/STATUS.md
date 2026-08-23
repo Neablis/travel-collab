@@ -5,7 +5,9 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (a test-suite overhaul, Phases 0-4, landed as an
+**Last updated: 2026-08-23 (a design sync landed in the repo and was reviewed
+and routed — see "Design sync" below; **it does not move M10's gate** and no
+code changed. Same day: a test-suite overhaul, Phases 0-4, landed as an
 off-roadmap insert — see "Where we are" below; does not move M10's gate.
 Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
 been built and verified since 2026-08-22 but was never opened as a PR, see
@@ -121,6 +123,40 @@ for the full collision table). Resume them once M10 Wave 2 Phase 9's gate
 closes and this branch is merged to `main`; re-run the Phase 0 inventory
 against the post-M10 tree first, since Wave 2 Phases 5-8 will have added
 tests of their own that the current inventory doesn't know about.
+
+## Design sync (2026-08-23) — reviewed and routed, nothing built
+
+A design bundle is committed in-repo for the first time, at
+`.design-sync/handoff/`: `design/Trip Planner Redesign.dc.html` (3,524 lines),
+`SPEC.md`, `DRIFT.md`, and a Japan seed export. It arrived in two commits —
+`8c2d11e` (2026-08-22, the bundle) and `e0964bc` (2026-08-23, +401 lines: the
+Notebook design). **This changes no code and does not reopen or move M10's
+gate.** The full reconciliation, the drift questions, and the per-item milestone
+routing are in `docs/design-feedback/2026-08-23-design-sync-review.md`.
+
+Three things a fresh session needs from it:
+
+1. **The design source of truth moved.** It is the in-repo file above. The
+   `~/Downloads/design_handoff_update/` path this file and the M10 plan used to
+   name exists in no session — generations 1-3 (1,412 / 2,048 / 2,623) are
+   unreadable, so generation-diffing is over. Reconcile design against *code*,
+   with `apps/web/src/lib/preview-registry.ts` as the spine for "not built yet".
+2. **The in-repo file is newer than what M10 Wave 2's phases were written
+   against**, and most of what it adds is **not M10's**. Net-new: a landing
+   page, sign-in/sign-up screens, a first-run screen, a header account menu, a
+   full Notebook redesign, and the product renamed **Caesura**. Routing:
+   **M15 Front door** (proposed) takes landing/auth/first-run/account menu;
+   **M14** takes the Notebook redesign and needs a **repeaters ADR** before it
+   opens; **M11** takes the landing page's "Look around a real trip" CTA (it
+   needs unauthenticated read of a real trip); `TripSummary.startDate` is its
+   own reviewed contract step. **Do not widen an M10 phase to absorb any of it.**
+3. **Five small presentational items are staged for M10 and are NOT approved** —
+   `docs/plans/M10-delta/phase-8b-design-sync.md` (Caesura rename, sign out,
+   three-state save indicator, sync-failure banner, calendar month blocks). The
+   file says so at the top. Phase 9's gate is unchanged until Mitchell decides.
+   Six decisions are open in the review's §8, including two that would reverse
+   things we shipped on purpose (Phase 1's context-free header; Phase 4's
+   both-ends date control).
 
 ## In flight
 
@@ -247,12 +283,24 @@ The plan itself:
   run it without re-deriving anything.
 - **Findings it came from:**
   `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
-- **Design source of truth:**
-  `~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`
-  (2,623 lines). `previous/` is for reading the diff only. The bundle's own
-  `AGENT-PROMPT.md` claims `previous/` is what we built from — **it is not**;
-  we built from the older 1,412-line file, which is why there are two
-  generations of drift.
+- **Design source of truth (moved in-repo 2026-08-23):**
+  `.design-sync/handoff/design/Trip Planner Redesign.dc.html` (3,524 lines),
+  with `.design-sync/handoff/SPEC.md` and `DRIFT.md` beside it. The
+  `~/Downloads/design_handoff_update/` path this line used to name exists in no
+  session and never will; generations 1-3 (1,412 / 2,048 / 2,623) are
+  unreadable, so **generation-diffing is over** — reconcile design against
+  *code*, using `apps/web/src/lib/preview-registry.ts` as the spine for "not
+  built yet", the way `DRIFT.md` does.
+  The in-repo file is **newer than what Phases 0-9 were written against**: it
+  adds a landing page, sign-in/sign-up, a first-run screen, an account menu and
+  a full Notebook redesign, and renames the product to **Caesura**. That delta
+  is reviewed, questioned and routed in
+  `docs/design-feedback/2026-08-23-design-sync-review.md` — headline: **M15**
+  (proposed) takes landing/auth/first-run/account menu, **M14** takes the
+  Notebook redesign and a repeaters ADR, **M11** takes the landing page's "Look
+  around a real trip" CTA, and five small presentational items are staged for
+  M10 as `docs/plans/M10-delta/phase-8b-design-sync.md`, **not approved**.
+  M10's gate does not move. Six decisions are open in that review's §8.
 
 **Phase 3 is landed — pick up at Phase 5, 6, 7, or 8 next**
 (`docs/plans/M10-delta/phase-{5,6,7,8}-*.md`). Phases 6 and 7, which

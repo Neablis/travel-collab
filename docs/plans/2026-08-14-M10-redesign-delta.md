@@ -65,10 +65,21 @@ verbatim from the sources named.
 
 ### Source of truth
 
-- **`~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`**
-  (2,623 lines) is the design. `previous/` (2,048) is useful only for reading the
-  diff. `README-original-handoff.md` documents the **1,412-line** generation and
-  is stale wherever it disagrees.
+- **`.design-sync/handoff/design/Trip Planner Redesign.dc.html`** (3,524 lines,
+  in-repo since 2026-08-23) is the design, with `.design-sync/handoff/SPEC.md`
+  as its companion spec and `DRIFT.md` as the design↔build reconciliation.
+  **Updated 2026-08-23:** this plan was written against a 2,623-line generation
+  at `~/Downloads/design_handoff_update/current/`. That path does not exist in a
+  fresh checkout or container — see this plan's KICKOFF, finding 3 — and the
+  1,412 / 2,048 / 2,623 generations are unreadable from any session, so
+  generation-diffing is over. Reconcile design against *code*, using
+  `apps/web/src/lib/preview-registry.ts` as the spine for "not built yet".
+  The in-repo file is **newer** than the one Phases 0-9 were written against; it
+  adds a landing page, sign-in/sign-up, a first-run screen, an account menu, a
+  Notebook redesign, and renames the product to Caesura. **None of that is in
+  this plan's scope** — it is routed in
+  `docs/design-feedback/2026-08-23-design-sync-review.md` §6, mostly to M11, M14
+  and a proposed M15. Do not widen a phase to absorb it.
 - Every literal design value needed by a task is **already inlined in that task**.
   You should not need to open the prototype. If a task seems to require a value it
   does not give you, stop and ask rather than inventing one.

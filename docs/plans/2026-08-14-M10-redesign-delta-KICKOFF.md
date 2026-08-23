@@ -129,7 +129,11 @@ the logic and are unit-tested properly, while the drag itself is proven in a new
 the phase file. **Do not put routing or ownership logic back inline in the
 monitor** — that is what made the original untestable.
 
-**3. The design handoff bundle is not on disk.** The plan names
+**3. The design handoff bundle is not on disk.** *(RESOLVED 2026-08-23 — a
+handoff bundle is now committed at `.design-sync/handoff/`. Note it is a newer,
+3,524-line generation than the 2,623 this plan was written against; the delta is
+reviewed and routed in `docs/design-feedback/2026-08-23-design-sync-review.md`,
+mostly out of M10. The original finding follows as written.)* The plan names
 `~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`
 (2,623 lines) as the source of truth. It does not exist in a fresh checkout or
 container — I searched the filesystem. Phase 3 inlines every design value it

@@ -55,10 +55,45 @@ Where the work actually stands right now: `docs/STATUS.md`.
 - [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — invites, roles, realtime transport ADR.
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
+      *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
+      `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
+      macro with an author-supplied row template is the one genuinely new
+      engineering decision that sync created, and every macro today is
+      `NoParams`.)*
+- [ ] **M15 Front door** — landing page, custom sign-in/sign-up, first-run
+      screen, header account menu. **Proposed 2026-08-23, not approved** —
+      designed in full by the design sync, deliberately not absorbed into M10's
+      visual-craft gate. Recommended execution: right after M10's gate and
+      before M9, on the ADR-018 precedent (numbers unchanged, order swapped).
+      See `docs/design-feedback/2026-08-23-design-sync-review.md` §6 and §8.
 
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
+
+- **Design-sync items with no milestone yet (2026-08-23).** From
+  `docs/design-feedback/2026-08-23-design-sync-review.md`; each needs a decision
+  before it can be routed, and each is written up there in full:
+  - **`TripSummary.startDate`** — one field, so home's "next trip" is real
+    rather than `visibleTrips[0]`. The data already exists on
+    `TripDetail.startDate`; only the summaries read model lacks it. Per
+    `AGENTS.md` a contract change is its own reviewed step, so it goes **before**
+    M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
+    row: richer, human-readable metadata" idea below** — that item wants exactly
+    this field.
+  - **Start-only trip dates** (`SPEC.md` §3) — the end derives from the day
+    count instead of being edited. It reverses Phase 4's just-restored
+    both-ends `TripDateControl` and rewrites Phase 7 Task 7.2's step 2 — but it
+    also structurally kills the "end-date picker drifts from day count" bug
+    logged below. Behaviour change; own step, after M10's gate.
+  - **The scope-aware global header** (`SPEC.md` §1: Share + Quick add inside a
+    trip) — reverses the recorded Phase 1 decision that `AppHeader` stays a
+    context-free server component. Share is an M11 `share-button` Preview;
+    Quick add belongs to the M8 trim's revisit. Not M10.
+  - **Design coverage the build is still owed** — History beyond the popover,
+    the four extra lenses and `MapRail` (this is also **KI-20**), trip
+    lifecycle (delete → undo → restore, duplicate), and error/empty states for
+    the new landing, auth and first-run screens. Design work, not build work.
 
 - **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
   first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8
