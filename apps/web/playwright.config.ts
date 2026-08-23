@@ -5,7 +5,27 @@ import { DATABASE_URL } from "./src/server/config";
 export default defineConfig({
   testDir: "./e2e",
   reporter: "line",
-  use: { baseURL: BASE_URL },
+  // KI-19: the suite ran at Playwright's 1280x720 default with no viewport
+  // set, which is why Wave 1's gate passed 11/11 while the page was inert
+  // below 1180px. An explicit default plus a narrow project (added
+  // separately) is what closes that blind spot.
+  use: {
+    baseURL: BASE_URL,
+    viewport: { width: 1280, height: 900 },
+    // A failing CI run should hand back a trace, not a line of text. This
+    // is what turned KI-21 from "intermittent, cause unknown" into a
+    // precise trace-level diagnosis; make it the default rather than
+    // something someone has to remember to enable while re-running a red
+    // build.
+    trace: "on-first-retry",
+    video: "off",
+  },
+  // One retry in CI only. NOT a flake-suppression tool: a test that passes
+  // on retry is reported as flaky and must be treated as a bug, not waved
+  // through — see KI-1, where a real bug sat behind a "probably flake"
+  // label for two weeks. Zero retries locally, so a local failure is
+  // always a real signal.
+  retries: process.env.CI ? 1 : 0,
   webServer: {
     command: process.env.CI ? "pnpm start" : "pnpm dev",
     url: BASE_URL,
