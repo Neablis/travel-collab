@@ -115,24 +115,27 @@ answer was recorded, not the tool. It's added in this same change (see the
 Phase 0 commit) so Phase 1 (and any future re-classification) doesn't have
 to reconstruct it from the inventory's prose.
 
-**Re-measured here: 34 of 95 files are node-safe**, one off the recorded 35 —
-immaterial to Phase 1's approach, noted for accuracy. The classifier's
-heuristic first found 37 node-candidates; empirical verification
-(`--environment=node` against the candidate set) found 3 that fail for the
-reasons the inventory already documented (MSW resolving against
-`window.location` in `apiClient.test.ts`/`pagesClient.test.ts`; TipTap
-needing a real `document` in `MacroNodeExtension.test.ts`), leaving 34
-confirmed node-safe. `resolveDrop.test.ts` — the fourth named exception — is
-correctly caught by the heuristic itself (it references DOM APIs directly)
-and never entered the candidate set. All 34 pass green under
-`--environment=node` (verified via an `include`-scoped one-off config to
-avoid a Vitest CLI quirk: positional file-path filters match
-case-insensitively as substrings, so passing
-`unscheduledRack.test.ts` as a filter also picks up the unrelated
-`UnscheduledRack.test.tsx` and makes it look like the former needs jsdom
-when it doesn't — a filter-matching artifact, not a classification bug;
-confirmed by scoping to that one file via `include` instead of a CLI
-positional arg).
+**Re-measured here: 35 of 95 files are node-safe, exactly matching the
+recorded number.** The classifier's first heuristic pass found 37
+node-candidates plus one false positive it caught directly as jsdom
+(`resolveDrop.test.ts`, correct — it references DOM APIs directly). Empirical
+verification (`--environment=node` against the candidate set, via an
+`include`-scoped config for exact path matching) initially surfaced a fourth
+apparent failure, `pageTools.test.ts` — traced to the classifier's
+DOM-reference regex matching a *comment* ("...before it ever reaches a
+document. execute()...") as if it were `document.execute`, not real DOM
+usage. Fixed by stripping comments before the heuristic scan (see the
+script). After the fix: 38 heuristic candidates, of which exactly 3 fail
+under `--environment=node` for the reasons the inventory already documented
+(MSW resolving against `window.location` in
+`apiClient.test.ts`/`pagesClient.test.ts`; TipTap needing a real `document`
+in `MacroNodeExtension.test.ts`) — leaving **35 confirmed node-safe**, all
+green. (One unrelated Vitest CLI quirk hit during verification, worth
+recording so it isn't re-discovered: positional file-path filters match
+case-insensitively as substrings, so passing `unscheduledRack.test.ts` as a
+CLI filter also picks up the unrelated `UnscheduledRack.test.tsx` — a
+filter-matching artifact, not a classification bug, avoided here by using
+`include` in a scoped config instead of CLI positional args.)
 
 ---
 
@@ -174,7 +177,7 @@ any future pruning touches domain-adjacent tests, though nothing in Phases
       and the machine's CPU state at each (`test:int`/`test:e2e:ci-like`
       timing deferred — see the note above; both are exercised for real in
       Phases 3-4 and the final exit checklist instead of timed here).
-- [x] `scripts/classify-test-envs.mjs` exists and its `node` set (34 files)
+- [x] `scripts/classify-test-envs.mjs` exists and its `node` set (35 files)
       runs green under `--environment=node`.
 - [x] `docs/testing-baseline.md` (this file) holds Task 0.1's timings and
       Task 0.4's coverage floor. The full per-file keep/cut inventory lives

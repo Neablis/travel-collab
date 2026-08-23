@@ -28,10 +28,19 @@ const srcRoot = path.join(webRoot, "src");
 const DOM_REFERENCE = /\b(document|window|navigator|localStorage)\./;
 const TESTING_LIBRARY_IMPORT = /@testing-library\//;
 
+// Strip comments before scanning for DOM references — prose like "before it
+// ever reaches a document. execute()..." otherwise reads as `document.execute`.
+// Good enough for this classifier (not a full parser): doesn't handle `//`
+// or `/* */` inside string/template literals, which none of these test files
+// do in a way that would produce a false negative in practice.
+function stripComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
 function needsJsdomDirectly(source, filePath) {
   if (filePath.endsWith(".tsx") && filePath.includes(".test.")) return true;
   if (TESTING_LIBRARY_IMPORT.test(source)) return true;
-  if (DOM_REFERENCE.test(source)) return true;
+  if (DOM_REFERENCE.test(stripComments(source))) return true;
   return false;
 }
 
