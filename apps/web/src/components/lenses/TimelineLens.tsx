@@ -21,7 +21,9 @@ import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
 import { formatTripDate } from "@/lib/formatDate";
+import { daySpend } from "@/lib/cost";
 import { cn } from "@/lib/cn";
+import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
 
 // Tailwind (v4, `@theme`-driven) only emits utilities it can see as literal
@@ -177,13 +179,14 @@ function Leg({ prevEnd, nextStart, prevLocation, nextLocation }: {
 // with a 4px full-height accent rail, title, optional conflict Badge, place
 // line, optional note block, and a right column with an attributee avatar +
 // ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
-function ActivityRow({ start, end, activity, accent, hasConflict, member, onSelectActivity }: {
+function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, onSelectActivity }: {
   start: string | null;
   end: string | null;
   activity: ActivityView;
   accent: AccentFamily;
   hasConflict: boolean;
   member: TripMember | undefined;
+  currency: string;
   onSelectActivity?: (activityId: string) => void;
 }) {
   return (
@@ -253,6 +256,34 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, onSele
                 {initialsFor(member.userId)}
               </span>
             </div>
+          )}
+          {/* Design values table, "timeline card cost": right column, under
+              the attributee, mono, --color-slate. Money always routes
+              through formatMoney (KI-2) keyed off the trip's own currency
+              (Money is trip-level, never per-event — decision, 2026-08-14),
+              never a hand-formatted string. `activity.cost` truthiness
+              already covers both `null` (explicitly unset) and `undefined`
+              (the contract asymmetry noted on ActivityView.cost) as "no
+              cost" — no separate branch needed for the two. */}
+          {activity.cost ? (
+            <span className="flex items-center gap-1">
+              <DataText size="xs">{formatMoney(activity.cost.amountMinor, currency)}</DataText>
+              {/* Confirmed-vs-estimate cost state isn't modelled anywhere
+                  (no field distinguishes a firm price from a guess) — an
+                  inert Preview shell for the design's uppercase "est" badge,
+                  M11. */}
+              <Preview id="cost-estimate-state" size="compact">
+                <span
+                  className="rounded-full bg-moss px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide text-slate"
+                  // eslint-disable-next-line no-restricted-syntax -- 10px "est" badge text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                  style={{ fontSize: "10px" }}
+                >
+                  est
+                </span>
+              </Preview>
+            </span>
+          ) : (
+            <DataText size="xs">No cost yet</DataText>
           )}
           <div className="flex gap-0.5">
             <Preview id="timeline-ghost" size="compact">
@@ -326,6 +357,13 @@ export function TimelineLens({
         // directly, but it's just the prior index's chip).
         const fromCity = index > 0 ? (days[index - 1]?.city ?? null) : null;
         const isTravelDay = chip?.transitionTo !== null && chip?.transitionTo !== undefined;
+        // Day-header cost chip (design values table): the day's own real
+        // total, read via daySpend, which itself reads the server-computed
+        // `days[].costSubtotal` rather than re-summing activity costs
+        // client-side (cost.ts's own header comment on why) — rendered
+        // through formatMoney keyed off the trip's own currency, same as
+        // every other money surface.
+        const { total: dayTotal } = daySpend(detail, row.dayId);
 
         return (
           <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="flex flex-col">
@@ -371,6 +409,14 @@ export function TimelineLens({
                     {formatDuration(outMinutes, "out")}
                   </DataText>
                 </span>
+                {/* "beside the stop meter", mono 12px, day-ink. */}
+                <DataText
+                  size="xs"
+                  data-testid={`day-cost-${row.dayId}`}
+                  className={cn("shrink-0 rounded-full bg-surface px-2.5 py-1", INK_TEXT[accent.ink])}
+                >
+                  {formatMoney(dayTotal, detail.currency)}
+                </DataText>
                 <Preview id="keep-day-flag" size="compact">
                   <KeepDayFlag dayIndex={index} accent={accent.ink} />
                 </Preview>
@@ -419,6 +465,7 @@ export function TimelineLens({
                       accent={accent.solid}
                       hasConflict={conflictActivityIds.has(item.activityId)}
                       member={detail.members[0]}
+                      currency={detail.currency}
                       onSelectActivity={onSelectActivity}
                     />
                   </div>
@@ -436,6 +483,7 @@ export function TimelineLens({
                     accent={accent.solid}
                     hasConflict={conflictActivityIds.has(item.activityId)}
                     member={detail.members[0]}
+                    currency={detail.currency}
                     onSelectActivity={onSelectActivity}
                   />
                 );

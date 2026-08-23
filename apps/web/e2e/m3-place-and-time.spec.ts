@@ -37,11 +37,14 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   // -- start date: calendar shows the derived dates --
   // P2 surface move (#15): TripDateControl moved into the Settings sheet —
-  // open it via the header's gear button. The sheet is a full-height overlay
-  // (RadixDialog.Overlay covers the viewport), so it has to be closed again
-  // before interacting with anything behind it (tabs, board).
+  // open it via the header's gear button, then click the Dates row to open
+  // the popover that mounts TripDateControl (restored, M10 Phase 4). The
+  // sheet is a full-height overlay (RadixDialog.Overlay covers the
+  // viewport), so it has to be closed again before interacting with
+  // anything behind it (tabs, board).
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
+  await page.getByRole("button", { name: "Dates" }).click();
   await page.getByLabel("Start date").fill("2026-10-10");
   // TripDateControl (M8/A14) stages date fields locally and only commits via
   // an explicit "Set dates" click, dispatching SetTripDates. Wait for that
@@ -114,6 +117,12 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
   // 2026-10-12 is a Monday.
   await page.getByRole("button", { name: "Trip settings" }).click();
+  // The Dates popover closes itself after every committed change (see
+  // SettingsSheet.tsx) and that closed state survives the Sheet's own
+  // close/reopen (the popover's open/closed state lives in SettingsSheet,
+  // which stays mounted) — so it needs a fresh click here too, not just
+  // before the very first date set above.
+  await page.getByRole("button", { name: "Dates" }).click();
   await page.getByLabel("Start date").fill("2026-10-12");
   // By this point the trip already has dated days (from the first "Set
   // dates" commit), so TripDateControl's End date field is pre-staged with
@@ -136,9 +145,12 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   // -- clear the date --
   // #19: a one-item "Date options" popover was replaced by a direct "Clear
-  // date" X next to the date in Settings (only shown when a date is set), so
-  // there's no popover to open first.
+  // date" X next to the date in Settings (only shown when a date is set) —
+  // that's TripDateControl's own Clear-date X, not a second popover. It
+  // still lives inside the Dates row's popover (restored, M10 Phase 4), so
+  // that popover needs opening first, same as every other access below.
   await page.getByRole("button", { name: "Trip settings" }).click();
+  await page.getByRole("button", { name: "Dates" }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText("Day 1", { exact: true })).toBeVisible();
@@ -156,6 +168,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
+  await page.getByRole("button", { name: "Dates" }).click();
   await expect(page.getByLabel("Start date")).toHaveValue("2026-10-12");
   await page.getByRole("button", { name: "Close" }).click();
   await Promise.all([
@@ -165,6 +178,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
+  await page.getByRole("button", { name: "Dates" }).click();
   await expect(page.getByLabel("Start date")).toHaveValue("2026-10-10");
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();

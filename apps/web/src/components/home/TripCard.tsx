@@ -16,6 +16,14 @@ export type TripCardProps = {
   // handlers unchanged) — this component only renders whatever slot it's
   // given, so behavior is identical to the pre-restyle row.
   menuSlot?: ReactNode;
+  // Already-formatted "{planned} planned of {budget}" (or "No budget yet")
+  // line. TripSummary — all this card ever gets — carries no cost fields at
+  // all, so TripCard cannot derive this itself: the caller is page.tsx,
+  // which fetches each visible trip's own TripDetail and computes the same
+  // line NextTripHero computes for its single trip, via the shared
+  // plannedOfBudgetLine helper (lib/cost.ts). An absent prop renders nothing
+  // rather than a fabricated line (Task 4.1, M10 Phase 4).
+  plannedOfBudget?: string;
 };
 
 // Same static-map pattern as Sparkline.tsx's BAR_BG / badge.tsx's variant
@@ -44,7 +52,7 @@ function statusLabel(status: TripStatus): string {
 // bigger behavioral change than a restyle warrants). Keyed off tripId instead:
 // still a real, stable identity per trip, so the same trip always gets the
 // same accent across renders/reloads, just not a per-city one.
-export function TripCard({ trip, menuSlot }: TripCardProps) {
+export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccentFor(trip.tripId);
 
   // TripSummary carries no start date, length, or cost (those live on
@@ -78,6 +86,11 @@ export function TripCard({ trip, menuSlot }: TripCardProps) {
         {createdLabel && (
           <div className="mt-1">
             <DataText size="sm">Created {createdLabel}</DataText>
+          </div>
+        )}
+        {plannedOfBudget && (
+          <div className="mt-1">
+            <DataText size="sm">{plannedOfBudget}</DataText>
           </div>
         )}
       </div>

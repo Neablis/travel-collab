@@ -14,6 +14,7 @@ import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
+import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
@@ -77,15 +78,27 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // "loading"/"error" never render fabricated bars.
   const [sparkline, setSparkline] = useState<SparklineFetchState>({ status: "loading" });
   const [startDate, setStartDate] = useState<string | null>(null);
+  // "{planned} planned of {budget}" (Task 4.1, M10 Phase 4) — derived from
+  // the same real TripDetail fetch as the sparkline above, via tripSpend +
+  // formatMoney (KI-2), keyed off the trip's own currency (never per-Money).
+  // `null` means "nothing honest to say yet" (still loading, fetch failed,
+  // or not yet computed) — render nothing for that state, same "no
+  // fabricated placeholder" stance as the sparkline's own states. Only once
+  // the detail has actually loaded does this become either the real spend
+  // line or the literal "No budget yet" (a real, known fact about that
+  // trip, not a stand-in for "unknown").
+  const [plannedOfBudget, setPlannedOfBudget] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setSparkline({ status: "loading" });
     setStartDate(null);
+    setPlannedOfBudget(null);
     void fetchTripDetail(trip.tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
-        const { days, activities } = result.value;
+        const detail = result.value;
+        const { days, activities } = detail;
         setSparkline({
           status: "ready",
           days: days.map((day) => ({
@@ -93,7 +106,8 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             stopCount: day.activityIds.length,
           })),
         });
-        setStartDate(result.value.startDate);
+        setStartDate(detail.startDate);
+        setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
       } else {
         setSparkline({ status: "error" });
       }
@@ -130,6 +144,11 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                   <DataText size="sm">Created {createdLabel}</DataText>
                 </div>
               )
+            )}
+            {plannedOfBudget && (
+              <div className="mt-1.5">
+                <DataText size="sm">{plannedOfBudget}</DataText>
+              </div>
             )}
           </div>
 

@@ -79,4 +79,20 @@ describe("TripCard", () => {
     // Still shows the state badge next to the avatars, not in place of it.
     expect(screen.getByText(/active/i)).toBeTruthy();
   });
+
+  // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
+  // TripCard can't derive this line itself — it only ever renders whatever
+  // already-formatted string the caller (page.tsx, which fetches each
+  // visible trip's own TripDetail and computes this line itself) hands it.
+  it("shows planned spend against the budget", () => {
+    const trip = tripSummaryFixture();
+    render(<TripCard trip={trip} plannedOfBudget="$908.50 planned of $1,640.00" />);
+    expect(screen.getByText("$908.50 planned of $1,640.00")).toBeTruthy();
+  });
+
+  it("renders no planned-spend line when the caller has no line to give it (honest absence, not a fabricated one)", () => {
+    const trip = tripSummaryFixture();
+    render(<TripCard trip={trip} />);
+    expect(screen.queryByText(/planned of/)).toBeNull();
+  });
 });
