@@ -1,8 +1,12 @@
 # Test suite overhaul — Implementation Plan (index)
 
-> **Execute one phase file at a time, in order.** Each is self-contained.
-> Phases 0–4 are safety-and-speed work that changes almost no test *content*;
-> Phases 5–6 change content and must not start until 0–4 have landed.
+> **REQUIRED READING ORDER:** this index, then the "Sequencing" section below,
+> then **only** your current phase file. Do not read all phase files at once —
+> each is self-contained and carries its own literal values.
+>
+> **Execute one phase file at a time, in order.** Phases 0–4 are
+> safety-and-speed work that changes almost no test *content*; Phases 5–7
+> change content and are **gated on M10 Wave 2 closing** — see Sequencing.
 
 **Goal:** turn the test suite from a drag into a fast, trustworthy signal —
 fewer tests, each worth more; no flakes; and a red run that means a regression.
@@ -97,20 +101,64 @@ it a documented home so the next session doesn't re-derive the argument.
 
 ---
 
+## Sequencing — this plan is SPLIT around M10 Wave 2
+
+**Decision (Mitchell, 2026-08-23): run Phases 0–4 now; hold Phases 5–7 until
+M10 Wave 2's gate closes.** This is an off-roadmap insert during an open
+milestone gate, which `AGENTS.md` requires be called out rather than silently
+absorbed — this section is that call-out. **It does not move or reopen M10's
+gate.**
+
+**Why the split, concretely.** M10 Wave 2 Phases 5–8 are unstarted and touch
+exactly the files Phases 5–6 of *this* plan would prune and rewrite:
+
+| M10 Wave 2 phase touches | This plan's target for it |
+|---|---|
+| `TimelineLens.tsx` (M10 phases 5, 6 **and** 8) | `TimelineLens.test.tsx` — 286 LOC, 13 `getByText`, the canonical brittleness case |
+| `ActivityEditor.tsx` **and `ActivityEditor.test.tsx`** (M10 phase 7) | same file — M10 rewrites the test itself |
+| `dayAccent.ts` (M10 phase 8, fixes KI-18) | the KI-18 property test (Phase 6 Task 6.5) |
+| `DayChips.tsx`, `CalendarLens.tsx`, `TripHeader.tsx`, `Board.tsx`, `app/page.tsx` (M10 phases 6, 8) | `DayChips.test.tsx` (181), `TripHeader.test.tsx` (313), `NextTripHero.test.tsx` (356), `board.test.tsx` |
+
+Eight of this plan's largest prune/de-brittle targets sit in M10's path. The
+argument is not mainly merge conflicts — **it is that pruning
+`ActivityEditor.test.tsx` before M10 Phase 7 rebuilds `ActivityEditor.tsx` is
+work done twice.** Prune the final components, not the ones about to change.
+
+The repo has paid for the parallel-workstream version of this mistake once
+already: M10 Phase 3 sat finished-but-unmerged and diverged while Phase 4 was
+built independently (2026-08-22, `docs/STATUS.md`'s "Known gap").
+
+**What runs now (Phases 0–4)** touches `vitest.unit.config.ts`,
+`playwright.config.ts`, `e2e/`, integration-test setup, and test *data* — not
+component test bodies. Collision surface with M10 is near zero, and it delivers
+the speed and flake fixes **during** the M10 work that most suffers from them.
+
+**Phase 2 caveat.** Phase 2 deletes `src/mocks/fixtures.ts` and migrates its
+callers, which does touch component test files — but mechanically (a changed
+import and a shorter setup block), not structurally. If an M10 phase is
+in flight on a file, take the merge; do not defer the whole phase for it.
+
+**Resuming Phases 5–7.** Preconditions: M10 Wave 2 Phase 9's gate has closed,
+`docs/STATUS.md` says so, and Phases 0–4 are merged to `main`. Re-run the
+Phase 0 inventory against the post-M10 tree before executing Phase 5 — M10
+Phases 5–8 will have added tests of their own, and the verdicts must reflect
+what is actually there, not what was there in August.
+
 ## Phase files — execute in this order
 
 | Phase | File | Delivers | Gate |
 |---|---|---|---|
-| 0 | `test-overhaul/phase-0-baseline.md` | Honest numbers, a file classifier, a keep/cut inventory | A committed baseline nobody has to re-derive |
-| 1 | `test-overhaul/phase-1-config.md` | Environment split, pool tuning, Playwright config hardening | Unit suite measurably faster; zero test content changed |
-| 2 | `test-overhaul/phase-2-factories.md` | `@tc/factories` — typed, seeded, composable scenario builders | One source of test data for unit, int, e2e and `db:seed` |
-| 3 | `test-overhaul/phase-3-e2e.md` | storageState auth, API-built state, viewport projects, fixed drag | KI-19, KI-21, KI-25 closed; e2e wall time down |
-| 4 | `test-overhaul/phase-4-ki13.md` | Root-cause and fix the jsdom-under-load flake | KI-13 closed; `pnpm check` trustworthy on one run |
-| 5 | `test-overhaul/phase-5-prune.md` | Delete/merge redundant tests against explicit criteria | Test count down ≥35%; nothing lost that catches a real bug |
+| **0** | `test-overhaul/phase-0-baseline.md` | Honest numbers, a file classifier, a keep/cut inventory | A committed baseline nobody has to re-derive |
+| **1** | `test-overhaul/phase-1-config.md` | Environment split, pool tuning, Playwright config hardening | Unit suite measurably faster; zero test content changed |
+| **2** | `test-overhaul/phase-2-factories.md` | `@tc/factories` — typed, seeded, composable scenario builders | One source of test data for unit, int, e2e and `db:seed` |
+| **3** | `test-overhaul/phase-3-e2e.md` | storageState auth, API-built state, viewport projects, fixed drag | KI-19, KI-21, KI-25 closed; e2e wall time down |
+| **4** | `test-overhaul/phase-4-ki13.md` | Root-cause and fix the jsdom-under-load flake | KI-13 closed **or** honestly re-scoped; `pnpm check` trustworthy |
+| — | — | **← STOP HERE. Phases 5–7 wait for M10 Wave 2's gate.** | see Sequencing |
+| 5 | `test-overhaul/phase-5-prune.md` | Delete/merge redundant tests against explicit criteria | Criteria applied to every row; the resulting count reported |
 | 6 | `test-overhaul/phase-6-debrittle.md` | Rewrite survivors to the principles above | No className assertions, no prose-copy coupling, no sleeps |
 | 7 | `test-overhaul/phase-7-guidelines.md` | Rewritten testing guidance + lint enforcement + a skill | A junior model writes a correct test with no frontier guidance |
 
-**Dependencies.** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 is the safe order, and the
+**Dependencies.** 0 → 1 → 2 → 3 → 4 → *(M10 gate)* → 5 → 6 → 7, and the
 ordering is not arbitrary:
 
 - **3 and 4 before 5.** You may only delete unit tests once the layer beneath
@@ -138,8 +186,9 @@ the difference between "we deleted redundant tests" and "we deleted tests".
 - [ ] Full e2e suite green **twice in a row** via `test:e2e:ci-like`, including
       a sub-1180px viewport project.
 - [ ] KI-13, KI-19, KI-21, KI-25 moved to Resolved in `docs/known-issues.md`.
-- [ ] Repo-wide test count down by ≥35% with no coverage regression on
-      `packages/domain` (measured, not asserted).
+- [ ] Every test file has had the cut criteria applied, and the resulting count
+      change is **reported** (not driven to a target) with no coverage
+      regression on `packages/domain` (measured, not asserted).
 - [ ] Zero `className` assertions, zero `waitForTimeout`, zero hand-built trip
       literals in the surviving suite (each enforced by a lint rule, not a
       convention).

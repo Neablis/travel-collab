@@ -116,6 +116,24 @@ fix has to clear the bar that advice sets:
 All three, or KI-13 stays open with the new findings appended. This entry has
 been "probably environmental" twice already.
 
+### The decision rule (do not improvise this)
+
+KI-13 has failed to reproduce once before (2026-07-28, a 10-core machine, even
+with every core saturated). It may fail to reproduce again — Phase 1's
+environment split removed 35 jsdom worlds' worth of contention, which could
+have fixed it as a side effect. Three outcomes, three actions:
+
+| What you observe | What you do |
+|---|---|
+| Reproduced on the pre-fix config, fixed by Task 4.2, all three proofs green | **Close KI-13** with the root cause recorded. |
+| Cannot reproduce on the pre-fix config either, and all three proofs are green | **Close KI-13** — but as *"no longer reproducible after the Phase 1 environment split"*, naming the split as the probable cause and the saturation script as the check. Explicitly say the mechanism was never directly observed. Do **not** claim a root cause you did not find. |
+| Reproduced and Task 4.2 did not fix it | **Keep KI-13 open.** Append what you tried, what the traces showed, and which of the three fixes moved the needle. A phase that ends here has still done its job. |
+
+The plan's definition of done says "KI-13 closed"; row three is the sanctioned
+exception. An honestly re-scoped KI-13 satisfies this phase. A KI-13 closed on
+one green run does not — that is the failure mode KI-1 records, where a real
+correctness bug sat behind a "probably flake" label for two weeks.
+
 ---
 
 ## Exit checklist

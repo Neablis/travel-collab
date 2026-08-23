@@ -1,13 +1,24 @@
 # Phase 5 — Prune to the minimum set that catches regressions
 
-**Do not start this phase until 0–4 have landed.** You are about to delete
-tests on the strength of the layers beneath them. Those layers must be
-trustworthy first — that is what Phases 3 and 4 bought.
+**Do not start this phase until 0–4 have landed AND M10 Wave 2's gate has
+closed** (see the index's Sequencing section). Two reasons: you are deleting
+tests on the strength of the layers beneath them, which Phases 3 and 4 make
+trustworthy — and M10 Wave 2 Phases 5–8 rewrite eight of the components whose
+tests this phase would otherwise prune twice.
 
-**Target: repo-wide test count down ≥35%** (864 → ~550 or fewer), with
-`packages/domain` coverage flat or up. The number is a forcing function, not a
-quota — if the honest answer after the inventory is 25%, take 25% and say so.
-What is not acceptable is 5%.
+**Re-run the Phase 0 inventory against the post-M10 tree before executing.**
+M10 will have added tests of its own; the verdicts must describe the tree in
+front of you.
+
+**There is no deletion target. Apply the criteria and report the number.**
+(Decision, Mitchell, 2026-08-23.) The earlier draft of this plan carried a
+"≥35%" figure; it was removed deliberately, because a quota is exactly the
+pressure that pushes a cut past what the safety protocol in Task 5.3 supports.
+Run every file through the criteria below, execute what they call for, and
+state the resulting count change in the PR — up, down, or flat.
+
+The one hard floor is **`packages/domain` coverage must not drop.** That is a
+measured gate, not a judgment call.
 
 **Where the bloat is.** `apps/web` carries 11,341 lines of test against 13,369
 lines of source — 85%. `packages/domain` carries 2,259 against a far smaller
@@ -162,7 +173,8 @@ Once the tests are gone, their support code often is too. Check and remove:
 
 - [ ] Every Phase 0 inventory row with a `cut`/`merge` verdict executed, or
       re-argued in writing if kept.
-- [ ] Repo-wide test count down ≥35%; the number recorded.
+- [ ] The resulting test-count change reported in the PR, whatever it is. No
+      target was set and none should be inferred from the numbers in the index.
 - [ ] `packages/domain` coverage flat or up.
 - [ ] Mutation score on the four domain modules flat or up; before/after in the
       commit message.

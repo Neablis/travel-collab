@@ -17,10 +17,21 @@ trip" without writing it out again.
 consumed by unit tests, integration tests, e2e, and `db:seed`.
 
 > **This adds a fifth workspace package**, which `AGENTS.md`'s module map calls
-> a structural change requiring a deliberate decision. Record it as an ADR
-> (`ADR-020-test-data-factories.md`) before writing code — that is the repo's
-> own rule for irreversible decisions, and `witness.ts`'s header comment shows
-> the bar being applied to exactly this question already.
+> a structural change requiring a deliberate decision. **That decision is made
+> — Mitchell, 2026-08-23: `packages/factories` it is.** Two alternatives were
+> weighed and rejected: `apps/web/src/test-support/` (unreachable from
+> `packages/domain` tests and from `scripts/db-seed.mjs`, so it would preserve
+> the duplication this phase exists to remove) and a
+> `packages/contracts/testing` export (ships test-only code inside a package
+> production imports).
+>
+> **Still write `ADR-020-test-data-factories.md` first**, before any code — the
+> repo's rule is that an irreversible decision is *recorded* as an ADR, and the
+> ADR is where the rejected alternatives above live so nobody re-opens them.
+> `witness.ts`'s header shows the same bar being applied to this exact question
+> and reaching the opposite answer for a 20-line helper; say why a factory
+> library is different (four consumers, not one; typed against contracts;
+> deletes ~600 lines rather than adding 20).
 
 ---
 
