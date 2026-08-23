@@ -464,10 +464,13 @@ which existed only on a branch.
 
 ## Next action
 
-**Phase 5 is up as PR #29** from `claude/next-work-z7pr1d` (eight commits,
-`d7a274b`..`3c777c6`, on `main` at `fcb22b5`), CI green, both review threads
-answered and resolved — see the Phase 5 section under "In flight" for what
-landed and what the review changed. **Two things still want a human:** the
+**Phase 5 is up as PR #29** from `claude/next-work-z7pr1d`, which branches
+from `main` at `fcb22b5` — **not merged**, so nothing in it is on `main` yet.
+CI is green and both review threads are answered and resolved; see the Phase 5
+section under "In flight" for the commits, what landed, and what the review
+changed. (Deliberately no commit count here: this pointer went stale twice in
+one evening because it carried one, and the section below is the place that
+enumerates them.) **Two things still want a human:** the
 phase file's Step 4 (manual browser verification of the exit checklist) was
 not performed, since this container has no interactive browser, so whoever
 reviews it should walk that checklist by hand — the PR's own Vercel preview is
