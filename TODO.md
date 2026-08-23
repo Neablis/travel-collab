@@ -178,7 +178,12 @@ Captured so they aren't lost; not committed to a milestone yet.
 - **Preflight (kickoff):** before the milestone's first task, reconcile the
   *previous* milestone's gate-close checklist (`docs/milestones/README.md`) — if
   any flag is unflipped, flip it first. This is the forcing function that catches
-  a missed gate-close.
+  a missed gate-close. Also check for sibling `claude/*` branches on the
+  *current* milestone (`git branch -a`, `git ls-remote --heads origin`) that
+  might be finished-but-unmerged before starting more independent work on top —
+  see `AGENTS.md`'s Workstreams section for why this matters and what it cost
+  once already (M10 Wave 2 Phase 3 sat unmerged and diverged while Phase 4 was
+  built and merged independently, 2026-08-22).
 - Write the milestone file (scope + exit gate) before its first commit.
 - Keep every prior milestone's e2e script green.
 - **At gate time, run the gate-close checklist** in `docs/milestones/README.md`

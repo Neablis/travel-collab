@@ -142,6 +142,26 @@ reset --soft` (fixing its own over-broad commit) silently dropped a sibling's
 already-committed work from the branch tip — recovered only because it survived
 uncommitted in the working tree. Isolate via `superpowers:using-git-worktrees`.
 
+Rule: a milestone phase or task branch worked independently of others (not the
+worktree case above — separate sessions, separate branches, over separate days)
+is not "done" until its **PR is open**, even if review/merge happens later.
+Recording completion in a branch-local `docs/STATUS.md` does not count — no
+other session or Mitchell will ever read a `docs/STATUS.md` that only exists on
+an unmerged branch; a PR is the only thing that makes finished work visible and
+puts it in front of GitHub's own merge-conflict detection while the diff is
+still small. In M10 Wave 2, Phase 3's branch (`claude/m10-phase-3-rack`) was
+fully built and verified in a real browser on 2026-08-22, recorded "done" in
+its own branch-local `STATUS.md` — and then sat with no PR while Phase 4 was
+built independently on `main` and merged first (PR #25), leaving Phase 3
+diverged 12 commits each way with a likely `TimelineLens.tsx` conflict, only
+noticed a day later when a fresh session went looking for "the next milestone"
+and its own task list still claimed Phase 3 as done. Before starting new
+phase/milestone work that another session's docs describe as independent,
+check for sibling `claude/*` branches on the current milestone first (`git
+branch -a`, `git ls-remote --heads origin`) — a finished-but-unmerged one needs
+a PR opened (or an explicit, recorded reason it's being left) before you add
+more parallel work on top of it.
+
 ## Definition of Done (every change)
 
 - Typecheck, lint, and all tests pass locally (`pnpm check` once M0 lands).
@@ -171,6 +191,9 @@ these out immediately:
 - Scope creep past the current milestone's gate definition.
 - A passed gate whose status flags (TODO tick, milestone exit-gate boxes,
   Current milestone) were left unflipped.
+- A phase/task branch sits finished-but-unmerged while other independent work
+  on the same milestone continues elsewhere — see the Workstreams section's
+  PR-promptness rule; the longer it sits, the more silently it diverges.
 
 ## Testing model
 
