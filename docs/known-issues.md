@@ -308,6 +308,25 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture a trace (`trace: "on-first-retry"` is already on) before attempting a fix.
 - **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification, this session).
 
+### KI-29 — a stop with two time-overlaps shows only one of them in the day columns
+- **Severity:** correctness (a real overlap is invisible in one view; reachable in two others)
+- **Area:** `apps/web/src/components/board/Board.tsx` (`overlapsByActivity`), `apps/web/src/components/lenses/overlapData.ts` (`badgeableConflictSubjects`), `apps/web/src/components/board/ActivityCard.tsx` (the compact chip)
+- **Symptom:** a stop can be the later half of more than one crossing pair — three mutually overlapping stops produce three `time-overlap` conflicts, two of which attach to the latest stop. `overlapsByActivity` keys one `Overlap` per `laterActivityId`, so the first wins and the rest are dropped. Because M10 Phase 5 also stopped passing `hasConflict` for `time-overlap` conflicts (so a stop shows the rich warning and not also a bare triangle), the dropped pair has **no day-column surface at all** — where before Phase 5 it would at least have shown a generic conflict badge. Dismissing the visible chip then leaves a second, invisible overlap on the same stop.
+- **What bounds it:** no conflict is unreachable. The trip-level conflict banner still lists every overlap's description, and the Timeline lens renders every warning with its own fix and dismiss action — only the day-column view is lossy. The chip that *is* shown is accurate; nothing is misreported.
+- **Why not fixed in the PR that introduced it (#29, M10 Wave 2 Phase 5):** the dropping is deliberate and documented at the call site — a column card has room for exactly one chip — but what a card should show when a stop has N overlaps is a design question, and the handoff this phase implements (`current/Trip Planner Redesign.dc.html`) specifies a single chip. Found by CodeRabbit on PR #29 and confirmed rather than dismissed; see that thread for the full exchange.
+- **Options when it is picked up, cheapest first:** keep the triangle *in addition to* the chip when a stop has more than one overlap, so the extra is at least signalled (a few lines, no new design copy); render a count in the chip; or stack chips and change the card's layout. The first needs only a narrowing of `badgeableConflictSubjects` to "overlaps this card actually renders".
+- **Where it gets settled:** M10 Wave 2's Phase 9 gate review (`docs/plans/M10-delta/phase-9-gate.md`), where this wave's design questions are decided.
+- **First noted:** 2026-08-23 (PR #29 review, M10 Wave 2 Phase 5).
+
+### KI-30 — "+ Add stop" late in a day prefills an invalid time window instead of being prevented
+- **Severity:** correctness (a reachable action that cannot succeed; no data corruption)
+- **Area:** `apps/web/src/components/lenses/TimelineLens.tsx` (`nextSlot`), `apps/web/src/lib/time.ts` (`toTimeString`'s clamp), `packages/contracts/src/activity.ts` (`TimeWindow`'s `start < end` refinement)
+- **Symptom:** `nextSlot()` prefills the add-a-stop editor with `{ start: toTimeString(lastEnd), end: toTimeString(lastEnd + DEFAULT_SLOT_MIN) }`. `toTimeString` clamps to 23:59, so on a day whose last stop already ends at or near midnight both ends collapse to `23:59` — and `TimeWindow` refines `start < end`, so the prefilled window is invalid. The user gets a validation failure from an action the UI offered, rather than the UI declining to offer a slot that does not exist.
+- **Scope:** pre-existing, not introduced by M10 Phase 5 — `nextSlot` predates it. Found while fixing the sibling instance of the same clamp bug in the overlap repair (PR #29, `37f2c13`), which is fixed: that path now derives `suggestedEnd` up front and withholds the fix rather than dispatching a truncated window.
+- **The general shape:** `toTimeString`'s clamp is a *silent* truncation, so every caller that adds minutes to a time and renders or dispatches the result can quietly lose them. `DAY_END_MIN` is now exported from `lib/time.ts` precisely so callers can check before they clamp; `overlapData.ts`'s `repairedEnd()` is the worked example. Auditing the remaining arithmetic callers of `toTimeString` is the real fix, not patching `nextSlot` alone.
+- **Why not fixed here:** outside PR #29's phase scope (Phase 5 is the overlap warning), and the honest fix is an audit of every caller plus a decision about what the add-a-stop affordance should do at the end of a day — offer a shorter slot, or not offer at all. That is Phase 6 territory (`docs/plans/M10-delta/phase-6-growth.md` owns the add-a-stop rows and their copy).
+- **First noted:** 2026-08-23 (PR #29, while fixing the overlap-repair truncation).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here

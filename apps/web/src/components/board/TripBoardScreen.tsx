@@ -293,7 +293,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   }}
                 />
               )}
-              {lens === "Schedule" && <ScheduleLens detail={activeTrip} onSelectActivity={openEdit} />}
+              {lens === "Schedule" && (
+                <ScheduleLens
+                  detail={activeTrip}
+                  onSelectActivity={openEdit}
+                  // The timeline's overlap warning raises real commands
+                  // (UpdateActivity for the one-click fix, DismissConflict for
+                  // the dismissal); neither is ever a CreateTrip, which is the
+                  // only TripCommand dispatch doesn't take.
+                  onCommand={(command) => {
+                    if (command.type !== "CreateTrip") void dispatch(command);
+                  }}
+                />
+              )}
               {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
               {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
               {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}

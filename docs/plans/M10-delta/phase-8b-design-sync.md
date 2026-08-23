@@ -16,10 +16,11 @@
 > `docs/milestones/M10-visual-craft.md` per that file's rule that a gate
 > definition changes only by an explicit decision from Mitchell, recorded there.
 >
-> **Rebase on Phase 5 first.** `claude/next-work-z7pr1d` carries Phase 5's
-> inline overlap warnings. It does not touch any file below, but it is
-> unmerged — land it before starting here rather than diverging in parallel
-> (`AGENTS.md`'s PR-promptness rule; the Phase 3 landing gap is why it exists).
+> **Branch from current `main`.** Phase 5's inline overlap warnings merged via
+> PR #29 on 2026-08-23; its branch is deleted. Nothing below collides with it,
+> but check `git branch -a` for other live `claude/*` branches on this milestone
+> before starting (`AGENTS.md`'s Workstreams rule — the Phase 3 landing gap is
+> why that check exists).
 
 Read `docs/plans/2026-08-14-M10-redesign-delta.md` (the index) first. Its Global
 Constraints apply verbatim — in particular **no new contract fields, no new

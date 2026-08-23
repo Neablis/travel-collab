@@ -43,13 +43,16 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   await page.getByRole("button", { name: "Save" }).click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" })).toBeVisible();
 
+  // Card-scoped, not a bare day-column substring: the overlap chip (M10 Phase 5)
+  // renders the *other* stop's title inside the same column, so a plain
+  // getByText would be one line-reorder away from a strict-mode violation.
   const day1 = page.getByTestId("day-column").nth(0);
   const day2 = page.getByTestId("day-column").nth(1);
 
   await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), day1);
-  await expect(day1.getByText("Colosseum")).toBeVisible();
+  await expect(day1.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" })).toBeVisible();
   await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), day1);
-  await expect(day1.getByText("Vatican Museums")).toBeVisible();
+  await expect(day1.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" })).toBeVisible();
 
   // The conflict appears as data — the writes above all succeeded.
   await expect(page.getByText(/overlap in time/)).toBeVisible();
@@ -58,6 +61,6 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   // is an ordinary card-to-card drag between day columns.
   const vatican = page.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" });
   await dragCardTo(vatican, day2);
-  await expect(day2.getByText("Vatican Museums")).toBeVisible();
+  await expect(day2.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" })).toBeVisible();
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
 });

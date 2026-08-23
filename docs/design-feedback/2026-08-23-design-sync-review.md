@@ -321,13 +321,13 @@ its gate.
 | `DRIFT` §3 undesigned surfaces (History, extra lenses/KI-20, trip lifecycle, dev login) | Standing design backlog — §5 | Design owes coverage; no build milestone |
 | `japan-trip-seed.json` | Reference only | Do not fork a second seed vocabulary past ADR-020 — §4.8 |
 
-† **Phase 8b does not exist until you approve it.** `docs/milestones/README.md`
-is explicit that a gate definition changes only by your decision, and `AGENTS.md`
-lists "scope creep past the current milestone's gate definition" as a drift
-signal to call out rather than absorb. This is that call-out. The five Phase 8b
-items are small, presentational, and inside M10's stated theme; the plan file is
-written and staged at `docs/plans/M10-delta/phase-8b-design-sync.md`, marked
-**not approved**, and Phase 9's gate does not move until you say so.
+† **Phase 8b was approved on 2026-08-23** — see §8. It was staged unapproved
+when this section was written, because `docs/milestones/README.md` is explicit
+that a gate definition changes only by Mitchell's decision, recorded, and
+`AGENTS.md` lists "scope creep past the current milestone's gate definition" as
+a drift signal to surface rather than absorb. The plan file is
+`docs/plans/M10-delta/phase-8b-design-sync.md`; the amendment to M10's gate is
+recorded in `docs/milestones/M10-visual-craft.md`.
 
 ---
 
@@ -404,13 +404,17 @@ Docs only. No code, no contracts, no test changes.
 - `docs/milestones/M15-front-door.md` — the milestone, its scope, its exit gate, and the two open questions carried from §4.2 and §4.5.
 - `docs/milestones/README.md`, `TODO.md`, `docs/STATUS.md` — all four decisions reflected.
 
-**Coordination.** `claude/next-work-z7pr1d` is one commit ahead of `main`
-(`d7a274b`, M10 Wave 2 Phase 5 — inline overlap warnings). That commit touches
-fourteen files, all under `apps/web/src`, and **no documentation**. Nothing here
-collides with it.
+**Coordination — resolved.** This branch was written against `main` at
+`fcb22b5` while `claude/next-work-z7pr1d` carried M10 Wave 2 Phase 5 (inline
+overlap warnings) unmerged. **Phase 5 merged as PR #29 on 2026-08-23** and that
+branch is deleted; `main` was merged into this branch afterwards. The only
+conflict was `docs/STATUS.md`'s "Next action", where **both sides were stale** —
+mine said Phase 5 was unmerged, `main`'s said PR #29 was open — and it is
+resolved to what is now true. The same merge also de-staled four other places on
+`main` that still described Phase 5 as built-but-not-merged; PR #29's own merge
+did not update them.
 
-Phase 8b and Phase 1b do touch files Phase 5 opened — `TimelineLens.tsx` is not
-among them, but `TripBoardScreen.tsx` is (Phase 1b, if the header actions are
-portalled from the trip screen). Whoever picks up 8b or 1b should rebase on
-Phase 5 once it merges rather than starting in parallel; `AGENTS.md`'s
-PR-promptness rule and the Phase 3 landing gap are the reason to say so here.
+Phase 8b and Phase 1b do touch files Phase 5 opened — not `TimelineLens.tsx`,
+but `TripBoardScreen.tsx` (Phase 1b, if the header actions are portalled from
+the trip screen). Both phase files now say to branch from current `main` and to
+check `git branch -a` for other live `claude/*` branches first.

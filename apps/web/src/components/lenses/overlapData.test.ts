@@ -1,0 +1,118 @@
+import { describe, expect, it } from "vitest";
+import type { TripDetail } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
+import { overlapsForDay } from "./overlapData";
+
+// The plan's own worked example (M10 Phase 5): Nezu Museum 10:30–13:00 and
+// Lunch at Kagari 12:30–14:00 on one day, 30 minutes on top of each other,
+// with the single `time-overlap` conflict the domain emits for that pair.
+// Short ids ("d1", "a", "b") rather than uuids so the conflict id reads the
+// way conflicts.ts builds it — nothing here parses them as uuids.
+const detail = (over: Partial<TripDetail> = {}): TripDetail =>
+  tripDetailFixture({
+    days: [{ dayId: "d1", date: null, activityIds: ["a", "b"], costSubtotal: 0 }],
+    activities: {
+      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+    },
+    conflicts: [
+      {
+        id: "time-overlap:d1:a:b",
+        kind: "time-overlap",
+        severity: "warn",
+        subjects: ["a", "b"],
+        description: '"Nezu Museum" and "Lunch at Kagari" overlap in time on the same day.',
+        resolutions: [],
+      },
+    ],
+    ...over,
+  });
+
+describe("overlapsForDay", () => {
+  it("attaches the warning to the later stop", () => {
+    const [o] = overlapsForDay(detail(), "d1");
+    expect(o?.laterActivityId).toBe("b");
+    expect(o?.otherTitle).toBe("Nezu Museum");
+  });
+
+  it("reports the true intersection, not the whole span", () => {
+    // 12:30–13:00 = 30 minutes.
+    expect(overlapsForDay(detail(), "d1")[0]?.overlapMinutes).toBe(30);
+  });
+
+  it("suggests starting when the earlier stop ends", () => {
+    expect(overlapsForDay(detail(), "d1")[0]?.suggestedStart).toBe("13:00");
+  });
+
+  it("excludes dismissed conflicts", () => {
+    expect(overlapsForDay(detail({ dismissedConflictIds: ["time-overlap:d1:a:b"] }), "d1")).toEqual([]);
+  });
+
+  it("ignores conflicts belonging to another day", () => {
+    expect(overlapsForDay(detail(), "d2")).toEqual([]);
+  });
+
+  it("ignores non-overlap conflict kinds", () => {
+    const d = detail({
+      conflicts: [{ id: "over-budget", kind: "over-budget", severity: "warn", subjects: [], description: "", resolutions: [] }],
+    });
+    expect(overlapsForDay(d, "d1")).toEqual([]);
+  });
+
+  it("skips a conflict naming a missing activity rather than throwing", () => {
+    const d = detail({
+      conflicts: [
+        { id: "time-overlap:d1:a:zzz", kind: "time-overlap", severity: "warn", subjects: ["a", "zzz"], description: "", resolutions: [] },
+      ],
+    });
+    expect(() => overlapsForDay(d, "d1")).not.toThrow();
+    expect(overlapsForDay(d, "d1")).toEqual([]);
+  });
+
+  // The fix is "move the later stop, keeping its duration" — so the end it
+  // should land on is derived here, once, rather than replayed through
+  // toTimeString at each call site (whose clamp would silently shorten a stop
+  // that runs past midnight).
+  it("carries the end the duration-preserving move lands on", () => {
+    // b is 12:30–14:00, a 90-minute stop: moved to 13:00 it ends at 14:30.
+    expect(overlapsForDay(detail(), "d1")[0]?.suggestedEnd).toBe("14:30");
+  });
+
+  it("offers no end when the duration-preserving move would run past midnight", () => {
+    const d = detail({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    const [o] = overlapsForDay(d, "d1");
+    // The warning still stands — only its fix is impossible: 23:45 + 29m is
+    // 00:14 the next day, and a timeWindow lives within one day.
+    expect(o?.laterActivityId).toBe("b");
+    expect(o?.suggestedStart).toBe("23:45");
+    expect(o?.suggestedEnd).toBeNull();
+  });
+
+  it("still offers a move that lands exactly on the day's last minute", () => {
+    const d = detail({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:00" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "22:30", end: "23:29" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    expect(overlapsForDay(d, "d1")[0]?.suggestedEnd).toBe("23:59");
+  });
+
+  it("breaks a same-start tie on the later end, so the pair still resolves deterministically", () => {
+    const d = detail({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "10:30", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    const [o] = overlapsForDay(d, "d1");
+    expect(o?.laterActivityId).toBe("a");
+    // The earlier stop of the pair is still the one whose end the fix suggests.
+    expect(o?.suggestedStart).toBe("11:00");
+  });
+});

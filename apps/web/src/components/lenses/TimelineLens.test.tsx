@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
+import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { TimelineLens } from "./TimelineLens";
 
@@ -68,6 +69,41 @@ function renderLensWithFocusControl(detail = detailFixture()) {
       </EditorHost>
     </FocusProvider>,
   );
+}
+
+// M10 Phase 5: the plan's worked overlap example — Nezu Museum 10:30–13:00
+// and Lunch at Kagari 12:30–14:00 on one day, with the single `time-overlap`
+// conflict the domain emits for that pair. `dispatch` is the onCommand seam
+// TripBoardScreen fills with the real dispatch; the returned mock is what the
+// warning's fix and dismiss land in.
+function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
+  const dispatch = vi.fn();
+  const detail = tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a", "b"], date: "2027-06-01", costSubtotal: 0 }],
+    activities: {
+      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+    },
+    conflicts: [
+      {
+        id: "time-overlap:d1:a:b",
+        kind: "time-overlap",
+        severity: "warn",
+        subjects: ["a", "b"],
+        description: '"Nezu Museum" and "Lunch at Kagari" overlap in time on the same day.',
+        resolutions: ["Change one activity's time window"],
+      },
+    ],
+    ...over,
+  });
+  render(
+    <FocusProvider>
+      <EditorHost>
+        <TimelineLens detail={detail} onCommand={dispatch} />
+      </EditorHost>
+    </FocusProvider>,
+  );
+  return dispatch;
 }
 
 describe("TimelineLens", () => {
@@ -282,5 +318,86 @@ describe("TimelineLens", () => {
     });
     renderLens(detail);
     expect(screen.getByTestId("day-cost-day-1").textContent).toContain("99.99 USD");
+  });
+
+  // M10 Phase 5 — the overlap warning, its one-click fix and its dismissal.
+  it("attaches the warning to the stop that starts later, not to both", () => {
+    renderTimelineWithOverlap();
+    expect(screen.getByTestId("overlap-warning-b")).toBeTruthy();
+    expect(screen.queryByTestId("overlap-warning-a")).toBeNull();
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+  });
+
+  it("moves the later stop to start when the earlier one ends, keeping its duration", async () => {
+    const dispatch = renderTimelineWithOverlap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Start 1 pm" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: "UpdateActivity",
+      activityId: "b",
+      timeWindow: { start: "13:00", end: "14:30" },   // was 12:30–14:00, a 90-minute stop
+    }));
+  });
+
+  // The fix keeps the stop's duration or it is not offered at all: a stop
+  // whose kept duration would run past 23:59 has nowhere in the day to land,
+  // and shortening it to fit would quietly make the fix a lie.
+  it("offers no fix when the move would push the later stop past midnight", async () => {
+    const dispatch = renderTimelineWithOverlap({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+
+    // The warning itself still shows, under the later stop.
+    expect(screen.getByTestId("overlap-warning-b")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Start / })).toBeNull();
+
+    // ...and the only command the row can still send is the dismissal.
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "DismissConflict" }));
+  });
+
+  it("shows an overlap count badge on the day header", () => {
+    renderTimelineWithOverlap();
+    expect(screen.getByText("1 overlap")).toBeTruthy();
+  });
+
+  // Dismissal is per conflict id, and the id encodes the pair — so this
+  // changes no trip data, only what the day shows.
+  it("dismisses the pair's warning with DismissConflict and nothing else", async () => {
+    const dispatch = renderTimelineWithOverlap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: "DismissConflict",
+      conflictId: "time-overlap:d1:a:b",
+    }));
+  });
+
+  // The rich warning replaces the bare triangle for this one kind, rather
+  // than both firing on the same pair.
+  it("does not also badge the pair with the generic conflict triangle", () => {
+    renderTimelineWithOverlap();
+    expect(screen.queryByRole("img", { name: "conflict" })).toBeNull();
+  });
+
+  it("still badges an activity for a conflict kind the warning does not cover", () => {
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["a"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+      },
+      conflicts: [
+        { id: "anchor-broken:a", kind: "anchor-broken", severity: "warn", subjects: ["a"], description: "", resolutions: [] },
+      ],
+    });
+    renderLens(detail);
+    expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
   });
 });
