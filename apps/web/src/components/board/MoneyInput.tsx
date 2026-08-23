@@ -40,7 +40,22 @@ function parseMoney(raw: string, currency: string): Money | null {
 // without committing; unmounting mid-edit (e.g. a parent removing this
 // field before the user tabs away) still flushes any pending edit so a
 // typed value is never silently dropped.
-export function MoneyInput({ value, currency, onChange }: { value: Money | null; currency: string; onChange: (m: Money | null) => void }) {
+export function MoneyInput({
+  id,
+  value,
+  currency,
+  onChange,
+}: {
+  // Optional: lets a caller's own FormField `id`/`htmlFor` actually resolve
+  // to this input (Task 4.2 — TripMoneySettings' "Total for the trip" needs
+  // getByLabelText to work via the real label-for link, not just this
+  // input's own aria-label below). Omitted callers (e.g. ActivityEditor's
+  // cost field) are unaffected — no id renders, same as before.
+  id?: string;
+  value: Money | null;
+  currency: string;
+  onChange: (m: Money | null) => void;
+}) {
   const [display, setDisplay] = useState(formatMoney(value));
   const prevValue = useRef(value);
   const cancelingRef = useRef(false);
@@ -63,7 +78,8 @@ export function MoneyInput({ value, currency, onChange }: { value: Money | null;
 
   return (
     <Input
-      type="text" inputMode="decimal" aria-label={`cost (${currency})`} placeholder={`0.00 ${currency}`}
+      id={id}
+      type="text" inputMode="decimal" aria-label={id ? undefined : `cost (${currency})`} placeholder={`0.00 ${currency}`}
       value={display}
       onChange={(e) => setDisplay(e.target.value)}
       onBlur={(e) => {

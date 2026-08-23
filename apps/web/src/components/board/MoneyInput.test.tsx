@@ -118,4 +118,17 @@ describe("MoneyInput", () => {
     fireEvent.blur(input);
     expect(onChange).toHaveBeenCalledWith({ amountMinor: 433221200, currency: "USD" });
   });
+
+  it("defers to an external associated label instead of the generic aria-label, when an id is passed", () => {
+    render(
+      <div>
+        <label htmlFor="trip-budget">Total for the trip</label>
+        <MoneyInput id="trip-budget" value={null} currency="USD" onChange={vi.fn()} />
+      </div>,
+    );
+    // The real external label is the accessible name...
+    expect(screen.getByLabelText("Total for the trip")).toBeTruthy();
+    // ...and the generic "cost (USD)" label no longer wins/overrides it.
+    expect(screen.queryByLabelText("cost (USD)")).toBeNull();
+  });
 });

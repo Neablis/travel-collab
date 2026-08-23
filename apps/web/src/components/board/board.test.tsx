@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Board, type BoardCallbacks } from "@/components/board/Board";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@/mocks/fixtures";
@@ -194,5 +194,23 @@ describe("Board", () => {
     renderBoard(fixture(), noopCallbacks());
     const card = screen.getByTestId(`activity-card-${A1}`);
     expect(card.className).toContain("p-3");
+  });
+
+  // Task 4.1 (M10 Phase 4): the board's per-stop cost, using the trip's own
+  // currency (threaded Board -> Column -> ActivityCard) through formatMoney
+  // (KI-2) — same "N,NNN.NN CCC" convention every other money surface uses.
+  it("shows a card's cost through formatMoney, using the trip's own currency", () => {
+    const trip = fixture();
+    trip.currency = "EUR";
+    trip.activities[A1]!.cost = { amountMinor: 4200, currency: "EUR" };
+    renderBoard(trip, noopCallbacks());
+    const card = screen.getByTestId(`activity-card-${A1}`);
+    expect(within(card).getByText("42.00 EUR")).toBeTruthy();
+  });
+
+  it("says so honestly when a card's activity has no cost", () => {
+    renderBoard(fixture(), noopCallbacks()); // fixture()'s activities both have cost: null
+    const card = screen.getByTestId(`activity-card-${A1}`);
+    expect(within(card).getByText("No cost yet")).toBeTruthy();
   });
 });

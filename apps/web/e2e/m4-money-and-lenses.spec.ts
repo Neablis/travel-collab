@@ -21,7 +21,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // it's closed again before interacting with anything behind it.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("currency").selectOption("EUR");
-  await expect(page.getByLabel("cost (EUR)").first()).toBeVisible();
+  await expect(page.getByLabel("Total for the trip")).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
 
   // -- add a day, and a costed activity on it --
@@ -92,7 +92,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // treats as a dismiss). The sheet is a modal overlay, so it's closed again
   // before asserting on / interacting with the Board's conflict banner below.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  const budgetInput = page.getByLabel("cost (EUR)").first();
+  const budgetInput = page.getByLabel("Total for the trip");
   await budgetInput.fill("100.00");
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok()),

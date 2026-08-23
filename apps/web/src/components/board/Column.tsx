@@ -38,6 +38,7 @@ export function Column({
   activityIds,
   activities,
   conflictIds,
+  currency,
   accent,
   onEditActivity,
   onRemoveActivity,
@@ -49,6 +50,7 @@ export function Column({
   activityIds: string[];
   activities: Record<string, ActivityView>;
   conflictIds: ReadonlySet<string>;
+  currency: string;
   // Per-day tint (Task 2's dayAccentFor, keyed off the same chipModel city
   // derivation Tasks 8/10 use).
   accent: AccentFamily;
@@ -99,6 +101,7 @@ export function Column({
               activity={activity}
               dayId={dayId}
               hasConflict={conflictIds.has(id)}
+              currency={currency}
               onEdit={() => onEditActivity(id)}
               onRemove={() => onRemoveActivity(id)}
             />

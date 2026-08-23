@@ -214,4 +214,73 @@ describe("TimelineLens", () => {
     renderLens(tripDetailFixture({ days: [] }));
     expect(screen.getByText("No days yet.")).not.toBeNull();
   });
+
+  // Task 4.1 (M10 Phase 4): per-stop cost, right column, under the
+  // attributee. Formatted through formatMoney (KI-2) — never a hand-rolled
+  // "$"-prefixed string — so this asserts the same "N,NNN.NN CCC" convention
+  // BudgetChip/DailyOverviewLens/ItineraryLens already use, not a currency
+  // symbol.
+  it("shows a stop's cost in the card's right column", () => {
+    const detail = tripDetailFixture({
+      currency: "USD",
+      days: [{ dayId: "d1", activityIds: ["timed1"], date: "2027-06-01", costSubtotal: 4200 }],
+      activities: {
+        timed1: {
+          activityId: "timed1",
+          title: "Colosseum tour",
+          timeWindow: { start: "09:00", end: "11:00" },
+          location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
+          notes: null,
+          anchors: [],
+          cost: { amountMinor: 4200, currency: "USD" },
+        },
+      },
+    });
+    renderLens(detail);
+    // The day-header cost chip also totals to the same "42.00 USD" here
+    // (this fixture's one activity is the whole day's cost) — scope to the
+    // activity row so this asserts the stop's own cost specifically.
+    const row = screen.getByTestId("timeline-item-timed1");
+    expect(within(row).getByText("42.00 USD")).toBeTruthy();
+  });
+
+  it("says so honestly when a stop has no cost", () => {
+    renderLens(detailFixture()); // detailFixture()'s one activity has cost: null
+    expect(screen.getByText("No cost yet")).toBeTruthy();
+  });
+
+  it("totals the day's costs in the day header", () => {
+    // costSubtotal (9999) is deliberately DIFFERENT from the sum of the two
+    // activities' own costs below (3000 + 3700 = 6700): this proves the day
+    // header renders the server-computed costSubtotal field rather than
+    // silently re-summing the activities' costs client-side — the two would
+    // be indistinguishable, and re-summing client-side is exactly the KI-2
+    // bug class this phase (M10 Phase 4) exists to close.
+    const detail = tripDetailFixture({
+      currency: "USD",
+      days: [{ dayId: "day-1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 9999 }],
+      activities: {
+        a1: {
+          activityId: "a1",
+          title: "Colosseum tour",
+          timeWindow: { start: "09:00", end: "10:00" },
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: { amountMinor: 3000, currency: "USD" },
+        },
+        a2: {
+          activityId: "a2",
+          title: "Roman Forum",
+          timeWindow: { start: "11:00", end: "12:00" },
+          location: null,
+          notes: null,
+          anchors: [],
+          cost: { amountMinor: 3700, currency: "USD" },
+        },
+      },
+    });
+    renderLens(detail);
+    expect(screen.getByTestId("day-cost-day-1").textContent).toContain("99.99 USD");
+  });
 });

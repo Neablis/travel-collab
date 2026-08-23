@@ -345,10 +345,53 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   require a per-spec server override or `reuseExistingServer: false` for this
   one spec, which Playwright doesn't support cleanly without splitting config.
 
+### KI-26 — `pnpm build` warns `Module not found: '@vercel/flags-definitions'` on every production build
+- **Severity:** cosmetic (build-log noise; does not fail the build or affect runtime)
+- **Area:** `apps/web/src/server/flags.ts` → `@flags-sdk/vercel`'s `vercelAdapter()` → `@vercel/flags-core`'s bundled `dist/chunk-*.js`
+- **Symptom:** every `pnpm build` (including CI's `integration-e2e` job, which builds production before running e2e) logs `⚠ Compiled with warnings` and `Module not found: Can't resolve '@vercel/flags-definitions' in '.../node_modules/@vercel/flags-core/dist'`, with an import trace running `@vercel/flags-core` → `@flags-sdk/vercel` → `./src/server/flags.ts` → `./src/app/.well-known/vercel/flags/route.ts` (the Flags discovery endpoint). Does not fail the build — Next.js/webpack treats it as a warning; the build still completes (`✓ Compiled successfully` follows a few seconds later) and the app runs and deploys fine (Vercel deploys of this branch succeeded, `aiLiveFlag` resolves correctly at runtime).
+- **Why it isn't fixed:** not yet investigated — surfaced only as background noise while reading CI job logs to diagnose an unrelated e2e failure (M10 Phase 4). `@vercel/flags-core@1.7.1`'s bundled dist appears to reference an internal `@vercel/flags-definitions` module this repo doesn't have as an explicit dependency; whether that's a packaging gap upstream (a dependency the package should declare/bundle but doesn't) or an intentional optional/dynamic import unused by this app's setup hasn't been determined.
+- **Mitigation:** none needed so far — purely cosmetic build-log noise in every observed build. Worth a real look before assuming it's harmless indefinitely (e.g. confirm it isn't silently disabling some part of the Flags Explorer/discovery integration at `/.well-known/vercel/flags` in production).
+- **First noted:** 2026-08-22 (M10 Phase 4 budget branch, PR #25, reading CI's `integration-e2e` job logs).
+
+### KI-27 — Local e2e runs against `pnpm dev` are not a reliable stand-in for CI; two real UI bugs needed a production-build repro to catch
+- **Severity:** reliability (process/tooling gap; the two bugs it caused false signals about were real correctness issues, both already fixed)
+- **Area:** `apps/web/playwright.config.ts` (`webServer.command`), e2e debugging practice generally
+- **Symptom:** `playwright.config.ts` starts `pnpm dev` (Next.js dev server, on-demand per-route compilation) locally, only switching to `pnpm start` (the production build CI actually runs against) when `process.env.CI` is set. During M10 Phase 4 (PR #25) this produced two distinct false signals in the same session:
+  1. A genuinely-fixed bug (a `Popover` rendering underneath the `Sheet` it was nested in, due to a z-index mismatch) looked possibly-still-broken locally, because an unrelated spec intermittently failed against the dev server with a symptom (a route's heading never becoming visible inside a 5s timeout) that changed shape between repeated runs — classic dev-server on-demand-compile lag under load, not a real regression, but indistinguishable from one without checking.
+  2. Conversely, a genuinely real regression (`TripDateControl`'s action row overflowing its new popover, pushing the "Clear date" button off the actual browser viewport) was initially obscured by that same dev-server noise in a full-suite local run, and was only reliably reproduced and root-caused after rebuilding production locally and re-running Playwright with `CI=true` set (forcing `pnpm start`) to match CI exactly.
+
+  Both bugs were also invisible to `pnpm --filter web test` (jsdom has no real layout/viewport geometry) and to code-only subagent review (no browser available in that environment) — only a real, CI-equivalent browser run caught either one.
+- **Why it isn't fixed:** no obviously-right repo-level fix yet — always building production before trusting a local e2e run would slow routine iteration, and `reuseExistingServer: !process.env.CI` exists specifically to keep local dev-server iteration fast. Logged as a documented gotcha rather than turned into a code change.
+- **Mitigation:** when a local e2e failure's symptom doesn't clearly match the CI failure under investigation (a different step, a different error shape, or the same spec failing at a different point between repeated runs), don't fully trust a `pnpm dev`-backed run either way — rebuild production (`pnpm build`) and re-run with `CI=true` set (this flips `playwright.config.ts`'s `webServer.command` to `pnpm start`, matching CI's `integration-e2e` job) before concluding a bug is fixed *or* that a failure is flaky noise. This is a stronger version of KI-13/KI-21's existing "don't trust a single failing run" guidance — here the dev-vs-production server difference is itself a source of false signal, not just load-based flakiness.
+- **First noted:** 2026-08-22/23 (M10 Phase 4 budget branch, PR #25 — the `Popover`/`Sheet` z-index fix and the `TripDateControl` overflow fix, commits `507d70d` and `4238d88`).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### D-2 — `TripDateControl` had no UI mount point — RESOLVED
+- **Decided (2026-08-22, Task 4.2, M10 Phase 4):** at the time, read as a
+  deliberate "dormant, not deleted" hold, same standing principle as D-1
+  (below, still open) gives anchors.
+- **Correction (2026-08-22, M10 Phase 4, restore-date-editing task):** this
+  was wrong — the product owner confirmed the read-only Dates row was an
+  *unintentional* capability loss, not a deferral, and asked for it back.
+  Unlike D-1, there was never a design decision to make dates read-only; the
+  redesign spec simply didn't give `TripDateControl` a new home when it
+  re-laid-out the settings sheet.
+- **Fix:** the settings sheet's Dates row (`SettingsSheet.tsx`) is a real
+  trigger again — clicking it opens a `Popover` that mounts
+  `TripDateControl` unmodified, the same click-a-row/open-a-small-control
+  idiom `TripHeader`'s own History popover uses. `TripDateControl.tsx` itself
+  was never touched (its `SetTripDates`/`SetTripStartDate` dispatch logic,
+  shrink-confirm dialog, and `TripDateControl.test.tsx`'s 7 tests are
+  byte-identical) — only its mount point changed. This also fixed
+  `e2e/m3-place-and-time.spec.ts` and `e2e/m8-make-it-real.spec.ts` (M8's own
+  milestone gate spec), both of which had been failing waiting for a
+  `Start date` field with nowhere to appear.
+- **First noted:** 2026-08-22 (Task 4.2). **Resolved:** 2026-08-22 (same day,
+  restore-date-editing task).
 
 ### KI-14 — A dismissed conflict stayed dismissed forever, silently suppressing a re-created problem — RESOLVED
 - **Severity:** correctness (a real, current conflict was hidden from the user with no signal)
@@ -462,6 +505,17 @@ needs action — skip this section when triaging.
   `formatMoney.test.ts`'s existing `111110600` minor-unit grouping fixture —
   same amount, same grouped string, on both surfaces.
 - **First noted:** 2026-07-13 (M5 Wave-3). **Resolved:** 2026-08-09 (Task 19).
+- **Re-confirmed (2026-08-22, Task 4.1, M10 Phase 4):** extended the gate to
+  every new per-stop/per-day/per-trip cost surface added this task —
+  `TimelineLens`'s activity-row cost and day-header cost chip, the board
+  `ActivityCard`'s cost, and `NextTripHero`'s "planned of budget" line — all
+  route through `formatMoney`, keyed off the trip's own `currency` (never a
+  per-`Money` read). Audit: `grep -rn "amountMinor" apps/web/src/components |
+  grep -v formatMoney` turns up only test fixture literals, `MoneyInput`'s own
+  edit-field parsing (no currency suffix needed there), and
+  `ItineraryLens.tsx`'s `formatAmount` alias (`import { formatMoney as
+  formatAmount }` — already the real formatter under a local name). No
+  violations found; the entry still reads true.
 
 ### KI-16 — The assistant rail's scrim makes the whole trip page inert below 1180px — RESOLVED
 - **Severity:** correctness (the page does not respond to input at all)

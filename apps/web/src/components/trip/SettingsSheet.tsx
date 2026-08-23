@@ -2,20 +2,65 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Money, TripCommand } from "@tc/contracts";
+import type { Money, TripCommand, TripMember } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { TripDateControl } from "@/components/lenses/TripDateControl";
+import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import { DataText } from "@/components/ui/data-text";
+import { Badge } from "@/components/ui/badge";
+import { BudgetMeter } from "@/components/ui/budget-meter";
+import { Banner } from "@/components/ui/banner";
+import { Preview } from "@/components/ui/preview";
+import { Popover } from "@/components/ui/popover";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
+import { TripDateControl } from "@/components/lenses/TripDateControl";
+import { formatTripDate } from "@/lib/formatDate";
+import { formatMoney } from "@/components/lenses/formatMoney";
+import type { TripSpend } from "@/lib/cost";
 import { duplicateTrip, sendTripCommand, type CommandOutcome } from "@/lib/apiClient";
+
+// The four category rows in the "unbacked" budget breakdown are illustrative
+// only (Preview id="budget-breakdown", M11 — no field on TripDetail
+// classifies a cost into a category yet). Weights are just a plausible
+// split of spend.total for the mock, not read from any real data.
+const BREAKDOWN_CATEGORIES = [
+  { label: "Booked", weight: 0.45 },
+  { label: "Holds", weight: 0.2 },
+  { label: "Travel", weight: 0.25 },
+  { label: "Other", weight: 0.1 },
+] as const;
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <Text as="span" className="mb-2.5 block text-xs font-semibold uppercase tracking-wider text-slate">
+      {children}
+    </Text>
+  );
+}
+
+function datesLabel(startDate: string | null, endDate: string | null): string {
+  if (startDate === null) return "No dates set";
+  if (endDate === null || endDate === startDate) return formatTripDate(startDate);
+  return `${formatTripDate(startDate)} – ${formatTripDate(endDate)}`;
+}
 
 // Trip-global edits, re-homed out of the always-visible header (Pattern 4,
 // comment 12b): budget/currency and the start date are set-once/rare operations, so
-// they belong in a raised Sheet, not permanent chrome. TripDateControl and
-// TripMoneySettings keep their existing handlers/aria-labels and dispatch
-// logic byte-identical — this is just a new host surface for them.
+// they belong in a raised Sheet, not permanent chrome.
+//
+// Redesign (Task 4.2, current/…dc.html:849-900) shipped the Dates row as
+// read-only, leaving TripDateControl (the only way to actually change dates)
+// with no mount point anywhere in the app — an unintentional capability loss,
+// not a deliberate deferral (product-owner ruling, 2026-08-22, superseding
+// the D-2 known-issues entry). Fix: the Dates row is now a real trigger —
+// clicking it opens a Popover containing TripDateControl, the same
+// click-a-row/open-a-small-control idiom TripHeader's own History popover
+// uses (TripHeader.tsx, ~line 181). TripMoneySettings keeps its existing
+// handlers/aria-labels and dispatch logic byte-identical — this task only
+// touches the Dates row.
 //
 // A15: Delete/Duplicate mirror the trip-list row menu (page.tsx), but dispatch
 // via `sendTripCommand`/`duplicateTrip` directly rather than through
@@ -37,9 +82,13 @@ export function SettingsSheet({
   onOpenChange,
   startDate,
   endDate,
+  // Re-mounted use (this task): sizes TripDateControl's newDayIds when a
+  // range grows past the trip's current day count.
   dayCount,
   currency,
   budget,
+  spend,
+  members,
   onCommand,
   onDeleted,
 }: {
@@ -52,6 +101,8 @@ export function SettingsSheet({
   dayCount: number;
   currency: string;
   budget: Money | null;
+  spend: TripSpend;
+  members: TripMember[];
   onCommand: (command: TripCommand) => void;
   // The outcome is forwarded alongside the {tripId, name} summary so the
   // caller (TripHeader) can call TripProvider's applyOutcome with it —
@@ -63,6 +114,7 @@ export function SettingsSheet({
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [datesOpen, setDatesOpen] = useState(false);
 
   async function handleDelete() {
     setBusy(true);
@@ -84,17 +136,153 @@ export function SettingsSheet({
     }
   }
 
+  const statusLine =
+    spend.budget === null
+      ? "No budget set"
+      : spend.over
+        ? `${formatMoney(Math.abs(spend.remaining ?? 0), currency)} over budget`
+        : `${formatMoney(spend.remaining ?? 0, currency)} left`;
+
   return (
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
-      <div className="flex flex-col gap-5">
-        <TripDateControl
-          tripId={tripId}
-          startDate={startDate}
-          endDate={endDate}
-          dayCount={dayCount}
-          onCommand={onCommand}
-        />
-        <TripMoneySettings tripId={tripId} currency={currency} budget={budget} onCommand={onCommand} />
+      <div className="flex flex-col gap-4 pt-1">
+        <FormField id="trip-name-setting" label="Trip name" description="Everyone invited sees this name.">
+          {/* Read-only here: renaming already lives inline in the header
+              (TripHeader's pencil icon dispatches SetTripName) — this row is
+              a settings-surface confirmation of the name, not a second
+              editable copy of that capability. */}
+          <Input id="trip-name-setting" value={tripName} readOnly />
+        </FormField>
+
+        {/* Clickable dates row (this task, restoring TripDateControl's mount
+            point) — same 1px hairline border, 8px radius, 10px/12px padding
+            the read-only row had, now as a Popover trigger Button so the row
+            looks unchanged except for the added interactive affordance.
+            aria-label is set explicitly (not derived from datesLabel) so the
+            e2e specs' getByRole("button", { name: "Dates" }) stays stable
+            regardless of the displayed date value. */}
+        <Popover
+          open={datesOpen}
+          onOpenChange={setDatesOpen}
+          align="end"
+          trigger={
+            <Button
+              variant="ghost"
+              aria-label="Dates"
+              className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
+            >
+              <Text as="span" className="text-xs text-slate">
+                Dates
+              </Text>
+              <DataText size="sm" className="text-ink">
+                {datesLabel(startDate, endDate)}
+              </DataText>
+            </Button>
+          }
+        >
+          <TripDateControl
+            tripId={tripId}
+            startDate={startDate}
+            endDate={endDate}
+            dayCount={dayCount}
+            onCommand={(command) => {
+              onCommand(command);
+              setDatesOpen(false);
+            }}
+          />
+        </Popover>
+
+        <div>
+          <SectionHeading>Budget</SectionHeading>
+          <TripMoneySettings tripId={tripId} currency={currency} budget={budget} onCommand={onCommand} />
+
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              {spend.budget !== null && (
+                <BudgetMeter cost={spend.total} budget={spend.budget} currency={currency} />
+              )}
+              <Text as="span" className="text-xs text-slate">
+                {statusLine}
+              </Text>
+            </div>
+
+            {spend.over && (
+              <Banner variant="warning">
+                This trip is over budget by {formatMoney(Math.abs(spend.remaining ?? 0), currency)}.
+              </Banner>
+            )}
+
+            {/* Unbacked mock breakdown (M11 — no field classifies a cost into
+                a category yet): the whole block is Preview-disabled, the
+                honest total/meter/banner/unpriced count above and below stay
+                real and outside it. */}
+            <Preview id="budget-breakdown" size="container">
+              <div className="flex flex-col gap-2.5">
+                {BREAKDOWN_CATEGORIES.map((row) => {
+                  const amount = Math.round(spend.total * row.weight);
+                  const pct = spend.total > 0 ? Math.min(100, (amount / spend.total) * 100) : 0;
+                  return (
+                    <div key={row.label} className="flex items-center gap-2.5">
+                      <Text
+                        as="span"
+                        // eslint-disable-next-line no-restricted-syntax -- the redesign's 150px breakdown-label column has no token equivalent, matching BudgetChip's computed-geometry pattern
+                        style={{ flex: "0 0 150px" }}
+                        className="text-xs text-ink"
+                      >
+                        {row.label}
+                      </Text>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-moss">
+                        <div
+                          className="h-full rounded-full bg-brand"
+                          // eslint-disable-next-line no-restricted-syntax -- fill width is a spend/budget percentage, not expressible as a token (BudgetChip's own pattern)
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <DataText size="sm">{formatMoney(amount, currency)}</DataText>
+                    </div>
+                  );
+                })}
+              </div>
+            </Preview>
+
+            <Text as="span" className="text-xs text-slate">
+              {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
+            </Text>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <SectionHeading>Who is invited</SectionHeading>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            {/* Real: every member's actual userId, listed outside the
+                Preview below. */}
+            <div className="flex flex-col gap-1.5">
+              {members.map((member) => (
+                <Text key={member.userId} as="span" className="text-xs text-ink">
+                  {member.userId}
+                </Text>
+              ))}
+            </div>
+            {/* Unbacked (M13 — TripMember.role is literal "owner", and there
+                is no invite flow yet): the roles column and the "Invite
+                someone" action are both mocked/disabled together. */}
+            <Preview id="trip-invites" size="container" className="flex items-center gap-3">
+              <div className="flex flex-col gap-1.5">
+                {members.map((member) => (
+                  <Badge key={member.userId} variant="neutral">
+                    {member.role}
+                  </Badge>
+                ))}
+              </div>
+              <Button variant="secondary" size="sm">
+                Invite someone
+              </Button>
+            </Preview>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
           <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>
             Duplicate trip
