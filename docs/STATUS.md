@@ -5,15 +5,17 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (a test-suite overhaul, Phases 0-4, landed as an
+**Last updated: 2026-08-23 (a design sync landed in the repo, was reviewed and
+routed, and Mitchell's calls are recorded — see "Design sync" below. No code
+changed. **It does widen M10's gate**, by two approved phases (8b and 1b), and
+it adds **M15 Front door** between M10 and M9 (ADR-021). Same day: a test-suite overhaul, Phases 0-4, landed as an
 off-roadmap insert — see "Where we are" below; does not move M10's gate.
 Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
 been built and verified since 2026-08-22 but was never opened as a PR, see
 "Known gap" below for how that happened. KI-26 and KI-27, both filed during
 Phase 4's CI diagnosis, are closed in the same PR. Also same day: M10 Wave 2
-Phase 5 — overlap warnings — is built and verified on
-`claude/next-work-z7pr1d` and open as PR #29, CI green; the phase file's
-Step 4, the manual browser pass, is the one thing not done. Two known issues
+Phase 5 — overlap warnings — **merged to `main` via PR #29**; the phase file's
+Step 4, the manual browser pass, is the one thing still not done. Two known issues
 were filed from that PR's review rather than absorbed — KI-29 and KI-30. See
 "In flight" below.)**
 
@@ -48,8 +50,9 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 
 **The Phase 1 gate review with Mitchell is done (2026-08-08).**
 
-**Current milestone is M10, Wave 2.** M9 does not start until it passes. Order:
-`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M9 → M11 → …`.
+**Current milestone is M10, Wave 2.** Nothing else starts until it passes.
+Order (amended 2026-08-23 by ADR-021, which inserts M15 before M9):
+`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M15 → M9 → M11 → …`.
 
 **2026-08-19: feature flagging and an AI kill switch landed as a deliberate
 off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
@@ -127,10 +130,68 @@ closes and this branch is merged to `main`; re-run the Phase 0 inventory
 against the post-M10 tree first, since Wave 2 Phases 5-8 will have added
 tests of their own that the current inventory doesn't know about.
 
+## Design sync (2026-08-23) — reviewed and routed, nothing built
+
+A design bundle is committed in-repo for the first time, at
+`.design-sync/handoff/`: `design/Trip Planner Redesign.dc.html` (3,524 lines),
+`SPEC.md`, `DRIFT.md`, and a Japan seed export. It arrived in two commits —
+`8c2d11e` (2026-08-22, the bundle) and `e0964bc` (2026-08-23, +401 lines: the
+Notebook design). **This changes no code and does not reopen or move M10's
+gate.** The full reconciliation, the drift questions, and the per-item milestone
+routing are in `docs/design-feedback/2026-08-23-design-sync-review.md`.
+
+Three things a fresh session needs from it:
+
+1. **The design source of truth moved.** It is the in-repo file above. The
+   `~/Downloads/design_handoff_update/` path this file and the M10 plan used to
+   name exists in no session — generations 1-3 (1,412 / 2,048 / 2,623) are
+   unreadable, so generation-diffing is over. Reconcile design against *code*,
+   with `apps/web/src/lib/preview-registry.ts` as the spine for "not built yet".
+2. **The in-repo file is newer than what M10 Wave 2's phases were written
+   against**, and most of what it adds is **not M10's**. Net-new: a landing
+   page, sign-in/sign-up screens, a first-run screen, a header account menu, a
+   full Notebook redesign, and the product renamed **Caesura**. Routing:
+   **M15 Front door** (proposed) takes landing/auth/first-run/account menu;
+   **M14** takes the Notebook redesign and needs a **repeaters ADR** before it
+   opens; **M11** takes the landing page's "Look around a real trip" CTA (it
+   needs unauthenticated read of a real trip); `TripSummary.startDate` is its
+   own reviewed contract step. **Do not widen an M10 phase to absorb any of it.**
+3. **M10's gate got two approved additions, and M15 got approved** (Mitchell,
+   2026-08-23 — the review's §8 carries all the calls):
+   - **Phase 8b** (`docs/plans/M10-delta/phase-8b-design-sync.md`) — the Caesura
+     rename, a working **sign out** (nothing in `apps/web/src` calls the
+     `signOut` that `server/auth.ts` exports today), a three-state save
+     indicator, the sync-failure banner, calendar month blocks, and **the trip
+     start picked with the end derived** (Task 8b.6, after Phase 6). Runs after
+     Phase 8.
+   - **Phase 1b** (`docs/plans/M10-delta/phase-1b-header-scope.md`) — the header
+     adopts `SPEC.md` §1's focus-scope model, as an explicit revisit of the
+     merged Phase 1. Runs after Phase 7 and 8b. `AppHeader` stays a server
+     component; the actions portal into a client slot.
+   - Both recorded as gate-scope amendments in
+     `docs/milestones/M10-visual-craft.md`. **Phase 9's checklist now covers
+     them.** Phase order to the gate: 5, 6, 7, 8, **8b**, **1b**, 9.
+   - **M15 Front door** is approved and executes **after M10's gate, before M9**
+     (**ADR-021**, `docs/milestones/M15-front-door.md`).
+
+   - **Trip dates are start-only** (Mitchell, 2026-08-23): *"the end date will
+     always be start date + number of days in trip"*. Smaller than it looked —
+     `endDate` is stored nowhere (not on `TripState`, not on `TripDetail`) and
+     `TripHeader.tsx:228` already derives it from the plan's last day, so this
+     is a UI-only diff with **no contract, command or domain change**. That is
+     why it sits inside M10 as Task 8b.6 rather than after the gate. Phase 7's
+     wizard step 2 loses its "Leave" input in the same decision, and `TODO.md`'s
+     end-date-drift item is closed — its diagnosis was wrong, there was never a
+     stored field to drift.
+
+   **Two questions stay open**, both carried into M15's milestone file: whether
+   the one-field first-run screen is meant to differ from Phase 7's four-step
+   wizard, and whether the landing copy may sell M11/M12 before they exist.
+
 ## In flight
 
-**M10 Wave 2 — Phases 0, 1, 2, 3 and 4 all merged to `main`; Phase 5 is built
-and verified on `claude/next-work-z7pr1d`, open as PR #29 with CI green.** Phase 3
+**M10 Wave 2 — Phases 0, 1, 2, 3, 4 and 5 all merged to `main`** (Phase 5 via
+PR #29, 2026-08-23; its branch is deleted). Phase 3
 (the unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged
 into its branch and everything re-verified — see "Known gap: Phase 3 built but
 unmerged (RESOLVED 2026-08-23)" below for the full story and what the
@@ -199,9 +260,9 @@ drag-to-day-2 assertion confirmed (via a control run against the original,
 unmerged `claude/m10-phase-3-rack` branch) to fail identically there too —
 pre-existing, unrelated to the merge, same KI-21 flakiness class.
 
-### Phase 5 (overlap warnings) — built and verified 2026-08-23, PR #29 open
+### Phase 5 (overlap warnings) — merged to `main` 2026-08-23 via PR #29
 
-Seven commits on `claude/next-work-z7pr1d`, based on `main` at `fcb22b5`. The
+Seven commits, based on `main` at `fcb22b5`; the branch is deleted. The
 first three were the phase itself; the last four came out of PR #29's review:
 
 - `d7a274b` — **Phase 5 proper.** New
@@ -314,10 +375,15 @@ Both review threads are answered and resolved.
   - **Phase 3 (rack) — done, merged to `main`** (PR #26, 2026-08-23; see
     "Known gap" above for the full landing story).
   - **Phase 4 (budget) — done, merged to `main`** (PR #25, 2026-08-22/23).
-  - **Phase 5 (overlaps) — built on `claude/next-work-z7pr1d`, not on `main`
-    yet.** `OverlapWarning.tsx`, `overlapData.ts` and `time-overlap` handling
-    in `TimelineLens` all exist there as of 2026-08-23; none of it is on
-    `main`, and the PR is not open yet — see the Phase 5 section above.
+  - **Phase 5 (overlaps) — done, merged to `main`** (PR #29, 2026-08-23).
+    `OverlapWarning.tsx`, `overlapData.ts` and `time-overlap` handling in
+    `TimelineLens` are all on `main` — see the Phase 5 section above. Its
+    Step 4 manual browser pass is still outstanding.
+
+  - **Phases 8b and 1b (2026-08-23 design sync) — approved, not started.**
+    `docs/plans/M10-delta/phase-8b-design-sync.md` and
+    `phase-1b-header-scope.md`; both are gate-scope amendments recorded in
+    `docs/milestones/M10-visual-craft.md`.
   - **Phase 6 (add-a-day, empty states):** depended on Phase 3 (now landed,
     so unblocked); untouched otherwise.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
@@ -342,15 +408,29 @@ The plan itself:
   run it without re-deriving anything.
 - **Findings it came from:**
   `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
-- **Design source of truth:**
-  `~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`
-  (2,623 lines). `previous/` is for reading the diff only. The bundle's own
-  `AGENT-PROMPT.md` claims `previous/` is what we built from — **it is not**;
-  we built from the older 1,412-line file, which is why there are two
-  generations of drift.
+- **Design source of truth (moved in-repo 2026-08-23):**
+  `.design-sync/handoff/design/Trip Planner Redesign.dc.html` (3,524 lines),
+  with `.design-sync/handoff/SPEC.md` and `DRIFT.md` beside it. The
+  `~/Downloads/design_handoff_update/` path this line used to name exists in no
+  session and never will; generations 1-3 (1,412 / 2,048 / 2,623) are
+  unreadable, so **generation-diffing is over** — reconcile design against
+  *code*, using `apps/web/src/lib/preview-registry.ts` as the spine for "not
+  built yet", the way `DRIFT.md` does.
+  The in-repo file is **newer than what Phases 0-9 were written against**: it
+  adds a landing page, sign-in/sign-up, a first-run screen, an account menu and
+  a full Notebook redesign, and renames the product to **Caesura**. That delta
+  is reviewed, questioned and routed in
+  `docs/design-feedback/2026-08-23-design-sync-review.md` — headline: **M15**
+  takes landing/auth/first-run/account menu (approved, executes after M10 and
+  before M9 — ADR-021), **M14** takes the Notebook redesign and a repeaters
+  ADR, **M11** takes the landing page's "Look around a real trip" CTA, and the
+  M10-scoped items became **Phases 8b and 1b**, both approved into M10's gate.
+  The "Design sync" section above has the detail; two questions remain open,
+  both carried into `docs/milestones/M15-front-door.md`.
 
-**Phase 3 is landed and Phase 5 is up as PR #29 — pick up at Phase 6, 7
-or 8 next** (`docs/plans/M10-delta/phase-{6,7,8}-*.md`). Phases 6 and 7, which
+**Phases 3 and 5 are both merged — pick up at Phase 6, 7 or 8 next**
+(`docs/plans/M10-delta/phase-{6,7,8}-*.md`), then **8b** and **1b** (the design
+sync's approved gate additions), then 9. Phases 6 and 7, which
 depended on Phase 3's code being on `main` rather than just on a branch, are
 now unblocked. Phase 8 remains independent of everything else and could go in
 parallel across sessions — but check for its own stray branch first (see
@@ -464,24 +544,23 @@ which existed only on a branch.
 
 ## Next action
 
-**Phase 5 is up as PR #29** from `claude/next-work-z7pr1d`, which branches
-from `main` at `fcb22b5` — **not merged**, so nothing in it is on `main` yet.
-CI is green and both review threads are answered and resolved; see the Phase 5
-section under "In flight" for the commits, what landed, and what the review
-changed. (Deliberately no commit count here: this pointer went stale twice in
-one evening because it carried one, and the section below is the place that
-enumerates them.) **Two things still want a human:** the
-phase file's Step 4 (manual browser verification of the exit checklist) was
-not performed, since this container has no interactive browser, so whoever
-reviews it should walk that checklist by hand — the PR's own Vercel preview is
-the obvious place; and KI-29's card-level design question wants an answer at
-the Phase 9 gate.
+**Phase 5 (overlaps) merged to `main` 2026-08-23 via PR #29** — the "In flight"
+Phase 5 section below has the commits, what landed, and what its review changed.
+**Two things it still wants from a human:** the phase file's Step 4 (manual
+browser verification of the exit checklist) was never performed, since that
+container had no interactive browser — walk that checklist by hand; and KI-29's
+card-level design question wants an answer at the Phase 9 gate.
 
-After that, continue M10 Wave 2's remaining phases (6, 7, 8 — all unblocked,
-6 and 7 by Phase 3's merge in PR #26) task-by-task through Phase 9's gate
+Continue M10 Wave 2's remaining phases — **6, 7, 8, then 8b, then 1b** — 6 and 7
+unblocked by Phase 3's merge in PR #26, 8 independent. **Phases 8b and 1b are
+the 2026-08-23 design sync's approved additions to this gate** (see the "Design
+sync" section above and `docs/milestones/M10-visual-craft.md`'s gate-scope
+amendments); 8b.5 depends on Task 8.6 and 8b.6 on Phase 6, and 1b depends on
+Phase 7 and 8b. Then Phase 9's gate
 (`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
 closed or re-deferred, presentational-only diff verified, all tests incl. e2e
-green, retro appended. M9 resumes once M10's gate closes.
+green, retro appended. **M15 Front door comes next once M10's gate closes, then
+M9** (ADR-021).
 
 (`docs/plans/2026-08-08-M10-redesign-incorporation.md`, referenced by this
 line in earlier updates, was Wave 1's plan — it was deleted at Wave 1's gate

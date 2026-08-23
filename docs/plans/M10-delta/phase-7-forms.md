@@ -184,12 +184,27 @@ four steps, wire every field the data model already supports and mark the rest.
 | 1 — Where | trip name `Input` | **real** (`CreateTrip`) |
 | 1 — Where | "Recent and nearby" destination chips | **Preview** — no destination field |
 | 1 — Where | "Start from a Playbook" panel | **Preview** — M11 |
-| 2 — When | Arrive / Leave date inputs | **real** (`SetTripDates`) |
-| 2 — When | length chips ("A weekend", "A week"…) | **real** — they just set the two dates |
+| 2 — When | Arrive date input | **real** (`SetTripDates`) |
+| 2 — When | ~~Leave date input~~ | **REMOVED 2026-08-23** — see below |
+| 2 — When | length chips ("A weekend", "A week"…) | **real** — they set the length; the end follows |
 | 3 — Who | invite list | **Preview** — `TripMember.role` is literal `"owner"` |
 | 3 — Money | budget total + currency | **real** (`SetTripBudget`, `SetTripCurrency`) |
 | 4 — Shape | pace `SegmentedControl`, tag chips | **Preview** — no fields |
 | 4 — Shape | "Let the assistant draft it" panel | **Preview** — M9 |
+
+> **Amended 2026-08-23 (Mitchell): there is no Leave date input.** *"I do not
+> want us picking an end date, it makes the UI awful. The end date will always be
+> start date + number of days in trip = full trip."* Step 2 is **Arrive** plus the
+> length chips; the user picks a length, never an end date. At create time that is
+> still one atomic `SetTripDates(start, start + N − 1)` — the command is
+> unchanged, only the input is. `SPEC.md` §3 and Task 8b.6
+> (`phase-8b-design-sync.md`), which removes the same field from the Trip
+> settings Dates row, are the same decision. Whichever of the two lands second
+> should check the other has been done rather than reintroducing the field.
+>
+> The test below still asserts `SetTripDates` with a `startDate` and an
+> `endDate` — that stays correct, because the chip computes the end. What must
+> **not** exist is a control the user types an end date into.
 
 **Files:**
 - Create: `apps/web/src/components/home/NewTripWizard.tsx`, `NewTripWizard.test.tsx`

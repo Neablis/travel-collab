@@ -55,10 +55,11 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
-| M11 | Fork & remix | Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport |
+| M11 | Fork & remix | Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
 | M12 | Community | Public gallery, discovery, voting, reporting (all trust & safety scope quarantined here) |
 | M13 | Collaboration | Invites, roles, revocation; near-real-time sync (transport ADR due here); concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
-| M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here |
+| M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7) |
+| M15 | Front door | **Approved 2026-08-23, executes right after M10's gate and before M9 — ADR-021.** The unauthenticated surface the product has never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, the first-run "what are you planning" screen, and the header account menu. Designed in full by the 2026-08-23 design sync; net-new product surface, so deliberately **not** absorbed into M10's visual-craft gate. Scope, exit gate and two open questions: `M15-front-door.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -85,7 +86,9 @@ for collaboration later landing on a product people already want to join.
   specified M9's (and M11's) not-yet-built surfaces, removing the
   design-uncertainty reason the original M9-then-M10 ordering existed for. New
   execution order: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M9 → M11 → M12 →
-  M13 → M14`. Milestone *numbers* are unchanged — this is an execution-order
+  M13 → M14`. *(Amended 2026-08-23 by ADR-021, which inserts M15 between M10 and
+  M9: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M15 → M9 → M11 → M12 → M13 → M14`.)*
+  Milestone *numbers* are unchanged — this is an execution-order
   swap, not a renumbering — see `docs/milestones/M10-visual-craft.md` and the
   ADR for the full argument.
 
@@ -119,7 +122,34 @@ Placement notes (decided 2026-07-07):
   on). **Wave 2** closes the delta; plan at `docs/plans/2026-08-14-M10-redesign-
   delta.md`. Milestone numbers and order are unchanged.
 
+- **Design sync (2026-08-23).** The design bundle is now committed in-repo at
+  `.design-sync/handoff/` — `design/Trip Planner Redesign.dc.html` (3,524 lines),
+  `SPEC.md`, `DRIFT.md`, a Japan seed export. It is the **only readable source of
+  truth**: generations 1–3 (1,412 / 2,048 / 2,623) lived at a `~/Downloads` path
+  no session can reach, so generation-diffing is over — reconcile design against
+  *code*, using `apps/web/src/lib/preview-registry.ts` as the spine for "not
+  built yet", the way `DRIFT.md` does.
+
+  The sync brings net-new surfaces (landing page, sign-in/sign-up, first-run,
+  account menu, a full Notebook redesign) and renames the product to **Caesura**.
+  Full reconciliation, the drift questions, and the per-item routing:
+  `docs/design-feedback/2026-08-23-design-sync-review.md`. Headline routing —
+  **M15** takes landing/auth/first-run/account menu; **M14** takes the Notebook
+  redesign and the repeaters ADR; **M11** takes the landing page's "Look around a
+  real trip" CTA; `TripSummary.startDate` is its own reviewed contract step.
+
+  **Decided 2026-08-23.** M15 is approved and executes after M10's gate, before
+  M9 (**ADR-021**). Two additions to M10's gate are approved and recorded in
+  `M10-visual-craft.md`: **Phase 8b** (five presentational items — the Caesura
+  rename, a working sign out, a three-state save indicator, the sync-failure
+  banner, calendar month blocks) and **Phase 1b** (the header adopts `SPEC.md`
+  §1's focus-scope model, as an explicit revisit of the merged Phase 1). Three
+  questions stay open — start-only trip dates, first-run vs. the four-step
+  wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
+
 Current milestone: **M10 — Visual craft pass, Wave 2** (see
 `M10-visual-craft.md`'s "Gate reopened" section). M8's gate closed 2026-08-08 and
-the Phase 1 gate review with Mitchell completed the same day; **M9 does not start
-until M10's Wave-2 gate passes.**
+the Phase 1 gate review with Mitchell completed the same day. M10's Wave-2 gate
+now also covers **Phase 8b** and **Phase 1b** (see that file's 2026-08-23
+gate-scope amendments). **Next after it is M15 Front door, then M9** — ADR-021.
+Neither starts until M10's Wave-2 gate passes.

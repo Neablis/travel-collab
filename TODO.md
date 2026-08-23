@@ -45,7 +45,13 @@ Where the work actually stands right now: `docs/STATUS.md`.
       built, and Wave 1's own assistant rail introduced three blocking defects.
       Wave 2 closes the delta — plan at
       `docs/plans/2026-08-14-M10-redesign-delta.md`, findings at
-      `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.)*
+      `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
+      **Gate widened on 2026-08-23** by the design sync, recorded in the
+      milestone file: **Phase 8b** (Caesura rename, working sign out,
+      three-state save indicator, sync-failure banner, calendar month blocks,
+      and the trip start picked with the end derived) and **Phase 1b** (the
+      header adopts the focus-scope model, an explicit revisit of the merged
+      Phase 1). Phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
       *(Blocked on M10's Wave-2 gate — do not start early.)*
 
@@ -55,10 +61,48 @@ Where the work actually stands right now: `docs/STATUS.md`.
 - [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — invites, roles, realtime transport ADR.
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
+      *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
+      `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
+      macro with an author-supplied row template is the one genuinely new
+      engineering decision that sync created, and every macro today is
+      `NoParams`.)*
+- [ ] **M15 Front door** → `docs/milestones/M15-front-door.md`
+      *(Approved 2026-08-23. **Executes right after M10's gate and before M9** —
+      ADR-021, on ADR-018's precedent: numbers unchanged, execution order
+      placed. Landing page, custom sign-in/sign-up, first-run screen, header
+      account menu; designed in full by the design sync, deliberately not
+      absorbed into M10's visual-craft gate. Two open questions ride with it —
+      first-run vs. the four-step wizard, and whether the landing copy may sell
+      M11/M12 — recorded in the milestone file.)*
 
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
+
+- **Design-sync items with no milestone yet (2026-08-23).** From
+  `docs/design-feedback/2026-08-23-design-sync-review.md`, which writes each one
+  up in full. Decided items are struck through with where they went:
+  - **`TripSummary.startDate`** — one field, so home's "next trip" is real
+    rather than `visibleTrips[0]`. The data already exists on
+    `TripDetail.startDate`; only the summaries read model lacks it. Per
+    `AGENTS.md` a contract change is its own reviewed step, so it goes **before**
+    M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
+    row: richer, human-readable metadata" idea below** — that item wants exactly
+    this field.
+  - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23 and scheduled.** The
+    end is always start + day count; there is no end-date input anywhere.
+    Landed as **Task 8b.6** in `docs/plans/M10-delta/phase-8b-design-sync.md`
+    (after Phase 6), with Phase 7's wizard step 2 amended to match. It turned
+    out to be UI-only: `endDate` is stored nowhere — not on `TripState`, not on
+    `TripDetail` — and `TripHeader.tsx:228` already derives it from the plan's
+    last day, so no contract, command or domain change is involved. **This also
+    closes the "trip end-date picker may drift from the day count" item below,
+    and corrects its diagnosis:** not stored-field drift, but a derived value
+    presented in an editable field.
+  - **Design coverage the build is still owed** — History beyond the popover,
+    the four extra lenses and `MapRail` (this is also **KI-20**), trip
+    lifecycle (delete → undo → restore, duplicate), and error/empty states for
+    the new landing, auth and first-run screens. Design work, not build work.
 
 - **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
   first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8
@@ -196,7 +240,14 @@ Captured so they aren't lost; not committed to a milestone yet.
      (month grid), real content can end up sitting underneath it near the
      bottom of the viewport instead of alongside it.
 
-- **Trip end-date picker may drift from the trip's actual day count
+- **[SUPERSEDED 2026-08-23 — closed by Task 8b.6, and its diagnosis below is
+  wrong.]** There is no stored `endDate` to drift: it is absent from `TripState`
+  and `TripDetail`, and `TripHeader.tsx:228` already derives it from the plan's
+  last day. The real fault was showing that derived value in an editable field.
+  Task 8b.6 (`docs/plans/M10-delta/phase-8b-design-sync.md`) removes the field,
+  which removes the disagreement. Original entry kept below as written.
+
+  **Trip end-date picker may drift from the trip's actual day count
   (2026-08-23, manual QA on PR #26's preview deploy — likely predates this
   PR, Phase 4/PR #25 territory, not yet root-caused).** `TripDateControl.tsx`
   does wire up both `startDate` and `endDate` and computes `SetTripDates`'s

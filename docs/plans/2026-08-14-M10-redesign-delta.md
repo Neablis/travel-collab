@@ -32,14 +32,24 @@ Testing Library, Playwright.
 | 6 | `M10-delta/phase-6-growth.md` | 1 | Add-a-day and empty states ship |
 | 7 | `M10-delta/phase-7-forms.md` | 2 | Add-stop and new-trip rebuilt |
 | 8 | `M10-delta/phase-8-polish.md` | 7 | Accents, chips, badges, home, calendar |
+| **8b** | `M10-delta/phase-8b-design-sync.md` | 5 | Caesura, sign out, save states, sync banner, calendar months |
+| **1b** | `M10-delta/phase-1b-header-scope.md` | 4 | The header adopts the focus-scope model |
 | 9 | `M10-delta/phase-9-gate.md` | 1 | Full DoD, docs, plan removal |
+
+**Phases 8b and 1b were added 2026-08-23** from the design sync, as approved
+amendments to M10's gate (recorded in `docs/milestones/M10-visual-craft.md`).
+They run **after Phase 8**, in the order listed, before Phase 9. Phase 9's exit
+checklist covers them too. Everything else the sync brought is routed out of
+M10 — see `docs/design-feedback/2026-08-23-design-sync-review.md` §6.
 
 **Dependencies.** Every phase depends on **0 and 1** being merged. Beyond that:
 Phase 3 depends on 1 (the rack's clearance offsets assume the final header);
 Phase 6 depends on 3 (its empty-day copy references dropping onto a day) and on
 8's gap threshold for one bullet, which it says to skip if 8 has not landed;
 Phase 7 depends on 3 (`fitIntoDay`). Phases 2, 4, 5 and 8 are independent of each
-other.
+other. **Phase 8b** depends on 8 (Task 8b.5 restructures the calendar grid that
+Task 8.6 restyles). **Phase 1b** depends on 7 (Quick add opens Phase 7's
+add-stop sheet) and on 8b (it absorbs 8b's account-menu island).
 
 **Two shared modules are created by whichever phase reaches them first.** Both
 are verbatim moves out of `TimelineLens.tsx`, not new code, so doing the move
@@ -65,10 +75,21 @@ verbatim from the sources named.
 
 ### Source of truth
 
-- **`~/Downloads/design_handoff_update/current/Trip Planner Redesign.dc.html`**
-  (2,623 lines) is the design. `previous/` (2,048) is useful only for reading the
-  diff. `README-original-handoff.md` documents the **1,412-line** generation and
-  is stale wherever it disagrees.
+- **`.design-sync/handoff/design/Trip Planner Redesign.dc.html`** (3,524 lines,
+  in-repo since 2026-08-23) is the design, with `.design-sync/handoff/SPEC.md`
+  as its companion spec and `DRIFT.md` as the design↔build reconciliation.
+  **Updated 2026-08-23:** this plan was written against a 2,623-line generation
+  at `~/Downloads/design_handoff_update/current/`. That path does not exist in a
+  fresh checkout or container — see this plan's KICKOFF, finding 3 — and the
+  1,412 / 2,048 / 2,623 generations are unreadable from any session, so
+  generation-diffing is over. Reconcile design against *code*, using
+  `apps/web/src/lib/preview-registry.ts` as the spine for "not built yet".
+  The in-repo file is **newer** than the one Phases 0-9 were written against; it
+  adds a landing page, sign-in/sign-up, a first-run screen, an account menu, a
+  Notebook redesign, and renames the product to Caesura. **None of that is in
+  this plan's scope** — it is routed in
+  `docs/design-feedback/2026-08-23-design-sync-review.md` §6, mostly to M11, M14
+  and a proposed M15. Do not widen a phase to absorb it.
 - Every literal design value needed by a task is **already inlined in that task**.
   You should not need to open the prototype. If a task seems to require a value it
   does not give you, stop and ask rather than inventing one.

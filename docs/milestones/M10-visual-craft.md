@@ -413,3 +413,62 @@ open "should we collapse the lens set" question: **yes, in the nav; no, in the
 code.** Also carried: the unmodelled fields listed above, and the fact that the
 home hero picks `trips[0]` rather than the next trip by date, because
 `TripSummary` still carries no start date.
+
+## Gate-scope amendments, 2026-08-23 (design sync)
+
+`docs/milestones/README.md`: *"Scope inside a milestone can flex; a gate
+definition changes only by explicit decision from Mitchell, recorded in the
+file."* This is that record. Both amendments come from the 2026-08-23 design
+sync and its review
+(`docs/design-feedback/2026-08-23-design-sync-review.md`); Mitchell approved
+both the same day. **The Wave-2 exit gate above still governs — these add to it,
+they do not replace anything.**
+
+**1. Phase 8b — presentational items from the sync**
+(`docs/plans/M10-delta/phase-8b-design-sync.md`). Runs after Phase 8, before
+Phase 9's gate:
+
+- the product is renamed **Caesura** (`AppHeader`, `metadata.title`);
+- a working **Sign out** behind a header account menu — a capability gap today, since nothing in `apps/web/src` calls the `signOut` that `server/auth.ts` exports;
+- the save indicator becomes three states (saved / saving / error) instead of two strings;
+- sync failure gets a persistent `Banner variant="danger"`, reusing `ConflictBanner`'s vocabulary rather than adding a second banner pattern;
+- the calendar renders one trimmed, headed block per month instead of one continuous padded grid;
+- (added later the same day) **Task 8b.6** — see amendment 3 below.
+
+**2. Phase 1b — the header adopts the focus-scope model**
+(`docs/plans/M10-delta/phase-1b-header-scope.md`). An explicit revisit of the
+merged Phase 1, running after Phase 7 and Phase 8b, before Phase 9's gate.
+`SPEC.md` §1 supplies a model — one focus scope at a time, account → trip → day
+— that Phase 1's own decision was made without. Share moves out of `TripHeader`
+into the header in trip scope, Quick add arrives there (opening Phase 7's
+add-stop sheet), and Calendar/Map drop day scope by definition. `AppHeader`
+stays a server component: the actions are portalled into a client slot from the
+trip screen, so `layout.tsx` is not client-ified — which was the actual reason
+behind the Phase 1 decision, and is preserved.
+
+**Why these two and nothing else.** The sync also brought a landing page,
+sign-in/sign-up, a first-run screen and a whole Notebook redesign. Those are
+routed **out** of M10 — to **M15 Front door** (ADR-021), **M14**, **M11**, and a
+standalone contract step — precisely so this gate does not reopen a third time.
+The review's §6 carries the full routing table.
+
+**Phase 9's exit checklist now covers Phases 8b and 1b too.**
+
+**3. Task 8b.6 — the trip start is picked, the end is derived.** Added to Phase
+8b later the same day, on Mitchell's call: *"I do not want us picking an end
+date, it makes the UI awful. The end date will always be start date + number of
+days in trip = full trip."* (`SPEC.md` §3.)
+
+This looked like a behaviour change and is not one. `endDate` is stored nowhere
+— not on `TripState`, not on `TripDetail` — and `TripHeader.tsx:228` already
+derives it from the plan's last day. `decide.ts:155` already supports the
+start-only path. Days are already the truth; only the *editable end-date input*
+disagreed with them. Removing it is a UI-only diff with no contract, command or
+domain change, which is why it is in M10 rather than after it. **Runs after
+Phase 6**, since changing a trip's length then means adding or removing days,
+which Phase 6 makes real in every view. Phase 7's wizard step 2 loses its
+"Leave" input in the same decision.
+
+It also closes `TODO.md`'s "end-date picker may drift from the day count" item —
+and corrects its diagnosis: not stored-field drift, but a derived value shown in
+an editable field.
