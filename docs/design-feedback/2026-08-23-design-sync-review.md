@@ -361,7 +361,7 @@ commit.
 | §4.2 | Is the one-field first-run screen intentionally different from the four-step wizard? | **Still open** — carried into M15's milestone file as its first open question, since M15 owns first-run and M10 Phase 7 owns the wizard |
 | §4.3 | Start-only trip dates? | **Adopted.** The end is always start + day count. Landed as **Task 8b.6**, not a post-gate step: `endDate` is stored nowhere and already derived, so removing the input is UI-only — no contract, command or domain change |
 | §4.5 | Landing copy selling M11/M12? | **Still open** — carried into M15's milestone file. It is a copy call that only matters when the landing page is built |
-| §6 † | Phase 8b into M10's gate? | **Approved.** All five. Runs after Phase 8, before Phase 9's gate |
+| §6 † | Phase 8b into M10's gate? | **Approved.** All of it — five tasks at the time, six once 8b.6 was added. Runs after Phase 8, before Phase 9's gate |
 | §6 | M15 Front door? | **Approved**, executing **right after M10's gate and before M9** — ADR-021 records the reorder, on ADR-018's precedent |
 
 **What the approvals do to M10's gate.** Phase 8b (six tasks), Phase 1b, and
