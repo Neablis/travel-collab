@@ -11,20 +11,30 @@ Phase 4**.
 ## Where everything lives
 
 **Repo:** `https://github.com/Neablis/travel-collab`
-**Branch:** create a fresh one from current `main`.
+**Branch from:** `claude/next-phases-work-vni3iz` — **not** `main`.
 
 ```bash
 git clone https://github.com/Neablis/travel-collab.git
 cd travel-collab
-git fetch origin main && git checkout -b claude/test-overhaul-p0-p4 origin/main
+git fetch origin claude/next-phases-work-vni3iz
+git checkout -b claude/test-overhaul-p0-p4 origin/claude/next-phases-work-vni3iz
 pnpm install
 ```
 
-Do **not** branch from `claude/next-phases-work-vni3iz` (the planning branch —
-it carries only these docs) or from any merged `claude/*` branch. Check
-`git ls-remote --heads origin` for a sibling branch already doing this work
-before you start; `AGENTS.md`'s Workstreams section explains what that check
-cost the project once already.
+**Why not `main`:** this plan, `docs/testing-inventory.md`, and
+`scripts/coverage-overlap.mjs` are **not on `main` yet** — they live only on
+`claude/next-phases-work-vni3iz`. Branching from `main` gives you a tree with
+none of the documents you are told to read. That planning branch is docs-only
+(plus one analysis script and four dev-dependency additions) and is currently
+**0 commits behind `main`**, so basing work on it costs nothing.
+
+If `main` has moved by the time you start, merge it in first
+(`git merge origin/main`) rather than rebasing — and if the planning branch has
+since been merged to `main`, branch from `main` instead and ignore this note.
+
+Check `git ls-remote --heads origin` for a sibling branch already doing this
+work before you start; `AGENTS.md`'s Workstreams section explains what that
+check cost the project once already.
 
 All commands run from the **repo root** unless a task says otherwise.
 
