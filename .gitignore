@@ -10,6 +10,7 @@ coverage/
 .turbo/
 playwright-report/
 test-results/
+.auth/
 .claude/*
 !.claude/settings.json
 !.claude/skills
@@ -25,3 +26,9 @@ ds-bundle/
 apps/web/.ds-compiled.css
 .vercel
 .env*
+.coverage-overlap/
+
+# This repo is pnpm-only (see packageManager in package.json); an npm
+# lockfile means someone ran `npm install` locally, and it silently drifts
+# from pnpm-lock.yaml if committed.
+package-lock.json

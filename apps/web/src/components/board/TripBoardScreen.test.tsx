@@ -10,7 +10,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
-import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@/mocks/fixtures";
+import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 import { setViewportMatches } from "../../../vitest.setup";
 

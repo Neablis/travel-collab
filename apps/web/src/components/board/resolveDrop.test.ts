@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 import { resolveDrop } from "./resolveDrop";
 
 const A1 = "a1";

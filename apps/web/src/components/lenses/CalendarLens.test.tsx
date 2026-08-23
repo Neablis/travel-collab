@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 import { FocusProvider, useFocus } from "../trip/context/FocusProvider";
 import { CalendarLens } from "./CalendarLens";
 

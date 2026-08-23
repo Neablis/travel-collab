@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BatchableCommand } from "@tc/contracts";
-import { costedTripDetailFixture } from "../../mocks/fixtures";
+import { costedTripDetailFixture } from "@tc/factories";
 import { summarizeBatch } from "./planSummary";
 
 // costedTripDetailFixture: one day (dayId below) holding "Colosseum tour" and

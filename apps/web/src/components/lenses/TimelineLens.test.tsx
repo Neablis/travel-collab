@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 import { TimelineLens } from "./TimelineLens";
 
 afterEach(cleanup);

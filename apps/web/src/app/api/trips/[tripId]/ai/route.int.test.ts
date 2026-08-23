@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MockLanguageModelV4 } from "ai/test";
-import { db } from "@/server/db/client";
-import { events, pages, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { validateComposedPage } from "@/server/ai/pageTools";
 import { getGeocoder } from "@/server/geocoding";
@@ -141,13 +139,14 @@ function fakeGeocoder(responses: Record<string, GeocodeResult[] | Error>): Geoco
   return { forward } as unknown as Geocoder;
 }
 
+// No DB truncation: every test seeds its own randomUUID() tripId and every
+// assertion reads back through that trip's response body — see
+// eventStore.int.test.ts's comment and docs/testing-baseline.md (Phase 2
+// Task 2.6). currentUserId still resets every test — that's mock auth state,
+// not DB state.
 describe("POST /api/trips/:id/ai", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     currentUserId = ACTOR_ID;
-    await db.delete(pages);
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
   });
 
   it("401s when unauthenticated", async () => {

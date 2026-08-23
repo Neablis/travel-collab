@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { dragCardTo, signInAsDevUser } from "./helpers";
+import { dragCardTo } from "./helpers";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
 // assertions against it) update instantly from a client-side prediction,
@@ -27,7 +27,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // the "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make both specs' trip names collide.
   const tripName = `Venice ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
   await page.getByRole("button", { name: "New trip" }).click();

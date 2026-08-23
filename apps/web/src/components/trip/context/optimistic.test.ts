@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { enqueue, confirmHead, failHead, activeDetail, activeHistory, type OptimisticState } from "./optimistic";
-import { tripDetailFixture, historyFixture } from "@/mocks/fixtures";
+import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 const tripId = tripDetailFixture().tripId;
 const base = (): OptimisticState => ({

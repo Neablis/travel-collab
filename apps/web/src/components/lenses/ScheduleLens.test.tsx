@@ -14,7 +14,7 @@ import { LensRouter } from "../trip/context/LensRouter";
 import { EditorHost } from "../trip/context/EditorHost";
 import { FocusProvider } from "../trip/context/FocusProvider";
 import { ScheduleLens } from "./ScheduleLens";
-import { tripDetailFixture } from "../../mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 
 // The Timeline/Calendar switch moved out of this component (it used to own a
 // SegmentedControl of its own) to TripViewTabs.tsx, which now drives the same

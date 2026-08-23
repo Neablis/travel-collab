@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { commandsFor } from "@tc/factories";
 
 // @atlaskit/pragmatic-drag-and-drop is built on the browser's native HTML5
 // Drag and Drop API. Locator.dragTo() drives it with a single mouse-down /
@@ -13,20 +14,22 @@ import { expect, type Locator, type Page } from "@playwright/test";
 export async function dragCardTo(source: Locator, target: Locator): Promise<void> {
   // The board refetches and re-lays-out after every command (a new day pushes
   // the "+ Add day" button, a new card grows its column), so a drag fired
-  // immediately after a prior mutation can read a box that's about to move or
-  // start before pragmatic-drag-and-drop's monitor has re-registered. Wait for
-  // both ends to be present and let layout settle before measuring.
+  // immediately after a prior mutation can read a box that's about to move.
+  // waitFor({ state: "visible" }) plus scrollIntoViewIfNeeded's own
+  // actionability checks (Playwright waits for the element to stop moving
+  // before scrolling to it) are what stand in for the wall-clock sleep this
+  // used to need — see KI-13's "no sleeps" principle.
   await source.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await source.scrollIntoViewIfNeeded();
-  await source.page().waitForTimeout(300);
+
   const sourceBox = await source.boundingBox();
   if (!sourceBox) throw new Error("dragCardTo: source has no bounding box");
 
   const page = source.page();
-  const viewport = page.viewportSize();
   const sx = sourceBox.x + sourceBox.width / 2;
   const sy = sourceBox.y + sourceBox.height / 2;
+
   await page.mouse.move(sx, sy);
   await page.mouse.down();
   // A small initial move off the press point is what Chromium treats as
@@ -36,43 +39,30 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // make easier to miss).
   await page.mouse.move(sx + 6, sy + 6, { steps: 3 });
 
-  // A real cursor can never move past the visible viewport, so a target
-  // whose box currently sits (partly) outside it — a day column pushed below
-  // the fold by page content above the board — has to be reached by hovering
-  // near the clamped edge and letting the window's drag-triggered auto-scroll
-  // (Board.tsx's autoScrollWindowForElements) bring it into view, the same
-  // way a real drag would. Jumping straight to an off-screen box center (the
-  // prior approach) lands the pointer somewhere document.elementFromPoint
-  // can't resolve to anything, so pragmatic-drag-and-drop never sees a drop
-  // target and the drop silently no-ops.
-  const clamp = (value: number, max: number) => Math.min(Math.max(value, 4), max - 4);
-  const pointAt = (box: { x: number; y: number; width: number; height: number }) => ({
-    x: viewport ? clamp(box.x + box.width / 2, viewport.width) : box.x + box.width / 2,
-    y: viewport ? clamp(box.y + box.height / 2, viewport.height) : box.y + box.height / 2,
-  });
-  const inViewport = (box: { y: number; height: number }) =>
-    viewport === null || (box.y >= 0 && box.y + box.height <= viewport.height);
-
-  let targetBox = await target.boundingBox();
+  // KI-21's traced root cause: a target whose box sat (partly) outside the
+  // viewport — a day column pushed below the fold — depended on
+  // drag-triggered auto-scroll (Board.tsx's autoScrollWindowForElements) to
+  // finish inside a hand-rolled 5s polling budget, which a loaded machine
+  // sometimes missed. Scrolling the target into view *after the drag has
+  // already started* (rather than before, which could scroll a distant
+  // source out of view before mouse.down ever fires at it) removes that
+  // race entirely instead of widening the window: by the time the mouse
+  // moves toward the target, it's already on screen. Re-read the target's
+  // box after scrolling — its viewport-relative coordinates change with it.
+  await target.scrollIntoViewIfNeeded();
+  const targetBox = await target.boundingBox();
   if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
-  let point = pointAt(targetBox);
-  await page.mouse.move(point.x, point.y, { steps: 25 });
+  const tx = targetBox.x + targetBox.width / 2;
+  const ty = targetBox.y + targetBox.height / 2;
 
-  // Hold near the edge and poll until auto-scroll has brought the target
-  // fully into view, re-aiming at its updated (now on-screen) position.
-  const deadline = Date.now() + 5000;
-  while (!inViewport(targetBox) && Date.now() < deadline) {
-    await page.mouse.move(point.x, point.y);
-    await page.waitForTimeout(100);
-    const box = await target.boundingBox();
-    if (!box) break;
-    targetBox = box;
-    point = pointAt(targetBox);
-  }
-
-  await page.mouse.move(point.x, point.y);
-  await page.waitForTimeout(200);
+  await page.mouse.move(tx, ty, { steps: 25 });
   await page.mouse.up();
+
+  // No wait here for the drop to "register": the caller asserts the moved
+  // card is where it expects (a web-first assertion, e.g. `toBeVisible()`),
+  // and Playwright's own auto-waiting retries that until it's true or the
+  // test's timeout expires. A helper-internal poll can only guess when the
+  // drop landed; the app's own rendered state is the real signal.
 }
 
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {
@@ -96,8 +86,9 @@ export async function signInAsDevUser(page: Page, username: string): Promise<voi
  * cookies, so this runs as the already-signed-in dev user.
  *
  * The map rail only gears once its content overflows its viewport, which needs
- * more days than are practical to build through the UI. Same command shapes as
- * scripts/db-seed.mjs.
+ * more days than are practical to build through the UI. A thin wrapper over
+ * `@tc/factories`'s `commandsFor("mappedTrip", ...)` — the same command
+ * vocabulary unit tests, other e2e specs, and `db:seed` all share (ADR-020).
  */
 export async function createMappedTrip(page: Page, name: string, dayCount: number): Promise<string> {
   const post = async (path: string, body: unknown) => {
@@ -109,33 +100,8 @@ export async function createMappedTrip(page: Page, name: string, dayCount: numbe
   };
 
   const { tripId } = await post("/api/trips", { name });
-  const cmd = (command: Record<string, unknown>) => post(`/api/trips/${tripId}/commands`, { ...command, tripId });
-
-  const start = new Date();
-  start.setDate(start.getDate() + 10);
-  const end = new Date(start);
-  end.setDate(end.getDate() + dayCount - 1);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-  const newDayIds = Array.from({ length: dayCount }, () => crypto.randomUUID());
-  const { detail } = await cmd({
-    type: "SetTripDates",
-    startDate: iso(start),
-    endDate: iso(end),
-    newDayIds,
-  });
-
-  for (const [i, day] of detail.days.entries()) {
-    const activityId = crypto.randomUUID();
-    await cmd({
-      type: "AddActivity",
-      activityId,
-      title: `Stop on day ${i + 1}`,
-      timeWindow: { start: "09:00", end: "10:00" },
-      // Spread apart so each day's fitBounds lands somewhere distinct.
-      location: { name: `Place ${i + 1}`, city: `City ${i + 1}`, lat: 35 + i * 0.4, lng: 139 + i * 0.4, countryCode: "JP" },
-    });
-    await cmd({ type: "MoveActivity", activityId, toDayId: day.dayId, position: 0 });
+  for (const command of commandsFor("mappedTrip", tripId, { dayCount })) {
+    await post(`/api/trips/${tripId}/commands`, command);
   }
 
   return tripId as string;

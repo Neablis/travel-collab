@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BatchableCommand, TripDetail } from "@tc/contracts";
 import { hydrate, tripDetailFromState } from "@tc/domain";
-import { tripDetailFixture } from "../../mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 import { resolveBatch, type RawToolIntent } from "./batchResolver";
 
 const TRIP_ID = "165220a1-58c2-4acc-a5da-d04450758b87";

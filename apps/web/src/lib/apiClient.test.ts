@@ -8,7 +8,7 @@ import {
   sendTripCommand,
   sendTripCommandBatch,
 } from "@/lib/apiClient";
-import { historyFixture, tripDetailFixture } from "@/mocks/fixtures";
+import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
 const server = setupServer();

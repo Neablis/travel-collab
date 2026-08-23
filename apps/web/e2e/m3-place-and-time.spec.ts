@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, signInAsDevUser } from "./helpers";
+import { dragCardTo } from "./helpers";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
@@ -21,7 +21,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     });
   });
 
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);

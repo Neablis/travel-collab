@@ -1,5 +1,4 @@
 import { expect, type Page, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
 
 // This spec's own webServer runs with AI_LIVE=false (playwright.config.ts's
 // webServer.env — see the note there), so handleAiRequest.ts's flag check
@@ -26,7 +25,7 @@ test("a simulated AI answer is badged and still really changes the trip", async 
   // rail's Badge ambiguous (3-way strict-mode violation, caught while writing
   // this spec).
   const tripName = `AI Kill Switch ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);

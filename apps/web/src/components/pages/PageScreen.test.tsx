@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
-import { pageFixture, tripDetailFixture } from "@/mocks/fixtures";
+import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
 
 vi.mock("next/navigation", () => ({

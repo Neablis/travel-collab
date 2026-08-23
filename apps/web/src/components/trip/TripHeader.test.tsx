@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { tripDetailFixture, historyFixture } from "@/mocks/fixtures";
+import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 // A15: TripHeader now reads useRouter() (for the delete toast's post-dismiss
 // navigation) — not exercised by the rename tests below, but the component
