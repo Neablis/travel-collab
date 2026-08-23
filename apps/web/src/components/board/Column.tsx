@@ -5,6 +5,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
+import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
@@ -39,18 +40,24 @@ export function Column({
   activityIds,
   activities,
   conflictIds,
+  overlaps,
   currency,
   accent,
   onEditActivity,
   onRemoveActivity,
   onRemoveDay,
   onAddActivity,
+  onDismissOverlap,
 }: {
   title: string;
   dayId: string;
   activityIds: string[];
   activities: Record<string, ActivityView>;
   conflictIds: ReadonlySet<string>;
+  // This day's live time-overlaps, keyed by the stop the warning attaches to
+  // (the later one) — same derivation the timeline uses, so a crossing pair
+  // reads the same in both lenses.
+  overlaps: ReadonlyMap<string, Overlap>;
   currency: string;
   // Per-day tint (Task 2's dayAccentFor, keyed off the same chipModel city
   // derivation Tasks 8/10 use).
@@ -59,6 +66,7 @@ export function Column({
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
   onAddActivity?: () => void;
+  onDismissOverlap: (conflictId: string) => void;
 }) {
   const ref = useRef<HTMLUListElement>(null);
   // Whether this column itself — not one of its cards — is the innermost
@@ -113,9 +121,11 @@ export function Column({
               activity={activity}
               dayId={dayId}
               hasConflict={conflictIds.has(id)}
+              overlap={overlaps.get(id) ?? null}
               currency={currency}
               onEdit={() => onEditActivity(id)}
               onRemove={() => onRemoveActivity(id)}
+              onDismissOverlap={onDismissOverlap}
             />
           );
         })}

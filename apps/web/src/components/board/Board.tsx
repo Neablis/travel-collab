@@ -9,6 +9,7 @@ import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
+import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccentFor } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
@@ -34,10 +35,27 @@ export type BoardCallbacks = {
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const { openCreate, openEdit } = useEditor();
 
+  // Badge-worthy conflict subjects only: a `time-overlap` gets the compact
+  // chip below instead of a bare triangle, and the exclusion rule is shared
+  // with TimelineLens (overlapData) so the two lenses cannot disagree.
   const conflictIds = useMemo(
-    () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
+    () => badgeableConflictSubjects(trip.conflicts),
     [trip.conflicts],
   );
+
+  // Every day's live time-overlaps, flattened to one lookup keyed by the stop
+  // the warning attaches to. A stop can be the later half of more than one
+  // crossing pair; a column card has room for exactly one chip, so the first
+  // wins (the timeline, which has the room, shows them all).
+  const overlapsByActivity = useMemo(() => {
+    const byActivity = new Map<string, Overlap>();
+    for (const day of trip.days) {
+      for (const overlap of overlapsForDay(trip, day.dayId)) {
+        if (!byActivity.has(overlap.laterActivityId)) byActivity.set(overlap.laterActivityId, overlap);
+      }
+    }
+    return byActivity;
+  }, [trip]);
 
   // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
   // use (chipModel → dayAccentFor), so a day's column tint here always agrees
@@ -128,12 +146,14 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             activityIds={day.activityIds}
             activities={trip.activities}
             conflictIds={conflictIds}
+            overlaps={overlapsByActivity}
             currency={trip.currency}
             accent={dayAccentFor(days[index]?.city ?? null).tint}
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
             onAddActivity={() => openCreate({ dayId: day.dayId })}
+            onDismissOverlap={callbacks.onDismissConflict}
           />
         ))}
         <Button variant="secondary" onClick={callbacks.onAddDay} className="h-9 w-32 shrink-0">

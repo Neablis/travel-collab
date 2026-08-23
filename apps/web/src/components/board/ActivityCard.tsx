@@ -12,18 +12,26 @@ import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
+import type { Overlap } from "@/components/lenses/overlapData";
 
 export function ActivityCard({
   activity,
   dayId,
   hasConflict,
+  overlap,
   currency,
   onEdit,
   onRemove,
+  onDismissOverlap,
 }: {
   activity: ActivityView;
   dayId: string | null;
   hasConflict: boolean;
+  // The live time-overlap this stop is the later half of, if any — the day
+  // columns' compact form of the timeline's OverlapWarning. Null both when
+  // nothing overlaps and when this is the *earlier* stop of a pair (the
+  // warning hangs off the later one, overlapData.ts).
+  overlap: Overlap | null;
   // Currency is trip-level, never per-event (decision, 2026-08-14) — the same
   // pattern TimelineLens/BudgetChip/DailyOverviewLens already follow: the
   // caller threads its own trip.currency down, this never reads Money.currency
@@ -31,6 +39,7 @@ export function ActivityCard({
   currency: string;
   onEdit: () => void;
   onRemove: () => void;
+  onDismissOverlap: (conflictId: string) => void;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -122,6 +131,30 @@ export function ActivityCard({
         <DataText size="xs" className="block">{formatMoney(activity.cost.amountMinor, currency)}</DataText>
       ) : (
         <DataText size="xs" className="block">No cost yet</DataText>
+      )}
+      {/* The design's day-column overlap treatment (M10 Phase 5): the same
+          warning the timeline shows in full, compressed to what fits a 268px
+          column — the other stop's title, truncated, and a bare dismiss. The
+          one-click fix is deliberately timeline-only; there is no room for a
+          "Start 1 pm" button here. */}
+      {overlap && (
+        <div
+          data-testid={`overlap-chip-${activity.activityId}`}
+          className="flex items-center gap-1 bg-warning-tint py-1 pl-2 pr-1.5"
+          // eslint-disable-next-line no-restricted-syntax -- 7px offset/radius and 11px copy all sit off Tailwind's scale (nearest are 6px and 8px), matching UnscheduledRack/TimelineLens's computed-geometry pattern
+          style={{ marginTop: "7px", borderRadius: "7px", fontSize: "11px" }}
+        >
+          <span className="min-w-0 flex-1 truncate text-warning-ink">Overlaps {overlap.otherTitle}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-4 shrink-0 text-warning-ink"
+            aria-label="Dismiss overlap warning"
+            onClick={() => onDismissOverlap(overlap.conflictId)}
+          >
+            <X className="size-3" aria-hidden />
+          </Button>
+        </div>
       )}
     </Card>
   );

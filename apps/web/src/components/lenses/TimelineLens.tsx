@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { ActivityView, Location, TripDetail, TripMember } from "@tc/contracts";
+import type { ActivityView, Location, TripCommand, TripDetail, TripMember } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
@@ -20,12 +20,14 @@ import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures"
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
-import { toMinutes, toTimeString } from "@/lib/time";
+import { formatDuration, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
+import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "./overlapData";
+import { OverlapWarning } from "./OverlapWarning";
 
 // Tailwind (v4, `@theme`-driven) only emits utilities it can see as literal
 // text — a template-interpolated `bg-${family}-tint` never appears as a whole
@@ -74,14 +76,6 @@ function nextSlot(row: TimelineRow): { start: string; end: string } {
 // gaps as "out" time. This is the stop-meter's mono "Xh Ym out" figure.
 function totalScheduledMinutes(row: TimelineRow): number {
   return row.timed.reduce((sum, item) => sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)), 0);
-}
-
-function formatDuration(minutes: number, suffix: string): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m ${suffix}`;
-  if (m === 0) return `${h}h ${suffix}`;
-  return `${h}h ${m}m ${suffix}`;
 }
 
 // A day's route line (day-header row 2): the distinct real place names
@@ -296,9 +290,14 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
 export function TimelineLens({
   detail,
   onSelectActivity,
+  onCommand,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
+  // Same seam TripDateControl/TripMoneySettings use: the lens stays
+  // presentational and hands a real command up to whoever owns dispatch
+  // (TripBoardScreen), rather than reaching into useTrip() itself.
+  onCommand?: (command: TripCommand) => void;
 }) {
   const rows = timelineRows(detail);
   // Same per-day city derivation Task 8's DayChips established (first
@@ -310,10 +309,40 @@ export function TimelineLens({
   const { focusedDay } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  // Mirrors Board.tsx's conflictIds Set: every activityId named as a subject
-  // of any live conflict, badge-worthy regardless of dismissal (same as the
-  // Board lens today).
-  const conflictActivityIds = useMemo(() => new Set(detail.conflicts.flatMap((c) => c.subjects)), [detail.conflicts]);
+  // Every activityId named as a subject of a badge-worthy conflict — the same
+  // rule Board.tsx's conflictIds uses, shared from overlapData rather than
+  // spelled out twice, so the two lenses cannot drift on which kinds the bare
+  // triangle covers.
+  const conflictActivityIds = useMemo(
+    () => badgeableConflictSubjects(detail.conflicts),
+    [detail.conflicts],
+  );
+
+  // "Start HH:MM" moves the later stop to begin when the earlier one ends,
+  // keeping its own duration, and lets the day re-sort naturally. Nothing is
+  // validated or prevented: if the move creates a new overlap further down the
+  // day, the domain emits a new conflict and a new warning appears — conflicts
+  // are data, not errors (AGENTS.md invariant 3). The one move that is not
+  // offered at all is one that would not fit in the day (suggestedEnd null,
+  // overlapData.ts): OverlapWarning renders no fix button for it, and this
+  // guard makes the missing button and the missing command the same rule
+  // rather than trusting the UI to be the only gate.
+  const fixOverlap = (overlap: Overlap) => {
+    if (overlap.suggestedEnd === null) return;
+    onCommand?.({
+      type: "UpdateActivity",
+      tripId: detail.tripId,
+      activityId: overlap.laterActivityId,
+      timeWindow: { start: overlap.suggestedStart, end: overlap.suggestedEnd },
+    });
+  };
+
+  // Dismissal is per conflict id, and that id encodes the *pair* — so this is
+  // already the design's "dismissals are per stop-pair", with no new command
+  // and no trip data changed.
+  const dismissOverlap = (overlap: Overlap) => {
+    onCommand?.({ type: "DismissConflict", tripId: detail.tripId, conflictId: overlap.conflictId });
+  };
 
   useEffect(() => {
     if (focusedDay === null) return;
@@ -351,6 +380,9 @@ export function TimelineLens({
         // through formatMoney keyed off the trip's own currency, same as
         // every other money surface.
         const { total: dayTotal } = daySpend(detail, row.dayId);
+        // Every live, undismissed time-overlap on this day, already resolved
+        // to the stop the warning hangs off (overlapData.ts).
+        const overlaps = overlapsForDay(detail, row.dayId);
 
         return (
           <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="flex flex-col">
@@ -384,6 +416,15 @@ export function TimelineLens({
                       {chip.city}
                     </span>
                   )
+                )}
+                {/* The day-header count badge: how many of this day's stop
+                    pairs are still crossing, dismissals excluded, so a day
+                    scrolled past still reads as "needs attention" without the
+                    warnings themselves being on screen. */}
+                {overlaps.length > 0 && (
+                  <Badge variant="warning" className="shrink-0">
+                    {overlaps.length} overlap{overlaps.length === 1 ? "" : "s"}
+                  </Badge>
                 )}
                 <div className="flex-1" />
                 <span className="flex shrink-0 items-center gap-2 rounded-full bg-surface px-2.5 py-1">
@@ -445,16 +486,32 @@ export function TimelineLens({
                         nextLocation={activity.location}
                       />
                     )}
-                    <ActivityRow
-                      start={item.start}
-                      end={item.end}
-                      activity={activity}
-                      accent={accent.solid}
-                      hasConflict={conflictActivityIds.has(item.activityId)}
-                      member={detail.members[0]}
-                      currency={detail.currency}
-                      onSelectActivity={onSelectActivity}
-                    />
+                    {/* The warning belongs to the row above it, not to the
+                        day's row rhythm — an inner wrapper with no gap so its
+                        own 6px offset is the whole distance, rather than
+                        gap-3 stacking on top of it. */}
+                    <div>
+                      <ActivityRow
+                        start={item.start}
+                        end={item.end}
+                        activity={activity}
+                        accent={accent.solid}
+                        hasConflict={conflictActivityIds.has(item.activityId)}
+                        member={detail.members[0]}
+                        currency={detail.currency}
+                        onSelectActivity={onSelectActivity}
+                      />
+                      {overlaps
+                        .filter((overlap) => overlap.laterActivityId === item.activityId)
+                        .map((overlap) => (
+                          <OverlapWarning
+                            key={overlap.conflictId}
+                            overlap={overlap}
+                            onFix={() => fixOverlap(overlap)}
+                            onDismiss={() => dismissOverlap(overlap)}
+                          />
+                        ))}
+                    </div>
                   </div>
                 );
               })}

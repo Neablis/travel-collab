@@ -10,7 +10,12 @@ off-roadmap insert — see "Where we are" below; does not move M10's gate.
 Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
 been built and verified since 2026-08-22 but was never opened as a PR, see
 "Known gap" below for how that happened. KI-26 and KI-27, both filed during
-Phase 4's CI diagnosis, are closed in the same PR.)**
+Phase 4's CI diagnosis, are closed in the same PR. Also same day: M10 Wave 2
+Phase 5 — overlap warnings — is built and verified on
+`claude/next-work-z7pr1d` and open as PR #29, CI green; the phase file's
+Step 4, the manual browser pass, is the one thing not done. Two known issues
+were filed from that PR's review rather than absorbed — KI-29 and KI-30. See
+"In flight" below.)**
 
 ## Where we are
 
@@ -124,13 +129,14 @@ tests of their own that the current inventory doesn't know about.
 
 ## In flight
 
-**M10 Wave 2 — Phases 0, 1, 2, 3 and 4 all merged to `main`.** Phase 3 (the
-unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged into
-its branch and everything re-verified — see "Known gap: Phase 3 built but
+**M10 Wave 2 — Phases 0, 1, 2, 3 and 4 all merged to `main`; Phase 5 is built
+and verified on `claude/next-work-z7pr1d`, open as PR #29 with CI green.** Phase 3
+(the unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged
+into its branch and everything re-verified — see "Known gap: Phase 3 built but
 unmerged (RESOLVED 2026-08-23)" below for the full story and what the
 landing PR did. Phases 6 and 7, which depend on Phase 3's code being on
-`main` rather than just on a branch, are now unblocked. Phases 5 and 8
-remain independent and untouched.
+`main` rather than just on a branch, are now unblocked. Phase 8 remains
+independent and untouched; Phase 5 is described in its own section below.
 
 Progress below was reconstructed 2026-08-17 from the code and commit
 history, not from a task-by-task log kept during the work — this file had
@@ -193,6 +199,93 @@ drag-to-day-2 assertion confirmed (via a control run against the original,
 unmerged `claude/m10-phase-3-rack` branch) to fail identically there too —
 pre-existing, unrelated to the merge, same KI-21 flakiness class.
 
+### Phase 5 (overlap warnings) — built and verified 2026-08-23, PR #29 open
+
+Seven commits on `claude/next-work-z7pr1d`, based on `main` at `fcb22b5`. The
+first three were the phase itself; the last four came out of PR #29's review:
+
+- `d7a274b` — **Phase 5 proper.** New
+  `apps/web/src/components/lenses/overlapData.ts` and `OverlapWarning.tsx`;
+  `TimelineLens.tsx` renders the design's inline, never-blocking warning inside
+  the existing `92px 1fr` grid, attached to the later-starting stop — which has
+  to be worked out from the two `timeWindow`s, because a `time-overlap`
+  conflict's `subjects` is sorted by activityId, not by time. The one-click fix
+  moves the later stop to begin when the earlier one ends, keeping its
+  duration; Dismiss sends `DismissConflict` for the pair's id and changes no
+  trip data. Day headers get an overlap count badge, day columns the compact
+  chip. `lib/time.ts` gained `toClockLabel`, and `formatDuration` was hoisted in
+  from `TimelineLens` rather than copied. **Zero diff to `packages/`** —
+  presentational only, as the phase requires.
+- `4060a1e` — the phase file's "a time-overlap shows the rich warning and not
+  also a bare triangle" rule had only been applied in `TimelineLens`, so
+  day-column cards rendered both the generic conflict badge and the new chip.
+  The exclusion is now one shared helper, `badgeableConflictSubjects()` in
+  `overlapData.ts`, called from both `TimelineLens` and `Board`.
+  `board.test.tsx`'s badge coverage split into two tests so non-overlap badging
+  stays independently proven.
+- `2b97b80` — `apps/web/e2e/m1-board.spec.ts`'s three day-column assertions
+  retargeted from bare `getByText` substrings to the card-scoped locator the
+  spec already used elsewhere. The chip renders the *other* stop's title inside
+  the same day column, so the old locators passed only by assertion ordering —
+  one line-reorder from a strict-mode violation. Defensive hardening, not a bug
+  fix: both the old and the new locators resolve uniquely today.
+
+Verified on the branch: unit 595/595 (98 files); `pnpm --filter web typecheck`
+clean; `pnpm --filter web lint` clean (note that is `eslint src` only, so it
+does **not** cover `e2e/`); `node scripts/check-color-wall.mjs` OK; and the
+full e2e suite run three times against a production build
+(`test:e2e:ci-like`, per KI-27) with a locally-provisioned Postgres — 21/21
+clean twice, plus one earlier run with a single KI-28-class flake on
+`m8-make-it-real.spec.ts` that passed on retry and touches no board code.
+
+**Not done: Step 4 of the phase file — the manual browser walk of the exit
+checklist.** There is no interactive browser in this container, so that step
+was skipped outright, not approximated. Phase 5's exit checklist otherwise
+holds, on the evidence of the runs above: the warning renders on the later
+stop, the stated duration is the true intersection, the fix keeps duration and
+never blocks, dismissal is per pair and changes no trip data, the count badge
+and the compact chip both appear, and the `packages/` diff is empty.
+
+Per `AGENTS.md`'s Workstreams rule, a phase branch is **not "done" until its
+PR is open** — the same rule Phase 3's landing gap added; see "Known gap"
+above. **PR #29 was opened 2026-08-23** and CI went green on it (all three
+jobs; `migrate-production` skipped, as it is on any PR).
+
+**What the review then found.** CodeRabbit raised two Major findings, both
+verified against the code before acting rather than taken at face value, and
+both real:
+
+- `f517e07` — this section, recording the phase before the PR was opened.
+- `69c93c8` — **KI-29 filed**, not fixed. A stop can be the later half of more
+  than one crossing pair, and `Board`'s `overlapsByActivity` keys one `Overlap`
+  per `laterActivityId`, so the rest are dropped; because `4060a1e` also
+  stopped badging time-overlap conflicts, the dropped pair now has no
+  day-column surface at all. Bounded — the conflict banner and the Timeline
+  lens both still reach every conflict — but real. Not folded in because what a
+  card shows when a stop has N overlaps is a design question and the handoff
+  specifies a single chip; it goes to the Phase 9 gate with three options
+  ranked by cost.
+- `37f2c13` — **the truncation fix.** `toTimeString` clamps to 23:59, so the
+  repair silently shortened any move running past midnight (a 30-minute stop
+  repaired to 23:45 was dispatched as 23:45–23:59, a 14-minute stop) — which
+  breaks the phase's own "keeping its duration". `Overlap` now carries
+  `suggestedEnd: string | null`, computed once in `overlapData.ts`; when it is
+  null the fix is simply not offered, and `fixOverlap` guards too, so the
+  missing button and the missing command are one rule. `DAY_END_MIN` moved into
+  `lib/time.ts` beside the clamp it derives from, and `unscheduledRack.ts`'s
+  identical private copy now points at it. Still zero diff to `packages/`.
+- `f718e45` — **KI-30 filed**, not fixed. The same clamp has a second,
+  pre-existing instance: `nextSlot()` prefills the add-a-stop editor with start
+  and end both clamped to 23:59 on a day already running to midnight, which
+  `TimeWindow`'s `start < end` refinement rejects. The honest fix is an audit of
+  every arithmetic caller of `toTimeString` plus a decision about what the
+  affordance should do at the end of a day — Phase 6 territory, since it
+  rewrites those rows.
+
+Re-verified after the fix: unit **600/600** (98 files), typecheck, lint and the
+colour wall clean, and the full e2e suite **21/21** against a production build.
+Both review threads are answered and resolved.
+
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
   `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
@@ -221,8 +314,10 @@ pre-existing, unrelated to the merge, same KI-21 flakiness class.
   - **Phase 3 (rack) — done, merged to `main`** (PR #26, 2026-08-23; see
     "Known gap" above for the full landing story).
   - **Phase 4 (budget) — done, merged to `main`** (PR #25, 2026-08-22/23).
-  - **Phase 5 (overlaps):** no `OverlapWarning.tsx` / `overlapData.ts`; no
-    `time-overlap` handling in `TimelineLens`.
+  - **Phase 5 (overlaps) — built on `claude/next-work-z7pr1d`, not on `main`
+    yet.** `OverlapWarning.tsx`, `overlapData.ts` and `time-overlap` handling
+    in `TimelineLens` all exist there as of 2026-08-23; none of it is on
+    `main`, and the PR is not open yet — see the Phase 5 section above.
   - **Phase 6 (add-a-day, empty states):** depended on Phase 3 (now landed,
     so unblocked); untouched otherwise.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
@@ -254,14 +349,15 @@ The plan itself:
   we built from the older 1,412-line file, which is why there are two
   generations of drift.
 
-**Phase 3 is landed — pick up at Phase 5, 6, 7, or 8 next**
-(`docs/plans/M10-delta/phase-{5,6,7,8}-*.md`). Phases 6 and 7, which
-depended on Phase 3's code being on `main` rather than just on a branch,
-are now unblocked. Phases 5 and 8 remain independent of everything else and
-of each other and could go in parallel across sessions — but check for
-their own stray branches first (see `AGENTS.md`'s Workstreams section)
-before assuming either is untouched; this exact landing gap is why that
-check exists. Phase 9 (gate) is last, after all of 5-8 land. Branch any
+**Phase 3 is landed and Phase 5 is up as PR #29 — pick up at Phase 6, 7
+or 8 next** (`docs/plans/M10-delta/phase-{6,7,8}-*.md`). Phases 6 and 7, which
+depended on Phase 3's code being on `main` rather than just on a branch, are
+now unblocked. Phase 8 remains independent of everything else and could go in
+parallel across sessions — but check for its own stray branch first (see
+`AGENTS.md`'s Workstreams section) before assuming it is untouched; this exact
+landing gap is why that check exists. Phase 9 (gate) is last, after all of 5-8
+land — which for Phase 5 means after its PR is opened and merged, not merely
+after the branch was verified. Branch any
 genuinely new phase work from current `main`, not from PR #23's or PR #26's
 old branches (both merged, empty diff against `main` now) or from any other
 stale branch without checking it first.
@@ -368,12 +464,24 @@ which existed only on a branch.
 
 ## Next action
 
-**Phase 3 is landed** (PR #26, 2026-08-23) — see "Known gap" above for the
-full story. Continue M10 Wave 2's remaining phases (5, 6, 7, 8) task-by-task
-through Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`): before/after
-screenshots, KI-2/3/4 closed or re-deferred, presentational-only diff
-verified, all tests incl. e2e green, retro appended. M9 resumes once M10's
-gate closes.
+**Phase 5 is up as PR #29** from `claude/next-work-z7pr1d`, which branches
+from `main` at `fcb22b5` — **not merged**, so nothing in it is on `main` yet.
+CI is green and both review threads are answered and resolved; see the Phase 5
+section under "In flight" for the commits, what landed, and what the review
+changed. (Deliberately no commit count here: this pointer went stale twice in
+one evening because it carried one, and the section below is the place that
+enumerates them.) **Two things still want a human:** the
+phase file's Step 4 (manual browser verification of the exit checklist) was
+not performed, since this container has no interactive browser, so whoever
+reviews it should walk that checklist by hand — the PR's own Vercel preview is
+the obvious place; and KI-29's card-level design question wants an answer at
+the Phase 9 gate.
+
+After that, continue M10 Wave 2's remaining phases (6, 7, 8 — all unblocked,
+6 and 7 by Phase 3's merge in PR #26) task-by-task through Phase 9's gate
+(`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
+closed or re-deferred, presentational-only diff verified, all tests incl. e2e
+green, retro appended. M9 resumes once M10's gate closes.
 
 (`docs/plans/2026-08-08-M10-redesign-incorporation.md`, referenced by this
 line in earlier updates, was Wave 1's plan — it was deleted at Wave 1's gate

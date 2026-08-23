@@ -28,6 +28,20 @@ function fixture() {
   });
 }
 
+// A conflict kind the overlap warning does not cover, so its subjects still
+// earn the generic triangle. Same shape the domain emits
+// (packages/domain/src/trip/conflicts.ts geographyRule).
+function geographyConflict() {
+  return {
+    id: `impossible-geography:${DAY}:${A1}:${A2}`,
+    kind: "impossible-geography",
+    severity: "warn" as const,
+    subjects: [A1, A2],
+    description: '"Colosseum" (Rome) and "Vatican Museums" (Tokyo) are ~9800 km apart on the same day.',
+    resolutions: ["Move one activity to another day", "Fix a mistyped coordinate"],
+  };
+}
+
 // Board now raises the portable editor via useEditor().openCreate rather than
 // rendering an inline create form itself (E2, ADR-011 R2) — every render
 // needs an EditorHost ancestor, and tests that assert on the trigger observe
@@ -78,10 +92,47 @@ describe("Board", () => {
     expect(screen.getByText("Vatican Museums")).toBeTruthy();
   });
 
+  // The bare triangle still covers every conflict kind the board has nothing
+  // richer for (geography, anchors, budget) — both subjects of this pair get
+  // one, and the banner lists the conflicts either way.
   it("marks conflict subjects with badges and shows the banner", () => {
-    renderBoard(fixture(), noopCallbacks());
+    const trip = fixture();
+    renderBoard({ ...trip, conflicts: [...trip.conflicts, geographyConflict()] }, noopCallbacks());
     expect(screen.getAllByRole("img", { name: "conflict" })).toHaveLength(2);
+    expect(screen.getByText(/km apart on the same day/)).toBeTruthy();
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+  });
+
+  // M10 Phase 5: ...but a time-overlap on its own gets the compact chip
+  // instead, never a triangle *and* a chip saying the same thing about the
+  // same pair (mirrors TimelineLens.test.tsx's "does not also badge the pair").
+  it("leaves a time-overlap to the compact chip rather than also badging it", () => {
+    renderBoard(fixture(), noopCallbacks());
+    expect(screen.queryAllByRole("img", { name: "conflict" })).toHaveLength(0);
+    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
+    expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+  });
+
+  // M10 Phase 5: the day columns' compact form of the timeline's overlap
+  // warning — on the later stop only (A2 starts 10:00, A1 09:00), naming the
+  // other one, with a dismiss that goes through the same per-pair
+  // DismissConflict the banner uses.
+  it("shows the compact overlap chip on the later stop only, and dismisses the pair", () => {
+    const callbacks = noopCallbacks();
+    renderBoard(fixture(), callbacks);
+
+    const chip = screen.getByTestId(`overlap-chip-${A2}`);
+    expect(within(chip).getByText("Overlaps Colosseum")).toBeTruthy();
+    expect(screen.queryByTestId(`overlap-chip-${A1}`)).toBeNull();
+
+    fireEvent.click(within(chip).getByRole("button", { name: "Dismiss overlap warning" }));
+    expect(callbacks.onDismissConflict).toHaveBeenCalledWith(`time-overlap:${DAY}:${A1}:${A2}`);
+  });
+
+  it("hides the compact overlap chip once the pair is dismissed", () => {
+    const trip = fixture();
+    renderBoard({ ...trip, dismissedConflictIds: [trip.conflicts[0]!.id] }, noopCallbacks());
+    expect(screen.queryByTestId(`overlap-chip-${A2}`)).toBeNull();
   });
 
   it("dismissing a conflict calls onDismissConflict; dismissedConflictIds hides it from the banner", () => {
