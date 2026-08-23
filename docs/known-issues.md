@@ -308,6 +308,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture a trace (`trace: "on-first-retry"` is already on) before attempting a fix.
 - **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification, this session).
 
+### KI-29 — a stop with two time-overlaps shows only one of them in the day columns
+- **Severity:** correctness (a real overlap is invisible in one view; reachable in two others)
+- **Area:** `apps/web/src/components/board/Board.tsx` (`overlapsByActivity`), `apps/web/src/components/lenses/overlapData.ts` (`badgeableConflictSubjects`), `apps/web/src/components/board/ActivityCard.tsx` (the compact chip)
+- **Symptom:** a stop can be the later half of more than one crossing pair — three mutually overlapping stops produce three `time-overlap` conflicts, two of which attach to the latest stop. `overlapsByActivity` keys one `Overlap` per `laterActivityId`, so the first wins and the rest are dropped. Because M10 Phase 5 also stopped passing `hasConflict` for `time-overlap` conflicts (so a stop shows the rich warning and not also a bare triangle), the dropped pair has **no day-column surface at all** — where before Phase 5 it would at least have shown a generic conflict badge. Dismissing the visible chip then leaves a second, invisible overlap on the same stop.
+- **What bounds it:** no conflict is unreachable. The trip-level conflict banner still lists every overlap's description, and the Timeline lens renders every warning with its own fix and dismiss action — only the day-column view is lossy. The chip that *is* shown is accurate; nothing is misreported.
+- **Why not fixed in the PR that introduced it (#29, M10 Wave 2 Phase 5):** the dropping is deliberate and documented at the call site — a column card has room for exactly one chip — but what a card should show when a stop has N overlaps is a design question, and the handoff this phase implements (`current/Trip Planner Redesign.dc.html`) specifies a single chip. Found by CodeRabbit on PR #29 and confirmed rather than dismissed; see that thread for the full exchange.
+- **Options when it is picked up, cheapest first:** keep the triangle *in addition to* the chip when a stop has more than one overlap, so the extra is at least signalled (a few lines, no new design copy); render a count in the chip; or stack chips and change the card's layout. The first needs only a narrowing of `badgeableConflictSubjects` to "overlaps this card actually renders".
+- **Where it gets settled:** M10 Wave 2's Phase 9 gate review (`docs/plans/M10-delta/phase-9-gate.md`), where this wave's design questions are decided.
+- **First noted:** 2026-08-23 (PR #29 review, M10 Wave 2 Phase 5).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
