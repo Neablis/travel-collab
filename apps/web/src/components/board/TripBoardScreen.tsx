@@ -340,14 +340,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           switch, because the design has the drawer present in every view.
           It pins itself to the bottom of the viewport via `.unscheduled-rack`
           (globals.css) — see that rule for why `fixed`, not the design's
-          `sticky`, is what actually pins it from this position in the DOM. */}
-      <UnscheduledRack
-        items={rackItems}
-        dayOptions={rackDayOptions}
-        open={rack.open}
-        onToggle={() => onRackEvent({ type: "toggle" })}
-        onAssign={assignFromRack}
-      />
+          `sticky`, is what actually pins it from this position in the DOM.
+          Wrapped in the same inert treatment as the lens content above
+          (preview.seq !== null): its "Add to day" dispatches real,
+          persisted MoveActivity/UpdateActivity commands same as everything
+          else, and dispatch itself has no preview guard — inert on the DOM
+          subtree is the only thing stopping a mutation while browsing
+          history, so the rack needs it too. */}
+      <div inert={preview.seq !== null ? true : undefined}>
+        <UnscheduledRack
+          items={rackItems}
+          dayOptions={rackDayOptions}
+          open={rack.open}
+          onToggle={() => onRackEvent({ type: "toggle" })}
+          onAssign={assignFromRack}
+        />
+      </div>
     </>
   );
 }

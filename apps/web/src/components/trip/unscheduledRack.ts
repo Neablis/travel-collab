@@ -71,7 +71,8 @@ export function fitIntoDay(existing: Slot[], preferredStart?: string): Slot {
   // First gap at or after the cursor that can still hold a floor-length stop,
   // then (day already full past the cursor) the earliest such gap anywhere.
   const fits = (gap: Gap) => gap.end - Math.max(gap.start, cursor) >= FLOOR_MIN;
-  const chosen = gaps.find(fits) ?? gaps.find((gap) => gap.end - gap.start >= FLOOR_MIN);
+  const afterCursor = gaps.find(fits);
+  const chosen = afterCursor ?? gaps.find((gap) => gap.end - gap.start >= FLOOR_MIN);
 
   if (!chosen) {
     // Nothing free anywhere: fall back to a floor-length window pinned inside
@@ -80,7 +81,12 @@ export function fitIntoDay(existing: Slot[], preferredStart?: string): Slot {
     return { start: toTimeString(start), end: toTimeString(start + FLOOR_MIN) };
   }
 
-  const from = Math.max(chosen.start, cursor);
+  // The fallback gap can start before the cursor (that's why it didn't fit
+  // `fits`, which requires FLOOR_MIN free *after* the cursor) — clamping to
+  // `cursor` there would place the window's start inside whatever booking
+  // sits between the gap and the cursor. Only clamp to the cursor when the
+  // chosen gap is the one that already satisfied it.
+  const from = afterCursor ? Math.max(chosen.start, cursor) : chosen.start;
   const usable = chosen.end - from;
   const duration =
     usable >= COMFORT_GAP_MIN ? TARGET_MIN : Math.min(TARGET_MIN, Math.max(FLOOR_MIN, usable - 2 * AIR_MIN));

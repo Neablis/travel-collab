@@ -48,7 +48,11 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   // -- and back out onto a day --
   await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").nth(1));
 
+  // Assert the actual destination, not just that the rack emptied — a failed
+  // assignment that dropped the activity from the backlog without landing it
+  // on day 2 would also leave the rack at 0.
   await expect(page.getByTestId("rack-card")).toHaveCount(0);
+  await expect(page.getByTestId("day-column").nth(1).getByText(title, { exact: false })).toBeVisible();
 });
 
 test("undo reverses an unschedule", async ({ page }) => {
@@ -79,5 +83,8 @@ test("undo reverses an unschedule", async ({ page }) => {
   await expect(page.getByTestId("rack-card").first()).toContainText("09:00–10:00");
 
   await undo.click();
+  // Assert the stop actually landed back on its original day, not just that
+  // the rack emptied — same reasoning as the round-trip test above.
   await expect(page.getByTestId("rack-card")).toHaveCount(0);
+  await expect(page.getByTestId("day-column").first().getByText("Stop on day 1", { exact: false })).toBeVisible();
 });

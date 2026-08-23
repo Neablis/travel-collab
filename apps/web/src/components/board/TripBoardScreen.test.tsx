@@ -130,9 +130,15 @@ describe("TripBoardScreen", () => {
 
     await screen.findByText("Viewing version 2 (read-only)");
     // The previewed version's parked stop shows in the Unscheduled drawer now
-    // (Task 3.3 deleted the Backlog column that used to render it), and the
-    // drawer is collapsed by default — the rack is mounted outside the inert
-    // preview wrapper, so its toggle is still clickable while previewing.
+    // (Task 3.3 deleted the Backlog column that used to render it), collapsed
+    // by default. The rack is itself wrapped in the same inert treatment as
+    // the rest of the board while previewing (its "Add to day" dispatches
+    // real, persisted commands with no other guard) — but jsdom's fireEvent
+    // doesn't implement the browser behavior `inert` actually relies on
+    // (blocking pointer events/focus at the rendering layer), so this click
+    // still "succeeds" here regardless of the wrapper. That real-browser
+    // guarantee isn't unit-testable; this assertion only proves the preview
+    // fixture's rack contents render correctly, not that the rack is inert.
     fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
     expect(await screen.findByText("Ancient Rome")).toBeTruthy();
 

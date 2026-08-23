@@ -36,6 +36,16 @@ describe("fitIntoDay", () => {
     expect(slot.end > slot.start).toBe(true);
   });
 
+  it("does not overlap the booking when the preferred start leaves no room and the day is otherwise full", () => {
+    // 10:50-23:59 booked, preferred start 10:45 — the only free gap (00:00-10:50)
+    // doesn't satisfy "FLOOR_MIN free after the cursor" (10:45 to 10:50 is only
+    // 5 minutes), so this falls back to "earliest gap anywhere". The fallback
+    // gap starts before the cursor; the result must not be clamped forward into
+    // the booking it's trying to avoid.
+    const slot = fitIntoDay([{ start: "10:50", end: "23:59" }], "10:45");
+    expect(slot.end <= "10:50").toBe(true);
+  });
+
   it("is unaffected by the order of the existing windows", () => {
     const a = fitIntoDay([{ start: "09:00", end: "10:00" }, { start: "14:00", end: "15:00" }]);
     const b = fitIntoDay([{ start: "14:00", end: "15:00" }, { start: "09:00", end: "10:00" }]);
