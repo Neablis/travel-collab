@@ -9,7 +9,7 @@ import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
-import { overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
+import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccentFor } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
@@ -35,8 +35,11 @@ export type BoardCallbacks = {
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const { openCreate, openEdit } = useEditor();
 
+  // Badge-worthy conflict subjects only: a `time-overlap` gets the compact
+  // chip below instead of a bare triangle, and the exclusion rule is shared
+  // with TimelineLens (overlapData) so the two lenses cannot disagree.
   const conflictIds = useMemo(
-    () => new Set(trip.conflicts.flatMap((c) => c.subjects)),
+    () => badgeableConflictSubjects(trip.conflicts),
     [trip.conflicts],
   );
 

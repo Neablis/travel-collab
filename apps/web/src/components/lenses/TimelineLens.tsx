@@ -26,7 +26,7 @@ import { daySpend } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
-import { overlapsForDay, type Overlap } from "./overlapData";
+import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "./overlapData";
 import { OverlapWarning } from "./OverlapWarning";
 
 // Tailwind (v4, `@theme`-driven) only emits utilities it can see as literal
@@ -309,14 +309,12 @@ export function TimelineLens({
   const { focusedDay } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  // Mirrors Board.tsx's conflictIds Set: every activityId named as a subject
-  // of any live conflict, badge-worthy regardless of dismissal (same as the
-  // Board lens today) — minus `time-overlap`, which now has the far richer
-  // OverlapWarning below. A bare triangle *and* a warning row saying the same
-  // thing about the same pair is a double-up, so the badge keeps only the
-  // kinds nothing else surfaces here (geography, anchors, budget).
+  // Every activityId named as a subject of a badge-worthy conflict — the same
+  // rule Board.tsx's conflictIds uses, shared from overlapData rather than
+  // spelled out twice, so the two lenses cannot drift on which kinds the bare
+  // triangle covers.
   const conflictActivityIds = useMemo(
-    () => new Set(detail.conflicts.filter((c) => c.kind !== "time-overlap").flatMap((c) => c.subjects)),
+    () => badgeableConflictSubjects(detail.conflicts),
     [detail.conflicts],
   );
 
