@@ -1,5 +1,19 @@
 # Phase 0 — Baseline and inventory
 
+> **STATUS 2026-08-23: Tasks 0.2 and 0.3 are DONE.** The inventory — every test
+> file, with a verdict and the evidence behind it — is committed at
+> **`docs/testing-inventory.md`**. Read it before this file. `scripts/coverage-overlap.mjs`
+> is committed too, and re-runs the analysis in ~9 minutes.
+>
+> **What is left for you: Task 0.1 (the three-run timing protocol) and Task 0.4
+> (the domain coverage floor).** Both are mechanical. `@vitest/coverage-v8` is
+> already installed in all four packages, so 0.4 is one command.
+>
+> The inventory's "Method" section explains why it used **two** passes —
+> deterministic per-file coverage AND intent-reading — and documents two real
+> cases where the coverage signal alone gives the wrong answer. Read that before
+> treating any coverage table as a delete list.
+
 **Why this is a phase and not a preamble.** Every later phase is judged against
 a number. KI-13 is proof that a single run of this suite lies: the same tree has
 produced 0, 2, 6 and 9 failures on consecutive runs. If the baseline is one run
@@ -80,7 +94,12 @@ re-discover these):
 | `src/lib/pagesClient.test.ts` | same |
 | `src/components/pages/editor/MacroNodeExtension.test.ts` | TipTap/ProseMirror needs a document |
 
-## Task 0.3 — Build the keep/cut inventory
+## Task 0.3 — Build the keep/cut inventory — **DONE, see `docs/testing-inventory.md`**
+
+The subsections below record the method that was used, so a re-run after M10
+follows the same rules. Do not redo the inventory now; re-run it in Phase 5,
+against the post-M10 tree.
+
 
 This is the input to Phase 5, and it is the task that actually takes thought.
 Produce a table in `docs/testing-baseline.md` with **one row per test file**:

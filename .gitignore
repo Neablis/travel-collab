@@ -25,3 +25,4 @@ ds-bundle/
 apps/web/.ds-compiled.css
 .vercel
 .env*
+.coverage-overlap/

@@ -6,8 +6,14 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
-    "./predict": { "types": "./src/predict.ts", "default": "./src/predict.ts" }
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./predict": {
+      "types": "./src/predict.ts",
+      "default": "./src/predict.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -18,6 +24,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
     "fast-check": "^4.8.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

@@ -33,6 +33,7 @@ All commands run from the **repo root** unless a task says otherwise.
 | What | Path |
 | ---- | ---- |
 | **The plan index** — evidence, principles, sequencing, phase order. **Read first.** | `docs/plans/2026-08-23-test-suite-overhaul.md` |
+| **The inventory** — every test file, with a verdict and the evidence. Phase 0 Tasks 0.2/0.3 are already done. **Read second.** | `docs/testing-inventory.md` |
 | **The phase files you execute** — 5 of 8 | `docs/plans/test-overhaul/phase-{0..4}-*.md` |
 | Repo operating manual — invariants, boundaries, definition of done | `AGENTS.md` |
 | Where the project's work stands | `docs/STATUS.md` |
@@ -57,7 +58,7 @@ The index's Sequencing section has the file-by-file collision table.
 
 | Phase | File | Tasks | Gate |
 |---|---|---|---|
-| 0 | `phase-0-baseline.md` | 4 | Honest numbers + a keep/cut inventory, nothing deleted |
+| 0 | `phase-0-baseline.md` | **2 left of 4** | Timings (0.1) + domain coverage floor (0.4). 0.2/0.3 are done — see `docs/testing-inventory.md` |
 | 1 | `phase-1-config.md` | 5 | Unit suite measurably faster; zero test content changed |
 | 2 | `phase-2-factories.md` | 6 | `@tc/factories`; four duplicate data vocabularies collapse to one |
 | 3 | `phase-3-e2e.md` | 5 | **KI-19, KI-21, KI-25 closed** |
@@ -90,11 +91,14 @@ The index's Sequencing section has the file-by-file collision table.
    (`stack-and-constraints.md`, constraint 3). This plan adds several
    (fishery, `@faker-js/faker`, `@vitest/coverage-v8`, two ESLint plugins,
    StrykerJS as a one-off). All are dev-only. Write the sentences.
-4. **Phase 0 Task 0.3 is the judgment-heavy task** — a keep/cut verdict on
-   ~150 test files. If you are not confident making those calls, do Tasks 0.1,
-   0.2 and 0.4, then stop and say so rather than filling the column with
-   guesses. A wrong inventory is worse than no inventory, because Phase 5
-   executes it.
+4. **Do not read `docs/testing-inventory.md`'s coverage tables as a delete
+   list.** In 16 of 66 subsumption pairs the "subsumed" file is the cheap
+   pure-function test at the *correct* layer and the subsumer is an expensive
+   component test — the cut goes the other way. The inventory's Method section
+   documents this and two cases where coverage alone gives the wrong answer
+   outright (`formatMoney.test.ts`, `equality.test.ts` both read as 100%
+   redundant and are neither). You are not executing any of it in Phases 0–4
+   anyway; this matters when you report.
 5. **The event store is append-only** and `packages/domain` is off-limits
    except where a phase says otherwise. Phase 2 Task 2.3 may need a rollup
    computation extracted into `packages/domain` — that is a real contract-
