@@ -13,5 +13,9 @@ if (existsSync(envLocalPath)) {
 
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
-  test: { include: ["src/**/*.int.test.ts"], fileParallelism: false },
+  test: {
+    include: ["src/**/*.int.test.ts"],
+    fileParallelism: false,
+    reporters: ["dot"],
+  },
 });

@@ -167,37 +167,31 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByTestId("backlog-column")).toBeTruthy();
   });
 
-  it("posts a SetTripDates command from the Calendar lens's TripDateControl", async () => {
-    const fixture = tripDetailFixture();
-    const onCommand = vi.fn<(command: TripCommand) => void>();
-    server.use(...makeTripHandlers(fixture, { onCommand }));
+  it("opens TripDateControl from the clickable Dates row in Trip settings (restored, M10 Phase 4)", async () => {
+    // Task 4.2's redesign shipped the sheet's Dates row read-only, leaving
+    // TripDateControl (the only way to actually change a trip's dates) with
+    // no mount point anywhere in the app — an unintentional capability loss
+    // (product-owner ruling, 2026-08-22; see docs/known-issues.md's former
+    // D-2 entry). This test confirms the real integration once restored:
+    // opening Trip settings and clicking the Dates row opens a Popover
+    // containing TripDateControl, pre-filled with the trip's real dates.
+    // TripDateControl's own dispatch logic (SetTripDates/SetTripStartDate,
+    // shrink-confirm) stays covered directly in TripDateControl.test.tsx; the
+    // sheet's onCommand pass-through is covered in SettingsSheet.test.tsx.
+    const fixture = tripDetailFixture({ startDate: "2027-06-01" });
+    server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
-    await screen.findByText("Set a start date to see the calendar.");
-
-    // P2 surface move: TripDateControl re-homed into SettingsSheet (#15) —
-    // open it via the header's gear button first.
     fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
 
-    // M3 debt paydown: only the single canonical TripDateControl renders, not
-    // a duplicate (the old inline StartDateControl + CalendarLens's own copy).
-    expect(await screen.findAllByLabelText("Start date")).toHaveLength(1);
+    const datesRow = await screen.findByRole("button", { name: "Dates" });
+    expect(screen.queryByLabelText("Start date")).toBeNull();
 
-    const dateInput = screen.getAllByLabelText("Start date")[0]!;
-    fireEvent.change(dateInput, { target: { value: "2027-06-01" } });
-    // A14: TripDateControl is now a date-RANGE control (start + end), so
-    // committing a value requires the explicit "Set dates" button rather
-    // than dispatching on every keystroke — the button click also lets the
-    // control decide whether the range needs a shrink-confirm first.
-    fireEvent.click(screen.getByRole("button", { name: /set dates/i }));
+    fireEvent.click(datesRow);
 
-    await waitFor(() =>
-      expect(onCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "SetTripDates", startDate: "2027-06-01", endDate: null }),
-      ),
-    );
+    const startInput = (await screen.findByLabelText("Start date")) as HTMLInputElement;
+    expect(startInput.value).toBe("2027-06-01");
   });
 
   it("shows the conflict badge for an anchor-violating activity and clears it once the trip date resolves the conflict", async () => {
@@ -236,7 +230,15 @@ describe("TripBoardScreen", () => {
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip: detail })),
       http.post("/api/trips/:tripId/commands", async ({ request }) => {
         const command = TripCommand.parse(await request.json());
-        if (command.type === "SetTripStartDate") detail = resolved;
+        // Task 4.2: the settings sheet's Dates row is read-only now, and
+        // TripDateControl (the only UI that used to resolve this conflict by
+        // changing the start date) no longer mounts anywhere in the app —
+        // see docs/known-issues.md. What this test actually verifies (a
+        // conflict badge clearing once the server-confirmed detail resolves
+        // it) doesn't depend on which command triggered that refetch, so
+        // this drives it through Undo, a still-real, always-present control,
+        // instead of the removed date input.
+        if (command.type === "UndoLastChange") detail = resolved;
         return HttpResponse.json({
           ok: true,
           tripId: detail.tripId,
@@ -245,7 +247,7 @@ describe("TripBoardScreen", () => {
         });
       }),
       http.get("/api/trips/:tripId/history", () =>
-        HttpResponse.json({ history: { tripId: withConflict.tripId, entries: [], canUndo: false, canRedo: false } }),
+        HttpResponse.json({ history: { tripId: withConflict.tripId, entries: [], canUndo: true, canRedo: false } }),
       ),
     );
 
@@ -254,10 +256,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Weekday Market")).toBeTruthy();
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
 
-    // P2 surface move: TripDateControl re-homed into SettingsSheet (#15).
-    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
-    const dateInput = (await screen.findAllByLabelText("Start date"))[0]!;
-    fireEvent.change(dateInput, { target: { value: "2027-06-08" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
   });
@@ -294,7 +293,8 @@ describe("TripBoardScreen", () => {
     // P2 surface move: TripMoneySettings re-homed into SettingsSheet (comment 12b) —
     // open it via the header's gear button first.
     fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
-    await userEvent.type(await screen.findByLabelText(/cost|budget/i), "500");
+    // Task 4.2 relabeled the field "Total for the trip" (was "Trip budget").
+    await userEvent.type(await screen.findByLabelText(/cost|total for the trip/i), "500");
     await userEvent.tab();
 
     await waitFor(() =>
@@ -448,6 +448,7 @@ describe("TripBoardScreen", () => {
         }),
         history: historyFixture(fixture.tripId),
         message: "Added a day.",
+        simulated: false,
       },
     });
     renderScreen(fixture.tripId);
@@ -460,6 +461,40 @@ describe("TripBoardScreen", () => {
 
     expect(composeAiPlanMock).toHaveBeenCalledWith(fixture.tripId, "Add a day", "board");
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+  });
+
+  it("clears a stale Simulated badge when a follow-up ask fails", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    composeAiPlanMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: tripDetailFixture({ tripId: fixture.tripId }),
+        history: historyFixture(fixture.tripId),
+        message: "Did a thing.",
+        simulated: true,
+      },
+    });
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "First ask" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
+
+    // A second ask that fails must not leave the previous answer's Simulated
+    // badge on screen next to the new error — that would misattribute a
+    // request that never produced a new answer at all.
+    composeAiPlanMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 500, message: "The model is unavailable right now." },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Second ask" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
+    expect(screen.queryByText("Simulated")).toBeNull();
   });
 
   it("the Assistant rail can be hidden and shown again, reclaiming the reserved layout width", async () => {

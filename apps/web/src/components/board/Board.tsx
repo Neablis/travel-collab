@@ -119,6 +119,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
         activityIds={trip.backlog}
         activities={trip.activities}
         conflictIds={conflictIds}
+        currency={trip.currency}
         onEditActivity={openEdit}
         onRemoveActivity={callbacks.onRemoveActivity}
         fullWidth
@@ -138,6 +139,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             activityIds={day.activityIds}
             activities={trip.activities}
             conflictIds={conflictIds}
+            currency={trip.currency}
             accent={dayAccentFor(days[index]?.city ?? null).tint}
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}

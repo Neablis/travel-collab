@@ -70,6 +70,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  // Whether the rail's last answer was simulated (ai-live flag off).
+  const [askSimulated, setAskSimulated] = useState(false);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -125,12 +127,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const submitAssistantAsk = async (text: string) => {
     setAskStatus("loading");
     setAskError(null);
+    setAskSimulated(false);
     const result = await composeAiPlan(tripId, text, "board");
     if (!result.ok) {
       setAskStatus("error");
       setAskError(result.error.message);
       return;
     }
+    setAskSimulated(result.value.simulated);
     applyOutcome(result.value);
     setAskStatus("idle");
   };
@@ -234,6 +238,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           onAsk={(text) => void submitAssistantAsk(text)}
           asking={askStatus === "loading"}
           askError={askStatus === "error" ? askError : null}
+          simulated={askSimulated}
           onKeepGhost={() => {}}
           onDismiss={() => {}}
           onHide={assistant.hide}
