@@ -1,20 +1,25 @@
 # Phase 8b — the 2026-08-23 design sync's M10-scoped items
 
-> **STATUS: STAGED, NOT APPROVED. Do not execute.**
+> **STATUS: APPROVED 2026-08-23 (Mitchell). All five tasks are in M10's gate.**
 >
-> `docs/milestones/README.md` is explicit that a gate definition changes only by
-> Mitchell's decision, recorded. `AGENTS.md` lists "scope creep past the current
-> milestone's gate definition" as a drift signal to surface rather than absorb.
-> These five tasks are the design sync's only items that belong inside M10's
-> stated theme — a coherent restyle of Home/Trip-plan against the handoff — and
-> they are staged here so the decision is a yes/no on a written scope rather than
-> on a description. **Everything else from the sync is routed to M11, M14, M15 or
-> its own step** — see `docs/design-feedback/2026-08-23-design-sync-review.md` §6.
+> **Order: after Phase 8, before Phase 9's gate.** Phase 9's exit checklist now
+> covers these five too. Task 8b.5 additionally depends on Task 8.6 — see its
+> own note.
 >
-> If approved: execute **after Phase 8**, before Phase 9's gate. Phase 9's exit
-> checklist then covers these five too.
-> If declined: they move to M15 Front door (8b.1, 8b.2) and a post-M10 polish
-> pass (8b.3, 8b.4, 8b.5). Nothing here blocks Phase 9 as it stands.
+> These are the design sync's only items that belong inside M10's stated theme —
+> a coherent restyle of Home/Trip-plan against the handoff. **Everything else
+> from the sync is routed to M11, M14, M15 or its own step**; see
+> `docs/design-feedback/2026-08-23-design-sync-review.md` §6. Do not let this
+> file become the place other sync items get quietly added to.
+>
+> The amendment to M10's gate is recorded in
+> `docs/milestones/M10-visual-craft.md` per that file's rule that a gate
+> definition changes only by an explicit decision from Mitchell, recorded there.
+>
+> **Rebase on Phase 5 first.** `claude/next-work-z7pr1d` carries Phase 5's
+> inline overlap warnings. It does not touch any file below, but it is
+> unmerged — land it before starting here rather than diverging in parallel
+> (`AGENTS.md`'s PR-promptness rule; the Phase 3 landing gap is why it exists).
 
 Read `docs/plans/2026-08-14-M10-redesign-delta.md` (the index) first. Its Global
 Constraints apply verbatim — in particular **no new contract fields, no new
@@ -87,9 +92,13 @@ Preserve that: `AppHeader` stays a server component, calls `auth()` for the
 session, and renders a small **client island** (`AccountMenu.tsx`) with the name,
 email and initials passed as props. The island owns the Popover's `open` state.
 
-This is *not* the scope-aware header of `SPEC.md` §1 (Share / Quick add inside a
-trip) — that reverses a recorded Phase 1 decision and is explicitly out of scope
-here. See the review's §4.1.
+**This is not Phase 1b's job, and Phase 1b is not this one's.** `SPEC.md` §1's
+scope-aware header (Share / Quick add inside a trip) was **approved 2026-08-23**
+and is planned separately at `phase-1b-header-scope.md`. Sign out ships here,
+first and independently, because it is a capability gap that should not wait on a
+structural change. Build `AccountMenu` as a self-contained island with no trip
+context so **Phase 1b can absorb it** rather than leave two client boundaries in
+one bar — 1b says the same from its side.
 
 **`SPEC.md` §5, and this is not hypothetical:** the `Popover`'s `trigger` must
 keep a **stable element identity across renders**. A fresh React element every

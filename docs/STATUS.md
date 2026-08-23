@@ -5,9 +5,10 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (a design sync landed in the repo and was reviewed
-and routed — see "Design sync" below; **it does not move M10's gate** and no
-code changed. Same day: a test-suite overhaul, Phases 0-4, landed as an
+**Last updated: 2026-08-23 (a design sync landed in the repo, was reviewed and
+routed, and Mitchell's calls are recorded — see "Design sync" below. No code
+changed. **It does widen M10's gate**, by two approved phases (8b and 1b), and
+it adds **M15 Front door** between M10 and M9 (ADR-021). Same day: a test-suite overhaul, Phases 0-4, landed as an
 off-roadmap insert — see "Where we are" below; does not move M10's gate.
 Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
 been built and verified since 2026-08-22 but was never opened as a PR, see
@@ -45,8 +46,9 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 
 **The Phase 1 gate review with Mitchell is done (2026-08-08).**
 
-**Current milestone is M10, Wave 2.** M9 does not start until it passes. Order:
-`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M9 → M11 → …`.
+**Current milestone is M10, Wave 2.** Nothing else starts until it passes.
+Order (amended 2026-08-23 by ADR-021, which inserts M15 before M9):
+`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M15 → M9 → M11 → …`.
 
 **2026-08-19: feature flagging and an AI kill switch landed as a deliberate
 off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
@@ -150,13 +152,28 @@ Three things a fresh session needs from it:
    opens; **M11** takes the landing page's "Look around a real trip" CTA (it
    needs unauthenticated read of a real trip); `TripSummary.startDate` is its
    own reviewed contract step. **Do not widen an M10 phase to absorb any of it.**
-3. **Five small presentational items are staged for M10 and are NOT approved** —
-   `docs/plans/M10-delta/phase-8b-design-sync.md` (Caesura rename, sign out,
-   three-state save indicator, sync-failure banner, calendar month blocks). The
-   file says so at the top. Phase 9's gate is unchanged until Mitchell decides.
-   Six decisions are open in the review's §8, including two that would reverse
-   things we shipped on purpose (Phase 1's context-free header; Phase 4's
-   both-ends date control).
+3. **M10's gate got two approved additions, and M15 got approved** (Mitchell,
+   2026-08-23 — the review's §8 carries all the calls):
+   - **Phase 8b** (`docs/plans/M10-delta/phase-8b-design-sync.md`) — the Caesura
+     rename, a working **sign out** (nothing in `apps/web/src` calls the
+     `signOut` that `server/auth.ts` exports today), a three-state save
+     indicator, the sync-failure banner, and calendar month blocks. Runs after
+     Phase 8.
+   - **Phase 1b** (`docs/plans/M10-delta/phase-1b-header-scope.md`) — the header
+     adopts `SPEC.md` §1's focus-scope model, as an explicit revisit of the
+     merged Phase 1. Runs after Phase 7 and 8b. `AppHeader` stays a server
+     component; the actions portal into a client slot.
+   - Both recorded as gate-scope amendments in
+     `docs/milestones/M10-visual-craft.md`. **Phase 9's checklist now covers
+     them.** Phase order to the gate: 5, 6, 7, 8, **8b**, **1b**, 9.
+   - **M15 Front door** is approved and executes **after M10's gate, before M9**
+     (**ADR-021**, `docs/milestones/M15-front-door.md`).
+
+   **Three questions stay open** and are recorded where the work lives:
+   start-only trip dates (review §4.3 — note the code went deliberately the
+   *other* way in M8 Wave A; the design is asking to return to M5's shape), and
+   two carried into M15's milestone file (first-run vs. the four-step wizard,
+   and whether the landing copy may sell M11/M12).
 
 ## In flight
 
@@ -417,11 +434,14 @@ which existed only on a branch.
 ## Next action
 
 **Phase 3 is landed** (PR #26, 2026-08-23) — see "Known gap" above for the
-full story. Continue M10 Wave 2's remaining phases (5, 6, 7, 8) task-by-task
-through Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`): before/after
+full story. **Phase 5 (overlaps) is built but unmerged on
+`claude/next-work-z7pr1d`** (`d7a274b`) as of 2026-08-23 — check whether it has
+a PR before starting parallel work on it (`AGENTS.md`'s PR-promptness rule).
+Continue M10 Wave 2's remaining phases — now **5, 6, 7, 8, 8b, 1b** —
+task-by-task through Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`): before/after
 screenshots, KI-2/3/4 closed or re-deferred, presentational-only diff
-verified, all tests incl. e2e green, retro appended. M9 resumes once M10's
-gate closes.
+verified, all tests incl. e2e green, retro appended. **M15 Front door comes
+next once M10's gate closes, then M9** (ADR-021).
 
 (`docs/plans/2026-08-08-M10-redesign-incorporation.md`, referenced by this
 line in earlier updates, was Wave 1's plan — it was deleted at Wave 1's gate

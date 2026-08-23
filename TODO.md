@@ -45,7 +45,12 @@ Where the work actually stands right now: `docs/STATUS.md`.
       built, and Wave 1's own assistant rail introduced three blocking defects.
       Wave 2 closes the delta — plan at
       `docs/plans/2026-08-14-M10-redesign-delta.md`, findings at
-      `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.)*
+      `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
+      **Gate widened twice on 2026-08-23** by the design sync, both recorded in
+      the milestone file: **Phase 8b** (Caesura rename, working sign out,
+      three-state save indicator, sync-failure banner, calendar month blocks)
+      and **Phase 1b** (the header adopts the focus-scope model, an explicit
+      revisit of the merged Phase 1).)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
       *(Blocked on M10's Wave-2 gate — do not start early.)*
 
@@ -60,12 +65,14 @@ Where the work actually stands right now: `docs/STATUS.md`.
       macro with an author-supplied row template is the one genuinely new
       engineering decision that sync created, and every macro today is
       `NoParams`.)*
-- [ ] **M15 Front door** — landing page, custom sign-in/sign-up, first-run
-      screen, header account menu. **Proposed 2026-08-23, not approved** —
-      designed in full by the design sync, deliberately not absorbed into M10's
-      visual-craft gate. Recommended execution: right after M10's gate and
-      before M9, on the ADR-018 precedent (numbers unchanged, order swapped).
-      See `docs/design-feedback/2026-08-23-design-sync-review.md` §6 and §8.
+- [ ] **M15 Front door** → `docs/milestones/M15-front-door.md`
+      *(Approved 2026-08-23. **Executes right after M10's gate and before M9** —
+      ADR-021, on ADR-018's precedent: numbers unchanged, execution order
+      placed. Landing page, custom sign-in/sign-up, first-run screen, header
+      account menu; designed in full by the design sync, deliberately not
+      absorbed into M10's visual-craft gate. Two open questions ride with it —
+      first-run vs. the four-step wizard, and whether the landing copy may sell
+      M11/M12 — recorded in the milestone file.)*
 
 ## Candidate ideas (unscheduled)
 
@@ -81,15 +88,16 @@ Captured so they aren't lost; not committed to a milestone yet.
     M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
     row: richer, human-readable metadata" idea below** — that item wants exactly
     this field.
-  - **Start-only trip dates** (`SPEC.md` §3) — the end derives from the day
-    count instead of being edited. It reverses Phase 4's just-restored
-    both-ends `TripDateControl` and rewrites Phase 7 Task 7.2's step 2 — but it
-    also structurally kills the "end-date picker drifts from day count" bug
-    logged below. Behaviour change; own step, after M10's gate.
-  - **The scope-aware global header** (`SPEC.md` §1: Share + Quick add inside a
-    trip) — reverses the recorded Phase 1 decision that `AppHeader` stays a
-    context-free server component. Share is an M11 `share-button` Preview;
-    Quick add belongs to the M8 trim's revisit. Not M10.
+  - **Start-only trip dates** (`SPEC.md` §3) — **still open after 2026-08-23.**
+    The end would derive from the day count instead of being edited. Note the
+    direction of travel, traced in the review's §4.3: M5 had a start-only
+    control, and **M8 Wave A (PR #21) deliberately grew it to both ends** so a
+    commit could see both fields and reconcile the day count. Nothing has taken
+    that back — no branch carries a start-only version. So this is a return to
+    M5's shape, not the ratification of a fix. What makes it worth doing is the
+    *inversion*: days become the truth and the end date derives, which kills the
+    "end-date picker drifts from day count" bug logged below by construction
+    rather than fixing it. Behaviour change; own step, after M10's gate.
   - **Design coverage the build is still owed** — History beyond the popover,
     the four extra lenses and `MapRail` (this is also **KI-20**), trip
     lifecycle (delete → undo → restore, duplicate), and error/empty states for

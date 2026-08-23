@@ -156,32 +156,50 @@ has two answers to one question. **Needs your call** — my read is that it *is*
 intentional and good, but it should be stated, because an implementer meeting
 both screens will otherwise reconcile them by guessing.
 
-### 4.3 Start-only trip dates contradicts what Phase 4 just shipped
+### 4.3 Start-only trip dates — the code went the *other* way, deliberately
 
-`SPEC.md` §3: the Dates row is **start-only**; the end is derived from the number
-of days in the plan and displayed, not edited. Against that:
+**Corrected 2026-08-23** after Mitchell recalled having already made the picker
+start-only. He hasn't — the tree says the opposite, and the direction of travel
+matters more than the current state. Traced through `git log --follow` on
+`apps/web/src/components/lenses/TripDateControl.tsx`:
 
-- Phase 4 (PR #25, merged 2026-08-22) *restored* the Dates row as a real control
-  opening `TripDateControl` — which edits **both** ends and dispatches
-  `SetTripDates`. Closing D-2 that way was called a genuine capability-loss fix.
-- Phase 7 Task 7.2 plans "Arrive / Leave date inputs — **real** (`SetTripDates`)".
-- `SetTripDates` exists precisely to reconcile day *count* to a range
-  (`contracts/src/trip.ts:78-89`).
+| when | what the control was |
+|---|---|
+| M5, `df3a37f` | **Start-only.** One `input[type=date]`, dispatching `SetTripStartDate` per keystroke |
+| **M8 Wave A, `6502a95` (PR #21, 2026-08-06)** | **Grew to start + end.** Its own commit message: *"TripDateControl grows from a start-date-only control into a full date-range control."* Both fields staged locally, an explicit **Set dates** commit, `SetTripDates`, and a confirm dialog when the range shrinks below the day count |
+| M10 Wave 2, `4238d88` | Layout only — the action row was overflowing the Dates popover |
+| M10 Wave 2 Phase 4 (PR #25) | Restored the **mount point** — the Dates row became a real clickable control opening this in a popover (that is what closed D-2). It did not touch the fields |
 
-So the design is asking us to remove an editing capability we deliberately
-restored eight days ago, and to invert the direction of the reconcile.
+Current `main` is both-ends, and the blob is byte-identical on `main`,
+`claude/next-work-z7pr1d` and this branch — **no start-only version exists on
+any branch**. So `SPEC.md` §3 is not ratifying a fix that already happened; it is
+asking us to return to what M5 had and M8 deliberately replaced.
 
-**But it is also the answer to a bug we already logged.** `TODO.md` records
-(2026-08-23, from PR #26 QA) that the end-date picker drifts from the real day
-count, because `AddDay`/`RemoveDay` change day count without touching
-`startDate`/`endDate`. Start-only dates makes that class of drift structurally
-impossible — there is never a range that disagrees with the days.
+M8's reason is in the code, at `TripDateControl.tsx:40-43`: *"a single
+onChange-per-keystroke dispatch (the old start-date-only behavior) can't work
+once committing needs to look at BOTH fields together to decide whether the range
+grew, shrank, or needs a confirm."* `SetTripDates` exists to reconcile day
+**count** to a **range** (`contracts/src/trip.ts:78-89`), and the shrink dialog
+exists because that reconcile moves days' activities to the backlog.
 
-**My call:** the design is probably right, and it is a *behaviour* change, not
-polish. It should not ride inside M10. Route it as its own small change against
-`SetTripStartDate` (which already exists and already nulls cleanly), and let
-`SetTripDates` stay for the wizard's create-time path. **Needs your call**, since
-it reverses Phase 4 and rewrites Task 7.2's step 2.
+**The real substance is the direction of the reconcile, and it is worth having.**
+Today it only runs one way: a range change reconciles the day count, but
+`AddDay`/`RemoveDay` change the day count without touching `startDate`/`endDate`.
+That is exactly the drift `TODO.md` logged from PR #26's QA. `SPEC.md` §3 inverts
+it — days are the truth, the end date is derived — which makes the drift
+impossible by construction rather than fixable. Copy from the design: *"Pick the
+day you leave. The end follows the N days in your plan — add or remove a day and
+it moves."*
+
+The cost is real too: removing the end field removes "make this trip run to the
+16th" as a single gesture. Under §3 you would set the start and then add or
+remove days until the end lands where you want.
+
+**My call is unchanged** — adopt it, as its own step **after** M10's gate, not
+inside a presentational milestone. Editing start goes through `SetTripStartDate`
+(which already exists and already nulls cleanly); `SetTripDates` stays for the
+wizard's create-time path, where a range genuinely is the input. **Still open**,
+since the premise it was answered under was inverted.
 
 ### 4.4 "Look around a real trip" cannot ship with the landing page
 
@@ -311,33 +329,65 @@ the decision instead of meeting it halfway through.
 
 ---
 
-## 8. Decisions I need from you
+## 8. Decisions — answered 2026-08-23
 
-1. **§4.1** — adopt `SPEC` §1's scope-aware header (Phase 1 revisit), or keep the code's deliberate omission?
-2. **§4.2** — is the one-field first-run screen intentionally different from the four-step new-trip wizard?
-3. **§4.3** — start-only trip dates: adopt (and reverse Phase 4's both-ends control), or keep both ends editable?
-4. **§4.5** — landing copy: ship the M11/M12 claim as aspiration, or trim it until M11 lands?
-5. **§6 †** — approve Phase 8b into M10's gate (five small items), or hold all five until after M10 closes?
-6. **§6** — approve **M15 Front door** as a milestone, and where in the order it executes. My recommendation: immediately after M10's gate and before M9, on the ADR-018 precedent — numbers unchanged, execution order swapped. It is the smallest milestone on the board and it is the one blocking a public share.
+Mitchell's calls, recorded here and applied across the docs in the follow-up
+commit.
 
----
+| # | Question | Decision |
+|---|---|---|
+| §4.1 | Scope-aware header (`SPEC` §1) or the code's context-free one? | **Adopt `SPEC` §1**, as an explicit revisit of the merged Phase 1 — not folded into a polish task. Planned at `docs/plans/M10-delta/phase-1b-header-scope.md` |
+| §4.2 | Is the one-field first-run screen intentionally different from the four-step wizard? | **Still open** — carried into M15's milestone file as its first open question, since M15 owns first-run and M10 Phase 7 owns the wizard |
+| §4.3 | Start-only trip dates? | **Still open** — it was answered under an inverted premise (see §4.3, corrected). The code went *to* both-ends in M8 on purpose; nothing has taken it back |
+| §4.5 | Landing copy selling M11/M12? | **Still open** — carried into M15's milestone file. It is a copy call that only matters when the landing page is built |
+| §6 † | Phase 8b into M10's gate? | **Approved.** All five. Runs after Phase 8, before Phase 9's gate |
+| §6 | M15 Front door? | **Approved**, executing **right after M10's gate and before M9** — ADR-021 records the reorder, on ADR-018's precedent |
 
-## 9. What this commit changes
+**What the two approvals do to M10's gate.** Both are gate-scope amendments and
+are recorded as such in `docs/milestones/M10-visual-craft.md`, per that file's
+own rule that a gate definition changes only by an explicit decision from
+Mitchell, recorded in the file. Phase 9's exit checklist now also covers Phase 8b
+and Phase 1b.
+
+**One interaction worth naming.** Phase 8b Task 8b.2 lands the account menu as a
+small client island so `AppHeader` can stay a server component; Phase 1b then
+makes the header trip-aware anyway. That ordering is still right — sign out is a
+capability gap that should not wait on a structural change — but 1b should
+absorb the island rather than leave two client boundaries in one bar. 1b says so.
+
+## 9. What this branch changes
 
 Docs only. No code, no contracts, no test changes.
 
+**First commit — the review and the routing:**
+
 - This review.
-- `docs/milestones/README.md` — a design-sync routing section, the M15 proposal, and scope notes on M11 and M14 so the Notebook design is owned before it is built.
-- `TODO.md` — M15 on the roadmap (proposed), and the unrouted items in Candidate ideas.
+- `docs/milestones/README.md` — a design-sync routing section, the M15 entry, and scope notes on M11 and M14 so the Notebook design is owned before it is built.
+- `TODO.md` — M15 on the roadmap, and the unrouted items in Candidate ideas.
 - `docs/STATUS.md` — the design source of truth is now in-repo; the `~/Downloads` pointer is dead.
 - `docs/plans/2026-08-14-M10-redesign-delta.md` — same pointer fix, in the Source-of-truth block a phase implementer actually reads, plus an explicit "this newer generation is not in this plan's scope; do not widen a phase to absorb it".
 - `docs/plans/2026-08-14-M10-redesign-delta-KICKOFF.md` — its finding 3 ("the design handoff bundle is not on disk") marked RESOLVED. It had found this independently; the original text is left as written.
 - `docs/guidelines/design-system.md` — two conventions from `SPEC` §5: stable element identity for element-valued props (`Popover.trigger`, `Banner.actions`), and "helper text has no `Hint` component and does not need one".
 - `docs/plans/M10-delta/phase-8b-design-sync.md` — staged, marked **not approved**.
 
+**Second commit — the decisions:**
+
+- §4.3 rewritten against `git log --follow`, correcting the premise it was first argued under.
+- §8 above, replacing the open questions with the answers.
+- `docs/plans/M10-delta/phase-8b-design-sync.md` — **approved**; the banner flipped and its place in the phase order stated.
+- `docs/plans/M10-delta/phase-1b-header-scope.md` — new: the Phase 1 revisit that adopts `SPEC` §1.
+- `docs/milestones/M10-visual-craft.md` — both gate-scope amendments recorded.
+- `docs/architecture/ADR-021-front-door-milestone-ahead-of-m9.md` — the M15 reorder.
+- `docs/milestones/M15-front-door.md` — the milestone, its scope, its exit gate, and the two open questions carried from §4.2 and §4.5.
+- `docs/milestones/README.md`, `TODO.md`, `docs/STATUS.md` — all four decisions reflected.
+
 **Coordination.** `claude/next-work-z7pr1d` is one commit ahead of `main`
 (`d7a274b`, M10 Wave 2 Phase 5 — inline overlap warnings). That commit touches
 fourteen files, all under `apps/web/src`, and **no documentation**. Nothing here
-collides with it. Phase 8b, if approved, touches `CalendarLens.tsx`,
-`SyncIndicator.tsx`, `AppHeader.tsx` and `layout.tsx` — none of which Phase 5
-opens.
+collides with it.
+
+Phase 8b and Phase 1b do touch files Phase 5 opened — `TimelineLens.tsx` is not
+among them, but `TripBoardScreen.tsx` is (Phase 1b, if the header actions are
+portalled from the trip screen). Whoever picks up 8b or 1b should rebase on
+Phase 5 once it merges rather than starting in parallel; `AGENTS.md`'s
+PR-promptness rule and the Phase 3 landing gap are the reason to say so here.

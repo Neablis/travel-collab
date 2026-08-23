@@ -413,3 +413,46 @@ open "should we collapse the lens set" question: **yes, in the nav; no, in the
 code.** Also carried: the unmodelled fields listed above, and the fact that the
 home hero picks `trips[0]` rather than the next trip by date, because
 `TripSummary` still carries no start date.
+
+## Gate-scope amendments, 2026-08-23 (design sync)
+
+`docs/milestones/README.md`: *"Scope inside a milestone can flex; a gate
+definition changes only by explicit decision from Mitchell, recorded in the
+file."* This is that record. Both amendments come from the 2026-08-23 design
+sync and its review
+(`docs/design-feedback/2026-08-23-design-sync-review.md`); Mitchell approved
+both the same day. **The Wave-2 exit gate above still governs — these add to it,
+they do not replace anything.**
+
+**1. Phase 8b — five presentational items from the sync**
+(`docs/plans/M10-delta/phase-8b-design-sync.md`). Runs after Phase 8, before
+Phase 9's gate:
+
+- the product is renamed **Caesura** (`AppHeader`, `metadata.title`);
+- a working **Sign out** behind a header account menu — a capability gap today, since nothing in `apps/web/src` calls the `signOut` that `server/auth.ts` exports;
+- the save indicator becomes three states (saved / saving / error) instead of two strings;
+- sync failure gets a persistent `Banner variant="danger"`, reusing `ConflictBanner`'s vocabulary rather than adding a second banner pattern;
+- the calendar renders one trimmed, headed block per month instead of one continuous padded grid.
+
+**2. Phase 1b — the header adopts the focus-scope model**
+(`docs/plans/M10-delta/phase-1b-header-scope.md`). An explicit revisit of the
+merged Phase 1, running after Phase 7 and Phase 8b, before Phase 9's gate.
+`SPEC.md` §1 supplies a model — one focus scope at a time, account → trip → day
+— that Phase 1's own decision was made without. Share moves out of `TripHeader`
+into the header in trip scope, Quick add arrives there (opening Phase 7's
+add-stop sheet), and Calendar/Map drop day scope by definition. `AppHeader`
+stays a server component: the actions are portalled into a client slot from the
+trip screen, so `layout.tsx` is not client-ified — which was the actual reason
+behind the Phase 1 decision, and is preserved.
+
+**Why these two and nothing else.** The sync also brought a landing page,
+sign-in/sign-up, a first-run screen and a whole Notebook redesign. Those are
+routed **out** of M10 — to **M15 Front door** (ADR-021), **M14**, **M11**, and a
+standalone contract step — precisely so this gate does not reopen a third time.
+The review's §6 carries the full routing table.
+
+**Phase 9's exit checklist now covers Phases 8b and 1b too.**
+
+**Still open, deliberately not amended in:** whether the Dates row becomes
+start-only (`SPEC.md` §3). It reverses what M8 Wave A built on purpose and is a
+behaviour change, not polish — see the review's §4.3 for the traced history.

@@ -13,6 +13,22 @@ M2 once stayed unticked for weeks.
 
 ---
 
+> **Amended 2026-08-23.** M10's gate was widened by two approved phases from
+> the design sync — **8b** (`phase-8b-design-sync.md`) and **1b**
+> (`phase-1b-header-scope.md`), both recorded in
+> `docs/milestones/M10-visual-craft.md`. **Neither may be skipped here:** this
+> gate does not close until both have landed and their own exit checklists pass,
+> alongside Phases 5-8. Full phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.
+>
+> Also amended: the **design source of truth** is now
+> `.design-sync/handoff/design/Trip Planner Redesign.dc.html` in-repo, not the
+> `~/Downloads` path older phase files name — it does not exist in any session.
+> Before/after screenshots compare against the in-repo file.
+>
+> One thing this gate must **not** absorb: the rest of the design sync (landing
+> page, sign-in/sign-up, first run, the Notebook redesign) is routed to M15, M14
+> and M11 on purpose. Do not widen the gate a third time to reach it.
+
 ## Task 9.1: Close the gate
 
 - [ ] **Step 1: Add the narrow-viewport e2e project — this is a gate condition**
@@ -117,10 +133,10 @@ minimum:
 
 Per `docs/milestones/README.md`'s gate-close checklist:
 
-1. `TODO.md` — tick **M10 Visual craft pass**; unblock M9.
+1. `TODO.md` — tick **M10 Visual craft pass**; unblock **M15 Front door** (not M9 — ADR-021 places M15 between them).
 2. `docs/milestones/M10-visual-craft.md` — every Wave-2 gate box ticked, retro appended.
-3. `docs/milestones/README.md` — M10's row back to done; **Current milestone → M9**.
-4. `docs/STATUS.md` — "Where we are" and "In flight" rewritten to M9.
+3. `docs/milestones/README.md` — M10's row back to done; **Current milestone → M15** (ADR-021).
+4. `docs/STATUS.md` — "Where we are" and "In flight" rewritten to M15.
 5. `docs/known-issues.md` — KI-16, KI-17, KI-18, KI-19 all moved to Resolved;
    the deliberate gaps (unreachable lenses, unmodelled fields, `TripSummary` with
    no start date, no area field) left **Open** with their reasons.
