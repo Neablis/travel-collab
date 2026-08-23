@@ -51,6 +51,9 @@ function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks
 function noopCallbacks(): BoardCallbacks {
   return {
     onMove: vi.fn(),
+    onUnschedule: vi.fn(),
+    onDragStart: vi.fn(),
+    onDragEnd: vi.fn(),
     onAddDay: vi.fn(),
     onRemoveDay: vi.fn(),
     onAddActivity: vi.fn(),
@@ -63,9 +66,13 @@ function noopCallbacks(): BoardCallbacks {
 afterEach(cleanup);
 
 describe("Board", () => {
-  it("renders backlog and day columns with activity cards", () => {
+  // Task 3.3: the board is day columns only — the full-width Backlog column
+  // is gone, replaced by the Unscheduled drawer (UnscheduledRack), which
+  // TripBoardScreen mounts outside the lens switch and covers with its own
+  // tests.
+  it("renders day columns with activity cards, and no backlog column", () => {
     renderBoard(fixture(), noopCallbacks());
-    expect(screen.getByTestId("backlog-column")).toBeTruthy();
+    expect(screen.queryByTestId("backlog-column")).toBeNull();
     expect(screen.getAllByTestId("day-column")).toHaveLength(1);
     expect(screen.getByText("Colosseum")).toBeTruthy();
     expect(screen.getByText("Vatican Museums")).toBeTruthy();
@@ -101,19 +108,15 @@ describe("Board", () => {
     expect(callbacks.onRemoveDay).toHaveBeenCalledWith(DAY);
   });
 
-  // Board no longer owns an inline create form (E2, ADR-011 R2): "+ Add
-  // activity" and each column's foot "+" now raise the portable editor via
+  // Board no longer owns an inline create form (E2, ADR-011 R2): each
+  // column's foot "+" raises the portable editor via
   // useEditor().openCreate(prefill), with the prefill sourced at the
-  // trigger's own position — no dayId for the board-level button, the
-  // column's own dayId for a per-column "+". The sheet itself (seeding,
-  // save, dispatch) is covered by ActivityEditorSheet's own tests in
-  // TripBoardScreen.test.tsx; this only asserts the trigger wiring.
-  it("+ Add activity opens the editor with no dayId prefill", () => {
-    const { getEditorState } = renderBoard(fixture(), noopCallbacks());
-    fireEvent.click(screen.getByRole("button", { name: "+ Add activity" }));
-    expect(getEditorState()).toEqual({ mode: "create", prefill: undefined });
-  });
-
+  // trigger's own position. The board-level "no dayId" trigger is the
+  // header's "Add stop" now (Task 3.3 deleted the Backlog column's "+ Add
+  // activity" along with the column) — TripHeader.test.tsx covers it. The
+  // sheet itself (seeding, save, dispatch) is covered by
+  // ActivityEditorSheet's own tests in TripBoardScreen.test.tsx; this only
+  // asserts the trigger wiring.
   it("a column's foot + opens the editor prefilled with that column's dayId", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks());
     fireEvent.click(screen.getByRole("button", { name: "Add activity to Day 1" }));
@@ -136,11 +139,9 @@ describe("Board", () => {
 
   // Handoff README §"Day columns view": day columns scroll horizontally in a
   // single row (268px each) instead of wrapping — no pager, no edge-shadow,
-  // no stack/scroll breakpoint, just an overflow-x-auto row. Backlog stays a
-  // full-width strip above the row, outside the scroll container.
+  // no stack/scroll breakpoint, just an overflow-x-auto row.
   it("day columns lay out in a horizontally scrolling row", () => {
     renderBoard(fixture(), noopCallbacks());
-    // Backlog is a full-width strip above the row; the row wrapper holds day columns.
     const dayRow = screen.getAllByTestId("day-column")[0]!.parentElement;
     expect(dayRow?.className).toContain("overflow-x-auto");
     expect(dayRow?.className).not.toContain("flex-wrap");
@@ -168,15 +169,13 @@ describe("Board", () => {
     expect((day as HTMLElement).style.width).toBe("268px");
   });
 
-  // The backlog is a full-width strip, not part of the horizontal scroll —
-  // it keeps the neutral bg-moss treatment (no day to tint) and no fixed
-  // width.
-  it("the backlog column stays full-width and untinted", () => {
+  // Task 3.3: the Phase 3 design keeps only the insertion line and the
+  // floating time chip as drag feedback, so a day column no longer tints
+  // itself while a card hovers over it.
+  it("a day column's drop area carries no hover highlight", () => {
     renderBoard(fixture(), noopCallbacks());
-    const backlog = screen.getByTestId("backlog-column");
-    expect(backlog.className).toContain("w-full");
-    expect(backlog.className).toContain("bg-moss");
-    expect((backlog as HTMLElement).style.width).toBe("");
+    const dropList = screen.getAllByTestId("day-column")[0]!.querySelector("ul");
+    expect(dropList?.className).not.toContain("bg-brand-tint");
   });
 
   // Handoff README §"Day columns view": "a dashed '+ Add' button per

@@ -173,6 +173,44 @@ Captured so they aren't lost; not committed to a milestone yet.
   over-generate; the harness makes that measurable instead of anecdotal. This
   doubles as the fix for KI-11 (no test ever calls a real model).
 
+- **Unscheduled rack: drag support is Board-view-only (2026-08-23, manual QA
+  on PR #26's preview deploy).** Phase 3 wired `dropTargetForElements` for the
+  rack's own drop zone, `Column.tsx`'s day columns, and each `ActivityCard` —
+  all inside the Board (day-columns) lens. Nothing under
+  `apps/web/src/components/lenses/` registers a drop target, so dragging a
+  stop out of the rack does nothing in Calendar or Timeline view even though
+  the rack itself is visible there too (it's mounted once, outside the lens
+  switch, on purpose — see `TripBoardScreen.tsx`'s own comment). Four related
+  gaps, captured together since they're all this same rack/lens boundary:
+  1. Drag-from-rack onto a day in Calendar view — no drop target exists.
+  2. Drag-from-rack onto Timeline view — no drop target exists.
+  3. Whether the drawer should stay mounted across every lens (current,
+     deliberate behavior) or collapse/hide itself on a view change is worth
+     revisiting now that dragging into it only actually works from Board —
+     showing it everywhere reads as "this works here" in views where it
+     doesn't.
+  4. The drawer is `position: fixed; bottom: 0` (`globals.css`) with no
+     clearance reserved in any lens's own content — unlike the assistant
+     rail, which gets `.trip-board-content`'s right-padding reservation, no
+     lens pads its bottom for the drawer. In Timeline (day list) and Calendar
+     (month grid), real content can end up sitting underneath it near the
+     bottom of the viewport instead of alongside it.
+
+- **Trip end-date picker may drift from the trip's actual day count
+  (2026-08-23, manual QA on PR #26's preview deploy — likely predates this
+  PR, Phase 4/PR #25 territory, not yet root-caused).** `TripDateControl.tsx`
+  does wire up both `startDate` and `endDate` and computes `SetTripDates`'s
+  `newDayIds` from `daySpan(start, end) - dayCount`, so the control itself
+  isn't naively start-date-only. But `AddDay`/`RemoveDay`
+  (`packages/domain/src/trip/decide.ts`) only touch the `days` array — they
+  never update `startDate`/`endDate` — so a trip whose length was changed via
+  the board's own "+ Add day" / remove-day controls (rather than through the
+  date picker's "Set dates") can end up with a day count the picker's
+  `endDate` field no longer reflects. Needs confirming end-to-end (does the
+  picker re-derive/pre-fill correctly on reopen, or does it show a genuinely
+  stale value) before deciding whether the fix belongs in `TripDateControl`,
+  `SettingsSheet`, or the `AddDay`/`RemoveDay` handlers themselves.
+
 ## Standing tasks (every milestone)
 
 - **Preflight (kickoff):** before the milestone's first task, reconcile the

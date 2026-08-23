@@ -18,6 +18,10 @@ import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
+import { fitIntoDay } from "@/components/trip/unscheduledRack";
+import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
+import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
 import { composeAiPlan } from "@/lib/apiClient";
@@ -70,6 +74,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  // Collapsed by default (Phase 3's design). The open flag is paired with who
+  // opened it, because a drag auto-opens the drawer and must only re-close the
+  // ones it opened itself — that rule lives in `rackDisclosure` (a pure
+  // reducer with its own unit tests), not here.
+  const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
+  const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
   // Whether the rail's last answer was simulated (ai-live flag off).
   const [askSimulated, setAskSimulated] = useState(false);
 
@@ -117,6 +127,73 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       anchors: value.anchors,
       cost: value.cost,
     });
+
+  // The unscheduled rack's contents: trip.backlog is the source of truth for
+  // "parked", and each id resolves through activities. `area` reuses the same
+  // city-else-name fallback DayChips.cityFor documents — location.city is the
+  // geocoder's own city component, and .name is the only stand-in for a
+  // location that predates that field or has no city-level component at all.
+  // A backlog id with no matching activity is dropped rather than rendered as
+  // a blank card.
+  const rackItems = activeTrip.backlog.flatMap((activityId) => {
+    const activity = activeTrip.activities[activityId];
+    if (activity === undefined) return [];
+    return [
+      {
+        activityId,
+        title: activity.title,
+        area: activity.location?.city ?? activity.location?.name ?? null,
+        timeWindow: activity.timeWindow,
+      },
+    ];
+  });
+  const rackDayOptions = activeTrip.days.map((day, index) => ({
+    value: day.dayId,
+    label: dayLabel(activeTrip.startDate, index),
+  }));
+
+  // Scheduling from the rack is two commands, not one: MoveActivity puts the
+  // stop on the day (the backlog↔day move the store already models), then
+  // UpdateActivity gives it the real times fitIntoDay picks from the day's
+  // existing windows. Both go through dispatch, so both land in the existing
+  // undo history like every other mutation — no special-casing needed.
+  const assignFromRack = (activityId: string, dayId: string) => {
+    const day = activeTrip.days.find((d) => d.dayId === dayId);
+    if (day === undefined) return;
+
+    const existing = day.activityIds
+      .map((id) => activeTrip.activities[id]?.timeWindow)
+      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
+
+    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
+  };
+
+  // The mirror image of assignFromRack, and two commands for the same reason:
+  // MoveActivity(toDayId: null) parks the stop, then UpdateActivity clears the
+  // window — the design's "unscheduling strips the times". They are two
+  // separate dispatches, so they are two separate batches in the event log and
+  // therefore two separate undos (the same granularity assignFromRack already
+  // has). A batch would need dispatchBatch, which would make unscheduling
+  // atomic in a way scheduling isn't; keeping the two symmetrical is the more
+  // predictable of the two. Clearing an already-empty window is a server-side
+  // no-op (harmlessly swallowed by TripProvider), so a stop that had no time
+  // costs only one undo.
+  const unscheduleActivity = (activityId: string) => {
+    void dispatch({
+      type: "MoveActivity",
+      tripId,
+      activityId,
+      toDayId: null,
+      position: activeTrip.backlog.filter((id) => id !== activityId).length,
+    });
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: null });
+    // The drop that got here also raised `dragEnd`, which re-closes a drawer
+    // the drag itself opened. A park is the one drop that must not close it —
+    // the drawer would shut over the stop just put in it — so ownership passes
+    // to the user here.
+    onRackEvent({ type: "parked" });
+  };
 
   // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
   // the same composeAiPlan("board") call the old standalone ComposePanel
@@ -193,6 +270,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   callbacks={{
                     onMove: (activityId, toDayId, position) =>
                       void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+                    onUnschedule: unscheduleActivity,
+                    onDragStart: () => onRackEvent({ type: "dragStart" }),
+                    onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                     onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
                     onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
                     onAddActivity: (value: ActivityFormValue) =>
@@ -256,6 +336,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
       <ActivityEditorSheet />
+      {/* The unscheduled rack (Phase 3): mounted here, outside the lens
+          switch, because the design has the drawer present in every view.
+          It pins itself to the bottom of the viewport via `.unscheduled-rack`
+          (globals.css) — see that rule for why `fixed`, not the design's
+          `sticky`, is what actually pins it from this position in the DOM.
+          Wrapped in the same inert treatment as the lens content above
+          (preview.seq !== null): its "Add to day" dispatches real,
+          persisted MoveActivity/UpdateActivity commands same as everything
+          else, and dispatch itself has no preview guard — inert on the DOM
+          subtree is the only thing stopping a mutation while browsing
+          history, so the rack needs it too. */}
+      <div inert={preview.seq !== null ? true : undefined}>
+        <UnscheduledRack
+          items={rackItems}
+          dayOptions={rackDayOptions}
+          open={rack.open}
+          onToggle={() => onRackEvent({ type: "toggle" })}
+          onAssign={assignFromRack}
+        />
+      </div>
     </>
   );
 }

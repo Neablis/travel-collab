@@ -37,6 +37,31 @@ anything that touches the server or a user-facing flow:
 `environments-and-deploys.md` for the one-time env setup. None of the three
 commands need you to `export` DATABASE_URL by hand.
 
+**`pnpm --filter web test:e2e` runs against `pnpm dev`, not what CI runs
+(KI-27).** `playwright.config.ts` only switches to `pnpm start` (the
+production build) when `process.env.CI` is set — locally it defaults to the
+dev server for fast iteration. That's the right default while you're writing
+a spec, but dev mode's on-demand per-route compilation adds a real,
+variable delay on a route's first hit in a run (confirmed directly: 3.8s
+cold, 0.2s warm) that's easy to mistake for a genuine failure — a "stuck on
+Loading…" timeout that isn't code-caused. Two real bugs during M10 Phase 4
+produced false signals this way in the same session (a fixed bug that
+looked possibly-still-broken; a real regression initially masked by
+unrelated dev-server noise) — see KI-27 in `known-issues.md` for the full
+story.
+
+Reach for `pnpm --filter web test:e2e:ci-like` instead of plain `test:e2e`
+whenever a local e2e result needs to be trustworthy on its own — before
+concluding a bug is fixed, before concluding a failure is flaky noise, and
+always before opening/updating a PR whose diff touches a user-facing flow.
+It builds production and runs the full suite with `CI=true`, which flips
+`webServer.command` to `pnpm start` and sets `AUTH_TRUST_HOST` for you
+(Auth.js rejects `next start` traffic from an untrusted host otherwise) —
+the same server CI's `integration-e2e` job actually runs against. It's
+slower (a full production build first) — that's the tradeoff for the
+signal being real; don't run it on every iteration, just before trusting
+the result.
+
 ## Definition of done (restated from AGENTS.md — the checklist)
 
 - [ ] `pnpm check` green locally; CI green.

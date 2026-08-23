@@ -5,10 +5,10 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (M10 Wave 2 Phase 4 — budget/cost surfacing —
-landed; Phase 3 — the unscheduled rack — turned out to be already built on
-an unmerged branch, discovered only now; land it before anything else, see
-"Known gap" below)**
+**Last updated: 2026-08-23 (M10 Wave 2 Phase 3 — the unscheduled rack — landed,
+PR #26; it had been built and verified since 2026-08-22 but was never opened
+as a PR, see "Known gap" below for how that happened. KI-26 and KI-27, both
+filed during Phase 4's CI diagnosis, are closed in the same PR.)**
 
 ## Where we are
 
@@ -76,12 +76,13 @@ content lives in ADR-019, this file, and the known-issues entries above.
 
 ## In flight
 
-**M10 Wave 2 — Phases 0, 1 and 2 merged to `main`; Phases 3 and 4 are BOTH
-done but only Phase 4 is merged.** Phase 3 (the unscheduled rack) is fully
-built and verified on branch `claude/m10-phase-3-rack` — but it was never
-opened as a PR, and it now needs to be landed before anything else, not
-started fresh. See "Known gap: Phase 3 built but unmerged" below before
-picking up any new Wave-2 work.
+**M10 Wave 2 — Phases 0, 1, 2, 3 and 4 all merged to `main`.** Phase 3 (the
+unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged into
+its branch and everything re-verified — see "Known gap: Phase 3 built but
+unmerged (RESOLVED 2026-08-23)" below for the full story and what the
+landing PR did. Phases 6 and 7, which depend on Phase 3's code being on
+`main` rather than just on a branch, are now unblocked. Phases 5 and 8
+remain independent and untouched.
 
 Progress below was reconstructed 2026-08-17 from the code and commit
 history, not from a task-by-task log kept during the work — this file had
@@ -111,12 +112,13 @@ discovery). Also filed **KI-26** (a cosmetic `@vercel/flags-definitions`
 build warning noticed while diagnosing CI) and **KI-27** (local e2e against
 `pnpm dev` gave two false signals during this phase's CI diagnosis — a real
 regression initially masked, and a fixed bug that looked uncertain —
-because CI actually runs against a production build; both need a real look,
-see `docs/known-issues.md`).
+because CI actually runs against a production build). Both closed
+2026-08-23 in the Phase 3 landing PR — see `docs/known-issues.md`'s
+Resolved section for what each turned out to be and what fixed it.
 
-### Known gap: Phase 3 built but unmerged — land this before anything else
+### Known gap: Phase 3 built but unmerged (RESOLVED 2026-08-23, PR #26)
 
-`claude/m10-phase-3-rack` (also pushed to origin) has Phase 3 fully done:
+`claude/m10-phase-3-rack` (also pushed to origin) had Phase 3 fully done:
 `lib/time.ts` (`toMinutes`/`toTimeString`, moved out of `TimelineLens.tsx`),
 `unscheduledRack.ts` (`fitIntoDay`), `UnscheduledRack.tsx` (the sticky
 bottom drawer, mounted once in `TripBoardScreen` outside the lens switch),
@@ -124,18 +126,24 @@ bottom drawer, mounted once in `TripBoardScreen` outside the lens switch),
 for real unit coverage, since jsdom has no `DataTransfer`/`DragEvent`), a
 dedicated `e2e/m10-unscheduled-rack.spec.ts`, and selector updates to five
 other e2e specs. Verified on that branch 2026-08-22 by walking the exit
-checklist in a real browser, plus unit/int/e2e all green. **Never opened as
-a PR.** It diverged from `main` 12 commits each way once Phase 4 merged —
-expect a real conflict in `TimelineLens.tsx`, which both phases touched
-(Phase 3 moved two functions out of it; Phase 4 added per-day cost display
-to it). This was discovered late, by a fresh session's own stale task list
-still claiming Phase 3 "done" days after the fact — see `AGENTS.md`'s
-Workstreams section for the process rule this added to prevent a repeat.
-**Land Phase 3 (merge `main` in, resolve the `TimelineLens.tsx` conflict,
-re-verify everything including e2e against a production build per KI-27,
-open a PR, drive it to green) before starting Phase 5, 6, 7, or 8 —** Phase
-6 and 7 both depend on Phase 3's code existing on `main`, not just on a
-branch.
+checklist in a real browser, plus unit/int/e2e all green, but **never opened
+as a PR** — discovered late, by a fresh session's own stale task list still
+claiming Phase 3 "done" days after the fact. See `AGENTS.md`'s Workstreams
+section for the process rule this added to prevent a repeat.
+
+**Landed 2026-08-23 via PR #26.** `main` was merged into the branch;
+conflicts turned out to be in `Board.tsx` (Phase 3's removal of the old
+full-width Backlog column superseded Phase 4's untouched copy — not an
+additive merge, kept Phase 3's side), `preview-registry.ts` (additive — kept
+both phases' registry entries), and `STATUS.md` itself (kept `main`'s more
+current narrative) — **not** `TimelineLens.tsx`, which auto-merged cleanly
+despite both phases touching it (Phase 3's `lib/time.ts` extraction, Phase
+4's per-day cost display both survived). Re-verified after merge: unit
+(568/568), int (79/79, real Postgres), and the full e2e suite against a
+production build with `CI=true` per KI-27 — 14/15, with `m1-board.spec.ts`'s
+drag-to-day-2 assertion confirmed (via a control run against the original,
+unmerged `claude/m10-phase-3-rack` branch) to fail identically there too —
+pre-existing, unrelated to the merge, same KI-21 flakiness class.
 
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
@@ -155,21 +163,20 @@ branch.
   2026-08-16 and closing with two process amendments adopted into `AGENTS.md`
   (`6708fb3`). It also filed **KI-21** (intermittent `dragCardTo` flakiness
   under load, confirmed unrelated to any branch's code — see the entry).
-- **On `main` right now: Phases 5-9 not started, Phase 3 built but not
-  merged (see "Known gap" above), Phase 4 done.** Verified by absence in
-  `main`'s tree, not just by an unchecked plan file (the phase files' own
-  `- [ ]` step markers are never checked regardless of completion, so they
-  aren't a reliable signal on their own) — but "absent from `main`" is not
-  the same claim as "not started": check `claude/*` branches too before
-  assuming a phase with nothing on `main` is untouched.
-  - **Phase 3 (rack):** absent from `main` — `UnscheduledRack.tsx`,
-    `unscheduledRack.ts`, `lib/time.ts` don't exist there, `Board.tsx` still
-    renders the backlog as the old column. **All of it exists, done and
-    verified, on `claude/m10-phase-3-rack` — see "Known gap" above.**
+- **On `main` right now: Phases 0-4 done and merged, Phases 5-9 not
+  started.** Verified by presence/absence in `main`'s tree, not just by an
+  unchecked plan file (the phase files' own `- [ ]` step markers are never
+  checked regardless of completion, so they aren't a reliable signal on
+  their own) — but "absent from `main`" is not the same claim as "not
+  started": check `claude/*` branches too before assuming a phase with
+  nothing on `main` is untouched.
+  - **Phase 3 (rack) — done, merged to `main`** (PR #26, 2026-08-23; see
+    "Known gap" above for the full landing story).
   - **Phase 4 (budget) — done, merged to `main`** (PR #25, 2026-08-22/23).
   - **Phase 5 (overlaps):** no `OverlapWarning.tsx` / `overlapData.ts`; no
     `time-overlap` handling in `TimelineLens`.
-  - **Phase 6 (add-a-day, empty states):** depends on Phase 3; untouched.
+  - **Phase 6 (add-a-day, empty states):** depended on Phase 3 (now landed,
+    so unblocked); untouched otherwise.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
     (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
@@ -199,18 +206,17 @@ The plan itself:
   we built from the older 1,412-line file, which is why there are two
   generations of drift.
 
-**Do not start Phase 3 from scratch — it is already built on
-`claude/m10-phase-3-rack`.** See "Known gap: Phase 3 built but unmerged"
-above. Land that branch (rebase/merge `main` in, resolve the
-`TimelineLens.tsx` conflict, re-verify, PR, merge) before picking up new
-phase work — Phases 6 and 7 depend on Phase 3's code being on `main`, not
-just on a branch, so landing it unblocks the most follow-on work. Phases 5
-and 8 remain independent of Phase 3 and of each other and could go in
-parallel once Phase 3 is landed (or even before, but check for their own
-stray branches first — see `AGENTS.md`'s Workstreams section — before
-assuming either is untouched). Branch any genuinely new phase work from
-current `main`, not from PR #23's old branch (merged, empty diff against
-`main` now) or from any other stale branch without checking it first.
+**Phase 3 is landed — pick up at Phase 5, 6, 7, or 8 next**
+(`docs/plans/M10-delta/phase-{5,6,7,8}-*.md`). Phases 6 and 7, which
+depended on Phase 3's code being on `main` rather than just on a branch,
+are now unblocked. Phases 5 and 8 remain independent of everything else and
+of each other and could go in parallel across sessions — but check for
+their own stray branches first (see `AGENTS.md`'s Workstreams section)
+before assuming either is untouched; this exact landing gap is why that
+check exists. Phase 9 (gate) is last, after all of 5-8 land. Branch any
+genuinely new phase work from current `main`, not from PR #23's or PR #26's
+old branches (both merged, empty diff against `main` now) or from any other
+stale branch without checking it first.
 
 **The scoping rule for all of Wave 2** (Mitchell, 2026-08-14): *build on what
 exists in the data model; implement the UI for things we can't build today and
@@ -314,11 +320,9 @@ which existed only on a branch.
 
 ## Next action
 
-**Land Phase 3 first** — it is already built on `claude/m10-phase-3-rack`
-but never merged; see "Known gap: Phase 3 built but unmerged" above. Do not
-re-execute `docs/plans/M10-delta/phase-3-rack.md` from scratch. Once landed,
-continue M10 Wave 2's remaining phases (5, 6, 7, 8) task-by-task through
-Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`): before/after
+**Phase 3 is landed** (PR #26, 2026-08-23) — see "Known gap" above for the
+full story. Continue M10 Wave 2's remaining phases (5, 6, 7, 8) task-by-task
+through Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`): before/after
 screenshots, KI-2/3/4 closed or re-deferred, presentational-only diff
 verified, all tests incl. e2e green, retro appended. M9 resumes once M10's
 gate closes.

@@ -129,6 +129,17 @@ describe("TripBoardScreen", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
 
     await screen.findByText("Viewing version 2 (read-only)");
+    // The previewed version's parked stop shows in the Unscheduled drawer now
+    // (Task 3.3 deleted the Backlog column that used to render it), collapsed
+    // by default. The rack is itself wrapped in the same inert treatment as
+    // the rest of the board while previewing (its "Add to day" dispatches
+    // real, persisted commands with no other guard) — but jsdom's fireEvent
+    // doesn't implement the browser behavior `inert` actually relies on
+    // (blocking pointer events/focus at the rendering layer), so this click
+    // still "succeeds" here regardless of the wrapper. That real-browser
+    // guarantee isn't unit-testable; this assertion only proves the preview
+    // fixture's rack contents render correctly, not that the rack is inert.
+    fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
     expect(await screen.findByText("Ancient Rome")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Revert to here" }));
@@ -152,7 +163,10 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.getByTestId("backlog-column")).toBeTruthy();
+    // Board's own "+ Add day" stands in for "the Board lens is showing": Task
+    // 3.3 deleted the backlog column this used to look for, and this fixture
+    // has no days, so there is no `day-column` to look for either.
+    expect(screen.getByRole("button", { name: "+ Add day" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
@@ -164,7 +178,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Day columns" }));
-    expect(await screen.findByTestId("backlog-column")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "+ Add day" })).toBeTruthy();
   });
 
   it("opens TripDateControl from the clickable Dates row in Trip settings (restored, M10 Phase 4)", async () => {

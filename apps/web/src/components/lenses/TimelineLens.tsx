@@ -20,6 +20,7 @@ import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures"
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
+import { toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
 import { cn } from "@/lib/cn";
@@ -54,20 +55,6 @@ const INK_TEXT: Record<AccentFamily, string> = {
   warning: "text-warning-ink",
   danger: "text-danger-ink",
 };
-
-function toMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
-function toTimeString(minutes: number): string {
-  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
-  const h = Math.floor(clamped / 60)
-    .toString()
-    .padStart(2, "0");
-  const m = (clamped % 60).toString().padStart(2, "0");
-  return `${h}:${m}`;
-}
 
 const DAY_START_MIN = 6 * 60; // 06:00 — only used as the fallback default for a day with no timed activities yet, no longer drawn as a visible axis
 const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot

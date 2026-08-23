@@ -38,23 +38,30 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "+ Add day" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  // "Add stop" (TripHeader) is the create-with-no-dayId trigger since Task 3.3
+  // deleted the Backlog column and its "+ Add activity" button; what it makes
+  // is parked in the Unscheduled drawer, which starts collapsed.
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Colosseum");
   await page.getByLabel("Start time").fill("09:00");
   await page.getByLabel("End time").fill("11:00");
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
-  await page.getByRole("button", { name: "+ Add activity" }).click();
+  await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("Activity title").fill("Vatican Museums");
   await page.getByLabel("Start time").fill("10:00");
   await page.getByLabel("End time").fill("12:00");
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
 
-  const colosseum = page.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" });
-  const vatican = page.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" });
+  const rack = page.getByTestId("unscheduled-rack");
+  await rack.getByRole("button", { name: /unscheduled/i }).click();
   const day1 = page.getByTestId("day-column").nth(0);
-  await waitForCommandConfirmed(page, () => dragCardTo(colosseum, day1));
+  await waitForCommandConfirmed(page, () =>
+    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), day1),
+  );
   await expect(day1.getByText("Colosseum")).toBeVisible();
-  await waitForCommandConfirmed(page, () => dragCardTo(vatican, day1));
+  await waitForCommandConfirmed(page, () =>
+    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), day1),
+  );
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
 

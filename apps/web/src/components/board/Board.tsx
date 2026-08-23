@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import type { TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -14,9 +13,16 @@ import { dayAccentFor } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
+import { resolveDrop } from "./resolveDrop";
 
 export type BoardCallbacks = {
   onMove: (activityId: string, toDayId: string | null, position: number) => void;
+  /** A drop on the unscheduled rack: off the schedule, times stripped. */
+  onUnschedule: (activityId: string) => void;
+  /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
+  onDragStart: () => void;
+  /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
+  onDragEnd: () => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
   onAddActivity: (value: ActivityFormValue) => void;
@@ -24,17 +30,6 @@ export type BoardCallbacks = {
   onRemoveActivity: (activityId: string) => void;
   onDismissConflict: (conflictId: string) => void;
 };
-
-function listFor(trip: TripDetail, dayId: string | null): string[] {
-  return dayId === null
-    ? trip.backlog
-    : (trip.days.find((d) => d.dayId === dayId)?.activityIds ?? []);
-}
-
-function containerOf(trip: TripDetail, activityId: string): string | null {
-  const day = trip.days.find((d) => d.activityIds.includes(activityId));
-  return day ? day.dayId : null;
-}
 
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const { openCreate, openEdit } = useEditor();
@@ -49,35 +44,39 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
   // with its chip and its Timeline-view header color.
   const days = useMemo(() => chipModel(trip), [trip]);
 
+  // The monitor reads `trip` and `callbacks` through a ref rather than closing
+  // over them, so its effect below can have an empty dependency list and
+  // register exactly once for the lifetime of the Board. That is not a
+  // micro-optimisation: `callbacks` is a fresh object literal on every render
+  // of TripBoardScreen, and the monitor now calls back into that screen's
+  // state on drag start (auto-opening the rack). With `[trip, callbacks]`
+  // deps, that state change re-renders the parent, produces a new `callbacks`
+  // identity, and tears the monitor down and re-registers it *in the middle
+  // of the drag* — a monitor registered after `dragstart` never sees the
+  // matching `drop`, so the drop is silently lost.
+  const latest = useRef({ trip, callbacks });
+  useEffect(() => {
+    latest.current = { trip, callbacks };
+  }, [trip, callbacks]);
+
   useEffect(() => {
     return combine(
       monitorForElements({
+        onDragStart: () => latest.current.callbacks.onDragStart(),
         onDrop: ({ source, location }) => {
-          const activityId = source.data.activityId;
-          if (typeof activityId !== "string") return;
-          const target = location.current.dropTargets[0]; // innermost target first
-          if (!target) return;
-
-          let toDayId: string | null;
-          let position: number;
-          if (typeof target.data.cardActivityId === "string") {
-            // Dropped on a card: insert before/after it depending on the edge.
-            toDayId = typeof target.data.dayId === "string" ? target.data.dayId : null;
-            const list = listFor(trip, toDayId);
-            const index = list.indexOf(target.data.cardActivityId);
-            position = extractClosestEdge(target.data) === "bottom" ? index + 1 : index;
-            // Moving down within the same list: account for the dragged card's removal.
-            const from = containerOf(trip, activityId);
-            const sourceIndex = list.indexOf(activityId);
-            if (from === toDayId && sourceIndex !== -1 && sourceIndex < position) {
-              position -= 1;
-            }
-          } else {
-            // Dropped on a column: append.
-            toDayId = typeof target.data.dayId === "string" ? target.data.dayId : null;
-            position = listFor(trip, toDayId).filter((id) => id !== activityId).length;
+          const { trip: currentTrip, callbacks: current } = latest.current;
+          // pdnd runs this same path for an Escape-cancelled drag (with no
+          // drop targets), so the rack's disclosure is told the drag is over
+          // before any routing decision — cancel and drop both re-close a
+          // drawer the drag itself opened.
+          current.onDragEnd();
+          const outcome = resolveDrop(currentTrip, source.data, location.current.dropTargets[0]?.data);
+          if (outcome === null) return;
+          if (outcome.kind === "unschedule") {
+            current.onUnschedule(outcome.activityId);
+            return;
           }
-          callbacks.onMove(activityId, toDayId, position);
+          current.onMove(outcome.activityId, outcome.toDayId, outcome.position);
         },
       }),
       // Root cause of the Task-11-era drag-and-drop regression: nothing here
@@ -102,7 +101,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
       // pushed out of view instead of requiring the page to already fit.
       autoScrollWindowForElements(),
     );
-  }, [trip, callbacks]);
+  }, []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -111,21 +110,11 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
         dismissedConflictIds={trip.dismissedConflictIds}
         onDismiss={callbacks.onDismissConflict}
       />
-      {/* Backlog is the unscheduled pool — a full-width strip above the dated
-          day grid, not a column in the wrap. */}
-      <Column
-        title="Backlog"
-        dayId={null}
-        activityIds={trip.backlog}
-        activities={trip.activities}
-        conflictIds={conflictIds}
-        currency={trip.currency}
-        onEditActivity={openEdit}
-        onRemoveActivity={callbacks.onRemoveActivity}
-        fullWidth
-      >
-        <Button variant="primary" onClick={() => openCreate()}>+ Add activity</Button>
-      </Column>
+      {/* The unscheduled pool is no longer a full-width Backlog column above
+          the grid — it is the Unscheduled drawer (UnscheduledRack), mounted
+          by TripBoardScreen outside the lens switch. Creating an unscheduled
+          stop lives on the header's "Add stop" (TripHeader), which is the
+          same openCreate() with no dayId this column's button used to be. */}
       {/* Handoff README §"Day columns view": horizontally scrolling 268px
           columns rather than wrapping into rows. Adjacency for drag is
           dayId-based, not DOM order, so the switch from wrap to scroll
