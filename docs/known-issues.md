@@ -318,6 +318,15 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Where it gets settled:** M10 Wave 2's Phase 9 gate review (`docs/plans/M10-delta/phase-9-gate.md`), where this wave's design questions are decided.
 - **First noted:** 2026-08-23 (PR #29 review, M10 Wave 2 Phase 5).
 
+### KI-30 — "+ Add stop" late in a day prefills an invalid time window instead of being prevented
+- **Severity:** correctness (a reachable action that cannot succeed; no data corruption)
+- **Area:** `apps/web/src/components/lenses/TimelineLens.tsx` (`nextSlot`), `apps/web/src/lib/time.ts` (`toTimeString`'s clamp), `packages/contracts/src/activity.ts` (`TimeWindow`'s `start < end` refinement)
+- **Symptom:** `nextSlot()` prefills the add-a-stop editor with `{ start: toTimeString(lastEnd), end: toTimeString(lastEnd + DEFAULT_SLOT_MIN) }`. `toTimeString` clamps to 23:59, so on a day whose last stop already ends at or near midnight both ends collapse to `23:59` — and `TimeWindow` refines `start < end`, so the prefilled window is invalid. The user gets a validation failure from an action the UI offered, rather than the UI declining to offer a slot that does not exist.
+- **Scope:** pre-existing, not introduced by M10 Phase 5 — `nextSlot` predates it. Found while fixing the sibling instance of the same clamp bug in the overlap repair (PR #29, `37f2c13`), which is fixed: that path now derives `suggestedEnd` up front and withholds the fix rather than dispatching a truncated window.
+- **The general shape:** `toTimeString`'s clamp is a *silent* truncation, so every caller that adds minutes to a time and renders or dispatches the result can quietly lose them. `DAY_END_MIN` is now exported from `lib/time.ts` precisely so callers can check before they clamp; `overlapData.ts`'s `repairedEnd()` is the worked example. Auditing the remaining arithmetic callers of `toTimeString` is the real fix, not patching `nextSlot` alone.
+- **Why not fixed here:** outside PR #29's phase scope (Phase 5 is the overlap warning), and the honest fix is an audit of every caller plus a decision about what the add-a-stop affordance should do at the end of a day — offer a shorter slot, or not offer at all. That is Phase 6 territory (`docs/plans/M10-delta/phase-6-growth.md` owns the add-a-stop rows and their copy).
+- **First noted:** 2026-08-23 (PR #29, while fixing the overlap-repair truncation).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
