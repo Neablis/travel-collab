@@ -10,10 +10,20 @@ export function toMinutes(time: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+// The last renderable wall-clock minute of a day, and therefore the last
+// minute any timeWindow may end on: toTimeString clamps here, and
+// contracts' TimeWindow regex tops out at "23:59". Exported because two
+// callers already have to know where the day ends — the unscheduled rack,
+// which places into it, and overlapData, which refuses to suggest a move
+// that would run past it — and a second copy of the number would be free to
+// drift from the clamp it is derived from.
+export const DAY_END_MIN = 23 * 60 + 59;
+
 // Clamped to a real wall-clock time: a computed minute count can overrun the
-// day, and "24:30" is not a time anyone can render or store.
+// day, and "24:30" is not a time anyone can render or store. Callers that
+// must not silently lose minutes to this clamp check DAY_END_MIN first.
 export function toTimeString(minutes: number): string {
-  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
+  const clamped = Math.max(0, Math.min(DAY_END_MIN, minutes));
   const h = Math.floor(clamped / 60)
     .toString()
     .padStart(2, "0");

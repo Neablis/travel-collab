@@ -19,6 +19,7 @@ const overlap: Overlap = {
   otherEnd: "13:00",
   overlapMinutes: 30,
   suggestedStart: "13:00",
+  suggestedEnd: "14:30",
 };
 
 describe("OverlapWarning", () => {
@@ -30,6 +31,22 @@ describe("OverlapWarning", () => {
   it("offers a fix labelled with the suggested start", () => {
     render(<OverlapWarning overlap={overlap} onFix={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Start 1 pm" })).toBeTruthy();
+  });
+
+  // A move that would not fit inside the day has no end to land on
+  // (suggestedEnd null, overlapData.ts). The warning is still worth showing;
+  // a fix button that could only shorten the stop is not.
+  it("offers no fix when the duration-preserving move would not fit in the day", async () => {
+    const onFix = vi.fn();
+    const onDismiss = vi.fn();
+    render(<OverlapWarning overlap={{ ...overlap, suggestedEnd: null }} onFix={onFix} onDismiss={onDismiss} />);
+
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start 1 pm" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onFix).not.toHaveBeenCalled();
   });
 
   it("fixes and dismisses independently", async () => {

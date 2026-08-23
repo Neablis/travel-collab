@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
+import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { TimelineLens } from "./TimelineLens";
 
@@ -75,7 +76,7 @@ function renderLensWithFocusControl(detail = detailFixture()) {
 // conflict the domain emits for that pair. `dispatch` is the onCommand seam
 // TripBoardScreen fills with the real dispatch; the returned mock is what the
 // warning's fix and dismiss land in.
-function renderTimelineWithOverlap() {
+function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
   const dispatch = vi.fn();
   const detail = tripDetailFixture({
     days: [{ dayId: "d1", activityIds: ["a", "b"], date: "2027-06-01", costSubtotal: 0 }],
@@ -93,6 +94,7 @@ function renderTimelineWithOverlap() {
         resolutions: ["Change one activity's time window"],
       },
     ],
+    ...over,
   });
   render(
     <FocusProvider>
@@ -336,6 +338,27 @@ describe("TimelineLens", () => {
       activityId: "b",
       timeWindow: { start: "13:00", end: "14:30" },   // was 12:30–14:00, a 90-minute stop
     }));
+  });
+
+  // The fix keeps the stop's duration or it is not offered at all: a stop
+  // whose kept duration would run past 23:59 has nowhere in the day to land,
+  // and shortening it to fit would quietly make the fix a lie.
+  it("offers no fix when the move would push the later stop past midnight", async () => {
+    const dispatch = renderTimelineWithOverlap({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+
+    // The warning itself still shows, under the later stop.
+    expect(screen.getByTestId("overlap-warning-b")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Start / })).toBeNull();
+
+    // ...and the only command the row can still send is the dismissal.
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "DismissConflict" }));
   });
 
   it("shows an overlap count badge on the day header", () => {

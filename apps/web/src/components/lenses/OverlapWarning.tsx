@@ -10,6 +10,12 @@ import type { Overlap } from "./overlapData";
 // blocking — conflicts are data, not errors (AGENTS.md invariant 3). Both
 // controls are advisory: "Start HH:MM" moves the stop, "Dismiss" hides this
 // pair's warning and changes no trip data.
+//
+// The fix is offered only when the duration-preserving move fits inside the
+// day (overlapData.ts decides that, and hands the target end over as
+// `suggestedEnd`). When it doesn't, the warning still states the overlap and
+// still dismisses — it just has no button that would have to shorten the stop
+// to land it, which the fix is explicitly not allowed to do.
 export function OverlapWarning({
   overlap,
   onFix,
@@ -45,9 +51,11 @@ export function OverlapWarning({
         >
           {line}
         </span>
-        <Button variant="secondary" size="sm" onClick={onFix}>
-          Start {toClockLabel(overlap.suggestedStart)}
-        </Button>
+        {overlap.suggestedEnd !== null && (
+          <Button variant="secondary" size="sm" onClick={onFix}>
+            Start {toClockLabel(overlap.suggestedStart)}
+          </Button>
+        )}
         <Button variant="ghost" size="sm" onClick={onDismiss}>
           Dismiss
         </Button>

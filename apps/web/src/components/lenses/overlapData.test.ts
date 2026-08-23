@@ -69,6 +69,40 @@ describe("overlapsForDay", () => {
     expect(overlapsForDay(d, "d1")).toEqual([]);
   });
 
+  // The fix is "move the later stop, keeping its duration" — so the end it
+  // should land on is derived here, once, rather than replayed through
+  // toTimeString at each call site (whose clamp would silently shorten a stop
+  // that runs past midnight).
+  it("carries the end the duration-preserving move lands on", () => {
+    // b is 12:30–14:00, a 90-minute stop: moved to 13:00 it ends at 14:30.
+    expect(overlapsForDay(detail(), "d1")[0]?.suggestedEnd).toBe("14:30");
+  });
+
+  it("offers no end when the duration-preserving move would run past midnight", () => {
+    const d = detail({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    const [o] = overlapsForDay(d, "d1");
+    // The warning still stands — only its fix is impossible: 23:45 + 29m is
+    // 00:14 the next day, and a timeWindow lives within one day.
+    expect(o?.laterActivityId).toBe("b");
+    expect(o?.suggestedStart).toBe("23:45");
+    expect(o?.suggestedEnd).toBeNull();
+  });
+
+  it("still offers a move that lands exactly on the day's last minute", () => {
+    const d = detail({
+      activities: {
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:00" }, location: null, notes: null, anchors: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "22:30", end: "23:29" }, location: null, notes: null, anchors: [], cost: null },
+      },
+    });
+    expect(overlapsForDay(d, "d1")[0]?.suggestedEnd).toBe("23:59");
+  });
+
   it("breaks a same-start tie on the later end, so the pair still resolves deterministically", () => {
     const d = detail({
       activities: {

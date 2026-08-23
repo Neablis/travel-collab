@@ -322,17 +322,18 @@ export function TimelineLens({
   // keeping its own duration, and lets the day re-sort naturally. Nothing is
   // validated or prevented: if the move creates a new overlap further down the
   // day, the domain emits a new conflict and a new warning appears — conflicts
-  // are data, not errors (AGENTS.md invariant 3).
+  // are data, not errors (AGENTS.md invariant 3). The one move that is not
+  // offered at all is one that would not fit in the day (suggestedEnd null,
+  // overlapData.ts): OverlapWarning renders no fix button for it, and this
+  // guard makes the missing button and the missing command the same rule
+  // rather than trusting the UI to be the only gate.
   const fixOverlap = (overlap: Overlap) => {
-    const activity = detail.activities[overlap.laterActivityId];
-    if (!activity?.timeWindow) return;
-    const duration = toMinutes(activity.timeWindow.end) - toMinutes(activity.timeWindow.start);
-    const start = overlap.suggestedStart;
+    if (overlap.suggestedEnd === null) return;
     onCommand?.({
       type: "UpdateActivity",
       tripId: detail.tripId,
       activityId: overlap.laterActivityId,
-      timeWindow: { start, end: toTimeString(toMinutes(start) + duration) },
+      timeWindow: { start: overlap.suggestedStart, end: overlap.suggestedEnd },
     });
   };
 

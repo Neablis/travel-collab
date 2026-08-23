@@ -1,5 +1,5 @@
 import type { ActivityView, Conflict, TimeWindow, TripDetail } from "@tc/contracts";
-import { toMinutes } from "@/lib/time";
+import { DAY_END_MIN, toMinutes, toTimeString } from "@/lib/time";
 
 // The warning model behind the design's inline overlap treatment. Nothing
 // here is a new rule: `time-overlap` conflicts are emitted by the domain
@@ -15,6 +15,16 @@ export type Overlap = {
   otherEnd: string; // raw "HH:MM"
   overlapMinutes: number;
   suggestedStart: string; // raw "HH:MM" — the other stop's end
+  // Where the later stop would end after the duration-preserving move, raw
+  // "HH:MM" — or null when that move does not fit inside the day. The fix is
+  // defined as "move the later stop, keeping its duration"; a stop whose kept
+  // duration would run past 23:59 has no such move, because a timeWindow lives
+  // within one day and crossing days is MoveActivity, not UpdateActivity. The
+  // rule lives here rather than at each call site so the timeline and the
+  // board cannot disagree on which warnings are fixable — and so nobody
+  // re-derives the end through toTimeString, whose clamp would silently
+  // shorten the stop (a 30m stop moved to 23:45 would become 14m).
+  suggestedEnd: string | null;
 };
 
 // The kind, and also the first segment of the id: conflicts.ts builds it as
@@ -50,6 +60,14 @@ function startsLater(a: Timed, b: Timed): boolean {
 // triangle, matching what the Board lens has always done for other kinds.
 export function badgeableConflictSubjects(conflicts: readonly Conflict[]): Set<string> {
   return new Set(conflicts.filter((c) => c.kind !== OVERLAP_KIND).flatMap((c) => c.subjects));
+}
+
+// The later stop's own duration, replayed from the suggested start: null as
+// soon as it would end past the last minute the day has.
+function repairedEnd(later: Timed, suggestedStart: string): string | null {
+  const duration = toMinutes(later.window.end) - toMinutes(later.window.start);
+  const end = toMinutes(suggestedStart) + duration;
+  return end > DAY_END_MIN ? null : toTimeString(end);
 }
 
 export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
@@ -90,6 +108,7 @@ export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
         Math.min(toMinutes(later.window.end), toMinutes(earlier.window.end)) -
         Math.max(toMinutes(later.window.start), toMinutes(earlier.window.start)),
       suggestedStart: earlier.window.end,
+      suggestedEnd: repairedEnd(later, earlier.window.end),
     });
   }
 

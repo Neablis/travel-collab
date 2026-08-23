@@ -1,11 +1,10 @@
-import { toMinutes, toTimeString } from "@/lib/time";
+import { DAY_END_MIN, toMinutes, toTimeString } from "@/lib/time";
 
 export type Slot = { start: string; end: string };
 
-// The day the rack is allowed to place into. 23:59 is the last renderable
-// wall-clock minute (toTimeString clamps there), so it is also the last minute
-// a placed window may end on.
-const DAY_END_MIN = 23 * 60 + 59;
+// The day the rack is allowed to place into ends at DAY_END_MIN (lib/time.ts):
+// 23:59 is the last renderable wall-clock minute, so it is also the last
+// minute a placed window may end on.
 // A day with nothing on it starts the search here rather than at midnight —
 // nobody wants a suggested stop at 00:00.
 const DEFAULT_START_MIN = 9 * 60;
