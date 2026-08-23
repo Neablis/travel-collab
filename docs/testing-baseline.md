@@ -56,6 +56,26 @@ the number Phase 1's "unit-suite `environment` time down ≥30%" target is
 measured against: **environment baseline = 87.88-91.88s** (use the median,
 88.29s, or re-measure post-Phase-1 against all three for a fair comparison).
 
+### After Phase 1 (environment split + pool cap) — same command, three more clean runs
+
+`ps aux --sort=-%cpu | head -6` showed no process above ~18% CPU (this
+session's own harness) before any of the three runs, same as the before
+numbers above — a fair comparison.
+
+| Run | Files | Tests | Wall | transform | setup | collect | tests | environment | prepare |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 95 passed | 95 | 54.25s | 4.36s | 16.22s | 16.64s | 33.92s | 60.16s | 8.71s |
+| 2 | 95 passed | 95 | 52.79s | 4.36s | 16.02s | 16.59s | 32.98s | 58.33s | 8.44s |
+| 3 | 95 passed | 95 | 52.87s | 4.32s | 15.92s | 16.45s | 33.15s | 58.73s | 8.40s |
+
+Zero flakes, 569/569 every run — same as before Phase 1 (no test content
+changed). **`environment` median: 88.29s → 58.73s, a 33.5% reduction** —
+past the ≥30% target. Wall time drops less dramatically (median 61.21s →
+52.87s, ~14%) because `environment` construction overlaps with
+`collect`/`tests` across the worker pool rather than serializing with it;
+the plan's Task 1.1 probe (43.1s → 35.2s wall on the reference machine) saw
+a similar wall/environment ratio.
+
 ### `packages/domain` — `pnpm --filter @tc/domain test`
 
 | Run | Files | Tests | Wall | environment | tests |
