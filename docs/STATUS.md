@@ -198,9 +198,10 @@ drag-to-day-2 assertion confirmed (via a control run against the original,
 unmerged `claude/m10-phase-3-rack` branch) to fail identically there too —
 pre-existing, unrelated to the merge, same KI-21 flakiness class.
 
-### Phase 5 (overlap warnings) — built and verified 2026-08-23, PR pending
+### Phase 5 (overlap warnings) — built and verified 2026-08-23, PR #29 open
 
-Three commits on `claude/next-work-z7pr1d`, based on `main` at `fcb22b5`:
+Seven commits on `claude/next-work-z7pr1d`, based on `main` at `fcb22b5`. The
+first three were the phase itself; the last four came out of PR #29's review:
 
 - `d7a274b` — **Phase 5 proper.** New
   `apps/web/src/components/lenses/overlapData.ts` and `OverlapWarning.tsx`;
@@ -244,10 +245,45 @@ stop, the stated duration is the true intersection, the fix keeps duration and
 never blocks, dismissal is per pair and changes no trip data, the count badge
 and the compact chip both appear, and the `packages/` diff is empty.
 
-Per `AGENTS.md`'s Workstreams rule, a phase branch is **not "done" until its PR
-is open** — that is the immediate next step here, and the reason this section
-says "PR pending" rather than "done". This is the same rule Phase 3's landing
-gap added; see "Known gap" above.
+Per `AGENTS.md`'s Workstreams rule, a phase branch is **not "done" until its
+PR is open** — the same rule Phase 3's landing gap added; see "Known gap"
+above. **PR #29 was opened 2026-08-23** and CI went green on it (all three
+jobs; `migrate-production` skipped, as it is on any PR).
+
+**What the review then found.** CodeRabbit raised two Major findings, both
+verified against the code before acting rather than taken at face value, and
+both real:
+
+- `f517e07` — this section, recording the phase before the PR was opened.
+- `69c93c8` — **KI-29 filed**, not fixed. A stop can be the later half of more
+  than one crossing pair, and `Board`'s `overlapsByActivity` keys one `Overlap`
+  per `laterActivityId`, so the rest are dropped; because `4060a1e` also
+  stopped badging time-overlap conflicts, the dropped pair now has no
+  day-column surface at all. Bounded — the conflict banner and the Timeline
+  lens both still reach every conflict — but real. Not folded in because what a
+  card shows when a stop has N overlaps is a design question and the handoff
+  specifies a single chip; it goes to the Phase 9 gate with three options
+  ranked by cost.
+- `37f2c13` — **the truncation fix.** `toTimeString` clamps to 23:59, so the
+  repair silently shortened any move running past midnight (a 30-minute stop
+  repaired to 23:45 was dispatched as 23:45–23:59, a 14-minute stop) — which
+  breaks the phase's own "keeping its duration". `Overlap` now carries
+  `suggestedEnd: string | null`, computed once in `overlapData.ts`; when it is
+  null the fix is simply not offered, and `fixOverlap` guards too, so the
+  missing button and the missing command are one rule. `DAY_END_MIN` moved into
+  `lib/time.ts` beside the clamp it derives from, and `unscheduledRack.ts`'s
+  identical private copy now points at it. Still zero diff to `packages/`.
+- `f718e45` — **KI-30 filed**, not fixed. The same clamp has a second,
+  pre-existing instance: `nextSlot()` prefills the add-a-stop editor with start
+  and end both clamped to 23:59 on a day already running to midnight, which
+  `TimeWindow`'s `start < end` refinement rejects. The honest fix is an audit of
+  every arithmetic caller of `toTimeString` plus a decision about what the
+  affordance should do at the end of a day — Phase 6 territory, since it
+  rewrites those rows.
+
+Re-verified after the fix: unit **600/600** (98 files), typecheck, lint and the
+colour wall clean, and the full e2e suite **21/21** against a production build.
+Both review threads are answered and resolved.
 
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
