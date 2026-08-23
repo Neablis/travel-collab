@@ -90,10 +90,61 @@ thread. This actually happened in the design file; it is not hypothetical.
 | D6 | Add a **start date to `TripSummary`** so home's "next trip" is real rather than `visibleTrips[0]` | code |
 | D7 | One banner pattern — sync failure reuses `ConflictBanner`/`Banner` | done |
 
-## 7. Deliberately not designed yet
+## 7. Notebook — pages that read like documents
 
-- **Notebook / Pages** — next up. Agreed intent: a **trip journal** (written during and
-  after), with macro blocks that stay **live** against the plan.
+Route: `/trips/[tripId]/pages` (list) and `.../pages/[pageId]` (one page). Two audiences:
+the planner building the trip, and the traveller who didn't plan it and just needs the day.
+
+**Pages are prose with live values.** A value renders as a **chip** — tinted, faintly
+underlined, the macro name in its `title`. It reads as words in a sentence but resolves from
+the trip on every render, so moving a day or a stop rewrites the page with nobody editing it.
+Users never see or type macro syntax.
+
+**Every page has a scope.** Trip-wide, or pointed at one day via the "This page is about"
+dropdown (that is `PageContext.dayRef`, already in the contract). Changing it re-resolves the
+whole page and raises an info Banner naming what it now follows.
+
+**Reading / Editing** is one segmented control. Editing reveals the repeat rail's label, its
+"Edit the wording" action, and the insert affordance. Reading is the traveller's view.
+
+**Prebuilt pages ship with the trip** — "Trip overview" (trip-wide) and "One day" (day-bound),
+matching `templates.ts`'s `trip-overview` / `day-sheet` seeds, plus the user's own pages.
+"Blank page" creates an **Untitled page** (matching `NotebookScreen`'s `handleCreate`), which
+does not appear in the list until it exists.
+
+### The insert picker — two axes, not one list
+
+`Insert from the plan` is a Sheet with **search**, then **scope** (Your account / This trip /
+The day this page is about — each a row with a live count and a one-line explanation), then
+**how it reads** (All / One value / A block / Repeats). Scope × shape is a lens, so the picker
+stays the same size as the registry grows. Each item shows the registry's own `description`, a
+shape tag, and a real resolved preview.
+
+Two states the picker must keep honest:
+
+- A value with no field behind it (e.g. a home airport) carries a `needs a field` badge and
+  says so on click instead of claiming an insert.
+- Choosing a **day** value on a **trip-wide** page **binds the page to a day** and reveals the
+  dropdown — the design of `MacroResult`'s `unbound("day")` case, matching
+  `PageScreen.handleBindDay` / `focusDayBinding`. The day scope's hint changes to
+  "Not pointed at a day yet — picking one of these will point it" when unbound.
+
+### The one new primitive
+
+**Repeaters.** "A line for every day/stop/city" — one author-written sentence that repeats per
+item, with chips filled from each item ("Today we're going to *Hakone Open-Air Museum* in
+*Ninotaira*."). Rendered on a dashed rail labelled with what it repeats over.
+
+**The registry cannot express this yet.** `itinerary.trip` resolves a fixed block; there is no
+loop macro and no params for an author-supplied row template. This needs a macro param schema
+(the registry already owns per-macro `params`), and it is the main engineering decision the
+Notebook creates.
+
+**Account scope is also new** — `Your name` / `Your email` exist in the NextAuth session, but
+there is no account model beyond that, so anything else at that scope needs fields first.
+
+## 8. Deliberately not designed yet
+
 - **Travelers UI** — the traveler avatars were removed from the trip header's meta pill;
   travelers are reachable only through Trip settings until this exists.
 - **History** beyond the popover, and the extra lenses (Itinerary, Schedule, DailyOverview,

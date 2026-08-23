@@ -84,7 +84,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </nav>
     <div style="flex: 1;"></div>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <sc-if value="{{ isTrip }}" hint-placeholder-val="{{ false }}">
+      <sc-if value="{{ inTripScope }}" hint-placeholder-val="{{ false }}">
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ copyLink }}">Share</x-import>
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ openAdd }}">Quick add</x-import>
       </sc-if>
@@ -279,7 +279,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <div style="grid-column: 1; grid-row: 1; min-width: 0;">
                 <nav style="display: flex; align-items: center; gap: 14px;">
                   <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← Your trips</button>
-                  <button onClick="{{ openNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">Notebook</button>
                 </nav>
                 <sc-if value="{{ renaming }}" hint-placeholder-val="{{ false }}">
                   <div style="margin-top: 4px; max-width: 320px;">
@@ -304,7 +303,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
                   <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ tripCities }}</span>
                 </div>
-              <div style="grid-column: 2; grid-row: 1; justify-self: end; align-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px;">
+              <div style="grid-column: 2; grid-row: 1; justify-self: end; align-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                <button onClick="{{ openNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;" style-hover="color: var(--color-ink);">Notebook →</button>
+                <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px;">
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <span title="{{ syncLabel }}" aria-label="{{ syncLabel }}" role="status" style="display: inline-flex; align-items: center; gap: 7px; margin-right: 4px;">
                       <span style="position: relative; width: 22px; height: 22px; display: grid; place-items: center;">
@@ -347,6 +348,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                   <button onClick="{{ openSettings }}" title="Trip settings" aria-label="Trip settings" style="width: 28px; height: 28px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--color-slate);" style-hover="background: var(--color-moss); color: var(--color-ink);">⚙</button>
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openAdd }}">Add stop</x-import>
+                </div>
                 </div>
                 <button onClick="{{ openSettings }}" title="Open trip settings" style="grid-column: 2; grid-row: 2; justify-self: end; align-self: stretch; display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px; cursor: pointer; font-family: inherit; transition: border-color 140ms ease;" style-hover="border-color: var(--color-border-strong);">
                   <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
@@ -855,6 +857,163 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         </x-import>
       </sc-if>
 
+      <sc-if value="{{ isNotebook }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div style="padding: 26px 0 70px; display: flex; flex-direction: column; gap: 26px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;">
+              <div>
+                <button onClick="{{ backToPlan }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← {{ trip.name }}</button>
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,38px" level="{{ 1 }}">Notebook</x-import>
+                <div style="font-size: 14px; color: var(--color-slate); margin-top: 6px; max-width: 56ch; text-wrap: pretty;">Pages that read like a document and stay true to the plan. Move a day or a stop and every page here follows it.</div>
+              </div>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ newDoc }}">Blank page</x-import>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <sc-for list="{{ docs }}" as="dc" hint-placeholder-count="3">
+                <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,96px" className="flex items-start gap-4 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ dc.open }}">
+                  <div style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ dc.solid }};"></div>
+                  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span style="font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ dc.title }}</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ dc.bindVariant }}">{{ dc.bind }}</x-import>
+                    </div>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ dc.blurb }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ dc.meta }}</span>
+                  </div>
+                </x-import>
+              </sc-for>
+            </div>
+
+            <div>
+              <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 10px;">Start from a template</div>
+              <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                <sc-for list="{{ docTemplates }}" as="t" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,132px" className="flex flex-col gap-2 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ t.use }}">
+                    <span style="font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ t.title }}</span>
+                    <span style="font-size: 13px; color: var(--color-slate); line-height: 1.45; text-wrap: pretty;">{{ t.body }}</span>
+                    <span style="margin-top: auto; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ t.fills }}</span>
+                  </x-import>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <sc-if value="{{ isDoc }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width: 1040px; margin: 0 auto; padding: 22px 26px 90px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px;">
+            <button onClick="{{ backToNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← Notebook</button>
+            <div style="flex: 1;"></div>
+            <sc-if value="{{ docDayBound }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="font-size: 12px; color: var(--color-slate);">This page is about</span>
+                <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="210px,32px" defaultValue="{{ docDay }}" onChange="{{ setDocDay }}" aria-label="Which day this page is about">
+                  <sc-for list="{{ blDayOptions }}" as="o" hint-placeholder-count="14">
+                    <option value="{{ o.value }}">{{ o.label }}</option>
+                  </sc-for>
+                </x-import>
+              </div>
+            </sc-if>
+            <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,32px" value="{{ docMode }}" onValueChange="{{ setDocMode }}" options="{{ docModes }}" aria-label="Page mode"></x-import>
+          </div>
+
+          <sc-if value="{{ docFollowed }}" hint-placeholder-val="{{ false }}">
+            <div style="padding-bottom: 14px;">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">{{ docFollowedLine }}</x-import>
+            </div>
+          </sc-if>
+
+          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,620px" raised="{{ true }}" className="p-0 overflow-hidden">
+            <div style="padding: 40px 52px 52px; display: flex; flex-direction: column;">
+              <div style="font-family: var(--font-next-display); font-size: 33px; font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink); line-height: 1.12;">{{ docTitle }}</div>
+              <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding: 7px 0 22px;">{{ docSubtitle }}</div>
+
+              <sc-for list="{{ docBlocks }}" as="b" hint-placeholder-count="5">
+                <div style="padding-bottom: 20px;">
+                  <sc-if value="{{ b.isH }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ b.text }}</div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isP }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size: 15.5px; line-height: 1.68; color: var(--color-ink); text-wrap: pretty;">
+                      <sc-for list="{{ b.segs }}" as="g" hint-placeholder-count="3"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isChip }}" hint-placeholder-val="{{ false }}"><span title="{{ g.macro }}" style="background: {{ g.chipBg }}; border-bottom: 1.5px solid {{ g.chipEdge }}; border-radius: 3px; padding: 0 1px;">{{ g.value }}</span></sc-if></sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isRepeat }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-left: 2px dashed {{ b.edge }}; padding-left: 16px; display: flex; flex-direction: column; gap: 10px;">
+                      <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ b.repeatLabel }}</span>
+                          <button onClick="{{ b.editRow }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Edit the wording</button>
+                        </div>
+                      </sc-if>
+                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
+                        <div style="display: grid; grid-template-columns: 78px 1fr; gap: 14px; align-items: baseline;">
+                          <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ r.time }}</span>
+                          <div style="font-size: 15.5px; line-height: 1.62; color: var(--color-ink); text-wrap: pretty;">
+                            <sc-for list="{{ r.segs }}" as="g" hint-placeholder-count="3"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isChip }}" hint-placeholder-val="{{ false }}"><span title="{{ g.macro }}" style="background: {{ g.chipBg }}; border-bottom: 1.5px solid {{ g.chipEdge }}; border-radius: 3px; padding: 0 1px;">{{ g.value }}</span></sc-if></sc-for>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isItin }}" hint-placeholder-val="{{ false }}">
+                    <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+                      <sc-for list="{{ b.days }}" as="d" hint-placeholder-count="4">
+                        <div style="display: grid; grid-template-columns: 136px 1fr; gap: 14px; padding: 11px 14px; border-bottom: 1px solid var(--color-hairline); background: {{ d.bg }};">
+                          <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 12.5px; font-weight: 600; color: {{ d.ink }};">{{ d.label }}</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.date }}</span>
+                          </div>
+                          <div style="min-width: 0; font-size: 13.5px; line-height: 1.55; color: var(--color-ink); text-wrap: pretty;">{{ d.line }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
+                    <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--color-hairline);">
+                          <span style="font-size: 13.5px; color: var(--color-ink);">{{ r.label }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">{{ r.amount }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--color-moss);">
+                        <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ b.totalLabel }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.total }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isNote }}" hint-placeholder-val="{{ false }}">
+                    <div style="background: var(--color-paper); border-radius: 10px; padding: 13px 15px; display: flex; flex-direction: column; gap: 5px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ b.noteLabel }}</span>
+                      <span style="font-size: 15px; line-height: 1.6; color: var(--color-ink); text-wrap: pretty;">{{ b.text }}</span>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.isEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 13px 15px; font-size: 14px; color: var(--color-slate); text-wrap: pretty;">{{ b.text }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+
+              <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ openInsert }}">Insert from the plan</x-import>
+                  <span style="font-size: 12.5px; color: var(--color-slate);">or press <span style="font-family: var(--font-next-mono); background: var(--color-moss); border-radius: 4px; padding: 1px 5px;">/</span> anywhere in the page</span>
+                </div>
+              </sc-if>
+            </div>
+          </x-import>
+        </div>
+      </sc-if>
+
     </main>
 
     <sc-if value="{{ asstOpen }}" hint-placeholder-val="{{ true }}">
@@ -906,6 +1065,54 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
     <div style="position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 60; background: var(--color-ink); color: var(--color-surface); font-size: 13px; padding: 10px 16px; border-radius: 999px; animation: riseIn 180ms ease both;">{{ toast }}</div>
   </sc-if>
+
+  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ insertOpen }}" onOpenChange="{{ setInsertOpen }}" title="Insert from the plan">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 4px;">
+      <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Search — cost, stops, name…" value="{{ insQ }}" onChange="{{ setInsQ }}" aria-label="Search insertable values"></x-import>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">What it comes from</span>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <sc-for list="{{ insScopes }}" as="sc" hint-placeholder-count="3">
+            <button onClick="{{ sc.pick }}" style="display: flex; align-items: center; gap: 10px; text-align: left; background: {{ sc.bg }}; border: 1px solid {{ sc.border }}; border-radius: 9px; padding: 9px 11px; cursor: pointer; font-family: inherit;">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; font-weight: 600; color: {{ sc.ink }};">{{ sc.label }}</span>
+                <span style="font-size: 12px; color: var(--color-slate);">{{ sc.hint }}</span>
+              </span>
+              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ sc.variant }}">{{ sc.count }}</x-import>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">How it reads</span>
+        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,32px" value="{{ insKind }}" onValueChange="{{ setInsKind }}" options="{{ insKinds }}" aria-label="How it reads"></x-import>
+      </div>
+
+      <div style="height: 1px; background: var(--color-hairline);"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 12px; color: var(--color-slate);">{{ insCountLine }}</span>
+        <sc-for list="{{ insItems }}" as="it" hint-placeholder-count="4">
+          <button onClick="{{ it.insert }}" style="text-align: left; display: flex; flex-direction: column; gap: 4px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 11px 13px; cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-border-strong);">
+            <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ it.title }}</span>
+              <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); background: var(--color-moss); border-radius: 4px; padding: 1px 6px;">{{ it.shape }}</span>
+              <sc-if value="{{ it.needs }}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="warning">{{ it.needs }}</x-import>
+              </sc-if>
+            </span>
+            <span style="font-size: 12.5px; color: var(--color-slate); line-height: 1.45; text-wrap: pretty;">{{ it.body }}</span>
+            <span style="font-size: 12.5px; color: var(--color-ink); background: var(--color-paper); border-radius: 6px; padding: 5px 8px;">{{ it.preview }}</span>
+          </button>
+        </sc-for>
+        <sc-if value="{{ insEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Nothing matches that here. Try another scope, or clear the search.</div>
+        </sc-if>
+      </div>
+    </div>
+  </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ setOpen }}" onOpenChange="{{ setSetOpen }}" title="Trip settings">
     <div style="display: flex; flex-direction: column; gap: 18px; padding-top: 4px;">
@@ -1440,6 +1647,8 @@ class Component extends DCLogic {
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
     acctOpen: false, renaming: false, histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
+    docId: 'overview', docMode: 'read', docDay: 6, docFollowed: false, insertOpen: false,
+    boundDocs: [], insScope: 'trip', insKind: 'all', insQ: '', blankMade: false,
     setOpen: false, datesEdit: false, currency: 'USD', costs: {}, okConf: [], addCost: '',
     budgets: { japan: 16400, nola: 3800 },
     crewBy: { japan: ['Sam K', 'Priya R', 'Jonah M', 'Mei T'], nola: ['Sam K', 'Dana R'] },
@@ -1764,6 +1973,110 @@ class Component extends DCLogic {
     trip.monthDays = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
     trip.dates = this.MONS[start.getMonth()] + ' ' + start.getDate() + ' – ' + this.MONS[end.getMonth()] + ' ' + end.getDate() + ', ' + end.getFullYear();
     this.setState(st => ({ rev: (st.rev || 0) + 1 }));
+  }
+  // ---- Notebook -------------------------------------------------------
+  // Pages are prose with live values from the plan. A value is a "chip": it
+  // reads as words in a sentence, but it resolves from the trip every render,
+  // so moving a day or a stop rewrites the page without anyone editing it.
+  DOCS = [
+    { id: 'overview', title: 'Trip overview', dayBound: false, origin: 'Comes with your trip', edited: '2 days ago',
+      blurb: 'The whole trip in one read — dates, the shape of it, every day, what it costs.' },
+    { id: 'day', title: 'One day', dayBound: true, origin: 'Comes with your trip', edited: 'yesterday',
+      blurb: 'A single day, written out. Point it at any day with the dropdown.' },
+    { id: 'mei', title: 'Mei’s notes', dayBound: false, origin: 'Yours', edited: '4 hours ago',
+      blurb: 'Your own page. Nothing in it yet but what you put there.' },
+    { id: 'blank', title: 'Untitled page', dayBound: false, origin: 'Yours', edited: 'just now', fresh: true,
+      blurb: 'Nothing here yet — insert what you want from the plan.' }
+  ];
+  doc() { return this.DOCS.find(d => d.id === (this.state.docId || 'overview')) || this.DOCS[0]; }
+  dayBound() { const d = this.doc(); return !!d.dayBound || (this.state.boundDocs || []).indexOf(d.id) >= 0; }
+  txt(t) { return { isText: true, text: t }; }
+  chip(macro, value) {
+    return { isChip: true, macro: macro, value: value, chipBg: 'var(--color-brand-tint)', chipEdge: 'var(--color-brand)' };
+  }
+  docTitle(days) {
+    const d = this.doc(), i = (this.state.docDay || 6) - 1;
+    if (d.id === 'day') return days[i] ? days[i].label + ' — ' + days[i].city : 'A day';
+    if (d.id === 'overview') return this.trip().name;
+    return d.title;
+  }
+  docSubtitle(days) {
+    const d = this.doc(), i = (this.state.docDay || 6) - 1;
+    if (d.id === 'day') return days[i] ? days[i].dateLabel : '';
+    if (d.id === 'overview') return this.trip().dates;
+    return 'Yours · nothing connected to the plan yet';
+  }
+  docBlocks(days, trip) {
+    const d = this.doc();
+    if (d.id === 'day') {
+      const i = (this.state.docDay || 6) - 1, day = days[i];
+      if (!day) return [];
+      return [
+        { isP: true, segs: [this.txt('It’s '), this.chip('day.date', day.dateLabel), this.txt(' and you’re in '), this.chip('day.city', day.city), this.txt('. '), this.chip('cost.day', day.costLabel), this.txt(' of the budget is spoken for today.')] },
+        { isRepeat: true, edge: day.solid, repeatLabel: 'Repeats for every stop on this day · ' + day.items.length + ' stops',
+          editRow: () => this.flash('Row wording: “Today we’re going to {stop} in {area}.”'),
+          rows: day.items.map(a => ({ time: a.start, segs: [this.txt('Today we’re going to '), this.chip('stop.name', a.title), this.txt(' in '), this.chip('stop.area', a.area), this.txt('.')] })) },
+        { isH: true, text: 'Notes for the group' },
+        { isP: true, segs: [this.txt('Bring cash — the ryokan doesn’t take cards for the onsen. Meet in the lobby ten minutes before we leave.')] },
+        { isNote: true, noteLabel: 'Only you', text: 'Ask about the late dinner. Priya wants an early night.' }
+      ];
+    }
+    if (d.id === 'blank' || d.id === 'mei') {
+      return [
+        { isP: true, segs: [this.txt('Nothing here yet.')] },
+        { isEmpty: true, text: 'Insert something from the plan and it becomes part of the page — a date, a day’s stops, the whole itinerary.' }
+      ];
+    }
+    const cities = [];
+    trip.days.forEach(x => { if (cities.indexOf(x[0]) < 0) cities.push(x[0]); });
+    const costRows = days.filter(x => x.costLabel && x.costLabel !== '$0').slice(0, 5).map(x => ({ label: x.label + ' · ' + x.city, amount: x.costLabel }));
+    return [
+      { isP: true, segs: [this.chip('trip.name', trip.name), this.txt(' runs '), this.chip('trip.dates', trip.dates), this.txt(' — '), this.chip('trip.length', trip.days.length + ' days'), this.txt(' across '), this.chip('trip.cities', cities.length + ' cities'), this.txt('.')] },
+      { isH: true, text: 'The shape of it' },
+      { isP: true, segs: [this.txt('Five nights in Tokyo to find our feet, a day out to Nikkō, one night in the mountains at Hakone, then Kyoto slowly. Osaka at the end because the flight home leaves from there.')] },
+      { isH: true, text: 'Every day at a glance' },
+      { isItin: true, days: days.map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink,
+        line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') + (x.items.length > 3 ? ' · +' + (x.items.length - 3) + ' more' : '') : 'Nothing planned yet' })) },
+      { isH: true, text: 'What it costs' },
+      { isCosts: true, rows: costRows, totalLabel: 'Planned so far', total: this.money(this.spend().total) },
+      { isNote: true, noteLabel: 'Only you', text: 'Sam is covering the ryokan — settle up after Kyoto.' }
+    ];
+  }
+  // Two axes, not one long list: where a value comes from (account / trip / day)
+  // and how it reads (one value, a block, or a line that repeats). Both are
+  // filters, so the picker stays the same size as the registry grows.
+  INSERTABLES = [
+    { scope: 'account', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'Sam K' },
+    { scope: 'account', kind: 'single', title: 'Your email', body: 'The address you signed in with.', preview: 'sam@example.com' },
+    { scope: 'account', kind: 'single', title: 'Home airport', body: 'Where you usually fly out of.', preview: 'SFO', needs: 'needs a field' },
+    { scope: 'account', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'Japan — 14 days in October.' },
+    { scope: 'trip', kind: 'single', title: 'Trip name', body: 'The trip’s name.', preview: 'Japan: Tokyo → Kyoto → Osaka' },
+    { scope: 'trip', kind: 'single', title: 'Trip dates', body: 'The trip’s date range.', preview: 'Oct 3 – Oct 16, 2026' },
+    { scope: 'trip', kind: 'single', title: 'Total cost', body: 'Total cost of the whole trip.', preview: '$9,085' },
+    { scope: 'trip', kind: 'single', title: 'Budget left', body: 'What’s left of the trip budget.', preview: '$7,315 left of $16,400' },
+    { scope: 'trip', kind: 'single', title: 'Number of days', body: 'How many days the trip runs.', preview: '14 days' },
+    { scope: 'trip', kind: 'block', title: 'Full itinerary', body: 'Every day and its stops.', preview: 'Day 1 · Tokyo — Day 2 · Tokyo — Day 3 · Tokyo…' },
+    { scope: 'trip', kind: 'block', title: 'Cost breakdown', body: 'A cost table by day, with a trip total.', preview: 'Day 1 $310 · Day 2 $95 · Total $9,085' },
+    { scope: 'trip', kind: 'block', title: 'Everyone on the trip', body: 'The travellers and what they’re down for.', preview: 'Sam, Priya, Jonah, Mei' },
+    { scope: 'trip', kind: 'repeat', title: 'A line for every day', body: 'Write one sentence and it repeats for each day, filled in with that day’s own detail.', preview: 'Day 6 — Hakone, five stops, $1,175.' },
+    { scope: 'trip', kind: 'repeat', title: 'A line for every city', body: 'One sentence per city, in the order you reach them.', preview: 'Kyoto — four nights, eleven stops.' },
+    { scope: 'day', kind: 'single', title: 'The day’s date', body: 'The date of the day this page is pointed at.', preview: 'Wed Oct 8' },
+    { scope: 'day', kind: 'single', title: 'The day’s city', body: 'Where you are on that day.', preview: 'Hakone' },
+    { scope: 'day', kind: 'single', title: 'The day’s cost', body: 'Total cost of the day this page is pointed at.', preview: '$1,175' },
+    { scope: 'day', kind: 'single', title: 'First and last stop', body: 'When the day starts and ends.', preview: '8:20 am – 8:30 pm' },
+    { scope: 'day', kind: 'block', title: 'The day’s stops', body: 'The stop list for the day this page is pointed at.', preview: '8:20 am · Romancecar — 10:30 am · Open-Air Museum' },
+    { scope: 'day', kind: 'repeat', title: 'A line for every stop', body: 'One sentence per stop on this day, in your own wording.', preview: 'Today we’re going to Hakone Open-Air Museum in Ninotaira.' },
+    { scope: 'day', kind: 'repeat', title: 'A line for every booking', body: 'One sentence per confirmed booking on this day.', preview: 'Gora Kadan — checked in at 4:40 pm, $340.' }
+  ];
+  SHAPES = { single: 'one value', block: 'a block', repeats: 'repeats', repeat: 'repeats' };
+  insScope() { return this.state.insScope || 'trip'; }
+  insList() {
+    const q = (this.state.insQ || '').trim().toLowerCase();
+    const kind = this.state.insKind || 'all';
+    return this.INSERTABLES
+      .filter(x => x.scope === this.insScope())
+      .filter(x => kind === 'all' || x.kind === kind)
+      .filter(x => !q || (x.title + ' ' + x.body + ' ' + x.preview).toLowerCase().indexOf(q) >= 0);
   }
   HIST = [
     { description: 'Moved Ryokan check-in to 4:00 pm', when: 'Oct 2', undone: false },
@@ -2693,7 +3006,7 @@ class Component extends DCLogic {
     // Only the day-by-day views can hold day scope; scrolling drops back to trip.
     const dayScope = route === 'trip' && !!s.focused && (s.view === 'timeline' || s.view === 'columns');
     const saveState = s.pendingSave ? 'saving' : (this.props.saveState || 'saved');
-    const days = route === 'trip' ? this.buildDays() : [];
+    const days = (route === 'trip' || route === 'notebook' || route === 'doc') ? this.buildDays() : [];
     const sugs = this.suggestionData().filter(x => s.dismissed.indexOf(x.id) < 0);
     const focusDay = days[s.focus];
     const insPb = this.PLAYBOOKS[s.insPbIdx];
@@ -2820,7 +3133,7 @@ class Component extends DCLogic {
       histRevert: () => { this.setState({ histPreview: null, histOpen: false }); this.flash('Reverted the trip to that version'); },
       histExit: () => this.setState({ histPreview: null }),
       histOlder: () => this.flash('That’s the whole history for this trip'),
-      openNotebook: () => this.flash('Notebook isn’t designed yet — it’s next'),
+      openNotebook: () => this.setState({ route: 'notebook' }),
 
       syncActions: this.once('syncActions', () => React.createElement('div', { style: { display: 'flex', gap: 6 } },
         React.createElement('button', {
@@ -2975,7 +3288,81 @@ class Component extends DCLogic {
       viewOptions: [{ value: 'timeline', label: 'Timeline' }, { value: 'columns', label: 'Day columns' }, { value: 'calendar', label: 'Calendar' }, { value: 'map', label: 'Map' }],
       isTimeline: s.view === 'timeline', isColumns: s.view === 'columns', isCalendar: s.view === 'calendar', isMap: s.view === 'map',
       showChips: s.view === 'timeline' || s.view === 'columns',
-      isOverview: route !== 'trip',
+      isOverview: route === 'home' || route === 'playbooks',
+      inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
+
+      isNotebook: route === 'notebook', isDoc: route === 'doc',
+      backToPlan: () => this.setState({ route: 'trip' }),
+      backToNotebook: () => this.setState({ route: 'notebook' }),
+      newDoc: () => { this.setState({ route: 'doc', docId: 'blank', docMode: 'edit', blankMade: true }); this.flash('Blank page created'); },
+      // The untitled page only exists once you've made it.
+      docs: this.DOCS.filter(d => !d.fresh || s.blankMade).map(d => Object.assign({}, d, this.accent(d.city || trip.days[0][0]), {
+        bind: d.dayBound ? 'Day ' + (s.docDay || 6) : 'Trip-wide',
+        bindVariant: d.dayBound ? 'brand' : 'neutral',
+        meta: d.origin + ' · edited ' + d.edited,
+        open: () => this.setState({ route: 'doc', docId: d.id })
+      })),
+      docTemplates: [
+        { title: 'Trip overview', body: 'The whole trip in one read — dates, the shape of it, every day, what it costs.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'overview' }) },
+        { title: 'One day', body: 'A single day as a readable page. Point it at any day with a dropdown.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'day' }) },
+        { title: 'Blank page', body: 'Start with nothing and insert what you want from the plan.', fills: 'Yours', use: () => this.setState({ route: 'doc', docId: 'blank', docMode: 'edit' }) }
+      ],
+
+      docMode: s.docMode || 'read',
+      setDocMode: v => this.setState({ docMode: v }),
+      docModes: [{ value: 'read', label: 'Reading' }, { value: 'edit', label: 'Editing' }],
+      docEditing: (s.docMode || 'read') === 'edit',
+      docDay: String(s.docDay || 6),
+      setDocDay: e => this.setState({ docDay: +e.target.value, docFollowed: true }),
+      docFollowed: !!s.docFollowed,
+      docFollowedLine: 'This page follows ' + (days[(s.docDay || 6) - 1] ? days[(s.docDay || 6) - 1].label + ' · ' + days[(s.docDay || 6) - 1].city : 'this day') + '. Every line on it updated with the plan.',
+
+      insertOpen: !!s.insertOpen,
+      setInsertOpen: v => this.setState({ insertOpen: v }),
+      openInsert: () => this.setState({ insertOpen: true }),
+      insQ: s.insQ || '', setInsQ: e => this.setState({ insQ: e.target.value }),
+      insKind: s.insKind || 'all', setInsKind: v => this.setState({ insKind: v }),
+      insKinds: [{ value: 'all', label: 'All' }, { value: 'single', label: 'One value' }, { value: 'block', label: 'A block' }, { value: 'repeat', label: 'Repeats' }],
+      insScopes: [
+        { value: 'account', label: 'Your account', hint: 'You — the same on every trip' },
+        { value: 'trip', label: 'This trip', hint: 'Japan: Tokyo → Kyoto → Osaka' },
+        { value: 'day', label: 'The day this page is about', hint: this.dayBound() ? 'Follows the dropdown at the top' : 'Not pointed at a day yet — picking one of these will point it' }
+      ].map(x => {
+        const on = this.insScope() === x.value;
+        return Object.assign({}, x, {
+          count: String(this.INSERTABLES.filter(i => i.scope === x.value).length),
+          variant: on ? 'brand' : 'neutral',
+          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+          border: on ? 'var(--color-brand)' : 'var(--color-hairline)',
+          ink: on ? 'var(--color-brand-pressed)' : 'var(--color-ink)',
+          pick: () => this.setState({ insScope: x.value })
+        });
+      }),
+      insItems: this.insList().map(x => Object.assign({}, x, {
+        shape: this.SHAPES[x.kind] || x.kind,
+        needs: x.needs || '',
+        insert: () => {
+          if (x.needs) { this.setState({ insertOpen: false }); this.flash(x.title + ' — nothing models this yet'); return; }
+          // A day value on a page with no day binding binds the page, the way
+          // the real unbound-macro path sends you to the binding control.
+          if (x.scope === 'day' && !this.dayBound()) {
+            const d = this.doc();
+            this.setState(st => ({ insertOpen: false, boundDocs: st.boundDocs.concat([d.id]), docFollowed: true }));
+            this.flash('This page now follows Day ' + (this.state.docDay || 6) + ' — change it at the top');
+            return;
+          }
+          this.setState({ insertOpen: false });
+          this.flash('Inserted — it fills itself from the plan');
+        }
+      })),
+      insEmpty: !this.insList().length,
+      insCountLine: this.insList().length + (this.insList().length === 1 ? ' thing you can insert' : ' things you can insert'),
+
+      docDayBound: this.dayBound(),
+      docTitle: this.docTitle(days),
+      docSubtitle: this.docSubtitle(days),
+      docBlocks: this.docBlocks(days, trip),
+
       blOpen: s.blOpen, blCaret: s.blOpen ? '▼' : '▲', blToggleLabel: s.blOpen ? 'Hide' : 'Show', blCountLabel: String(s.backlog.length), blEmpty: !s.backlog.length,
       showRack: s.view === 'timeline' || s.view === 'columns',
       chatEmpty: !s.chat.length,
@@ -3026,6 +3413,8 @@ class Component extends DCLogic {
       closeAsst: () => { this._userOpened = false; this.setState({ asst: false }); },
       asstContext: route === 'trip'
         ? 'Looking at ' + (dayScope && focusDay ? focusDay.label + ' · ' + focusDay.city : trip.name)
+        : route === 'notebook' ? 'Looking at the Notebook for ' + trip.name
+        : route === 'doc' ? 'Looking at “' + this.doc().title + '”'
         : route === 'playbooks' ? 'Looking at your Playbook library' : 'Looking at all three of your trips',
       sugHeading: route === 'trip' ? 'What I noticed in this trip' : 'What I noticed',
       suggestions: sugs.map(x => ({ where: x.where, title: x.title, body: x.body, cta: x.cta, act: x.act, dismiss: () => this.setState(st => ({ dismissed: st.dismissed.concat([x.id]) })) })),
