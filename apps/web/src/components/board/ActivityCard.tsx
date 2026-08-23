@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import { attachClosestEdge, extractClosestEdge, type Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { AlertTriangle, Pencil, X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,12 @@ export function ActivityCard({
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
+  // The insertion line: which edge of *this* card a drop would land next to.
+  // null both at rest and while this card is itself the one being dragged —
+  // pragmatic-drag-and-drop still fires drag-over events on a target under
+  // its own dragged source in some browsers, and "insert next to yourself"
+  // is never a real position resolveDrop would produce.
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -52,6 +58,11 @@ export function ActivityCard({
             { cardActivityId: activity.activityId, dayId },
             { input, element, allowedEdges: ["top", "bottom"] },
           ),
+        canDrop: ({ source }) => source.data.activityId !== activity.activityId,
+        onDragEnter: (args) => setClosestEdge(extractClosestEdge(args.self.data) as Edge | null),
+        onDrag: (args) => setClosestEdge(extractClosestEdge(args.self.data) as Edge | null),
+        onDragLeave: () => setClosestEdge(null),
+        onDrop: () => setClosestEdge(null),
       }),
     );
   }, [activity.activityId, dayId]);
@@ -63,8 +74,24 @@ export function ActivityCard({
       data-testid={`activity-card-${activity.activityId}`}
       // eslint-disable-next-line no-restricted-syntax -- drag opacity is computed per-frame by pragmatic-drag-and-drop state, not expressible as a token class
       style={{ opacity: dragging ? 0.5 : 1 }}
-      className="mb-1.5 cursor-grab p-3"
+      className="relative mb-1.5 cursor-grab p-3"
     >
+      {/* The insertion line: Phase 3's own design intent (Column.tsx's
+          comment on the removed hover-tint: "the design keeps only the
+          insertion line and the floating time chip") shipped the
+          highlight-removal half but not the replacement — `attachClosestEdge`
+          was already wired for `resolveDrop.ts`'s position math, nothing
+          ever rendered it. Positioned on the card's own border so it reads
+          as "between this card and its neighbour," matching where the drop
+          actually lands. */}
+      {closestEdge !== null && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 h-0.5 rounded-full bg-brand"
+          // eslint-disable-next-line no-restricted-syntax -- the line sits half-over the card's own border (-3px), a one-off offset with no token equivalent
+          style={closestEdge === "top" ? { top: "-3px" } : { bottom: "-3px" }}
+        />
+      )}
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-1.5">
           <Text as="span" className="font-medium">{activity.title}</Text>

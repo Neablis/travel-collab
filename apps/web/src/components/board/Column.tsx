@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -60,16 +61,27 @@ export function Column({
   onAddActivity?: () => void;
 }) {
   const ref = useRef<HTMLUListElement>(null);
+  // Whether this column itself — not one of its cards — is the innermost
+  // drop target: hovering blank space (or an empty column) rather than a
+  // specific card. ActivityCard's own top/bottom edge line covers every case
+  // where a card *is* the innermost target; this covers what's left, which
+  // is exactly where resolveDrop.ts's "dropped on a column: append" branch
+  // fires. No hover tint on the column itself any more (Task 3.3) — this is
+  // the insertion-line replacement the Phase 3 design called for instead.
+  const [isOver, setIsOver] = useState(false);
 
-  // No hover tint: the Phase 3 design keeps only the insertion line and the
-  // floating time chip as drag feedback, so this target carries no onDragEnter
-  // /onDragLeave state of its own any more.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const updateIsOver = ({ location }: { location: DragLocationHistory }) =>
+      setIsOver(location.current.dropTargets[0]?.element === el);
     return dropTargetForElements({
       element: el,
       getData: () => ({ dayId }),
+      onDragEnter: updateIsOver,
+      onDrag: updateIsOver,
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
     });
   }, [dayId]);
 
@@ -107,6 +119,13 @@ export function Column({
             />
           );
         })}
+        {/* The "append here" half of the insertion line: shown only while
+            the column itself, not one of its cards, is the innermost drop
+            target — blank space below the last card, or an empty column
+            entirely. Matches resolveDrop.ts's "dropped on a column: append"
+            branch, which always lands at the end of the list regardless of
+            where within the column the drop actually happened. */}
+        {isOver && <li aria-hidden className="h-0.5 rounded-full bg-brand" />}
       </ul>
       {/* Handoff README §"Day columns view": "a dashed '+ Add' button per
           column" — a consistent dashed affordance regardless of whether the
