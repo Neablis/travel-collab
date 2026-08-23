@@ -157,7 +157,8 @@ Three things a fresh session needs from it:
    - **Phase 8b** (`docs/plans/M10-delta/phase-8b-design-sync.md`) — the Caesura
      rename, a working **sign out** (nothing in `apps/web/src` calls the
      `signOut` that `server/auth.ts` exports today), a three-state save
-     indicator, the sync-failure banner, and calendar month blocks. Runs after
+     indicator, the sync-failure banner, calendar month blocks, and **the trip
+     start picked with the end derived** (Task 8b.6, after Phase 6). Runs after
      Phase 8.
    - **Phase 1b** (`docs/plans/M10-delta/phase-1b-header-scope.md`) — the header
      adopts `SPEC.md` §1's focus-scope model, as an explicit revisit of the
@@ -169,11 +170,19 @@ Three things a fresh session needs from it:
    - **M15 Front door** is approved and executes **after M10's gate, before M9**
      (**ADR-021**, `docs/milestones/M15-front-door.md`).
 
-   **Three questions stay open** and are recorded where the work lives:
-   start-only trip dates (review §4.3 — note the code went deliberately the
-   *other* way in M8 Wave A; the design is asking to return to M5's shape), and
-   two carried into M15's milestone file (first-run vs. the four-step wizard,
-   and whether the landing copy may sell M11/M12).
+   - **Trip dates are start-only** (Mitchell, 2026-08-23): *"the end date will
+     always be start date + number of days in trip"*. Smaller than it looked —
+     `endDate` is stored nowhere (not on `TripState`, not on `TripDetail`) and
+     `TripHeader.tsx:228` already derives it from the plan's last day, so this
+     is a UI-only diff with **no contract, command or domain change**. That is
+     why it sits inside M10 as Task 8b.6 rather than after the gate. Phase 7's
+     wizard step 2 loses its "Leave" input in the same decision, and `TODO.md`'s
+     end-date-drift item is closed — its diagnosis was wrong, there was never a
+     stored field to drift.
+
+   **Two questions stay open**, both carried into M15's milestone file: whether
+   the one-field first-run screen is meant to differ from Phase 7's four-step
+   wizard, and whether the landing copy may sell M11/M12 before they exist.
 
 ## In flight
 

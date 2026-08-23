@@ -424,7 +424,7 @@ sync and its review
 both the same day. **The Wave-2 exit gate above still governs — these add to it,
 they do not replace anything.**
 
-**1. Phase 8b — five presentational items from the sync**
+**1. Phase 8b — presentational items from the sync**
 (`docs/plans/M10-delta/phase-8b-design-sync.md`). Runs after Phase 8, before
 Phase 9's gate:
 
@@ -432,7 +432,8 @@ Phase 9's gate:
 - a working **Sign out** behind a header account menu — a capability gap today, since nothing in `apps/web/src` calls the `signOut` that `server/auth.ts` exports;
 - the save indicator becomes three states (saved / saving / error) instead of two strings;
 - sync failure gets a persistent `Banner variant="danger"`, reusing `ConflictBanner`'s vocabulary rather than adding a second banner pattern;
-- the calendar renders one trimmed, headed block per month instead of one continuous padded grid.
+- the calendar renders one trimmed, headed block per month instead of one continuous padded grid;
+- (added later the same day) **Task 8b.6** — see amendment 3 below.
 
 **2. Phase 1b — the header adopts the focus-scope model**
 (`docs/plans/M10-delta/phase-1b-header-scope.md`). An explicit revisit of the
@@ -453,6 +454,21 @@ The review's §6 carries the full routing table.
 
 **Phase 9's exit checklist now covers Phases 8b and 1b too.**
 
-**Still open, deliberately not amended in:** whether the Dates row becomes
-start-only (`SPEC.md` §3). It reverses what M8 Wave A built on purpose and is a
-behaviour change, not polish — see the review's §4.3 for the traced history.
+**3. Task 8b.6 — the trip start is picked, the end is derived.** Added to Phase
+8b later the same day, on Mitchell's call: *"I do not want us picking an end
+date, it makes the UI awful. The end date will always be start date + number of
+days in trip = full trip."* (`SPEC.md` §3.)
+
+This looked like a behaviour change and is not one. `endDate` is stored nowhere
+— not on `TripState`, not on `TripDetail` — and `TripHeader.tsx:228` already
+derives it from the plan's last day. `decide.ts:155` already supports the
+start-only path. Days are already the truth; only the *editable end-date input*
+disagreed with them. Removing it is a UI-only diff with no contract, command or
+domain change, which is why it is in M10 rather than after it. **Runs after
+Phase 6**, since changing a trip's length then means adding or removing days,
+which Phase 6 makes real in every view. Phase 7's wizard step 2 loses its
+"Leave" input in the same decision.
+
+It also closes `TODO.md`'s "end-date picker may drift from the day count" item —
+and corrects its diagnosis: not stored-field drift, but a derived value shown in
+an editable field.

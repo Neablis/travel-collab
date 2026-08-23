@@ -1,10 +1,10 @@
 # Phase 8b — the 2026-08-23 design sync's M10-scoped items
 
-> **STATUS: APPROVED 2026-08-23 (Mitchell). All five tasks are in M10's gate.**
+> **STATUS: APPROVED 2026-08-23 (Mitchell). All six tasks are in M10's gate.**
 >
 > **Order: after Phase 8, before Phase 9's gate.** Phase 9's exit checklist now
-> covers these five too. Task 8b.5 additionally depends on Task 8.6 — see its
-> own note.
+> covers these six too. Two have their own dependencies: Task 8b.5 depends on
+> Task 8.6, and **Task 8b.6 depends on Phase 6** — see each task's note.
 >
 > These are the design sync's only items that belong inside M10's stated theme —
 > a coherent restyle of Home/Trip-plan against the handoff. **Everything else
@@ -285,6 +285,106 @@ Build the fixture with `@tc/factories` (ADR-020) — do not hand-build a
 
 ---
 
+## Task 8b.6: The trip has a start date. The end is derived, never picked.
+
+**Decided by Mitchell, 2026-08-23:** *"I do not want us picking an end date, it
+makes the UI awful. The end date will always be start date + number of days in
+trip = full trip."* This is `SPEC.md` §3.
+
+**Do this after Phase 6.** Once the end field is gone, changing a trip's length
+means adding or removing days. That works today, but only in the Board (day
+columns) lens (`Board.tsx:139`, `Column.tsx:100`); Phase 6 is what makes it real
+everywhere. Landing this first would leave length editable in one view out of four.
+
+### This is smaller than it sounds — the model is already right
+
+`endDate` **is not stored anywhere.** It is not on `TripState` and not on
+`TripDetail`; it exists only as a parameter of the `SetTripDates` command.
+`TripHeader.tsx:228` already derives it from the plan —
+`activeTrip.days[activeTrip.days.length - 1]?.date ?? null`, the last day's date
+— and threads it down for display. `decide.ts:155` already documents the
+start-only path: *"A null endDate means 'set the start only' — day count is
+untouched."*
+
+So days are already the truth and the end already follows them. The only thing
+that disagrees is the **editable end-date input**, which puts a derived value in
+a field you can type into. That is the whole bug, and deleting the field is the
+whole fix.
+
+**No contract change, no domain change, no new command.** `SetTripStartDate`
+already exists and already nulls cleanly. **Do not touch `packages/`.**
+
+### What changes
+
+**`apps/web/src/components/lenses/TripDateControl.tsx`** — the substance:
+
+- Delete the **End date** `FormField` and its `pendingEnd` state.
+- Delete the **shrink-confirm `Dialog`**, `confirmDrop`, and `confirmShrink`. Nothing shrinks through this control any more.
+- Delete `ID_SURPLUS`, the `newDayIds` minting and the `daySpan` import. Day count is untouched, so there are no day ids to supply.
+- Commit dispatches **`SetTripStartDate`**, not `SetTripDates`.
+- Keep the resync-on-prop-change `useEffect` for the start field. Its reason still holds: a collaborator's concurrent change must not be stomped by stale local state.
+
+**Layout and copy, verbatim from the design (`…dc.html:1122-1138`, `3277`):**
+
+- Read state — the Dates row is a button showing the range, mono 13px, underlined in `--color-hairline` with a 3px underline offset.
+- Edit state — one `Input type="date"` with `aria-label="Trip start date"`, then the derived end beside it as **plain text**, mono 13px slate: `→ Oct 16, 2026`. Then a ghost **Done**.
+- Hint below, 12px slate: **`Pick the day you leave. The end follows the {N} days in your plan — add or remove a day and it moves.`** `{N}` is `detail.days.length` — real, not a literal.
+
+**`SettingsSheet.tsx` / `TripHeader.tsx`** — keep threading the derived
+`endDate`; it is display-only now. `datesLabel` is unchanged. Keep `dayCount`
+too: the hint needs N even though the commit no longer does.
+
+### What must NOT change
+
+- **`SetTripDates` stays.** It is still the right command for *create-time*, where a length genuinely is the input, and it has three live callers: `duplicateTrip.ts:78` (with `endDate: null`), `batchResolver.ts:236-247` (the AI planning path), and Phase 7's wizard. Removing the picker is a UI decision, not a command retirement.
+- **Phase 7 Task 7.2, step 2 changes with this.** It currently plans "Arrive / Leave date inputs — real (`SetTripDates`)". Under this decision there is no Leave input: step 2 is **Arrive** plus the design's own **length chips** ("A weekend", "A week"…), which set a day count. At create time that is still one atomic `SetTripDates(start, start + N − 1)` — the user picks a length, never an end date. **If Phase 7 has already landed when you get here, fix its step 2 as part of this task and say so in the commit.**
+- **The AI keeps its dates tool.** A model setting a range reconciles day count, which is the create-time direction and stays legal.
+
+### Steps
+
+- [ ] **Step 1: Write the failing tests**
+
+```tsx
+it("has no end-date field", () => {
+  renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+  expect(screen.queryByLabelText("End date")).toBeNull();
+});
+
+it("shows the end derived from the plan's day count", () => {
+  renderDateControl({ startDate: "2026-10-03", endDate: "2026-10-16", dayCount: 14 });
+  expect(screen.getByText("→ Oct 16, 2026")).toBeTruthy();
+});
+
+it("says how the end follows the plan", () => {
+  renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+  expect(
+    screen.getByText(/The end follows the 14 days in your plan/),
+  ).toBeTruthy();
+});
+
+it("commits the start alone, leaving day count untouched", async () => {
+  const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+  await userEvent.clear(screen.getByLabelText("Trip start date"));
+  await userEvent.type(screen.getByLabelText("Trip start date"), "2026-10-05");
+  await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+  expect(onCommand).toHaveBeenCalledWith({
+    type: "SetTripStartDate", tripId: expect.any(String), startDate: "2026-10-05",
+  });
+});
+```
+
+Build fixtures with `@tc/factories` (ADR-020).
+
+- [ ] **Step 2: Run and confirm they fail.**
+- [ ] **Step 3: Implement.** Delete first, then restyle — the deletions are most of the diff. Check the existing `TripDateControl.test.tsx` for tests asserting the end field or the shrink dialog and **delete those too**; they are testing a capability that no longer exists, and leaving them skipped would be worse.
+- [ ] **Step 4: Grep for stranded callers.** `grep -rn "SetTripDates" apps/web/src` — after this, no UI surface but the wizard should dispatch it. Also `grep -rn "End date\|Set dates" apps/web/e2e` — `m3-place-and-time.spec.ts` was rewritten around the **Set dates** button in M8 (`6502a95`) and will need updating.
+- [ ] **Step 5:** `pnpm typecheck && pnpm lint && pnpm --filter web test`, then e2e against a production build with `CI=true` (KI-27). Verify by hand that shifting the start moves every day header, chip and calendar cell together.
+- [ ] **Step 6: Commit** — `feat(web): the trip start is picked, the end is derived`.
+- [ ] **Step 7: Close the TODO item.** `TODO.md`'s "Trip end-date picker may drift from the trip's actual day count" is closed by this — the field it drifted in no longer exists. Move it out of Candidate ideas with a line saying that, in the same commit.
+
+---
+
 ## Phase 8b exit checklist
 
 - [ ] The wordmark and the browser tab both read **Caesura**; nothing else was renamed.
@@ -293,6 +393,10 @@ Build the fixture with `@tc/factories` (ADR-020) — do not hand-build a
 - [ ] The save indicator has three states, the saved state keeps its accessible name, and reduced motion is honoured.
 - [ ] Sync failure uses `Banner variant="danger"` with `ConflictBanner`'s vocabulary — or is deliberately not shipped, with the reason recorded, because the queue cannot report persistent failure.
 - [ ] The calendar renders one trimmed, headed block per month, Sunday-start, still matching days by full date.
+- [ ] There is no end-date input anywhere in the app; the end is derived from the plan's last day and shown as text.
+- [ ] `packages/` is untouched by Task 8b.6 — no contract, command or domain change.
+- [ ] `SetTripDates` still exists and its three non-UI callers still work (`duplicateTrip`, the AI batch resolver, the wizard's length chips).
+- [ ] `TODO.md`'s end-date-drift item is closed, not left open against a field that no longer exists.
 - [ ] Every `Popover` trigger and `Banner` `actions` value added here keeps a stable element identity across renders (`SPEC.md` §5).
 - [ ] `pnpm typecheck && pnpm lint`, unit, int and the full e2e suite green against a **production** build with `CI=true` (KI-27).
 - [ ] `node scripts/check-color-wall.mjs` clean.

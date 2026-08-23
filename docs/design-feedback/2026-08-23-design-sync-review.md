@@ -195,11 +195,32 @@ The cost is real too: removing the end field removes "make this trip run to the
 16th" as a single gesture. Under §3 you would set the start and then add or
 remove days until the end lands where you want.
 
-**My call is unchanged** — adopt it, as its own step **after** M10's gate, not
-inside a presentational milestone. Editing start goes through `SetTripStartDate`
-(which already exists and already nulls cleanly); `SetTripDates` stays for the
-wizard's create-time path, where a range genuinely is the input. **Still open**,
-since the premise it was answered under was inverted.
+**DECIDED 2026-08-23 (Mitchell): adopt it.** *"I do not want us picking an end
+date, it makes the UI awful. The end date will always be start date + number of
+days in trip = full trip."*
+
+**And on a closer read it is much smaller than either of us framed it — this is
+not a behaviour change at the model level at all.** `endDate` **is not stored
+anywhere**: it is not on `TripState`, not on `TripDetail`, and exists only as a
+parameter of the `SetTripDates` command. `TripHeader.tsx:228` already derives it
+from the plan — `activeTrip.days[activeTrip.days.length - 1]?.date` — and
+`decide.ts:155` already documents the start-only path (*"A null endDate means
+'set the start only' — day count is untouched"*).
+
+So days are **already** the truth and the end **already** follows them. The one
+thing that disagrees is the editable end-date input, which puts a derived value
+into a field you can type into. Delete the field and the disagreement is gone.
+
+That also corrects the logged bug's diagnosis: `TODO.md`'s "end-date picker may
+drift from the trip's day count" is not stored-field drift — there is no stored
+field. It is a derived value presented as editable. Task 8b.6 closes it by
+removing the field.
+
+No contract change, no domain change, no new command, `packages/` untouched —
+which is why it lands **inside** M10 as **Task 8b.6**
+(`docs/plans/M10-delta/phase-8b-design-sync.md`), after Phase 6, rather than as
+its own post-gate step. Phase 7's wizard step 2 loses its "Leave" input in the
+same decision; that file is amended.
 
 ### 4.4 "Look around a real trip" cannot ship with the landing page
 
@@ -338,12 +359,13 @@ commit.
 |---|---|---|
 | §4.1 | Scope-aware header (`SPEC` §1) or the code's context-free one? | **Adopt `SPEC` §1**, as an explicit revisit of the merged Phase 1 — not folded into a polish task. Planned at `docs/plans/M10-delta/phase-1b-header-scope.md` |
 | §4.2 | Is the one-field first-run screen intentionally different from the four-step wizard? | **Still open** — carried into M15's milestone file as its first open question, since M15 owns first-run and M10 Phase 7 owns the wizard |
-| §4.3 | Start-only trip dates? | **Still open** — it was answered under an inverted premise (see §4.3, corrected). The code went *to* both-ends in M8 on purpose; nothing has taken it back |
+| §4.3 | Start-only trip dates? | **Adopted.** The end is always start + day count. Landed as **Task 8b.6**, not a post-gate step: `endDate` is stored nowhere and already derived, so removing the input is UI-only — no contract, command or domain change |
 | §4.5 | Landing copy selling M11/M12? | **Still open** — carried into M15's milestone file. It is a copy call that only matters when the landing page is built |
 | §6 † | Phase 8b into M10's gate? | **Approved.** All five. Runs after Phase 8, before Phase 9's gate |
 | §6 | M15 Front door? | **Approved**, executing **right after M10's gate and before M9** — ADR-021 records the reorder, on ADR-018's precedent |
 
-**What the two approvals do to M10's gate.** Both are gate-scope amendments and
+**What the approvals do to M10's gate.** Phase 8b (six tasks), Phase 1b, and
+Task 8b.6's removal of the end-date input are all gate-scope amendments and
 are recorded as such in `docs/milestones/M10-visual-craft.md`, per that file's
 own rule that a gate definition changes only by an explicit decision from
 Mitchell, recorded in the file. Phase 9's exit checklist now also covers Phase 8b
@@ -374,7 +396,8 @@ Docs only. No code, no contracts, no test changes.
 
 - §4.3 rewritten against `git log --follow`, correcting the premise it was first argued under.
 - §8 above, replacing the open questions with the answers.
-- `docs/plans/M10-delta/phase-8b-design-sync.md` — **approved**; the banner flipped and its place in the phase order stated.
+- `docs/plans/M10-delta/phase-8b-design-sync.md` — **approved**; the banner flipped and its place in the phase order stated. Later gained **Task 8b.6** (start picked, end derived) when that decision came back.
+- `docs/plans/M10-delta/phase-7-forms.md` — Task 7.2's step 2 loses its "Leave" input, same decision.
 - `docs/plans/M10-delta/phase-1b-header-scope.md` — new: the Phase 1 revisit that adopts `SPEC` §1.
 - `docs/milestones/M10-visual-craft.md` — both gate-scope amendments recorded.
 - `docs/architecture/ADR-021-front-door-milestone-ahead-of-m9.md` — the M15 reorder.

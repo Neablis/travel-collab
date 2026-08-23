@@ -46,11 +46,12 @@ Where the work actually stands right now: `docs/STATUS.md`.
       Wave 2 closes the delta — plan at
       `docs/plans/2026-08-14-M10-redesign-delta.md`, findings at
       `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
-      **Gate widened twice on 2026-08-23** by the design sync, both recorded in
-      the milestone file: **Phase 8b** (Caesura rename, working sign out,
-      three-state save indicator, sync-failure banner, calendar month blocks)
-      and **Phase 1b** (the header adopts the focus-scope model, an explicit
-      revisit of the merged Phase 1).)*
+      **Gate widened on 2026-08-23** by the design sync, recorded in the
+      milestone file: **Phase 8b** (Caesura rename, working sign out,
+      three-state save indicator, sync-failure banner, calendar month blocks,
+      and the trip start picked with the end derived) and **Phase 1b** (the
+      header adopts the focus-scope model, an explicit revisit of the merged
+      Phase 1). Phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
       *(Blocked on M10's Wave-2 gate — do not start early.)*
 
@@ -79,8 +80,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
 Captured so they aren't lost; not committed to a milestone yet.
 
 - **Design-sync items with no milestone yet (2026-08-23).** From
-  `docs/design-feedback/2026-08-23-design-sync-review.md`; each needs a decision
-  before it can be routed, and each is written up there in full:
+  `docs/design-feedback/2026-08-23-design-sync-review.md`, which writes each one
+  up in full. Decided items are struck through with where they went:
   - **`TripSummary.startDate`** — one field, so home's "next trip" is real
     rather than `visibleTrips[0]`. The data already exists on
     `TripDetail.startDate`; only the summaries read model lacks it. Per
@@ -88,16 +89,16 @@ Captured so they aren't lost; not committed to a milestone yet.
     M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
     row: richer, human-readable metadata" idea below** — that item wants exactly
     this field.
-  - **Start-only trip dates** (`SPEC.md` §3) — **still open after 2026-08-23.**
-    The end would derive from the day count instead of being edited. Note the
-    direction of travel, traced in the review's §4.3: M5 had a start-only
-    control, and **M8 Wave A (PR #21) deliberately grew it to both ends** so a
-    commit could see both fields and reconcile the day count. Nothing has taken
-    that back — no branch carries a start-only version. So this is a return to
-    M5's shape, not the ratification of a fix. What makes it worth doing is the
-    *inversion*: days become the truth and the end date derives, which kills the
-    "end-date picker drifts from day count" bug logged below by construction
-    rather than fixing it. Behaviour change; own step, after M10's gate.
+  - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23 and scheduled.** The
+    end is always start + day count; there is no end-date input anywhere.
+    Landed as **Task 8b.6** in `docs/plans/M10-delta/phase-8b-design-sync.md`
+    (after Phase 6), with Phase 7's wizard step 2 amended to match. It turned
+    out to be UI-only: `endDate` is stored nowhere — not on `TripState`, not on
+    `TripDetail` — and `TripHeader.tsx:228` already derives it from the plan's
+    last day, so no contract, command or domain change is involved. **This also
+    closes the "trip end-date picker may drift from the day count" item below,
+    and corrects its diagnosis:** not stored-field drift, but a derived value
+    presented in an editable field.
   - **Design coverage the build is still owed** — History beyond the popover,
     the four extra lenses and `MapRail` (this is also **KI-20**), trip
     lifecycle (delete → undo → restore, duplicate), and error/empty states for
@@ -239,7 +240,14 @@ Captured so they aren't lost; not committed to a milestone yet.
      (month grid), real content can end up sitting underneath it near the
      bottom of the viewport instead of alongside it.
 
-- **Trip end-date picker may drift from the trip's actual day count
+- **[SUPERSEDED 2026-08-23 — closed by Task 8b.6, and its diagnosis below is
+  wrong.]** There is no stored `endDate` to drift: it is absent from `TripState`
+  and `TripDetail`, and `TripHeader.tsx:228` already derives it from the plan's
+  last day. The real fault was showing that derived value in an editable field.
+  Task 8b.6 (`docs/plans/M10-delta/phase-8b-design-sync.md`) removes the field,
+  which removes the disagreement. Original entry kept below as written.
+
+  **Trip end-date picker may drift from the trip's actual day count
   (2026-08-23, manual QA on PR #26's preview deploy — likely predates this
   PR, Phase 4/PR #25 territory, not yet root-caused).** `TripDateControl.tsx`
   does wire up both `startDate` and `endDate` and computes `SetTripDates`'s
