@@ -6,6 +6,13 @@ branch `claude/next-phases-work-vni3iz` at `be512c5`.
 **Nothing here has been deleted.** This is a proposal with evidence attached.
 Phase 5 executes it, behind M10 Wave 2's gate, with its own safety protocol.
 
+**Pre-overhaul snapshot — counts below are as of 2026-08-23, before Phases
+1–4 landed.** Phases 1–4 changed file/test counts (new `@tc/factories`
+tests, `apps/web` e2e went from 18 to a verified 21, `packages/pages` and
+integration counts also moved — see `docs/testing-baseline.md` for current
+figures). This file is Phase 5's *input*; Phase 5 re-derives its own counts
+from the post-Phase-4 tree rather than trusting this snapshot's numbers.
+
 ---
 
 ## Method — two passes, because one is not enough

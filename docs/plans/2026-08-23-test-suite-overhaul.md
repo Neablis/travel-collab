@@ -185,7 +185,9 @@ the difference between "we deleted redundant tests" and "we deleted tests".
       loaded machine (KI-13's own reproduction protocol).
 - [ ] Full e2e suite green **twice in a row** via `test:e2e:ci-like`, including
       a sub-1180px viewport project.
-- [ ] KI-13, KI-19, KI-21, KI-25 moved to Resolved in `docs/known-issues.md`.
+- [ ] KI-19, KI-21, KI-25 moved to Resolved in `docs/known-issues.md`. KI-13
+      moved to Resolved with a root cause, or honestly re-scoped per Phase
+      4's decision-rule table (not closed on one green run).
 - [ ] Every test file has had the cut criteria applied, and the resulting count
       change is **reported** (not driven to a target) with no coverage
       regression on `packages/domain` (measured, not asserted).

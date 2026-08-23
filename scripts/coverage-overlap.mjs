@@ -103,7 +103,17 @@ function subjectCandidates(testFile) {
 }
 
 function report() {
-  const index = JSON.parse(readFileSync(join(OUT, "index.json"), "utf8")).filter((e) => e.ok);
+  const fullIndex = JSON.parse(readFileSync(join(OUT, "index.json"), "utf8"));
+  const failed = fullIndex.filter((e) => !e.ok);
+  if (failed.length > 0) {
+    process.stderr.write(
+      `refusing to report: ${failed.length}/${fullIndex.length} test file(s) failed to collect coverage (re-run collect):\n`,
+    );
+    for (const e of failed) process.stderr.write(`  ${e.suite}/${e.file}: ${e.error}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const index = fullIndex;
   const cov = new Map();
   for (const e of index) cov.set(`${e.suite}/${e.file}`, { keys: coveredKeys(e), file: e.file });
 
