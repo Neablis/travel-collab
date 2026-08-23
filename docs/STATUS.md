@@ -5,10 +5,12 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (M10 Wave 2 Phase 3 — the unscheduled rack — landed,
-PR #26; it had been built and verified since 2026-08-22 but was never opened
-as a PR, see "Known gap" below for how that happened. KI-26 and KI-27, both
-filed during Phase 4's CI diagnosis, are closed in the same PR.)**
+**Last updated: 2026-08-23 (a test-suite overhaul, Phases 0-4, landed as an
+off-roadmap insert — see "Where we are" below; does not move M10's gate.
+Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
+been built and verified since 2026-08-22 but was never opened as a PR, see
+"Known gap" below for how that happened. KI-26 and KI-27, both filed during
+Phase 4's CI diagnosis, are closed in the same PR.)**
 
 ## Where we are
 
@@ -73,6 +75,52 @@ see `docs/known-issues.md` KI-23 and KI-24. The plan
 (`docs/plans/2026-08-19-feature-flags-and-ai-kill-switch.md`) is removed in
 this same commit per `docs/plans/README.md`'s staging-area rule; its durable
 content lives in ADR-019, this file, and the known-issues entries above.
+
+**2026-08-23: a test-suite overhaul, Phases 0-4, landed as a second
+deliberate off-roadmap insert, ahead of M10 Wave 2 Phase 5.** Per
+`AGENTS.md`'s scope-creep rule, called out rather than silently absorbed —
+this is that call-out. **This does not reopen or move M10's gate** — M10
+Wave 2 Phase 5 remains exactly the resume-from-here point (below).
+
+The driving need: the `apps/web` unit suite had grown to 95 files / 569
+tests spending more wall time constructing jsdom worlds than running
+assertions (`environment` 58.7s vs `tests` 22.5s on a 43.1s run), plus four
+open test-reliability known issues (KI-13, KI-19, KI-21, KI-25) making a
+red run untrustworthy — exactly the condition that let KI-1 (a real
+correctness bug) hide behind a "probably flake" label for two weeks. The
+full plan, evidence, and phase-by-phase execution record live in
+`docs/plans/2026-08-23-test-suite-overhaul.md`,
+`docs/testing-inventory.md` (the keep/cut inventory Phase 5 will execute),
+and `docs/testing-baseline.md` (before/after numbers for every phase).
+
+**Phases 0-4 delivered:** a measured baseline (`docs/testing-baseline.md`);
+an environment split cutting the unit suite's `environment` time 33.5%
+(88.29s → 58.73s median) with zero test content changed; `@tc/factories`
+(ADR-020), a new workspace package collapsing four independent test-data
+vocabularies (`src/mocks/fixtures.ts`, e2e's `createMappedTrip`, `db-seed`,
+and every component test's own hand-built literals) into one, typed
+against `@tc/contracts`, with rollups computed via `@tc/domain`'s
+`rollupCosts` rather than kept consistent by hand; e2e sign-in-once via
+Playwright storageState (24 `signInAsDevUser` calls down to 1); a
+narrow-viewport gate project (`e2e/responsive.spec.ts`); a rewritten
+`dragCardTo` that removes KI-21's auto-scroll race instead of widening its
+timing window; and an unauthenticated `/api/health/ai-mode` endpoint plus
+Playwright `globalSetup` that makes the simulated-AI e2e guarantee
+(KI-25) unconditional. **KI-19, KI-21, and KI-25 are closed** in
+`docs/known-issues.md`. **KI-13 is closed as no longer reproducible**,
+explicitly not as root-caused — see its entry for the honest scope of what
+this session's reproduction attempts did and didn't establish.
+
+**Phases 5-7 (pruning, de-brittling, testing guidelines) are deliberately
+not part of this insert** — they are gated on M10 Wave 2's own gate closing,
+because M10 Wave 2 Phases 5-8 are about to rewrite eight of the components
+whose tests those phases would otherwise prune or rewrite twice
+(`TimelineLens`, `ActivityEditor`, `DayChips`, `CalendarLens`, `TripHeader`,
+`NextTripHero`, `Board`/`app/page.tsx` — see the plan's Sequencing section
+for the full collision table). Resume them once M10 Wave 2 Phase 9's gate
+closes and this branch is merged to `main`; re-run the Phase 0 inventory
+against the post-M10 tree first, since Wave 2 Phases 5-8 will have added
+tests of their own that the current inventory doesn't know about.
 
 ## In flight
 
