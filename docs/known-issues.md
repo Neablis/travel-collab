@@ -299,6 +299,15 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
   decides the escape hatch isn't worth the risk.
 
+### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport
+- **Severity:** reliability (no product impact observed yet; e2e flake)
+- **Area:** `apps/web/src/app/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`), `apps/web/e2e/m8-make-it-real.spec.ts`
+- **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
+- **Likely mechanism, not yet confirmed:** the home trip list accumulates one card per e2e spec across a full suite run (every spec shares the same seeded "alice" dev user, by long-standing design — see the unique-`Date.now()`-suffixed trip name convention every other spec already uses). By the time `m8` runs, the target trip's card can sit far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport. Not confirmed via a trace — this is a plausible read of the symptom, not a diagnosis.
+- **Why not fixed here:** out of scope for this session (not one of KI-19/21/25/13, the four this plan's Phase 3/4 targeted) and needs a trace-level look to confirm the mechanism before touching `Popover`'s collision/positioning config — exactly the standing rule KI-13/KI-21's own history argues for (don't guess at a fix for a once-seen flake).
+- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture a trace (`trace: "on-first-retry"` is already on) before attempting a fix.
+- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification, this session).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
