@@ -14,11 +14,15 @@
 // (default "alice" — any string works, AUTH_DEV_LOGIN mints a user for it).
 //
 // --- Preventing drift (why this script won't silently rot) ---
-// The seed payloads below are plain objects, not validated against
-// @tc/contracts at authoring time (this directory's other scripts are all
-// dependency-free ESM — see db-reset.mjs — and pulling in a TS/schema
-// toolchain just for this felt like more machinery than a dev-convenience
-// script warrants). Instead, drift protection is structural:
+// `cmd()`'s command parameter is typed against @tc/contracts's TripCommand
+// (below), so a renamed/removed/retyped command field fails `tsc --noEmit`
+// (part of `pnpm check`) before this script ever runs, not just at seed
+// time. This directory's other scripts stay dependency-free ESM (see
+// db-reset.mjs) on purpose; this one is a plain `.ts` file run directly —
+// Node's native type-stripping (stable as of this repo's pinned Node 22)
+// erases the annotations at load time, so this adds zero new dependencies
+// and zero build step, only compile-time checking. Runtime drift protection
+// is unchanged and still does the real work:
 //   1. Every command is POSTed to the REAL running server, which validates
 //      it against the REAL, current @tc/contracts Zod schemas before
 //      accepting it — the exact same validation a real user's request goes
@@ -30,13 +34,24 @@
 //      script as part of that change (docs/guidelines/connecting-the-parts.md
 //      "Changing a contract" says the same) — it's the cheapest smoke test
 //      available for "does this still work end to end."
-// What this does NOT catch: a new field the schema still accepts but that a
+// What neither catches: a new field the schema still accepts but that a
 // feature now depends on for realistic data (e.g. a future required-looking
 // field seeded here as absent). That's a content gap, not a schema
 // mismatch — no automated check can substitute for updating the seed data
 // itself when a new feature needs new kinds of fixtures.
+//
+// This script's own curated content (three named, realistic demo trips —
+// Japan, Rochester, Portland) is intentionally NOT routed through
+// `@tc/factories`'s `commandsFor` (ADR-020): `commandsFor`'s generic named
+// scenarios (emptyTrip, overBudgetTrip, ...) exist for tests and e2e, where
+// "a" over-budget trip is the point; this script's demo trips are specific,
+// narratively real content ("Japan: Tokyo -> Kyoto -> Osaka", 68 stops) that
+// no generic scenario name could capture without flattening it into
+// placeholder data. Both draw on the same TripCommand vocabulary; only the
+// content differs.
 
 import { randomUUID } from "node:crypto";
+import type { TripCommand } from "@tc/contracts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3001";
 const DEV_USER = process.env.SEED_USER ?? "alice";
@@ -58,7 +73,7 @@ const SEED_PREFIX = "[Seed] ";
 // NextAuth major-version bump renamed its cookies (currently the `authjs.*`
 // prefix, v5's convention — v4 used `next-auth.*`) before assuming the rest
 // of this script is broken.
-async function devSignIn(baseUrl, username) {
+async function devSignIn(baseUrl: string, username: string): Promise<string> {
   const csrfRes = await fetch(`${baseUrl}/api/auth/csrf`);
   const csrfCookie = readSetCookie(csrfRes, "authjs.csrf-token");
   if (!csrfCookie) {
@@ -83,18 +98,19 @@ async function devSignIn(baseUrl, username) {
   return sessionCookie;
 }
 
-function readSetCookie(res, name) {
+function readSetCookie(res: Response, name: string): string | undefined {
   // Node's fetch (undici) exposes multiple Set-Cookie headers via
   // getSetCookie() — a plain res.headers.get("set-cookie") would only see
   // the first one, and dev-login's response sets several.
-  const cookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
+  const headers = res.headers as Headers & { getSetCookie?: () => string[] };
+  const cookies = typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
   const match = cookies.find((c) => c.startsWith(`${name}=`));
   return match?.split(";")[0];
 }
 
 // ---- thin API helpers --------------------------------------------------
 
-async function api(cookie, method, path, body) {
+async function api(cookie: string, method: string, path: string, body?: unknown): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: { "Content-Type": "application/json", Cookie: cookie },
@@ -107,14 +123,23 @@ async function api(cookie, method, path, body) {
   return data;
 }
 
-const createTrip = (cookie, name) => api(cookie, "POST", "/api/trips", { name: `${SEED_PREFIX}${name}` });
-const cmd = (cookie, tripId, command) => api(cookie, "POST", `/api/trips/${tripId}/commands`, { ...command, tripId });
+const createTrip = (cookie: string, name: string) => api(cookie, "POST", "/api/trips", { name: `${SEED_PREFIX}${name}` });
+
+// Plain Omit<Union, K> collapses a discriminated union to its members'
+// common fields, which is not what excess-property-checking against a
+// literal needs here — distribute it over each member instead.
+type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+
+// The real command endpoint mints tripId server-side on CreateTrip but every
+// other command needs it supplied — matches every TripCommand's own shape.
+const cmd = (cookie: string, tripId: string, command: DistributiveOmit<TripCommand, "tripId">) =>
+  api(cookie, "POST", `/api/trips/${tripId}/commands`, { ...command, tripId });
 
 // ---- idempotency: clear out any trips this script created before ------
 
-async function deletePriorSeedTrips(cookie) {
+async function deletePriorSeedTrips(cookie: string): Promise<void> {
   const { trips } = await api(cookie, "GET", "/api/trips");
-  const prior = trips.filter((t) => t.name.startsWith(SEED_PREFIX));
+  const prior = trips.filter((t: { name: string }) => t.name.startsWith(SEED_PREFIX));
   for (const trip of prior) {
     await cmd(cookie, trip.tripId, { type: "DeleteTrip" });
   }
@@ -125,7 +150,7 @@ async function deletePriorSeedTrips(cookie) {
 // Offsets from "today" (not fixed calendar dates) so the seeded trips always
 // read as upcoming, however long it's been since this script was last run.
 
-function isoDateInDays(days) {
+function isoDateInDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
@@ -137,13 +162,27 @@ function isoDateInDays(days) {
 // packages/contracts/src/activity.ts) into the notes field instead of
 // dropping it. "planned" and "all" are the uninteresting default values for
 // each and are omitted so notes stay quiet for the common case.
-function buildNotes(note, status, who) {
-  const parts = [];
+function buildNotes(note?: string, status?: string, who?: string | string[]): string | undefined {
+  const parts: string[] = [];
   if (note) parts.push(note);
   if (status && status !== "planned") parts.push(`(${status})`);
   if (who && who !== "all") parts.push(`(${Array.isArray(who) ? who.join(" + ") : who})`);
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
+
+type SeedStop = {
+  day: string;
+  title: string;
+  start: string;
+  end: string;
+  place: string;
+  city: string;
+  lat: number;
+  lng: number;
+  country: string;
+  costMinor?: number;
+  notes?: string;
+};
 
 // A longer, denser trip: 14 days, 6 cities, 68 stops plus a backlog, adapted
 // from a JSON export of the Trip Planner redesign prototype. Costs are the
@@ -154,7 +193,7 @@ function buildNotes(note, status, who) {
 // /api/trips returns first — the homepage hero picks trips[0] with no
 // sort of its own (apps/web/src/app/page.tsx), so insertion order is what
 // decides "next trip" today.
-async function seedJapanTrip(cookie) {
+async function seedJapanTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Japan: Tokyo → Kyoto → Osaka");
   const dayIds = Array.from({ length: 14 }, () => randomUUID());
   const { detail } = await cmd(cookie, tripId, {
@@ -305,7 +344,7 @@ async function seedJapanTrip(cookie) {
   }
 }
 
-async function seedRochesterTrip(cookie) {
+async function seedRochesterTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Rochester to Niagara");
   const newDayIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
   const { detail } = await cmd(cookie, tripId, {
@@ -382,7 +421,7 @@ async function seedRochesterTrip(cookie) {
   });
 }
 
-async function seedPortlandTrip(cookie) {
+async function seedPortlandTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Portland Weekend");
   const newDayIds = [randomUUID(), randomUUID()];
   const { detail } = await cmd(cookie, tripId, {
@@ -431,7 +470,7 @@ async function seedPortlandTrip(cookie) {
   for (const a of activities) await addActivity(cookie, tripId, a);
 }
 
-async function addActivity(cookie, tripId, a) {
+async function addActivity(cookie: string, tripId: string, a: SeedStop): Promise<void> {
   const activityId = randomUUID();
   await cmd(cookie, tripId, {
     type: "AddActivity",

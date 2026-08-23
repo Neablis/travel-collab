@@ -120,6 +120,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.2
         version: 4.3.2
+      '@tc/factories':
+        specifier: workspace:*
+        version: link:../../packages/factories
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -206,6 +209,34 @@ importers:
       fast-check:
         specifier: ^4.8.0
         version: 4.8.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)(msw@2.14.7(@types/node@22.20.0)(typescript@5.9.3))
+
+  packages/factories:
+    dependencies:
+      '@faker-js/faker':
+        specifier: ^10.6.0
+        version: 10.6.0
+      '@tc/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@tc/domain':
+        specifier: workspace:*
+        version: link:../domain
+      fishery:
+        specifier: ^2.4.0
+        version: 2.4.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)(msw@2.14.7(@types/node@22.20.0)(typescript@5.9.3)))
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
@@ -920,6 +951,10 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@faker-js/faker@10.6.0':
+    resolution: {integrity: sha512-3RQHgEtvL1Frl/d1cSreo7qhJ3Gk1OdNUai/CtZ8G+wYeRQnJih3s9xJ9/kgYekPQRdwgh0HXRPqMlzWGwivIQ==}
+    engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
   '@flags-sdk/vercel@1.4.6':
     resolution: {integrity: sha512-S0hkhjdzFmOTvpfI5kQMF6fyTNkx3V0dov3DOi3C6M/EdXlieZhGeMv21npW7zzj5IyUYUmYHihextWLe7ib5Q==}
@@ -3034,6 +3069,9 @@ packages:
     resolution: {integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==}
     engines: {node: '>=10'}
 
+  fishery@2.4.0:
+    resolution: {integrity: sha512-QgeTlvgNhVGuMztrfAhlSIBs3rD3l9RMjl9I15yb/lnrx3njrOhvegr2L3LWdqvXwYfQjdQGpglyAfHH2J8DRA==}
+
   flags@4.3.0:
     resolution: {integrity: sha512-e4L4QBxGCMNTFzwleCBP1dSl4tET6t3Iv2REfMtBdfMNsD700s0LbgDgS8SsxkRpWrtJamRhsVqaqUwZaCyhtQ==}
     peerDependencies:
@@ -3529,6 +3567,9 @@ packages:
 
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
+
+  lodash.mergewith@4.6.2:
+    resolution: {integrity: sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==}
 
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
@@ -5106,6 +5147,8 @@ snapshots:
       levn: 0.4.1
 
   '@exodus/bytes@1.15.1': {}
+
+  '@faker-js/faker@10.6.0': {}
 
   '@flags-sdk/vercel@1.4.6(flags@4.3.0(@opentelemetry/api@1.9.0)(next@15.5.20(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(next@15.5.20(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))':
     dependencies:
@@ -7202,6 +7245,10 @@ snapshots:
       locate-path: 6.0.0
       path-exists: 4.0.0
 
+  fishery@2.4.0:
+    dependencies:
+      lodash.mergewith: 4.6.2
+
   flags@4.3.0(@opentelemetry/api@1.9.0)(next@15.5.20(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@edge-runtime/cookies': 5.0.2
@@ -7680,6 +7727,8 @@ snapshots:
       p-locate: 5.0.0
 
   lodash.merge@4.6.2: {}
+
+  lodash.mergewith@4.6.2: {}
 
   loose-envify@1.4.0:
     dependencies:

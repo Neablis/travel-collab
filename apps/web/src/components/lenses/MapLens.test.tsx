@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
 
 // MapLens dynamically imports maplibre-gl, whose real module init touches

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { NotebookScreen } from "./NotebookScreen";
-import { pageFixture } from "@/mocks/fixtures";
+import { pageFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";

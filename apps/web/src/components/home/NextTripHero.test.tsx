@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { costedTripDetailFixture, tripDetailFixture } from "@/mocks/fixtures";
+import { costedTripDetailFixture, tripDetailFixture } from "@tc/factories";
 
 const fetchTripDetailMock = vi.fn();
 

@@ -1,7 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "@/server/db/client";
-import { events, tripDetails, tripSummaries } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 
 const ACTOR_ID = "user-1";
@@ -23,12 +21,14 @@ async function seedTrip() {
   return tripId;
 }
 
+// No DB truncation: every test seeds its own randomUUID() tripId and every
+// assertion reads back through that trip's response body — see
+// eventStore.int.test.ts's comment and docs/testing-baseline.md (Phase 2
+// Task 2.6). currentUserId still resets every test — that's mock auth state,
+// not DB state.
 describe("GET /api/trips/:id", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     currentUserId = ACTOR_ID;
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
   });
 
   it("401s when unauthenticated", async () => {

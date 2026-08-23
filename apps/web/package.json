@@ -18,7 +18,7 @@
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
-    "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.mjs",
+    "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
     "db:reseed": "pnpm db:reset --yes && pnpm db:seed"
   },
   "dependencies": {
@@ -58,6 +58,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",
     "@playwright/test": "^1.61.1",
+    "@tc/factories": "workspace:*",
     "@tailwindcss/postcss": "^4.3.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

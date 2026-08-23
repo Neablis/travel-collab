@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { tripDetailFixture, historyFixture } from "@/mocks/fixtures";
+import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();

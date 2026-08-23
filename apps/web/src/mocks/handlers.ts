@@ -198,7 +198,7 @@ export function makeTripHandlers(
 // Deliberately naive in-memory pages store — just enough for UI development
 // and component tests against the pages REST routes (Task 3.3). Seed with
 // `@tc/pages`'s `instantiateDefaults(tripId)` (via `pagesClient.createPage`)
-// or an explicit fixture array (see `pageFixture` in `src/mocks/fixtures.ts`).
+// or an explicit fixture array (see `pageFixture` in `@tc/factories`).
 export function makePagesHandlers(
   initialPages: Page[],
   options?: {

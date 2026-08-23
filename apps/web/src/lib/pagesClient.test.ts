@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { instantiateDefaults } from "@tc/pages";
 import { createPage, deletePage, fetchPage, fetchPages, updatePage } from "@/lib/pagesClient";
-import { pageFixture } from "@/mocks/fixtures";
+import { pageFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";

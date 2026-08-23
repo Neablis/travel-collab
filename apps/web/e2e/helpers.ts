@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { commandsFor } from "@tc/factories";
 
 // @atlaskit/pragmatic-drag-and-drop is built on the browser's native HTML5
 // Drag and Drop API. Locator.dragTo() drives it with a single mouse-down /
@@ -96,8 +97,9 @@ export async function signInAsDevUser(page: Page, username: string): Promise<voi
  * cookies, so this runs as the already-signed-in dev user.
  *
  * The map rail only gears once its content overflows its viewport, which needs
- * more days than are practical to build through the UI. Same command shapes as
- * scripts/db-seed.mjs.
+ * more days than are practical to build through the UI. A thin wrapper over
+ * `@tc/factories`'s `commandsFor("mappedTrip", ...)` — the same command
+ * vocabulary unit tests, other e2e specs, and `db:seed` all share (ADR-020).
  */
 export async function createMappedTrip(page: Page, name: string, dayCount: number): Promise<string> {
   const post = async (path: string, body: unknown) => {
@@ -109,33 +111,8 @@ export async function createMappedTrip(page: Page, name: string, dayCount: numbe
   };
 
   const { tripId } = await post("/api/trips", { name });
-  const cmd = (command: Record<string, unknown>) => post(`/api/trips/${tripId}/commands`, { ...command, tripId });
-
-  const start = new Date();
-  start.setDate(start.getDate() + 10);
-  const end = new Date(start);
-  end.setDate(end.getDate() + dayCount - 1);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-  const newDayIds = Array.from({ length: dayCount }, () => crypto.randomUUID());
-  const { detail } = await cmd({
-    type: "SetTripDates",
-    startDate: iso(start),
-    endDate: iso(end),
-    newDayIds,
-  });
-
-  for (const [i, day] of detail.days.entries()) {
-    const activityId = crypto.randomUUID();
-    await cmd({
-      type: "AddActivity",
-      activityId,
-      title: `Stop on day ${i + 1}`,
-      timeWindow: { start: "09:00", end: "10:00" },
-      // Spread apart so each day's fitBounds lands somewhere distinct.
-      location: { name: `Place ${i + 1}`, city: `City ${i + 1}`, lat: 35 + i * 0.4, lng: 139 + i * 0.4, countryCode: "JP" },
-    });
-    await cmd({ type: "MoveActivity", activityId, toDayId: day.dayId, position: 0 });
+  for (const command of commandsFor("mappedTrip", tripId, { dayCount })) {
+    await post(`/api/trips/${tripId}/commands`, command);
   }
 
   return tripId as string;

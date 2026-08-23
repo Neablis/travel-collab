@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tripSpend, daySpend, plannedOfBudgetLine } from "./cost";
-import { costedTripDetailFixture } from "@/mocks/fixtures";
+import { costedTripDetailFixture } from "@tc/factories";
 
 describe("tripSpend", () => {
   it("reads the server-computed total rather than re-summing", () => {

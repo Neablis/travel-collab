@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Board, type BoardCallbacks } from "@/components/board/Board";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
-import { tripDetailFixture } from "@/mocks/fixtures";
+import { tripDetailFixture } from "@tc/factories";
 
 const A1 = "11111111-1111-4111-8111-111111111111";
 const A2 = "22222222-2222-4222-8222-222222222222";

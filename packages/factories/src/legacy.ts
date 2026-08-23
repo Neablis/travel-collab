@@ -1,3 +1,11 @@
+// Preserves src/mocks/fixtures.ts's exact exports and output verbatim, so
+// migrating its 24 call sites in apps/web is an import-path change only —
+// Phase 2 of the test-suite-overhaul changes call sites' imports and setup
+// blocks, not their bodies or assertions (docs/plans/test-overhaul/
+// phase-2-factories.md). New tests should reach for `scenarios` and the
+// Fishery-based factories in trip.ts instead; this module exists only to
+// carry the old fixtures' hardcoded ids/dates forward unchanged so no
+// existing assertion has to be touched.
 import type { Page, TripDetail, TripHistory } from "@tc/contracts";
 
 export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDetail {

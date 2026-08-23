@@ -101,9 +101,13 @@ Zero flakes.
 
 | Run | Files | Tests | Wall |
 |---|---|---|---|
-| 1 | 7 passed | 26 | 1.34s |
-| 2 | 7 passed | 26 | 1.27s |
-| 3 | 7 passed | 26 | 1.31s |
+| 1 | 7 passed | 32 | 1.34s |
+| 2 | 7 passed | 32 | 1.27s |
+| 3 | 7 passed | 32 | 1.31s |
+
+(32, not the 26 `docs/testing-inventory.md`'s headline table cites — that
+number predates this session; the raw logs behind this table agree with
+each other and with a live re-run, so 32 is current and correct.)
 
 Zero flakes.
 
@@ -188,6 +192,110 @@ per Task 0.4) must not drop below**, measured, not asserted. `history.ts` at
 89.1%/72.97% branch is the weakest file in the suite and worth a look before
 any future pruning touches domain-adjacent tests, though nothing in Phases
 0-4 touches `packages/domain` test content.
+
+---
+
+## Phase 1 — after-numbers
+
+See "After Phase 1" above (environment split + pool cap): unit-suite
+`environment` median 88.29s -> 58.73s, a 33.5% reduction, zero flakes,
+569/569 every run. `isolate: false` was not re-tried (248-failure finding
+already recorded in-config). Full `test:e2e:ci-like` verified green (15/15)
+once with the new viewport/trace/retry config — see the Phase 1 commit.
+
+## Phase 2 — `@tc/factories` and the isolation-strategy finding (Task 2.6)
+
+`packages/factories` (`@tc/factories`) is a new workspace package: Fishery +
+`@faker-js/faker` leaf factories typed against `@tc/contracts`
+(`moneyFactory`, `locationFactory`, `activityFactory`, `tripDetailFactory`),
+scenario builders (`scenarios.emptyTrip` / `threeDayTrip` / `overBudgetTrip`
+/ `overlappingDay` / `unscheduledHeavy` / `mappedTrip` / `ungeocodedTrip`),
+and `commandsFor(scenario, tripId)` — the event-sourced counterpart used by
+e2e and (selectively — see below) `db:seed`. `tripDetailFactory` computes
+its rollups by calling `@tc/domain`'s `rollupCosts` in `afterBuild`, never
+re-deriving the arithmetic (ADR-020).
+
+**`src/mocks/fixtures.ts` is deleted.** Its 24 callers' imports were changed
+to `@tc/factories`, nothing else — `@tc/factories/legacy.ts` carries the old
+fixtures' exact hardcoded output forward verbatim so this migration is
+provably a no-op for every existing assertion (verified: 569/569 unit tests
+still pass, unchanged). `e2e/helpers.ts`'s `createMappedTrip` is now a thin
+wrapper over `commandsFor("mappedTrip", tripId, { dayCount })` — its output
+had to be special-cased inside `commandsFor` to reproduce the old
+hand-rolled shape exactly (title `"Stop on day N"`, a fixed 09:00-10:00
+window, one distinct lat/lng per day), because `e2e/m10-unscheduled-
+rack.spec.ts` asserts on that literal title string. Verified: `m10-
+unscheduled-rack.spec.ts` and `m10-map-rail.spec.ts` both green post-change.
+
+**`scripts/db-seed.mjs` is now `db-seed.ts`, typed against `TripCommand`,
+but deliberately NOT routed through `commandsFor`.** Its three demo trips
+(a 14-day, 68-stop Japan itinerary; Rochester; Portland) are specific,
+narratively real content that no generic named scenario could capture
+without flattening it into placeholder data — see ADR-020's Consequences
+section for the full reasoning. The conversion uses Node's native
+TypeScript stripping (stable on this repo's pinned Node 22), so it adds
+zero new dependencies and zero build step; only `cmd()`'s parameter is
+typed (`DistributiveOmit<TripCommand, "tripId">` — plain `Omit` over a
+union collapses to the members' common fields, which breaks
+excess-property-checking against a literal). Verified end-to-end against a
+real `pnpm dev` server: seeds 3 trips, is idempotent on a second run
+(clears its own `[Seed]`-prefixed trips first), `tsc --noEmit` catches
+command-shape errors.
+
+### Task 2.6 — a real correctness finding changed the plan's assumption
+
+The plan's phase file frames Option 2 ("per-test trip ids, no truncation")
+as "likely both faster and more correct" than the per-test `beforeEach`
+truncation seven-plus `*.int.test.ts` files use. **That's true for 7 of the
+11 files with truncation, but not for the other 4** — `projections.int.
+test.ts`, `anchors.int.test.ts`, `commands.int.test.ts`, and `money.int.
+test.ts` all call `rebuildProjections()`, which does a **global**
+delete-and-rebuild of the entire `tripDetails`/`tripSummaries` tables
+(`apps/web/src/server/projections.ts`), not scoped to one trip. Running
+that concurrently with any other file mutating those tables — which is
+every other int test file — would silently corrupt the other file's rows
+mid-test. This is new information the plan's authors didn't have; the
+honest, conservative call given it:
+
+- **De-truncated the 7 files verified to only ever read/write their own
+  `randomUUID()`-scoped tripId** (`duplicateTrip.int.test.ts`,
+  `pages.int.test.ts`, `eventStore.int.test.ts`, and the four
+  `route.int.test.ts` files under `app/api/trips/[tripId]/`), after
+  auditing every one for an unscoped table read first (found one — already
+  correctly scoped — no fixes needed).
+- **Left the 4 `rebuildProjections`-calling files' truncation and comparison
+  assertions untouched** — they need a consistent whole-table view for
+  their own before/after rebuild comparisons regardless of the isolation
+  question, and de-truncating them would only be safe alongside a real fix
+  to `rebuildProjections` (making it optionally trip-scoped) or a
+  multi-project Vitest split that serializes them from everything else —
+  both real, larger changes than a test-suite-overhaul session should make
+  without separate review. Flagging this for whoever picks up Phases 5+ or
+  otherwise touches `test:int` isolation next.
+- **Did not flip `fileParallelism`** (`apps/web/vitest.config.ts`) for the
+  same reason — the 4 files still need to run serialized relative to
+  everything else, and Vitest's file-parallelism knob is all-or-nothing
+  per config.
+
+**Measured, not assumed:** `pnpm --filter web exec vitest run` (int suite),
+three clean runs before vs. after de-truncating the 7 safe files, same
+machine-idle protocol:
+
+| | Files | Tests | Wall | tests (execution only) |
+|---|---|---|---|---|
+| Before (all 11 truncating) | 12 | 79 | 12.09s / 13.4s / 12.1s | 2.02s |
+| After (7 de-truncated) | 12 | 79 | 12.08s / 11.81s / 11.63s | 1.81s / 1.78s / 1.76s |
+
+Zero flakes either way, same 79/79 pass count. **Wall time is essentially
+unchanged** (`collect`, i.e. module transform/resolution, dominates at
+~6.5s regardless — this suite was never actually slow) but `tests`
+(execution) drops ~13%, a real, if modest, reduction in per-test DB
+round-trips. Reporting this plainly rather than overstating it: Task 2.6's
+premise (this is "wasteful ... and forces serial execution") is partially
+right — the truncation was wasteful for 7 of 11 files — but the promised
+speedup was never going to be large on this suite, because `test:int` was
+already fast (11-13s) and dominated by collection, not the truncation
+itself.
 
 ---
 

@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "./db/client";
-import { events } from "./db/schema";
 import { appendToStream, readStream } from "./eventStore";
 
 const NOW = "2026-07-07T12:00:00.000Z";
@@ -14,11 +13,12 @@ function tripCreated(tripId: string) {
   };
 }
 
+// No beforeEach truncation: every test mints its own randomUUID() streamId
+// and every assertion below reads back through readStream(db, streamId),
+// which is already scoped to that one stream — so leftover rows from other
+// tests (this file or any other) never leak into an assertion here (Phase 2
+// Task 2.6; see docs/testing-baseline.md for the isolation-strategy writeup).
 describe("event store", () => {
-  beforeEach(async () => {
-    await db.delete(events);
-  });
-
   it("appends and reads back envelopes in order", async () => {
     const streamId = randomUUID();
     const result = await db.transaction((tx) =>

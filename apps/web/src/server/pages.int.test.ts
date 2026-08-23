@@ -1,7 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { db } from "./db/client";
-import { events, pages, tripDetails, tripSummaries } from "./db/schema";
 import { executeTripCommand } from "./commands";
 import { listPages, getPage, createPage, updatePage, deletePage } from "./pages";
 
@@ -11,14 +9,12 @@ async function seedTrip() {
   return { tripId };
 }
 
+// No beforeEach truncation: every test mints its own randomUUID() tripId via
+// seedTrip() and every assertion reads back through that tripId or a page id
+// scoped to it — see eventStore.int.test.ts's comment and
+// docs/testing-baseline.md for the isolation-strategy writeup (Phase 2 Task
+// 2.6).
 describe("pages repository", () => {
-  beforeEach(async () => {
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
-    await db.delete(pages);
-  });
-
   it("lazily instantiates the two default pages on first list", async () => {
     const { tripId } = await seedTrip();
     const first = await listPages(tripId);

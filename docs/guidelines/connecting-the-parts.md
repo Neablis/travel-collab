@@ -44,7 +44,7 @@ packages/contracts  ←  apps/web (UI)  — via the typed API client only
    command payloads through the real API, so it fails loudly on exactly this
    kind of drift — cheaper than finding out a command silently stopped
    validating the next time someone tries to seed local data. See
-   `apps/web/scripts/db-seed.mjs`'s header for what it does and doesn't catch.
+   `apps/web/scripts/db-seed.ts`'s header for what it does and doesn't catch.
 
 ## Parallel agent workstreams
 

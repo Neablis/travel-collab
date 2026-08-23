@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "./db/client";
-import { events, pages, tripDetails, tripSummaries } from "./db/schema";
+import { pages } from "./db/schema";
 import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
 import { createPage } from "./pages";
@@ -10,14 +10,12 @@ import { duplicateTrip } from "./duplicateTrip";
 
 const actor = "user-1";
 
+// No beforeEach truncation: every test mints its own randomUUID() tripId and
+// every assertion below reads back through that tripId (getTripDetail,
+// duplicateTrip's own result, or a pages query scoped by result.tripId) —
+// see eventStore.int.test.ts's comment and docs/testing-baseline.md for the
+// isolation-strategy writeup (Phase 2 Task 2.6).
 describe("duplicateTrip", () => {
-  beforeEach(async () => {
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
-    await db.delete(pages);
-  });
-
   it("copies planning state into a fresh stream with fresh ids", async () => {
     const tripId = randomUUID();
     const dayId = randomUUID();

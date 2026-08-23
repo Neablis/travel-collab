@@ -38,7 +38,7 @@ Rules (ADR-004 + M1 retro):
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
   --filter web db:reseed` wipes and refills with realistic data in one shot
   (`db:reset --yes` + `db:seed`, `.env.local`'s `DATABASE_URL` picked up
-  automatically) — see `apps/web/scripts/db-seed.mjs`.
+  automatically) — see `apps/web/scripts/db-seed.ts`.
 
 ## Feature flags
 

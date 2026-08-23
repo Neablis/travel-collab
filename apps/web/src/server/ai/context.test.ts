@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Conflict } from "@tc/contracts";
-import { costedTripDetailFixture, tripDetailFixture } from "../../mocks/fixtures";
+import { costedTripDetailFixture, tripDetailFixture } from "@tc/factories";
 import { activeConflicts, buildEnvelope } from "./context";
 
 const PAGE_CONTEXT = { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" };
