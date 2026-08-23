@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripDetail } from "@tc/contracts";
+import type { TripCommand, TripDetail } from "@tc/contracts";
 import { useLens } from "../trip/context/LensRouter";
 import { TimelineLens } from "./TimelineLens";
 import { CalendarLens } from "./CalendarLens";
@@ -14,16 +14,20 @@ import { CalendarLens } from "./CalendarLens";
 export function ScheduleLens({
   detail,
   onSelectActivity,
+  onCommand,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
+  // Passed straight through to TimelineLens (the overlap warning's fix and
+  // dismiss) — this component owns no commands of its own.
+  onCommand?: (command: TripCommand) => void;
 }) {
   const { view } = useLens();
 
   return (
     <div data-testid="schedule-lens">
       {view === "Timeline" ? (
-        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} />
+        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} onCommand={onCommand} />
       ) : (
         <CalendarLens detail={detail} onSelectActivity={onSelectActivity} />
       )}

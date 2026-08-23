@@ -84,6 +84,28 @@ describe("Board", () => {
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
   });
 
+  // M10 Phase 5: the day columns' compact form of the timeline's overlap
+  // warning — on the later stop only (A2 starts 10:00, A1 09:00), naming the
+  // other one, with a dismiss that goes through the same per-pair
+  // DismissConflict the banner uses.
+  it("shows the compact overlap chip on the later stop only, and dismisses the pair", () => {
+    const callbacks = noopCallbacks();
+    renderBoard(fixture(), callbacks);
+
+    const chip = screen.getByTestId(`overlap-chip-${A2}`);
+    expect(within(chip).getByText("Overlaps Colosseum")).toBeTruthy();
+    expect(screen.queryByTestId(`overlap-chip-${A1}`)).toBeNull();
+
+    fireEvent.click(within(chip).getByRole("button", { name: "Dismiss overlap warning" }));
+    expect(callbacks.onDismissConflict).toHaveBeenCalledWith(`time-overlap:${DAY}:${A1}:${A2}`);
+  });
+
+  it("hides the compact overlap chip once the pair is dismissed", () => {
+    const trip = fixture();
+    renderBoard({ ...trip, dismissedConflictIds: [trip.conflicts[0]!.id] }, noopCallbacks());
+    expect(screen.queryByTestId(`overlap-chip-${A2}`)).toBeNull();
+  });
+
   it("dismissing a conflict calls onDismissConflict; dismissedConflictIds hides it from the banner", () => {
     const callbacks = noopCallbacks();
     const { rerender } = renderBoard(fixture(), callbacks);

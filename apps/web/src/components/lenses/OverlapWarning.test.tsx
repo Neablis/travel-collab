@@ -1,0 +1,47 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Overlap } from "./overlapData";
+import { OverlapWarning } from "./OverlapWarning";
+
+afterEach(cleanup);
+
+// The plan's worked example: Lunch at Kagari (12:30–14:00) overlapping Nezu
+// Museum (10:30–13:00) by 30 minutes. Built directly rather than through
+// overlapsForDay so this file tests the copy, not the derivation —
+// overlapData.test.ts owns the latter.
+const overlap: Overlap = {
+  conflictId: "time-overlap:d1:a:b",
+  laterActivityId: "b",
+  otherActivityId: "a",
+  otherTitle: "Nezu Museum",
+  otherStart: "10:30",
+  otherEnd: "13:00",
+  overlapMinutes: 30,
+  suggestedStart: "13:00",
+};
+
+describe("OverlapWarning", () => {
+  it("states which stop it overlaps, and by how much", () => {
+    render(<OverlapWarning overlap={overlap} onFix={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+  });
+
+  it("offers a fix labelled with the suggested start", () => {
+    render(<OverlapWarning overlap={overlap} onFix={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Start 1 pm" })).toBeTruthy();
+  });
+
+  it("fixes and dismisses independently", async () => {
+    const onFix = vi.fn();
+    const onDismiss = vi.fn();
+    render(<OverlapWarning overlap={overlap} onFix={onFix} onDismiss={onDismiss} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Start 1 pm" }));
+    expect(onFix).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});
