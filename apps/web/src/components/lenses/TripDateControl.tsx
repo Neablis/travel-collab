@@ -98,41 +98,56 @@ export function TripDateControl({
 
   return (
     <>
-      <span className="flex items-end gap-1">
-        <FormField id={startInputId} label="Start date">
-          <Input
-            id={startInputId}
-            type="date"
-            value={pendingStart}
-            onChange={(e) => setPendingStart(e.target.value)}
-          />
-        </FormField>
-        <FormField id={endInputId} label="End date">
-          <Input id={endInputId} type="date" value={pendingEnd} onChange={(e) => setPendingEnd(e.target.value)} />
-        </FormField>
-        <Button type="button" onClick={commit}>
-          Set dates
-        </Button>
-        {/* Clearing is a rare op with a single action, so it's a direct X next to
-            the date rather than a one-item "Date options" popover (#19) — only
-            shown when there's a date to clear. It clears the start date alone
-            (mirrors the original SetTripStartDate behavior) without touching
-            the end date/day count. */}
-        {startDate !== null && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Clear date"
-            onClick={() => {
-              setPendingStart("");
-              onCommand({ type: "SetTripStartDate", tripId, startDate: null });
-            }}
-          >
-            <X className="size-3.5" aria-hidden />
+      {/* Two explicit rows (fields, then actions) rather than one row relying
+          on flex-wrap to reflow "in the right place": this control now mounts
+          inside the Dates row's Popover (SettingsSheet.tsx), a fixed w-80 box
+          with ~296px of usable width after padding — nowhere near the ~410px
+          a single non-wrapping row of both date fields + both buttons needs.
+          A stacked layout fits deterministically regardless of container
+          width. flex-wrap stays on the fields row itself as a safety net:
+          native <input type="date"> rendered width varies by browser/OS/font,
+          and 153+153+gap is already close to the popover's usable width, so
+          End date should drop to its own line rather than spill past the
+          popover/viewport edge if it ever doesn't fit beside Start date. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-end gap-1">
+          <FormField id={startInputId} label="Start date">
+            <Input
+              id={startInputId}
+              type="date"
+              value={pendingStart}
+              onChange={(e) => setPendingStart(e.target.value)}
+            />
+          </FormField>
+          <FormField id={endInputId} label="End date">
+            <Input id={endInputId} type="date" value={pendingEnd} onChange={(e) => setPendingEnd(e.target.value)} />
+          </FormField>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button type="button" onClick={commit}>
+            Set dates
           </Button>
-        )}
-      </span>
+          {/* Clearing is a rare op with a single action, so it's a direct X next to
+              the date rather than a one-item "Date options" popover (#19) — only
+              shown when there's a date to clear. It clears the start date alone
+              (mirrors the original SetTripStartDate behavior) without touching
+              the end date/day count. */}
+          {startDate !== null && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Clear date"
+              onClick={() => {
+                setPendingStart("");
+                onCommand({ type: "SetTripStartDate", tripId, startDate: null });
+              }}
+            >
+              <X className="size-3.5" aria-hidden />
+            </Button>
+          )}
+        </div>
+      </div>
       {confirmDrop !== null && (
         <Dialog
           open
