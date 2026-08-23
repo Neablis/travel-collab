@@ -5,21 +5,30 @@ import { MoneyInput } from "./MoneyInput";
 
 afterEach(cleanup);
 
+// KI-13's canonical slow file: 11,675ms inside a full pnpm check run vs 191ms
+// alone. MoneyInput itself has no debounce or timer (see the component) —
+// the cost was userEvent's own default per-keystroke real setTimeout, which
+// under a loaded machine can take arbitrarily longer than its nominal delay.
+// delay: null skips that wait entirely (userEvent only schedules a timer
+// when `delay` is a number — see @testing-library/user-event's wait()); the
+// interaction sequence is unchanged, only the artificial pacing is gone.
+const user = userEvent.setup({ delay: null });
+
 describe("MoneyInput", () => {
   it("emits integer minor units from a decimal entry, on blur", async () => {
     const onChange = vi.fn();
     render(<MoneyInput value={null} currency="USD" onChange={onChange} />);
-    await userEvent.type(screen.getByLabelText(/cost/i), "42.50");
+    await user.type(screen.getByLabelText(/cost/i), "42.50");
     expect(onChange).not.toHaveBeenCalled();
-    await userEvent.tab();
+    await user.tab();
     expect(onChange).toHaveBeenLastCalledWith({ amountMinor: 4250, currency: "USD" });
   });
 
   it("clears to null when emptied, on blur", async () => {
     const onChange = vi.fn();
     render(<MoneyInput value={{ amountMinor: 4250, currency: "USD" }} currency="USD" onChange={onChange} />);
-    await userEvent.clear(screen.getByLabelText(/cost/i));
-    await userEvent.tab();
+    await user.clear(screen.getByLabelText(/cost/i));
+    await user.tab();
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -49,9 +58,9 @@ describe("MoneyInput", () => {
       </form>,
     );
     const input = screen.getByLabelText(/cost/i);
-    await userEvent.type(input, "99");
+    await user.type(input, "99");
     expect(onChange).not.toHaveBeenCalled();
-    await userEvent.keyboard("{Enter}");
+    await user.keyboard("{Enter}");
     expect(onChange).toHaveBeenLastCalledWith({ amountMinor: 9900, currency: "USD" });
     expect(onSubmit).not.toHaveBeenCalled();
     expect(document.activeElement).not.toBe(input);
@@ -61,10 +70,10 @@ describe("MoneyInput", () => {
     const onChange = vi.fn();
     render(<MoneyInput value={{ amountMinor: 5000, currency: "USD" }} currency="USD" onChange={onChange} />);
     const input = screen.getByLabelText(/cost/i) as HTMLInputElement;
-    await userEvent.clear(input);
-    await userEvent.type(input, "999");
+    await user.clear(input);
+    await user.type(input, "999");
     expect(input.value).toBe("999");
-    await userEvent.keyboard("{Escape}");
+    await user.keyboard("{Escape}");
     // A type="number" input normalizes a trailing "50.00" to "50" once real
     // typing has touched it, so compare numerically rather than by string.
     expect(Number(input.value)).toBe(50);
@@ -98,7 +107,7 @@ describe("MoneyInput", () => {
   it("does not clobber in-progress typing on a re-render with an unchanged value", async () => {
     const onChange = vi.fn();
     const { rerender } = render(<MoneyInput value={null} currency="USD" onChange={onChange} />);
-    await userEvent.type(screen.getByLabelText(/cost/i), "7");
+    await user.type(screen.getByLabelText(/cost/i), "7");
     // Same value as before this keystroke's onChange resolves (e.g. a parent
     // re-render triggered by something unrelated) — must not reset display.
     rerender(<MoneyInput value={null} currency="USD" onChange={onChange} />);

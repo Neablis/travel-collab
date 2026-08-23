@@ -370,6 +370,72 @@ for the exact runs.
 
 ---
 
+## Phase 4 — KI-13: does not reproduce, closed honestly (not root-caused)
+
+**Task 4.1 (reproduce deliberately), via the new `scripts/repro-ki13.sh`**
+(saturates every core, then runs the full `apps/web` unit suite — the
+2026-08-16 reproduction condition): ran once against the post-Phase-1
+config (current tree) and once against the pre-Phase-1 config (`git show`
+of `vitest.unit.config.ts` before the Phase 1 commit, restored after) — **95/95
+files, 569/569 tests green on both, no timeouts, no failures.** `environment`
+did rise under saturation (post-Phase-1: 105.97s vs the Phase-1 idle median
+of 58.73s, ~1.8x; pre-Phase-1: 165.17s vs its own un-split idle baseline)
+— real contention, just never enough to cross a `waitFor` budget on this
+hardware. This matches the KI's own prior 2026-07-28 note: "could not
+reproduce... on a 10-core machine... even with all cores saturated."
+
+**Task 4.4's three-times proof, both conditions, all green:**
+
+| Condition | Runs | Result |
+|---|---|---|
+| Idle `pnpm check` | 3 | 3/3 green |
+| `scripts/repro-ki13.sh` (CPU-saturated unit suite) | 3 | 3/3 green, 95/95 files each time |
+
+**Not retested this session: the cold-install condition** (`CI=true pnpm
+install` with caches cleared) — the trigger for the 2026-07-26/07-27
+observations. Flagging this honestly per the "if the numbers disagree, say
+so" instruction rather than claiming a bar this session didn't clear; the
+two conditions retested are the ones most recently and repeatedly
+implicated (2026-08-16 onward).
+
+**Disposition — decision-rule row 2** (`phase-4-ki13.md`: "cannot reproduce
+on the pre-fix config either, and all three proofs are green"): **KI-13 is
+closed as no longer reproducible, not as root-caused.** The mechanism was
+never directly observed in this session. This is a deliberately weaker
+claim than "found and fixed the cause" — see `docs/known-issues.md`'s
+updated KI-13 entry for the full reasoning and what would justify
+re-opening it.
+
+**Task 4.2 fixes, applied regardless of the reproduction outcome** (real
+wins independent of whether the broader flake ever recurs):
+- `MoneyInput.test.tsx` (this KI's own canonical slow file — 11,675ms
+  in-suite vs 191ms alone) and `toast.test.tsx`/`LocationInput.test.tsx`
+  now call `userEvent.setup({ delay: null })` instead of using the default
+  `userEvent` import. None of the three components being tested has an
+  internal debounce or timer — the wall-clock cost was `userEvent`'s own
+  default per-keystroke `setTimeout` (confirmed by reading
+  `@testing-library/user-event`'s `wait()` helper: it only schedules a real
+  timer when `delay` is a number, which the default `0` is; `null` skips it
+  entirely). Verified: all three files' tests still pass, same assertions,
+  same interaction sequences — only the artificial pacing is gone.
+- `debounce.test.ts` and `SyncIndicator.test.tsx`, the other two named
+  candidates, were audited and found **already correct**: `debounce.test.ts`
+  already uses `vi.useFakeTimers()`/`vi.advanceTimersByTime()` throughout;
+  `SyncIndicator.test.tsx` has no `userEvent` calls and no timers at all. No
+  change needed to either.
+- A light audit of the 11 files using `waitFor`/`findBy*` (`TripBoardScreen.
+  test.tsx`, `MapLens.test.tsx`, and others) found their waits genuinely
+  depend on async state — dispatched commands, mocked async APIs like
+  maplibre's `onLoad` callback — not the "already synchronous by the time
+  the assertion runs" spurious case Task 4.2 item 1 describes. Left as-is
+  rather than removed under time pressure without confidence they're
+  actually redundant.
+- Task 4.3 (zero retries): already true by default — no `retry` option is
+  set anywhere in either vitest config, and Vitest's own default is 0.
+  Confirmed, not assumed.
+
+---
+
 ## Exit checklist (phase-0-baseline.md)
 
 - [x] Three recorded runs per suite, with `environment`/`tests` breakdowns

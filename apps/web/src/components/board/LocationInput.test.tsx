@@ -14,14 +14,19 @@ beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
+// delay: null (Phase 4, KI-13): no timer in LocationInput itself (search is
+// a manual button click, not debounced) — userEvent's own default
+// per-keystroke setTimeout was the only real-clock cost here.
+const user = userEvent.setup({ delay: null });
+
 describe("LocationInput", () => {
   it("geocodes on search and emits the picked Location", async () => {
     const onChange = vi.fn();
     render(<LocationInput value={null} onChange={onChange} />);
-    await userEvent.type(screen.getByPlaceholderText(/place/i), "Colosseum");
-    await userEvent.click(screen.getByRole("button", { name: /search/i }));
+    await user.type(screen.getByPlaceholderText(/place/i), "Colosseum");
+    await user.click(screen.getByRole("button", { name: /search/i }));
     const pick = await screen.findByRole("option", { name: /Colosseum, Rome/i });
-    await userEvent.click(pick);
+    await user.click(pick);
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith({ name: "Colosseum, Rome, Italy", lat: 41.89, lng: 12.49, countryCode: "IT" }),
     );
@@ -37,10 +42,10 @@ describe("LocationInput", () => {
     );
     const onChange = vi.fn();
     render(<LocationInput value={null} onChange={onChange} />);
-    await userEvent.type(screen.getByPlaceholderText(/place/i), "Strong Museum");
-    await userEvent.click(screen.getByRole("button", { name: /search/i }));
+    await user.type(screen.getByPlaceholderText(/place/i), "Strong Museum");
+    await user.click(screen.getByRole("button", { name: /search/i }));
     const pick = await screen.findByRole("option", { name: /The Strong, Rochester/i });
-    await userEvent.click(pick);
+    await user.click(pick);
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
         expect.objectContaining({ name: "The Strong, Rochester, NY, USA", city: "Rochester" }),
@@ -51,8 +56,8 @@ describe("LocationInput", () => {
   it("renders results as a listbox with primary and secondary text", async () => {
     const onChange = vi.fn();
     render(<LocationInput value={null} onChange={onChange} />);
-    await userEvent.type(screen.getByPlaceholderText(/place/i), "Colosseum");
-    await userEvent.click(screen.getByRole("button", { name: /search/i }));
+    await user.type(screen.getByPlaceholderText(/place/i), "Colosseum");
+    await user.click(screen.getByRole("button", { name: /search/i }));
     await screen.findByRole("listbox");
     const option = screen.getByRole("option", { name: /Colosseum, Rome/i });
     expect(option.textContent).toContain("Colosseum, Rome, Italy");
@@ -67,7 +72,7 @@ describe("LocationInput", () => {
         <LocationInput value={null} onChange={onChange} />
       </form>,
     );
-    await userEvent.type(screen.getByLabelText(/place name/i), "Colosseum{Enter}");
+    await user.type(screen.getByLabelText(/place name/i), "Colosseum{Enter}");
     await screen.findByRole("listbox");
     expect(onSubmit).not.toHaveBeenCalled();
   });
