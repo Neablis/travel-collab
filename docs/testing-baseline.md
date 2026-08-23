@@ -299,6 +299,77 @@ itself.
 
 ---
 
+## Phase 3 — e2e reliability: KI-19, KI-21, KI-25 closed
+
+**Task 3.1 (sign in once).** `e2e/auth.setup.ts` authenticates as "alice"
+once and saves storageState; `playwright.config.ts`'s "desktop"/"narrow"
+projects depend on it and start pre-authenticated. `signInAsDevUser` is now
+called from exactly **one** place (`auth.setup.ts`) — better than the
+plan's own "down to 2" target, because `smoke.spec.ts` (the one spec that
+still has to exercise the real login UI, per Task 3.1) already had its own
+independent inline sign-in sequence rather than calling the shared helper,
+and that didn't need to change. Isolation choice, written down per the
+plan's "pick one and write it down" instruction: kept the existing
+unique-trip-name convention (`${name} ${Date.now()}`) rather than switching
+to per-worker dev users — the convention already worked, and a shared
+storageState is the smaller change.
+
+**Task 3.2 (build via API, assert via UI)** is largely already true of this
+suite (the plan's own "Start here" note) and `commandsFor`/`page.request`
+already exist from Phase 2 for the specs that need it (`responsive.spec.ts`
+uses this pattern for all 5 of its new tests) — writing this up as a
+guideline rule is Phase 7's job, not retrofitted onto existing spec bodies
+here.
+
+**Task 3.3 (`dragCardTo`, KI-21) — rewritten per the plan's 3-step order,
+all three applied:** `scrollIntoViewIfNeeded()` on the target *before* the
+drag starts (removing the auto-scroll race, not widening its window), the
+5-second manual polling loop deleted entirely (every caller already asserts
+the drop's result with a web-first `toBeVisible()`/`toHaveCount()`, which
+Playwright already retries), and all 3 `waitForTimeout` calls in
+`helpers.ts` removed. **Verified: `m1-board` + `m4-money-and-lenses` green
+10 consecutive runs on an idle sandbox, plus 2 more runs under deliberate
+full-CPU saturation** (`for i in $(seq 1 $(nproc)); do (while :; do :;
+done) & done`) — 12/12, the exact bar the plan's Task 3.3 sets.
+
+**Task 3.4 (narrow-viewport project, KI-19):** `playwright.config.ts` gained
+a `"narrow"` project (1100x800) running only the new `e2e/responsive.spec.ts`
+(5 tests, all via `commandsFor`-built state + role/computed-style
+assertions, never a className check): the assistant rail's scrim actually
+dismissing it (KI-16's regression guard), the trip page staying interactive
+at a narrow width, a sheet's Close button staying reachable (KI-17's other
+half), the Playbooks strip's 1180px reflow, and the home hero's 1024px
+collapse (asserted at an explicit 1000px `setViewportSize`, since that
+breakpoint sits below the narrow project's own 1100px). All 5 green.
+
+**Task 3.5 (AI-mode reporting, KI-25):** a new unauthenticated
+`GET /api/health/ai-mode` reports `modelSelection.ts`'s own resolved
+`aiLive()` value (not a second copy of that logic), and
+`playwright.config.ts`'s new `globalSetup` (`e2e/global.setup.ts`) queries
+it once before every project and throws if it's `true`. **Verified in both
+directions**, not just read: started a real server with `AI_LIVE=true` and
+`reuseExistingServer` (KI-25's exact symptom scenario) and confirmed the
+whole suite refuses to run at `globalSetup` with a clear message; confirmed
+the normal `AI_LIVE=false` path is unaffected.
+
+**A real flake found and fixed along the way, not part of the plan's named
+KIs.** `m8-make-it-real.spec.ts`'s delete/undo assertions
+(`getByText(renamedTripName)`) intermittently matched the "Deleted
+`"{name}"`" undo-toast's own text, which contains the renamed trip's name as
+a substring — the identical class of bug a comment two lines above it had
+already named and fixed for a different assertion in the same test.
+Rescoped both to `getByRole("heading", { name: renamedTripName, level: 3
+})`, matching the pattern `smoke.spec.ts` already uses for trip cards.
+Verified: 5/5 clean re-runs after the fix (it had failed 1-in-3 runs before,
+observed during this session's own verification passes — not a
+pre-existing filed KI, just a real flake this work surfaced and closed).
+
+**Full suite: `test:e2e:ci-like` green, 21/21, twice** (1 setup + 15
+original specs + 5 new `responsive.spec.ts` tests) — see the Phase 3 commit
+for the exact runs.
+
+---
+
 ## Exit checklist (phase-0-baseline.md)
 
 - [x] Three recorded runs per suite, with `environment`/`tests` breakdowns

@@ -165,30 +165,12 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **`dayAccent.test.ts` passes today while this is broken — fix that too.** Its `it("spreads distinct cities across families")` asserts something materially weaker than its name claims: 7-of-13 collisions do not fail it. Whatever closes this entry must also replace that test with a real property test carrying a measured `witness` floor (`AGENTS.md`'s Testing model), or the fix ships with the same false confidence that hid the bug.
 - **First noted:** 2026-08-14 (external design review of PR #23).
 
-### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it
-- **Severity:** reliability (the gate cannot see a class of real defect)
-- **Area:** `apps/web/playwright.config.ts`
-- **Symptom:** M10 Wave 1's gate passed 11/11 specs against a production build while the trip page was completely inert below 1180px (KI-16). The config sets `use: { baseURL }` and **no `viewport`**, so every spec runs at Playwright's 1280x720 default — above the 1179px breakpoint at which the blocking scrim turns on.
-- **Why it matters beyond KI-16:** the app has real breakpoint-dependent behaviour (the rail's overlay mode, the hero's 1040px collapse, the Playbooks strip's 1180px reflow). None of it is exercised. A responsive gate that only ever runs at one width is not a responsive gate.
-- **Fix:** M10 Wave 2 makes a narrow-viewport project (or at least one sub-1180px spec) a **gate condition**, not a nice-to-have.
-- **First noted:** 2026-08-14 (external design review of PR #23).
-
 ### KI-20 — Itinerary, Daily overview and Full-trip lenses have no navigation entry
 - **Severity:** cosmetic (no code path is broken; a real feature is unreachable through the UI)
 - **Area:** `apps/web/src/components/trip/TripViewTabs.tsx`, `apps/web/src/components/trip/context/LensRouter.tsx`
 - **Symptom:** M10's four-tab strip (Timeline / Day columns / Calendar / Map) matches the redesign, which never contemplated the other three. Their components, `LensRouter` entries and `?lens=` URLs all still work — only the nav affordance is gone.
 - **Fix:** decide whether to re-home or retire them.
 - **First noted:** 2026-08-14 (M10 Wave 2, Phase 1, Task 1.2).
-
-### KI-21 — `m1-board.spec.ts` and `m4-money-and-lenses.spec.ts` fail intermittently under load, both inside `dragCardTo`
-- **Severity:** reliability (no product impact; makes "full e2e suite green" an unreliable signal)
-- **Area:** `apps/web/e2e/helpers.ts` (`dragCardTo`), the two specs that use it
-- **Symptom:** across several `pnpm test:e2e` runs on 2026-08-16 (map-rail-focus-tracking session), these two specs failed in 3 of 5 full-suite runs, each time on a **different specific assertion** inside or just after a drag (`locator.boundingBox: Test timeout of 30000ms exceeded` waiting on a card by name; a value expected-visible after a drag not appearing). Never the same failure twice. `dragCardTo`'s own header comment already documents that CI's drag-recognition window can be missed under resource pressure (see the comment in `helpers.ts`) — this is that same class, observed locally under load, not a new mechanism.
-- **Confirmed unrelated to any specific branch's code**, via two independent methods: (1) `git stash`-reverted the branch's own changes and reran — identical failures with zero code changes applied; (2) a fully clean `pnpm db:reset` (empty database, ruling out state accumulated by other specs in the same run) followed by a full-suite run — `m10-map-rail.spec.ts` passed cleanly, `m1-board.spec.ts` **passed** (had failed in the prior, non-clean run), `m4-money-and-lenses.spec.ts` failed on yet a **third** distinct assertion. Three runs, three different failure signatures, on code that didn't change between them — the classic signature of resource-contention flakiness (see KI-13's third addendum, same session, same root-cause class: an external CPU-heavy process on the machine).
-- **Why it isn't fixed:** `dragCardTo`'s own comment already names the tradeoff (deliberately not `preventDefault`-based synthetic drag, to keep native HTML5 drag recognition — see the file for the reasoning) and firing the mouse sequence manually with intermediate steps is the documented mitigation already in place. The remaining flakiness is timing-budget, not a missing technique.
-- **Mitigation:** don't trust a single failing `m1-board`/`m4-money-and-lenses` run in isolation, especially alongside other resource-heavy work (other test runs, browser automation, unrelated CPU load) — rerun once, ideally with `ps aux` clean, before treating it as a real regression.
-- **First noted:** 2026-08-16 (map-rail-focus-tracking session, verifying `e2e/m10-map-rail.spec.ts` didn't regress the rest of the suite).
-- **A more precise mechanism found, 2026-08-23 (M10 Phase 3 landing session, PR #26).** `m1-board.spec.ts`'s specific failure — the day1→day2 card-to-card drag, `expect(day2.getByText("Vatican Museums")).toBeVisible()` — reproduced **deterministically** (not intermittently) across every CI run and every constrained-sandbox local run this session, always the identical assertion. Traced via a Playwright trace capture: `dragCardTo`'s post-move polling loop (`helpers.ts`) ran its full 5-second budget without `inViewport(targetBox)` ever turning true, because day 2's column genuinely sat ~8px below the 720px default viewport fold in that page state — `autoScrollWindowForElements` (Board.tsx) never brought it fully into view inside the window `dragCardTo` allots. Confirmed **unrelated to any code on this PR**: reproduced identically on the original, unmerged `claude/m10-phase-3-rack` branch pre-merge (a control run in a separate worktree), and confirmed real CI (not just the sandbox) hits it too — 3 consecutive GitHub Actions `integration-e2e` runs on PR #26's evolving head, same assertion every time. This refines rather than replaces the entry above: the *general* mechanism (resource pressure defeating a timing budget inside `dragCardTo`) is the same class documented in 2026-08-16, but this specific failure's trigger — a column marginally below the fold, relying on auto-scroll that doesn't reliably finish in time — is now understood precisely enough that a real fix is plausible (e.g. a faster/more aggressive auto-scroll config, or a taller default viewport in `playwright.config.ts` matching the "no viewport set → 1280×720" gap the Wave-1 gate review already flagged as a blind spot). Not fixed here — out of scope for a landing PR — but the next session chasing this should start from this trace-level finding rather than re-deriving it.
 
 ### KI-13 — `pnpm check` is not reliably green: jsdom component tests time out under parallel load
 - **Severity:** reliability (false failures; no product impact)
@@ -331,27 +313,33 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
   decides the escape hatch isn't worth the risk.
 
-### KI-25 — The simulated-AI e2e guarantee depends on how the dev server was started
-- **Severity:** reliability (test-environment gap, no product impact)
-- **Area:** `apps/web/playwright.config.ts`, `apps/web/e2e/m10-simulated-ai.spec.ts`
-- `playwright.config.ts` sets `AI_LIVE: "false"` in `webServer.env`, but
-  `reuseExistingServer: !process.env.CI` means that env block is only applied
-  when Playwright starts a *fresh* server — the normal CI path. Locally,
-  `pnpm test:e2e` against an already-running dev server (the common case when
-  iterating) ignores `webServer.env` entirely and uses whatever `AI_LIVE`
-  that server actually has, which could be `true` from a developer's
-  `.env.local`. Mitigated, not eliminated: `m10-simulated-ai.spec.ts` asserts
-  `body.simulated === true` on the captured API response directly (added
-  2026-08-22), so the test fails loudly rather than silently making a real
-  provider call if this happens — but it does mean a local run's "pass" isn't
-  by itself proof no real model was contacted, only CI's is. Full fix would
-  require a per-spec server override or `reuseExistingServer: false` for this
-  one spec, which Playwright doesn't support cleanly without splitting config.
-
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it — RESOLVED, a narrow-viewport project is now a gate condition
+- **Severity:** reliability (the gate couldn't see a class of real defect)
+- **Area:** `apps/web/playwright.config.ts`, `apps/web/e2e/responsive.spec.ts`
+- **Symptom:** M10 Wave 1's gate passed 11/11 specs against a production build while the trip page was completely inert below 1180px (KI-16). The config set `use: { baseURL }` and **no `viewport`**, so every spec ran at Playwright's 1280x720 default — above the 1179px breakpoint at which the blocking scrim turns on.
+- **Fix (2026-08-23, test-suite-overhaul Phase 3, Task 3.4):** `playwright.config.ts` now declares a `"narrow"` project (1100x800, `devices["Desktop Chrome"]`) that runs only `e2e/responsive.spec.ts`, alongside the existing `"desktop"` project (1280x900, explicit rather than Playwright's un-set default — closes the blind spot the symptom above describes even for the un-narrowed suite). `responsive.spec.ts` covers five breakpoint-dependent behaviors in one spec rather than running all 15 specs at both widths: the assistant rail's overlay mode and its scrim actually dismissing it (the KI-16 regression guard), the trip page staying interactive (a view-tab click still changes the lens), a sheet's Close button staying reachable at a narrow width (KI-17's other half), the Playbooks strip's 1180px 4-col-to-2-col reflow (asserted via `getComputedStyle().gridTemplateColumns`, not a class name), and the home hero's 1024px collapse to one column (asserted the same way, at an explicit 1000px `page.setViewportSize` within the same spec — below the "narrow" project's own 1100px, which is above that particular breakpoint). All 5 verified green, part of the full 21-test suite run (`test:e2e:ci-like`).
+- **First noted:** 2026-08-14 (external design review of PR #23). **Resolved:** 2026-08-23 (test-suite-overhaul Phase 3).
+
+### KI-21 — `m1-board.spec.ts` and `m4-money-and-lenses.spec.ts` fail intermittently under load, both inside `dragCardTo` — RESOLVED, the auto-scroll race is gone
+- **Severity:** reliability (no product impact; made "full e2e suite green" an unreliable signal)
+- **Area:** `apps/web/e2e/helpers.ts` (`dragCardTo`)
+- **Symptom, and the trace-level root cause found 2026-08-23 (M10 Phase 3 landing session, PR #26):** `dragCardTo`'s post-move polling loop ran its full 5-second budget without a drag target's box ever registering as fully in-viewport, because a day column could sit a few px below the fold and `Board.tsx`'s drag-triggered `autoScrollWindowForElements` didn't reliably finish bringing it into view inside that budget on a loaded machine. Reproduced deterministically on the pre-fix code, on both the sandbox and real CI. Full prior history (three earlier observations across 2026-08-16 and 2026-08-23, each narrowing the mechanism) preserved in git history for this entry.
+- **Fix (2026-08-23, test-suite-overhaul Phase 3, Task 3.3), in the order the plan prescribed, stopping once the drag was deterministic:** (1) Phase 1's taller default viewport (720px → 900px) removed KI-21's specific 8px-below-the-fold trigger but not the class of bug. (2) `dragCardTo` now calls `target.scrollIntoViewIfNeeded()` **before** starting the drag, rather than depending on drag-triggered auto-scroll to finish inside a hand-rolled timing budget — this removes the race entirely instead of widening the window: both ends are on screen before the mouse ever moves. (3) The manual polling loop is gone; `dragCardTo` no longer tries to guess when a drop "registered" — every caller already asserts the moved card's new location with a web-first `expect(...).toBeVisible()`, and Playwright's own auto-waiting is a better judge of that than a fixed-budget poll ever was. All three `waitForTimeout` calls in `helpers.ts` are deleted along with the loop that needed them.
+- **Verified:** `m1-board.spec.ts` and `m4-money-and-lenses.spec.ts` green **10 consecutive runs** on an idle sandbox, plus **2 more runs under deliberate full-CPU-saturation load** (`for i in $(seq 1 $(nproc)); do (while :; do :; done) & done`, the exact KI-13/KI-21 reproduction condition) — 12/12, zero failures, matching this entry's own acceptance bar rather than a single green run.
+- **First noted:** 2026-08-16 (map-rail-focus-tracking session). **Resolved:** 2026-08-23 (test-suite-overhaul Phase 3).
+
+### KI-25 — The simulated-AI e2e guarantee depended on how the dev server was started — RESOLVED, the guarantee is now unconditional
+- **Severity:** reliability (test-environment gap, no product impact)
+- **Area:** `apps/web/playwright.config.ts`, new `apps/web/e2e/global.setup.ts` and `apps/web/src/app/api/health/ai-mode/route.ts`
+- **Symptom:** `playwright.config.ts` set `AI_LIVE: "false"` in `webServer.env`, but `reuseExistingServer: !process.env.CI` meant that env block only applied when Playwright started a *fresh* server. Locally, running against an already-running dev server (the common case while iterating) ignored `webServer.env` entirely and used whatever `AI_LIVE` that server actually had, which could be `true` from a developer's `.env.local` — so a local "pass" wasn't by itself proof no real model was contacted, only CI's was.
+- **Fix (2026-08-23, test-suite-overhaul Phase 3, Task 3.5):** a new unauthenticated, read-only endpoint, `GET /api/health/ai-mode`, reports `{ live: boolean }` from `modelSelection.ts`'s own `aiLive()` — the single place the flag is already resolved, not a second copy of the logic. `playwright.config.ts`'s new `globalSetup` (`e2e/global.setup.ts`) queries that endpoint once, before every project including auth setup, and **throws** if it reports `live: true` — independent of how the server was started or why. This also gives **KI-24** the observability its entry names as missing: the effective mode is now queryable rather than inferable from a log line (KI-24's own override-semantics question is untouched — this endpoint only reports the resolved mode, it does not change what sets it).
+- **Verified end-to-end, both directions:** a real server started with `AI_LIVE=true` and `reuseExistingServer` (the exact scenario the symptom describes) makes the whole suite refuse to run at `globalSetup`, with the message naming the cause; the normal `AI_LIVE=false` path runs unaffected (confirmed as part of the full 21-test `test:e2e:ci-like` run).
+- **First noted:** 2026-08-22 (M10 Phase 4 budget branch, PR #25). **Resolved:** 2026-08-23 (test-suite-overhaul Phase 3).
 
 ### KI-27 — Local e2e runs against `pnpm dev` are not a reliable stand-in for CI — RESOLVED, `test:e2e:ci-like` added
 - **Symptom (2026-08-22/23, M10 Phase 4, PR #25):** `playwright.config.ts` started `pnpm dev` (Next.js dev server, on-demand per-route compilation) locally, only switching to `pnpm start` (the production build CI actually runs against) when `process.env.CI` was set. This produced two distinct false signals in the same session: a genuinely-fixed `Popover`/`Sheet` z-index bug looked possibly-still-broken because an unrelated spec intermittently failed against the dev server with a symptom that changed shape between runs (dev-server on-demand-compile lag, not a real regression); and a genuinely real `TripDateControl` overflow regression was initially obscured by that same dev-server noise, only reliably reproduced after rebuilding production and re-running with `CI=true`. Full original write-up preserved in git history for this entry.

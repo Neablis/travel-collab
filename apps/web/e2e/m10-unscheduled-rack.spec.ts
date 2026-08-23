@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createMappedTrip, dragCardTo, signInAsDevUser } from "./helpers";
+import { createMappedTrip, dragCardTo } from "./helpers";
 
 // The rack's own drag behaviour can only be tested in a real browser:
 // @atlaskit/pragmatic-drag-and-drop is driven by native HTML5 drag events, and
@@ -14,7 +14,7 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = `Rack ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
 
   await page.goto(`/trips/${tripId}`);
@@ -62,7 +62,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   // with getByRole("button", { name: /undo/i }) — a leftover "RackUndo ..."
   // trip matches that regex and breaks that spec with a strict-mode violation.
   const tripName = `RackHistory ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
 
   await page.goto(`/trips/${tripId}`);

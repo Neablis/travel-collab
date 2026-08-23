@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dragCardTo, signInAsDevUser } from "./helpers";
+import { dragCardTo } from "./helpers";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
 // confirming round-trip before firing the next one (same pattern as
@@ -29,7 +29,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
     });
   });
 
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
@@ -109,8 +109,15 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await page.getByRole("button", { name: new RegExp(`trip actions for ${renamedTripName}`, "i") }).click();
   await page.getByRole("menuitem", { name: /delete/i }).click();
   await page.getByRole("button", { name: /^delete$/i }).click();
-  await expect(page.getByText(renamedTripName)).not.toBeVisible();
+  // getByRole("heading", ..., level: 3), not getByText: same substring
+  // collision as the rename assertion above — the "Deleted "..."" undo toast
+  // this click raises contains the trip's own name as a substring, so a bare
+  // getByText(renamedTripName) transiently matches the toast itself right
+  // after deletion (observed flaky in CI: the assertion raced the toast's
+  // own visible window). Trip cards on the list render as level-3 headings
+  // (smoke.spec.ts's own assertion already relies on this).
+  await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).not.toBeVisible();
 
   await page.getByRole("button", { name: /undo/i }).click(); // restore
-  await expect(page.getByText(renamedTripName)).toBeVisible();
+  await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).toBeVisible();
 });

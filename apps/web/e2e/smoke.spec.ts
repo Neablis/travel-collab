@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// This is the one spec that still covers the login UI end to end — every
+// other spec runs pre-authenticated via the "desktop"/"narrow" projects'
+// shared storageState (Task 3.1). Override it here so this test starts
+// genuinely signed out.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test("sign in, create a trip, see it in the list", async ({ page }) => {
   const tripName = `Rome ${Date.now()}`;
 

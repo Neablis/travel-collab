@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
 
 test("optimistic add renders instantly and persists", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
   const tripName = `Oslo ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
@@ -42,7 +41,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
 
 test("a rejected change reverts and shows an error", async ({ page }) => {
   const tripName = `Bergen ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);

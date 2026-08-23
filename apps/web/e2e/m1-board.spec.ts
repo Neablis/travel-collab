@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, signInAsDevUser } from "./helpers";
+import { dragCardTo } from "./helpers";
 
 test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   const tripName = `Lisbon ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);

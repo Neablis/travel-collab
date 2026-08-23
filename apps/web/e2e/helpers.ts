@@ -14,20 +14,35 @@ import { commandsFor } from "@tc/factories";
 export async function dragCardTo(source: Locator, target: Locator): Promise<void> {
   // The board refetches and re-lays-out after every command (a new day pushes
   // the "+ Add day" button, a new card grows its column), so a drag fired
-  // immediately after a prior mutation can read a box that's about to move or
-  // start before pragmatic-drag-and-drop's monitor has re-registered. Wait for
-  // both ends to be present and let layout settle before measuring.
+  // immediately after a prior mutation can read a box that's about to move.
+  // waitFor({ state: "visible" }) plus scrollIntoViewIfNeeded's own
+  // actionability checks (Playwright waits for the element to stop moving
+  // before scrolling to it) are what stand in for the wall-clock sleep this
+  // used to need — see KI-13's "no sleeps" principle.
   await source.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await source.scrollIntoViewIfNeeded();
-  await source.page().waitForTimeout(300);
+
+  // KI-21's traced root cause: a target whose box sat (partly) outside the
+  // viewport — a day column pushed below the fold — depended on
+  // drag-triggered auto-scroll (Board.tsx's autoScrollWindowForElements) to
+  // finish inside a hand-rolled 5s polling budget, which a loaded machine
+  // sometimes missed. Scrolling the target into view *before* the drag
+  // starts removes that race entirely instead of widening the window: by
+  // the time the mouse moves, both ends are already on screen.
+  await target.scrollIntoViewIfNeeded();
+
   const sourceBox = await source.boundingBox();
   if (!sourceBox) throw new Error("dragCardTo: source has no bounding box");
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
 
   const page = source.page();
-  const viewport = page.viewportSize();
   const sx = sourceBox.x + sourceBox.width / 2;
   const sy = sourceBox.y + sourceBox.height / 2;
+  const tx = targetBox.x + targetBox.width / 2;
+  const ty = targetBox.y + targetBox.height / 2;
+
   await page.mouse.move(sx, sy);
   await page.mouse.down();
   // A small initial move off the press point is what Chromium treats as
@@ -36,44 +51,14 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // is the recognition window the taller time-windowed cards + wrapped grid
   // make easier to miss).
   await page.mouse.move(sx + 6, sy + 6, { steps: 3 });
-
-  // A real cursor can never move past the visible viewport, so a target
-  // whose box currently sits (partly) outside it — a day column pushed below
-  // the fold by page content above the board — has to be reached by hovering
-  // near the clamped edge and letting the window's drag-triggered auto-scroll
-  // (Board.tsx's autoScrollWindowForElements) bring it into view, the same
-  // way a real drag would. Jumping straight to an off-screen box center (the
-  // prior approach) lands the pointer somewhere document.elementFromPoint
-  // can't resolve to anything, so pragmatic-drag-and-drop never sees a drop
-  // target and the drop silently no-ops.
-  const clamp = (value: number, max: number) => Math.min(Math.max(value, 4), max - 4);
-  const pointAt = (box: { x: number; y: number; width: number; height: number }) => ({
-    x: viewport ? clamp(box.x + box.width / 2, viewport.width) : box.x + box.width / 2,
-    y: viewport ? clamp(box.y + box.height / 2, viewport.height) : box.y + box.height / 2,
-  });
-  const inViewport = (box: { y: number; height: number }) =>
-    viewport === null || (box.y >= 0 && box.y + box.height <= viewport.height);
-
-  let targetBox = await target.boundingBox();
-  if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
-  let point = pointAt(targetBox);
-  await page.mouse.move(point.x, point.y, { steps: 25 });
-
-  // Hold near the edge and poll until auto-scroll has brought the target
-  // fully into view, re-aiming at its updated (now on-screen) position.
-  const deadline = Date.now() + 5000;
-  while (!inViewport(targetBox) && Date.now() < deadline) {
-    await page.mouse.move(point.x, point.y);
-    await page.waitForTimeout(100);
-    const box = await target.boundingBox();
-    if (!box) break;
-    targetBox = box;
-    point = pointAt(targetBox);
-  }
-
-  await page.mouse.move(point.x, point.y);
-  await page.waitForTimeout(200);
+  await page.mouse.move(tx, ty, { steps: 25 });
   await page.mouse.up();
+
+  // No wait here for the drop to "register": the caller asserts the moved
+  // card is where it expects (a web-first assertion, e.g. `toBeVisible()`),
+  // and Playwright's own auto-waiting retries that until it's true or the
+  // test's timeout expires. A helper-internal poll can only guess when the
+  // drop landed; the app's own rendered state is the real signal.
 }
 
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {

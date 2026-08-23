@@ -1,5 +1,4 @@
 import { expect, type Page, test } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -51,7 +50,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
   const tripName = `Faro ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
@@ -104,7 +103,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
 // that skeleton renders rather than erroring or rendering blank.
 test("fresh trip: Notebook default pages render their starter text", async ({ page }) => {
   const tripName = `Lagos ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
@@ -153,7 +152,7 @@ async function waitForPageSaved(page: Page, action: () => Promise<void>): Promis
 // happens to the trip's event-sourced plan state around it.
 test("undo a trip revert: hand-typed prose survives untouched", async ({ page }) => {
   const tripName = `Sintra ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);

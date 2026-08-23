@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createMappedTrip, signInAsDevUser } from "./helpers";
+import { createMappedTrip } from "./helpers";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
 import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
 
@@ -34,7 +34,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = `MapRail ${Date.now()}`;
-  await signInAsDevUser(page, "alice");
+  await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
   await page.goto(`/trips/${tripId}?lens=Map`);
