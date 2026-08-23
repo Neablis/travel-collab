@@ -12,9 +12,10 @@ been built and verified since 2026-08-22 but was never opened as a PR, see
 "Known gap" below for how that happened. KI-26 and KI-27, both filed during
 Phase 4's CI diagnosis, are closed in the same PR. Also same day: M10 Wave 2
 Phase 5 — overlap warnings — is built and verified on
-`claude/next-work-z7pr1d` with its PR about to be opened; the phase file's
-Step 4, the manual browser pass, is the one thing not done. See "In flight"
-below.)**
+`claude/next-work-z7pr1d` and open as PR #29, CI green; the phase file's
+Step 4, the manual browser pass, is the one thing not done. Two known issues
+were filed from that PR's review rather than absorbed — KI-29 and KI-30. See
+"In flight" below.)**
 
 ## Where we are
 
@@ -129,7 +130,7 @@ tests of their own that the current inventory doesn't know about.
 ## In flight
 
 **M10 Wave 2 — Phases 0, 1, 2, 3 and 4 all merged to `main`; Phase 5 is built
-and verified on `claude/next-work-z7pr1d`, PR about to be opened.** Phase 3
+and verified on `claude/next-work-z7pr1d`, open as PR #29 with CI green.** Phase 3
 (the unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged
 into its branch and everything re-verified — see "Known gap: Phase 3 built but
 unmerged (RESOLVED 2026-08-23)" below for the full story and what the
@@ -348,7 +349,7 @@ The plan itself:
   we built from the older 1,412-line file, which is why there are two
   generations of drift.
 
-**Phase 3 is landed and Phase 5 is built (PR pending) — pick up at Phase 6, 7
+**Phase 3 is landed and Phase 5 is up as PR #29 — pick up at Phase 6, 7
 or 8 next** (`docs/plans/M10-delta/phase-{6,7,8}-*.md`). Phases 6 and 7, which
 depended on Phase 3's code being on `main` rather than just on a branch, are
 now unblocked. Phase 8 remains independent of everything else and could go in
@@ -463,12 +464,15 @@ which existed only on a branch.
 
 ## Next action
 
-**Open the PR for Phase 5** from `claude/next-work-z7pr1d` (three commits,
-`d7a274b`..`2b97b80`, on `main` at `fcb22b5`). It is built and verified but not
-done until that PR exists — see the Phase 5 section under "In flight" for what
-landed, and say in the PR that the phase file's Step 4 (manual browser
-verification of the exit checklist) was not performed, since this container has
-no interactive browser; whoever reviews it should walk that checklist by hand.
+**Phase 5 is up as PR #29** from `claude/next-work-z7pr1d` (eight commits,
+`d7a274b`..`3c777c6`, on `main` at `fcb22b5`), CI green, both review threads
+answered and resolved — see the Phase 5 section under "In flight" for what
+landed and what the review changed. **Two things still want a human:** the
+phase file's Step 4 (manual browser verification of the exit checklist) was
+not performed, since this container has no interactive browser, so whoever
+reviews it should walk that checklist by hand — the PR's own Vercel preview is
+the obvious place; and KI-29's card-level design question wants an answer at
+the Phase 9 gate.
 
 After that, continue M10 Wave 2's remaining phases (6, 7, 8 — all unblocked,
 6 and 7 by Phase 3's merge in PR #26) task-by-task through Phase 9's gate
