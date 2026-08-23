@@ -19,7 +19,9 @@
 // (part of `pnpm check`) before this script ever runs, not just at seed
 // time. This directory's other scripts stay dependency-free ESM (see
 // db-reset.mjs) on purpose; this one is a plain `.ts` file run directly —
-// Node's native type-stripping (stable as of this repo's pinned Node 22)
+// Node's native type-stripping (unflagged since Node 22.18.0 — the repo's
+// engines.node floor, root package.json — flagged via
+// --experimental-strip-types on older 22.x)
 // erases the annotations at load time, so this adds zero new dependencies
 // and zero build step, only compile-time checking. Runtime drift protection
 // is unchanged and still does the real work:

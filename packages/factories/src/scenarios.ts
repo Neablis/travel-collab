@@ -63,6 +63,6 @@ export const scenarios = {
   // is still a guess, not a geocoded fact).
   ungeocodedTrip: (overrides: Partial<TripDetail> = {}): TripDetail =>
     tripDetailFactory.build(overrides, {
-      transient: { dayCount: 1, activitiesPerDay: 2, located: false, startDate: "2027-06-01" },
+      transient: { dayCount: 1, activitiesPerDay: 2, located: "named", startDate: "2027-06-01" },
     }),
 };

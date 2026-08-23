@@ -70,7 +70,13 @@ function collect(only) {
     }
   }
   writeFileSync(join(OUT, "index.json"), JSON.stringify(index, null, 2));
-  process.stderr.write(`\ncollected ${index.filter((e) => e.ok).length}/${index.length}\n`);
+  const failed = index.filter((e) => !e.ok);
+  process.stderr.write(`\ncollected ${index.length - failed.length}/${index.length}\n`);
+  if (failed.length > 0) {
+    process.stderr.write(`FAILED (excluded from the index, report() will refuse to run on it):\n`);
+    for (const e of failed) process.stderr.write(`  ${e.suite}/${e.file}: ${e.error}\n`);
+    process.exitCode = 1;
+  }
 }
 
 // Set of "sourceFile:statementId" strings a given test file actually executed.

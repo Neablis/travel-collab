@@ -11,13 +11,20 @@ import { BASE_URL } from "../src/config";
 // playwright.config.ts's `globalSetup`.
 export default async function globalSetup(): Promise<void> {
   const context = await request.newContext();
-  const res = await context.get(`${BASE_URL}/api/health/ai-mode`);
-  const { live } = await res.json();
-  await context.dispose();
-  if (live) {
-    throw new Error(
-      "Refusing to run e2e against a live AI model (GET /api/health/ai-mode reported live: true). " +
-        "Set AI_LIVE=false, or stop whatever dev server is already running and let this config start its own.",
-    );
+  try {
+    const res = await context.get(`${BASE_URL}/api/health/ai-mode`);
+    // Fail closed: an unreachable endpoint, a non-2xx response, or a body
+    // that doesn't parse should refuse the run rather than let `live` come
+    // back `undefined` and silently pass the `if (live)` check below — a
+    // health check that fails open is worse than no health check.
+    const body = res.ok() ? await res.json().catch(() => undefined) : undefined;
+    if (!res.ok() || body?.live !== false) {
+      throw new Error(
+        `Could not verify AI_LIVE=false (GET /api/health/ai-mode -> ${res.status()}, body: ${JSON.stringify(body)}). ` +
+          "Refusing to run e2e against a server whose AI mode isn't confirmed simulated.",
+      );
+    }
+  } finally {
+    await context.dispose();
   }
 }

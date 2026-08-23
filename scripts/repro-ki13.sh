@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Reproduces KI-13's condition on purpose: saturates every core, then runs
-# the apps/web unit suite. Confirmed causes (docs/known-issues.md KI-13) are
-# wall-clock waitFor/findBy* budgets starving when the machine is
-# oversubscribed — this is the 2026-08-16 reproduction condition, deliberately
-# recreated so a future session doesn't have to reconstruct it by hand.
+# Recreates KI-13's historical reproduction condition on purpose: saturates
+# every core, then runs the apps/web unit suite. docs/known-issues.md's KI-13
+# entry describes wall-clock waitFor/findBy* budgets starving under resource
+# pressure as the SUSPECTED mechanism behind three earlier observations
+# (2026-07-26 onward) — this is the 2026-08-16 reproduction condition,
+# deliberately recreated so a future session doesn't have to reconstruct it
+# by hand. As of 2026-08-23 (test-suite-overhaul Phase 4) this script does
+# NOT reproduce a failure on this codebase, on either the pre- or
+# post-Phase-1 vitest config — KI-13 is closed as no longer reproducible,
+# explicitly not as root-caused. Read the KI-13 entry before assuming this
+# script proves or disproves anything about a future failure.
 #
 # Usage: scripts/repro-ki13.sh (run from the repo root or apps/web)
 set -euo pipefail

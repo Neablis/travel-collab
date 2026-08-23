@@ -1,6 +1,8 @@
 # Phase 4 — Kill KI-13, the flake that makes every other signal untrustworthy
 
-**Closes KI-13.**
+**Closes KI-13, or honestly re-scopes it — see the decision-rule table below.
+Executed 2026-08-23: closed as no longer reproducible, not as root-caused.
+See `docs/known-issues.md`'s KI-13 entry for the actual disposition.**
 
 **Why this gets its own phase.** KI-13 is not just slow tests — it is the reason
 nobody can believe a red run, and that belief is what Phase 5 spends. The entry

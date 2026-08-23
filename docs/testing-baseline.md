@@ -47,9 +47,9 @@ process above 17.5% CPU (this session's own bash/claude harness).
 
 | Run | Files | Tests | Wall | transform | setup | collect | tests | environment | prepare |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | 95 passed | 95 | 63.98s | 3.83s | 15.32s | 15.86s | 32.84s | 91.88s | 8.49s |
-| 2 | 95 passed | 95 | 61.21s | 3.74s | 14.71s | 15.14s | 31.28s | 88.29s | 8.10s |
-| 3 | 95 passed | 95 | 60.81s | 3.82s | 14.89s | 15.14s | 30.73s | 87.88s | 7.93s |
+| 1 | 95 passed | 569 | 63.98s | 3.83s | 15.32s | 15.86s | 32.84s | 91.88s | 8.49s |
+| 2 | 95 passed | 569 | 61.21s | 3.74s | 14.71s | 15.14s | 31.28s | 88.29s | 8.10s |
+| 3 | 95 passed | 569 | 60.81s | 3.82s | 14.89s | 15.14s | 30.73s | 87.88s | 7.93s |
 
 Zero flakes across all three runs (569 tests each run, all green). This is
 the number Phase 1's "unit-suite `environment` time down ≥30%" target is
@@ -64,9 +64,9 @@ numbers above — a fair comparison.
 
 | Run | Files | Tests | Wall | transform | setup | collect | tests | environment | prepare |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | 95 passed | 95 | 54.25s | 4.36s | 16.22s | 16.64s | 33.92s | 60.16s | 8.71s |
-| 2 | 95 passed | 95 | 52.79s | 4.36s | 16.02s | 16.59s | 32.98s | 58.33s | 8.44s |
-| 3 | 95 passed | 95 | 52.87s | 4.32s | 15.92s | 16.45s | 33.15s | 58.73s | 8.40s |
+| 1 | 95 passed | 569 | 54.25s | 4.36s | 16.22s | 16.64s | 33.92s | 60.16s | 8.71s |
+| 2 | 95 passed | 569 | 52.79s | 4.36s | 16.02s | 16.59s | 32.98s | 58.33s | 8.44s |
+| 3 | 95 passed | 569 | 52.87s | 4.32s | 15.92s | 16.45s | 33.15s | 58.73s | 8.40s |
 
 Zero flakes, 569/569 every run — same as before Phase 1 (no test content
 changed). **`environment` median: 88.29s → 58.73s, a 33.5% reduction** —

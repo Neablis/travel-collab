@@ -23,25 +23,12 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   await target.waitFor({ state: "visible" });
   await source.scrollIntoViewIfNeeded();
 
-  // KI-21's traced root cause: a target whose box sat (partly) outside the
-  // viewport — a day column pushed below the fold — depended on
-  // drag-triggered auto-scroll (Board.tsx's autoScrollWindowForElements) to
-  // finish inside a hand-rolled 5s polling budget, which a loaded machine
-  // sometimes missed. Scrolling the target into view *before* the drag
-  // starts removes that race entirely instead of widening the window: by
-  // the time the mouse moves, both ends are already on screen.
-  await target.scrollIntoViewIfNeeded();
-
   const sourceBox = await source.boundingBox();
   if (!sourceBox) throw new Error("dragCardTo: source has no bounding box");
-  const targetBox = await target.boundingBox();
-  if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
 
   const page = source.page();
   const sx = sourceBox.x + sourceBox.width / 2;
   const sy = sourceBox.y + sourceBox.height / 2;
-  const tx = targetBox.x + targetBox.width / 2;
-  const ty = targetBox.y + targetBox.height / 2;
 
   await page.mouse.move(sx, sy);
   await page.mouse.down();
@@ -51,6 +38,23 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // is the recognition window the taller time-windowed cards + wrapped grid
   // make easier to miss).
   await page.mouse.move(sx + 6, sy + 6, { steps: 3 });
+
+  // KI-21's traced root cause: a target whose box sat (partly) outside the
+  // viewport — a day column pushed below the fold — depended on
+  // drag-triggered auto-scroll (Board.tsx's autoScrollWindowForElements) to
+  // finish inside a hand-rolled 5s polling budget, which a loaded machine
+  // sometimes missed. Scrolling the target into view *after the drag has
+  // already started* (rather than before, which could scroll a distant
+  // source out of view before mouse.down ever fires at it) removes that
+  // race entirely instead of widening the window: by the time the mouse
+  // moves toward the target, it's already on screen. Re-read the target's
+  // box after scrolling — its viewport-relative coordinates change with it.
+  await target.scrollIntoViewIfNeeded();
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
+  const tx = targetBox.x + targetBox.width / 2;
+  const ty = targetBox.y + targetBox.height / 2;
+
   await page.mouse.move(tx, ty, { steps: 25 });
   await page.mouse.up();
 

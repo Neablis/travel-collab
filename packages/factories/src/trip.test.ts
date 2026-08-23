@@ -43,4 +43,12 @@ describe("tripDetailFactory rollups", () => {
     expect(a.tripId).not.toBe(b.tripId);
     expect(a.days).toHaveLength(b.days.length);
   });
+
+  it("gives every activity a distinct id even with more than 10 per day", () => {
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 11 } });
+    const allActivityIds = trip.days.flatMap((d) => d.activityIds);
+    expect(allActivityIds).toHaveLength(22);
+    expect(new Set(allActivityIds).size).toBe(22);
+    expect(Object.keys(trip.activities)).toHaveLength(22);
+  });
 });

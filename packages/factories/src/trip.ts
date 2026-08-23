@@ -61,7 +61,11 @@ type TripTransient = {
   dayCount: number;
   activitiesPerDay: number;
   unscheduledCount: number;
-  located: boolean;
+  // false: no location at all. true: a full, geocoded REAL_LOCATIONS entry.
+  // "named": a location with a name but no lat/lng — an AI-planned place
+  // before geocoding enrichment runs (KI-15's actual shape), distinct from
+  // having no location captured at all.
+  located: boolean | "named";
   costed: boolean;
   budget: Money | null;
   currency: string;
@@ -88,21 +92,31 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
 
     const days = Array.from({ length: dayCount }, (_, dayIndex) => {
       const dayId = uuidFrom(sequence, 100 + dayIndex);
+      // Offset by activitiesPerDay, not a fixed 10 — a fixed stride collides
+      // once a day carries more than 10 activities (day 0's 11th activity and
+      // day 1's 1st would both land on salt 1010), silently overwriting one
+      // activity's entry in `activities` with the other's.
       const activityIds = Array.from({ length: activitiesPerDay }, (_, i) =>
-        uuidFrom(sequence, 1000 + dayIndex * 10 + i),
+        uuidFrom(sequence, 1000 + dayIndex * activitiesPerDay + i),
       );
       return { dayId, activityIds, date: startDate, costSubtotal: 0 };
     });
 
     const backlog = Array.from({ length: unscheduledCount }, (_, i) => uuidFrom(sequence, 5000 + i));
 
-    const activities: Record<string, ActivityView> = {};
     let locationIndex = 0;
+    const locationFor = (): ActivityView["location"] => {
+      if (located === "named") return { name: REAL_LOCATIONS[locationIndex++ % REAL_LOCATIONS.length]!.name };
+      if (located) return REAL_LOCATIONS[locationIndex++ % REAL_LOCATIONS.length]!;
+      return null;
+    };
+
+    const activities: Record<string, ActivityView> = {};
     for (const day of days) {
       for (const activityId of day.activityIds) {
         activities[activityId] = activityFactory.build({
           activityId,
-          location: located ? REAL_LOCATIONS[locationIndex++ % REAL_LOCATIONS.length]! : null,
+          location: locationFor(),
           cost: costed ? moneyFactory.build({ currency }) : null,
         });
       }
