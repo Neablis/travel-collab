@@ -5,18 +5,30 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — M10 Wave 2 Phase 8 (correctness and polish)
+**Last updated: 2026-08-24 — the only work in flight is a docs/bookkeeping
+branch, `claude/reload-skills-d51dc6` (this file, plus the M2/M3 gate
+reconciliation below). `main` is at `c630152` with no open PRs.** Three PRs merged after Phase 8 was written up below:
+**PR #35** (M10 Wave 2 Phase 8 — correctness and polish, the branch this
+file previously described as "open awaiting merge"), **PR #44** (a KI backlog
+pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
+`minimal-check-subset` skill), and **PR #45** (hardened the
+`/cleanup-orphans` skill after its first real run). **The next work is M10
+Wave 2 Phase 8b** — see "Next action" below.
+
+**CI on `main` at `c630152` is green** — run `32785947175`, all four jobs:
+`static-checks`, `unit-tests`, `integration-e2e` and `migrate-production`.
+That is the verified state of `main` as of this entry; nothing else in this
+session was re-run locally.
+
+**Previously (2026-08-24): M10 Wave 2 Phase 8 (correctness and polish)
 implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, branched from `main`
 at `39ccea1` (post-PR #32 and PR #33). All seven tasks done, each its own
-commit, in phase-file order; PR #35 open, CI green (all three required jobs
-plus `migrate-production` correctly skipped), CodeRabbit review addressed,
-awaiting merge — see "Phase 8" under "In flight" below for the full record,
-including a from-scratch local environment setup that let this session get a
-genuine local `test:e2e:ci-like` signal for the first time since KI-33
-started blocking it (Phase 7), and a real (not fabricated) fix for KI-18, the
-accent-collision bug this phase exists to close. This branch has since merged
-`main` (post-PR #36, below) to pick up KI-33's real fix and resolve the
-resulting doc conflicts in this file and `known-issues.md`.**
+commit, in phase-file order; merged to `main` via PR #35 — see "Phase 8"
+under "In flight" below for the full record, including a from-scratch local
+environment setup that let that session get a genuine local
+`test:e2e:ci-like` signal for the first time since KI-33 started blocking it
+(Phase 7), and a real (not fabricated) fix for KI-18, the accent-collision
+bug that phase exists to close.**
 
 **Previously (2026-08-24): a dev-speed and quality pass landed on
 `claude/dev-speed-quality-57205c`, merged to `main` via PR #36. It does not
@@ -489,7 +501,7 @@ up from 600/98); and the full e2e suite **22/22** against a production build
 not fire. All copy was verified byte-identical to the phase file's table with
 `grep -F`, not by eye.
 
-### Phase 7 (add-stop and new-trip forms) — implemented on `claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged
+### Phase 7 (add-stop and new-trip forms) — merged to `main` 2026-08-24 via PR #32 (plus follow-up PR #33)
 
 Two tasks, two commits, on a branch cut from `main` at `624a0db` (post-PR #31).
 **Zero diff to `packages/` or `apps/web/src/server`** — the phase's own
@@ -665,7 +677,7 @@ the same 25 KI-33 failures and nothing else, confirmed identical across
 every round above. `migrate-production` correctly skips on a PR (only runs
 on merge to `main`).
 
-### Phase 8 (correctness and polish) — implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35 open awaiting merge
+### Phase 8 (correctness and polish) — merged to `main` 2026-08-24 via PR #35
 
 Seven independent tasks, seven commits, on a branch cut from `main` at
 `39ccea1` (post-PR #32/#33 — confirmed no stray `claude/*` branch already
@@ -865,9 +877,8 @@ each task's own local check):**
     follow-up PR #33 removing a stray hint). See the "Phase 7" section under
     "In flight" above for what shipped, the crash bug found via manual
     browser verification, two rounds of CI/CodeRabbit fixes, and KI-33.
-  - **Phase 8 (polish, incl. home) — implemented on
-    `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR
-    #35 open awaiting merge.** See the "Phase 8" section under "In flight"
+  - **Phase 8 (polish, incl. home) — done, merged to `main`** via PR #35.
+    See the "Phase 8" section under "In flight"
     above: leg-line
     copy, KI-18 closed for real (collision-probed day accents), day-chip
     typography, Preview badge non-overlap, home rhythm/heading/
@@ -997,6 +1008,74 @@ directly (Invariant 1); until then an activity with a pre-existing anchor
 would keep firing an anchor-violation conflict with no UI surface to explain
 or clear it (the dormancy the rest of B1 relies on).
 
+### KI backlog pass and skill hardening — merged to `main` 2026-08-24 via PR #44 and PR #45
+
+Not milestone work and it moves no gate; recorded here so the next session
+does not re-open closed issues. **PR #44** ran `ki-fixer` subagents in parallel
+worktrees (KIs are independent of the phase chain, so they parallelize safely):
+**KI-6** (`listPages` race), **KI-20** (retire lenses), **KI-29** (double
+overlap) and **KI-31** (orphan guard) are closed and moved to Resolved in
+`docs/known-issues.md`; **KI-28** was re-scoped rather than fixed — its
+trip-actions "Delete"-outside-the-viewport symptom in `m8-make-it-real.spec.ts`
+is still the documented, expected e2e flake, so seeing it is not a new finding.
+It also fixed the `minimal-check-subset` skill. **PR #45** hardened the
+`/cleanup-orphans` skill after its first real run against this repo.
+
+Fourteen known issues remain open (KI-3, 5, 9, 10, 11, 12, 15, 22, 23, 24, 28,
+32, 34, 35); most are M9/AI scope. `docs/known-issues.md` is authoritative.
+
+### Earlier-gate reconciliation and orphan cleanup — 2026-08-24, on `claude/reload-skills-d51dc6`
+
+Bookkeeping only; no product code touched, no gate moved.
+
+**M2's gate was never recorded.** `TODO.md` showed M2 ticked, but
+`docs/milestones/M2-history-time-travel.md` had **all nine exit-gate boxes
+unticked and no retro** — the exact drift `docs/milestones/README.md`'s
+gate-close checklist opens by naming. On Mitchell's instruction to assume the
+earlier gates were done, the boxes are now ticked and a retro appended. **The
+retro is explicitly marked retroactive** and splits its claims: five boxes
+(property tests, golden rebuild, the projection boundary, the concurrency
+conflict, and the contracts-changelog entries) were **verified from artifacts
+still in the tree**; three (preview/Neon infra, the deployed-URL demo, "all
+M0+M1 gates still green") are **assumed, not verified** — point-in-time checks
+from July 2026 that nothing preserves. Do not cite M2's boxes as evidence
+without reading that split.
+
+**M3** had one unticked box, the deployed-Vercel demo. Ticked on the same
+basis, with a note in its retro recording that it was ticked late and on
+inference rather than a re-run.
+
+**Orphan cleanup:** seven merged worktrees removed (all clean, all confirmed
+ancestors of `origin/main`), seven stale `.claude/launch.json` entries pruned
+(that file is gitignored and local-only), and eight provably-merged local
+branches deleted with `git branch -d`.
+
+**Three unmerged local branches were checked and then deleted** —
+`claude/m10-wave2-phase3-onward` (1 commit), `claude/next-milestone-388cd0`
+(59, last 2026-07-26) and `claude/trip-builder-agent-7905a3` (29, last
+2026-08-02). `-d` refused all three, so each was spot-checked against `main`
+before `-D`, and every headline marker was found already landed:
+
+- **phase3-onward's** only commit adds a `STATUS.md` paragraph naming itself
+  as Phase 3's resume point (2026-08-17). Phase 3 merged via PR #26 on
+  2026-08-23 and this file has been rewritten repeatedly since — pure
+  obsolete self-reference.
+- **next-milestone-388cd0** — `main` has M7's `## Post-gate retro (2026-07-21
+  → 2026-07-26)`, KI-11, KI-12 and KI-13, and the AI step-budget code
+  (`handleAiRequest.ts`).
+- **trip-builder-agent-7905a3** — `main` has KI-15, `geocodeEnrichment.ts` and
+  `geocodeRegion.ts` (the server-side geocoding), `TripHeader.tsx`'s
+  render-from-`activeTrip` optimism fix, and `page.tsx`'s `deletingIds`
+  optimistic delete.
+
+This was a spot-check of headline markers, not a file-by-file audit; the
+branches are recoverable from the reflog for now if something was missed.
+
+**Remote branches: all eleven deleted** — the nine merged into `origin/main`,
+plus `origin/claude/m10-wave2-phase3-onward` and
+`origin/claude/next-milestone-388cd0`, the counterparts of two of the three
+above. `origin/main` is now the only remote branch.
+
 ## Blocking / broken right now
 
 **Nothing blocking.** **KI-15 is downgraded, not closed:** the
@@ -1022,55 +1101,42 @@ which existed only on a branch.
 
 ## Next action
 
-**Phase 5 (overlaps) merged to `main` 2026-08-23 via PR #29** — the "In flight"
-Phase 5 section below has the commits, what landed, and what its review changed.
-**Two things it still wants from a human:** the phase file's Step 4 (manual
-browser verification of the exit checklist) was never performed, since that
-container had no interactive browser — walk that checklist by hand; and KI-29's
-card-level design question wants an answer at the Phase 9 gate.
+**Nothing is in flight.** `main` is at `c630152`, there are no open PRs, and
+every `claude/*` and `ki-*` branch that had a worktree is a confirmed ancestor
+of `origin/main`. Six orphan worktrees are still on disk and in
+`.claude/launch.json`; `/cleanup-orphans` (hardened in PR #45) is the way to
+clear them.
 
-**Phase 6 (growing the trip) merged to `main` 2026-08-24 via PR #30** — see
-its section under "In flight". CI was green on all four jobs and CodeRabbit
-raised nothing actionable. Its Step 4 manual browser pass is the one thing still
-wanting a human; PR #30's Vercel preview is the way to close it.
+**Start M10 Wave 2 Phase 8b** — `docs/plans/M10-delta/phase-8b-design-sync.md`.
+Six tasks: 8b.1 the product is called Caesura, 8b.2 sign out (a real capability
+gap), 8b.3 save state is three states not two strings, 8b.4 one banner pattern
+for sync failure, 8b.5 the calendar is stacked month blocks, 8b.6 the trip has
+a start date and the end is derived. **Every dependency is satisfied and
+merged**: 8b.5 needed Task 8.6 (landed in PR #35) and 8b.6 needed Phase 6
+(PR #30). Branch from `main`, one commit per task in phase-file order.
 
-**Phase 7 (add-stop and new-trip forms) merged to `main` via PR #32** (plus
-follow-up PR #33) — see its section under "In flight" for the full record.
+**Phases 8b and 1b are the 2026-08-23 design sync's approved additions to this
+gate** (see the "Design sync" section above and the gate-scope amendments in
+`docs/milestones/M10-visual-craft.md`). **Phase order to the gate is 5, 6, 7,
+8, 8b, 1b, 9** — 1b depends on both Phase 7 and Phase 8b, so it starts once
+8b merges. Then Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`):
+before/after screenshots, KI-2/3/4 closed or re-deferred, presentational-only
+diff verified, all tests incl. e2e green, retro appended. **M15 Front door
+comes next once M10's gate closes, then M9** (ADR-021) — neither may start
+early.
 
-**Phase 8 (correctness and polish) implemented on
-`claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35
-open** — see its section under "In flight" for the full record.
-KI-18 (the accent-collision bug the phase exists to fix) is closed for real;
-two new known issues filed (KI-34, KI-35), both contract-change-gated and
-out of this plan's scope by design. Full DoD verification (typecheck, lint,
-color wall, unit suite, and — for the first time since KI-33 started
-blocking it — a genuine local `test:e2e:ci-like` run, after standing up a
-local Postgres and fixing a Playwright browser-build mismatch that KI-32
-under-described for the headless-shell flavor) all green except one e2e
-flake that is KI-28's already-documented symptom verbatim, not a new
-finding. CI on PR #35 went green on all three required jobs; CodeRabbit's
-review raised one real Major finding (a date-line hydration/timezone risk —
-`todayIso()` was computed inline during render, fixed to compute in a
-client-only effect instead) and three Minor ones (looser-than-intended
-`Preview` test assertions, KI-34's severity conflating a correctness defect
-with a cosmetic one, and this file's own PR-status wording lagging the PR's
-actual existence) — all four fixed and pushed. **Needs from a human:**
-review and merge PR #35; review the Task 8.5 judgment call (the
-TripCard-dates test is `it.skip`'d, not forced green, because it directly
-requires the contract change KI-34 defers).
+**The debt that keeps rolling forward: the manual browser walk.** Phase 5's
+Step 4, Phase 6's Step 4, and Phase 8's exit checklist were each never walked
+by hand — three phases deep now. Phase 9's gate makes this blocking, so it
+cannot roll past that point. The PR template's "Verification actually
+performed / Not run, and why" section exists specifically to stop this
+accumulating silently.
 
-Continue M10 Wave 2's remaining phases — **8b, then 1b** — once Phase 8's PR
-merges. **Phases 8b and 1b are the 2026-08-23 design sync's approved
-additions to this gate** (see the "Design sync" section above and
-`docs/milestones/M10-visual-craft.md`'s gate-scope amendments); 8b.5 depends
-on Task 8.6 (now done) and 8b.6 on Phase 6 (already merged), and 1b depends
-on Phase 7 and 8b — both their Phase-7 half and their Phase-8 half are now
-satisfied by merged/committed work, so 8b can start as soon as this PR
-merges and 1b as soon as 8b's does. Then Phase 9's gate
-(`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
-closed or re-deferred, presentational-only diff verified, all tests incl. e2e
-green, retro appended. **M15 Front door comes next once M10's gate closes, then
-M9** (ADR-021).
+Two smaller things still wanting a human: KI-29's card-level design question
+wants an answer at the Phase 9 gate, and Phase 8's Task 8.5 judgment call —
+the `TripCard`-dates test is `it.skip`'d rather than forced green, because it
+directly requires the contract change KI-34 defers — should be confirmed
+rather than silently "fixed".
 
 (`docs/plans/2026-08-08-M10-redesign-incorporation.md`, referenced by this
 line in earlier updates, was Wave 1's plan — it was deleted at Wave 1's gate

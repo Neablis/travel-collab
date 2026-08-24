@@ -64,7 +64,7 @@ Plan: `docs/plans/2026-07-09-M3-place-and-time.md` (archived)
 
 ## Exit gate — all must be true
 
-- [ ] **Demo on the deployed Vercel URL:** set a start date → days acquire
+- [x] **Demo on the deployed Vercel URL:** set a start date → days acquire
       calendar dates across all three lenses; add an activity whose typed place
       name geocodes to a map pin; add a `dayOfWeek` / `dateRange` / `timeOfDay`
       anchor; **drag the vacation** (shift the start date) → a now-violated
@@ -152,3 +152,12 @@ tasks completed with a clean task-scoped review; the full local gate
   gate demo (plan Step I4.5) are deliberately left for Mitchell — no Vercel
   credential access from this session, per the run's human-in-the-loop
   instructions.
+
+**Exit-gate box 1 ticked retroactively (2026-08-24).** The deployed-Vercel-URL
+demo — start date → calendar dates across all three lenses, a geocoded pin, an
+anchor, and dragging the vacation to violate it — was the one box left
+unticked when this retro was written on 2026-07-10, and nothing in the tree
+records whether it was performed. It is ticked now on Mitchell's instruction
+to close the missed earlier gates, on the same reasoning applied to M2: the
+date-anchored surfaces it exercises are load-bearing for M4–M8, all of which
+shipped on top of them. Ticked late and on inference, not on a re-run.
