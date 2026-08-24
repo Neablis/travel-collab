@@ -230,7 +230,21 @@ export default function Home() {
         onOpenChange={setNewTripOpen}
         createTrip={createTripApi}
         dispatch={sendTripCommand}
-        onCreated={(tripId) => router.push(`/trips/${tripId}`)}
+        // Only the full wizard (dates/budget applied) navigates straight to
+        // the new trip, matching the phase doc's own "create... apply
+        // dates and budget... then navigate" sequence. "Create empty" is
+        // the old single-field dialog's escape hatch and keeps that
+        // dialog's exact behavior — close, refresh the list, stay put — so
+        // e2e specs built around it can still find the new trip's own card
+        // on this page rather than having already been navigated away from
+        // it (CI, PR #32).
+        onCreated={(tripId, { navigate }) => {
+          if (navigate) {
+            router.push(`/trips/${tripId}`);
+          } else {
+            void load();
+          }
+        }}
       />
       {nextTrip && (
         <div className="mt-6">

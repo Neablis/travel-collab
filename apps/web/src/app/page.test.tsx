@@ -192,6 +192,40 @@ describe("Home trip actions", () => {
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
   });
 
+  // Regression (CI, PR #32): an earlier draft had "Create empty" navigate
+  // straight to the new trip, same as the full wizard's "Create trip". That
+  // broke every e2e spec built on the old single-field dialog's actual
+  // behavior — close, refresh the list, stay put, then click the new
+  // trip's own card to navigate. "Create empty" is explicitly that dialog's
+  // escape hatch (NewTripWizard.tsx), so it keeps that exact behavior; only
+  // the full wizard (dates/budget applied, "Create trip") navigates.
+  it("stays on the trip list and shows the new trip after Create empty, without navigating", async () => {
+    const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
+    let listCallCount = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips") && init?.method === "POST") {
+        return jsonResponse({ tripId: newTripId }, 201);
+      }
+      if (url.endsWith("/api/trips")) {
+        listCallCount += 1;
+        const trips = listCallCount === 1 ? [] : [tripSummaryFixture({ tripId: newTripId, name: "Reykjavik" })];
+        return jsonResponse({ trips });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /new trip/i });
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
+
+    expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   // Task 18: the head's "Start from a Playbook" link is a real navigation
   // control (unlike the /playbooks route it points to, which is entirely
   // Preview-shielded) — it must render outside any Preview region and carry
