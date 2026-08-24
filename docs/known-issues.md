@@ -339,6 +339,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why not fixed here:** the fix is a rename of one of the two files (e.g. the logic module to `fitIntoDay.ts`, matching what it exports, or the component to something like `UnscheduledRackDrawer.tsx`) — a real, if small, change to Phase 3's own files, out of scope for a phase that only touches its own files (`AGENTS.md`'s Workstreams norm, not the presentational-vs-real distinction — this rename touches no `packages/` or `src/server` code either way). `ActivityEditor.tsx` (Phase 7 Task 7.1) now also imports `fitIntoDay` from `unscheduledRack.ts`, so whichever phase picks this up should re-check that import too. Given this now blocks *building the app at all* on a common dev OS, not just two test files, this should be picked up sooner than a typical cosmetic/cleanup KI — flagging for priority at the next gate review rather than leaving it indefinitely.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 7, both tasks' verification runs; confirmed pre-existing by the orchestrating session before either task started; build-blocking severity confirmed while attempting Phase 7's own `test:e2e:ci-like` verification step).
 
+### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
+- **Severity:** cosmetic
+- **Area:** `packages/contracts/src/trip.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/components/home/NextTripHero.tsx`, `apps/web/src/components/home/TripCard.tsx`
+- **Symptom:** `TripSummary` (what `/api/trips` returns for the whole list) carries no start/end date field at all — only `createdAt`, an instant recording when the trip record was made, not when it happens. Two consequences:
+  - `page.tsx`'s `nextTrip` is `visibleTrips[0]`, the first trip in the list order the API returns, not the true next-upcoming-by-date trip — there is no date to sort by.
+  - `TripCard` shows `Created {date}` (derived from `createdAt`) in the slot the design's trip card uses for the trip's actual dates; `NextTripHero`'s meta row does the same when its own `TripDetail` fetch (which does carry a real `startDate`) hasn't resolved yet or the trip has none set.
+- **Why it's not fixed here:** the real fix is a contract change — adding a start date (or a denormalized "sort key" date) to `TripSummary` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.5) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth. Fabricating a placeholder date on the card instead of the honest `createdAt` label would be worse than the current approximation, not better, so neither `nextTrip`'s selection nor `TripCard`'s date line changed for this task.
+- **Fix path:** add a start date to `TripSummary`, then swap `nextTrip` to a real date-sort and `TripCard`'s date line to that field, the same way `NextTripHero` already prefers its real `TripDetail.startDate` over `createdAt` once that fetch resolves.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.5).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here

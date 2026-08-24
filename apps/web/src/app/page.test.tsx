@@ -405,3 +405,40 @@ describe("Home trip cards' planned-of-budget line", () => {
     await waitFor(() => expect(within(peruBlock!).queryByText(/planned of/)).toBeNull());
   });
 });
+
+// Task 8.5: page head/rhythm — a date line above the title, and a real
+// "All trips" heading + count above the grid.
+describe("Home page head", () => {
+  function renderHome(trips: TripSummary[] = [tripSummaryFixture()]) {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips });
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return render(<Home />);
+  }
+
+  it("heads the page with today's date above the title", () => {
+    renderHome();
+    expect(screen.getByTestId("page-date-line")).toBeTruthy();
+  });
+
+  it("labels the trips grid", async () => {
+    renderHome();
+    expect(await screen.findByRole("heading", { name: "All trips" })).toBeTruthy();
+  });
+
+  it("shows a trip count line next to the All trips heading, singularized for one trip", async () => {
+    renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: "All trips" });
+    expect(screen.getByText("1 trip")).toBeTruthy();
+  });
+
+  it("does not render the All trips heading when there are no trips to show", async () => {
+    renderHome([]);
+    await screen.findByText(/no trips yet/i);
+    expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
+  });
+});
