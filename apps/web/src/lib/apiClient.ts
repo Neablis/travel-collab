@@ -24,6 +24,26 @@ export function apiUrl(path: string): string {
   return new URL(path, origin).toString();
 }
 
+// Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of
+// what was app/page.tsx's own inline form-submit handler so NewTripWizard can
+// take it as an injectable prop (real implementation here, a mock in tests).
+// Same shape as duplicateTrip below — POST, no dates/budget on this call
+// (CreateTrip only ever carries a name; the wizard applies dates/budget as
+// separate commands against the tripId this returns).
+export async function createTrip(input: { name: string }): Promise<ApiResult<{ tripId: string }>> {
+  const res = await fetch(apiUrl("/api/trips"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  }
+  const data = (await res.json()) as { tripId: string };
+  return { ok: true, value: data };
+}
+
 export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDetail>> {
   const res = await fetch(apiUrl(`/api/trips/${tripId}`));
   if (!res.ok) {

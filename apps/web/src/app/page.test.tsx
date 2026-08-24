@@ -157,7 +157,13 @@ describe("Home trip actions", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
   });
 
-  it("shows the create-trip error inside the still-open New-trip dialog on failure", async () => {
+  // Phase 7 Task 7.2 replaced the single-field New-trip Dialog with the
+  // 4-step NewTripWizard, hosted in a Sheet titled "New trip" (same
+  // accessible name the old Dialog had). "Create empty" is the wizard's
+  // still-reachable name-only path (NewTripWizard.tsx), so this exercises
+  // the same createTrip-fails-and-the-overlay-stays-open behavior the old
+  // test covered, through the new control.
+  it("shows the create-trip error inside the still-open New-trip sheet on failure", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/api/trips") && init?.method === "POST") {
@@ -174,15 +180,15 @@ describe("Home trip actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText(/trip name/i), "Iceland");
-    await userEvent.click(within(dialog).getByRole("button", { name: /^create trip$/i }));
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Iceland");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/name already taken/i);
-    // The error is rendered inside the dialog's content, not as a sibling
-    // that would be visually stranded behind the Dialog's overlay.
+    // The error is rendered inside the sheet's content, not as a sibling
+    // that would be visually stranded behind the overlay.
     expect(within(dialog).getByRole("alert").textContent).toMatch(/name already taken/i);
-    // Dialog must still be open — createTrip does not close it on failure.
+    // The sheet must still be open — createTrip does not close it on failure.
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
   });
 
