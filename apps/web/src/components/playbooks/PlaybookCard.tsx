@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
 // Handoff README §3 "Playbooks": one card per saved day that can be dropped
@@ -35,6 +35,7 @@ const PILL_CLASSES: Record<AccentFamily, string> = {
   success: "bg-success-tint text-success-ink",
   warning: "bg-warning-tint text-warning-ink",
   danger: "bg-danger-tint text-danger-ink",
+  neutral: "bg-moss text-slate",
 };
 
 const STRIP_BG: Record<AccentFamily, string> = {
@@ -43,6 +44,7 @@ const STRIP_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 const BAR_BG: Record<AccentFamily, string> = {
@@ -51,6 +53,7 @@ const BAR_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 // Handoff §3: `Card raised` — city pill + origin Badge, name, mono span
@@ -61,7 +64,7 @@ const BAR_BG: Record<AccentFamily, string> = {
 // footer buttons below need no onClick yet — same "shape now, wire later"
 // contract as home/PlaybooksStrip.tsx's card.
 export function PlaybookCard({ playbook }: { playbook: PlaybookCard }) {
-  const accent = dayAccentFor(playbook.city);
+  const accent = dayAccents([playbook.city])[0]!;
   return (
     <Card raised data-testid="playbook-detail-card" className="flex flex-col gap-4 rounded-lg p-5">
       <div className="flex items-center justify-between gap-2.5">

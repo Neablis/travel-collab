@@ -304,14 +304,43 @@ describe("NextTripHero", () => {
     expect(within(sparklineGroup).queryByText("15")).toBeNull();
   });
 
-  it("wraps the 'need a decision' stat tile in a Preview region", async () => {
+  // Task 8.5: the third stat tile used to be a hardcoded `value="2"` behind
+  // a Preview shell — it's now driven by the trip's real, live
+  // TripDetail.conflicts array, so this asserts the tile's value matches a
+  // known conflict count from the mocked fetch, not just that some Preview
+  // region exists.
+  it("shows the trip's real, live conflict count in the third stat tile, not a hardcoded number", async () => {
     const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        conflicts: [
+          { id: "c1", kind: "overlap", severity: "warn", subjects: ["a", "b"], description: "Overlap", resolutions: [] },
+          { id: "c2", kind: "overlap", severity: "warn", subjects: ["c", "d"], description: "Overlap", resolutions: [] },
+          { id: "c3", kind: "budget", severity: "error", subjects: [], description: "Over budget", resolutions: [] },
+        ],
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    const tiles = await screen.findAllByTestId("stat-tile");
+    const decisionTile = tiles.find((tile) => /open conflict/i.test(tile.textContent ?? ""));
+    expect(decisionTile).toBeTruthy();
+    expect(within(decisionTile!).getByText("3")).toBeTruthy();
+    expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
+  });
+
+  // Task 8.5: the visible StatTile label used to say "travelers"
+  // unconditionally, even for a solo trip — only the avatar-stack's
+  // aria-label already singularized correctly.
+  it("says one traveler, not one travelers", async () => {
+    const trip = tripSummaryFixture({ members: [{ userId: "dev-alice", role: "owner" }] });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
 
-    const region = document.querySelector('[data-preview-id="home-decisions"]');
-    expect(region).not.toBeNull();
-    expect(region?.textContent).toMatch(/need a decision/i);
+    expect(await screen.findByText("traveler")).toBeTruthy();
+    expect(screen.queryByText("travelers")).toBeNull();
   });
 
   it("does not render an Open plan link to any other trip", async () => {

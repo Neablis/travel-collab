@@ -252,7 +252,9 @@ describe("MapLens", () => {
     it("dims the non-focused day's route further than a faint fade and gives it a neutral colour", async () => {
       // detailWithTwoDays()'s d1/d2 hash to the "danger"/"success" accent
       // families respectively (derived from each day's first stop id, "a1"
-      // and "b1" — see dayAccentFor's djb2 hash). The actual values don't
+      // and "b1" — see dayAccents' djb2 hash; with only two distinct cities
+      // here, neither collides, so each keeps its raw hash bucket same as
+      // before Task 8.2's probing was added). The actual values don't
       // matter — only that each token resolves to something distinct — so
       // opaque markers stand in for real hex colours (the color-wall script
       // forbids raw color literals outside globals.css, tests included).

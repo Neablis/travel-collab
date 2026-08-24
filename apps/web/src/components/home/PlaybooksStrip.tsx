@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
 // Task 16 (M11 Preview shell): "Your Playbooks"'s real prop contract per the
@@ -30,6 +30,7 @@ const PILL_CLASSES: Record<AccentFamily, string> = {
   success: "bg-success-tint text-success-ink",
   warning: "bg-warning-tint text-warning-ink",
   danger: "bg-danger-tint text-danger-ink",
+  neutral: "bg-moss text-slate",
 };
 
 const STRIP_BG: Record<AccentFamily, string> = {
@@ -38,6 +39,7 @@ const STRIP_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 const BAR_BG: Record<AccentFamily, string> = {
@@ -46,6 +48,7 @@ const BAR_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 // README §1 "Your Playbooks": 4-col grid of compact cards — city pill,
@@ -59,7 +62,7 @@ export function PlaybooksStrip({ playbooks }: { playbooks: PlaybookCard[] }) {
   return (
     <div className="playbooks-grid grid gap-3.5">
       {playbooks.map((pb) => {
-        const accent = dayAccentFor(pb.city);
+        const accent = dayAccents([pb.city])[0]!;
         return (
           <Card key={pb.id} data-testid="playbook-card" className="flex flex-col gap-3 p-4">
             <span

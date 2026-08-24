@@ -25,7 +25,7 @@ const overlap: Overlap = {
 describe("OverlapWarning", () => {
   it("states which stop it overlaps, and by how much", () => {
     render(<OverlapWarning overlap={overlap} onFix={vi.fn()} onDismiss={vi.fn()} />);
-    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30 m on top of each other.")).toBeTruthy();
   });
 
   it("offers a fix labelled with the suggested start", () => {
@@ -41,7 +41,7 @@ describe("OverlapWarning", () => {
     const onDismiss = vi.fn();
     render(<OverlapWarning overlap={{ ...overlap, suggestedEnd: null }} onFix={onFix} onDismiss={onDismiss} />);
 
-    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30 m on top of each other.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Start 1 pm" })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));

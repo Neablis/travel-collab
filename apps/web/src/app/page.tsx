@@ -8,11 +8,14 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "../components/ui/heading";
 import { Text } from "../components/ui/text";
+import { DataText } from "../components/ui/data-text";
 import { Button, buttonVariants } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { Popover } from "../components/ui/popover";
 import { Dialog, DialogFooter } from "../components/ui/dialog";
 import { Toast } from "../components/ui/toast";
+import { PageContainer } from "../components/ui/page-container";
+import { formatTripDateLong } from "../lib/formatDate";
 import { NextTripHero } from "../components/home/NextTripHero";
 import { TripCard } from "../components/home/TripCard";
 import { NewTripWizard } from "../components/home/NewTripWizard";
@@ -25,8 +28,36 @@ import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripD
 import { tripSpend, plannedOfBudgetLine } from "../lib/cost";
 import { cn } from "../lib/cn";
 
+// Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
+// (which expects a calendar date, not an instant — see lib/formatDate.ts)
+// never mis-renders across a UTC offset the way `new Date().toISOString()`
+// would near midnight.
+function todayIso(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function Home() {
   const router = useRouter();
+  // `todayIso()` reads the wall clock, so evaluating it during render would
+  // make the server's render (server's local time) and the browser's
+  // hydration render (the actual viewer's local time) disagree whenever
+  // they're in different timezones — a real hydration mismatch, not just a
+  // cosmetic one, since it can also just be a WRONG date until some later,
+  // unrelated re-render happens to overwrite it (CodeRabbit, PR #35).
+  // `null` until the client's own effect runs keeps the server and the
+  // client's first paint identical (both render nothing here), then fills
+  // in the viewer's actual local date once it's safe to read. Kept as the
+  // raw ISO (not the pre-formatted label) so the rendered <time> can carry
+  // an honest machine-readable `dateTime`, not just human-readable text
+  // (CodeRabbit, PR #35).
+  const [dateIso, setDateIso] = useState<string | null>(null);
+  useEffect(() => {
+    setDateIso(todayIso());
+  }, []);
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,122 +229,149 @@ export default function Home() {
     );
   }
 
+  const tripCountLabel = `${visibleTrips.length} trip${visibleTrips.length === 1 ? "" : "s"}`;
+
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <PageContainer as="main" width="content" className="home-rhythm">
       <SpeedInsights />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Heading level={1}>Your trips</Heading>
-        {/* README §1 head: "New trip" primary + a real (not Preview-wrapped)
-            "Start from a Playbook" link — the link itself navigates for
-            real; it's the /playbooks route's own content that's the Preview
-            seam (Task 18). */}
-        <div className="flex items-center gap-2">
-          <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
-            Start from a Playbook
-          </Link>
-          <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
-            New trip
-          </Button>
+      <div className="home-stack">
+        <div>
+          {/* Task 8.5: a mono uppercase date line above the page title —
+              the codebase's established "uppercase label" convention
+              (NextTripHero's own "Shape of the trip" label, table.tsx's
+              column headers) is text-xs/tracking-wide/text-slate; DataText
+              already supplies the mono digits + slate color that pattern
+              wants, so this reuses it rather than hand-rolling a new
+              combination for one line. */}
+          <DataText
+            as="time"
+            size="xs"
+            data-testid="page-date-line"
+            className="uppercase tracking-wide"
+            dateTime={dateIso ?? undefined}
+          >
+            {dateIso !== null ? formatTripDateLong(dateIso) : null}
+          </DataText>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
+            <Heading level={1}>Your trips</Heading>
+            {/* README §1 head: "New trip" primary + a real (not Preview-wrapped)
+                "Start from a Playbook" link — the link itself navigates for
+                real; it's the /playbooks route's own content that's the Preview
+                seam (Task 18). */}
+            <div className="flex items-center gap-2">
+              <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
+                Start from a Playbook
+              </Link>
+              <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
+                New trip
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-      {/* The wizard's own createTrip/Create-empty failures render their own
-          inline alert inside the Sheet (NewTripWizard.tsx) — this top-level
-          `error` is now exclusively delete/duplicate-trip feedback, so no
-          newTripOpen gate is needed to avoid a stranded duplicate. */}
-      {error && (
-        <Text role="alert" variant="secondary" className="mt-2 text-danger-ink">
-          {error}
-        </Text>
-      )}
-      <NewTripWizard
-        open={newTripOpen}
-        onOpenChange={setNewTripOpen}
-        createTrip={createTripApi}
-        dispatch={sendTripCommand}
-        // Only the full wizard (dates/budget applied) navigates straight to
-        // the new trip, matching the phase doc's own "create... apply
-        // dates and budget... then navigate" sequence. "Create empty" is
-        // the old single-field dialog's escape hatch and keeps that
-        // dialog's exact behavior — close, refresh the list, stay put — so
-        // e2e specs built around it can still find the new trip's own card
-        // on this page rather than having already been navigated away from
-        // it (CI, PR #32).
-        onCreated={(tripId, { navigate }) => {
-          if (navigate) {
-            router.push(`/trips/${tripId}`);
-          } else {
-            void load();
-          }
-        }}
-      />
-      {nextTrip && (
-        <div className="mt-6">
-          <NextTripHero trip={nextTrip} shareSlot={<ShareButton variant="secondary" />} />
-        </div>
-      )}
 
-      {trips !== null && visibleTrips.length === 0 ? (
-        <EmptyState title="Start your first trip" body="No trips yet — create one." />
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleTrips.map((t) => (
-            <TripCard
-              key={t.tripId}
-              trip={t}
-              plannedOfBudget={plannedOfBudgetById[t.tripId]}
-              menuSlot={
-                <Popover
-                  open={openMenuTripId === t.tripId}
-                  onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
-                  align="end"
-                  contentClassName="w-40 p-1"
-                  trigger={
-                    <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
-                      <MoreVertical className="size-3.5" aria-hidden />
-                    </Button>
-                  }
-                >
-                  <div role="menu" className="flex flex-col">
-                    <Button
-                      role="menuitem"
-                      variant="ghost"
-                      className="justify-start"
-                      onClick={() => void duplicate(t)}
-                    >
-                      Duplicate
-                    </Button>
-                    <Button
-                      role="menuitem"
-                      variant="ghost"
-                      className="justify-start text-danger-ink"
-                      onClick={() => requestDelete(t)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </Popover>
-              }
-            />
-          ))}
-        </div>
-      )}
+        {/* The wizard's own createTrip/Create-empty failures render their own
+            inline alert inside the Sheet (NewTripWizard.tsx) — this top-level
+            `error` is now exclusively delete/duplicate-trip feedback, so no
+            newTripOpen gate is needed to avoid a stranded duplicate. */}
+        {error && (
+          <Text role="alert" variant="secondary" className="text-danger-ink">
+            {error}
+          </Text>
+        )}
 
-      {/* Task 16 Preview shells (README §1 home layout): "Your Playbooks"
-          strip after the all-trips grid, then "Worth your attention" last.
-          The handoff shows both as part of the normal home layout
-          regardless of trip count (they're cross-trip surfaces, not
-          per-trip ones), so — unlike NextTripHero/the trips grid above —
-          these render unconditionally rather than gating on `visibleTrips`.
-          Real fixture data + no-op: both are entirely inert inside their
-          own <Preview> seam (Task 3), which shields pointer events and
-          stamps the "Preview · M9"/"Preview · M11" chip. */}
-      <div className="mt-6">
+        <NewTripWizard
+          open={newTripOpen}
+          onOpenChange={setNewTripOpen}
+          createTrip={createTripApi}
+          dispatch={sendTripCommand}
+          // Only the full wizard (dates/budget applied) navigates straight to
+          // the new trip, matching the phase doc's own "create... apply
+          // dates and budget... then navigate" sequence. "Create empty" is
+          // the old single-field dialog's escape hatch and keeps that
+          // dialog's exact behavior — close, refresh the list, stay put — so
+          // e2e specs built around it can still find the new trip's own card
+          // on this page rather than having already been navigated away from
+          // it (CI, PR #32).
+          onCreated={(tripId, { navigate }) => {
+            if (navigate) {
+              router.push(`/trips/${tripId}`);
+            } else {
+              void load();
+            }
+          }}
+        />
+
+        {nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton variant="secondary" />} />}
+
+        <div>
+          {trips !== null && visibleTrips.length === 0 ? (
+            <EmptyState title="Start your first trip" body="No trips yet — create one." />
+          ) : (
+            <>
+              {visibleTrips.length > 0 && (
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <Heading level={3}>All trips</Heading>
+                  <Text variant="secondary">{tripCountLabel}</Text>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleTrips.map((t) => (
+                  <TripCard
+                    key={t.tripId}
+                    trip={t}
+                    plannedOfBudget={plannedOfBudgetById[t.tripId]}
+                    menuSlot={
+                      <Popover
+                        open={openMenuTripId === t.tripId}
+                        onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
+                        align="end"
+                        contentClassName="w-40 p-1"
+                        trigger={
+                          <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
+                            <MoreVertical className="size-3.5" aria-hidden />
+                          </Button>
+                        }
+                      >
+                        <div role="menu" className="flex flex-col">
+                          <Button
+                            role="menuitem"
+                            variant="ghost"
+                            className="justify-start"
+                            onClick={() => void duplicate(t)}
+                          >
+                            Duplicate
+                          </Button>
+                          <Button
+                            role="menuitem"
+                            variant="ghost"
+                            className="justify-start text-danger-ink"
+                            onClick={() => requestDelete(t)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </Popover>
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Task 16 Preview shells (README §1 home layout): "Your Playbooks"
+            strip after the all-trips grid, then "Worth your attention" last.
+            The handoff shows both as part of the normal home layout
+            regardless of trip count (they're cross-trip surfaces, not
+            per-trip ones), so — unlike NextTripHero/the trips grid above —
+            these render unconditionally rather than gating on `visibleTrips`.
+            Real fixture data + no-op: both are entirely inert inside their
+            own <Preview> seam (Task 3), which shields pointer events and
+            stamps the "Preview · M9"/"Preview · M11" chip. */}
         <Preview id="home-playbooks-strip" size="container">
           <PlaybooksStrip playbooks={PREVIEW_PLAYBOOKS} />
         </Preview>
-      </div>
 
-      <div className="mt-6">
         <Preview id="home-worth-attention" size="container">
           <WorthYourAttention items={PREVIEW_ATTENTION} />
         </Preview>
@@ -341,6 +399,6 @@ export default function Home() {
           onDismiss={() => setToast(null)}
         />
       )}
-    </main>
+    </PageContainer>
   );
 }

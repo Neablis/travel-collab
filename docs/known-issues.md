@@ -155,16 +155,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Mitigation:** none today — the user renames and sets dates by hand after generation.
 - **First noted:** 2026-07-26 (live test of the `MAX_STEPS` fix).
 
-### KI-18 — Day accents collide: Kyoto and Osaka render identically
-- **Severity:** correctness (the accent system's entire purpose is defeated)
-- **Area:** `apps/web/src/lib/dayAccent.ts`
-- **Symptom:** `dayAccentFor` is `djb2(city) % 5` over five families. Run over real city names, **seven of thirteen land on `danger`** (Kyoto, Osaka, Niagara Falls, Lisbon, Paris, Barcelona, Portland), three on `info`, two on `success`, one on `brand`. The design handoff's own headline trip — Tokyo -> Kyoto -> Osaka — renders Kyoto and Osaka the same colour. A day with **no** located activity hashes the empty string into `info` and renders bright blue, visually claiming to be a city of its own.
-- **Why it happens:** the prototype used ten buckets **with linear collision probing** (`cityBuckets()`); only the bucketing was carried over, not the probing — and the probing is the part that guarantees distinctness.
-- **Fix:** M10 Wave 2, Phase 8 — resolve a whole trip's cities at once (`dayAccents(cities)`), probe forward on collision, and give "no city known" an explicit neutral.
-- **A working reference implementation of that fix already exists in the repo (found 2026-08-23, while building `docs/testing-inventory.md`).** `apps/web/src/lib/sparklineColor.ts` hit exactly this problem and solved it: its header records that it "deliberately replaced a per-city string hash (djb2, mirroring dayAccent.ts)" because "independent hashes collide — a real 14-day Japan trip rendered Tokyo, Hakone and Kyoto in one identical orange" — this entry's Kyoto/Osaka symptom in a different palette. `sparklineColorsFor()` assigns across the whole trip in first-appearance order, and gives an unknown city an explicit neutral (`UNKNOWN_CITY_COLOR`) rather than a hue — both halves of what this entry asks for, with the reasoning already written down. **Read that file before writing `dayAccents(cities)`.** The one thing that does not transfer: it has 8 hues to spend where `dayAccentFor` has 5 semantic families, so collisions past 5 cities are unavoidable here and forward-probing (rather than pure first-appearance assignment) is still the mechanism this entry needs.
-- **`dayAccent.test.ts` passes today while this is broken — fix that too.** Its `it("spreads distinct cities across families")` asserts something materially weaker than its name claims: 7-of-13 collisions do not fail it. Whatever closes this entry must also replace that test with a real property test carrying a measured `witness` floor (`AGENTS.md`'s Testing model), or the fix ships with the same false confidence that hid the bug.
-- **First noted:** 2026-08-14 (external design review of PR #23).
-
 ### KI-20 — Itinerary, Daily overview and Full-trip lenses have no navigation entry
 - **Severity:** cosmetic (no code path is broken; a real feature is unreachable through the UI)
 - **Area:** `apps/web/src/components/trip/TripViewTabs.tsx`, `apps/web/src/components/trip/context/LensRouter.tsx`
@@ -338,10 +328,38 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 6).
 
 
+### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
+- **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
+- **Area:** `packages/contracts/src/trip.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/components/home/NextTripHero.tsx`, `apps/web/src/components/home/TripCard.tsx`
+- **Symptom:** `TripSummary` (what `/api/trips` returns for the whole list) carries no start/end date field at all — only `createdAt`, an instant recording when the trip record was made, not when it happens. Two consequences, deliberately not the same severity:
+  - **Correctness:** `page.tsx`'s `nextTrip` is `visibleTrips[0]`, the first trip in the list order the API returns, not the true next-upcoming-by-date trip — there is no date to sort by. If `/api/trips`'s order is ever not chronological (nothing in the contract guarantees it is), the hero can present a genuinely wrong trip as "next", not merely an approximate date on the right one.
+  - **Cosmetic:** `TripCard` shows `Created {date}` (derived from `createdAt`) in the slot the design's trip card uses for the trip's actual dates; `NextTripHero`'s meta row does the same when its own `TripDetail` fetch (which does carry a real `startDate`) hasn't resolved yet or the trip has none set. The trip shown is still the right one here — only its displayed date is an approximation.
+- **Why it's not fixed here:** the real fix is a contract change — adding a start date (or a denormalized "sort key" date) to `TripSummary` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.5) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth. Fabricating a placeholder date on the card instead of the honest `createdAt` label would be worse than the current approximation, not better, so neither `nextTrip`'s selection nor `TripCard`'s date line changed for this task.
+- **Fix path:** add a start date to `TripSummary`, then swap `nextTrip` to a real date-sort and `TripCard`'s date line to that field, the same way `NextTripHero` already prefers its real `TripDetail.startDate` over `createdAt` once that fetch resolves.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.5).
+
+### KI-35 — No true "area" field; route and place lines are a city-or-first-segment approximation
+- **Severity:** cosmetic
+- **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
+- **Symptom:** `shortPlace()` (this task, `lib/place.ts`) and `cityFor()` (`DayChips.tsx`, earlier work) both face the same gap: `Location` has no dedicated "area"/"neighborhood" field, only the geocoder's structured `city` and the full `name` label. Both helpers fall back to `location.city` when present, else the first comma-delimited segment of `name` — a real but imprecise stand-in that can occasionally read oddly, since that first segment is the *venue name* for a location with no `city`, not an area (e.g. "Ugly Duck Coffee" rather than "Rochester"). The timeline's day-header route line and each activity's place line both inherit this via `shortPlace()`.
+- **Why it's not fixed here:** the real fix is a contract change — a dedicated `area` field on `Location` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.7) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth.
+- **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-18 — Day accents collide: Kyoto and Osaka render identically — RESOLVED
+- **Severity:** correctness (the accent system's entire purpose is defeated)
+- **Area:** `apps/web/src/lib/dayAccent.ts`
+- **Symptom (as filed):** `dayAccentFor` was `djb2(city) % 5` over five families. Run over real city names, **seven of thirteen land on `danger`** (Kyoto, Osaka, Niagara Falls, Lisbon, Paris, Barcelona, Portland), three on `info`, two on `success`, one on `brand`. The design handoff's own headline trip — Tokyo -> Kyoto -> Osaka — rendered Kyoto and Osaka the same colour. A day with **no** located activity hashed the empty string into `info` and rendered bright blue, visually claiming to be a city of its own.
+- **Why it happened:** the prototype used ten buckets **with linear collision probing** (`cityBuckets()`); only the bucketing was carried over, not the probing — and the probing is the part that guarantees distinctness.
+- **Fix (2026-08-24, M10 Wave 2 Phase 8, Task 8.2):** `dayAccentFor` (one city at a time, so probing was structurally impossible) is gone, replaced by `dayAccents(cities: (string | null)[])`, which resolves a whole trip's cities in one call. Two-pass hash + linear-probe over the same five semantic families: distinct non-null cities are sorted (so the result is independent of the order days appear in the input) and each claims its raw `hash(city) % 5` bucket in pass 1; any city that collided in pass 1 probes forward from its hash bucket, wrapping, until it finds a free one in pass 2. Past five distinct cities every bucket eventually fills and the probe has nowhere free to go — it falls back to the raw (colliding) hash bucket rather than throwing, an explicit, tested degrade rather than a crash. `AccentFamily` gained an explicit `"neutral"` member: a day with no known city maps straight to `{ tint: "neutral", ink: "neutral", solid: "neutral" }` without ever consuming one of the five buckets, replacing the old accidental "empty string hashes to `info`" behavior with an honest "we don't know" render (moss/slate tokens) that claims no false city.
+- **`dayAccent.test.ts`'s weak assertion was replaced, not kept alongside the new suite.** The old `it("spreads distinct cities across families")` — materially weaker than its name claimed, since 7-of-13 collisions didn't fail it — is gone. The new suite asserts the actual guarantees: Tokyo/Kyoto/Osaka get three distinct colours; the same city gets the same colour throughout one trip; a `null` city gets `"neutral"` without spending a bucket; assignment is independent of input order; and eight distinct cities into five buckets degrades without throwing.
+- **Every caller updated to call `dayAccents` once over a whole trip's days, not per-day:** `DayChips.tsx`, `TimelineLens.tsx`, `Board.tsx`, `CalendarLens.tsx`, `mapRailData.ts` now each compute the trip's accents array once (memoized where the surrounding code already memoized) and index into it — this is what actually enables cross-day collision probing, since a per-day call can never see any other day's assignment. `PlaybookCard.tsx`, `PlaybooksStrip.tsx`, `TripCard.tsx` color one independent item at a time (no shared trip-day context to batch against) and simply call `dayAccents([x])[0]!`, preserving their prior one-item-at-a-time behavior through the new API.
+- **First noted:** 2026-08-14 (external design review of PR #23). **Resolved:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.2).
 
 ### KI-33 — `UnscheduledRack.tsx` and `unscheduledRack.ts` collide on a case-insensitive filesystem, breaking two test files AND `next build` locally — RESOLVED
 - **Severity (as filed):** reliability (25 unit tests failed and `pnpm --filter web build` failed outright on macOS/Windows; CI unaffected)

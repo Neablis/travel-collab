@@ -1,6 +1,6 @@
 import type { TripDetail } from "@tc/contracts";
 import { chipModel } from "@/components/trip/DayChips";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 
 export type MapStop = { activityId: string; title: string; lat: number; lng: number };
@@ -56,13 +56,17 @@ function legKms(stops: MapStop[]): number[] {
 
 export function mapDays(detail: TripDetail): MapDay[] {
   const cities = chipModel(detail);
+  // One dayAccents() call over the whole trip's cities, so collisions
+  // between two days of this trip get probed against each other rather than
+  // each day resolving blind to every other one.
+  const accents = dayAccents(cities.map((c) => c.city));
 
   return detail.days.map((day, index) => {
     const stops = locatedStops(day, detail.activities);
     const unlocatedCount = day.activityIds.length - stops.length;
     const legs = legKms(stops);
     const totalKm = stops.length >= 2 ? legs.reduce((sum, km) => sum + km, 0) : null;
-    const accent = dayAccentFor(cities[index]?.city ?? null).solid;
+    const accent = accents[index]?.solid ?? "neutral";
 
     // One bar per located stop: legs share proportionally by distance when we
     // have a real total, else split evenly (a single located stop, or a day
