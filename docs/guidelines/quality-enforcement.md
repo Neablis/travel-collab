@@ -90,6 +90,14 @@ minutes. Treat its findings as bug reports to verify against the code — it
 caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and
 per-path focus live in `.coderabbit.yaml`.
 
+Run straight after a push, `--watch` may return in ~1s with the *previous*
+commit's checks — all green, indistinguishable from your push having passed.
+Confirm a run exists for your actual HEAD before trusting it:
+
+```
+gh run list --commit "$(git rev-parse HEAD)" --limit 1
+```
+
 ## Fast feedback while you work
 
 - A `PostToolUse` hook (`scripts/hooks/typecheck-touched-package.mjs`)

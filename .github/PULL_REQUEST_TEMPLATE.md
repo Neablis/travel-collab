@@ -64,4 +64,10 @@ Closes:
        gh pr checks <n> --watch --fail-fast
 
      CodeRabbit's summary comment lands ~30s in, but its actual review verdict
-     takes 2-11 minutes. --watch exits non-zero the moment anything fails. -->
+     takes 2-11 minutes. --watch exits non-zero the moment anything fails.
+
+     Straight after a push, --watch can return in ~1s with the PREVIOUS
+     commit's checks, all green. Confirm the run exists for your real HEAD
+     first:
+
+       gh run list --commit "$(git rev-parse HEAD)" --limit 1 -->
