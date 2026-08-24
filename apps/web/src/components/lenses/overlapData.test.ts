@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { overlapsForDay } from "./overlapData";
+import { badgeableConflictSubjects, overlapsForDay } from "./overlapData";
 
 // The plan's own worked example (M10 Phase 5): Nezu Museum 10:30–13:00 and
 // Lunch at Kagari 12:30–14:00 on one day, 30 minutes on top of each other,
@@ -114,5 +114,49 @@ describe("overlapsForDay", () => {
     expect(o?.laterActivityId).toBe("a");
     // The earlier stop of the pair is still the one whose end the fix suggests.
     expect(o?.suggestedStart).toBe("11:00");
+  });
+});
+
+// KI-29: the triangle is suppressed per *rendered* overlap, not per kind. The
+// day columns chip one overlap per stop, so a stop that is the later half of
+// two crossing pairs leaves one pair unrendered — and that pair is exactly
+// what this rule has to keep badging, or it has no day-column surface at all.
+describe("badgeableConflictSubjects", () => {
+  const overlapConflict = (id: string, subjects: string[]) => ({
+    id,
+    kind: "time-overlap" as const,
+    severity: "warn" as const,
+    subjects,
+    description: "",
+    resolutions: [],
+  });
+
+  it("badges the subjects of a kind nothing richer covers", () => {
+    const d = detail({
+      conflicts: [{ id: "anchor-broken:a", kind: "anchor-broken", severity: "warn", subjects: ["a"], description: "", resolutions: [] }],
+    });
+    expect([...badgeableConflictSubjects(d, new Set())]).toEqual(["a"]);
+  });
+
+  it("leaves a rendered overlap to its warning rather than also badging it", () => {
+    const d = detail();
+    expect([...badgeableConflictSubjects(d, new Set(["time-overlap:d1:a:b"]))]).toEqual([]);
+  });
+
+  it("badges an overlap the calling lens does not render, on both its subjects", () => {
+    const d = detail({
+      conflicts: [overlapConflict("time-overlap:d1:a:b", ["a", "b"]), overlapConflict("time-overlap:d1:b:c", ["b", "c"])],
+    });
+    // The board chips a:b on b and has no room for b:c — so b:c is the one
+    // that still needs the triangle.
+    const badged = badgeableConflictSubjects(d, new Set(["time-overlap:d1:a:b"]));
+    expect([...badged].sort()).toEqual(["b", "c"]);
+  });
+
+  it("does not resurrect a triangle for a dismissed overlap", () => {
+    // Dismissal removes the warning without putting anything back in its
+    // place — the same thing the Board lens has always done for other kinds.
+    const d = detail({ dismissedConflictIds: ["time-overlap:d1:a:b"] });
+    expect([...badgeableConflictSubjects(d, new Set())]).toEqual([]);
   });
 });
