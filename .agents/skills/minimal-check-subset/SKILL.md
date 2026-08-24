@@ -42,7 +42,31 @@ pnpm lint && pnpm test` across every workspace package).
    - Tests — prefer scoping to the specific touched test files over the
      whole package suite:
      - Unit tests (`*.test.ts`/`*.test.tsx`, `vitest.unit.config.ts`):
-       `pnpm --filter web test -- --run <file1> <file2>`
+       `pnpm --filter web exec vitest run -c vitest.unit.config.ts <file1> <file2>`
+
+       **Do NOT use `pnpm --filter web test -- --run <file>`.** That form
+       looks like it scopes and does not — pnpm swallows the `--`
+       passthrough, vitest never receives the filenames, and it runs the
+       **entire** suite while printing a command line that reads as
+       narrowed. Measured on 2026-08-24, same single file, same worktree:
+
+       | form | result |
+       |---|---|
+       | `pnpm --filter web test -- --run src/lib/dates.test.ts` | `Test Files 103 passed (103)` |
+       | `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/lib/dates.test.ts` | `Test Files 1 passed (1)` |
+
+       This matters most in exactly the situation the skill exists for.
+       Two agents in a five-way parallel KI-backlog run independently hit
+       it; five "narrow" runs were five full 103-file suites contending on
+       one machine, which is the load condition KI-13 is about.
+
+       The `-c vitest.unit.config.ts` flag is required. `apps/web` has two
+       configs, and the default (`vitest.config.ts`) sets
+       `include: src/**/*.int.test.ts` — the integration suite. Omitting
+       `-c` on a unit test file therefore matches nothing and exits 1 with
+       `No test files found`. That failure is loud, not silent, so it
+       cannot be mistaken for a pass — but it is why the flag is not
+       optional.
      - Integration tests (`*.int.test.ts`), or any change integration tests
        exercise: run the full `pnpm --filter web test:int` instead. The
        integration suite shares one real Postgres instance and doesn't scope
