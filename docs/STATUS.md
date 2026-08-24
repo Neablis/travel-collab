@@ -5,8 +5,8 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — M10 Wave 2 Phase 6 (growing the trip) is built and
-its PR is open; see "Phase 6" under "In flight" below. It closes **KI-30** and
+**Last updated: 2026-08-24 — M10 Wave 2 Phase 6 (growing the trip) **merged to
+`main` via PR #30**; see "Phase 6" under "In flight" below. It closes **KI-30** and
 files **KI-31** and **KI-32** rather than absorbing them. Its Step 4 (the manual
 browser walk) was not performed — no interactive browser in the container — but
 the phase's gate is scripted as `e2e/m10-growth.spec.ts` instead, which is a
@@ -355,7 +355,7 @@ Re-verified after the fix: unit **600/600** (98 files), typecheck, lint and the
 colour wall clean, and the full e2e suite **21/21** against a production build.
 Both review threads are answered and resolved.
 
-### Phase 6 (growing the trip) — built 2026-08-24, PR open
+### Phase 6 (growing the trip) — merged to `main` 2026-08-24 via PR #30
 
 Two commits on `claude/m10-wave2-phase6-8s0713`, branched from `main` at
 `df1b05f` (post-PR #29). Presentational only: **zero diff to `packages/` and to
@@ -455,9 +455,9 @@ not fire. All copy was verified byte-identical to the phase file's table with
     `docs/plans/M10-delta/phase-8b-design-sync.md` and
     `phase-1b-header-scope.md`; both are gate-scope amendments recorded in
     `docs/milestones/M10-visual-craft.md`.
-  - **Phase 6 (add-a-day, empty states) — done, PR open** (2026-08-24,
-    branch `claude/m10-wave2-phase6-8s0713`). See the Phase 6 section under
-    "In flight" for what landed and what it deliberately did not.
+  - **Phase 6 (add-a-day, empty states) — done, merged to `main`** (PR #30,
+    2026-08-24). See the Phase 6 section under "In flight" for what landed and
+    what it deliberately did not.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
     (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
@@ -623,9 +623,10 @@ browser verification of the exit checklist) was never performed, since that
 container had no interactive browser — walk that checklist by hand; and KI-29's
 card-level design question wants an answer at the Phase 9 gate.
 
-**Phase 6 (growing the trip) is built and its PR is open** (2026-08-24) — see
-its section under "In flight". Its Step 4 manual browser pass is the one thing
-still wanting a human; the PR's Vercel preview is the way to close it.
+**Phase 6 (growing the trip) merged to `main` 2026-08-24 via PR #30** — see
+its section under "In flight". CI was green on all four jobs and CodeRabbit
+raised nothing actionable. Its Step 4 manual browser pass is the one thing still
+wanting a human; PR #30's Vercel preview is the way to close it.
 
 Continue M10 Wave 2's remaining phases — **7, 8, then 8b, then 1b** — 7
 unblocked by Phase 3's merge in PR #26, 8 independent. **Phases 8b and 1b are

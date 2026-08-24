@@ -186,7 +186,7 @@ four steps, wire every field the data model already supports and mark the rest.
 | 1 — Where | "Start from a Playbook" panel | **Preview** — M11 |
 | 2 — When | Arrive date input | **real** (`SetTripDates`) |
 | 2 — When | ~~Leave date input~~ | **REMOVED 2026-08-23** — see below |
-| 2 — When | length chips ("A weekend", "A week"…) | **real** — they set the length; the end follows |
+| 2 — When | length chips (five, listed below) | **real** — they set the length; the end follows |
 | 3 — Who | invite list | **Preview** — `TripMember.role` is literal `"owner"` |
 | 3 — Money | budget total + currency | **real** (`SetTripBudget`, `SetTripCurrency`) |
 | 4 — Shape | pace `SegmentedControl`, tag chips | **Preview** — no fields |
@@ -205,6 +205,28 @@ four steps, wire every field the data model already supports and mark the rest.
 > The test below still asserts `SetTripDates` with a `startDate` and an
 > `endDate` — that stays correct, because the chip computes the end. What must
 > **not** exist is a control the user types an end date into.
+
+**The length chips, verbatim** (`Trip Planner Redesign.dc.html:3440`'s
+`lengthChips`) — five, in this order:
+
+| chip | days | source |
+|---|---|---|
+| `Long weekend` | 4 | the design's own New Orleans card reads *"Long weekend, four days"* (line 3211) |
+| `A week` | 7 | the label |
+| `10 days` | 10 | the label |
+| `2 weeks` | 14 | the label |
+| `Longer` | **unspecified** | see below |
+
+The prototype's chips only `flash(label + ' — dates filled in')`, so the design
+states no day count for any of them; the four above are read off the labels and
+off that New Orleans line, not invented. **`Longer` has no length the design
+implies** — it is presumably an escape hatch to a manual day count. Per the plan
+index's own rule ("If a task seems to require a value it does not give you, stop
+and ask rather than inventing one"), **ask before giving `Longer` a number.**
+Shipping the other four and marking `Longer` is also a legitimate answer.
+
+`endDate` is `startDate + days − 1` (the amendment above): a 14-day trip
+arriving `2026-10-03` ends `2026-10-16`, which is what the test below asserts.
 
 **Files:**
 - Create: `apps/web/src/components/home/NewTripWizard.tsx`, `NewTripWizard.test.tsx`
@@ -226,7 +248,10 @@ it("creates the trip with just a name, then applies dates and budget", async () 
   await userEvent.type(screen.getByLabelText("Trip name"), "Japan");
   await userEvent.click(screen.getByRole("button", { name: "Next" }));
   await userEvent.type(screen.getByLabelText("Arrive"), "2026-10-03");
-  await userEvent.type(screen.getByLabelText("Leave"), "2026-10-16");
+  // Step 2 is Arrive plus a length chip — there is no Leave input to type into
+  // (the 2026-08-23 amendment above). "2 weeks" is 14 days, so the end the
+  // wizard computes is 2026-10-16, which is what this test then asserts.
+  await userEvent.click(screen.getByRole("button", { name: "2 weeks" }));
   await userEvent.click(screen.getByRole("button", { name: "Next" }));
   await userEvent.click(screen.getByRole("button", { name: "Next" }));
   await userEvent.click(screen.getByRole("button", { name: "Create trip" }));
@@ -235,6 +260,19 @@ it("creates the trip with just a name, then applies dates and budget", async () 
   expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
     type: "SetTripDates", tripId: "new-trip", startDate: "2026-10-03", endDate: "2026-10-16",
   }));
+});
+
+// The 2026-08-23 amendment as an enforced rule rather than a stated one:
+// AGENTS.md's testing model says an invariant a comment asserts is "a lie with
+// a timer on it" unless a test holds it. Task 8b.6 removes the same field from
+// the Trip settings Dates row; this is the wizard's half of that decision.
+it("offers no way to type an end date", async () => {
+  renderWizard();
+  await userEvent.type(screen.getByLabelText("Trip name"), "Japan");
+  await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+  expect(screen.getByLabelText("Arrive")).toBeTruthy();
+  expect(screen.queryByLabelText("Leave")).toBeNull();
 });
 
 it("can still create a trip from the name alone", async () => {
@@ -278,5 +316,8 @@ git commit -m "feat(web): four-step new-trip wizard — real name, dates and bud
 - [ ] `Half day` is four hours; edit mode keeps an explicit end time.
 - [ ] The availability note is a real `Banner` computed from the day's windows.
 - [ ] The wizard creates with a name only, then applies real dates and budget.
+- [ ] Step 2 is Arrive plus the five length chips, and there is **no** control
+      the user types an end date into (2026-08-23 amendment; Task 8b.6 is the
+      same decision applied to the Trip settings Dates row).
 - [ ] "Create empty" still works — nobody is forced through four steps.
 - [ ] Every Preview block added here is registered and the sync test is green.
