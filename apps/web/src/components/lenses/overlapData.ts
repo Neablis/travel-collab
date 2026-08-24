@@ -92,6 +92,7 @@ function repairedEnd(later: Timed, suggestedStart: string): string | null {
 
 export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
   const dismissed = new Set(detail.dismissedConflictIds);
+  const members = new Set(detail.days.find((d) => d.dayId === dayId)?.activityIds ?? []);
   const overlaps: Overlap[] = [];
 
   for (const conflict of detail.conflicts) {
@@ -99,6 +100,18 @@ export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
     if (dismissed.has(conflict.id)) continue;
     if (conflict.id.split(":")[ID_DAY_SEGMENT] !== dayId) continue;
     if (conflict.subjects.length !== 2) continue;
+    // The conflict id encodes the day it was computed for, which is not
+    // necessarily where its stops are now — a move reschedules the activity
+    // long before the recomputed conflict set catches up (and under the
+    // optimistic overlay, the client can sit in that gap). Trusting the
+    // encoded day alone let a stale overlap be reported for a day that no
+    // longer holds both stops: the caller counted it as rendered and dropped
+    // the generic triangle, while the lens rendered no warning for it,
+    // because a warning only renders beside a stop the day actually lists.
+    // Requiring current membership keeps "returned by overlapsForDay" and
+    // "rendered by the lens" the same set, which is the whole premise of
+    // badgeableConflictSubjects. Found by CodeRabbit on PR #44.
+    if (!conflict.subjects.every((id) => members.has(id))) continue;
 
     // A conflict can outlive the activity it names (a removal the client
     // hasn't reconciled yet), and an activity can lose its times without the

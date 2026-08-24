@@ -44,6 +44,26 @@ describe("overlapsForDay", () => {
     expect(overlapsForDay(detail(), "d1")[0]?.suggestedStart).toBe("13:00");
   });
 
+  // CodeRabbit on PR #44. overlapsForDay filtered by the day encoded in the
+  // conflict id, not by where the activities actually are now. A stale
+  // conflict for a stop that has since moved to another day still came back
+  // as an overlap of its OLD day — so TimelineLens counted it in
+  // renderedOverlapIds (suppressing the triangle) while rendering no warning
+  // for it, because its warning only renders next to a stop that day actually
+  // holds. Same invisible-conflict class KI-29 closed, reached a different way.
+  it("ignores a conflict whose subject has moved off the encoded day", () => {
+    const moved = detail({
+      days: [
+        { dayId: "d1", date: null, activityIds: ["a"], costSubtotal: 0 },
+        { dayId: "d2", date: null, activityIds: ["b"], costSubtotal: 0 },
+      ],
+    });
+    // The conflict still says "time-overlap:d1:a:b" and both stops still have
+    // their time windows — only b's day membership changed.
+    expect(overlapsForDay(moved, "d1")).toEqual([]);
+    expect(overlapsForDay(moved, "d2")).toEqual([]);
+  });
+
   it("excludes dismissed conflicts", () => {
     expect(overlapsForDay(detail({ dismissedConflictIds: ["time-overlap:d1:a:b"] }), "d1")).toEqual([]);
   });

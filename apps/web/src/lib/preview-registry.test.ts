@@ -41,17 +41,51 @@ const files = walk(SRC);
 // imported anywhere at all"), not full reachability from a rendered root —
 // KI-31's option (b). It is enough to catch the case that motivated it: a
 // Preview whose sole usage is its own never-rendered component file.
-const importedByAppCode = new Set<string>();
+const importsFrom = new Map<string, string[]>();
 for (const file of files) {
   if (isTest(file)) continue;
   const src = readFileSync(file, "utf8");
+  const targets: string[] = [];
   for (const m of src.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g)) {
     const target = resolveSpecifier(file, m[1]!);
-    if (target !== null) importedByAppCode.add(target);
+    if (target !== null) targets.push(target);
   }
+  importsFrom.set(file, targets);
 }
 
-const isRendered = (file: string) => NEXT_ENTRY.test(file) || importedByAppCode.has(file);
+// Reachability from the app's real entry points, not "is this imported by
+// anything at all". The weaker one-level check let a dead file keep another
+// file alive: two unrendered components importing each other both looked
+// imported, so a Preview in either still counted as used. Walking outward from
+// the Next.js entries instead means a file is rendered only if the framework
+// can actually get to it. Found by CodeRabbit on PR #44.
+//
+// Measured when adopted: identical result to the one-level check on today's
+// tree — the same 5 dead files of 171 non-test sources, 0 newly dead — so this
+// is strictly stronger without being stricter about anything that exists yet.
+// Imports made *from* test files are still never followed (a component whose
+// only importer is its own unit test is not rendered), which falls out of test
+// files never being roots and never being traversed.
+function reachableFrom(roots: readonly string[], edges: ReadonlyMap<string, readonly string[]>): Set<string> {
+  const seen = new Set<string>(roots);
+  const queue = [...seen];
+  while (queue.length > 0) {
+    for (const target of edges.get(queue.pop()!) ?? []) {
+      if (!seen.has(target)) {
+        seen.add(target);
+        queue.push(target);
+      }
+    }
+  }
+  return seen;
+}
+
+const renderedFiles = reachableFrom(
+  files.filter((f) => NEXT_ENTRY.test(f) && !isTest(f)),
+  importsFrom,
+);
+
+const isRendered = (file: string) => renderedFiles.has(file);
 
 // `//` and `/* */` comments, including JSX `{/* */}` blocks. Prose *about* a
 // Preview is not a usage of it: EndOfTrip.tsx explains in a comment why it does
@@ -164,8 +198,28 @@ describe("the orphan scanner itself", () => {
   it("treats a Next.js entry point as rendered even though nothing imports it", () => {
     const page = files.find((f) => f.endsWith(join("app", "page.tsx")));
     expect(page, "expected an app-router page.tsx in src/app").toBeDefined();
-    expect(importedByAppCode.has(page!)).toBe(false);
+    expect([...importsFrom.values()].flat()).not.toContain(page!);
     expect(isRendered(page!)).toBe(true);
+  });
+
+  // CodeRabbit on PR #44 asked for a case covering an unreachable import chain.
+  // The tree has none today (every dead file is dead on its own), and inventing
+  // one means committing dead fixture components to src that the repo's own
+  // orphan tooling would then flag — so the traversal is tested directly on a
+  // synthetic graph instead. Under the one-level check this PR replaced, `dead`
+  // and `alsoDead` both looked "imported by something" and would have counted
+  // as rendered; only entry-rooted reachability rules them out.
+  it("does not count a file kept alive only by another unreachable file", () => {
+    const edges = new Map<string, readonly string[]>([
+      ["app/page.tsx", ["components/Live.tsx"]],
+      ["components/Live.tsx", []],
+      ["components/dead.tsx", ["components/alsoDead.tsx"]],
+      ["components/alsoDead.tsx", ["components/dead.tsx"]],
+    ]);
+    const reached = reachableFrom(["app/page.tsx"], edges);
+    expect([...reached].sort()).toEqual(["app/page.tsx", "components/Live.tsx"]);
+    expect(reached.has("components/dead.tsx")).toBe(false);
+    expect(reached.has("components/alsoDead.tsx")).toBe(false);
   });
 
   it("resolves alias and relative imports (so real components are not read as dead)", () => {
@@ -173,7 +227,7 @@ describe("the orphan scanner itself", () => {
     // quietly stop the orphan guard from covering anything. Two bounds, both
     // insensitive to files coming and going: nearly everything is rendered,
     // and nothing the router owns is ever counted dead. The 10% ceiling is
-    // measured, not guessed — 5 dead of 177 non-test source files today (2.8%),
+    // measured, not guessed — 5 dead of 171 non-test source files today (2.9%),
     // so the bound sits ~3.5x above the observed value.
     const source = files.filter((f) => !isTest(f));
     const dead = source.filter((f) => !isRendered(f)).map((f) => relative(SRC, f));
