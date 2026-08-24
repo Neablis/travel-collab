@@ -400,7 +400,7 @@ describe("TimelineLens", () => {
   // Task 4.1 (M10 Phase 4): per-stop cost, right column, under the
   // attributee. Formatted through formatMoney (KI-2) — never a hand-rolled
   // "$"-prefixed string — so this asserts the same "N,NNN.NN CCC" convention
-  // BudgetChip/DailyOverviewLens/ItineraryLens already use, not a currency
+  // BudgetChip already uses, not a currency
   // symbol.
   it("shows a stop's cost in the card's right column", () => {
     const detail = tripDetailFixture({

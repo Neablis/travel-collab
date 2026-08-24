@@ -33,7 +33,7 @@ export function ActivityCard({
   // warning hangs off the later one, overlapData.ts).
   overlap: Overlap | null;
   // Currency is trip-level, never per-event (decision, 2026-08-14) — the same
-  // pattern TimelineLens/BudgetChip/DailyOverviewLens already follow: the
+  // pattern TimelineLens/BudgetChip already follow: the
   // caller threads its own trip.currency down, this never reads Money.currency
   // off the activity's own cost.
   currency: string;
