@@ -52,31 +52,18 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Travel insurance" })).toBeVisible();
 
-  // -- Itinerary lens: per-day subtotal and unscheduled section --
-  // Itinerary/Daily/Trip have no nav entry at all as of M10 Wave 2's four-tab
-  // strip (KI-20) — they kept their LensRouter entries and `?lens=` URLs, so
-  // that's how the e2e suite reaches them too.
-  const gotoLens = (lens: string) => {
-    const url = new URL(page.url());
-    url.searchParams.set("lens", lens);
-    return page.goto(url.toString());
-  };
-  await gotoLens("Itinerary");
-  await expect(page.getByText("420.00 EUR").first()).toBeVisible();
-  // Scoped to the Itinerary lens's own section heading: the Unscheduled drawer
-  // (mounted in every lens since M10 Phase 3) carries the same word in its
-  // toggle bar, which would make a bare text locator ambiguous.
-  await expect(page.getByTestId("itinerary-unscheduled").getByRole("heading", { name: "Unscheduled" })).toBeVisible();
-  await expect(page.getByText("99.00 EUR").first()).toBeVisible();
+  // -- per-day subtotal on the Timeline lens --
+  // This used to read the same rollup off the Itinerary, Daily-overview and
+  // Full-trip lenses via `?lens=`; KI-20 retired all three (they had no nav
+  // entry and the M10 redesign never contemplated them), so the money
+  // assertions now run against the surfaces that survived. Timeline's per-day
+  // cost pill is the day subtotal.
+  await page.getByRole("tab", { name: "Timeline" }).click();
+  await expect(page.locator('[data-testid^="day-cost-"]').first()).toHaveText("420.00 EUR");
 
-  // -- Daily lens: per-day count/subtotal --
-  await gotoLens("Daily");
-  await expect(page.getByTestId("daily-overview-lens")).toBeVisible();
-  await expect(page.getByText("420.00 EUR")).toBeVisible();
-
-  // -- Trip lens: total renders --
-  await gotoLens("Trip");
-  await expect(page.getByText("519.00 EUR")).toBeVisible();
+  // The unscheduled (trip-level) 99.00 EUR stop stays parked in the rack — see
+  // its rack-card assertion above; the trip total that rolls both together is
+  // asserted through the over-budget conflict text below.
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.
@@ -99,7 +86,9 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
     budgetInput.press("Tab"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByText(/exceeds the budget/)).toBeVisible();
+  // The conflict description carries the trip-wide rollup (420.00 scheduled +
+  // 99.00 unscheduled) — the assertion the retired Full-trip lens used to make.
+  await expect(page.getByText(/Trip total \(519\.00 EUR\) exceeds the budget/)).toBeVisible();
 
   // -- raise the budget above the total: warning clears --
   await page.getByRole("button", { name: "Trip settings" }).click();

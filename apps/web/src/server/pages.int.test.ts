@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
+import { db } from "./db/client";
 import { listPages, getPage, createPage, updatePage, deletePage } from "./pages";
 
 async function seedTrip() {
@@ -21,6 +23,30 @@ describe("pages repository", () => {
     expect(first.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
     const second = await listPages(tripId); // idempotent — no duplicate instantiation
     expect(second).toHaveLength(2);
+  });
+
+  // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
+  // both observe zero rows before either has inserted, so both seed; only the
+  // `pages_system_seed_unique` partial index stops the second one landing.
+  //
+  // The pool warm-up is load-bearing, not incidental: with a cold pool the
+  // second listPages() has to open a fresh Postgres connection (TCP + auth)
+  // while the first reuses a live one, so the first reliably finishes both
+  // inserts before the second even issues its SELECT and the race never
+  // happens. Pre-opening the connections removes that handicap. Verified: on
+  // the pre-fix code this test reports 4 pages ("Trip Overview", "Trip
+  // Overview", "Day Sheet", "Day Sheet"); without the warm-up it passed even
+  // unfixed.
+  it("does not duplicate default pages when two first visits race", async () => {
+    const { tripId } = await seedTrip();
+    await Promise.all([0, 1, 2, 3].map(() => db.execute(sql`select 1`)));
+
+    const [a, b] = await Promise.all([listPages(tripId), listPages(tripId)]);
+
+    expect(a.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
+    expect(b.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
+    const after = await listPages(tripId);
+    expect(after.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
   });
 
   it("creates, reads, updates, deletes a page", async () => {

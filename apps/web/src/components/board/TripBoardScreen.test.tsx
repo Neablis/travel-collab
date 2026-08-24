@@ -51,11 +51,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceSpy }),
 }));
 
-// Itinerary/Daily/Trip lost their nav entry in M10 Wave 2's four-tab strip
-// (TripViewTabs.tsx, Task 1.2 — KI-20) but kept their LensRouter entries and
-// `?lens=` URLs, so tests that need one of them navigate the same way a real
-// URL change would: mutate the mocked search and notify the listeners
-// `replaceSpy` itself notifies above.
+// Navigates by `?lens=` the same way a real URL change would: mutate the
+// mocked search and notify the listeners `replaceSpy` itself notifies above.
+// Used where a test needs a specific lens without going through the tab strip
+// (whose own selection logic is TripViewTabs.test.tsx's subject).
 function navigateToLens(lens: string) {
   search = new URLSearchParams(`lens=${lens}`);
   listeners.forEach((l) => l());
@@ -156,8 +155,8 @@ describe("TripBoardScreen", () => {
     // exactly 4 peer tabs (Timeline / Day columns / Calendar / Map) per the
     // design handoff, with Timeline/Calendar driving ScheduleLens's `view`
     // directly instead of routing through a nested SegmentedControl. Map is a
-    // peer tab again, not behind a "More" menu; Itinerary/Daily/Trip have no
-    // nav entry at all (KI-20).
+    // peer tab again, not behind a "More" menu; the Itinerary/Daily/Trip
+    // lenses that menu used to carry are retired (KI-20).
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -277,12 +276,10 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
   });
 
-  it("renders the Itinerary, Daily, and Trip lenses, reachable only by URL (KI-20 — no nav entry)", async () => {
-    // TripViewTabs.tsx (M10 Wave 2, Task 1.2) dropped the "More" menu these
-    // three lenses used to be reachable through; they kept their LensRouter
-    // entries and `?lens=` URLs (KI-20), so this drives navigation the same
-    // way a real URL change would — through the mocked search/listeners
-    // this file's top-level `next/navigation` mock uses for `replaceSpy`.
+  // KI-20: Itinerary/Daily/Trip are retired, not merely nav-less. An old
+  // bookmarked `?lens=Itinerary` must not throw or render a blank screen — it
+  // falls back to the default Board lens (LensRouter.tsx).
+  it("falls back to the Board lens for a retired ?lens= value", async () => {
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -290,13 +287,11 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     navigateToLens("Itinerary");
-    expect(await screen.findByTestId("itinerary-lens")).toBeTruthy();
 
-    navigateToLens("Daily");
-    expect(await screen.findByTestId("daily-overview-lens")).toBeTruthy();
-
-    navigateToLens("Trip");
-    expect(await screen.findByRole("region", { name: "Full trip overview" })).toBeTruthy();
+    // Board's trailing "One more day?" column stands in for "the Board lens is
+    // showing", same as the lens-switching test above.
+    expect(await screen.findByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Day columns" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("posts a SetTripBudget command from TripMoneySettings", async () => {
@@ -344,10 +339,11 @@ describe("TripBoardScreen", () => {
 
   // E1 review finding: the ActivityEditorSheet (portable Sheet raised via
   // EditorHost) had zero coverage of its open/seed/dispatch/close cycle.
-  // Edit-mode is reachable through a real UI trigger today: ItineraryLens's
-  // ActivityRow renders each activity as a clickable button wired to
-  // onSelectActivity -> useEditor().openEdit (see TripBoardScreen.tsx).
-  it("opens the activity editor from the Itinerary lens, edits, and dispatches UpdateActivity", async () => {
+  // Edit-mode is reachable through a real UI trigger today: the Schedule
+  // lens's Timeline view renders a per-activity "Edit" button wired to
+  // onSelectActivity -> useEditor().openEdit (see TripBoardScreen.tsx). This
+  // drove the same seam through ItineraryLens until KI-20 retired it.
+  it("opens the activity editor from the Schedule lens, edits, and dispatches UpdateActivity", async () => {
     const fixture = costedTripDetailFixture();
     const colosseumId = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
     const onCommand = vi.fn<(command: TripCommand) => void>();
@@ -355,11 +351,10 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    navigateToLens("Itinerary");
-    await screen.findByTestId("itinerary-lens");
+    navigateToLens("Schedule");
 
-    // The row label is "<place> · <title>" — click the activity to openEdit.
-    fireEvent.click(screen.getByRole("button", { name: /Colosseum tour/ }));
+    // TimelineLens's per-activity "Edit" button raises openEdit.
+    fireEvent.click(await screen.findByTestId(`timeline-edit-${colosseumId}`));
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Edit activity" })).toBeTruthy();

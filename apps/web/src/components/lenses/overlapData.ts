@@ -51,15 +51,35 @@ function startsLater(a: Timed, b: Timed): boolean {
 }
 
 // The generic conflict `Badge` (a bare triangle) fires for any conflict naming
-// an activity, but a `time-overlap` already gets the far richer OverlapWarning
-// / compact chip — a triangle *and* a warning saying the same thing about the
-// same pair is a double-up. So both lenses badge only the kinds nothing else
-// surfaces (geography, anchors, budget), and they share this one rule rather
-// than each spelling out the exclusion. Dismissal is deliberately not
-// consulted: a dismissed overlap hides its warning without resurrecting a
-// triangle, matching what the Board lens has always done for other kinds.
-export function badgeableConflictSubjects(conflicts: readonly Conflict[]): Set<string> {
-  return new Set(conflicts.filter((c) => c.kind !== OVERLAP_KIND).flatMap((c) => c.subjects));
+// an activity, but a `time-overlap` that a lens actually renders as an
+// OverlapWarning / compact chip already says the same thing about the same
+// pair, far more richly — a triangle on top of that is a double-up. So both
+// lenses badge only what nothing else surfaces, and they share this one rule
+// rather than each spelling out the exclusion.
+//
+// The exclusion is per *rendered* overlap, not per kind (KI-29): a column card
+// has room for exactly one chip, so a stop that is the later half of two
+// crossing pairs drops one — and the dropped pair, badged here, is the only
+// day-column trace it has left. `renderedOverlapIds` is whatever the calling
+// lens will really put on screen; the timeline passes every overlap it lays
+// out, the board passes the one-chip-per-stop subset that survived its own
+// keying. Anything else a lens cannot render (a conflict naming a removed
+// activity, or a stop whose times are gone) falls through to the triangle for
+// the same reason, rather than being silently invisible.
+//
+// Dismissal is deliberately still not a triangle: a dismissed overlap hides
+// its warning without resurrecting one, matching what the Board lens has
+// always done for other kinds — so it is excluded here even though no lens
+// renders it.
+export function badgeableConflictSubjects(
+  detail: Pick<TripDetail, "conflicts" | "dismissedConflictIds">,
+  renderedOverlapIds: ReadonlySet<string>,
+): Set<string> {
+  const dismissed = new Set(detail.dismissedConflictIds);
+  const surfaced = (c: Conflict) => renderedOverlapIds.has(c.id) || dismissed.has(c.id);
+  return new Set(
+    detail.conflicts.filter((c) => c.kind !== OVERLAP_KIND || !surfaced(c)).flatMap((c) => c.subjects),
+  );
 }
 
 // The later stop's own duration, replayed from the suggested start: null as
@@ -72,6 +92,7 @@ function repairedEnd(later: Timed, suggestedStart: string): string | null {
 
 export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
   const dismissed = new Set(detail.dismissedConflictIds);
+  const members = new Set(detail.days.find((d) => d.dayId === dayId)?.activityIds ?? []);
   const overlaps: Overlap[] = [];
 
   for (const conflict of detail.conflicts) {
@@ -79,6 +100,18 @@ export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
     if (dismissed.has(conflict.id)) continue;
     if (conflict.id.split(":")[ID_DAY_SEGMENT] !== dayId) continue;
     if (conflict.subjects.length !== 2) continue;
+    // The conflict id encodes the day it was computed for, which is not
+    // necessarily where its stops are now — a move reschedules the activity
+    // long before the recomputed conflict set catches up (and under the
+    // optimistic overlay, the client can sit in that gap). Trusting the
+    // encoded day alone let a stale overlap be reported for a day that no
+    // longer holds both stops: the caller counted it as rendered and dropped
+    // the generic triangle, while the lens rendered no warning for it,
+    // because a warning only renders beside a stop the day actually lists.
+    // Requiring current membership keeps "returned by overlapsForDay" and
+    // "rendered by the lens" the same set, which is the whole premise of
+    // badgeableConflictSubjects. Found by CodeRabbit on PR #44.
+    if (!conflict.subjects.every((id) => members.has(id))) continue;
 
     // A conflict can outlive the activity it names (a removal the client
     // hasn't reconciled yet), and an activity can lose its times without the

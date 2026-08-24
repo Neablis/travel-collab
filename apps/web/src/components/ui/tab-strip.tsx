@@ -11,9 +11,10 @@ export function TabStrip<T extends string>({
   "aria-label": ariaLabel,
 }: {
   // `undefined` is for a caller whose selection can legitimately fall outside
-  // this strip's own options (TripViewTabs: the trip can be on one of the three
-  // lenses that have no tab — Itinerary, Daily overview, Full trip). Every tab
-  // renders unselected in that case.
+  // this strip's own options; every tab renders unselected in that case. No
+  // caller needs it today — TripViewTabs' four tabs cover every lens since the
+  // tab-less ones were retired (KI-20) — but it stays as the primitive's
+  // contract rather than forcing a future caller to invent a sentinel option.
   value: T | undefined;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: string }[];

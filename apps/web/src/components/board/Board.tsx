@@ -91,18 +91,11 @@ export type BoardCallbacks = {
 export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
   const { openCreate, openEdit } = useEditor();
 
-  // Badge-worthy conflict subjects only: a `time-overlap` gets the compact
-  // chip below instead of a bare triangle, and the exclusion rule is shared
-  // with TimelineLens (overlapData) so the two lenses cannot disagree.
-  const conflictIds = useMemo(
-    () => badgeableConflictSubjects(trip.conflicts),
-    [trip.conflicts],
-  );
-
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
   // the warning attaches to. A stop can be the later half of more than one
   // crossing pair; a column card has room for exactly one chip, so the first
-  // wins (the timeline, which has the room, shows them all).
+  // wins (the timeline, which has the room, shows them all) — and the pair
+  // that lost keeps the generic triangle below, so it is still signalled.
   const overlapsByActivity = useMemo(() => {
     const byActivity = new Map<string, Overlap>();
     for (const day of trip.days) {
@@ -112,6 +105,21 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
     }
     return byActivity;
   }, [trip]);
+
+  // Badge-worthy conflict subjects: a `time-overlap` the chip above actually
+  // renders gets that instead of a bare triangle, but a pair the one-chip rule
+  // dropped keeps its triangle — otherwise a stop's second overlap would have
+  // no day-column surface at all (KI-29). The rule is shared with TimelineLens
+  // (overlapData) so the two lenses cannot disagree on it; only the "what this
+  // lens actually renders" input differs.
+  const conflictIds = useMemo(
+    () =>
+      badgeableConflictSubjects(
+        trip,
+        new Set([...overlapsByActivity.values()].map((o) => o.conflictId)),
+      ),
+    [trip, overlapsByActivity],
+  );
 
   // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
   // use (chipModel → dayAccents), so a day's column tint here always agrees

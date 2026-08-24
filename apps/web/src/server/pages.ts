@@ -9,22 +9,36 @@ function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
 }
 
+// Actor recorded on lazily seeded default pages. The `pages_system_seed_unique`
+// partial index (migration 0005) is scoped to exactly this value, so changing
+// it means changing that index too.
+const SYSTEM_ACTOR_ID = "system";
+
+function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {
+  return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
+}
+
 export async function createPage(tripId: string, input: CreatePageInput, actorId: string): Promise<Page> {
-  const now = new Date().toISOString();
-  const row = { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
-  const [inserted] = await db.insert(pages).values(row).returning();
+  const [inserted] = await db.insert(pages).values(newRow(tripId, input, actorId, new Date().toISOString())).returning();
   return toPage(inserted!);
 }
 
 export async function listPages(tripId: string): Promise<PageSummary[]> {
   const existing = await db.select().from(pages).where(eq(pages.tripId, tripId));
-  if (existing.length === 0) {
-    // Lazy default instantiation — first visit only (idempotent: guarded by the zero-rows check).
-    for (const seed of instantiateDefaults(tripId)) await createPage(tripId, seed, "system");
-    const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId));
-    return seeded.map(toPage);
-  }
-  return existing.map(toPage);
+  if (existing.length > 0) return existing.map(toPage);
+
+  // Lazy default instantiation — first visit only. The zero-rows check above
+  // is an optimisation, NOT the idempotency guarantee: two concurrent first
+  // visits both see zero rows and both arrive here (KI-6). Atomicity comes
+  // from `pages_system_seed_unique`, the partial unique index on
+  // (trip_id, title) WHERE actor_id = 'system' — the racer that loses inserts
+  // nothing and the re-read below returns the winner's rows. Do not replace
+  // this with per-row createPage() calls; that reintroduces the race.
+  const now = new Date().toISOString();
+  const seeds = instantiateDefaults(tripId).map((seed) => newRow(tripId, seed, SYSTEM_ACTOR_ID, now));
+  await db.insert(pages).values(seeds).onConflictDoNothing();
+  const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId));
+  return seeded.map(toPage);
 }
 
 export async function getPage(id: string): Promise<Page | null> {
