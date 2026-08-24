@@ -7,14 +7,23 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 
 **Last updated: 2026-08-24 — M10 Wave 2 Phase 7 (add-stop and new-trip forms)
 implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at
-`624a0db` (post-PR #31); PR open, not yet merged.** See "Phase 7" under "In
-flight" below. Both tasks' own manual browser checks were actually performed
-this time — this session had a real interactive browser, unlike Phases 5/6 —
-and that walkthrough caught and fixed a real crash bug (`RangeError: Invalid
-time value`) in the wizard's date arithmetic that no unit test surfaced. Also
-files **KI-33**, a pre-existing (Phase 3) filesystem-casing bug that blocks
-`next build` outright on macOS/Windows and degrades local test signal, though
-not CI.
+`624a0db` (post-PR #31); PR #32 open, CI green on all four required jobs
+(unit-tests, static-checks, integration-e2e, CodeRabbit), not yet merged.**
+See "Phase 7" under "In flight" below. Both tasks' own manual browser checks
+were actually performed this time — this session had a real interactive
+browser, unlike Phases 5/6 — and that walkthrough caught and fixed a real
+crash bug (`RangeError: Invalid time value`) in the wizard's date
+arithmetic that no unit test surfaced. CI then caught two more, neither
+visible from a local run blocked by KI-33: a wizard navigation race
+CodeRabbit flagged (dates/budget/currency dispatched fire-and-forget, then
+navigated regardless of whether they'd confirmed — fixed with an awaited,
+retry-safe submit), and a broader one CI found on its own — "Create empty"
+had started navigating straight to the new trip like the full wizard does,
+when it's supposed to keep the old single-field dialog's actual behavior
+(stay, refresh the list); nine pre-Phase-7 e2e specs are built on exactly
+that and all failed until it was fixed. Also files **KI-33**, a pre-existing
+(Phase 3) filesystem-casing bug that blocks `next build` outright on
+macOS/Windows and degrades local test signal, though not CI.
 
 **Previously (2026-08-24): M10 Wave 2 Phase 6 (growing the trip) merged to
 `main` via PR #30**; see "Phase 6" under "In flight" below. It closes **KI-30** and
@@ -429,7 +438,7 @@ up from 600/98); and the full e2e suite **22/22** against a production build
 not fire. All copy was verified byte-identical to the phase file's table with
 `grep -F`, not by eye.
 
-### Phase 7 (add-stop and new-trip forms) — implemented on `claude/m10-wave2-phase7-forms`, PR open, not yet merged
+### Phase 7 (add-stop and new-trip forms) — implemented on `claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged
 
 Two tasks, two commits, on a branch cut from `main` at `624a0db` (post-PR #31).
 **Zero diff to `packages/` or `apps/web/src/server`** — the phase's own
@@ -536,7 +545,7 @@ Both used `next dev` (Turbopack), not a production build — KI-33 blocks
 `next build` on this machine, so a genuine production-mode manual check
 wasn't possible here; CI's own build remains the production-mode signal.
 
-Verified on the branch (after the crash fix, final state):
+Verified on the branch before the first push:
 `pnpm --filter web typecheck` — clean except KI-33's pre-existing casing
 error; `pnpm --filter web lint` — clean; `node scripts/check-color-wall.mjs`
 — clean (288 files); `pnpm --filter web test` — **640/665**, the 25 failures
@@ -544,6 +553,66 @@ are exactly KI-33's two files, confirmed by name, nothing else newly broken.
 `pnpm --filter web test:e2e:ci-like` **could not be run locally** — KI-33
 blocks the `pnpm build` step it depends on; CI is authoritative for e2e on
 this PR.
+
+**Two rounds of fixes followed, once PR #32 opened and CI ran for real —
+exactly the local-vs-CI gap KI-33 predicted, playing out concretely:**
+
+**Round 1 (CI's first run, before any human or CodeRabbit review):**
+`unit-tests` and `integration-e2e` both failed, `static-checks` passed. Root
+cause: Task 7.1's own new UI (relabelled fields, a renamed submit button)
+was never checked against the *existing* e2e suite and unit tests that
+predate Phase 7 — TripBoardScreen.test.tsx (2 tests) and nine e2e specs
+(m1-board, m2-history, m3-place-and-time, m4-money-and-lenses, m6-optimistic
+×2, m7-solo-delight ×3, m8-make-it-real, smoke) all still drove the old
+"Activity title"/"Start time"/"End time"/"Save" shape or the old
+single-field "Trip name" → "Create trip" dialog. Investigating this also
+surfaced a real, separate regression: Task 7.1's Day-select default had
+started falling back to the trip's first day whenever the sheet opened with
+no prefill at all — but that's exactly TripHeader's own bare "Add stop"
+trigger, which `AGENTS.md`'s "real" feature list and those same e2e specs
+document as creating an **unscheduled** stop. Fixed (commits `2dda3b6`,
+`003c209`, `00aea06`): relabelled every stale test assertion, restored the
+create-unscheduled default with a new regression test, and along the way
+addressed all eight of CodeRabbit's review findings on the same push
+(logged in the commit body and replied to on each thread) — the two
+substantive ones being the wizard's dates/budget/currency dispatch running
+fire-and-forget with no error surfaced on failure (now awaited, checked,
+and retry-safe against minting a duplicate trip) and the availability
+Banner describing a different window than what actually gets saved (now
+computed from the real start+duration).
+
+**Round 2 (after Round 1's push):** `unit-tests`, `static-checks` and
+`CodeRabbit` all went green, but `integration-e2e` still failed — now on 12
+specs, including four (`m10-growth`, `m10-map-rail`,
+`m10-unscheduled-rack`, `responsive`) that don't touch the wizard or
+activity editor at all and had passed in the very first CI run. Root cause:
+Round 1's relabelling fixed the *selectors*, but a separate bug in the
+wizard's own navigation meant `NewTripWizard`'s `onCreated` had started
+firing on **every** successful create, including "Create empty" — which the
+phase doc frames as the old single-field dialog's exact escape hatch, and
+that dialog never navigated (it closed and left the user on the trip list).
+Nine specs click "Create empty" (or its pre-Phase-7 equivalent) and then
+click the new trip's own list-card link to navigate there — a version that
+navigates first leaves the page (and that link) before the click ever runs.
+The four unrelated specs almost certainly failed as collateral: nine
+30s-timeout-plus-retry failures add roughly 9 minutes to a single-worker,
+22-test sequential run, which is consistent with the *whole job* running
+long enough to affect specs queued after them, not a defect in those specs
+themselves — supported by integration-e2e dropping from ~15 minutes to
+under 5 once this was fixed. Fixed in `36944a2`: `onCreated` now carries a
+`{ navigate }` flag, true only for the full wizard's final "Create trip"
+step (matching the phase doc's own "create... apply dates and budget...
+then navigate" sequence); "Create empty" reloads the trip list and stays,
+exactly reproducing the dialog it replaced. New `page.test.tsx` coverage
+locks in the no-navigate path.
+
+**Final state, all four required jobs green:** `unit-tests` (2m32s),
+`static-checks` (1m2s), `integration-e2e` (4m47s, 22/22), `CodeRabbit`
+(no further findings — its reply on the reworded "presentational" line
+confirmed the correction). `pnpm --filter web test` locally: **644/669**,
+the same 25 KI-33 failures and nothing else, confirmed identical across
+every round above. `migrate-production` correctly skips on a PR (only runs
+on merge to `main`).
 
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
@@ -585,9 +654,10 @@ this PR.
   - **Phase 6 (add-a-day, empty states) — done, merged to `main`** (PR #30,
     2026-08-24). See the Phase 6 section under "In flight" for what landed and
     what it deliberately did not.
-  - **Phase 7 (forms) — implemented, PR open, not yet merged.** See the
-    "Phase 7" section under "In flight" above for what shipped, the crash
-    bug found and fixed via manual browser verification, and KI-33.
+  - **Phase 7 (forms) — implemented, PR #32 open, CI green, not yet
+    merged.** See the "Phase 7" section under "In flight" above for what
+    shipped, the crash bug found via manual browser verification, two
+    rounds of CI/CodeRabbit fixes, and KI-33.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
     (`NextTripHero`, `TripCard`) are Wave-1 work from 2026-08-08 to 08-11,
     predating this plan. Task 8.5's specific fixes are unapplied —
@@ -758,16 +828,19 @@ raised nothing actionable. Its Step 4 manual browser pass is the one thing still
 wanting a human; PR #30's Vercel preview is the way to close it.
 
 **Phase 7 (add-stop and new-trip forms) implemented on
-`claude/m10-wave2-phase7-forms`, PR open, not yet merged** — see its section
-under "In flight" for the full record. Unlike Phases 5/6, both manual browser
-checks were actually walked (this session had an interactive browser), which
-caught a real crash bug in the wizard's date handling — fixed and
-re-verified. **Needs from a human:** merge the PR once CI is green (this
-session's own `pnpm --filter web test:e2e:ci-like` could not run locally —
-KI-33 blocks `next build` on this machine — so CI is the first real e2e
-signal this branch gets); and KI-33 itself wants a priority pickup given it
-now blocks building the app on any case-insensitive-filesystem machine, not
-just two test files.
+`claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged** —
+see its section under "In flight" for the full record. Unlike Phases 5/6,
+both manual browser checks were actually walked (this session had an
+interactive browser), which caught a real crash bug in the wizard's date
+handling — fixed and re-verified. CI (the first real e2e signal this branch
+got, since KI-33 blocks `pnpm build` locally on this machine) then caught
+two rounds of further findings — CodeRabbit's review plus a navigation
+regression CI found on its own ("Create empty" briefly always navigated
+away instead of only the full wizard doing so, breaking nine unrelated
+pre-Phase-7 e2e specs) — both fixed and re-verified; all four required jobs
+are green as of the latest push. **Needs from a human:** merge the PR; and
+KI-33 itself wants a priority pickup given it blocks building the app on any
+case-insensitive-filesystem machine, not just two test files.
 
 Continue M10 Wave 2's remaining phases — **8, then 8b, then 1b** — once
 Phase 7's PR merges. 8 is independent and could start in parallel. **Phases
