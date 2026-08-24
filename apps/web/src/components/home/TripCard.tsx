@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 
@@ -34,6 +34,7 @@ const ACCENT_BAR_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 const STATUS_BADGE_VARIANT: Record<TripStatus, "success" | "neutral"> = {
@@ -45,15 +46,18 @@ function statusLabel(status: TripStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-// README §1 "All trips" grid: each Card gets a 46x6px accent bar. dayAccentFor
+// README §1 "All trips" grid: each Card gets a 46x6px accent bar. dayAccents
 // was built to key off a day's city (Task 2), but TripSummary — all this grid
 // ever fetches — has no city field (that's TripDetail-only, and fetching
 // TripDetail per card would turn one list request into an N+1 fan-out, a
 // bigger behavioral change than a restyle warrants). Keyed off tripId instead:
 // still a real, stable identity per trip, so the same trip always gets the
-// same accent across renders/reloads, just not a per-city one.
+// same accent across renders/reloads, just not a per-city one. This card
+// colors independently of any other card in the grid (Task 8.2, Group B), so
+// it resolves as a single-element dayAccents() call rather than batching
+// against the rest of the list.
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
-  const accent = dayAccentFor(trip.tripId);
+  const accent = dayAccents([trip.tripId])[0]!;
 
   // TripSummary carries no start date, length, or cost (those live on
   // TripDetail) — the one date-shaped field it does have is createdAt, an

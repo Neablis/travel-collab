@@ -39,4 +39,26 @@ describe("Preview", () => {
     );
     expect(screen.queryByText(/Preview · M9/)).toBeNull();
   });
+  it("reserves space for the compact badge instead of overlapping the host", () => {
+    render(
+      <Preview id="share-button" size="compact">
+        <button>Share</button>
+      </Preview>,
+    );
+    expect(screen.getByRole("group").className).toMatch(/\bpr-6\b/);
+  });
+  it("does not force position:relative when the caller positions itself", () => {
+    render(
+      <Preview id="assistant-suggestions" size="container" className="fixed inset-0">
+        <p>x</p>
+      </Preview>,
+    );
+    const group = screen.getByRole("group");
+    // Assert the caller's own positioning survives, not just that `relative`
+    // is absent — that weaker check would also pass if the whole className
+    // were dropped (CodeRabbit, PR #35).
+    expect(group.className).toMatch(/\bfixed\b/);
+    expect(group.className).toMatch(/\binset-0\b/);
+    expect(group.className).not.toMatch(/\brelative\b/);
+  });
 });

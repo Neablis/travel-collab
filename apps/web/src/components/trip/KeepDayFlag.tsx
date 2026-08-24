@@ -17,6 +17,7 @@ const INK_TEXT: Record<AccentFamily, string> = {
   success: "text-success-ink",
   warning: "text-warning-ink",
   danger: "text-danger-ink",
+  neutral: "text-slate",
 };
 
 // Handoff README "Keep this day": an icon-only pennant, 30px circle,

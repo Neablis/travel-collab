@@ -10,7 +10,6 @@ import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { cityFor } from "@/components/trip/DayChips";
-import { Preview } from "@/components/ui/preview";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
@@ -88,12 +87,22 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // line or the literal "No budget yet" (a real, known fact about that
   // trip, not a stand-in for "unknown").
   const [plannedOfBudget, setPlannedOfBudget] = useState<string | null>(null);
+  // The third stat tile's real, live count of the trip's open conflicts —
+  // TripDetail.conflicts (packages/contracts/src/detail.ts), the same array
+  // ConflictBanner/ConflictList already read elsewhere. `null` follows the
+  // exact same "nothing honest to say yet" pattern as startDate/
+  // plannedOfBudget above: still loading, or the fetch failed. This used to
+  // be a hardcoded `value="2"` behind a Preview (id "home-decisions") shell
+  // (Task 6) — now that it's backed by real data, it renders for real, not
+  // as a preview.
+  const [conflictCount, setConflictCount] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setSparkline({ status: "loading" });
     setStartDate(null);
     setPlannedOfBudget(null);
+    setConflictCount(null);
     void fetchTripDetail(trip.tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
@@ -108,6 +117,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         });
         setStartDate(detail.startDate);
         setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
+        setConflictCount(detail.conflicts.length);
       } else {
         setSparkline({ status: "error" });
       }
@@ -170,19 +180,26 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           </div>
 
           <div className="grid grid-cols-3 gap-2.5 pt-0.5">
-            <StatTile tone="brand" value={String(trip.members.length)} label="travelers" />
+            <StatTile
+              tone="brand"
+              value={String(trip.members.length)}
+              label={trip.members.length === 1 ? "traveler" : "travelers"}
+            />
             {/* "days planning" (createdAt -> now) stands in for the mock's
                 "stops planned"/"not booked" tiles, which need stop/booking
                 data TripSummary doesn't carry. See the Task 6 report for the
-                full rationale. "Need a decision" (below) isn't a real
-                feature yet at all — no surface anywhere in the app detects
-                or tracks a decision the way the Assistant's own "What I
-                noticed" cards will — so it's a Preview shell like those,
-                not just an honest placeholder value. */}
+                full rationale. */}
             <StatTile tone="warning" value={daysPlanning === null ? "—" : String(daysPlanning)} label="days planning" />
-            <Preview id="home-decisions" size="container">
-              <StatTile tone="danger" value="2" label="need a decision" />
-            </Preview>
+            {/* Real, live conflict count off the same TripDetail.conflicts
+                fetch above — no longer a hardcoded fabrication behind a
+                Preview shell (Task 8.5; see the conflictCount comment
+                above). "—" while still loading/failed, matching the "days
+                planning" tile's own loading convention. */}
+            <StatTile
+              tone="danger"
+              value={conflictCount === null ? "—" : String(conflictCount)}
+              label={conflictCount === 1 ? "open conflict" : "open conflicts"}
+            />
           </div>
 
           <div className="mt-0.5 flex items-center gap-2">

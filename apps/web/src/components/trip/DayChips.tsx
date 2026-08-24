@@ -1,7 +1,7 @@
 import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
 export type ChipDay = {
@@ -22,6 +22,7 @@ const CHIP_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 const DOT_BG: Record<AccentFamily, string> = {
@@ -30,6 +31,20 @@ const DOT_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
+};
+
+// "danger"/"warning"/"success"/"info" each carry a `-ink` token; "brand" does
+// not (its darkest tone is `-pressed`) — same map shape as TimelineLens.tsx's
+// and KeepDayFlag.tsx's own INK_TEXT. Static Record, not a template string:
+// Tailwind only emits utilities it can see as literal text.
+const INK_TEXT: Record<AccentFamily, string> = {
+  brand: "text-brand-pressed",
+  info: "text-info-ink",
+  success: "text-success-ink",
+  warning: "text-warning-ink",
+  danger: "text-danger-ink",
+  neutral: "text-slate",
 };
 
 // Dates are calendar dates (YYYY-MM-DD), not instants — construct in local
@@ -100,10 +115,14 @@ export type DayChipsProps = {
 // Task 4's useFocus().setFocusedDay; this component dispatches no trip
 // command and knows nothing about the active lens.
 export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
+  // One dayAccents() call over the whole trip's cities, so collisions
+  // between two days of this trip get probed against each other rather than
+  // each day resolving blind to every other one.
+  const accents = dayAccents(days.map((d) => d.city));
   return (
     <div role="group" aria-label="Days" className="flex gap-2 overflow-x-auto pb-1">
       {days.map((day, index) => {
-        const accent = dayAccentFor(day.city);
+        const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
         const isFocused = focusedDay === index;
         return (
           <Button
@@ -120,11 +139,21 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
             style={{ width: "92px" }}
           >
-            <span className="text-xs font-semibold text-ink">{day.dow}</span>
-            <DataText size="xs" className="w-full truncate">
-              {day.dateNum}
-              {day.city ? ` ${day.city}` : ""}
-            </DataText>
+            <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+            <div className="flex w-full items-baseline gap-1 overflow-hidden">
+              <DataText size="xs" className="shrink-0">
+                {day.dateNum}
+              </DataText>
+              {day.city ? (
+                <span
+                  className="truncate text-slate"
+                  // eslint-disable-next-line no-restricted-syntax -- 10px city label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                  style={{ fontSize: "10px" }}
+                >
+                  {day.city}
+                </span>
+              ) : null}
+            </div>
             <div
               data-testid="day-chip-transition"
               className="h-3.5 w-full truncate text-slate"

@@ -405,3 +405,79 @@ describe("Home trip cards' planned-of-budget line", () => {
     await waitFor(() => expect(within(peruBlock!).queryByText(/planned of/)).toBeNull());
   });
 });
+
+// Task 8.5: page head/rhythm — a date line above the title, and a real
+// "All trips" heading + count above the grid.
+describe("Home page head", () => {
+  function renderHome(trips: TripSummary[] = [tripSummaryFixture()]) {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips });
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return render(<Home />);
+  }
+
+  it("heads the page with today's date above the title", () => {
+    renderHome();
+    expect(screen.getByTestId("page-date-line")).toBeTruthy();
+  });
+
+  // CodeRabbit (PR #35): the date line used to compute `new Date()` inline
+  // during render, which — since Next.js still server-renders a "use
+  // client" component's initial HTML — could disagree with the browser's
+  // own clock across a timezone boundary and either throw a hydration
+  // mismatch or, worse, silently show the WRONG day until some unrelated
+  // re-render happened to overwrite it. The fix moves the computation into
+  // a client-only effect (`dateLabel` starts `null`, so there's nothing for
+  // a server render to get wrong), which this test can't observe directly
+  // — React Testing Library's `render` flushes a synchronous, no-async-work
+  // effect like this one before returning, so there's no "still empty"
+  // window to catch here. What the test DOES lock in, which is the actual
+  // property that matters: the label reflects the VIEWER's local calendar
+  // date, not a UTC one, at an instant deliberately chosen to fall on
+  // different calendar days in UTC vs. a real negative-offset timezone.
+  it("renders the viewer's local date, not a UTC-shifted one, across a day boundary", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "Pacific/Honolulu"; // UTC-10, no DST -- far enough from UTC to guarantee a boundary crossing below
+    try {
+      vi.useFakeTimers();
+      // 2026-03-02T05:00:00Z is already March 2nd in UTC, but still March
+      // 1st in Honolulu -- exactly the class of instant where a
+      // server-clock (often UTC) render and the viewer's own local render
+      // would disagree if the date were computed eagerly.
+      vi.setSystemTime(new Date("2026-03-02T05:00:00Z"));
+      renderHome();
+      const dateLine = screen.getByTestId("page-date-line");
+      expect(dateLine.textContent).toMatch(/mar(ch)? 1, 2026/i);
+      expect(dateLine.textContent).not.toMatch(/mar(ch)? 2, 2026/i);
+      // The visible label is human-readable prose ("Sun, Mar 1, 2026"), but
+      // <time> also wants a real machine-readable value alongside it
+      // (CodeRabbit, PR #35) -- and that value must be the same LOCAL day
+      // the label names, not a UTC one.
+      expect(dateLine.getAttribute("datetime")).toBe("2026-03-01");
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it("labels the trips grid", async () => {
+    renderHome();
+    expect(await screen.findByRole("heading", { name: "All trips" })).toBeTruthy();
+  });
+
+  it("shows a trip count line next to the All trips heading, singularized for one trip", async () => {
+    renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: "All trips" });
+    expect(screen.getByText("1 trip")).toBeTruthy();
+  });
+
+  it("does not render the All trips heading when there are no trips to show", async () => {
+    renderHome([]);
+    await screen.findByText(/no trips yet/i);
+    expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
+  });
+});

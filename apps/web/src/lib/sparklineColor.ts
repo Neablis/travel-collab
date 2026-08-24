@@ -1,6 +1,6 @@
 // City -> block color for the home hero's "Shape of the trip" graph
 // (Sparkline.tsx). Deliberately its OWN small palette, not a
-// dayAccentFor swap: dayAccentFor's 5 semantic design tokens (brand/info/
+// dayAccents swap: dayAccents' 5 semantic design tokens (brand/info/
 // success/warning/danger) stay exactly as they are for every other city-
 // accented surface in the app (DayChips, Board, TimelineLens, CalendarLens,
 // TripCard, Playbooks) — this sparkline is the one surface that needs a
@@ -63,7 +63,7 @@ export const UNKNOWN_CITY_COLOR = "var(--color-border-strong)";
 //
 // Cross-trip stability is what's traded away, and it costs nothing: no other
 // surface colors by real city name (DayChips/Board/TimelineLens/CalendarLens
-// all use dayAccentFor's 5 semantic tokens), so there is no second rendering
+// all use dayAccents's 5 semantic tokens), so there is no second rendering
 // of "Tokyo" anywhere for this to disagree with.
 //
 // Past 8 cities the palette wraps and colors repeat — unavoidable, and

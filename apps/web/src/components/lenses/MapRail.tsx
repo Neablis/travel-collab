@@ -14,6 +14,7 @@ const TINT_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 const SOLID_BG: Record<AccentFamily, string> = {
   brand: "bg-brand",
@@ -21,6 +22,7 @@ const SOLID_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 // Handoff `current/…dc.html:630-668` "maprail": a floating day list, each

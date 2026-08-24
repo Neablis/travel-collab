@@ -35,7 +35,7 @@ export function Preview({
       aria-disabled="true"
       data-preview-id={id}
       title={note ?? `Coming in ${milestone}`}
-      className={`${callerSetsPosition ? "" : "relative "}${size === "container" ? "border border-dotted border-border-strong rounded-lg " : ""}${className ?? ""}`}
+      className={`${callerSetsPosition ? "" : "relative "}${size === "container" ? "border border-dotted border-border-strong rounded-lg " : "pr-6 "}${className ?? ""}`}
     >
       {/* Shield: renders above children, swallows pointer events so no control
           inside a Preview ever fires. children keep their real markup/prop API.
@@ -55,14 +55,35 @@ export function Preview({
       >
         {children}
       </div>
-      {/* Anchored OUTSIDE the box's own top-right corner (negative offsets,
-          not the `right-2 top-2` this replaced) so the badge never sits on
-          top of the host's real content — confirmed via getBoundingClientRect
-          that on a compact host (e.g. AddSavedDayButton, 134x36px) an
-          inside-corner badge covered most of the button's own label text,
-          not just a harmless corner. Hanging mostly outside the box instead
-          means it overlaps at most a sliver of the host's border/padding,
-          regardless of host size, with no per-host tuning needed.
+      {/* An earlier fix anchored the badge OUTSIDE the box's own top-right
+          corner (negative offsets, e.g. `-right-1.5 -top-1.5`) so it would
+          never sit on top of the host's real content — confirmed via
+          getBoundingClientRect that on a compact host (e.g.
+          AddSavedDayButton, 134x36px) an inside-corner badge covered most of
+          the button's own label text, not just a harmless corner.
+
+          That external hang stopped being reliable once Preview wrapped
+          real hosts in context rather than an isolated button: hanging the
+          badge outside the box means its footprint depends on whatever sits
+          *next to* the box, not just inside it, and there is no offset that
+          clears every neighbour. In practice it went on to cover part of
+          the "Share"/"Ask" labels beside a compact host and the keep-day
+          flag, and the container chip sat on top of the hero's third stat
+          tile. An offset can only ever be tuned against the one neighbour
+          it was checked against.
+
+          The reliable fix is reserved layout space instead of a visual
+          offset gamble: `size="compact"` adds `pr-6` padding to this
+          wrapper so a gutter is set aside up front (the host's own content
+          never renders into it), and the badge is pinned INSIDE that
+          gutter (`right-1 top-1`, sized to fit within it) rather than
+          hanging outside the box. `size="container"` doesn't reserve a
+          padding gutter — its host is a full block, not inline content
+          hugging the box — so instead the chip insets to the border
+          (`right-1.5 top-1.5`, positive/inward) rather than hanging past
+          it, landing on the dotted border itself rather than on whatever
+          content sits beneath.
+
           `max-w-full truncate` covers the remaining case: a host narrower
           than the badge's own natural text width (e.g. a bare "Share"
           button, ~67px, next to a ~90px badge) — without a cap the badge
@@ -72,13 +93,13 @@ export function Preview({
           what `getByText(/Preview/)` finds in tests. */}
       {size === "container" ? (
         <span
-          className="absolute -right-1.5 -top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
+          className="absolute right-1.5 top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
           style={{ fontSize: "10px" }}
         >
           Preview · {milestone}
         </span>
       ) : (
-        <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink/80">
+        <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-ink/80">
           <Construction className="size-3.5 text-surface" aria-hidden />
         </span>
       )}

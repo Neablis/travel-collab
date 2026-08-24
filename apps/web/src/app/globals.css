@@ -211,4 +211,26 @@
     grid-template-columns: 1fr 1fr 1fr;
     gap: 10px;
   }
+
+  /* Home page rhythm (Task 8.5): the design's 30px top / 60px bottom outer
+     padding sits between Tailwind's default spacing steps (`py-7` is 28px,
+     `py-8` is 32px) with no exact match, so `pt-[30px] pb-[60px]` would trip
+     the color wall's generic any-bracket check (scripts/check-color-wall.mjs
+     bans every `[...]` in a className, not just color ones). A named class,
+     same pattern as `.hero-grid` above. */
+  .home-rhythm {
+    padding-top: 30px;
+    padding-bottom: 60px;
+  }
+
+  /* Home page rhythm (Task 8.5): the 34px vertical gap between the page's
+     major sections (date line + title, the hero, the trips grid, the
+     playbooks strip, worth-attention) is likewise off Tailwind's `gap-*`
+     scale (`gap-8` is 32px, `gap-9` is 36px) — a real `gap` rule rather than
+     a `gap-[34px]` bracket value. */
+  .home-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 34px;
+  }
 }

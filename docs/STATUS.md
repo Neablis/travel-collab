@@ -5,10 +5,23 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — a dev-speed and quality pass landed on
-`claude/dev-speed-quality-57205c`. It does not move any milestone gate; it
-changes how the work gets verified.** Six things, all evidence-driven rather
-than speculative:
+**Last updated: 2026-08-24 — M10 Wave 2 Phase 8 (correctness and polish)
+implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, branched from `main`
+at `39ccea1` (post-PR #32 and PR #33). All seven tasks done, each its own
+commit, in phase-file order; PR #35 open, CI green (all three required jobs
+plus `migrate-production` correctly skipped), CodeRabbit review addressed,
+awaiting merge — see "Phase 8" under "In flight" below for the full record,
+including a from-scratch local environment setup that let this session get a
+genuine local `test:e2e:ci-like` signal for the first time since KI-33
+started blocking it (Phase 7), and a real (not fabricated) fix for KI-18, the
+accent-collision bug this phase exists to close. This branch has since merged
+`main` (post-PR #36, below) to pick up KI-33's real fix and resolve the
+resulting doc conflicts in this file and `known-issues.md`.**
+
+**Previously (2026-08-24): a dev-speed and quality pass landed on
+`claude/dev-speed-quality-57205c`, merged to `main` via PR #36. It does not
+move any milestone gate; it changes how the work gets verified.** Six things,
+all evidence-driven rather than speculative:
 
 1. **KI-33 fixed** — `unscheduledRack.ts` → `fitIntoDay.ts` (and its test).
    This is the big one: `next build` now **succeeds on macOS**, so
@@ -45,23 +58,23 @@ than speculative:
 
 **Previously (2026-08-24): M10 Wave 2 Phase 7 (add-stop and new-trip forms)
 implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at
-`624a0db` (post-PR #31); PR #32 open, CI green on all four required jobs
-(unit-tests, static-checks, integration-e2e, CodeRabbit), not yet merged.**
-See "Phase 7" under "In flight" below. Both tasks' own manual browser checks
-were actually performed this time — this session had a real interactive
-browser, unlike Phases 5/6 — and that walkthrough caught and fixed a real
-crash bug (`RangeError: Invalid time value`) in the wizard's date
-arithmetic that no unit test surfaced. CI then caught two more, neither
-visible from a local run blocked by KI-33: a wizard navigation race
-CodeRabbit flagged (dates/budget/currency dispatched fire-and-forget, then
-navigated regardless of whether they'd confirmed — fixed with an awaited,
-retry-safe submit), and a broader one CI found on its own — "Create empty"
-had started navigating straight to the new trip like the full wizard does,
-when it's supposed to keep the old single-field dialog's actual behavior
-(stay, refresh the list); nine pre-Phase-7 e2e specs are built on exactly
-that and all failed until it was fixed. Also files **KI-33**, a pre-existing
-(Phase 3) filesystem-casing bug that blocks `next build` outright on
-macOS/Windows and degrades local test signal, though not CI.
+`624a0db` (post-PR #31); merged via PR #32.** Both tasks' own manual browser
+checks were actually performed that session — a real interactive browser,
+unlike Phases 5/6 — and that walkthrough caught and fixed a real crash bug
+(`RangeError: Invalid time value`) in the wizard's date arithmetic that no
+unit test surfaced. CI then caught two more, neither visible from a local
+run blocked by KI-33: a wizard navigation race CodeRabbit flagged
+(dates/budget/currency dispatched fire-and-forget, then navigated regardless
+of whether they'd confirmed — fixed with an awaited, retry-safe submit), and
+a broader one CI found on its own — "Create empty" had started navigating
+straight to the new trip like the full wizard does, when it's supposed to
+keep the old single-field dialog's actual behavior (stay, refresh the list);
+nine pre-Phase-7 e2e specs are built on exactly that and all failed until it
+was fixed. Also filed **KI-33**, a pre-existing (Phase 3) filesystem-casing
+bug that blocks `next build` outright on macOS/Windows and degrades local
+test signal, though not CI. Since that update, PR #32 merged and a small
+follow-up PR #33 removed the "or drop a stop from Unscheduled" hint from day
+columns.
 
 **Previously (2026-08-24): M10 Wave 2 Phase 6 (growing the trip) merged to
 `main` via PR #30**; see "Phase 6" under "In flight" below. It closes **KI-30** and
@@ -652,6 +665,162 @@ the same 25 KI-33 failures and nothing else, confirmed identical across
 every round above. `migrate-production` correctly skips on a PR (only runs
 on merge to `main`).
 
+### Phase 8 (correctness and polish) — implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35 open awaiting merge
+
+Seven independent tasks, seven commits, on a branch cut from `main` at
+`39ccea1` (post-PR #32/#33 — confirmed no stray `claude/*` branch already
+existed for this phase, per `AGENTS.md`'s Workstreams check). Executed
+sequentially in one working tree via subagent-driven-development (one
+subagent per task, never concurrent, each reviewed by the orchestrating
+session before the next started), per `AGENTS.md`'s delegation default and
+the phase file's own "keep it sequential" instruction.
+
+- `ef59a8e` — **Task 8.1.** `TimelineLens.tsx`'s `Leg` no longer invents a
+  straight-line distance (`haversineKm` stays in `lib/geo.ts` for Phase 2's
+  map, just dropped from the timeline's own import) or a 30-minute "Long gap"
+  pill. Copy is now `{duration} until next stop` / `Back to back` / an
+  additional `Nothing planned` pill at 150+ minutes, matching the handoff
+  verbatim. `formatDuration` (`lib/time.ts`, shared by the leg line, the
+  day-header "out" total, and `OverlapWarning`) now emits space-separated
+  units (`"1 h 15 m"`) to match the design copy, adjusted in place rather
+  than adding a second formatter — this rippled into three existing tests'
+  string assertions.
+- `0ad8db2` — **Task 8.2, KI-18.** The actual bug this phase exists to fix.
+  `lib/dayAccent.ts`'s `dayAccentFor` (one city at a time, hash-only, no
+  collision handling) is replaced by `dayAccents(cities)`, resolving a whole
+  trip's cities at once via a two-pass hash + linear-probe over the five
+  semantic families (sorted distinct cities claim home buckets first,
+  collisions probe forward and wrap, more than 5 distinct cities degrades to
+  the raw hash rather than throwing), with an explicit `"neutral"` family for
+  a day with no known city rather than a hashed-in real one. Every caller
+  updated: five "one trip's days together" callers (`DayChips`,
+  `TimelineLens`, `Board`, `CalendarLens`, `mapRailData`) now batch one
+  `dayAccents()` call per trip and index by day, which is what actually
+  enables cross-day probing; three "one independent item" callers
+  (`TripCard`, `PlaybookCard`, `PlaybooksStrip`, which color unrelated cards
+  in a grid, not days within one trip) call `dayAccents([x])[0]` unchanged in
+  behavior. `neutral` added to 9 static `Record<AccentFamily, string>` maps
+  across 10 files (`bg-moss`/`text-slate`/`bg-slate`, all existing tokens).
+  `dayAccent.test.ts` replaced wholesale — the old suite's "spreads distinct
+  cities across families" assertion passed at 7-of-13 real-city collisions,
+  which is exactly the false-confidence problem the entry called out; the
+  new suite asserts Tokyo/Kyoto/Osaka land on three distinct families, same
+  city same family throughout a trip, order-independence, and no-throw past
+  5 distinct cities. **KI-18 moved to Resolved.**
+- `11dfbd0` — **Task 8.3.** `DayChips.tsx`'s combined `"5 Rochester"` string
+  split into two separately-queryable elements (a mono date number, a
+  truncated city span), and the day-of-week label now uses the day's real
+  ink colour (a new `INK_TEXT` map, same pattern as `TimelineLens`/
+  `KeepDayFlag`) instead of a hardcoded `text-ink`.
+- `0310eaf` — **Task 8.4.** `Preview`'s badge no longer hangs outside the
+  host's corner (which had started covering the Share/Ask labels and the
+  keep-day flag for `size="compact"`, and the hero's third stat tile for
+  `size="container"`) — compact now reserves a `pr-6` gutter and pins the
+  badge inside it; container insets to the dotted border instead of hanging
+  past it. The existing rationale comment for the prior (outside-hang)
+  approach is kept and extended, not deleted. Added the previously-missing
+  test for the conditional-`relative` branch (`preview.tsx`'s
+  `callerSetsPosition` logic).
+- `8efda6a` — **Task 8.5.** Home page rhythm (`PageContainer width="content"`,
+  new named `.home-rhythm`/`.home-stack` classes in `globals.css` for the
+  30px/60px/34px values, none of which sit on Tailwind's scale), a
+  `data-testid="page-date-line"` date line, a real `"All trips"` heading plus
+  a singularized trip-count line, and `NextTripHero`'s traveler-count label
+  singularized to match its own aria-label. **Both honesty points resolved
+  for real, not papered over:** the third stat tile now reads
+  `TripDetail.conflicts.length` (already-fetched real data) instead of a
+  hardcoded `"2"` — the `<Preview id="home-decisions">` wrap that had been
+  covering it is gone, and so is its now-orphaned registry entry; and
+  **KI-34** records that `TripSummary` has no start date (so "next trip" is
+  list-order not date-order, and trip cards show `createdAt`), fix path a
+  contract change, out of scope for this presentational-only plan. One
+  deliberate test skip: the phase doc's own "shows the trip's dates rather
+  than its creation date" test cannot pass without exactly the contract
+  change KI-34 defers — `it.skip` with a comment pointing at KI-34, not a
+  fabricated date.
+- `fdaf232` — **Task 8.6.** `CalendarLens.tsx`'s in-trip cell is now two
+  nested elements: an outer `bg-surface` cell holding the 116px min-height,
+  and an inner real `<button>` carrying the tint background — matching the
+  design's "tinted button inside a surface cell", not a tinted cell itself.
+- `2a01d02` — **Task 8.7.** New `lib/place.ts` (`shortPlace`): prefers the
+  geocoder's structured `location.city`, falls back to the first
+  comma-segment of `location.name`, `null` for no location. Used in
+  `TimelineLens.tsx`'s day-route line and `ActivityRow`'s place line in place
+  of the raw full geocoded label. The "no dangling `·` separator" behavior
+  was already correct going in (verified, not assumed); added the missing
+  `data-testid="day-meta-{dayId}"` and a regression test. **KI-35** records
+  that neither this nor `DayChips.tsx`'s `cityFor` has a true "area" field to
+  read — both are a city-or-first-segment approximation — fix path a
+  contract change, out of scope.
+
+**Phase 8 exit checklist verified against the branch as it stands** (Task
+8.7's own subagent did this read-only pass across all seven commits before
+reporting done): leg copy, accent distinctness + KI-18 Resolved, day-chip
+typography, Preview badge non-overlap plus the new test, home rhythm/heading/
+singularization/real-stat-tile, calendar inner button, and both new
+known-issues entries all confirmed present — no gap found needing a fix
+before the PR.
+
+**Verification, orchestrating session, after all seven commits (not just
+each task's own local check):**
+
+- `pnpm typecheck` (repo root, all workspaces) — clean.
+- `pnpm --filter web lint` — clean.
+- `node scripts/check-color-wall.mjs` — OK, 290 files scanned, 0 pending.
+- `pnpm --filter web test` — **103 files, 686 passed, 1 deliberately skipped**
+  (the Task 8.5 TripCard-dates test, per KI-34).
+- `pnpm --filter web test:e2e:ci-like` — **got a real local signal this
+  time**, unlike Phase 7 (KI-33 blocked `next build` outright there). This
+  session's environment had neither a running Postgres nor a matching
+  Playwright browser build out of the box; both were fixed locally rather
+  than skipped:
+  - `DATABASE_URL` wasn't set and no `.env.local` existed, so `pnpm build`
+    failed collecting page data for `/api/health/ai-mode` (needs a live DB
+    connection to build, not just to run). A system-installed
+    `postgresql-16` (not started by default; no `docker` daemon available in
+    this container to run the repo's own `docker-compose.yml`) was started
+    via `pg_ctlcluster`, a `travel` database created, the `postgres` role's
+    password set to match `.env.example`, and a local `apps/web/.env.local`
+    written pointing at it (port 5432, the system cluster's default, not
+    5433 — `.env.local` is gitignored, this doesn't touch the repo).
+    `pnpm db:migrate` applied cleanly. Rebuild then succeeded (still with
+    the long-standing, unrelated, already-root-caused KI-26
+    `@vercel/flags-definitions` build warning — cosmetic, expected).
+  - **KI-32 in a slightly worse form than its entry describes:** the image's
+    Chromium build (1194) didn't match `@playwright/test`'s wanted build
+    (1228) for *either* browser flavor, and — unlike KI-32's own symlink
+    workaround, which was written against the plain `chromium` build — the
+    `chromium_headless_shell` package's internal layout actually **renamed**
+    between the two versions (1194: `chrome-linux/headless_shell`; 1228:
+    `chrome-headless-shell-linux64/chrome-headless-shell`), so a single
+    top-level directory symlink (KI-32's documented fix) wasn't sufficient
+    for the headless-shell flavor Playwright actually launches by default —
+    it needed a nested directory built from individual file symlinks,
+    including one renaming the binary itself. Done in `/opt`, not the repo,
+    same as KI-32's own workaround — doesn't survive a new container, and
+    KI-32's entry is accurate enough as the pointer to reach for; not
+    updating the entry itself over one extra wrinkle in the same class of
+    fix.
+  - With both fixed: **21/22 e2e tests passed.** The one failure is
+    `m8-make-it-real.spec.ts`'s delete-trip step, and it is **exactly**
+    KI-28's documented symptom and mechanism verbatim — `getByRole("menuitem",
+    { name: /delete/i }).click()` timing out with "element is outside of the
+    viewport" after the automatic CI retry — a known, pre-existing,
+    already-filed flake (2026-08-23) about the trip list accumulating cards
+    across a suite run and pushing a late card's popover out of room to
+    flip. Not re-diagnosed further here: this session's local DB had
+    *already* accumulated trip cards from an earlier failed attempt at this
+    same verification pass (the build/browser fixes above took two more
+    full-suite attempts to reach a real run), which plausibly makes KI-28
+    easier to hit locally right now than on a fresh CI run — consistent
+    with, not evidence of, Phase 8 worsening it. Phase 8's own diff doesn't
+    touch the trip-actions `Popover` or its trigger's positioning; Task 8.5
+    does add page content above the grid (a date line, an "All trips"
+    heading), which could in principle push cards further down and interact
+    with KI-28's mechanism, but one flake on a DB already primed for exactly
+    KI-28's failure mode isn't enough evidence either way. Left exactly as
+    documented in KI-28 (not re-scoped, not "fixed") rather than guessed at.
+
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
   `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
@@ -692,18 +861,18 @@ on merge to `main`).
   - **Phase 6 (add-a-day, empty states) — done, merged to `main`** (PR #30,
     2026-08-24). See the Phase 6 section under "In flight" for what landed and
     what it deliberately did not.
-  - **Phase 7 (forms) — implemented, PR #32 open, CI green, not yet
-    merged.** See the "Phase 7" section under "In flight" above for what
-    shipped, the crash bug found via manual browser verification, two
-    rounds of CI/CodeRabbit fixes, and KI-33.
-  - **Phase 8 (polish, incl. home):** the home hero/cards that exist
-    (`NextTripHero`, `TripCard`) are Wave-1 work from 2026-08-08 to 08-11,
-    predating this plan. Task 8.5's specific fixes are unapplied —
-    `NextTripHero.tsx:154` still hardcodes `label="travelers"` (no
-    singularization), no `page-date-line` testid, no "All trips" heading, the
-    third stat tile is still the fabricated `value="2"`. Task 8.2's day-accent
-    collision-probing fix (KI-18) is also unapplied — `lib/dayAccent.ts` has
-    no probing logic yet.
+  - **Phase 7 (forms) — done, merged to `main`** via PR #32 (plus a small
+    follow-up PR #33 removing a stray hint). See the "Phase 7" section under
+    "In flight" above for what shipped, the crash bug found via manual
+    browser verification, two rounds of CI/CodeRabbit fixes, and KI-33.
+  - **Phase 8 (polish, incl. home) — implemented on
+    `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR
+    #35 open awaiting merge.** See the "Phase 8" section under "In flight"
+    above: leg-line
+    copy, KI-18 closed for real (collision-probed day accents), day-chip
+    typography, Preview badge non-overlap, home rhythm/heading/
+    singularization/real-conflict-count stat tile plus KI-34, calendar
+    inner-button cells, and shortened route/place lines plus KI-35.
   - **Phase 9 (gate):** not run.
 
 The plan itself:
@@ -865,28 +1034,39 @@ its section under "In flight". CI was green on all four jobs and CodeRabbit
 raised nothing actionable. Its Step 4 manual browser pass is the one thing still
 wanting a human; PR #30's Vercel preview is the way to close it.
 
-**Phase 7 (add-stop and new-trip forms) implemented on
-`claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged** —
-see its section under "In flight" for the full record. Unlike Phases 5/6,
-both manual browser checks were actually walked (this session had an
-interactive browser), which caught a real crash bug in the wizard's date
-handling — fixed and re-verified. CI (the first real e2e signal this branch
-got, since KI-33 blocks `pnpm build` locally on this machine) then caught
-two rounds of further findings — CodeRabbit's review plus a navigation
-regression CI found on its own ("Create empty" briefly always navigated
-away instead of only the full wizard doing so, breaking nine unrelated
-pre-Phase-7 e2e specs) — both fixed and re-verified; all four required jobs
-are green as of the latest push. **Needs from a human:** merge the PR; and
-KI-33 itself wants a priority pickup given it blocks building the app on any
-case-insensitive-filesystem machine, not just two test files.
+**Phase 7 (add-stop and new-trip forms) merged to `main` via PR #32** (plus
+follow-up PR #33) — see its section under "In flight" for the full record.
 
-Continue M10 Wave 2's remaining phases — **8, then 8b, then 1b** — once
-Phase 7's PR merges. 8 is independent and could start in parallel. **Phases
-8b and 1b are the 2026-08-23 design sync's approved additions to this gate**
-(see the "Design sync" section above and `docs/milestones/M10-visual-craft.md`'s
-gate-scope amendments); 8b.5 depends on Task 8.6 and 8b.6 on Phase 6, and 1b
-depends on Phase 7 and 8b — 1b can't start until Phase 7's PR is merged, not
-merely opened. Then Phase 9's gate
+**Phase 8 (correctness and polish) implemented on
+`claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35
+open** — see its section under "In flight" for the full record.
+KI-18 (the accent-collision bug the phase exists to fix) is closed for real;
+two new known issues filed (KI-34, KI-35), both contract-change-gated and
+out of this plan's scope by design. Full DoD verification (typecheck, lint,
+color wall, unit suite, and — for the first time since KI-33 started
+blocking it — a genuine local `test:e2e:ci-like` run, after standing up a
+local Postgres and fixing a Playwright browser-build mismatch that KI-32
+under-described for the headless-shell flavor) all green except one e2e
+flake that is KI-28's already-documented symptom verbatim, not a new
+finding. CI on PR #35 went green on all three required jobs; CodeRabbit's
+review raised one real Major finding (a date-line hydration/timezone risk —
+`todayIso()` was computed inline during render, fixed to compute in a
+client-only effect instead) and three Minor ones (looser-than-intended
+`Preview` test assertions, KI-34's severity conflating a correctness defect
+with a cosmetic one, and this file's own PR-status wording lagging the PR's
+actual existence) — all four fixed and pushed. **Needs from a human:**
+review and merge PR #35; review the Task 8.5 judgment call (the
+TripCard-dates test is `it.skip`'d, not forced green, because it directly
+requires the contract change KI-34 defers).
+
+Continue M10 Wave 2's remaining phases — **8b, then 1b** — once Phase 8's PR
+merges. **Phases 8b and 1b are the 2026-08-23 design sync's approved
+additions to this gate** (see the "Design sync" section above and
+`docs/milestones/M10-visual-craft.md`'s gate-scope amendments); 8b.5 depends
+on Task 8.6 (now done) and 8b.6 on Phase 6 (already merged), and 1b depends
+on Phase 7 and 8b — both their Phase-7 half and their Phase-8 half are now
+satisfied by merged/committed work, so 8b can start as soon as this PR
+merges and 1b as soon as 8b's does. Then Phase 9's gate
 (`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
 closed or re-deferred, presentational-only diff verified, all tests incl. e2e
 green, retro appended. **M15 Front door comes next once M10's gate closes, then

@@ -1,22 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { dayAccentFor, ACCENT_FAMILIES } from "./dayAccent";
+import { dayAccents } from "./dayAccent";
 
-describe("dayAccentFor", () => {
-  it("is deterministic per city", () => {
-    expect(dayAccentFor("Tokyo")).toEqual(dayAccentFor("Tokyo"));
+describe("dayAccents", () => {
+  it("gives the handoff's headline trip three distinct colours", () => {
+    const [tokyo, kyoto, osaka] = dayAccents(["Tokyo", "Kyoto", "Osaka"]);
+    expect(new Set([tokyo!.solid, kyoto!.solid, osaka!.solid]).size).toBe(3);
   });
-  it("only ever returns on-system families", () => {
-    for (const city of ["Tokyo", "Osaka", "Kyoto", "", null, undefined]) {
-      expect(ACCENT_FAMILIES).toContain(dayAccentFor(city).tint);
-    }
+
+  it("gives the same city the same colour throughout a trip", () => {
+    const a = dayAccents(["Rochester", "Niagara Falls", "Rochester"]);
+    expect(a[0]).toEqual(a[2]);
   });
-  it("spreads distinct cities across families", () => {
-    const a = dayAccentFor("Tokyo").tint;
-    const b = dayAccentFor("Toyosu-is-different").tint;
-    // not a hard guarantee for all pairs, but these two must differ
-    expect(a).not.toEqual(b);
+
+  it("uses an explicit neutral for a day with no known city", () => {
+    expect(dayAccents([null])[0]!.solid).toBe("neutral");
   });
-  it("gives a stable fallback for empty city", () => {
-    expect(dayAccentFor(null)).toEqual(dayAccentFor(undefined));
+
+  it("does not spend a colour bucket on the unknown-city case", () => {
+    const [, kyoto, osaka] = dayAccents([null, "Kyoto", "Osaka"]);
+    expect(kyoto!.solid).not.toBe("neutral");
+    expect(osaka!.solid).not.toBe("neutral");
+    expect(kyoto!.solid).not.toBe(osaka!.solid);
+  });
+
+  it("degrades without throwing when there are more cities than families", () => {
+    const many = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    expect(() => dayAccents(many)).not.toThrow();
+    expect(dayAccents(many)).toHaveLength(8);
+  });
+
+  it("is order-independent for the same set of cities", () => {
+    const forward = dayAccents(["Tokyo", "Kyoto"]);
+    const backward = dayAccents(["Kyoto", "Tokyo"]);
+    expect(forward[0]!.solid).toBe(backward[1]!.solid);
+    expect(forward[1]!.solid).toBe(backward[0]!.solid);
   });
 });
