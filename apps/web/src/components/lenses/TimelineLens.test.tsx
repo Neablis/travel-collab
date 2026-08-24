@@ -1,11 +1,12 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EditorHost } from "@/components/trip/context/EditorHost";
+import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { TimelineLens } from "./TimelineLens";
+import { TimelineLens, nextSlot } from "./TimelineLens";
+import type { TimelineRow } from "./timelineData";
 
 afterEach(cleanup);
 
@@ -105,6 +106,103 @@ function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
   );
   return dispatch;
 }
+
+// M10 Phase 6 fixtures. `timed` is what nextSlot and the add-row copy key
+// off, so these are all shaped around one day's last end time.
+function timedActivity(id: string, title: string, start: string, end: string) {
+  return { activityId: id, title, timeWindow: { start, end }, location: null, notes: null, anchors: [], cost: null };
+}
+
+function detailWithDayEndingAt(end: string, start = "20:00") {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1"], date: "2027-06-01", costSubtotal: 0 }],
+    activities: { a1: timedActivity("a1", "Dinner at Kagari", start, end) },
+  });
+}
+
+function detailWithEmptyDay() {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: [], date: "2027-06-01", costSubtotal: 0 }],
+    activities: {},
+  });
+}
+
+function detailWithTwoDays() {
+  return tripDetailFixture({
+    days: [
+      { dayId: "d1", activityIds: ["a1"], date: "2027-06-01", costSubtotal: 0 },
+      { dayId: "d2", activityIds: ["a2"], date: "2027-06-02", costSubtotal: 0 },
+    ],
+    activities: {
+      a1: timedActivity("a1", "Colosseum tour", "09:00", "11:00"),
+      a2: timedActivity("a2", "Roman Forum", "09:00", "10:00"),
+    },
+  });
+}
+
+// The prefilled timeWindow only exists inside EditorHost's state, so a probe
+// beside the lens is the honest way to read what the add row actually asked
+// for — same shape as this file's own focus-control harness.
+function renderTimelineWithEditorProbe(detail: TripDetail) {
+  function Probe() {
+    const { state } = useEditor();
+    return <span data-testid="editor-state">{JSON.stringify(state)}</span>;
+  }
+  render(
+    <FocusProvider>
+      <EditorHost>
+        <TimelineLens detail={detail} />
+        <Probe />
+      </EditorHost>
+    </FocusProvider>,
+  );
+}
+
+function editorPrefill(): { dayId?: string; timeWindow?: { start: string; end: string } } {
+  return JSON.parse(screen.getByTestId("editor-state").textContent ?? "{}").prefill ?? {};
+}
+
+// The one branch of nextSlot the DOM can only show indirectly. It is exported
+// for the same reason overlapData.ts's model is a module of its own: the rule
+// about what the day has room for is worth stating once, in one place, with
+// its own test.
+describe("nextSlot (KI-30)", () => {
+  const rowWith = (timed: { start: string; end: string }[]): TimelineRow => ({
+    dayId: "d1",
+    date: "2027-06-01",
+    ordinal: 1,
+    timed: timed.map((w, i) => ({ activityId: `a${i}`, title: `Stop ${i}`, ...w })),
+    untimed: [],
+  });
+
+  it("prefills 09:00–10:00 on a day with nothing timed on it", () => {
+    expect(nextSlot(rowWith([]))).toEqual({ start: "09:00", end: "10:00" });
+  });
+
+  it("starts at the day's last end and takes an hour when there is one", () => {
+    expect(nextSlot(rowWith([{ start: "09:00", end: "11:00" }]))).toEqual({ start: "11:00", end: "12:00" });
+  });
+
+  // The end of the day is found from the LATEST end, not the last element:
+  // row.timed is sorted by start, so a long stop can begin before a short one
+  // and still finish after it.
+  it("measures from the latest end, not the last-starting stop", () => {
+    expect(
+      nextSlot(rowWith([{ start: "09:00", end: "18:00" }, { start: "10:00", end: "11:00" }])),
+    ).toEqual({ start: "18:00", end: "19:00" });
+  });
+
+  it("offers the shorter remainder rather than a clamped window near midnight", () => {
+    // NOT { start: "23:30", end: "23:59" } by accident of the clamp — 23:30 +
+    // 60 would be 00:30 tomorrow, and the pre-fix code turned that into a
+    // 23:59/23:59 window contracts' TimeWindow (start < end) rejects.
+    expect(nextSlot(rowWith([{ start: "22:00", end: "23:30" }]))).toEqual({ start: "23:30", end: "23:59" });
+  });
+
+  it("returns null when the day already runs to the last minute it has", () => {
+    expect(nextSlot(rowWith([{ start: "22:00", end: "23:59" }]))).toBeNull();
+  });
+});
 
 describe("TimelineLens", () => {
   it("renders a day header with the day ordinal, stop count, and derived city (#28)", () => {
@@ -399,5 +497,97 @@ describe("TimelineLens", () => {
     });
     renderLens(detail);
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
+  });
+
+  // ---- M10 Phase 6: growing the trip -------------------------------------
+
+  it("ends the plan with the end-of-trip block", () => {
+    renderLens(detailWithTwoDays());
+    expect(screen.getByText("End of the trip")).toBeTruthy();
+  });
+
+  it("renders an empty day honestly rather than as a gap", () => {
+    renderLens(detailWithEmptyDay());
+    expect(screen.getByText("No stops yet — add one, or drop a saved day onto it")).toBeTruthy();
+    expect(screen.getByText("Nothing planned yet")).toBeTruthy();
+  });
+
+  it("offers to add a stop after the day's last one", () => {
+    renderLens(detailWithDayEndingAt("21:00"));
+    expect(screen.getByRole("button", { name: "Add a stop after 9 pm" })).toBeTruthy();
+  });
+
+  it("offers to add the first stop on an empty day", () => {
+    renderLens(detailWithEmptyDay());
+    expect(screen.getByRole("button", { name: "Add the first stop" })).toBeTruthy();
+  });
+
+  it("gives every day its own single add row, however many stops it holds", () => {
+    const ids = Array.from({ length: 8 }, (_, i) => `a${i}`);
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ids, date: "2027-06-01", costSubtotal: 0 }],
+      activities: Object.fromEntries(
+        // 08:00–08:30, 09:00–09:30, … 15:00–15:30: eight stops, no overlaps.
+        ids.map((id, i) => [id, timedActivity(id, `Stop ${i}`, `${String(8 + i).padStart(2, "0")}:00`, `${String(8 + i).padStart(2, "0")}:30`)]),
+      ),
+    });
+    renderLens(detail);
+    expect(screen.getAllByTestId("timeline-add-row-d1")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Add a stop after 3:30 pm" })).toBeTruthy();
+  });
+
+  // KI-30's own worked example, in the DOM: the affordance is withheld, not
+  // degraded — the same shape as a null suggestedEnd making the overlap fix
+  // button disappear.
+  it("withholds the add row and disables Add stop on a day that runs to 23:59", () => {
+    renderLens(detailWithDayEndingAt("23:59"));
+    expect(screen.queryByTestId("timeline-add-row-d1")).toBeNull();
+    const headerAdd = screen.getByTestId("timeline-add-d1") as HTMLButtonElement;
+    expect(headerAdd.disabled).toBe(true);
+    expect(headerAdd.title).toBe(
+      "This day already runs to midnight — there is no free time left to add a stop.",
+    );
+  });
+
+  it("offers the real remaining 29 minutes on a day that ends at 23:30", async () => {
+    renderTimelineWithEditorProbe(detailWithDayEndingAt("23:30"));
+    const addRow = screen.getByRole("button", { name: "Add a stop after 11:30 pm" });
+    expect((screen.getByTestId("timeline-add-d1") as HTMLButtonElement).disabled).toBe(false);
+
+    await userEvent.click(addRow);
+    expect(editorPrefill()).toEqual({ dayId: "d1", timeWindow: { start: "23:30", end: "23:59" } });
+  });
+
+  it("prefills 09:00–10:00 from an empty day's add row", async () => {
+    renderTimelineWithEditorProbe(detailWithEmptyDay());
+    await userEvent.click(screen.getByRole("button", { name: "Add the first stop" }));
+    expect(editorPrefill()).toEqual({ dayId: "d1", timeWindow: { start: "09:00", end: "10:00" } });
+  });
+
+  it("raises a real AddDay through the same onCommand seam the overlap fix uses", async () => {
+    const dispatch = vi.fn();
+    render(
+      <FocusProvider>
+        <EditorHost>
+          <TimelineLens detail={detailWithTwoDays()} onCommand={dispatch} />
+        </EditorHost>
+      </FocusProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a day" }));
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "AddDay", dayId: expect.any(String) }),
+    );
+  });
+
+  // A trip with no days at all keeps the pre-existing empty state — there is
+  // no "last day" for the end-of-trip block to sit after.
+  it("keeps the no-days empty state, without an end-of-trip block", () => {
+    renderLens(tripDetailFixture({ days: [] }));
+    expect(screen.getByText("No days yet.")).toBeTruthy();
+    expect(screen.queryByTestId("end-of-trip")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
   });
 });
