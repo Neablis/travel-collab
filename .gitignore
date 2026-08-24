@@ -16,6 +16,7 @@ test-results/
 !.claude/skills
 !.claude/hooks
 !.claude/agents
+!.claude/commands
 .vercel/
 .worktrees/
 

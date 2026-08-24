@@ -121,6 +121,32 @@ The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
 standalone service without touching domain or contracts (ADR-002).
 
+## Repo automation (check here before hand-rolling a workflow)
+
+Committed in the repo, so every session and every worktree has them.
+
+**Slash commands** (`.claude/commands/`):
+
+| Command | What it does |
+|---|---|
+| `/roadmap` | Every milestone, where we are, what's next — and reconciles the four places status flags drift apart |
+| `/next-prompt` | Generates a self-contained handoff prompt from real state, separating what is proven from what is assumed |
+| `/ki-sweep` | Clears independent known issues via parallel `ki-fixer` agents in isolated worktrees, respecting milestone and contracts constraints |
+| `/cleanup-orphans` | Finds orphaned PRs, branches, worktrees and stale sessions. Reports first; deletes nothing without per-category approval |
+
+**Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
+`ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
+in particular drives the PR's Vercel preview, so the browser walk works from a
+container with no local infra.
+
+**Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient
+check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
+worktree audit).
+
+**Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
+on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
+commands while multiple worktrees exist.
+
 ## Workstreams (how agents divide the work)
 
 Agents work per-boundary and meet at `packages/contracts`:
