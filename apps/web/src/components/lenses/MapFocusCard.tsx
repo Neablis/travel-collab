@@ -8,6 +8,7 @@ const DOT_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 // Handoff `current/…dc.html:630-668` "focus card": floats over the map,

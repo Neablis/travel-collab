@@ -1,7 +1,7 @@
 import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
 export type ChipDay = {
@@ -22,6 +22,7 @@ const CHIP_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 const DOT_BG: Record<AccentFamily, string> = {
@@ -30,6 +31,7 @@ const DOT_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 
 // Dates are calendar dates (YYYY-MM-DD), not instants — construct in local
@@ -100,10 +102,14 @@ export type DayChipsProps = {
 // Task 4's useFocus().setFocusedDay; this component dispatches no trip
 // command and knows nothing about the active lens.
 export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
+  // One dayAccents() call over the whole trip's cities, so collisions
+  // between two days of this trip get probed against each other rather than
+  // each day resolving blind to every other one.
+  const accents = dayAccents(days.map((d) => d.city));
   return (
     <div role="group" aria-label="Days" className="flex gap-2 overflow-x-auto pb-1">
       {days.map((day, index) => {
-        const accent = dayAccentFor(day.city);
+        const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
         const isFocused = focusedDay === index;
         return (
           <Button

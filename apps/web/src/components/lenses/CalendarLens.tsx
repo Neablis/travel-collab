@@ -6,7 +6,7 @@ import { DataText } from "../ui/data-text";
 import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
 import { useFocus } from "../trip/context/FocusProvider";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 import { calendarCells } from "./calendarData";
 
@@ -21,6 +21,7 @@ const TINT_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 // Handoff README §"Calendar view": 116px min cell height has no token
@@ -46,6 +47,10 @@ export function CalendarLens({
   // chipModel rather than re-deriving it (mirrors TimelineLens.tsx). Indexed
   // by 0-based day index — cell.ordinal is 1-based, so look up days[ordinal - 1].
   const days = chipModel(detail);
+  // One dayAccents() call over the whole trip's cities so collisions between
+  // this trip's own days get probed, rather than each day resolving blind to
+  // every other day.
+  const accents = dayAccents(days.map((d) => d.city));
   const { setFocusedDay } = useFocus();
 
   return (
@@ -83,7 +88,7 @@ export function CalendarLens({
 
             const ordinal = cell.ordinal;
             const day = days[ordinal - 1];
-            const accent = dayAccentFor(day?.city ?? null);
+            const accent = accents[ordinal - 1] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
             const firstActivityId = cell.activityIds[0];
             const firstStopTitle = firstActivityId ? detail.activities[firstActivityId]?.title : undefined;
             const moreCount = cell.activityIds.length - 1;

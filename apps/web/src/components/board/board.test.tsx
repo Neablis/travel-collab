@@ -212,15 +212,16 @@ describe("Board", () => {
   });
 
   // Handoff README §"Day columns view": 268px columns, 16px radius
-  // (rounded-2xl), tinted per-day via dayAccentFor — same city derivation as
+  // (rounded-2xl), tinted per-day via dayAccents — same city derivation as
   // Tasks 8/10's chipModel, so the day column agrees with its Timeline
-  // header/chip color. This fixture's activities carry no location, so
-  // dayAccentFor(null) resolves deterministically to the "info" family.
-  it("a day column is 268px wide, rounded-2xl, and tinted by dayAccentFor", () => {
+  // header/chip color. This fixture's activities carry no location, so the
+  // day's city is null and dayAccents (Task 8.2, KI-18) resolves it to the
+  // explicit "neutral" family — moss, not a spent semantic bucket.
+  it("a day column is 268px wide, rounded-2xl, and tinted by dayAccents", () => {
     renderBoard(fixture(), noopCallbacks());
     const day = screen.getAllByTestId("day-column")[0]!;
     expect(day.className).toContain("rounded-2xl");
-    expect(day.className).toContain("bg-info-tint");
+    expect(day.className).toContain("bg-moss");
     expect((day as HTMLElement).style.width).toBe("268px");
   });
 

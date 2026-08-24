@@ -21,6 +21,7 @@ const TINT_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 
 // Handoff README §"Day columns view": 268px columns — not on Tailwind's
@@ -64,7 +65,7 @@ export function Column({
   // reads the same in both lenses.
   overlaps: ReadonlyMap<string, Overlap>;
   currency: string;
-  // Per-day tint (Task 2's dayAccentFor, keyed off the same chipModel city
+  // Per-day tint (Task 2's dayAccents, keyed off the same chipModel city
   // derivation Tasks 8/10 use).
   accent: AccentFamily;
   onEditActivity: (activityId: string) => void;

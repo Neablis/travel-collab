@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
-import { dayAccentFor } from "@/lib/dayAccent";
+import { dayAccents } from "@/lib/dayAccent";
 import { Preview } from "@/components/ui/preview";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
@@ -114,9 +114,14 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
   }, [trip]);
 
   // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
-  // use (chipModel → dayAccentFor), so a day's column tint here always agrees
+  // use (chipModel → dayAccents), so a day's column tint here always agrees
   // with its chip and its Timeline-view header color.
   const days = useMemo(() => chipModel(trip), [trip]);
+
+  // One dayAccents() call over the whole trip's cities, so collisions between
+  // two days of this trip get probed against each other — not per-day calls,
+  // which would each only "see" a single city and could never collide.
+  const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
 
   // The monitor reads `trip` and `callbacks` through a ref rather than closing
   // over them, so its effect below can have an empty dependency list and
@@ -204,7 +209,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             conflictIds={conflictIds}
             overlaps={overlapsByActivity}
             currency={trip.currency}
-            accent={dayAccentFor(days[index]?.city ?? null).tint}
+            accent={accents[index]?.tint ?? "neutral"}
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}

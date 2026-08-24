@@ -18,7 +18,7 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { useFocus } from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
-import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
+import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
 import { initialsFor } from "@/lib/initials";
 import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
@@ -40,6 +40,7 @@ const TINT_BG: Record<AccentFamily, string> = {
   success: "bg-success-tint",
   warning: "bg-warning-tint",
   danger: "bg-danger-tint",
+  neutral: "bg-moss",
 };
 const SOLID_BG: Record<AccentFamily, string> = {
   brand: "bg-brand",
@@ -47,6 +48,7 @@ const SOLID_BG: Record<AccentFamily, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  neutral: "bg-slate",
 };
 // "danger"/"warning"/"success"/"info" carry a `-ink` token; "brand" doesn't
 // (its darkest tone is `-pressed`) — mirrors KeepDayFlag.tsx's INK_TEXT.
@@ -56,7 +58,13 @@ const INK_TEXT: Record<AccentFamily, string> = {
   success: "text-success-ink",
   warning: "text-warning-ink",
   danger: "text-danger-ink",
+  neutral: "text-slate",
 };
+
+// Fallback DayAccent for an index dayAccents() didn't cover (shouldn't
+// happen — `days`/`accents` are always built from the same array — but keeps
+// the render loop total rather than risking a crash on a stale index).
+const NEUTRAL_ACCENT: DayAccent = { tint: "neutral", ink: "neutral", solid: "neutral" };
 
 // 09:00 on a day with nothing timed on it yet. This replaces the old
 // DAY_START_MIN (06:00), which was a leftover from when the timeline drew a
@@ -359,6 +367,10 @@ export function TimelineLens({
   // re-deriving it, so the day header's accent/pill and the day-chips row
   // above always agree on the same day's color and city.
   const days = useMemo(() => chipModel(detail), [detail]);
+  // One dayAccents() call over the whole trip's cities, so collisions between
+  // two days of this trip get probed against each other rather than each day
+  // resolving blind to every other one.
+  const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -436,7 +448,7 @@ export function TimelineLens({
     >
       {rows.map((row, index) => {
         const chip = days[index];
-        const accent = dayAccentFor(chip?.city ?? null);
+        const accent = accents[index] ?? NEUTRAL_ACCENT;
         const isFocused = focusedDay === index;
         const stopCount = row.timed.length + row.untimed.length;
         const outMinutes = totalScheduledMinutes(row);
