@@ -5,6 +5,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
+import { toMinutes, toTimeString } from "@/lib/time";
 import { TimelineLens, nextSlot } from "./TimelineLens";
 import type { TimelineRow } from "./timelineData";
 
@@ -204,6 +205,69 @@ describe("nextSlot (KI-30)", () => {
   });
 });
 
+// Phase 8 Task 8.1: a two-timed-stop day (Colosseum tour 09:00–10:00, then
+// Roman Forum) whose second stop starts `gapMinutes` after the first ends —
+// the fixture the leg-line copy tests below need, built with the same
+// `tripDetailFixture` pattern the rest of this file already uses rather than
+// a `detailWithGap` helper this file never had. Times are derived through
+// toMinutes/toTimeString (not string arithmetic) so the fixture stays honest
+// about what "gap" means to the component under test.
+function detailWithGap(gapMinutes: number): TripDetail {
+  const a1End = "10:00";
+  const a2Start = toTimeString(toMinutes(a1End) + gapMinutes);
+  const a2End = toTimeString(toMinutes(a2Start) + 60);
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
+    activities: {
+      a1: {
+        activityId: "a1",
+        title: "Colosseum tour",
+        timeWindow: { start: "09:00", end: a1End },
+        location: null,
+        notes: null,
+        anchors: [],
+        cost: null,
+      },
+      a2: {
+        activityId: "a2",
+        title: "Roman Forum",
+        timeWindow: { start: a2Start, end: a2End },
+        location: null,
+        notes: null,
+        anchors: [],
+        cost: null,
+      },
+    },
+  });
+}
+
+// Both stops carry real coordinates and a real positive gap — the case the
+// old "~X.X km direct" suffix used to fire on. The leg line no longer shows
+// any distance at all, invented or otherwise.
+const detailWithCoordinatesOnBothStops = tripDetailFixture({
+  days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
+  activities: {
+    a1: {
+      activityId: "a1",
+      title: "Colosseum tour",
+      timeWindow: { start: "09:00", end: "10:00" },
+      location: { name: "Colosseum", lat: 41.8902, lng: 12.4922 },
+      notes: null,
+      anchors: [],
+      cost: null,
+    },
+    a2: {
+      activityId: "a2",
+      title: "Roman Forum",
+      timeWindow: { start: "11:00", end: "12:00" },
+      location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
+      notes: null,
+      anchors: [],
+      cost: null,
+    },
+  },
+});
+
 describe("TimelineLens", () => {
   it("renders a day header with the day ordinal, stop count, and derived city (#28)", () => {
     renderLens();
@@ -214,7 +278,7 @@ describe("TimelineLens", () => {
     const header = screen.getByTestId("timeline-dayhead-d1");
     expect(within(header).getAllByText(/Colosseum, Rome, Italy/).length).toBeGreaterThan(0);
     // Stop-meter: real elapsed duration of the one 09:00–11:00 activity.
-    expect(screen.getByText("2h out")).not.toBeNull();
+    expect(screen.getByText("2 h out")).not.toBeNull();
   });
 
   it("renders the activity's real start/end time and title as a row (not a percentage-positioned block)", () => {
@@ -267,68 +331,32 @@ describe("TimelineLens", () => {
     expect(within(card).getByRole("button", { name: "Discard" })).not.toBeNull();
   });
 
-  it("shows a real gap leg (not a fabricated travel time) between two timed activities, and a straight-line distance only when both have coordinates", () => {
-    const detail = tripDetailFixture({
-      days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
-      activities: {
-        a1: {
-          activityId: "a1",
-          title: "Colosseum tour",
-          timeWindow: { start: "09:00", end: "10:00" },
-          location: { name: "Colosseum", lat: 41.8902, lng: 12.4922 },
-          notes: null,
-          anchors: [],
-          cost: null,
-        },
-        a2: {
-          activityId: "a2",
-          title: "Roman Forum",
-          timeWindow: { start: "11:00", end: "12:00" },
-          location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
-          notes: null,
-          anchors: [],
-          cost: null,
-        },
-      },
-    });
-    renderLens(detail);
-    const leg = screen.getByTestId("timeline-leg");
-    expect(within(leg).getByText(/1h gap/)).not.toBeNull();
-    expect(within(leg).getByText(/km direct/)).not.toBeNull();
-    // 60 minutes > the 30-minute warning threshold.
-    expect(within(leg).getByText("Long gap")).not.toBeNull();
+  // Phase 8 Task 8.1 (`phase-8-polish.md` Step 1, copied verbatim): the leg
+  // line stops inventing a straight-line distance and a 30-minute "Long gap"
+  // pill, and instead names the real free time until the next stop.
+  it("shows the free time before the next stop", () => {
+    renderLens(detailWithGap(75));
+    expect(screen.getByText("1 h 15 m until next stop")).toBeTruthy();
   });
 
-  it("omits the leg's distance (never fabricates one) when either activity has no coordinates", () => {
-    const detail = tripDetailFixture({
-      days: [{ dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 }],
-      activities: {
-        a1: {
-          activityId: "a1",
-          title: "Colosseum tour",
-          timeWindow: { start: "09:00", end: "10:00" },
-          location: null,
-          notes: null,
-          anchors: [],
-          cost: null,
-        },
-        a2: {
-          activityId: "a2",
-          title: "Roman Forum",
-          timeWindow: { start: "10:10", end: "11:00" },
-          location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
-          notes: null,
-          anchors: [],
-          cost: null,
-        },
-      },
-    });
-    renderLens(detail);
-    const leg = screen.getByTestId("timeline-leg");
-    expect(within(leg).getByText("10m gap")).not.toBeNull();
-    expect(within(leg).queryByText(/km direct/)).toBeNull();
-    // 10 minutes is under the warning threshold.
-    expect(within(leg).queryByText("Long gap")).toBeNull();
+  it("says back to back when there is no gap", () => {
+    renderLens(detailWithGap(0));
+    expect(screen.getByText("Back to back")).toBeTruthy();
+  });
+
+  it("flags a gap of two and a half hours or more", () => {
+    renderLens(detailWithGap(150));
+    expect(screen.getByText("Nothing planned")).toBeTruthy();
+  });
+
+  it("does not flag a gap just under the threshold", () => {
+    renderLens(detailWithGap(149));
+    expect(screen.queryByText("Nothing planned")).toBeNull();
+  });
+
+  it("no longer claims a straight-line distance", () => {
+    renderLens(detailWithCoordinatesOnBothStops);
+    expect(screen.queryByText(/km direct/)).toBeNull();
   });
 
   it("still renders untimed activities as rows the caller can select", async () => {
@@ -423,7 +451,7 @@ describe("TimelineLens", () => {
     renderTimelineWithOverlap();
     expect(screen.getByTestId("overlap-warning-b")).toBeTruthy();
     expect(screen.queryByTestId("overlap-warning-a")).toBeNull();
-    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30m on top of each other.")).toBeTruthy();
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30 m on top of each other.")).toBeTruthy();
   });
 
   it("moves the later stop to start when the earlier one ends, keeping its duration", async () => {

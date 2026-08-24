@@ -21,9 +21,9 @@ describe("toClockLabel", () => {
 
 describe("formatDuration", () => {
   it("omits the empty half of the pair", () => {
-    expect(formatDuration(30, "on top of each other.")).toBe("30m on top of each other.");
-    expect(formatDuration(120, "out")).toBe("2h out");
-    expect(formatDuration(90, "gap")).toBe("1h 30m gap");
+    expect(formatDuration(30, "on top of each other.")).toBe("30 m on top of each other.");
+    expect(formatDuration(120, "out")).toBe("2 h out");
+    expect(formatDuration(90, "until next stop")).toBe("1 h 30 m until next stop");
   });
 });
 

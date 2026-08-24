@@ -51,13 +51,18 @@ export function toClockLabel(time: string): string {
 
 // Hoisted verbatim out of components/lenses/TimelineLens.tsx (where it was
 // file-local) for the same reason toMinutes moved here: the overlap warning's
-// "30m on top of each other." copy is the same "Xh Ym <suffix>" shape as the
-// day header's "out" total and a leg's "gap", and a second copy would be free
-// to drift from the first.
+// "30 m on top of each other." copy is the same "X h Y m <suffix>" shape as
+// the day header's "out" total and a leg's "until next stop", and a second
+// copy would be free to drift from the first.
+//
+// Phase 8 Task 8.1: the design's duration copy is space-separated ("1 h 15 m
+// until next stop", not "1h 15m until next stop") — adjusted here rather
+// than adding a second formatter, so every caller (day-header "out", the
+// overlap warning, and the leg line) moves together.
 export function formatDuration(minutes: number, suffix: string): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h === 0) return `${m}m ${suffix}`;
-  if (m === 0) return `${h}h ${suffix}`;
-  return `${h}h ${m}m ${suffix}`;
+  if (h === 0) return `${m} m ${suffix}`;
+  if (m === 0) return `${h} h ${suffix}`;
+  return `${h} h ${m} m ${suffix}`;
 }

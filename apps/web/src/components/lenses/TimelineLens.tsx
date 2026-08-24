@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { ActivityView, Location, TripCommand, TripDetail, TripMember } from "@tc/contracts";
+import type { ActivityView, TripCommand, TripDetail, TripMember } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
@@ -19,7 +19,6 @@ import { useFocus } from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
-import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
 import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
@@ -150,7 +149,8 @@ function totalScheduledMinutes(row: TimelineRow): number {
 // distance ("· 5.4 km on foot") — there is no honest way to fill that for an
 // entire day (would require every consecutive pair to carry real
 // coordinates), so per the task brief it is simply omitted rather than
-// fabricated; individual legs (below) show a real distance when they can.
+// fabricated; individual legs (below) no longer attempt one either (Phase 8
+// Task 8.1) — they name real free time instead.
 const ROUTE_MAX_STOPS = 3;
 function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): string | null {
   const names: string[] = [];
@@ -164,37 +164,27 @@ function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): s
   return extra > 0 ? `${shown.join(" → ")} → +${extra} more` : shown.join(" → ");
 }
 
-// A gap "counts" as a leg only when it's positive — back-to-back or
-// overlapping activities (a real conflict scenario, flagged separately by
-// the Badge below) have no honest elapsed gap to report.
-const GAP_WARNING_THRESHOLD_MIN = 30;
+// Handoff README §2 "Legs": past this much free time before the next stop,
+// the leg also gets a warning-tint pill — nothing realistically gets planned
+// into a gap this long, so it is worth flagging rather than just naming.
+const NOTHING_PLANNED_THRESHOLD_MIN = 150;
 
-function locationCoords(location: Location | null | undefined): { lat: number; lng: number } | null {
-  return location?.lat !== undefined && location?.lng !== undefined ? { lat: location.lat, lng: location.lng } : null;
-}
-
-// Handoff README §2 "Legs": indented dotted left border, mono travel time,
-// optional warning-tint gap pill. There is no real travel-time/distance data
-// source reachable from the UI (see lib/geo.ts's haversineKm comment) — so the
-// mono text is the real elapsed gap between one activity's end and the
-// next's start (both real TimeWindow strings already on hand), and the
-// pill fires only past GAP_WARNING_THRESHOLD_MIN. A real straight-line
-// distance is appended, honestly labeled "direct" (never "travel time" or
-// "walking time", which would imply a transport mode and speed this app has
-// no basis for), only when BOTH endpoints carry real lat/lng — otherwise the
-// distance is omitted rather than guessed.
-function Leg({ prevEnd, nextStart, prevLocation, nextLocation }: {
-  prevEnd: string;
-  nextStart: string;
-  prevLocation: Location | null | undefined;
-  nextLocation: Location | null | undefined;
-}) {
+// Handoff README §2 "Legs": indented dotted left border, mono free-time
+// label, optional warning-tint pill. Phase 8 Task 8.1: this used to append an
+// honestly-labeled straight-line "km direct" distance (there is no real
+// travel-time/distance data source reachable from the UI — see lib/geo.ts's
+// haversineKm comment; MapLens/mapRailData still use it for per-day
+// distances) and warn past a 30-minute gap. Both are gone: the mono text now
+// simply names the real free time before the next stop — "Back to back" when
+// there is none — and the pill only fires once that free time is long enough
+// that nothing is realistically planned in it.
+function Leg({ prevEnd, nextStart }: { prevEnd: string; nextStart: string }) {
   const gap = toMinutes(nextStart) - toMinutes(prevEnd);
-  if (gap <= 0) return null;
-
-  const from = locationCoords(prevLocation);
-  const to = locationCoords(nextLocation);
-  const distanceKm = from && to ? haversineKm(from, to) : null;
+  // A genuinely negative gap is an overlap — a real conflict scenario
+  // flagged separately by the Badge on the activity row below — with no
+  // honest free time to name, so the leg renders nothing. gap === 0 (back
+  // to back) still renders.
+  if (gap < 0) return null;
 
   return (
     <div
@@ -208,11 +198,12 @@ function Leg({ prevEnd, nextStart, prevLocation, nextLocation }: {
         className="ml-px flex flex-wrap items-center gap-2 border-l-2 border-dotted border-border-strong py-1.5 pl-3.5"
       >
         <DataText size="xs" className="text-slate">
-          {formatDuration(gap, "gap")}
-          {distanceKm !== null && ` · ~${distanceKm.toFixed(1)} km direct`}
+          {gap === 0 ? "Back to back" : formatDuration(gap, "until next stop")}
         </DataText>
-        {gap > GAP_WARNING_THRESHOLD_MIN && (
-          <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning-ink">Long gap</span>
+        {gap >= NOTHING_PLANNED_THRESHOLD_MIN && (
+          <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning-ink">
+            Nothing planned
+          </span>
         )}
       </div>
     </div>
@@ -595,17 +586,9 @@ export function TimelineLens({
                 const activity = detail.activities[item.activityId];
                 if (!activity) return null;
                 const prev = row.timed[itemIndex - 1];
-                const prevActivity = prev ? detail.activities[prev.activityId] : undefined;
                 return (
                   <div key={item.activityId} className="flex flex-col gap-3">
-                    {prev && (
-                      <Leg
-                        prevEnd={prev.end}
-                        nextStart={item.start}
-                        prevLocation={prevActivity?.location}
-                        nextLocation={activity.location}
-                      />
-                    )}
+                    {prev && <Leg prevEnd={prev.end} nextStart={item.start} />}
                     {/* The warning belongs to the row above it, not to the
                         day's row rhythm — an inner wrapper with no gap so its
                         own 6px offset is the whole distance, rather than
