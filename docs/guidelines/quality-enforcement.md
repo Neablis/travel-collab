@@ -73,6 +73,34 @@ the result.
 - [ ] Docs updated (ADR / milestone file / guidelines) if behavior or
       interfaces changed.
 - [ ] Conventional commit(s), one logical change each.
+- [ ] PR opened from `.github/PULL_REQUEST_TEMPLATE.md`, with **Verification
+      actually performed** filled in — including what was *not* run and why.
+
+## Waiting on PR checks
+
+Do not hand-poll `gh pr checks` in a loop. One command blocks on all of them:
+
+```
+gh pr checks <n> --watch --fail-fast
+```
+
+CodeRabbit is a registered status check, so this covers it too. Its summary
+comment appears within about 30 seconds; its review verdict takes 2-11
+minutes. Treat its findings as bug reports to verify against the code — it
+caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and
+per-path focus live in `.coderabbit.yaml`.
+
+## Fast feedback while you work
+
+- A `PostToolUse` hook (`scripts/hooks/typecheck-touched-package.mjs`)
+  typechecks only the package owning each edited `.ts`/`.tsx` file, so a type
+  error surfaces seconds after the edit rather than at `pnpm check` time. It
+  applies the same narrowing rules as the `minimal-check-subset` skill,
+  including the contracts hard-exception, and uses an incremental build-info
+  cache (~4s first run, ~1.6s after).
+- A failing CI e2e run uploads `playwright-report/` and `test-results/` as the
+  `playwright-report` artifact. `trace: "on-first-retry"` means a flaky failure
+  hands back a real trace — download it instead of re-reading job logs.
 
 ## Code review expectations (agent-to-agent or self-review before Mitchell)
 

@@ -26,6 +26,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/typecheck-touched-package.mjs",
+            "statusMessage": "Typechecking touched package..."
+          }
+        ]
+      }
     ]
   }
 }

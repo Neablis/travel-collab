@@ -1,0 +1,86 @@
+# CodeRabbit configuration.
+#
+# Why this file exists: CodeRabbit ran unconfigured until 2026-08-24 and was
+# producing 26-30 inline comments per PR (#32: 26, #27: 30 across 26 separate
+# review events), most of them nitpick-tier, all of them triaged by hand. It
+# stays a required check — it caught a real fire-and-forget navigation race in
+# M10 Wave 2 Phase 7 that no test covered — but it should spend its comments on
+# this repo's actual invariants rather than on prose style in `docs/`.
+#
+# See AGENTS.md for the invariants referenced below.
+language: en-US
+
+reviews:
+  # "chill" reports genuine problems and drops the stylistic nitpicking that
+  # made up most of the pre-config comment volume.
+  profile: chill
+  # CodeRabbit stays a required check, but it should not hold a PR in
+  # CHANGES_REQUESTED — a human (or the DoD checklist) decides what blocks.
+  request_changes_workflow: false
+  high_level_summary: true
+  # The walkthrough is useful context; collapsed, it stops dominating the PR
+  # page above the actual human description.
+  collapse_walkthrough: true
+  # Pure noise in a repo where every PR is already narrated in its description.
+  poem: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    # A draft PR is work in progress; reviewing it burns a pass on code that
+    # is about to change.
+    drafts: false
+
+  path_filters:
+    # 94 markdown files and growing. Docs correctness here is enforced by the
+    # gate/DoD process, not by a prose reviewer, and markdown review was a
+    # large share of the nitpick volume.
+    - "!docs/**"
+    - "!**/*.md"
+    # drizzle-kit generates these; reviewing generated SQL and its journal
+    # produces findings nobody can act on without regenerating.
+    - "!apps/web/drizzle/**"
+    - "!pnpm-lock.yaml"
+
+  path_instructions:
+    - path: "packages/domain/**"
+      instructions: >-
+        AGENTS.md invariant #4: this package is pure — flag any I/O (database,
+        network, filesystem, clock, randomness) reached directly rather than
+        injected. Invariant #1: the event log is the sole source of truth;
+        flag state mutated outside the reducer path. Reducers and the conflict
+        engine are covered by fast-check property tests — a property that
+        asserts on no generated case still reports green, so flag any new
+        property test that lacks a `witness` assertion floor.
+
+    - path: "packages/contracts/**"
+      instructions: >-
+        AGENTS.md invariant #5: contracts change by protocol, not by drift.
+        Flag any schema change that lands without a matching
+        docs/contracts/CHANGELOG.md entry, and any consumer in
+        packages/domain or apps/web left un-updated in the same PR.
+
+    - path: "apps/web/src/components/**"
+      instructions: >-
+        Flag UI importing from packages/domain directly, and server logic
+        leaking into components — both are drift signals in
+        docs/guidelines/validating-direction.md. This app has had repeated
+        responsive bugs invisible above 1180px (KI-16, KI-19): flag new
+        fixed/absolute overlays, scrims, and breakpoint-gated layout that the
+        1280px default e2e viewport would not exercise.
+
+    - path: "apps/web/src/server/**"
+      instructions: >-
+        Flag direct database writes that bypass the command pipeline, and any
+        hand-written type duplicating a packages/contracts schema. AI model
+        output must be validated against a schema at its boundary (KI-9).
+
+    - path: "**/*.test.ts"
+      instructions: >-
+        Flag tests that assert nothing on the path they claim to cover, and
+        property tests without a witness floor. A comment asserting an
+        invariant with no test enforcing it is a documented recurring defect
+        class here (KI-1, KI-14) — flag it.
+
+chat:
+  auto_reply: true
