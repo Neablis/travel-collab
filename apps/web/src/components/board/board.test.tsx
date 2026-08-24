@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Board, type BoardCallbacks } from "@/components/board/Board";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
@@ -150,10 +151,13 @@ describe("Board", () => {
     expect(screen.queryByText(/overlap in time on the same day/)).toBeNull();
   });
 
+  // Phase 6 replaced the loose "+ Add day" button that used to trail the row
+  // with the "One more day?" column; the real action inside it is the same
+  // onAddDay callback.
   it("add-day and remove-day buttons invoke callbacks", () => {
     const callbacks = noopCallbacks();
     renderBoard(fixture(), callbacks);
-    fireEvent.click(screen.getByRole("button", { name: "+ Add day" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
     expect(callbacks.onAddDay).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Remove Day 1" }));
     expect(callbacks.onRemoveDay).toHaveBeenCalledWith(DAY);
@@ -245,6 +249,135 @@ describe("Board", () => {
     renderBoard(fixture(), noopCallbacks());
     const card = screen.getByTestId(`activity-card-${A1}`);
     expect(card.className).toContain("p-3");
+  });
+
+  // ---------------------------------------------------------------------
+  // Phase 6: the trailing "One more day?" column, and the day column's
+  // rack hint.
+  // ---------------------------------------------------------------------
+
+  // The loose "+ Add day" button is gone entirely — the phase file deletes it
+  // rather than keeping both affordances.
+  it("replaces the loose + Add day button with the One more day? column", () => {
+    renderBoard(fixture(), noopCallbacks());
+    expect(screen.queryByRole("button", { name: "+ Add day" })).toBeNull();
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByText("One more day?")).toBeTruthy();
+  });
+
+  // Design values from the phase file: 15px/600 --color-ink title in a dashed
+  // column matching the day columns' own 268px width.
+  it("shapes the trailing column like a day column, dashed, with a 15px/600 title", () => {
+    renderBoard(fixture(), noopCallbacks());
+    const column = screen.getByTestId("one-more-day-column");
+    expect(column.style.width).toBe("268px");
+    expect(screen.getAllByTestId("day-column")[0]!.style.width).toBe("268px");
+    expect(column.className).toContain("border-dashed");
+
+    const title = screen.getByText("One more day?");
+    expect(title.style.fontSize).toBe("15px");
+    expect(title.className).toContain("font-semibold");
+    expect(title.className).toContain("text-ink");
+  });
+
+  // The same two actions EndOfTrip carries: a real "Add a day", and an inert
+  // "Add a saved day" inside the existing insert-playbook Preview region.
+  it("carries a real Add a day and an inert Add a saved day", async () => {
+    const callbacks = noopCallbacks();
+    renderBoard(fixture(), callbacks);
+    const column = screen.getByTestId("one-more-day-column");
+
+    await userEvent.click(within(column).getByRole("button", { name: "Add a day" }));
+    expect(callbacks.onAddDay).toHaveBeenCalledOnce();
+
+    const region = column.querySelector('[data-preview-id="insert-playbook"]');
+    expect(region).not.toBeNull();
+    expect(within(region as HTMLElement).getByRole("button", { name: "Add a saved day" })).toBeTruthy();
+    // The Preview shield swallows the click, so the saved-day half cannot fire.
+    await expect(
+      userEvent.click(screen.getByRole("button", { name: "Add a saved day" })),
+    ).rejects.toThrow();
+  });
+
+  // Playwright's getByRole name match is substring by default, so an e2e spec
+  // asking for "Add a day" would otherwise also match "Add a saved day". The
+  // two are distinguishable by exact name; this pins that they stay so.
+  it("has exactly one button named Add a day, distinct from Add a saved day", () => {
+    renderBoard(fixture(), noopCallbacks());
+    expect(screen.getAllByRole("button", { name: "Add a day" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Add a saved day" })).toHaveLength(1);
+  });
+
+  // A trip with no days at all: the row is nothing but the trailing column,
+  // which is the only way back to a non-empty trip, so it has to be there.
+  it("still offers the trailing column on a trip with no days", () => {
+    renderBoard(tripDetailFixture({ days: [], activities: {} }), noopCallbacks());
+    expect(screen.queryAllByTestId("day-column")).toHaveLength(0);
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
+  });
+
+  // Phase 6, copy table row "day-columns add button, near the rack". The copy
+  // table lists no Board-specific empty-day string, so an empty day column's
+  // honest treatment is exactly this: the dashed "+ Add" it already renders,
+  // plus the drop hint — nothing invented.
+  it("tells an empty day column both ways to fill it", () => {
+    const emptyDay = tripDetailFixture({
+      days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }],
+      activities: {},
+    });
+    renderBoard(emptyDay, noopCallbacks());
+    const column = screen.getAllByTestId("day-column")[0]!;
+    const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
+    expect(addButton.textContent).toContain("+ Add");
+    expect(addButton.className).toContain("border-dashed");
+    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
+  });
+
+  // The hint is a property of the column's add affordance, not of emptiness —
+  // a populated day offers the same two routes.
+  it("shows the rack hint on a populated day column too", () => {
+    renderBoard(fixture(), noopCallbacks()); // Day 1 has two stops
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
+  });
+
+  it("gives every day of an all-empty trip its own + Add and rack hint", () => {
+    const d2 = "44444444-4444-4444-8444-444444444444";
+    const d3 = "55555555-5555-4555-8555-555555555555";
+    renderBoard(
+      tripDetailFixture({
+        days: [DAY, d2, d3].map((dayId) => ({ dayId, activityIds: [], date: null, costSubtotal: 0 })),
+        activities: {},
+      }),
+      noopCallbacks(),
+    );
+    expect(screen.getAllByTestId("day-column")).toHaveLength(3);
+    expect(screen.getAllByText("or drop a stop from Unscheduled")).toHaveLength(3);
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+  });
+
+  it("renders a day column holding many stops without dropping any", () => {
+    const ids = Array.from({ length: 9 }, (_, i) => `66666666-6666-4666-8666-${String(i).padStart(12, "0")}`);
+    renderBoard(
+      tripDetailFixture({
+        days: [{ dayId: DAY, activityIds: ids, date: null, costSubtotal: 0 }],
+        activities: Object.fromEntries(
+          ids.map((id, i) => [
+            id,
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+          ]),
+        ),
+      }),
+      noopCallbacks(),
+    );
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(column.querySelectorAll('[data-testid^="activity-card-"]')).toHaveLength(9);
+    expect(within(column).getByText("Stop 1")).toBeTruthy();
+    expect(within(column).getByText("Stop 9")).toBeTruthy();
+    // The add affordance and its hint stay below the ninth card.
+    expect(within(column).getByRole("button", { name: "Add activity to Day 1" })).toBeTruthy();
+    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
   });
 
   // Task 4.1 (M10 Phase 4): the board's per-stop cost, using the trip's own

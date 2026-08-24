@@ -13,7 +13,7 @@ afterEach(() => {
 const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Rochester",
   accent: "warning", stops: [], unlocatedCount: 0, totalKm: 4.2,
-  bars: [{ grow: 1, color: "warning" }], flagText: null, ...over,
+  bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, ...over,
 });
 
 describe("MapRail", () => {
@@ -46,8 +46,37 @@ describe("MapRail", () => {
   });
 
   it("shows a warning flag when the day carries one", () => {
-    render(<MapRail days={[day({ flagText: "No stops yet" })]} focusedDay={null} onFocus={vi.fn()} />);
-    expect(screen.getByText("No stops yet")).toBeTruthy();
+    render(<MapRail days={[day({ flagText: "2 stops have no place yet" })]} focusedDay={null} onFocus={vi.fn()} />);
+    expect(screen.getByText("2 stops have no place yet")).toBeTruthy();
+  });
+
+  // Phase 6, copy table row "map rail empty day". The rail's own string for
+  // an empty day, which is NOT the focus card's — see MapDay.isEmpty.
+  it("says nothing is planned yet on an empty day", () => {
+    render(<MapRail days={[day({ isEmpty: true, stops: [], bars: [], totalKm: null })]} focusedDay={null} onFocus={vi.fn()} />);
+    expect(screen.getByText("Nothing planned yet")).toBeTruthy();
+    // The focus card's wording must not leak into the rail.
+    expect(screen.queryByText("No stops yet")).toBeNull();
+  });
+
+  it("keeps the flag's warning-tint treatment for the empty-day copy", () => {
+    render(<MapRail days={[day({ isEmpty: true, stops: [], bars: [], totalKm: null })]} focusedDay={null} onFocus={vi.fn()} />);
+    expect(screen.getByText("Nothing planned yet").className).toContain("bg-warning-tint");
+  });
+
+  // A day whose stops all lack coordinates is NOT empty — it has a plan, the
+  // map just can't draw it — so it keeps the unlocated-stops flag rather than
+  // claiming nothing is planned.
+  it("flags unlocated stops rather than calling the day empty", () => {
+    render(
+      <MapRail
+        days={[day({ isEmpty: false, stops: [], bars: [], totalKm: null, unlocatedCount: 3, flagText: "3 stops have no place yet" })]}
+        focusedDay={null}
+        onFocus={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("3 stops have no place yet")).toBeTruthy();
+    expect(screen.queryByText("Nothing planned yet")).toBeNull();
   });
 
   describe("scroll-driven focus", () => {

@@ -11,10 +11,66 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccentFor } from "@/lib/dayAccent";
+import { Preview } from "@/components/ui/preview";
 import { type ActivityFormValue } from "./ActivityEditor";
-import { Column } from "./Column";
+import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 import { resolveDrop } from "./resolveDrop";
+
+// Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
+// the loose "+ Add day" button that used to trail the row. Shaped like a day
+// column (same 268px, dashed instead of tinted) so it reads as "the trip could
+// grow by one more of these" rather than as a stray control parked next to the
+// plan — the Day-columns twin of the timeline's EndOfTrip block, carrying the
+// same two actions: a real "Add a day" (the AddDay command TripBoardScreen
+// already dispatches) and, inside <Preview id="insert-playbook">, M11's inert
+// "Add a saved day".
+//
+// Deliberately NOT importing trip/EndOfTrip.tsx or extracting a shared block
+// out of it. The two share their copy and their actions, not their layout:
+// EndOfTrip is a full-bleed horizontal section (heading + a sentence of body
+// copy, the button floated opposite it, three Playbook shortcut cards in a
+// 3-up grid), and this is a 268px vertical column with no body copy and no
+// room for the shortcut grid. A shared component would be a prop-toggled
+// union of two different shapes; two buttons is the smaller duplication.
+//
+// Design values from the phase file's "Design values" note: 15px/600
+// --color-ink title, dashed, matching the day columns' 268px width. The
+// design's own trailing column (`Trip Planner Redesign.dc.html:630-650`)
+// additionally carries a "Saved days keep their order and gaps" line and the
+// three end-of-trip Playbook shortcuts; neither is in this phase's copy table,
+// so neither is invented here.
+function OneMoreDayColumn({ onAddDay }: { onAddDay: () => void }) {
+  return (
+    <section
+      data-testid="one-more-day-column"
+      className="flex shrink-0 flex-col gap-2.5 rounded-2xl border border-dashed border-border-strong p-3.5"
+      // eslint-disable-next-line no-restricted-syntax -- 268px matches the day columns' width, which has no token equivalent (Column.tsx carries the same escape hatch and owns the constant)
+      style={{ width: DAY_COLUMN_WIDTH_PX }}
+    >
+      <span
+        className="font-semibold text-ink"
+        // eslint-disable-next-line no-restricted-syntax -- the design's 15px title falls between text-base (14px) and text-md (16px); no token equals it
+        style={{ fontSize: "15px" }}
+      >
+        One more day?
+      </span>
+      <Button variant="primary" onClick={onAddDay} className="w-full justify-center">
+        Add a day
+      </Button>
+      {/* size="container": a region rather than a single control, so the
+          dotted border and the "Preview · M11" chip — same treatment
+          EndOfTrip gives its own copy of this button. The shield inside
+          Preview swallows every click below it, so this button neither has
+          nor needs an onClick. */}
+      <Preview id="insert-playbook" size="container" className="p-2">
+        <Button variant="secondary" className="w-full justify-center">
+          Add a saved day
+        </Button>
+      </Preview>
+    </section>
+  );
+}
 
 export type BoardCallbacks = {
   onMove: (activityId: string, toDayId: string | null, position: number) => void;
@@ -156,9 +212,7 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             onDismissOverlap={callbacks.onDismissConflict}
           />
         ))}
-        <Button variant="secondary" onClick={callbacks.onAddDay} className="h-9 w-32 shrink-0">
-          + Add day
-        </Button>
+        <OneMoreDayColumn onAddDay={callbacks.onAddDay} />
       </div>
     </div>
   );

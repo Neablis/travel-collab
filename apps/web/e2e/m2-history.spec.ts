@@ -35,7 +35,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: "Create trip" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   // "Add stop" (TripHeader) is the create-with-no-dayId trigger since Task 3.3

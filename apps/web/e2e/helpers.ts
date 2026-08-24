@@ -13,7 +13,7 @@ import { commandsFor } from "@tc/factories";
 // drag recognition enough events to register reliably.
 export async function dragCardTo(source: Locator, target: Locator): Promise<void> {
   // The board refetches and re-lays-out after every command (a new day pushes
-  // the "+ Add day" button, a new card grows its column), so a drag fired
+  // the "One more day?" column along, a new card grows its column), so a drag fired
   // immediately after a prior mutation can read a box that's about to move.
   // waitFor({ state: "visible" }) plus scrollIntoViewIfNeeded's own
   // actionability checks (Playwright waits for the element to stop moving

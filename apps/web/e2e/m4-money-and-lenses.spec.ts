@@ -25,7 +25,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Close" }).click();
 
   // -- add a day, and a costed activity on it --
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   // "Add stop" (TripHeader) creates with no dayId — the Backlog column and its

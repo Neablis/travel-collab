@@ -97,7 +97,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "+ Add day" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
   });
 
@@ -163,10 +163,12 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    // Board's own "+ Add day" stands in for "the Board lens is showing": Task
-    // 3.3 deleted the backlog column this used to look for, and this fixture
-    // has no days, so there is no `day-column` to look for either.
-    expect(screen.getByRole("button", { name: "+ Add day" })).toBeTruthy();
+    // Board's own trailing "One more day?" column stands in for "the Board
+    // lens is showing": Task 3.3 deleted the backlog column this used to look
+    // for, and this fixture has no days, so there is no `day-column` to look
+    // for either. (Phase 6 replaced the loose "+ Add day" button this used to
+    // key off with that column.)
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
@@ -178,7 +180,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Day columns" }));
-    expect(await screen.findByRole("button", { name: "+ Add day" })).toBeTruthy();
+    expect(await screen.findByTestId("one-more-day-column")).toBeTruthy();
   });
 
   it("opens TripDateControl from the clickable Dates row in Trip settings (restored, M10 Phase 4)", async () => {

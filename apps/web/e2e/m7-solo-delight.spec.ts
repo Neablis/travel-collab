@@ -60,9 +60,9 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
 
   // Two days: gives Day Sheet's default day-0 binding somewhere to point,
   // and a second day to rebind onto below.
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // -- open the trip's Notebook: the two default pages exist --
@@ -172,7 +172,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   const tripUrl = page.url();
 
   // Day 1 is the state we'll revert back to.
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   // -- open Trip Overview, add hand-typed prose --
@@ -191,7 +191,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // -- add a second day, then revert to the 1-day state via the History panel --
   await page.goto(tripUrl);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "+ Add day" }).click());
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   await page.getByRole("button", { name: "History" }).click();

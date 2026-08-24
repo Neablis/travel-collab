@@ -52,9 +52,65 @@ describe("mapDays", () => {
     expect(day!.unlocatedCount).toBe(1);
   });
 
-  it("flags an empty day", () => {
+  // Phase 6: an empty day sets `isEmpty` and leaves `flagText` null. The two
+  // map surfaces say different things about that state ("Nothing planned yet"
+  // in the rail, "No stops yet" in the focus card), so the model carries the
+  // fact and each surface renders its own copy — no pre-rendered string here.
+  it("marks an empty day as empty, without a flag", () => {
     const d = detailWith([{ dayId: "d1", date: null, activityIds: [] }], {});
-    expect(mapDays(d)[0]!.flagText).toBe("No stops yet");
+    const [day] = mapDays(d);
+    expect(day!.isEmpty).toBe(true);
+    expect(day!.flagText).toBeNull();
+    expect(day!.stops).toEqual([]);
+    expect(day!.bars).toEqual([]);
+    expect(day!.totalKm).toBeNull();
+  });
+
+  it("flags unlocated stops, singular and plural, and does not call the day empty", () => {
+    const one = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b"] }], {
+      a: at("a", 43.15, -77.6), b: at("b"),
+    });
+    expect(mapDays(one)[0]!.flagText).toBe("1 stop has no place yet");
+    expect(mapDays(one)[0]!.isEmpty).toBe(false);
+
+    const many = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b", "c"] }], {
+      a: at("a", 43.15, -77.6), b: at("b"), c: at("c"),
+    });
+    expect(mapDays(many)[0]!.flagText).toBe("2 stops have no place yet");
+    expect(mapDays(many)[0]!.isEmpty).toBe(false);
+  });
+
+  // Every stop unlocated is still a planned day — the map just can't draw it.
+  it("does not call a day empty when all of its stops lack coordinates", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b"] }], { a: at("a"), b: at("b") });
+    const [day] = mapDays(d);
+    expect(day!.isEmpty).toBe(false);
+    expect(day!.flagText).toBe("2 stops have no place yet");
+  });
+
+  it("leaves a fully located day with neither an empty mark nor a flag", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b"] }], {
+      a: at("a", 43.15, -77.6), b: at("b", 43.16, -77.62),
+    });
+    expect(mapDays(d)[0]!.isEmpty).toBe(false);
+    expect(mapDays(d)[0]!.flagText).toBeNull();
+  });
+
+  it("marks every day of an all-empty trip as empty", () => {
+    const d = detailWith(
+      [
+        { dayId: "d1", date: null, activityIds: [] },
+        { dayId: "d2", date: null, activityIds: [] },
+        { dayId: "d3", date: null, activityIds: [] },
+      ],
+      {},
+    );
+    expect(mapDays(d).map((m) => m.isEmpty)).toEqual([true, true, true]);
+    expect(mapDays(d).map((m) => m.flagText)).toEqual([null, null, null]);
+  });
+
+  it("returns nothing at all for a trip with no days", () => {
+    expect(mapDays(detailWith([], {}))).toEqual([]);
   });
 });
 

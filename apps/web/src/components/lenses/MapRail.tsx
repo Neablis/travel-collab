@@ -360,13 +360,21 @@ export function MapRail({
                       ))}
                     </div>
                   )}
-                  {day.flagText !== null && (
+                  {/* Phase 6, copy table row "map rail empty day". The rail
+                      and the focus card say different things about the same
+                      empty day by design — see MapDay.isEmpty — so each
+                      renders its own string off `isEmpty` rather than sharing
+                      one. The two branches are mutually exclusive (an empty
+                      day has nothing to be unlocated) and share the flag's
+                      existing warning-tint styling, because both are the same
+                      kind of statement: this day cannot draw a route yet. */}
+                  {(day.isEmpty || day.flagText !== null) && (
                     <div
                       className="mt-2 rounded-md bg-warning-tint px-2 py-1.5 text-warning-ink"
                       // eslint-disable-next-line no-restricted-syntax -- 11.5px flag text has no token equivalent
                       style={{ fontSize: "11.5px" }}
                     >
-                      {day.flagText}
+                      {day.isEmpty ? "Nothing planned yet" : day.flagText}
                     </div>
                   )}
                 </button>
