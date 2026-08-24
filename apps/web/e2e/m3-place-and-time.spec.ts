@@ -25,7 +25,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
@@ -75,7 +75,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // Backlog column's "+ Add activity" is gone; the stop lands in the
   // Unscheduled drawer, which is collapsed until opened.
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Fushimi Inari");
+  await page.getByLabel("What or where").fill("Fushimi Inari");
   await page.getByLabel("Place name").fill("Kyoto");
   await page.getByRole("button", { name: "Search" }).click();
   // C1 (#5): search results are a listbox/option combobox now, not a plain
@@ -87,8 +87,10 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // D-1 (Wave B, commit 7ff1a40): the anchor-editing UI was retired
   // (AnchorEditor.tsx deleted) — anchor rules stay dormant with no UI left
   // to author them, so there's no "add an anchor" step here anymore. Save
-  // directly.
-  await page.getByRole("button", { name: "Save" }).click();
+  // directly (create mode's submit is "Add stop", not "Save" — Phase 7;
+  // `.last()` disambiguates it from the header's own "Add stop" trigger,
+  // still visible behind the open sheet).
+  await page.getByRole("button", { name: "Add stop" }).last().click();
 
   const rack = page.getByTestId("unscheduled-rack");
   await rack.getByRole("button", { name: /unscheduled/i }).click();

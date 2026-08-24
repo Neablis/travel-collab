@@ -29,7 +29,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
 
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 });

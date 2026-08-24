@@ -32,7 +32,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
@@ -42,15 +42,15 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // deleted the Backlog column and its "+ Add activity" button; what it makes
   // is parked in the Unscheduled drawer, which starts collapsed.
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Colosseum");
-  await page.getByLabel("Start time").fill("09:00");
-  await page.getByLabel("End time").fill("11:00");
-  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
+  await page.getByLabel("What or where").fill("Colosseum");
+  await page.getByLabel("Start").fill("09:00");
+  await page.getByLabel("How long").selectOption("2 hours");
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Vatican Museums");
-  await page.getByLabel("Start time").fill("10:00");
-  await page.getByLabel("End time").fill("12:00");
-  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Save" }).click());
+  await page.getByLabel("What or where").fill("Vatican Museums");
+  await page.getByLabel("Start").fill("10:00");
+  await page.getByLabel("How long").selectOption("2 hours");
+  await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
 
   const rack = page.getByTestId("unscheduled-rack");
   await rack.getByRole("button", { name: /unscheduled/i }).click();

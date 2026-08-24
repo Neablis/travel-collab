@@ -9,7 +9,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
@@ -45,7 +45,7 @@ test("a rejected change reverts and shows an error", async ({ page }) => {
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 

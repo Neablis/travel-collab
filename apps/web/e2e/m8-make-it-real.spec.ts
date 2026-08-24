@@ -33,7 +33,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
@@ -59,19 +59,19 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // in the Unscheduled drawer, which starts collapsed. --
   const rack = page.getByTestId("unscheduled-rack");
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Coffee");
-  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Save" }).click()]);
+  await page.getByLabel("What or where").fill("Coffee");
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add stop" }).last().click()]);
   await rack.getByRole("button", { name: /unscheduled/i }).click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Coffee" })).toBeVisible();
 
   // Existing location search (LocationInput.tsx), same pattern as
   // m3-place-and-time.spec.ts — no dedicated AddPlaceButton exists.
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Niagara Falls");
+  await page.getByLabel("What or where").fill("Niagara Falls");
   await page.getByLabel("Place name").fill("Niagara Falls");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByRole("option", { name: /niagara falls/i }).click();
-  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Save" }).click()]);
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add stop" }).last().click()]);
   // Scoped to the rack card rather than a bare text match: a rack card shows
   // the title and the geocoded area, and the area for this place is itself
   // "Niagara Falls", so a text locator would be ambiguous.

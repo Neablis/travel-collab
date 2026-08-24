@@ -9,7 +9,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
@@ -32,9 +32,9 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // "+ Add activity" button were deleted in Task 3.3, so a stop created this
   // way is parked in the Unscheduled drawer until it is dragged onto a day.
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Flight to Rome");
-  await page.getByLabel("cost (EUR)").last().fill("420.00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByLabel("What or where").fill("Flight to Rome");
+  await page.getByLabel("Cost").fill("420.00");
+  await page.getByRole("button", { name: "Add stop" }).last().click();
 
   const rack = page.getByTestId("unscheduled-rack");
   await rack.getByRole("button", { name: /unscheduled/i }).click();
@@ -47,9 +47,9 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   // -- add an unscheduled (trip-level) costed activity: stays parked --
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Travel insurance");
-  await page.getByLabel("cost (EUR)").last().fill("99.00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByLabel("What or where").fill("Travel insurance");
+  await page.getByLabel("Cost").fill("99.00");
+  await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Travel insurance" })).toBeVisible();
 
   // -- Itinerary lens: per-day subtotal and unscheduled section --
