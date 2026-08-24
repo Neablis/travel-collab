@@ -138,13 +138,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Mitigation:** none today — the user renames and sets dates by hand after generation.
 - **First noted:** 2026-07-26 (live test of the `MAX_STEPS` fix).
 
-### KI-20 — Itinerary, Daily overview and Full-trip lenses have no navigation entry
-- **Severity:** cosmetic (no code path is broken; a real feature is unreachable through the UI)
-- **Area:** `apps/web/src/components/trip/TripViewTabs.tsx`, `apps/web/src/components/trip/context/LensRouter.tsx`
-- **Symptom:** M10's four-tab strip (Timeline / Day columns / Calendar / Map) matches the redesign, which never contemplated the other three. Their components, `LensRouter` entries and `?lens=` URLs all still work — only the nav affordance is gone.
-- **Fix:** decide whether to re-home or retire them.
-- **First noted:** 2026-08-14 (M10 Wave 2, Phase 1, Task 1.2).
-
 ### KI-15 — AI-planned locations are still model guesses, not cited facts
 - **Severity:** correctness (downgraded 2026-08-06 — silent corruption fixed, the guess remains)
 - **Area:** `apps/web/src/server/ai/geocodeEnrichment.ts`
@@ -348,6 +341,18 @@ needs action — skip this section when triaging.
 - **Proof:** with the probe in place the fixed test reports exactly one failure — `registry entry "ki31-probe" is unused — remove it (a <Preview id> inside a component nothing imports does not count)` — where the old test reported none; with the probe removed, `pnpm exec vitest run -c vitest.unit.config.ts src/lib/preview-registry.test.ts` is 7/7 green, and `pnpm --filter web typecheck` and `pnpm --filter web lint` both pass.
 - **Noticed and left alone:** `components/ui/tabs.tsx` is an unused UI primitive (no Preview id, so out of this entry's blast radius).
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 6). **Resolved:** 2026-08-24 (KI backlog pass).
+### KI-20 — Itinerary, Daily overview and Full-trip lenses have no navigation entry — RESOLVED
+- **Severity (as filed):** cosmetic (no code path is broken; a real feature is unreachable through the UI)
+- **Area:** `apps/web/src/components/trip/TripViewTabs.tsx`, `apps/web/src/components/trip/context/LensRouter.tsx`
+- **Symptom (as filed):** M10's four-tab strip (Timeline / Day columns / Calendar / Map) matches the redesign, which never contemplated the other three. Their components, `LensRouter` entries and `?lens=` URLs all still work — only the nav affordance is gone.
+- **Reproduced before fixing (2026-08-24):** a throwaway vitest file rendered `TripViewTabs` inside a real `LensRouter` and diffed `LENSES` against the rendered `role="tab"` set. Tabs were `["Timeline", "Day columns", "Calendar", "Map"]` while `LENSES` still carried `Itinerary`, `Daily` and `Trip` with no tab of any name; a second case confirmed `?lens=Itinerary` still resolved to a live `Itinerary` lens. Unreachable-but-live, exactly as filed.
+- **Decision (Mitchell, 2026-08-24): retire, not re-home.** The four-tab strip is the redesign as drawn; these three lenses were never contemplated by it. A fifth tab or an overflow menu was the rejected alternative — the "More" popover this strip replaced is precisely what M10 removed.
+- **Fix (2026-08-24):** `LENSES` is now `["Board", "Map", "Schedule"]` — one entry per tab, no tab-less lens left to find. `ItineraryLens.tsx`, `DailyOverviewLens.tsx` and `FullTripOverviewLens.tsx` were deleted, along with the three data modules only they used (`itineraryData.ts`, `dailyOverviewData.ts`, `tripOverviewData.ts`) and those modules' unit tests; `TripBoardScreen.tsx` lost its three imports and three render branches. `formatMoney.ts` and the `ui/` primitives they shared with surviving lenses were left exactly where they are. **Old bookmarks degrade, they do not crash:** `LensRouter`'s derivation already fell back to `"Board"` for any unrecognised `?lens=` value, so `?lens=Itinerary` now silently lands on Day columns — that fallback is now covered by a test rather than merely being true.
+- **Proof:** the same reproduction re-run shows `Itinerary`/`Daily`/`Trip` gone from `LENSES` and `?lens=Itinerary` resolving to `Board`. `pnpm --filter web typecheck` and `pnpm --filter web lint` are clean (nothing dangles — no unresolved import, no stale Preview-registry entry; the three lenses never had one). Narrowed test subset — `TripViewTabs.test.tsx`, `context.test.tsx`, `navigation.test.tsx`, `TripBoardScreen.test.tsx` — is 36/36 green.
+- **Regression test:** `TripViewTabs.test.tsx` gained "exposes exactly one selected tab for every lens LensRouter accepts (KI-20)", which walks every `(lens, view)` pair, asserts exactly one tab is selected in each, and asserts the four tabs are exactly what those states cover. Adding a lens to `LENSES` without a tab for it turns that red. `TripBoardScreen.test.tsx` gained "falls back to the Board lens for a retired `?lens=` value". No test was weakened to close this: the two tests that exercised the retired lenses were removed with them, and the editor open/seed/dispatch/close coverage that happened to be driven through `ItineraryLens` was re-pointed at the surviving Schedule lens's per-activity Edit button rather than dropped.
+- **Two files outside the entry's Area, flagged deliberately:** `e2e/m4-money-and-lenses.spec.ts` read its money rollups off all three retired lenses, so those assertions moved to surviving surfaces (Timeline's per-day cost pill for the day subtotal; the over-budget conflict's own "Trip total (519.00 EUR)" text for the trip-wide rollup) rather than being deleted. `TODO.md`'s design-backlog line no longer lists these three among the surfaces design owes coverage for.
+- **Left standing:** `TripDetail.unscheduledCostSubtotal` is now displayed by no UI at all — the Full-trip and Itinerary lenses were its only readers. It remains in the contract and the projection; surfacing it somewhere is a design question, not part of this retirement.
+- **First noted:** 2026-08-14 (M10 Wave 2, Phase 1, Task 1.2). **Resolved:** 2026-08-24 (retired by decision).
 
 ### KI-18 — Day accents collide: Kyoto and Osaka render identically — RESOLVED
 - **Severity:** correctness (the accent system's entire purpose is defeated)

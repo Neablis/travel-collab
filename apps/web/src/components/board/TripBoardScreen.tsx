@@ -9,9 +9,6 @@ import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { ScheduleLens } from "@/components/lenses/ScheduleLens";
-import { ItineraryLens } from "@/components/lenses/ItineraryLens";
-import { DailyOverviewLens } from "@/components/lenses/DailyOverviewLens";
-import { FullTripOverviewLens } from "@/components/lenses/FullTripOverviewLens";
 import { Heading } from "@/components/ui/heading";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
@@ -314,9 +311,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   }}
                 />
               )}
-              {lens === "Itinerary" && <ItineraryLens detail={activeTrip} onSelectActivity={openEdit} />}
-              {lens === "Daily" && <DailyOverviewLens detail={activeTrip} />}
-              {lens === "Trip" && <FullTripOverviewLens detail={activeTrip} />}
             </PageContainer>
           )}
         </div>
