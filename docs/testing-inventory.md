@@ -254,9 +254,9 @@ prune pass reading only coverage would delete these.
 | `SettingsSheet.test.tsx` | 11 | **keep** (+1 from `TripMoneySettings`) | delete/duplicate/date flows are real |
 | `TripHeader.test.tsx` | 13 | **M10** | M10 phase 6 touches it. 313 LOC |
 | `BudgetChip.test.tsx` | 4 | **merge → 3** | cut "opens settings when clicked" (covered by `SettingsSheet`) |
-| `UnscheduledRack.test.tsx` | 7 | **keep** | the drawer's own disclosure/empty-state behavior; `unscheduledRack.test.ts` covers the *fitting* math separately and correctly |
+| `UnscheduledRack.test.tsx` | 7 | **keep** | the drawer's own disclosure/empty-state behavior; `fitIntoDay.test.ts` covers the *fitting* math separately and correctly |
 | `SyncIndicator` · `TripMetaPill` · `KeepDayFlag` · `FocusProvider` | 9 | **merge → 6** | one Preview/inert each in `KeepDayFlag`; rest keep |
-| `context.test.tsx` · `TripProvider.test.tsx` · `optimistic.test.ts` · `rackDisclosure.test.ts` · `unscheduledRack.test.ts` | 27 | **keep all** | the optimistic/predict spine — KI-5's surface. `optimistic.test.ts` is pure and stays |
+| `context.test.tsx` · `TripProvider.test.tsx` · `optimistic.test.ts` · `rackDisclosure.test.ts` · `fitIntoDay.test.ts` | 27 | **keep all** | the optimistic/predict spine — KI-5's surface. `optimistic.test.ts` is pure and stays |
 
 **Net: −22 tests, −3 jsdom files.**
 

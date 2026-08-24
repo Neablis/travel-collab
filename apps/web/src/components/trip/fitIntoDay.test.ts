@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitIntoDay } from "./unscheduledRack";
+import { fitIntoDay } from "./fitIntoDay";
 
 describe("fitIntoDay", () => {
   it("gives a full hour at the preferred start on an empty day", () => {

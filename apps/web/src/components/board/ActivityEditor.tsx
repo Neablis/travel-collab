@@ -12,7 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { toClockLabel, toMinutes, toTimeString } from "@/lib/time";
-import type { Slot } from "@/components/trip/unscheduledRack";
+import type { Slot } from "@/components/trip/fitIntoDay";
 import {
   closestDurationLabel,
   DEFAULT_DURATION_LABEL,
