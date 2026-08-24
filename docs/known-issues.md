@@ -100,23 +100,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   make the silent loss more consequential.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
-### KI-6 — `listPages` lazy-instantiation race on concurrent first visits
-- **Severity:** correctness (non-atomicity), low likelihood
-- **Area:** `apps/web/src/server/pages.ts` (`listPages`'s zero-rows guard
-  that seeds a trip's default pages on first Notebook visit)
-- **Symptom:** `listPages` seeds default pages (Trip Overview, Day Sheet)
-  the first time it sees zero rows for a trip. Two concurrent first-visit
-  requests (e.g. two tabs opened at once, or a double-fetch) can each
-  observe zero rows before either has inserted, and both seed — producing
-  duplicate default pages for the same trip.
-- **Scope:** known and accepted at the point of writing `pages.ts` (Task
-  3.2); the brief that specified `listPages` explicitly scoped a fix out
-  ("a later task could add a unique partial index; out of scope now").
-- **Fix path:** a unique partial index on `pages (tripId, title)` (or
-  similar) scoped to system-seeded rows, or a transactional
-  check-then-insert, would close the race.
-- **First noted:** 2026-07-21 (M7 Task 3.2 / gate-close).
-
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
 - **Severity:** cleanup (defensive; no known reachable bug today)
 - **Area:** `apps/web/src/server/ai/{gateway,handleAiRequest,planningTools,pageTools}.ts`
@@ -350,6 +333,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-6 — `listPages` lazy-instantiation race on concurrent first visits — RESOLVED
+- **Severity (as filed):** correctness (non-atomicity), low likelihood
+- **Area:** `apps/web/src/server/pages.ts` (`listPages`'s zero-rows guard that seeds a trip's default pages on first Notebook visit)
+- **Symptom (as filed):** two concurrent first-visit requests (two tabs, or a double-fetch) each observe zero rows before either has inserted, and both seed — producing duplicate default pages for the same trip.
+- **Reproduced first, and the reproduction needed one non-obvious ingredient.** A plain `Promise.all([listPages(t), listPages(t)])` against real Postgres *passes* on the unfixed code: with a cold `pg` pool the second call has to open a fresh connection (TCP + auth) while the first reuses a live one, so the first reliably finishes both inserts before the second even issues its `SELECT`. Pre-opening a few pool connections (four `select 1` round-trips fired concurrently before the racers start) removes that handicap and the race fires every time: both callers returned `[ 'Trip Overview', 'Trip Overview', 'Day Sheet', 'Day Sheet' ]` and a subsequent read saw the same four rows. That warm-up is now a commented, load-bearing line of the regression test — without it the test is green on broken code, which is the failure mode this entry was always at risk of.
+- **Fix (2026-08-24):** the partial-index option this entry named first, because it makes the database the arbiter rather than trusting every present and future call site to be careful. Migration `0005_massive_paladin.sql` adds `pages_system_seed_unique`, a unique index on `pages (trip_id, title) WHERE actor_id = 'system'` — scoped to system-seeded rows, so users remain free to name their own pages anything, including "Trip Overview". `listPages` now seeds with one multi-row `INSERT ... ON CONFLICT DO NOTHING` followed by a re-read, instead of a per-row `createPage` loop: the racer that loses inserts nothing and reads back the winner's rows. The zero-rows check stays as an optimisation and its comment now says so explicitly (it previously claimed to *be* the idempotency guarantee — the "comment asserting an invariant nothing enforces" species from the Testing model section). The transactional alternative was rejected: with zero rows there is nothing for `SELECT ... FOR UPDATE` to lock, so it would have needed an advisory lock or `SERIALIZABLE`, both heavier and neither enforceable at the data layer.
+- **The migration de-duplicates before indexing.** Any database that already hit the race holds duplicates and `CREATE UNIQUE INDEX` would fail outright on it, so `0005` first collapses each `(trip_id, title)` system group to its earliest-created row (the one the winning request returned and that any deep link points at). No-op on a clean database. This was exercised for real: the migration was applied to a dev database that the reproduction had *just* polluted with duplicates, and succeeded.
+- **Proof:** the regression test (`pages.int.test.ts`, "does not duplicate default pages when two first visits race") was run in all three states. Pre-fix code with no index: fails, `expected [ 'Day Sheet', 'Day Sheet', 'Trip Overview', 'Trip Overview' ] to deeply equal [ 'Day Sheet', 'Trip Overview' ]`. Pre-fix code *with* the index: fails differently — `duplicate key value violates unique constraint "pages_system_seed_unique"` — which is what confirms the index predicate actually matches the seeded rows, and why the `ON CONFLICT DO NOTHING` in `pages.ts` is required rather than optional (without it the losing tab gets a 500 instead of its pages). Fixed code with the index: passes. Check subset (per `minimal-check-subset`; only `web` files changed, none under `packages/contracts/src`): `pnpm --filter web typecheck` clean, `pnpm --filter web lint` clean, `pnpm --filter web test:int` **80/80 across 12 files** — the whole integration suite, since the skill says integration tests don't scope cleanly file-by-file. The jsdom unit suite was skipped deliberately: no unit test imports `pages.ts` or `db/schema.ts` (both are server-only), and every consumer of the changed code is in the integration suite that ran.
+- **First noted:** 2026-07-21 (M7 Task 3.2 / gate-close). **Resolved:** 2026-08-24 (KI backlog pass).
 
 ### KI-18 — Day accents collide: Kyoto and Osaka render identically — RESOLVED
 - **Severity:** correctness (the accent system's entire purpose is defeated)

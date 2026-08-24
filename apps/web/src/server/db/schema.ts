@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   index,
@@ -53,5 +54,16 @@ export const pages = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
     actorId: text("actor_id").notNull(),
   },
-  (t) => [index("pages_trip").on(t.tripId)],
+  (t) => [
+    index("pages_trip").on(t.tripId),
+    // KI-6: `listPages` seeds a trip's default pages when it sees zero rows.
+    // Two concurrent first visits both observe zero rows, so the check alone
+    // is not atomic — this partial unique index is what actually makes the
+    // seed idempotent (the loser's INSERT ... ON CONFLICT DO NOTHING is a
+    // no-op). Scoped to system-seeded rows so users stay free to name their
+    // own pages anything, including "Trip Overview".
+    uniqueIndex("pages_system_seed_unique")
+      .on(t.tripId, t.title)
+      .where(sql`${t.actorId} = 'system'`),
+  ],
 );
