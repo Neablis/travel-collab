@@ -174,4 +174,25 @@ describe("ActivityEditorSheet", () => {
     expect((screen.getByLabelText("End time") as HTMLInputElement).value).toBe("");
     expect(screen.queryByRole("status")).toBeNull(); // Banner uses role="status"
   });
+
+  // Regression: TripHeader's bare "Add stop" (openCreate() with no prefill
+  // at all — Opener's default here) is the trigger e2e (m1-board.spec.ts,
+  // m2-history.spec.ts) and AGENTS.md's "real" feature list both document as
+  // creating an UNSCHEDULED stop that lands in the rack, not one pinned to
+  // Day 1. An earlier draft of this task had the Day select silently
+  // default to the first day whenever there was no prefill, which changed
+  // that real, tested behavior rather than just relabeling a field.
+  it("stays Unscheduled and dispatches no dayId when opened with no day context", async () => {
+    const dispatch = renderEditorSheet({ mode: "create" });
+
+    expect((screen.getByLabelText("Day") as HTMLSelectElement).value).toBe("");
+    await userEvent.type(screen.getByLabelText("What or where"), "Airport transfer");
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "AddActivity", title: "Airport transfer" }),
+    );
+    const call = dispatch.mock.calls.find((args) => args[0]?.type === "AddActivity");
+    expect(call?.[0].dayId).toBeUndefined();
+  });
 });

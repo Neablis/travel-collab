@@ -432,7 +432,12 @@ not fire. All copy was verified byte-identical to the phase file's table with
 ### Phase 7 (add-stop and new-trip forms) — implemented on `claude/m10-wave2-phase7-forms`, PR open, not yet merged
 
 Two tasks, two commits, on a branch cut from `main` at `624a0db` (post-PR #31).
-Presentational only: **zero diff to `packages/`.** Delegated to two sequential
+**Zero diff to `packages/` or `apps/web/src/server`** — the phase's own
+presentational-only boundary — though the forms this phase rebuilds do
+dispatch real commands (`AddActivity`, `UpdateActivity`, `SetTripDates`,
+`SetTripBudget`, `SetTripCurrency`), so "presentational" describes the diff's
+scope, not the feature's effect (CodeRabbit, PR #32, on an earlier draft of
+this section that conflated the two). Delegated to two sequential
 subagents (Task 7.1 then Task 7.2, same working tree, never concurrent), each
 briefed on the phase file plus the two known traps below; both reviewed by the
 orchestrating session afterward rather than trusted on the subagent's own
@@ -492,8 +497,12 @@ that into an Invalid Date and `toISOString()` threw rather than returning
 garbage. Fixed in `4a383ee`: both the live banner and the final
 `SetTripDates` dispatch now gate on a `YYYY-MM-DD` regex before treating
 `arrive` as usable. Re-verified in the browser (identical keystroke sequence,
-no crash, correct derived date range) and the full unit suite re-run clean
-afterward. This is exactly the "a green suite won't tell you" class of bug
+no crash, correct derived date range) and the full unit suite re-run with no
+*additional* failures beyond KI-33's pre-existing 25 (CodeRabbit, PR #32: the
+first draft of this line said "re-run clean," which reads as contradicting
+the 640/665 figure a few paragraphs below — both describe the same run,
+neither is wrong, but only this phrasing says so without a reader having to
+reconcile the two). This is exactly the "a green suite won't tell you" class of bug
 `AGENTS.md`'s testing philosophy warns about — neither given nor
 subagent-written test happened to type a date one keystroke at a time with a
 chip already selected.

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Money } from "@tc/contracts";
-import type { ApiResult, BoardCommand } from "@/lib/apiClient";
+import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { Sheet } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -83,9 +83,13 @@ export type NewTripWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   createTrip: (input: { name: string }) => Promise<ApiResult<{ tripId: string }>>;
-  dispatch: (command: BoardCommand) => void;
-  // Called once the trip exists, after any dates/budget dispatches have been
-  // fired — the caller's hook for navigating to the new trip.
+  // Awaited, not fire-and-forget (CodeRabbit, PR #32): submit() waits for
+  // each dispatched command to confirm — or report a real failure — before
+  // navigating, rather than racing an in-flight SetTripDates/Budget/Currency
+  // against the trip page's own first load.
+  dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
+  // Called once the trip exists AND every dispatched command it needed has
+  // confirmed — the caller's hook for navigating to the new trip.
   onCreated?: (tripId: string) => void;
 };
 
@@ -128,6 +132,12 @@ function WizardBody({
   const [pace, setPace] = useState<PaceValue>(PACE_OPTIONS[1].value);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set once createTrip succeeds, so a retry after a failed dates/budget
+  // dispatch re-sends only the failed commands rather than calling
+  // createTrip again and minting a second trip (CodeRabbit, PR #32 — the
+  // original version fired every dispatch without awaiting it and navigated
+  // regardless of whether any of them actually confirmed).
+  const [createdTripId, setCreatedTripId] = useState<string | null>(null);
 
   const trimmedName = name.trim();
 
@@ -140,28 +150,52 @@ function WizardBody({
     if (trimmedName === "" || submitting) return;
     setError(null);
     setSubmitting(true);
-    const result = await createTrip({ name: trimmedName });
-    if (!result || !result.ok) {
-      setError(result?.error?.message ?? "Something went wrong");
-      setSubmitting(false);
-      return;
+
+    let tripId = createdTripId;
+    if (tripId === null) {
+      const result = await createTrip({ name: trimmedName });
+      if (!result || !result.ok) {
+        setError(result?.error?.message ?? "Something went wrong");
+        setSubmitting(false);
+        return;
+      }
+      tripId = result.value.tripId;
+      setCreatedTripId(tripId);
     }
-    const { tripId } = result.value;
+
     if (applyDatesAndBudget) {
       // Sequence per the plan: create with the name, then apply dates and
       // budget to the returned tripId. Each only fires if the user actually
       // gave it something — a fresh trip already has no dates and USD/no
-      // budget, so an untouched field needs no command at all.
+      // budget, so an untouched field needs no command at all. Awaited and
+      // checked in turn — a failed command stops here with an inline error
+      // rather than navigating past it, and the trip (already real at this
+      // point) is left exactly as far along as it got.
       if (ISO_DATE.test(arrive) && selectedDays !== null) {
         const endDate = addDaysIso(arrive, selectedDays - 1);
         const newDayIds = Array.from({ length: selectedDays }, () => crypto.randomUUID());
-        dispatch({ type: "SetTripDates", tripId, startDate: arrive, endDate, newDayIds });
+        const result = await dispatch({ type: "SetTripDates", tripId, startDate: arrive, endDate, newDayIds });
+        if (!result.ok) {
+          setError(`Trip created, but setting dates failed: ${result.error.message}. Try again.`);
+          setSubmitting(false);
+          return;
+        }
       }
       if (budget !== null) {
-        dispatch({ type: "SetTripBudget", tripId, budget });
+        const result = await dispatch({ type: "SetTripBudget", tripId, budget });
+        if (!result.ok) {
+          setError(`Trip created, but setting the budget failed: ${result.error.message}. Try again.`);
+          setSubmitting(false);
+          return;
+        }
       }
       if (currency !== DEFAULT_CURRENCY) {
-        dispatch({ type: "SetTripCurrency", tripId, currency });
+        const result = await dispatch({ type: "SetTripCurrency", tripId, currency });
+        if (!result.ok) {
+          setError(`Trip created, but setting the currency failed: ${result.error.message}. Try again.`);
+          setSubmitting(false);
+          return;
+        }
       }
     }
     setSubmitting(false);
@@ -376,7 +410,12 @@ function WizardBody({
 
       <DialogFooter>
         {step > 1 && (
-          <Button type="button" variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={submitting}
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+          >
             Back
           </Button>
         )}

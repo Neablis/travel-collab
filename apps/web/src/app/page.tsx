@@ -229,9 +229,7 @@ export default function Home() {
         open={newTripOpen}
         onOpenChange={setNewTripOpen}
         createTrip={createTripApi}
-        dispatch={(command) => {
-          void sendTripCommand(command);
-        }}
+        dispatch={sendTripCommand}
         onCreated={(tripId) => router.push(`/trips/${tripId}`)}
       />
       {nextTrip && (

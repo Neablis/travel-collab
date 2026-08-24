@@ -118,7 +118,19 @@ export function ActivityEditorSheet() {
     <Sheet title={title} open={open} onOpenChange={(next) => { if (!next) close(); }}>
       {open && (
         <ActivityEditor
-          key={state.mode === "edit" ? state.activityId : "create"}
+          // Edit mode's key includes whether the real activity has loaded
+          // yet, not just its id — activeTrip is null only during a trip's
+          // very first fetch (TripProvider never nulls it out again once
+          // loaded), and nothing today can trigger openEdit before that
+          // fetch resolves (every caller only renders a clickable activity
+          // once activeTrip itself is non-null). Still worth guarding: if
+          // that ever changes (e.g. a future deep-link opens edit mode on
+          // load), a null `initial` would otherwise seed ActivityEditor's
+          // fields blank once and never re-seed when the real data arrives
+          // a moment later, since React reuses the instance across
+          // re-renders with the same key — a save would then silently
+          // overwrite real fields with blanks (CodeRabbit, PR #32).
+          key={state.mode === "edit" ? `${state.activityId}-${editingActivity ? "loaded" : "pending"}` : "create"}
           mode={state.mode === "edit" ? "edit" : "create"}
           initial={state.mode === "edit" ? editingActivity : createInitial}
           days={dayOptions}

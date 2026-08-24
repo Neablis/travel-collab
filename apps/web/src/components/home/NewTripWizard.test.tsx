@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ApiResult, BoardCommand } from "@/lib/apiClient";
+import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { NewTripWizard } from "./NewTripWizard";
 
 afterEach(cleanup);
@@ -10,7 +10,13 @@ const user = userEvent.setup({ delay: null });
 
 function renderWizard() {
   const createTrip = vi.fn<(input: { name: string }) => Promise<ApiResult<{ tripId: string }>>>();
-  const dispatch = vi.fn<(command: BoardCommand) => void>();
+  // Resolves ok by default (submit() now awaits and checks each dispatch,
+  // PR #32) — individual tests override with mockResolvedValueOnce/reject
+  // only when they specifically want a failure path.
+  const dispatch = vi.fn<(command: BoardCommand) => Promise<ApiResult<CommandOutcome>>>().mockResolvedValue({
+    ok: true,
+    value: {} as CommandOutcome,
+  });
   const onOpenChange = vi.fn();
   const onCreated = vi.fn();
   render(
@@ -151,5 +157,57 @@ describe("NewTripWizard", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/name already taken/i);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  // Regression (CodeRabbit, PR #32): submit() used to fire every dates/
+  // budget/currency dispatch without awaiting it, then navigate
+  // unconditionally — a failed command was silently lost, no error, no
+  // sign anything was wrong. Now each dispatch is awaited and checked
+  // before the next one, and a failure stops there with an inline error
+  // rather than navigating past it.
+  it("surfaces a failed setup command inline and does not navigate", async () => {
+    const { createTrip, dispatch, onCreated } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-fails-dates" } });
+    dispatch.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "server exploded" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  // The other half of the same fix: a failed setup command must not leave
+  // a retry free to mint a second trip — createTrip only fires once across
+  // both attempts, and the second attempt reuses the tripId the first one
+  // already created.
+  it("retrying after a failed setup command does not create a second trip", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-retry" } });
+    dispatch.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "server exploded" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripDates", tripId: "trip-retry" }),
+      ),
+    );
+    expect(createTrip).toHaveBeenCalledTimes(1);
   });
 });

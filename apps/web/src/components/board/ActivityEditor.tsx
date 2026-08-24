@@ -12,7 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { toClockLabel, toMinutes, toTimeString } from "@/lib/time";
-import { fitIntoDay, type Slot } from "@/components/trip/unscheduledRack";
+import type { Slot } from "@/components/trip/unscheduledRack";
 import {
   closestDurationLabel,
   DEFAULT_DURATION_LABEL,
@@ -96,21 +96,35 @@ export function ActivityEditor({
 
   // `days` (and therefore `defaultDayId`) can arrive empty on first render —
   // activeTrip loads asynchronously in ActivityEditorSheet — so the default
-  // selection is applied once real days show up, not just at mount. Guarded
-  // on `selectedDayId === ""` so it never overwrites a user's own choice.
-  // Create mode falls back to the first day when there is no prefill; edit
-  // mode does not — an activity with no day (the backlog) should stay
-  // unselected rather than being pinned to Day 1 by this effect.
+  // selection is applied once a real defaultDayId shows up, not just at
+  // mount. Guarded on `selectedDayId === ""` so it never overwrites a user's
+  // own choice. Deliberately does NOT fall back to the first day when there
+  // is no prefill at all (e.g. TripHeader's bare "Add stop", openCreate()
+  // with no dayId): that is the header's own create-unscheduled trigger —
+  // AGENTS.md's "real" feature list names the unscheduled rack "incl. drag
+  // both ways", and e2e (m1-board.spec.ts, m2-history.spec.ts) asserts stops
+  // created this way land in the rack, not on Day 1. Leaving selectedDayId
+  // at "" surfaces the Day select's own "Unscheduled" option instead, and
+  // the resulting dayId: null / undefined round-trips through AddActivity
+  // exactly as it did before this task.
   useEffect(() => {
-    if (selectedDayId !== "") return;
-    if (defaultDayId !== undefined) {
-      setSelectedDayId(defaultDayId);
-    } else if (mode === "create" && days[0] !== undefined) {
-      setSelectedDayId(days[0].dayId);
-    }
-  }, [days, defaultDayId, mode, selectedDayId]);
+    if (selectedDayId !== "" || defaultDayId === undefined) return;
+    setSelectedDayId(defaultDayId);
+  }, [defaultDayId, selectedDayId]);
 
   const selectedDay = days.find((d) => d.dayId === selectedDayId);
+
+  // The window the availability Banner below reports on — must match what
+  // submit() below actually saves (start + selected duration in create
+  // mode, the explicit End time in edit mode), not some other window a
+  // separate suggestion algorithm might prefer (CodeRabbit, PR #32).
+  const actualEnd =
+    mode === "edit" ? end : start !== "" ? toTimeString(toMinutes(start) + durationMinutes(durationLabel)) : "";
+  const overlapsExisting =
+    selectedDay !== undefined &&
+    start !== "" &&
+    actualEnd !== "" &&
+    selectedDay.existing.some((w) => toMinutes(start) < toMinutes(w.end) && toMinutes(w.start) < toMinutes(actualEnd));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -238,17 +252,24 @@ export function ActivityEditor({
         )}
       </div>
 
-      {selectedDay && start !== "" ? (
-        <Banner variant="success">
-          {(() => {
-            const fitted = fitIntoDay(selectedDay.existing, start);
-            const slot = `${toClockLabel(fitted.start)}–${toClockLabel(fitted.end)}`;
-            const otherCount = selectedDay.existing.length;
-            return otherCount === 0
-              ? `Open day — fits ${slot} with room to spare.`
-              : `Fits ${slot}, alongside ${otherCount} other stop${otherCount === 1 ? "" : "s"} already on this day.`;
-          })()}
-        </Banner>
+      {selectedDay && start !== "" && actualEnd !== "" ? (
+        overlapsExisting ? null : (
+          // "success" only when the window actually about to be saved is
+          // clear — describing start+How-long (or the explicit edit-mode
+          // end), not some other window fitIntoDay might have suggested
+          // instead. fitIntoDay picks its OWN duration from the day's free
+          // gaps, ignoring the user's own "How long" choice, so calling it
+          // here could report a slot that fits while a Half day selection
+          // actually saves a longer, conflicting one (CodeRabbit, PR #32).
+          // A real overlap still isn't blocked — Invariant 3, conflicts are
+          // data, not errors — it just doesn't get a false "Fits" banner;
+          // the domain's own time-overlap conflict surfaces it after save.
+          <Banner variant="success">
+            {selectedDay.existing.length === 0
+              ? `Open day — fits ${toClockLabel(start)}–${toClockLabel(actualEnd)} with room to spare.`
+              : `Fits ${toClockLabel(start)}–${toClockLabel(actualEnd)}, alongside ${selectedDay.existing.length} other stop${selectedDay.existing.length === 1 ? "" : "s"} already on this day.`}
+          </Banner>
+        )
       ) : null}
 
       <FormField
