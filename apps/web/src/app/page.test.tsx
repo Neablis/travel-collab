@@ -425,6 +425,40 @@ describe("Home page head", () => {
     expect(screen.getByTestId("page-date-line")).toBeTruthy();
   });
 
+  // CodeRabbit (PR #35): the date line used to compute `new Date()` inline
+  // during render, which — since Next.js still server-renders a "use
+  // client" component's initial HTML — could disagree with the browser's
+  // own clock across a timezone boundary and either throw a hydration
+  // mismatch or, worse, silently show the WRONG day until some unrelated
+  // re-render happened to overwrite it. The fix moves the computation into
+  // a client-only effect (`dateLabel` starts `null`, so there's nothing for
+  // a server render to get wrong), which this test can't observe directly
+  // — React Testing Library's `render` flushes a synchronous, no-async-work
+  // effect like this one before returning, so there's no "still empty"
+  // window to catch here. What the test DOES lock in, which is the actual
+  // property that matters: the label reflects the VIEWER's local calendar
+  // date, not a UTC one, at an instant deliberately chosen to fall on
+  // different calendar days in UTC vs. a real negative-offset timezone.
+  it("renders the viewer's local date, not a UTC-shifted one, across a day boundary", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "Pacific/Honolulu"; // UTC-10, no DST -- far enough from UTC to guarantee a boundary crossing below
+    try {
+      vi.useFakeTimers();
+      // 2026-03-02T05:00:00Z is already March 2nd in UTC, but still March
+      // 1st in Honolulu -- exactly the class of instant where a
+      // server-clock (often UTC) render and the viewer's own local render
+      // would disagree if the date were computed eagerly.
+      vi.setSystemTime(new Date("2026-03-02T05:00:00Z"));
+      renderHome();
+      const dateLine = screen.getByTestId("page-date-line");
+      expect(dateLine.textContent).toMatch(/mar(ch)? 1, 2026/i);
+      expect(dateLine.textContent).not.toMatch(/mar(ch)? 2, 2026/i);
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("labels the trips grid", async () => {
     renderHome();
     expect(await screen.findByRole("heading", { name: "All trips" })).toBeTruthy();

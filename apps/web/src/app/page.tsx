@@ -42,6 +42,19 @@ function todayIso(): string {
 
 export default function Home() {
   const router = useRouter();
+  // `todayIso()` reads the wall clock, so evaluating it during render would
+  // make the server's render (server's local time) and the browser's
+  // hydration render (the actual viewer's local time) disagree whenever
+  // they're in different timezones — a real hydration mismatch, not just a
+  // cosmetic one, since it can also just be a WRONG date until some later,
+  // unrelated re-render happens to overwrite it (CodeRabbit, PR #35).
+  // `null` until the client's own effect runs keeps the server and the
+  // client's first paint identical (both render nothing here), then fills
+  // in the viewer's actual local date once it's safe to read.
+  const [dateLabel, setDateLabel] = useState<string | null>(null);
+  useEffect(() => {
+    setDateLabel(formatTripDateLong(todayIso()));
+  }, []);
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +241,7 @@ export default function Home() {
               wants, so this reuses it rather than hand-rolling a new
               combination for one line. */}
           <DataText as="time" size="xs" data-testid="page-date-line" className="uppercase tracking-wide">
-            {formatTripDateLong(todayIso())}
+            {dateLabel}
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>

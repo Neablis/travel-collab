@@ -8,12 +8,13 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 **Last updated: 2026-08-24 — M10 Wave 2 Phase 8 (correctness and polish)
 implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, branched from `main`
 at `39ccea1` (post-PR #32 and PR #33). All seven tasks done, each its own
-commit, in phase-file order; PR not yet opened as of this line — see "Phase
-8" under "In flight" below for the full record, including a from-scratch
-local environment setup that let this session get a genuine local
-`test:e2e:ci-like` signal for the first time since KI-33 started blocking it
-(Phase 7), and a real (not fabricated) fix for KI-18, the accent-collision
-bug this phase exists to close.**
+commit, in phase-file order; PR #35 open, CI green (all three required jobs
+plus `migrate-production` correctly skipped), CodeRabbit review addressed,
+awaiting merge — see "Phase 8" under "In flight" below for the full record,
+including a from-scratch local environment setup that let this session get a
+genuine local `test:e2e:ci-like` signal for the first time since KI-33
+started blocking it (Phase 7), and a real (not fabricated) fix for KI-18, the
+accent-collision bug this phase exists to close.**
 
 **Previously (2026-08-24): M10 Wave 2 Phase 7 (add-stop and new-trip forms)
 implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at
@@ -624,7 +625,7 @@ the same 25 KI-33 failures and nothing else, confirmed identical across
 every round above. `migrate-production` correctly skips on a PR (only runs
 on merge to `main`).
 
-### Phase 8 (correctness and polish) — implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, not yet PR'd
+### Phase 8 (correctness and polish) — implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35 open awaiting merge
 
 Seven independent tasks, seven commits, on a branch cut from `main` at
 `39ccea1` (post-PR #32/#33 — confirmed no stray `claude/*` branch already
@@ -825,8 +826,9 @@ each task's own local check):**
     "In flight" above for what shipped, the crash bug found via manual
     browser verification, two rounds of CI/CodeRabbit fixes, and KI-33.
   - **Phase 8 (polish, incl. home) — implemented on
-    `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, not
-    yet PR'd.** See the "Phase 8" section under "In flight" above: leg-line
+    `claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR
+    #35 open awaiting merge.** See the "Phase 8" section under "In flight"
+    above: leg-line
     copy, KI-18 closed for real (collision-probed day accents), day-chip
     typography, Preview badge non-overlap, home rhythm/heading/
     singularization/real-conflict-count stat tile plus KI-34, calendar
@@ -996,8 +998,8 @@ wanting a human; PR #30's Vercel preview is the way to close it.
 follow-up PR #33) — see its section under "In flight" for the full record.
 
 **Phase 8 (correctness and polish) implemented on
-`claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, not yet
-opened as a PR** — see its section under "In flight" for the full record.
+`claude/m10-wave2-phase8-polish-nuhu7q`, all seven tasks committed, PR #35
+open** — see its section under "In flight" for the full record.
 KI-18 (the accent-collision bug the phase exists to fix) is closed for real;
 two new known issues filed (KI-34, KI-35), both contract-change-gated and
 out of this plan's scope by design. Full DoD verification (typecheck, lint,
@@ -1006,11 +1008,16 @@ blocking it — a genuine local `test:e2e:ci-like` run, after standing up a
 local Postgres and fixing a Playwright browser-build mismatch that KI-32
 under-described for the headless-shell flavor) all green except one e2e
 flake that is KI-28's already-documented symptom verbatim, not a new
-finding. **Needs from a human:** open the PR (this session did the
-implementation and verification but per this task's own instructions the PR
-open/push already happened — see below); review the Task 8.5 judgment call
-(the TripCard-dates test is `it.skip`'d, not forced green, because it
-directly requires the contract change KI-34 defers).
+finding. CI on PR #35 went green on all three required jobs; CodeRabbit's
+review raised one real Major finding (a date-line hydration/timezone risk —
+`todayIso()` was computed inline during render, fixed to compute in a
+client-only effect instead) and three Minor ones (looser-than-intended
+`Preview` test assertions, KI-34's severity conflating a correctness defect
+with a cosmetic one, and this file's own PR-status wording lagging the PR's
+actual existence) — all four fixed and pushed. **Needs from a human:**
+review and merge PR #35; review the Task 8.5 judgment call (the
+TripCard-dates test is `it.skip`'d, not forced green, because it directly
+requires the contract change KI-34 defers).
 
 Continue M10 Wave 2's remaining phases — **8b, then 1b** — once Phase 8's PR
 merges. **Phases 8b and 1b are the 2026-08-23 design sync's approved
