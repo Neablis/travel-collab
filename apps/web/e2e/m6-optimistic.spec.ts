@@ -24,7 +24,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   const confirmed = page.waitForResponse(
     (r) => /\/api\/trips\/[^/]+\/commands$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(days).toHaveCount(before + 1);
 
   // Only now wait for the command to actually land server-side — reloading
@@ -68,7 +68,7 @@ test("a rejected change reverts and shows an error", async ({ page }) => {
   const days = page.getByTestId("day-column");
   const before = await days.count();
 
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   // Applied optimistically first...
   await expect(days).toHaveCount(before + 1);
   // ...then reverted once the forced 500 comes back.

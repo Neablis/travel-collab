@@ -118,6 +118,17 @@ export function CalendarLens({
                   </Text>
                 )}
                 {moreCount > 0 && <DataText size="xs">+{moreCount} more</DataText>}
+                {/* Phase 6, copy table row "calendar empty day". Only in-trip
+                    cells reach here — the !cell.inTrip branch above returns
+                    first — so a day outside the trip stays a bare, dimmed date
+                    number and never claims a plan is missing from it. Days
+                    holding zero stops are valid in the projection, so this is
+                    an honest reading of real state, not a placeholder. */}
+                {cell.activityIds.length === 0 && (
+                  <Text as="span" variant="muted" className="w-full truncate text-xs">
+                    Nothing planned yet
+                  </Text>
+                )}
               </Button>
             );
           })}

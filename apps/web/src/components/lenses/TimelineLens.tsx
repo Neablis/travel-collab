@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Preview } from "@/components/ui/preview";
+import { EndOfTrip } from "@/components/trip/EndOfTrip";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { chipModel } from "@/components/trip/DayChips";
 import { useEditor } from "@/components/trip/context/EditorHost";
@@ -20,7 +21,7 @@ import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures"
 import { dayAccentFor, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 import { initialsFor } from "@/lib/initials";
-import { formatDuration, toMinutes, toTimeString } from "@/lib/time";
+import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
 import { cn } from "@/lib/cn";
@@ -58,18 +59,80 @@ const INK_TEXT: Record<AccentFamily, string> = {
   danger: "text-danger-ink",
 };
 
-const DAY_START_MIN = 6 * 60; // 06:00 — only used as the fallback default for a day with no timed activities yet, no longer drawn as a visible axis
+// 09:00 on a day with nothing timed on it yet. This replaces the old
+// DAY_START_MIN (06:00), which was a leftover from when the timeline drew a
+// visible 06:00→midnight axis: the axis is long gone, and 06:00 was never a
+// time anyone wants a stop prefilled at. 09:00 is the same default the
+// unscheduled rack already places into an empty day
+// (trip/unscheduledRack.ts's DEFAULT_START_MIN), so the two ways of putting a
+// first stop on a bare day now agree. It stays a local constant rather than
+// moving to lib/time.ts because it is a product default, not clock
+// arithmetic — lib/time.ts owns the latter.
+const EMPTY_DAY_START_MIN = 9 * 60;
 const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
 
-// The day-foot "+ Add stop" trigger's timeWindow: start right after the
-// day's last timed activity ends (so a new activity slots in chronologically
-// without the user having to retype a time), or DAY_START_MIN if there are
-// no timed activities yet. Unchanged from the pre-restyle implementation.
-function nextSlot(row: TimelineRow): { start: string; end: string } {
-  const lastEnd = row.timed.reduce((max, item) => Math.max(max, toMinutes(item.end)), DAY_START_MIN);
-  const start = row.timed.length > 0 ? lastEnd : DAY_START_MIN;
-  return { start: toTimeString(start), end: toTimeString(start + DEFAULT_SLOT_MIN) };
+// The latest wall-clock time anything on this day ends, raw "HH:MM", or null
+// when the day has no timed activity to end after. `row.timed` is sorted by
+// START, so the last element is not necessarily the last to finish.
+function lastEndTime(row: TimelineRow): string | null {
+  let latest: string | null = null;
+  for (const item of row.timed) {
+    if (latest === null || toMinutes(item.end) > toMinutes(latest)) latest = item.end;
+  }
+  return latest;
 }
+
+/**
+ * The prefilled timeWindow behind both add-a-stop affordances on a day (the
+ * day-header "Add stop" button and the per-day dashed add row) — or `null`
+ * when the day has no room left for one.
+ *
+ * KI-30: this used to be
+ * `{ start: toTimeString(lastEnd), end: toTimeString(lastEnd + 60) }`.
+ * `toTimeString` clamps *silently* at DAY_END_MIN, so on a day whose last stop
+ * already ends at or near midnight both ends collapsed to "23:59" — and
+ * contracts' `TimeWindow` refines `start < end`, so the UI was offering a
+ * window the domain would reject. The rule below is the one `overlapData.ts`'s
+ * `repairedEnd()` already established for the overlap fix: do the arithmetic
+ * in minutes, compare against DAY_END_MIN *before* formatting, and never let
+ * the clamp be what decides the answer.
+ *
+ * Where it differs from `repairedEnd()` is deliberate. The overlap fix must
+ * keep the moved stop's own duration, so a duration that will not fit has no
+ * honest repair and the fix is withheld. A brand-new stop has no duration to
+ * keep, so a day with 29 minutes left can still be offered those 29 minutes:
+ * a short window is a real, valid, editable suggestion. Only a day that
+ * already runs to 23:59 has nothing left to offer, and there `null` means the
+ * affordance is WITHHELD — not degraded — exactly as a null `suggestedEnd`
+ * makes OverlapWarning render no fix button at all.
+ */
+export function nextSlot(row: TimelineRow): { start: string; end: string } | null {
+  const lastEnd = lastEndTime(row);
+  if (lastEnd === null) {
+    return { start: toTimeString(EMPTY_DAY_START_MIN), end: toTimeString(EMPTY_DAY_START_MIN + DEFAULT_SLOT_MIN) };
+  }
+  const start = toMinutes(lastEnd);
+  if (start >= DAY_END_MIN) return null;
+  return { start: toTimeString(start), end: toTimeString(Math.min(start + DEFAULT_SLOT_MIN, DAY_END_MIN)) };
+}
+
+// Copy table (phase-6-growth.md), verbatim: "Add a stop after {last end time}"
+// on a day that already has something timed on it, "Add the first stop"
+// otherwise. `toClockLabel` is what turns the contract's "21:00" into the
+// design's "9 pm" — the same formatter the overlap warning's copy uses.
+//
+// A day holding only UNTIMED stops takes the "Add the first stop" branch: it
+// has no last end time to name, so the other string is unwritable, and the
+// slot it prefills (09:00) really is the day's first timed stop. The copy
+// table offers no third string and this phase does not invent one.
+function addRowLabel(row: TimelineRow): string {
+  const lastEnd = lastEndTime(row);
+  return lastEnd === null ? "Add the first stop" : `Add a stop after ${toClockLabel(lastEnd)}`;
+}
+
+// Shown on the day-header "Add stop" button when nextSlot() withholds a slot,
+// so the disabled control says why rather than just going grey.
+const NO_ROOM_LEFT = "This day already runs to midnight — there is no free time left to add a stop.";
 
 // Real, honest sum of each timed activity's own duration (end − start) —
 // NOT the elapsed span from first start to last end, which would count idle
@@ -306,7 +369,7 @@ export function TimelineLens({
   // above always agree on the same day's color and city.
   const days = useMemo(() => chipModel(detail), [detail]);
   const { openCreate } = useEditor();
-  const { focusedDay } = useFocus();
+  const { focusedDay, setFocusedDay } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   // Every activityId named as a subject of a badge-worthy conflict — the same
@@ -344,10 +407,30 @@ export function TimelineLens({
     onCommand?.({ type: "DismissConflict", tripId: detail.tripId, conflictId: overlap.conflictId });
   };
 
+  // Appending a day is a real command (contracts' AddDay — already in the
+  // TripCommand union, nothing new), raised through the SAME `onCommand` seam
+  // the overlap fix and dismissal use rather than a second prop: ScheduleLens
+  // forwards `onCommand` straight through, and TripBoardScreen hands whatever
+  // arrives to the same `dispatch` its Board `onAddDay` callback uses. That is
+  // also why the command is built here rather than in the screen — this seam
+  // carries fully-formed commands, and the lens already builds its other two
+  // the same way (client-minted ids, AGENTS.md invariant 4, the same reason
+  // AddDay carries its own dayId at all).
+  const addDay = () => {
+    onCommand?.({ type: "AddDay", tripId: detail.tripId, dayId: crypto.randomUUID() });
+    // Scroll-to-the-new-day reuses the focus effect below instead of inventing
+    // a second scroll mechanism: a day is always APPENDED, so the new day's
+    // index is the current day count. Its header ref only attaches on the
+    // render that actually brings the day in, which is why the effect watches
+    // `rows.length` as well as `focusedDay` — without it the effect would fire
+    // once, against a ref that is still null, and never again.
+    setFocusedDay(rows.length);
+  };
+
   useEffect(() => {
     if (focusedDay === null) return;
     headerRefs.current[focusedDay]?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusedDay]);
+  }, [focusedDay, rows.length]);
 
   if (rows.length === 0) {
     return <EmptyState title="No days yet." />;
@@ -383,6 +466,15 @@ export function TimelineLens({
         // Every live, undismissed time-overlap on this day, already resolved
         // to the stop the warning hangs off (overlapData.ts).
         const overlaps = overlapsForDay(detail, row.dayId);
+        // KI-30: one decision, both affordances. `null` means the day has no
+        // free minute left, so the dashed add row is not rendered at all and
+        // the header's "Add stop" goes disabled with a reason — rather than
+        // either of them opening the editor on a window the domain rejects.
+        const addSlot = nextSlot(row);
+        // "Empty" for the copy table's purposes is a day with nothing on it at
+        // all — no timed stops AND no untimed ones. A day holding only untimed
+        // stops is not empty; it has stops, they just have no times yet.
+        const isEmptyDay = stopCount === 0;
 
         return (
           <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="flex flex-col">
@@ -452,25 +544,53 @@ export function TimelineLens({
                   variant="secondary"
                   size="sm"
                   data-testid={`timeline-add-${row.dayId}`}
-                  onClick={() => openCreate({ dayId: row.dayId, timeWindow: nextSlot(row) })}
+                  disabled={addSlot === null}
+                  title={addSlot === null ? NO_ROOM_LEFT : undefined}
+                  onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
                 >
                   Add stop
                 </Button>
               </div>
+              {/* Row 2 is the day's route line. On an empty day there is no
+                  route to summarise and "0 stops" is a worse thing to say than
+                  the design's own copy, so the line carries that copy instead
+                  — same place, same type treatment, no extra row invented. */}
               <div className={cn("flex flex-wrap items-baseline gap-1.5 font-mono text-xs", INK_TEXT[accent.ink])}>
-                <span>
-                  {stopCount} stop{stopCount === 1 ? "" : "s"}
-                </span>
-                {route && (
+                {isEmptyDay ? (
+                  <span>No stops yet — add one, or drop a saved day onto it</span>
+                ) : (
                   <>
-                    <span>·</span>
-                    <span>{route}</span>
+                    <span>
+                      {stopCount} stop{stopCount === 1 ? "" : "s"}
+                    </span>
+                    {route && (
+                      <>
+                        <span>·</span>
+                        <span>{route}</span>
+                      </>
+                    )}
                   </>
                 )}
               </div>
             </div>
 
             <div className="flex flex-col gap-3 pt-4">
+              {/* The day's summary, where its stops would otherwise be. Sits
+                  in the same 92px/1fr grid every stop row and leg uses, so it
+                  lines up with the cards above and below it instead of
+                  floating in the gutter. */}
+              {isEmptyDay && (
+                <div
+                  className="grid gap-4"
+                  // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                  style={{ gridTemplateColumns: "92px 1fr" }}
+                >
+                  <div />
+                  <Text as="span" variant="secondary" data-testid={`timeline-empty-${row.dayId}`}>
+                    Nothing planned yet
+                  </Text>
+                </div>
+              )}
               {row.timed.map((item, itemIndex) => {
                 const activity = detail.activities[item.activityId];
                 if (!activity) return null;
@@ -544,10 +664,34 @@ export function TimelineLens({
                   <GhostProposal proposal={PREVIEW_GHOST_PROPOSAL} onKeep={() => {}} onDiscard={() => {}} />
                 </Preview>
               )}
+              {/* The per-day add row: the day's own closing affordance, last
+                  child of the day's body — the same position (and the same
+                  dashed treatment) Column.tsx:125-135 gives the day columns'
+                  "+ Add", which the phase file names as the reference.
+                  Withheld entirely when nextSlot has no window to offer; see
+                  its comment for why that is a withholding and not a
+                  degradation. */}
+              {addSlot !== null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid={`timeline-add-row-${row.dayId}`}
+                  onClick={() => openCreate({ dayId: row.dayId, timeWindow: addSlot })}
+                  className="w-full justify-center rounded-lg border border-dashed border-border-strong p-2 text-slate"
+                  // eslint-disable-next-line no-restricted-syntax -- 13px add-row label (phase-6-growth.md design values) has no token equivalent (between text-xs/12px and text-sm/14px); `height: auto` releases Button size="sm"'s fixed h-7 so the specified 8px padding is what sets the height
+                  style={{ fontSize: "13px", height: "auto" }}
+                >
+                  {addRowLabel(row)}
+                </Button>
+              )}
             </div>
           </div>
         );
       })}
+      {/* "Add a day" is real; the saved-day half of the block stays Preview.
+          Rendered after the last day, and only when there is a last day — a
+          trip with no days at all takes the EmptyState return above. */}
+      <EndOfTrip onAddDay={addDay} />
     </div>
   );
 }

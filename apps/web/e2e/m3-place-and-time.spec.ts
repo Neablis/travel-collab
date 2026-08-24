@@ -30,9 +30,9 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // -- start date: calendar shows the derived dates --

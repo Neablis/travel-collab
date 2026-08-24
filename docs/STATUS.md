@@ -5,7 +5,15 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-23 (a design sync landed in the repo, was reviewed and
+**Last updated: 2026-08-24 — M10 Wave 2 Phase 6 (growing the trip) is built and
+its PR is open; see "Phase 6" under "In flight" below. It closes **KI-30** and
+files **KI-31** and **KI-32** rather than absorbing them. Its Step 4 (the manual
+browser walk) was not performed — no interactive browser in the container — but
+the phase's gate is scripted as `e2e/m10-growth.spec.ts` instead, which is a
+narrower claim than a human walking it; the PR's Vercel preview is how that gets
+genuinely ticked.**
+
+**Previously (2026-08-23): a design sync landed in the repo, was reviewed and
 routed, and Mitchell's calls are recorded — see "Design sync" below. No code
 changed. **It does widen M10's gate**, by two approved phases (8b and 1b), and
 it adds **M15 Front door** between M10 and M9 (ADR-021). Same day: a test-suite overhaul, Phases 0-4, landed as an
@@ -347,6 +355,69 @@ Re-verified after the fix: unit **600/600** (98 files), typecheck, lint and the
 colour wall clean, and the full e2e suite **21/21** against a production build.
 Both review threads are answered and resolved.
 
+### Phase 6 (growing the trip) — built 2026-08-24, PR open
+
+Two commits on `claude/m10-wave2-phase6-8s0713`, branched from `main` at
+`df1b05f` (post-PR #29). Presentational only: **zero diff to `packages/` and to
+`apps/web/src/server`**, no new commands, no new contract fields, no new
+`<Preview>` registry entries.
+
+- `5ce3759` — **the Timeline half.** New `components/trip/EndOfTrip.tsx` (the
+  design's end-of-trip block: a real "Add a day", plus an inert "Add a saved
+  day" and three Playbook shortcuts inside the Wave-1 `insert-playbook`
+  Preview). `TimelineLens` renders it after the last day, gives every day a
+  dashed add-a-stop row, and renders an empty day honestly in both the day's
+  route line and its body. `AddDay` is raised through the **existing**
+  `onCommand` seam `ScheduleLens` already forwards, reaching the same
+  `dispatch` the Board lens's `onAddDay` uses — no new prop. The appended day
+  is scrolled to via the focus effect the lens already owned.
+- `9540d55` — **the Board / Calendar / Map half**, plus the gate script. The
+  trailing dashed "One more day?" column replaces the loose `+ Add day`
+  button; `Column` gains the "or drop a stop from Unscheduled" hint; Calendar
+  and Map get their empty-day copy. `MapDay` gained an `isEmpty` flag because
+  the copy table gives the map's two surfaces **different** strings for the
+  same empty day (rail "Nothing planned yet", focus card "No stops yet"), and
+  one shared pre-rendered `flagText` could not serve both.
+
+**KI-30 is closed here** — it was Phase 6's to fix and the entry named the two
+things it wanted. The audit: `overlapData.ts`'s `repairedEnd()` was already
+guarded (and is the pattern this fix copies); `unscheduledRack.ts`'s two
+`toTimeString` calls are safe by construction and unchanged; `nextSlot` was the
+bug. The decision: at the end of a day the add affordance is **withheld, not
+degraded** — a shorter real slot is offered wherever one exists (a day with 29
+minutes left gets those 29 minutes), and only a day already running to 23:59
+withholds, mirroring how a null `suggestedEnd` makes `OverlapWarning` render no
+fix button. Full reasoning in `docs/known-issues.md`'s Resolved section.
+
+**Two findings were filed rather than absorbed**, per `AGENTS.md`:
+**KI-31** (the Preview registry's orphan guard is structurally unable to see
+that `add-saved-day` is orphaned, because its only "usage" is the unrendered
+`AddSavedDayButton.tsx` the phase file explicitly says to keep) and **KI-32**
+(the container image ships Chromium build 1194 while the pinned
+`@playwright/test` wants 1228 — local e2e needs a workaround; **CI is
+unaffected** and remains the authoritative signal).
+
+**Deliberately not built:** the phase file's Step 3 bullet 4, the gap-fill row
+(`Add something at {time}`). It hangs off Phase 8 Task 8.1's 150-minute
+"Nothing planned" threshold, which has not landed, and the phase file itself
+says to skip it in that case rather than invent a second threshold.
+
+**Not done: Step 4, the manual browser walk** — same reason as Phase 5, no
+interactive browser in this container. Instead the phase's own gate
+("adding a day appends it, scrolls to it, and it renders correctly in Timeline,
+Day columns, Calendar and Map") is scripted end to end as
+`apps/web/e2e/m10-growth.spec.ts`, running against a production build. That is
+a real check but a narrower one than a human walking the checklist, and it is
+recorded as such rather than ticked.
+
+Verified on the branch: `pnpm --filter web typecheck` clean; `pnpm --filter web
+lint` clean (note that is `eslint src` only, so it does **not** cover `e2e/`);
+`node scripts/check-color-wall.mjs` OK (283 files); unit **646/646** (99 files,
+up from 600/98); and the full e2e suite **22/22** against a production build
+(`test:e2e:ci-like`, per KI-27) with a locally-provisioned Postgres. KI-28 did
+not fire. All copy was verified byte-identical to the phase file's table with
+`grep -F`, not by eye.
+
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
   `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
@@ -384,8 +455,9 @@ Both review threads are answered and resolved.
     `docs/plans/M10-delta/phase-8b-design-sync.md` and
     `phase-1b-header-scope.md`; both are gate-scope amendments recorded in
     `docs/milestones/M10-visual-craft.md`.
-  - **Phase 6 (add-a-day, empty states):** depended on Phase 3 (now landed,
-    so unblocked); untouched otherwise.
+  - **Phase 6 (add-a-day, empty states) — done, PR open** (2026-08-24,
+    branch `claude/m10-wave2-phase6-8s0713`). See the Phase 6 section under
+    "In flight" for what landed and what it deliberately did not.
   - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
     (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
@@ -551,7 +623,11 @@ browser verification of the exit checklist) was never performed, since that
 container had no interactive browser — walk that checklist by hand; and KI-29's
 card-level design question wants an answer at the Phase 9 gate.
 
-Continue M10 Wave 2's remaining phases — **6, 7, 8, then 8b, then 1b** — 6 and 7
+**Phase 6 (growing the trip) is built and its PR is open** (2026-08-24) — see
+its section under "In flight". Its Step 4 manual browser pass is the one thing
+still wanting a human; the PR's Vercel preview is the way to close it.
+
+Continue M10 Wave 2's remaining phases — **7, 8, then 8b, then 1b** — 7
 unblocked by Phase 3's merge in PR #26, 8 independent. **Phases 8b and 1b are
 the 2026-08-23 design sync's approved additions to this gate** (see the "Design
 sync" section above and `docs/milestones/M10-visual-craft.md`'s gate-scope

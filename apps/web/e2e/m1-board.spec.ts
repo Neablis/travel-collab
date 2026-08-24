@@ -14,9 +14,9 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   // m2/m3/m4/smoke's fix commit); this spec hadn't hit it until now.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
-  await page.getByRole("button", { name: "+ Add day" }).click();
+  await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // Two overlapping activities, created unscheduled. The board's full-width

@@ -33,13 +33,19 @@ export function MapFocusCard({ day }: { day: MapDay | null }) {
         <span className="text-sm font-bold text-ink">{day.city ?? day.label}</span>
       </div>
       {stat !== null && <div className="font-mono text-xs text-slate">{stat}</div>}
-      {day.flagText !== null && (
+      {/* Phase 6, copy table row "map focus card, empty day". This card says
+          "No stops yet" where the rail says "Nothing planned yet" about the
+          very same day — the design's own distinction, kept honest by
+          MapDay.isEmpty carrying the fact rather than a pre-rendered string.
+          Mutually exclusive with the unlocated-stops flag below it, and using
+          the same note styling, as both answer "why is there no route here?" */}
+      {(day.isEmpty || day.flagText !== null) && (
         <p
           className="text-slate"
           // eslint-disable-next-line no-restricted-syntax -- 12.5px note has no token equivalent (between text-xs/12px and text-sm/13px)
           style={{ fontSize: "12.5px" }}
         >
-          {day.flagText}
+          {day.isEmpty ? "No stops yet" : day.flagText}
         </p>
       )}
     </div>

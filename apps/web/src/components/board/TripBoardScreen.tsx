@@ -297,10 +297,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <ScheduleLens
                   detail={activeTrip}
                   onSelectActivity={openEdit}
-                  // The timeline's overlap warning raises real commands
-                  // (UpdateActivity for the one-click fix, DismissConflict for
-                  // the dismissal); neither is ever a CreateTrip, which is the
-                  // only TripCommand dispatch doesn't take.
+                  // The timeline raises real commands through this one seam:
+                  // UpdateActivity for the overlap warning's one-click fix,
+                  // DismissConflict for its dismissal, and — Phase 6 — AddDay
+                  // from the end-of-trip block's "Add a day". That last one is
+                  // deliberately the SAME `dispatch({ type: "AddDay", tripId,
+                  // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
+                  // above performs, just arriving pre-built (the seam carries
+                  // whole commands) rather than as a bare callback. None of
+                  // the three is ever a CreateTrip, which is the only
+                  // TripCommand dispatch doesn't take. The timeline scrolls
+                  // the appended day into view itself, via the focus effect it
+                  // already owns — see TimelineLens's `addDay`.
                   onCommand={(command) => {
                     if (command.type !== "CreateTrip") void dispatch(command);
                   }}

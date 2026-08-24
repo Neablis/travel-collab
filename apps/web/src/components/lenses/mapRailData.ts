@@ -16,7 +16,19 @@ export type MapDay = {
   unlocatedCount: number;
   totalKm: number | null; // summed straight-line legs; null with fewer than 2 located stops
   bars: { grow: number; color: AccentFamily }[]; // one per located stop, grow proportional to that leg's share
-  flagText: string | null; // "No stops yet" | "N stops have no place yet" | null
+  // A day with no stops at all. Deliberately NOT folded into `flagText`: the
+  // Phase 6 copy table gives the map's two surfaces *different* strings for
+  // this one state — the rail says "Nothing planned yet" (it is a list of
+  // days, and that row's job is to say what the day holds), the focus card
+  // says "No stops yet" (it is a card about one already-chosen day, where the
+  // subject is the stops). One shared pre-rendered string cannot serve both,
+  // so this model carries the fact and each surface renders its own copy.
+  isEmpty: boolean;
+  // The *unlocated-stops* flag only — a day that has stops but can't draw all
+  // of them: "1 stop has no place yet" | "N stops have no place yet" | null.
+  // An empty day sets `isEmpty` instead and leaves this null; the two are
+  // mutually exclusive by construction (no stops means nothing unlocated).
+  flagText: string | null;
 };
 
 function locatedStops(day: TripDetail["days"][number], activities: TripDetail["activities"]): MapStop[] {
@@ -65,13 +77,11 @@ export function mapDays(detail: TripDetail): MapDay[] {
           });
 
     const flagText =
-      day.activityIds.length === 0
-        ? "No stops yet"
-        : unlocatedCount > 0
-          ? unlocatedCount === 1
-            ? "1 stop has no place yet"
-            : `${unlocatedCount} stops have no place yet`
-          : null;
+      unlocatedCount > 0
+        ? unlocatedCount === 1
+          ? "1 stop has no place yet"
+          : `${unlocatedCount} stops have no place yet`
+        : null;
 
     return {
       index,
@@ -84,6 +94,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
       unlocatedCount,
       totalKm,
       bars,
+      isEmpty: day.activityIds.length === 0,
       flagText,
     };
   });
