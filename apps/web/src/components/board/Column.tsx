@@ -147,34 +147,15 @@ export function Column({
           day already has cards, rather than collapsing to a bare "+" once
           populated (#20's original empty-only treatment). */}
       {onAddActivity && (
-        <div className="mt-1.5 flex flex-col gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAddActivity}
-            aria-label={`Add activity to ${title}`}
-            className="w-full justify-center rounded-lg border border-dashed border-border-strong py-2 text-slate"
-          >
-            + Add
-          </Button>
-          {/* Phase 6, copy table row "day-columns add button, near the rack":
-              the column's second route to a stop — dragging one out of the
-              Unscheduled drawer — stated rather than left to be discovered.
-              It is also what makes an *empty* day column honest: the dashed
-              "+ Add" plus this line say what the day is missing and both ways
-              to fix it, so a stopless column never reads as a blank gap. The
-              copy table deliberately lists no Board-specific empty-day string,
-              so there is none to add here.
-
-              The design (`Trip Planner Redesign.dc.html:522`) sets this beside
-              its button, right-aligned past a flex spacer — but that row is
-              the *timeline's* full-width add-at-end row. At a day column's
-              268px the button and this 30-character hint together overrun the
-              available ~252px and wrap mid-phrase, so it takes its own line
-              directly under the button instead. Same 12px slate as the design;
-              only the axis changes. */}
-          <span className="text-center text-xs text-slate">or drop a stop from Unscheduled</span>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onAddActivity}
+          aria-label={`Add activity to ${title}`}
+          className="mt-1.5 w-full justify-center rounded-lg border border-dashed border-border-strong py-2 text-slate"
+        >
+          + Add
+        </Button>
       )}
     </section>
   );
