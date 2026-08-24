@@ -34,6 +34,19 @@ const DOT_BG: Record<AccentFamily, string> = {
   neutral: "bg-slate",
 };
 
+// "danger"/"warning"/"success"/"info" each carry a `-ink` token; "brand" does
+// not (its darkest tone is `-pressed`) — same map shape as TimelineLens.tsx's
+// and KeepDayFlag.tsx's own INK_TEXT. Static Record, not a template string:
+// Tailwind only emits utilities it can see as literal text.
+const INK_TEXT: Record<AccentFamily, string> = {
+  brand: "text-brand-pressed",
+  info: "text-info-ink",
+  success: "text-success-ink",
+  warning: "text-warning-ink",
+  danger: "text-danger-ink",
+  neutral: "text-slate",
+};
+
 // Dates are calendar dates (YYYY-MM-DD), not instants — construct in local
 // time so "2027-06-01" never rolls back a day in a negative-offset zone.
 // Mirrors lib/formatDate.ts's own local-parse helper; that module only
@@ -126,11 +139,21 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
             style={{ width: "92px" }}
           >
-            <span className="text-xs font-semibold text-ink">{day.dow}</span>
-            <DataText size="xs" className="w-full truncate">
-              {day.dateNum}
-              {day.city ? ` ${day.city}` : ""}
-            </DataText>
+            <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+            <div className="flex w-full items-baseline gap-1 overflow-hidden">
+              <DataText size="xs" className="shrink-0">
+                {day.dateNum}
+              </DataText>
+              {day.city ? (
+                <span
+                  className="truncate text-slate"
+                  // eslint-disable-next-line no-restricted-syntax -- 10px city label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                  style={{ fontSize: "10px" }}
+                >
+                  {day.city}
+                </span>
+              ) : null}
+            </div>
             <div
               data-testid="day-chip-transition"
               className="h-3.5 w-full truncate text-slate"

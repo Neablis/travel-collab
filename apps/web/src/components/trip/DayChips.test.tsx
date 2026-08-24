@@ -178,4 +178,17 @@ describe("DayChips", () => {
     expect(slots[0]!.textContent).toBe("");
     expect(slots[1]!.textContent).toBe("→ Osaka");
   });
+
+  it("shows the date number and the city as separate elements", () => {
+    render(
+      <DayChips
+        days={[{ dow: "Sat", dateNum: "5", city: "Rochester", transitionTo: null, stops: 2 }]}
+        focusedDay={null}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("5")).toBeTruthy();
+    expect(screen.getByText("Rochester")).toBeTruthy();
+  });
 });
