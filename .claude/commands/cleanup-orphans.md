@@ -11,6 +11,18 @@ history.
 
 Scope (empty means all): **$ARGUMENTS**
 
+## Step 0 — Find live work before you classify anything
+
+**Do this first.** Call `mcp__ccd_session_mgmt__list_sessions` and note every
+session with `isRunning: true`.
+
+A running session's branch, its worktree, and any worktrees its subagents
+created are **live work, not orphans** — even though a mid-flight fan-out looks
+exactly like abandoned debris: several fresh branches, several `agent-*`
+worktrees, no merges yet. Exclude all of it up front and say so in the report.
+A `/ki-sweep` in progress is the obvious case, and it produces precisely that
+shape.
+
 ## Step 1 — Refresh, then audit
 
 ```
@@ -69,11 +81,43 @@ For each remaining branch, classify:
 ### Orphaned remote branches
 
 ```
-git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v 'origin/HEAD\|origin/main'
+git for-each-ref --format='%(refname:short)' refs/remotes/origin \
+  | grep -vx 'origin' | grep -v 'origin/HEAD$\|origin/main$'
 ```
+
+The `grep -vx 'origin'` matters: `refs/remotes/origin` is itself a ref, so
+without it the audit reports a branch literally named `origin`.
 
 Flag any already merged into `main` with no open PR — those are leftovers from
 merged work.
+
+### Deciding whether unmerged work already landed
+
+Two tempting tests are both **unreliable**, and this has already produced a
+wrong read here:
+
+- `git diff origin/main...<branch>` measures from the merge base, so an old
+  branch shows a huge diff regardless of what main gained independently.
+- `git cherry origin/main <branch>` compares patch-ids, which do not survive a
+  squash-merge — every commit reports as new even when the work is on main.
+
+The test that actually works is PR history for that head branch:
+
+```
+gh pr list --state all --head <branch> --json number,state,mergedAt \
+  --jq '.[] | "PR #\(.number) \(.state) \(.mergedAt[0:10] // "")"'
+```
+
+If that is empty, fall back to checking whether the branch's distinctive
+artifacts exist on main — a file it added, a doc entry it filed:
+
+```
+git ls-tree -r --name-only origin/main <path-it-added>
+```
+
+State your confidence honestly. "Strong evidence it landed, not certified" is
+the correct answer for a large old branch, and the right response to it is to
+keep the branch — a local ref costs nothing.
 
 ### Orphaned worktrees
 
@@ -118,6 +162,12 @@ Once approved:
   one individually; this is not reversible from here.
 - Worktrees: `git worktree remove <path>`, then
   `node scripts/sync-launch-config.mjs` to regenerate `.claude/launch.json`.
+  If it refuses with "contains modified or untracked files", **look at the
+  diff before reaching for `--force`**. Usually it is incidental (a corepack
+  `packageManager` rewrite, a stray build artifact) and safe to discard — but
+  say what you are discarding. If it is real work, stop and surface it.
+  Removing a worktree frees its branch, which may then become deletable —
+  re-check the merged list afterwards rather than missing it this pass.
 - Sessions: `archive_session`.
 - **PRs: never close one yourself.** Report and let the user decide; a stale PR
   often represents a real decision that was never made.
