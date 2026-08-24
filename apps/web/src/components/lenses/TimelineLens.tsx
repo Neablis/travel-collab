@@ -20,6 +20,7 @@ import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
 import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
 import { initialsFor } from "@/lib/initials";
+import { shortPlace } from "@/lib/place";
 import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
@@ -148,22 +149,23 @@ function totalScheduledMinutes(row: TimelineRow): number {
   return row.timed.reduce((sum, item) => sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)), 0);
 }
 
-// A day's route line (day-header row 2): the distinct real place names
-// (ActivityView.location.name) visited that day, in chronological order,
-// consecutive duplicates collapsed, capped with a "+N more" tail — the same
-// "no field for this, so the closest honest proxy is location.name"
-// stance DayChips.tsx's cityFor documents, just applied to every stop in the
-// day instead of only the first. The handoff's row-2 example also appends a
-// distance ("· 5.4 km on foot") — there is no honest way to fill that for an
-// entire day (would require every consecutive pair to carry real
-// coordinates), so per the task brief it is simply omitted rather than
-// fabricated; individual legs (below) no longer attempt one either (Phase 8
-// Task 8.1) — they name real free time instead.
+// A day's route line (day-header row 2): the distinct short place names
+// (shortPlace(), lib/place.ts — city if the geocoder gave one, else the
+// venue's own first comma-segment) visited that day, in chronological order,
+// consecutive duplicates collapsed, capped with a "+N more" tail. shortPlace
+// documents its own "no field for this, so the closest honest proxy" stance
+// (the same one DayChips.tsx's cityFor documents for the day-chip city);
+// this just applies it to every stop in the day instead of only the first.
+// The handoff's row-2 example also appends a distance ("· 5.4 km on foot") —
+// there is no honest way to fill that for an entire day (would require every
+// consecutive pair to carry real coordinates), so per the task brief it is
+// simply omitted rather than fabricated; individual legs (below) no longer
+// attempt one either (Phase 8 Task 8.1) — they name real free time instead.
 const ROUTE_MAX_STOPS = 3;
 function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): string | null {
   const names: string[] = [];
   for (const item of [...row.timed, ...row.untimed]) {
-    const name = activities[item.activityId]?.location?.name;
+    const name = shortPlace(activities[item.activityId]?.location);
     if (name && names[names.length - 1] !== name) names.push(name);
   }
   if (names.length === 0) return null;
@@ -265,11 +267,14 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
             )}
           </div>
           {/* ActivityView has no separate "area" field (packages/contracts
-              src/activity.ts) — this is just the place name (location.name),
-              the same single-string proxy DayChips.tsx's cityFor documents. */}
+              src/activity.ts) — this is shortPlace() (lib/place.ts), the same
+              city-or-first-segment proxy DayChips.tsx's cityFor documents,
+              applied per stop instead of per day. The `activity.location &&`
+              guard here already ensures a real, defined Location, so this is
+              always shortPlace's honest first-segment fallback at worst. */}
           {activity.location && (
             <Text as="span" variant="secondary" className="mt-1 block">
-              {activity.location.name}
+              {shortPlace(activity.location)}
             </Text>
           )}
           {activity.notes && (
@@ -558,7 +563,10 @@ export function TimelineLens({
                   route to summarise and "0 stops" is a worse thing to say than
                   the design's own copy, so the line carries that copy instead
                   — same place, same type treatment, no extra row invented. */}
-              <div className={cn("flex flex-wrap items-baseline gap-1.5 font-mono text-xs", INK_TEXT[accent.ink])}>
+              <div
+                data-testid={`day-meta-${row.dayId}`}
+                className={cn("flex flex-wrap items-baseline gap-1.5 font-mono text-xs", INK_TEXT[accent.ink])}
+              >
                 {isEmptyDay ? (
                   <span>No stops yet — add one, or drop a saved day onto it</span>
                 ) : (

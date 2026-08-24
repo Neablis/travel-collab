@@ -268,6 +268,18 @@ const detailWithCoordinatesOnBothStops = tripDetailFixture({
   },
 });
 
+// Phase 8 Task 8.7: a day whose one stop has no location at all, so
+// routeSummary() has nothing to name and returns null — the case the
+// day-meta row's "· {route}" half must not render for, leaving no dangling
+// separator after "N stops". dayId is "day-1" (not this file's usual "d1")
+// specifically to match the day-meta-day-1 testid the test below looks up.
+const detailWithUnlocatedStops = tripDetailFixture({
+  days: [{ dayId: "day-1", activityIds: ["a1"], date: "2027-06-01", costSubtotal: 0 }],
+  activities: {
+    a1: timedActivity("a1", "Wander", "09:00", "10:00"),
+  },
+});
+
 describe("TimelineLens", () => {
   it("renders a day header with the day ordinal, stop count, and derived city (#28)", () => {
     renderLens();
@@ -357,6 +369,14 @@ describe("TimelineLens", () => {
   it("no longer claims a straight-line distance", () => {
     renderLens(detailWithCoordinatesOnBothStops);
     expect(screen.queryByText(/km direct/)).toBeNull();
+  });
+
+  // Phase 8 Task 8.7: routeSummary() returns null for a day with no located
+  // stop, and the day-meta row's "·" separator is only rendered alongside a
+  // real route — so a day like this must not trail a dangling "· ".
+  it("leaves no dangling separator when a day has no route", () => {
+    renderLens(detailWithUnlocatedStops);
+    expect(screen.getByTestId("day-meta-day-1").textContent).not.toMatch(/·\s*$/);
   });
 
   it("still renders untimed activities as rows the caller can select", async () => {

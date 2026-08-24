@@ -349,6 +349,14 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** add a start date to `TripSummary`, then swap `nextTrip` to a real date-sort and `TripCard`'s date line to that field, the same way `NextTripHero` already prefers its real `TripDetail.startDate` over `createdAt` once that fetch resolves.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.5).
 
+### KI-35 — No true "area" field; route and place lines are a city-or-first-segment approximation
+- **Severity:** cosmetic
+- **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
+- **Symptom:** `shortPlace()` (this task, `lib/place.ts`) and `cityFor()` (`DayChips.tsx`, earlier work) both face the same gap: `Location` has no dedicated "area"/"neighborhood" field, only the geocoder's structured `city` and the full `name` label. Both helpers fall back to `location.city` when present, else the first comma-delimited segment of `name` — a real but imprecise stand-in that can occasionally read oddly, since that first segment is the *venue name* for a location with no `city`, not an area (e.g. "Ugly Duck Coffee" rather than "Rochester"). The timeline's day-header route line and each activity's place line both inherit this via `shortPlace()`.
+- **Why it's not fixed here:** the real fix is a contract change — a dedicated `area` field on `Location` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.7) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth.
+- **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
