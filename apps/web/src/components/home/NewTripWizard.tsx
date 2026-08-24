@@ -55,11 +55,24 @@ const PACE_OPTIONS = [
 type PaceValue = (typeof PACE_OPTIONS)[number]["value"];
 const TAG_CHIP_SHAPE = ["Food", "Art", "Hiking", "Nightlife", "Markets", "Architecture"] as const;
 
+// A native <input type="date">'s `value` is spec'd to be either "" or a
+// complete valid date, but was observed (manual verification, Phase 7) to
+// briefly carry a non-empty, not-yet-complete string while a day segment is
+// mid-edit (e.g. typing month/day/year one keystroke at a time) — `arrive`'s
+// onChange fires on that intermediate value before it settles. Same shape as
+// packages/contracts/src/trip.ts's private ISO_DATE; UI can't import that
+// (module map, AGENTS.md), and this is a plain regex literal, not domain
+// logic.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 // Inclusive-length day arithmetic, the reverse of lib/dates.ts's daySpan: a
 // chip picking N days from arrival A gives endDate = A + (N-1) days. Same
 // pure-UTC style as that file's daySpan/dayLabel (the domain never reads
 // dates, so this stays local Date.UTC arithmetic, never a bare `new Date()`
-// parse of a date string) — no packages/domain import allowed here.
+// parse of a date string) — no packages/domain import allowed here. Callers
+// must gate on ISO_DATE.test(startIso) first (see above) — an incomplete
+// intermediate value parses to an Invalid Date, and toISOString() throws a
+// RangeError on one rather than returning garbage.
 function addDaysIso(startIso: string, days: number): string {
   const d = new Date(`${startIso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -139,7 +152,7 @@ function WizardBody({
       // budget to the returned tripId. Each only fires if the user actually
       // gave it something — a fresh trip already has no dates and USD/no
       // budget, so an untouched field needs no command at all.
-      if (arrive !== "" && selectedDays !== null) {
+      if (ISO_DATE.test(arrive) && selectedDays !== null) {
         const endDate = addDaysIso(arrive, selectedDays - 1);
         const newDayIds = Array.from({ length: selectedDays }, () => crypto.randomUUID());
         dispatch({ type: "SetTripDates", tripId, startDate: arrive, endDate, newDayIds });
@@ -258,7 +271,7 @@ function WizardBody({
           </FormField>
           {/* Real, not Preview: both start and length come from real state
               above, so this is honest derived data, not a fabricated note. */}
-          {arrive !== "" && selectedDays !== null && (
+          {ISO_DATE.test(arrive) && selectedDays !== null && (
             <Banner variant="info">
               {selectedDays} days — {formatTripDate(arrive)} to {formatTripDate(addDaysIso(arrive, selectedDays - 1))}.
             </Banner>
