@@ -15,6 +15,7 @@ test-results/
 !.claude/settings.json
 !.claude/skills
 !.claude/hooks
+!.claude/agents
 .vercel/
 .worktrees/
 
