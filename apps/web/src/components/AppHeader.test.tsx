@@ -12,9 +12,9 @@ describe("AppHeader", () => {
     expect(screen.getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe("/playbooks");
   });
 
-  it("names the product", () => {
+  it("wordmarks the product as Caesura", () => {
     render(<AppHeader />);
-    expect(screen.getByText("Trip Planner")).toBeTruthy();
+    expect(screen.getByText("Caesura")).toBeTruthy();
   });
 
   it("is a banner landmark", () => {

@@ -218,7 +218,7 @@ export default function Home() {
   if (unauthenticated) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-8">
-        <Heading level={1}>travel-collab</Heading>
+        <Heading level={1}>Caesura</Heading>
         <Link
           href="/api/auth/signin?callbackUrl=/"
           className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}

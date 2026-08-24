@@ -15,7 +15,7 @@ export function AppHeader() {
         >
           ◎
         </span>
-        <span className="font-display text-md font-semibold text-ink">Trip Planner</span>
+        <span className="font-display text-md font-semibold text-ink">Caesura</span>
       </Link>
       <nav className="flex items-center gap-1 pl-2">
         <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">

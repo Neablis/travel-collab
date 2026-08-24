@@ -93,7 +93,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   if (status === "unauthenticated") {
     return (
       <PageContainer width="full">
-        <Heading level={1}>travel-collab</Heading>
+        <Heading level={1}>Caesura</Heading>
         <Link
           href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}
           className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
