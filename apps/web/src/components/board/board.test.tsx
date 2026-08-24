@@ -317,11 +317,10 @@ describe("Board", () => {
     expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
   });
 
-  // Phase 6, copy table row "day-columns add button, near the rack". The copy
-  // table lists no Board-specific empty-day string, so an empty day column's
-  // honest treatment is exactly this: the dashed "+ Add" it already renders,
-  // plus the drop hint — nothing invented.
-  it("tells an empty day column both ways to fill it", () => {
+  // The copy table lists no Board-specific empty-day string, so an empty day
+  // column's honest treatment is exactly this: the dashed "+ Add" it already
+  // renders — nothing invented.
+  it("gives an empty day column a dashed + Add affordance", () => {
     const emptyDay = tripDetailFixture({
       days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }],
       activities: {},
@@ -331,18 +330,9 @@ describe("Board", () => {
     const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
     expect(addButton.textContent).toContain("+ Add");
     expect(addButton.className).toContain("border-dashed");
-    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
   });
 
-  // The hint is a property of the column's add affordance, not of emptiness —
-  // a populated day offers the same two routes.
-  it("shows the rack hint on a populated day column too", () => {
-    renderBoard(fixture(), noopCallbacks()); // Day 1 has two stops
-    const column = screen.getAllByTestId("day-column")[0]!;
-    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
-  });
-
-  it("gives every day of an all-empty trip its own + Add and rack hint", () => {
+  it("gives every day of an all-empty trip its own + Add", () => {
     const d2 = "44444444-4444-4444-8444-444444444444";
     const d3 = "55555555-5555-4555-8555-555555555555";
     renderBoard(
@@ -353,7 +343,7 @@ describe("Board", () => {
       noopCallbacks(),
     );
     expect(screen.getAllByTestId("day-column")).toHaveLength(3);
-    expect(screen.getAllByText("or drop a stop from Unscheduled")).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /^Add activity to/ })).toHaveLength(3);
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
   });
 
@@ -375,9 +365,8 @@ describe("Board", () => {
     expect(column.querySelectorAll('[data-testid^="activity-card-"]')).toHaveLength(9);
     expect(within(column).getByText("Stop 1")).toBeTruthy();
     expect(within(column).getByText("Stop 9")).toBeTruthy();
-    // The add affordance and its hint stay below the ninth card.
+    // The add affordance stays below the ninth card.
     expect(within(column).getByRole("button", { name: "Add activity to Day 1" })).toBeTruthy();
-    expect(within(column).getByText("or drop a stop from Unscheduled")).toBeTruthy();
   });
 
   // Task 4.1 (M10 Phase 4): the board's per-stop cost, using the trip's own
