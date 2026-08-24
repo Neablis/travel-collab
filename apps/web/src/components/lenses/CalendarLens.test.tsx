@@ -188,6 +188,15 @@ describe("CalendarLens", () => {
     expect(cell.textContent).not.toContain("Nothing planned yet");
   });
 
+  // Phase 8 Task 8.6: the tint belongs to the button inside the cell, not the
+  // cell itself — the cell is a plain bg-surface wrapper at least 116px tall.
+  it("puts the day tint on an inner button, not the cell", () => {
+    renderLens(detailFixture());
+    const button = screen.getByRole("button", { name: /Day 1/ });
+    expect(button.className).toMatch(/bg-\w+-tint/);
+    expect(button.parentElement?.className).toMatch(/bg-surface/);
+  });
+
   it("does not show +N more when there is only one activity", () => {
     const detail = tripDetailFixture({
       startDate: "2027-06-01",
