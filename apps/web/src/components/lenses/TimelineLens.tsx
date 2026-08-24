@@ -72,7 +72,7 @@ const NEUTRAL_ACCENT: DayAccent = { tint: "neutral", ink: "neutral", solid: "neu
 // visible 06:00→midnight axis: the axis is long gone, and 06:00 was never a
 // time anyone wants a stop prefilled at. 09:00 is the same default the
 // unscheduled rack already places into an empty day
-// (trip/unscheduledRack.ts's DEFAULT_START_MIN), so the two ways of putting a
+// (trip/fitIntoDay.ts's DEFAULT_START_MIN), so the two ways of putting a
 // first stop on a bare day now agree. It stays a local constant rather than
 // moving to lib/time.ts because it is a product default, not clock
 // arithmetic — lib/time.ts owns the latter.

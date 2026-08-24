@@ -14,7 +14,47 @@ awaiting merge — see "Phase 8" under "In flight" below for the full record,
 including a from-scratch local environment setup that let this session get a
 genuine local `test:e2e:ci-like` signal for the first time since KI-33
 started blocking it (Phase 7), and a real (not fabricated) fix for KI-18, the
-accent-collision bug this phase exists to close.**
+accent-collision bug this phase exists to close. This branch has since merged
+`main` (post-PR #36, below) to pick up KI-33's real fix and resolve the
+resulting doc conflicts in this file and `known-issues.md`.**
+
+**Previously (2026-08-24): a dev-speed and quality pass landed on
+`claude/dev-speed-quality-57205c`, merged to `main` via PR #36. It does not
+move any milestone gate; it changes how the work gets verified.** Six things,
+all evidence-driven rather than speculative:
+
+1. **KI-33 fixed** — `unscheduledRack.ts` → `fitIntoDay.ts` (and its test).
+   This is the big one: `next build` now **succeeds on macOS**, so
+   `pnpm --filter web test:e2e:ci-like` is runnable on a dev machine again
+   rather than being blocked outright, and the unit suite is 668/668 instead
+   of 640/665. Local verification had degraded to the point where CI was the
+   only trustworthy signal — PR #32 took four CI runs to land, two of them red.
+2. **CodeRabbit polling documented and configured.** CodeRabbit is a
+   *registered status check*, so `gh pr checks <n> --watch --fail-fast` blocks
+   on it — no session had ever used `--watch`, and hand-polling was a real
+   time sink (its verdict lands 2-11 min after the PR opens, vs ~30s for its
+   summary comment). Also adds `.coderabbit.yaml`: chill profile, `docs/**`
+   and generated SQL filtered out, and per-path instructions pointing it at
+   this repo's actual invariants. It stays a required check.
+3. **A PR template** (`.github/PULL_REQUEST_TEMPLATE.md`) carrying the DoD
+   checklist plus a **Verification actually performed** section with an
+   explicit "Not run, and why" line. Phases 5, 6 and 3 each shipped with a
+   verification step skipped and nothing on the PR recording it; Phase 7 ran
+   the browser walk and immediately found a crash. This makes a skip visible.
+4. **A PostToolUse typecheck hook** — typechecks only the package owning each
+   edited `.ts`/`.tsx` file (~1.6s warm, incremental), same narrowing rules as
+   `minimal-check-subset`, including the contracts hard-exception.
+5. **Three repo subagents** in `.claude/agents/` — `phase-implementer`,
+   `phase-verifier` (runs the check subset *and* the browser walk against the
+   PR's Vercel preview, so it works from a container with no local infra), and
+   `ki-fixer` (one KI each, parallel-safe since KIs are independent of the
+   phase chain).
+6. **CI uploads Playwright traces on failure.** `trace: "on-first-retry"` was
+   already set, so traces were being generated and thrown away; remote e2e
+   failures had to be diagnosed from job logs. Also: the SessionStart hook now
+   reconciles deps on *local* sessions too — worktrees don't share
+   `node_modules`, and one was found 16 days stale, failing typecheck with
+   TS2307s that read like real type errors.
 
 **Previously (2026-08-24): M10 Wave 2 Phase 7 (add-stop and new-trip forms)
 implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at

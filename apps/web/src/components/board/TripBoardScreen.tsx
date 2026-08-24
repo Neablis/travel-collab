@@ -19,7 +19,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
-import { fitIntoDay } from "@/components/trip/unscheduledRack";
+import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";

@@ -172,6 +172,31 @@ more parallel work on top of it.
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible
   decisions, changelog for contracts).
+- The PR uses `.github/PULL_REQUEST_TEMPLATE.md` and its **Verification
+  actually performed** section is filled in honestly. A step you did not run
+  is recorded on the "Not run, and why" line. Four consecutive M10 phases
+  shipped with a verification step skipped and nothing on the PR saying so;
+  an unchecked box is a fine outcome, a silent skip is not.
+
+### Waiting on PR checks — do not hand-poll
+
+One blocking command covers every check, CodeRabbit included:
+
+```
+gh pr checks <n> --watch --fail-fast
+```
+
+CodeRabbit is a **registered status check** ("CodeRabbit / Review completed"),
+not just a comment stream, so `--watch` waits for it and exits non-zero the
+moment anything fails. Its summary comment lands ~30 seconds after the PR
+opens, but its actual review verdict takes **2-11 minutes** — that gap is what
+makes hand-polling with repeated `gh pr checks` such a reliable time sink, and
+it is why this is written down rather than left to each session to rediscover.
+
+CodeRabbit's findings are bug reports worth verifying against the code, not
+noise — it caught a real fire-and-forget navigation race in M10 Wave 2 Phase 7
+that no test covered. Its scope and verbosity are configured in
+`.coderabbit.yaml`; tune that file rather than ignoring comments in bulk.
 
 ## Milestone discipline and drift detection
 

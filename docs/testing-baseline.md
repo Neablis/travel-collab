@@ -159,7 +159,9 @@ recording so it isn't re-discovered: positional file-path filters match
 case-insensitively as substrings, so passing `unscheduledRack.test.ts` as a
 CLI filter also picks up the unrelated `UnscheduledRack.test.tsx` — a
 filter-matching artifact, not a classification bug, avoided here by using
-`include` in a scoped config instead of CLI positional args.)
+`include` in a scoped config instead of CLI positional args. The quirk is
+still real for any other case-only pair; this particular collision no longer
+exists, since KI-33's fix renamed that file to `fitIntoDay.test.ts`.)
 
 ---
 

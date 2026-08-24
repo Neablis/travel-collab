@@ -5,6 +5,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
+            "statusMessage": "Installing dependencies..."
+          },
+          {
+            "type": "command",
             "command": "node scripts/sync-launch-config.mjs 2>/dev/null || true",
             "statusMessage": "Syncing worktree launch config..."
           }
@@ -18,6 +23,18 @@
           {
             "type": "command",
             "command": "node scripts/hooks/check-destructive-git.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/typecheck-touched-package.mjs",
+            "statusMessage": "Typechecking touched package..."
           }
         ]
       }
