@@ -5,13 +5,33 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — M10 Wave 2 Phase 6 (growing the trip) **merged to
+**Last updated: 2026-08-24 — M10 Wave 2 Phase 7 (add-stop and new-trip forms)
+implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at
+`624a0db` (post-PR #31); PR #32 open, CI green on all four required jobs
+(unit-tests, static-checks, integration-e2e, CodeRabbit), not yet merged.**
+See "Phase 7" under "In flight" below. Both tasks' own manual browser checks
+were actually performed this time — this session had a real interactive
+browser, unlike Phases 5/6 — and that walkthrough caught and fixed a real
+crash bug (`RangeError: Invalid time value`) in the wizard's date
+arithmetic that no unit test surfaced. CI then caught two more, neither
+visible from a local run blocked by KI-33: a wizard navigation race
+CodeRabbit flagged (dates/budget/currency dispatched fire-and-forget, then
+navigated regardless of whether they'd confirmed — fixed with an awaited,
+retry-safe submit), and a broader one CI found on its own — "Create empty"
+had started navigating straight to the new trip like the full wizard does,
+when it's supposed to keep the old single-field dialog's actual behavior
+(stay, refresh the list); nine pre-Phase-7 e2e specs are built on exactly
+that and all failed until it was fixed. Also files **KI-33**, a pre-existing
+(Phase 3) filesystem-casing bug that blocks `next build` outright on
+macOS/Windows and degrades local test signal, though not CI.
+
+**Previously (2026-08-24): M10 Wave 2 Phase 6 (growing the trip) merged to
 `main` via PR #30**; see "Phase 6" under "In flight" below. It closes **KI-30** and
 files **KI-31** and **KI-32** rather than absorbing them. Its Step 4 (the manual
 browser walk) was not performed — no interactive browser in the container — but
 the phase's gate is scripted as `e2e/m10-growth.spec.ts` instead, which is a
 narrower claim than a human walking it; the PR's Vercel preview is how that gets
-genuinely ticked.**
+genuinely ticked.
 
 **Previously (2026-08-23): a design sync landed in the repo, was reviewed and
 routed, and Mitchell's calls are recorded — see "Design sync" below. No code
@@ -418,6 +438,182 @@ up from 600/98); and the full e2e suite **22/22** against a production build
 not fire. All copy was verified byte-identical to the phase file's table with
 `grep -F`, not by eye.
 
+### Phase 7 (add-stop and new-trip forms) — implemented on `claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged
+
+Two tasks, two commits, on a branch cut from `main` at `624a0db` (post-PR #31).
+**Zero diff to `packages/` or `apps/web/src/server`** — the phase's own
+presentational-only boundary — though the forms this phase rebuilds do
+dispatch real commands (`AddActivity`, `UpdateActivity`, `SetTripDates`,
+`SetTripBudget`, `SetTripCurrency`), so "presentational" describes the diff's
+scope, not the feature's effect (CodeRabbit, PR #32, on an earlier draft of
+this section that conflated the two). Delegated to two sequential
+subagents (Task 7.1 then Task 7.2, same working tree, never concurrent), each
+briefed on the phase file plus the two known traps below; both reviewed by the
+orchestrating session afterward rather than trusted on the subagent's own
+report.
+
+- `61de98c` — **Task 7.1, the add-stop sheet.** `ActivityEditor.tsx` rebuilt
+  to the design's field order: "What or where" (title, relabeled), a
+  Preview'd suggested-matches shell (`add-stop-suggestions`, M9), the
+  existing `LocationInput`, a 3-up Day/Start/How-long grid (new
+  `activityDuration.ts`: `DURATION_OPTIONS`, `closestDurationLabel` for the
+  prefill-duration reverse mapping), a live `Banner variant="success"`
+  computed via `fitIntoDay`, Cost (`MoneyInput`, gained an optional
+  `placeholder` prop), a Preview'd "Who is in" shell (`add-stop-who`, M13),
+  Notes, and the hairline footer. The nested `Card` is gone — the `Sheet` is
+  the surface. Edit mode swaps "How long" for a real "End time" input and
+  disables the Day select (`UpdateActivity` carries no `dayId`; cross-day
+  moves stay `MoveActivity`'s job). `ActivityFormValue` gained a `dayId`
+  field so the form's own Day selection — not just the `openCreate()`
+  prefill — decides where a new stop lands.
+  **`TimelineLens.tsx` and `EditorHost.tsx` are untouched** (confirmed via
+  `git diff`) — the reverse mapping from a prefilled `TimeWindow` (e.g.
+  `nextSlot()`'s output) to an initial Start + closest-duration selection
+  happens entirely inside `ActivityEditor`, exactly as briefed, so
+  TimelineLens's two `openCreate({ dayId, timeWindow: nextSlot(row) })` call
+  sites needed no changes.
+- `1e8ac07` — **Task 7.2, the new-trip wizard.** New
+  `components/home/NewTripWizard.tsx`, a `Sheet`-hosted 4-step wizard (Where
+  / When / Who & Money / Shape — "Who" and "Money" share one step, per the
+  phase file's own table). Step 1: real trip-name input, Preview'd
+  destination chips and Playbook panel. Step 2: real Arrive date + four real
+  length chips (Long weekend=4, A week=7, 10 days=10, 2 weeks=14) computing
+  the end date locally; **no Leave/end-date input exists anywhere** (the
+  2026-08-23 amendment). Step 3: Preview'd invite list + real budget/currency,
+  staged locally and dispatched only at final submit (can't dispatch against
+  a `tripId` that doesn't exist yet). Step 4: Preview'd pace/tags and
+  assistant-draft panel. Sequence on submit matches the plan exactly:
+  `createTrip({ name })` → `SetTripDates`/`SetTripBudget`/`SetTripCurrency`
+  against the returned `tripId`, each only if the user actually touched that
+  field → navigate to the new trip. "Create empty" stays reachable from step
+  1, dispatching only `CreateTrip`. `apiClient.ts` gained an exported
+  `createTrip` helper; `app/page.tsx`'s old single-field `Dialog` is gone,
+  replaced by `<NewTripWizard>`.
+
+**The `Longer` chip question** (the phase file flags it as a value the design
+never specifies) **was put to Mitchell before Task 7.2 started, not guessed:**
+ship the four specified chips as real, wrap `Longer` in an inert
+`<Preview size="compact">` badge with no day count and no click handler
+(`wizard-longer-chip`, M11). That is what shipped.
+
+**A real bug, found only by the manual browser check, not by either
+subagent's test run:** walking the wizard's Step 2 in a real browser (this
+session had one — see below) crashed with `RangeError: Invalid time value`
+while typing into the Arrive date field with a length chip already selected.
+Root cause: a native `<input type="date">` briefly emits a non-empty,
+not-yet-complete value while a segment is mid-edit; `addDaysIso()` parsed
+that into an Invalid Date and `toISOString()` threw rather than returning
+garbage. Fixed in `4a383ee`: both the live banner and the final
+`SetTripDates` dispatch now gate on a `YYYY-MM-DD` regex before treating
+`arrive` as usable. Re-verified in the browser (identical keystroke sequence,
+no crash, correct derived date range) and the full unit suite re-run with no
+*additional* failures beyond KI-33's pre-existing 25 (CodeRabbit, PR #32: the
+first draft of this line said "re-run clean," which reads as contradicting
+the 640/665 figure a few paragraphs below — both describe the same run,
+neither is wrong, but only this phrasing says so without a reader having to
+reconcile the two). This is exactly the "a green suite won't tell you" class of bug
+`AGENTS.md`'s testing philosophy warns about — neither given nor
+subagent-written test happened to type a date one keystroke at a time with a
+chip already selected.
+
+**KI-33 filed, not fixed** (`docs/known-issues.md`): `UnscheduledRack.tsx`
+and `unscheduledRack.ts` (both Phase 3, unmodified by Phase 7) collide by
+name on a case-insensitive filesystem. Confirmed pre-existing via a
+throwaway worktree against `main` at `624a0db` before either Phase 7 task
+started. Locally this breaks 25 unit tests (`TripBoardScreen.test.tsx`,
+`UnscheduledRack.test.tsx`) **and blocks `next build` outright** — meaning
+`pnpm --filter web test:e2e:ci-like` could not be run in this session at all,
+not just degraded. CI (case-sensitive) is unaffected and remains the
+authoritative signal for both the unit suite and e2e, same reasoning as
+KI-27/KI-32. The fix is a one-file rename touching Phase 3's files, out of
+Phase 7's scope; flagged for priority pickup given it now blocks building the
+app, not just two test files.
+
+**Manual browser checks — both actually performed, not skipped.** Unlike
+Phases 5 and 6, this session had a real interactive browser (Phase
+5/6's "no interactive browser in this container" note does not apply
+universally — it was true of those specific sessions/environments, not a
+standing constraint). Walked both: (1) Task 7.1's checklist — at 1280px with
+the assistant rail open, the Add-a-stop sheet opens fully visible and usable
+on top of it; created a stop with Day 3 / Start 09:00 / How long 1.5 hours
+and confirmed it landed on Day 3 at 09:00–10:30; opened it in edit mode and
+confirmed the End-time field and disabled Day select. (2) Task 7.2's wizard
+walk — all 4 steps, length chip + Arrive date, budget + currency, submitted
+via "Create trip", landed on the new trip's page with the correct derived
+date range (Sat Oct 3 – Mon Oct 12, 10 days) and budget ($2,500.00) applied.
+Both used `next dev` (Turbopack), not a production build — KI-33 blocks
+`next build` on this machine, so a genuine production-mode manual check
+wasn't possible here; CI's own build remains the production-mode signal.
+
+Verified on the branch before the first push:
+`pnpm --filter web typecheck` — clean except KI-33's pre-existing casing
+error; `pnpm --filter web lint` — clean; `node scripts/check-color-wall.mjs`
+— clean (288 files); `pnpm --filter web test` — **640/665**, the 25 failures
+are exactly KI-33's two files, confirmed by name, nothing else newly broken.
+`pnpm --filter web test:e2e:ci-like` **could not be run locally** — KI-33
+blocks the `pnpm build` step it depends on; CI is authoritative for e2e on
+this PR.
+
+**Two rounds of fixes followed, once PR #32 opened and CI ran for real —
+exactly the local-vs-CI gap KI-33 predicted, playing out concretely:**
+
+**Round 1 (CI's first run, before any human or CodeRabbit review):**
+`unit-tests` and `integration-e2e` both failed, `static-checks` passed. Root
+cause: Task 7.1's own new UI (relabelled fields, a renamed submit button)
+was never checked against the *existing* e2e suite and unit tests that
+predate Phase 7 — TripBoardScreen.test.tsx (2 tests) and nine e2e specs
+(m1-board, m2-history, m3-place-and-time, m4-money-and-lenses, m6-optimistic
+×2, m7-solo-delight ×3, m8-make-it-real, smoke) all still drove the old
+"Activity title"/"Start time"/"End time"/"Save" shape or the old
+single-field "Trip name" → "Create trip" dialog. Investigating this also
+surfaced a real, separate regression: Task 7.1's Day-select default had
+started falling back to the trip's first day whenever the sheet opened with
+no prefill at all — but that's exactly TripHeader's own bare "Add stop"
+trigger, which `AGENTS.md`'s "real" feature list and those same e2e specs
+document as creating an **unscheduled** stop. Fixed (commits `2dda3b6`,
+`003c209`, `00aea06`): relabelled every stale test assertion, restored the
+create-unscheduled default with a new regression test, and along the way
+addressed all eight of CodeRabbit's review findings on the same push
+(logged in the commit body and replied to on each thread) — the two
+substantive ones being the wizard's dates/budget/currency dispatch running
+fire-and-forget with no error surfaced on failure (now awaited, checked,
+and retry-safe against minting a duplicate trip) and the availability
+Banner describing a different window than what actually gets saved (now
+computed from the real start+duration).
+
+**Round 2 (after Round 1's push):** `unit-tests`, `static-checks` and
+`CodeRabbit` all went green, but `integration-e2e` still failed — now on 12
+specs, including four (`m10-growth`, `m10-map-rail`,
+`m10-unscheduled-rack`, `responsive`) that don't touch the wizard or
+activity editor at all and had passed in the very first CI run. Root cause:
+Round 1's relabelling fixed the *selectors*, but a separate bug in the
+wizard's own navigation meant `NewTripWizard`'s `onCreated` had started
+firing on **every** successful create, including "Create empty" — which the
+phase doc frames as the old single-field dialog's exact escape hatch, and
+that dialog never navigated (it closed and left the user on the trip list).
+Nine specs click "Create empty" (or its pre-Phase-7 equivalent) and then
+click the new trip's own list-card link to navigate there — a version that
+navigates first leaves the page (and that link) before the click ever runs.
+The four unrelated specs almost certainly failed as collateral: nine
+30s-timeout-plus-retry failures add roughly 9 minutes to a single-worker,
+22-test sequential run, which is consistent with the *whole job* running
+long enough to affect specs queued after them, not a defect in those specs
+themselves — supported by integration-e2e dropping from ~15 minutes to
+under 5 once this was fixed. Fixed in `36944a2`: `onCreated` now carries a
+`{ navigate }` flag, true only for the full wizard's final "Create trip"
+step (matching the phase doc's own "create... apply dates and budget...
+then navigate" sequence); "Create empty" reloads the trip list and stays,
+exactly reproducing the dialog it replaced. New `page.test.tsx` coverage
+locks in the no-navigate path.
+
+**Final state, all four required jobs green:** `unit-tests` (2m32s),
+`static-checks` (1m2s), `integration-e2e` (4m47s, 22/22), `CodeRabbit`
+(no further findings — its reply on the reworded "presentational" line
+confirmed the correction). `pnpm --filter web test` locally: **644/669**,
+the same 25 KI-33 failures and nothing else, confirmed identical across
+every round above. `migrate-production` correctly skips on a PR (only runs
+on merge to `main`).
+
 - **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
   control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
   `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
@@ -458,8 +654,10 @@ not fire. All copy was verified byte-identical to the phase file's table with
   - **Phase 6 (add-a-day, empty states) — done, merged to `main`** (PR #30,
     2026-08-24). See the Phase 6 section under "In flight" for what landed and
     what it deliberately did not.
-  - **Phase 7 (forms):** `ActivityEditorSheet.tsx` last touched 2026-08-09
-    (Wave 1), before the Wave-2 delta plan existed. Still the pre-M10 editor.
+  - **Phase 7 (forms) — implemented, PR #32 open, CI green, not yet
+    merged.** See the "Phase 7" section under "In flight" above for what
+    shipped, the crash bug found via manual browser verification, two
+    rounds of CI/CodeRabbit fixes, and KI-33.
   - **Phase 8 (polish, incl. home):** the home hero/cards that exist
     (`NextTripHero`, `TripCard`) are Wave-1 work from 2026-08-08 to 08-11,
     predating this plan. Task 8.5's specific fixes are unapplied —
@@ -500,16 +698,17 @@ The plan itself:
   The "Design sync" section above has the detail; two questions remain open,
   both carried into `docs/milestones/M15-front-door.md`.
 
-**Phases 3 and 5 are both merged — pick up at Phase 6, 7 or 8 next**
-(`docs/plans/M10-delta/phase-{6,7,8}-*.md`), then **8b** and **1b** (the design
-sync's approved gate additions), then 9. Phases 6 and 7, which
-depended on Phase 3's code being on `main` rather than just on a branch, are
-now unblocked. Phase 8 remains independent of everything else and could go in
-parallel across sessions — but check for its own stray branch first (see
-`AGENTS.md`'s Workstreams section) before assuming it is untouched; this exact
-landing gap is why that check exists. Phase 9 (gate) is last, after all of 5-8
-land — which for Phase 5 means after its PR is opened and merged, not merely
-after the branch was verified. Branch any
+**Phases 3, 5 and 6 are merged; Phase 7 is implemented with its PR open, not
+yet merged — pick up Phase 8 next**, which is independent of everything else
+and could go in parallel across sessions (`docs/plans/M10-delta/phase-8-*.md`)
+— but check for its own stray branch first (see `AGENTS.md`'s Workstreams
+section) before assuming it is untouched; the exact same landing gap that
+happened to Phase 3 is why that check exists. Then **8b** and **1b** (the
+design sync's approved gate additions — 1b depends on Phase 7 being *merged*,
+not just PR-open), then 9. Phase 9 (gate) is last, after all of 5-8 land —
+which for a phase worked in its own session means after its PR is opened
+*and merged*, not merely after the branch was verified (Phase 3's own landing
+gap is exactly this lesson). Branch any
 genuinely new phase work from current `main`, not from PR #23's or PR #26's
 old branches (both merged, empty diff against `main` now) or from any other
 stale branch without checking it first.
@@ -628,12 +827,28 @@ its section under "In flight". CI was green on all four jobs and CodeRabbit
 raised nothing actionable. Its Step 4 manual browser pass is the one thing still
 wanting a human; PR #30's Vercel preview is the way to close it.
 
-Continue M10 Wave 2's remaining phases — **7, 8, then 8b, then 1b** — 7
-unblocked by Phase 3's merge in PR #26, 8 independent. **Phases 8b and 1b are
-the 2026-08-23 design sync's approved additions to this gate** (see the "Design
-sync" section above and `docs/milestones/M10-visual-craft.md`'s gate-scope
-amendments); 8b.5 depends on Task 8.6 and 8b.6 on Phase 6, and 1b depends on
-Phase 7 and 8b. Then Phase 9's gate
+**Phase 7 (add-stop and new-trip forms) implemented on
+`claude/m10-wave2-phase7-forms`, PR #32 open, CI green, not yet merged** —
+see its section under "In flight" for the full record. Unlike Phases 5/6,
+both manual browser checks were actually walked (this session had an
+interactive browser), which caught a real crash bug in the wizard's date
+handling — fixed and re-verified. CI (the first real e2e signal this branch
+got, since KI-33 blocks `pnpm build` locally on this machine) then caught
+two rounds of further findings — CodeRabbit's review plus a navigation
+regression CI found on its own ("Create empty" briefly always navigated
+away instead of only the full wizard doing so, breaking nine unrelated
+pre-Phase-7 e2e specs) — both fixed and re-verified; all four required jobs
+are green as of the latest push. **Needs from a human:** merge the PR; and
+KI-33 itself wants a priority pickup given it blocks building the app on any
+case-insensitive-filesystem machine, not just two test files.
+
+Continue M10 Wave 2's remaining phases — **8, then 8b, then 1b** — once
+Phase 7's PR merges. 8 is independent and could start in parallel. **Phases
+8b and 1b are the 2026-08-23 design sync's approved additions to this gate**
+(see the "Design sync" section above and `docs/milestones/M10-visual-craft.md`'s
+gate-scope amendments); 8b.5 depends on Task 8.6 and 8b.6 on Phase 6, and 1b
+depends on Phase 7 and 8b — 1b can't start until Phase 7's PR is merged, not
+merely opened. Then Phase 9's gate
 (`docs/plans/M10-delta/phase-9-gate.md`): before/after screenshots, KI-2/3/4
 closed or re-deferred, presentational-only diff verified, all tests incl. e2e
 green, retro appended. **M15 Front door comes next once M10's gate closes, then

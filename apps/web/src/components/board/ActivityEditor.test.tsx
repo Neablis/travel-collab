@@ -7,6 +7,8 @@ describe("ActivityEditor", () => {
   it("offers no anchor affordance", () => {
     const props = {
       initial: null,
+      mode: "create" as const,
+      days: [],
       onSave: vi.fn(),
       onCancel: vi.fn(),
     };
@@ -26,10 +28,10 @@ describe("ActivityEditor", () => {
       cost: null,
     };
     const onSave = vi.fn();
-    const props = { initial, onSave, onCancel: vi.fn() };
+    const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
     render(<ActivityEditor {...props} />);
 
-    fireEvent.change(screen.getByLabelText("Activity title"), {
+    fireEvent.change(screen.getByLabelText("What or where"), {
       target: { value: "Colosseum night tour" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

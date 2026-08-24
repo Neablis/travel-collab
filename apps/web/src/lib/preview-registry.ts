@@ -29,6 +29,14 @@ export const PREVIEW_REGISTRY = {
   "cost-estimate-state": { milestone: "M11", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
   "budget-breakdown": { milestone: "M11", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
   "trip-invites": { milestone: "M13", wiredUpBy: "Invites and non-owner roles — TripMember.role is literal \"owner\"" },
+  "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
+  "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
+  "wizard-destination-chips": { milestone: "M11", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from" },
+  "wizard-playbook-panel": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
+  "wizard-longer-chip": { milestone: "M11", wiredUpBy: "Manual day-count entry beyond the four preset lengths — no UI for it yet" },
+  "wizard-invite-list": { milestone: "M13", wiredUpBy: "Invites and non-owner roles — TripMember.role is literal \"owner\"" },
+  "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
+  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

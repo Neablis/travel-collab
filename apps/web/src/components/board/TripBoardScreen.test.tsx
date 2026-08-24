@@ -365,7 +365,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Edit activity" })).toBeTruthy();
 
     // Seeded from the existing activity's data.
-    const titleInput = screen.getByLabelText("Activity title") as HTMLInputElement;
+    const titleInput = screen.getByLabelText("What or where") as HTMLInputElement;
     expect(titleInput.value).toBe("Colosseum tour");
 
     fireEvent.change(titleInput, { target: { value: "Colosseum night tour" } });
@@ -418,13 +418,17 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "trigger create" }));
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(await screen.findByRole("heading", { name: "New activity" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Add a stop" })).toBeTruthy();
 
-    const titleInput = screen.getByLabelText("Activity title") as HTMLInputElement;
+    const titleInput = screen.getByLabelText("What or where") as HTMLInputElement;
     expect(titleInput.value).toBe("");
 
     fireEvent.change(titleInput, { target: { value: "Vatican tour" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    // Create mode's submit is "Add stop" (Phase 7), same label as
+    // TripHeader's own trigger that's still rendered behind the open dialog
+    // — `.at(-1)` picks the sheet's own footer button (portalled last in the
+    // DOM), same disambiguation the Phase 7 e2e specs needed.
+    fireEvent.click(screen.getAllByRole("button", { name: "Add stop" }).at(-1)!);
 
     await waitFor(() =>
       expect(onCommand).toHaveBeenCalledWith(

@@ -9,20 +9,19 @@ import type { TripSummary } from "@tc/contracts";
 import { Heading } from "../components/ui/heading";
 import { Text } from "../components/ui/text";
 import { Button, buttonVariants } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { FormField } from "../components/ui/form-field";
 import { EmptyState } from "../components/ui/empty-state";
 import { Popover } from "../components/ui/popover";
 import { Dialog, DialogFooter } from "../components/ui/dialog";
 import { Toast } from "../components/ui/toast";
 import { NextTripHero } from "../components/home/NextTripHero";
 import { TripCard } from "../components/home/TripCard";
+import { NewTripWizard } from "../components/home/NewTripWizard";
 import { PlaybooksStrip } from "../components/home/PlaybooksStrip";
 import { WorthYourAttention } from "../components/home/WorthYourAttention";
 import { PREVIEW_PLAYBOOKS, PREVIEW_ATTENTION } from "../components/home/preview-fixtures";
 import { Preview } from "../components/ui/preview";
 import { ShareButton } from "../components/trip/ShareButton";
-import { duplicateTrip, sendTripCommand, fetchTripDetail } from "../lib/apiClient";
+import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "../lib/apiClient";
 import { tripSpend, plannedOfBudgetLine } from "../lib/cost";
 import { cn } from "../lib/cn";
 
@@ -30,14 +29,15 @@ export default function Home() {
   const router = useRouter();
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
-  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // New-trip is now a Dialog (page head "New trip" trigger, README §1) rather
-  // than an always-visible inline form. Single-step: CreateTrip
-  // (packages/contracts/src/trip.ts) only ever carries a name — no
-  // destination/dates/pace/tags field exists on the command, so there is
-  // nowhere honest to send a multi-step wizard's extra input. See M10 plan
-  // Task 13 notes: deliberately deferred, not built, pending a contract change.
+  // New-trip is now the 4-step NewTripWizard (page head "New trip" trigger,
+  // Phase 7 Task 7.2), hosted in the same Sheet-in-a-Dialog-slot this single
+  // field Dialog used to be. CreateTrip itself still only ever carries a name
+  // (packages/contracts/src/trip.ts) — the wizard's other real fields
+  // (dates, budget/currency) apply as separate SetTripDates/SetTripBudget/
+  // SetTripCurrency commands against the tripId CreateTrip returns, per the
+  // phase doc's sequence. Everything else the design's wizard shows is
+  // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
@@ -74,24 +74,6 @@ export default function Home() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function createTrip(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const res = await fetch("/api/trips", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string };
-      setError(data.error ?? "Something went wrong");
-      return;
-    }
-    setName("");
-    setNewTripOpen(false);
-    await load();
-  }
 
   function requestDelete(trip: TripSummary) {
     setOpenMenuTripId(null);
@@ -234,42 +216,36 @@ export default function Home() {
           </Button>
         </div>
       </div>
-      {/* Only rendered while the dialog is closed — while it's open, the
-          same `error` state renders inside the Dialog below instead, so a
-          failed createTrip (which keeps the dialog open) doesn't leave its
-          message stranded behind the Dialog's overlay (Radix Portal renders
-          after <main> in DOM order, so a sibling here would paint under it). */}
-      {error && !newTripOpen && (
+      {/* The wizard's own createTrip/Create-empty failures render their own
+          inline alert inside the Sheet (NewTripWizard.tsx) — this top-level
+          `error` is now exclusively delete/duplicate-trip feedback, so no
+          newTripOpen gate is needed to avoid a stranded duplicate. */}
+      {error && (
         <Text role="alert" variant="secondary" className="mt-2 text-danger-ink">
           {error}
         </Text>
       )}
-      <Dialog open={newTripOpen} onOpenChange={setNewTripOpen} title="New trip">
-        <form onSubmit={createTrip} className="flex flex-col gap-3">
-          {error && (
-            <Text role="alert" variant="secondary" className="text-danger-ink">
-              {error}
-            </Text>
-          )}
-          <FormField id="trip-name" label="Trip name">
-            <Input
-              id="trip-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Trip name"
-              aria-label="Trip name"
-            />
-          </FormField>
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setNewTripOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary">
-              Create trip
-            </Button>
-          </DialogFooter>
-        </form>
-      </Dialog>
+      <NewTripWizard
+        open={newTripOpen}
+        onOpenChange={setNewTripOpen}
+        createTrip={createTripApi}
+        dispatch={sendTripCommand}
+        // Only the full wizard (dates/budget applied) navigates straight to
+        // the new trip, matching the phase doc's own "create... apply
+        // dates and budget... then navigate" sequence. "Create empty" is
+        // the old single-field dialog's escape hatch and keeps that
+        // dialog's exact behavior — close, refresh the list, stay put — so
+        // e2e specs built around it can still find the new trip's own card
+        // on this page rather than having already been navigated away from
+        // it (CI, PR #32).
+        onCreated={(tripId, { navigate }) => {
+          if (navigate) {
+            router.push(`/trips/${tripId}`);
+          } else {
+            void load();
+          }
+        }}
+      />
       {nextTrip && (
         <div className="mt-6">
           <NextTripHero trip={nextTrip} shareSlot={<ShareButton variant="secondary" />} />

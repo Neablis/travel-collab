@@ -7,7 +7,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading —
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see
@@ -24,10 +24,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   // is the openCreate() with no dayId that its "+ Add activity" button used to
   // be, and what it creates lands in the Unscheduled drawer.
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Colosseum");
-  await page.getByLabel("Start time").fill("09:00");
-  await page.getByLabel("End time").fill("11:00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByLabel("What or where").fill("Colosseum");
+  await page.getByLabel("Start").fill("09:00");
+  await page.getByLabel("How long").selectOption("2 hours");
+  await page.getByRole("button", { name: "Add stop" }).last().click();
 
   // The drawer is collapsed by default, and collapsed means not rendered — so
   // open it (which also makes it the user's, not a drag's, for the rest of the
@@ -37,10 +37,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" })).toBeVisible();
 
   await page.getByRole("button", { name: "Add stop" }).click();
-  await page.getByLabel("Activity title").fill("Vatican Museums");
-  await page.getByLabel("Start time").fill("10:00");
-  await page.getByLabel("End time").fill("12:00");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByLabel("What or where").fill("Vatican Museums");
+  await page.getByLabel("Start").fill("10:00");
+  await page.getByLabel("How long").selectOption("2 hours");
+  await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" })).toBeVisible();
 
   // Card-scoped, not a bare day-column substring: the overlap chip (M10 Phase 5)

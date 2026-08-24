@@ -157,7 +157,13 @@ describe("Home trip actions", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
   });
 
-  it("shows the create-trip error inside the still-open New-trip dialog on failure", async () => {
+  // Phase 7 Task 7.2 replaced the single-field New-trip Dialog with the
+  // 4-step NewTripWizard, hosted in a Sheet titled "New trip" (same
+  // accessible name the old Dialog had). "Create empty" is the wizard's
+  // still-reachable name-only path (NewTripWizard.tsx), so this exercises
+  // the same createTrip-fails-and-the-overlay-stays-open behavior the old
+  // test covered, through the new control.
+  it("shows the create-trip error inside the still-open New-trip sheet on failure", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/api/trips") && init?.method === "POST") {
@@ -174,16 +180,50 @@ describe("Home trip actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText(/trip name/i), "Iceland");
-    await userEvent.click(within(dialog).getByRole("button", { name: /^create trip$/i }));
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Iceland");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/name already taken/i);
-    // The error is rendered inside the dialog's content, not as a sibling
-    // that would be visually stranded behind the Dialog's overlay.
+    // The error is rendered inside the sheet's content, not as a sibling
+    // that would be visually stranded behind the overlay.
     expect(within(dialog).getByRole("alert").textContent).toMatch(/name already taken/i);
-    // Dialog must still be open — createTrip does not close it on failure.
+    // The sheet must still be open — createTrip does not close it on failure.
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
+  });
+
+  // Regression (CI, PR #32): an earlier draft had "Create empty" navigate
+  // straight to the new trip, same as the full wizard's "Create trip". That
+  // broke every e2e spec built on the old single-field dialog's actual
+  // behavior — close, refresh the list, stay put, then click the new
+  // trip's own card to navigate. "Create empty" is explicitly that dialog's
+  // escape hatch (NewTripWizard.tsx), so it keeps that exact behavior; only
+  // the full wizard (dates/budget applied, "Create trip") navigates.
+  it("stays on the trip list and shows the new trip after Create empty, without navigating", async () => {
+    const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
+    let listCallCount = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips") && init?.method === "POST") {
+        return jsonResponse({ tripId: newTripId }, 201);
+      }
+      if (url.endsWith("/api/trips")) {
+        listCallCount += 1;
+        const trips = listCallCount === 1 ? [] : [tripSummaryFixture({ tripId: newTripId, name: "Reykjavik" })];
+        return jsonResponse({ trips });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /new trip/i });
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
+
+    expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   // Task 18: the head's "Start from a Playbook" link is a real navigation

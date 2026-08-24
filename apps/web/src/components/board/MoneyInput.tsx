@@ -45,6 +45,7 @@ export function MoneyInput({
   value,
   currency,
   onChange,
+  placeholder,
 }: {
   // Optional: lets a caller's own FormField `id`/`htmlFor` actually resolve
   // to this input (Task 4.2 — TripMoneySettings' "Total for the trip" needs
@@ -55,6 +56,10 @@ export function MoneyInput({
   value: Money | null;
   currency: string;
   onChange: (m: Money | null) => void;
+  // Optional: the add-stop sheet's Cost field (Phase 7, Task 7.1) wants an
+  // example-value placeholder ("e.g. 120") instead of the default "0.00
+  // {currency}" hint. Omitted callers keep the original placeholder.
+  placeholder?: string;
 }) {
   const [display, setDisplay] = useState(formatMoney(value));
   const prevValue = useRef(value);
@@ -79,7 +84,7 @@ export function MoneyInput({
   return (
     <Input
       id={id}
-      type="text" inputMode="decimal" aria-label={id ? undefined : `cost (${currency})`} placeholder={`0.00 ${currency}`}
+      type="text" inputMode="decimal" aria-label={id ? undefined : `cost (${currency})`} placeholder={placeholder ?? `0.00 ${currency}`}
       value={display}
       onChange={(e) => setDisplay(e.target.value)}
       onBlur={(e) => {
