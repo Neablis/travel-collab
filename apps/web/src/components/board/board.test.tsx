@@ -7,6 +7,7 @@ import { tripDetailFixture } from "@tc/factories";
 
 const A1 = "11111111-1111-4111-8111-111111111111";
 const A2 = "22222222-2222-4222-8222-222222222222";
+const A3 = "44444444-4444-4444-8444-444444444444";
 const DAY = "33333333-3333-4333-8333-333333333333";
 
 function fixture() {
@@ -41,6 +42,34 @@ function geographyConflict() {
     description: '"Colosseum" (Rome) and "Vatican Museums" (Tokyo) are ~9800 km apart on the same day.',
     resolutions: ["Move one activity to another day", "Fix a mistyped coordinate"],
   };
+}
+
+// KI-29: three mutually overlapping stops. The domain emits one
+// `time-overlap` conflict per crossing pair, so this day carries three, and
+// two of them name the latest stop (A3) as their later half. A column card
+// has room for exactly one chip, so one pair gets no chip anywhere.
+function threeWayOverlapFixture() {
+  const conflict = (x: string, y: string, xTitle: string, yTitle: string) => ({
+    id: `time-overlap:${DAY}:${x}:${y}`,
+    kind: "time-overlap" as const,
+    severity: "warn" as const,
+    subjects: [x, y],
+    description: `"${xTitle}" and "${yTitle}" overlap in time on the same day.`,
+    resolutions: ["Change one activity's time window"],
+  });
+  return tripDetailFixture({
+    days: [{ dayId: DAY, activityIds: [A1, A2, A3], date: null, costSubtotal: 0 }],
+    activities: {
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "12:00" }, location: null, notes: null, anchors: [], cost: null },
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+      [A3]: { activityId: A3, title: "Trastevere walk", timeWindow: { start: "11:00", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+    },
+    conflicts: [
+      conflict(A1, A2, "Colosseum", "Vatican Museums"),
+      conflict(A1, A3, "Colosseum", "Trastevere walk"),
+      conflict(A2, A3, "Vatican Museums", "Trastevere walk"),
+    ],
+  });
 }
 
 // Board now raises the portable editor via useEditor().openCreate rather than
@@ -112,6 +141,27 @@ describe("Board", () => {
     expect(screen.queryAllByRole("img", { name: "conflict" })).toHaveLength(0);
     expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+  });
+
+  // KI-29: the one chip a card has room for cannot name both of the latest
+  // stop's overlaps, so the dropped pair used to have no day-column surface at
+  // all. The cheapest signal — the generic triangle the card already has —
+  // stays on for exactly the overlaps no chip renders.
+  it("still signals an overlap that no chip could render, with the generic triangle", () => {
+    renderBoard(threeWayOverlapFixture(), noopCallbacks());
+
+    // Each of the two later stops carries the one chip it has room for...
+    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
+    expect(screen.getByTestId(`overlap-chip-${A3}`)).toBeTruthy();
+
+    // ...and the third pair (A2/A3), which no chip renders, is signalled on
+    // both of its subjects rather than vanishing from the columns.
+    const badged = (id: string) =>
+      within(screen.getByTestId(`activity-card-${id}`)).queryAllByRole("img", { name: "conflict" });
+    expect(badged(A2)).toHaveLength(1);
+    expect(badged(A3)).toHaveLength(1);
+    // The stop whose every overlap IS chipped keeps its clean card.
+    expect(badged(A1)).toHaveLength(0);
   });
 
   // M10 Phase 5: the day columns' compact form of the timeline's overlap

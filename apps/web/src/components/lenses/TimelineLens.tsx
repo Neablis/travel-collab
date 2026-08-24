@@ -382,11 +382,20 @@ export function TimelineLens({
 
   // Every activityId named as a subject of a badge-worthy conflict — the same
   // rule Board.tsx's conflictIds uses, shared from overlapData rather than
-  // spelled out twice, so the two lenses cannot drift on which kinds the bare
-  // triangle covers.
+  // spelled out twice, so the two lenses cannot drift on which conflicts the
+  // bare triangle covers. This lens has the room to lay out *every* overlap of
+  // every day as a full OverlapWarning, so it hands that whole set over as
+  // "already surfaced" — where Board, which chips one per stop, hands over
+  // less and gets triangles for the rest (KI-29).
   const conflictActivityIds = useMemo(
-    () => badgeableConflictSubjects(detail.conflicts),
-    [detail.conflicts],
+    () =>
+      badgeableConflictSubjects(
+        detail,
+        new Set(
+          detail.days.flatMap((day) => overlapsForDay(detail, day.dayId).map((o) => o.conflictId)),
+        ),
+      ),
+    [detail],
   );
 
   // "Start HH:MM" moves the later stop to begin when the earlier one ends,
