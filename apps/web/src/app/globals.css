@@ -201,4 +201,14 @@
   .overlay-layer {
     z-index: 60;
   }
+
+  /* ActivityEditor (Phase 7, Task 7.1): the add-stop sheet's Day/Start/How-long
+     row is a fixed 3-up grid (`grid-template-columns: 1fr 1fr 1fr; gap: 10px`,
+     handoff design), not on Tailwind's default grid-cols scale and not
+     expressible without an arbitrary value the color wall bans. */
+  .activity-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
 }
