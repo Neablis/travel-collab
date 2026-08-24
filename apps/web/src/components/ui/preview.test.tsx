@@ -39,4 +39,20 @@ describe("Preview", () => {
     );
     expect(screen.queryByText(/Preview · M9/)).toBeNull();
   });
+  it("reserves space for the compact badge instead of overlapping the host", () => {
+    render(
+      <Preview id="share-button" size="compact">
+        <button>Share</button>
+      </Preview>,
+    );
+    expect(screen.getByRole("group").className).toMatch(/\bpr-/);
+  });
+  it("does not force position:relative when the caller positions itself", () => {
+    render(
+      <Preview id="assistant-suggestions" size="container" className="fixed inset-0">
+        <p>x</p>
+      </Preview>,
+    );
+    expect(screen.getByRole("group").className).not.toMatch(/\brelative\b/);
+  });
 });
