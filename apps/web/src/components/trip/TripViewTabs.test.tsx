@@ -4,19 +4,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Lens, ScheduleView } from "./context/LensRouter";
 
 // M10 redesign-feedback follow-up: TripViewTabs went from 3 primary tabs + a
-// "More" popover (6 lenses total) down to exactly 4 peer tabs, dropping
-// Itinerary/Daily/Full-trip from the nav entirely (docs/known-issues.md).
+// "More" popover (6 lenses total) down to exactly 4 peer tabs; the three lenses
+// that popover carried were then retired outright (KI-20, docs/known-issues.md).
 // Mocking useLens directly (rather than driving it through LensRouter's real
 // URL-search-param plumbing, as this file used to) lets each test set an
 // arbitrary lens/view and assert on setLens/setLensAndView calls directly —
 // simpler than round-tripping through router.replace for a component this
-// thin.
+// thin. Only `useLens` is stubbed: the real `LENSES` list is kept so the
+// coverage test at the bottom compares tabs against the actual lens set rather
+// than a copy of it that could drift.
 const useLensMock = vi.fn();
-vi.mock("./context/LensRouter", () => ({
+vi.mock("./context/LensRouter", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./context/LensRouter")>()),
   useLens: () => useLensMock(),
 }));
 
 // Import after the mock so TripViewTabs picks it up.
+import { LENSES, SCHEDULE_VIEWS } from "./context/LensRouter";
 import { TripViewTabs } from "./TripViewTabs";
 
 afterEach(cleanup);
@@ -104,10 +108,49 @@ describe("TripViewTabs", () => {
     expect(setLensAndView).toHaveBeenCalledWith("Schedule", "Timeline");
   });
 
-  it("none of the four tabs is selected while on a lens with no tab (e.g. Itinerary)", () => {
-    renderTabs({ lens: "Itinerary" });
-    for (const tab of screen.getAllByRole("tab")) {
-      expect(tab.getAttribute("aria-selected")).toBe("false");
+  // KI-20's regression guard, and the reason the entry could be closed by
+  // retirement rather than by a fifth tab: every lens LensRouter accepts is
+  // reachable from this strip, and no tab-less lens is left to re-introduce.
+  // This replaces a test asserting the old "no tab selected on Itinerary"
+  // behaviour — a state that is now unreachable by design.
+  //
+  // Driven off the real LENSES x SCHEDULE_VIEWS product rather than a copied
+  // list, so a lens added without a tab of its own is caught rather than
+  // silently skipped: it would fall through to whatever tab `primaryValue`
+  // defaults to, colliding with the lens that legitimately owns it, and the
+  // disjointness assertion below turns red.
+  it("gives every lens LensRouter accepts its own tab, and no tab is dead (KI-20)", () => {
+    const tabsPerLens = new Map<Lens, Set<string>>();
+    for (const lens of LENSES) {
+      const owned = new Set<string>();
+      for (const view of SCHEDULE_VIEWS) {
+        cleanup();
+        renderTabs({ lens, view });
+        const selected = screen.getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true");
+        // Exactly one — never zero (a tab-less lens) and never two.
+        expect(selected.map((t) => t.textContent)).toHaveLength(1);
+        owned.add(selected[0]!.textContent ?? "");
+      }
+      tabsPerLens.set(lens, owned);
     }
+
+    // No two lenses select the same tab: each lens owns its own corner of the
+    // strip. Board/Map ignore `view` and own one tab each; Schedule owns two.
+    const claimed = [...tabsPerLens.values()].flatMap((s) => [...s]);
+    expect(new Set(claimed).size).toBe(claimed.length);
+
+    // …and together they cover the whole strip, so no tab is dead either.
+    cleanup();
+    renderTabs();
+    expect([...claimed].sort()).toEqual(
+      screen
+        .getAllByRole("tab")
+        .map((t) => t.textContent ?? "")
+        .sort(),
+    );
+
+    // Last, and only as documentation of what KI-20 retired — the two
+    // assertions above are the ones that actually bite.
+    expect([...LENSES]).toEqual(["Board", "Map", "Schedule"]);
   });
 });

@@ -100,9 +100,11 @@ Captured so they aren't lost; not committed to a milestone yet.
     and corrects its diagnosis:** not stored-field drift, but a derived value
     presented in an editable field.
   - **Design coverage the build is still owed** — History beyond the popover,
-    the four extra lenses and `MapRail` (this is also **KI-20**), trip
-    lifecycle (delete → undo → restore, duplicate), and error/empty states for
-    the new landing, auth and first-run screens. Design work, not build work.
+    `MapRail`, trip lifecycle (delete → undo → restore, duplicate), and
+    error/empty states for the new landing, auth and first-run screens. Design
+    work, not build work. (The three undesigned extra lenses this used to name
+    alongside them — Itinerary, Daily overview, Full trip — are gone: **KI-20**
+    was closed by retiring them, not by designing a home for them.)
 
 - **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
   first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8

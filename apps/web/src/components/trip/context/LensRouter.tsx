@@ -2,7 +2,15 @@
 import { createContext, useContext, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export const LENSES = ["Board", "Map", "Schedule", "Itinerary", "Daily", "Trip"] as const;
+// Exactly the lenses M10's four-tab strip can reach: Board ("Day columns"),
+// Map, and Schedule (Timeline / Calendar, via `view`). The Itinerary, Daily
+// overview and Full-trip lenses were retired here (KI-20) rather than given a
+// fifth tab — the M10 redesign never contemplated them, and a lens with no
+// navigation entry is a feature nobody can find. An old bookmarked
+// `?lens=Itinerary` URL does not throw: the derivation below falls back to
+// "Board" for any value not in this list. TripViewTabs.tsx renders one tab per
+// entry here, and a test holds the two lists in lockstep.
+export const LENSES = ["Board", "Map", "Schedule"] as const;
 export type Lens = (typeof LENSES)[number];
 export const SCHEDULE_VIEWS = ["Timeline", "Calendar"] as const;
 export type ScheduleView = (typeof SCHEDULE_VIEWS)[number];

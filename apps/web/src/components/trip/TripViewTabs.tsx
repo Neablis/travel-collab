@@ -3,13 +3,13 @@
 import { TabStrip } from "@/components/ui/tab-strip";
 import { useLens } from "./context/LensRouter";
 
-// Handoff `current/…dc.html:2469`: exactly four peer views. The app's lens
-// system still has six (LensRouter is untouched — no lens added, removed or
-// merged, per ADR-018/M10's guardrail); Itinerary, Daily overview and Full trip
-// keep working via their ?lens= URLs but are no longer in the nav. Recorded in
-// docs/known-issues.md. This replaces the three-tabs-plus-"More"-popover
-// arrangement, whose trigger relabelled itself to the active lens and left the
-// strip showing no selection at all in Map view.
+// Handoff `current/…dc.html:2469`: exactly four peer views. This replaces the
+// three-tabs-plus-"More"-popover arrangement, whose trigger relabelled itself
+// to the active lens and left the strip showing no selection at all in Map
+// view. The Itinerary, Daily overview and Full-trip lenses that popover used to
+// carry are retired (KI-20) rather than re-homed, so these four tabs now cover
+// every lens LensRouter accepts and `primaryValue` below is total — every
+// (lens, view) pair maps to exactly one tab, and no tab-less state exists.
 type PrimaryTab = "Timeline" | "Day columns" | "Calendar" | "Map";
 
 const PRIMARY_TABS: readonly { value: PrimaryTab; label: string }[] = [
@@ -22,16 +22,8 @@ const PRIMARY_TABS: readonly { value: PrimaryTab; label: string }[] = [
 export function TripViewTabs() {
   const { lens, view, setLens, setLensAndView } = useLens();
 
-  const primaryValue: PrimaryTab | undefined =
-    lens === "Board"
-      ? "Day columns"
-      : lens === "Map"
-        ? "Map"
-        : lens === "Schedule" && view === "Timeline"
-          ? "Timeline"
-          : lens === "Schedule" && view === "Calendar"
-            ? "Calendar"
-            : undefined;
+  const primaryValue: PrimaryTab =
+    lens === "Board" ? "Day columns" : lens === "Map" ? "Map" : view === "Calendar" ? "Calendar" : "Timeline";
 
   const selectPrimary = (value: PrimaryTab) => {
     if (value === "Day columns") return setLens("Board");
