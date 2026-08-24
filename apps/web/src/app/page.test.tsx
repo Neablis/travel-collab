@@ -453,6 +453,11 @@ describe("Home page head", () => {
       const dateLine = screen.getByTestId("page-date-line");
       expect(dateLine.textContent).toMatch(/mar(ch)? 1, 2026/i);
       expect(dateLine.textContent).not.toMatch(/mar(ch)? 2, 2026/i);
+      // The visible label is human-readable prose ("Sun, Mar 1, 2026"), but
+      // <time> also wants a real machine-readable value alongside it
+      // (CodeRabbit, PR #35) -- and that value must be the same LOCAL day
+      // the label names, not a UTC one.
+      expect(dateLine.getAttribute("datetime")).toBe("2026-03-01");
     } finally {
       vi.useRealTimers();
       process.env.TZ = originalTz;

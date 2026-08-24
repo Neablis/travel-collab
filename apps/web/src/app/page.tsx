@@ -50,10 +50,13 @@ export default function Home() {
   // unrelated re-render happens to overwrite it (CodeRabbit, PR #35).
   // `null` until the client's own effect runs keeps the server and the
   // client's first paint identical (both render nothing here), then fills
-  // in the viewer's actual local date once it's safe to read.
-  const [dateLabel, setDateLabel] = useState<string | null>(null);
+  // in the viewer's actual local date once it's safe to read. Kept as the
+  // raw ISO (not the pre-formatted label) so the rendered <time> can carry
+  // an honest machine-readable `dateTime`, not just human-readable text
+  // (CodeRabbit, PR #35).
+  const [dateIso, setDateIso] = useState<string | null>(null);
   useEffect(() => {
-    setDateLabel(formatTripDateLong(todayIso()));
+    setDateIso(todayIso());
   }, []);
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
@@ -240,8 +243,14 @@ export default function Home() {
               already supplies the mono digits + slate color that pattern
               wants, so this reuses it rather than hand-rolling a new
               combination for one line. */}
-          <DataText as="time" size="xs" data-testid="page-date-line" className="uppercase tracking-wide">
-            {dateLabel}
+          <DataText
+            as="time"
+            size="xs"
+            data-testid="page-date-line"
+            className="uppercase tracking-wide"
+            dateTime={dateIso ?? undefined}
+          >
+            {dateIso !== null ? formatTripDateLong(dateIso) : null}
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>
