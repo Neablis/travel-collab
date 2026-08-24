@@ -198,6 +198,18 @@ noise — it caught a real fire-and-forget navigation race in M10 Wave 2 Phase 7
 that no test covered. Its scope and verbosity are configured in
 `.coderabbit.yaml`; tune that file rather than ignoring comments in bulk.
 
+**One trap, hit while writing this down:** immediately after a push, `--watch`
+can return in about a second reporting the *previous* commit's checks, all
+green, because GitHub has not registered the new run yet. That reads exactly
+like "my push passed." Confirm the run exists for your actual HEAD first:
+
+```
+git rev-parse --short HEAD
+gh run list --commit <sha> --limit 1
+```
+
+Then watch. Waiting for the run to appear is the only reliable ordering.
+
 ## Milestone discipline and drift detection
 
 Work proceeds through the gates in `docs/milestones/README.md`. Do not build
