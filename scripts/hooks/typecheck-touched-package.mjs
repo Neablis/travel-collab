@@ -93,8 +93,12 @@ for (const pkg of targets) {
       { cwd: pkgDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (err) {
-    const out = `${err.stdout ?? ""}${err.stderr ?? ""}`.trim();
-    if (out) failures.push({ pkg: pkg.name, out });
+    // A throw with no compiler output means tsc could not run at all (spawn
+    // refused, killed, crashed) rather than "no type errors". Falling back to
+    // err.message and always recording the failure keeps that from exiting 0
+    // and silently reporting a clean typecheck.
+    const out = `${err.stdout ?? ""}${err.stderr ?? ""}`.trim() || String(err.message ?? err);
+    failures.push({ pkg: pkg.name, out });
   }
 }
 

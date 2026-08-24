@@ -75,7 +75,10 @@ reviews:
         hand-written type duplicating a packages/contracts schema. AI model
         output must be validated against a schema at its boundary (KI-9).
 
-    - path: "**/*.test.ts"
+    # Component tests are .test.tsx and e2e specs are .spec.ts here, so a
+    # single "**/*.test.ts" entry would have covered barely a third of the
+    # suite and silently exempted the rest.
+    - path: "**/*.{test,spec}.{ts,tsx}"
       instructions: >-
         Flag tests that assert nothing on the path they claim to cover, and
         property tests without a witness floor. A comment asserting an
