@@ -61,6 +61,76 @@ describe("AccountMenu", () => {
     expect(onResetDemoData).not.toHaveBeenCalled();
   });
 
+  // Mitchell's report, verbatim: "Im really suprised how long the reset
+  // took, and there was no ui indicator that it was still seeding which made
+  // it dangerous to run." Two greyed-out buttons with unchanged copy reads
+  // as broken, not busy — the label and a live region both have to say so.
+  it("shows a busy label and announces reset progress while the request is in flight", async () => {
+    let resolveReset!: () => void;
+    const onResetDemoData = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReset = resolve;
+        }),
+    );
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(await screen.findByRole("button", { name: "Resetting…" })).toBeTruthy();
+    const status = screen.getByRole("status");
+    expect(status.textContent).toMatch(/few seconds/i);
+
+    resolveReset();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Resetting…" })).toBeNull());
+  });
+
+  it("keeps the dialog open when Escape is pressed mid-reset", async () => {
+    let resolveReset!: () => void;
+    const onResetDemoData = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReset = resolve;
+        }),
+    );
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await screen.findByRole("button", { name: "Resetting…" });
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("heading", { name: "Reset to demo data" })).toBeTruthy();
+
+    resolveReset();
+    await waitFor(() => expect(onResetDemoData).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not fire a second reset from a repeat click while one is already in flight", async () => {
+    let resolveReset!: () => void;
+    const onResetDemoData = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReset = resolve;
+        }),
+    );
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+
+    const resetButton = screen.getByRole("button", { name: "Reset" });
+    await userEvent.click(resetButton);
+    await screen.findByRole("button", { name: "Resetting…" });
+    // No @testing-library/jest-dom in this repo — check the DOM property
+    // directly, same pattern as SettingsSheet.test.tsx's status-text match.
+    expect((resetButton as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.click(resetButton);
+    resolveReset();
+    await waitFor(() => expect(onResetDemoData).toHaveBeenCalledTimes(1));
+  });
+
   it("shows an error inline when the reset fails, without closing the dialog", async () => {
     const onResetDemoData = vi.fn().mockRejectedValue(new Error("boom"));
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);

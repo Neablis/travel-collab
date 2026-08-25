@@ -116,11 +116,27 @@ export function AccountMenu({
         )}
       </Popover>
       {demoResetEnabled && (
-        <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen} title="Reset to demo data">
+        <Dialog
+          open={resetConfirmOpen}
+          // Radix fires this for Escape, an overlay click, and the built-in
+          // close (X) button alike — mid-flight, losing this dialog is
+          // exactly the "dangerous" case from Mitchell's report: no way to
+          // tell whether the reset completed, ran, or did nothing.
+          onOpenChange={(next) => {
+            if (resetBusy) return;
+            setResetConfirmOpen(next);
+          }}
+          title="Reset to demo data"
+        >
           <Text variant="secondary">
             This deletes all of your trips and replaces them with the Japan demo trip. This can&apos;t be undone
             from here.
           </Text>
+          {resetBusy && (
+            <Text role="status" variant="secondary" className="mt-2">
+              Replacing your trips with the demo data. This takes a few seconds — keep this open.
+            </Text>
+          )}
           {resetError && (
             <Text role="alert" variant="secondary" className="text-danger-ink">
               {resetError}
@@ -131,7 +147,7 @@ export function AccountMenu({
               Cancel
             </Button>
             <Button variant="destructive" disabled={resetBusy} onClick={() => void handleConfirmReset()}>
-              Reset
+              {resetBusy ? "Resetting…" : "Reset"}
             </Button>
           </DialogFooter>
         </Dialog>
