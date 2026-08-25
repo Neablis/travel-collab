@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import type { Money, TripCommand } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -29,21 +30,40 @@ export function TripMoneySettings({
       // eslint-disable-next-line no-restricted-syntax -- the redesign's 1fr/130px budget-input split has no token equivalent, matching BudgetChip's computed-geometry pattern
       style={{ gridTemplateColumns: "1fr 130px" }}
     >
-      <FormField
-        id="trip-budget"
-        label="Total for the trip"
-        description="Used for the over-budget warning across lenses."
-      >
-        <div className="flex items-center gap-1.5">
+      {/* `hint` (renders below the input), not `description` (renders
+          between the label and the input) — the Currency field beside this
+          one has no description, so a description here pushed this row's
+          input down out of alignment with Currency's (Mitchell, reviewing
+          the preview). Both fields' Label→input distance is now identical;
+          the same helper copy just moves to below the input instead. */}
+      <FormField id="trip-budget" label="Total for the trip" hint="Used for the over-budget warning across lenses.">
+        <div className="relative">
           <MoneyInput
             id="trip-budget"
             value={budget}
             currency={currency}
             onChange={(money) => onCommand({ type: "SetTripBudget", tripId, budget: money })}
+            className={budget !== null ? "pr-8" : undefined}
           />
-          <Button variant="ghost" onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}>
-            Clear budget
-          </Button>
+          {/* Mitchell: "Put a X at the end of the budget input to clear, we
+              dont need a clear budget button." Reuses TripDateControl's #19
+              clear-X pattern (ghost icon Button, ARIA name "Clear <field>",
+              only rendered when there's a value to clear) rather than a
+              second clear-button style — just laid trailing-inside the input
+              instead of beside it, since a budget figure and its clear-X
+              read as one control the way the date's don't. */}
+          {budget !== null && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Clear budget"
+              className="absolute right-0.5 top-1/2 -translate-y-1/2"
+              onClick={() => onCommand({ type: "SetTripBudget", tripId, budget: null })}
+            >
+              <X className="size-3.5" aria-hidden />
+            </Button>
+          )}
         </div>
       </FormField>
       <FormField id="trip-currency" label="Currency">

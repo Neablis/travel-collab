@@ -21,4 +21,28 @@ describe("TripMoneySettings", () => {
     await userEvent.tab();
     expect(onCommand).toHaveBeenLastCalledWith({ type: "SetTripBudget", tripId: TRIP, budget: { amountMinor: 250000, currency: "USD" } });
   });
+
+  // Mitchell: "Put a X at the end of the budget input to clear, we dont need
+  // a clear budget button" — the standalone "Clear budget" Button is gone;
+  // this is the #19 TripDateControl clear-X pattern reused, laid trailing
+  // inside the input instead of beside it.
+  it("clears the budget via the trailing X when a budget is set", async () => {
+    const onCommand = vi.fn();
+    render(
+      <TripMoneySettings
+        tripId={TRIP}
+        currency="USD"
+        budget={{ amountMinor: 250000, currency: "USD" }}
+        onCommand={onCommand}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /clear budget/i }));
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripBudget", tripId: TRIP, budget: null });
+  });
+
+  it("hides the clear-X when there is no budget to clear", () => {
+    render(<TripMoneySettings tripId={TRIP} currency="USD" budget={null} onCommand={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /clear budget/i })).toBeNull();
+  });
 });

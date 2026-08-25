@@ -353,16 +353,16 @@ describe("NextTripHero", () => {
   });
 
   // Task 4.1 (M10 Phase 4): the "planned of budget" line derived from the real
-  // TripDetail this component already fetches (tripSpend + formatMoney — the
-  // same KI-2 convention every other money surface uses, not a "$"-prefixed
-  // hand-formatted string).
+  // TripDetail this component already fetches (tripSpend + formatMoney —
+  // never a hand-rolled string; #46 has formatMoney itself prefix a "$" for
+  // USD).
   it("shows planned spend against the budget once the real TripDetail loads", async () => {
     const trip = tripSummaryFixture();
     // costedTripDetailFixture: tripCostTotal 49100 minor, budget 100000 minor, USD.
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: costedTripDetailFixture() });
     render(<NextTripHero trip={trip} />);
 
-    expect(await screen.findByText("491.00 USD planned of 1,000.00 USD")).toBeTruthy();
+    expect(await screen.findByText("$491.00 planned of $1,000.00")).toBeTruthy();
   });
 
   it("shows an honest 'No budget yet' only once it knows the loaded trip truly has none", async () => {

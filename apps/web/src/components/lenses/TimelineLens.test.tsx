@@ -399,9 +399,8 @@ describe("TimelineLens", () => {
 
   // Task 4.1 (M10 Phase 4): per-stop cost, right column, under the
   // attributee. Formatted through formatMoney (KI-2) — never a hand-rolled
-  // "$"-prefixed string — so this asserts the same "N,NNN.NN CCC" convention
-  // BudgetChip already uses, not a currency
-  // symbol.
+  // string — so this asserts the same convention BudgetChip already uses
+  // (#46: USD renders as its "$" symbol, not the code).
   it("shows a stop's cost in the card's right column", () => {
     const detail = tripDetailFixture({
       currency: "USD",
@@ -419,11 +418,11 @@ describe("TimelineLens", () => {
       },
     });
     renderLens(detail);
-    // The day-header cost chip also totals to the same "42.00 USD" here
-    // (this fixture's one activity is the whole day's cost) — scope to the
+    // The day-header cost chip also totals to the same "$42.00" here (this
+    // fixture's one activity is the whole day's cost) — scope to the
     // activity row so this asserts the stop's own cost specifically.
     const row = screen.getByTestId("timeline-item-timed1");
-    expect(within(row).getByText("42.00 USD")).toBeTruthy();
+    expect(within(row).getByText("$42.00")).toBeTruthy();
   });
 
   it("says so honestly when a stop has no cost", () => {
@@ -463,7 +462,7 @@ describe("TimelineLens", () => {
       },
     });
     renderLens(detail);
-    expect(screen.getByTestId("day-cost-day-1").textContent).toContain("99.99 USD");
+    expect(screen.getByTestId("day-cost-day-1").textContent).toContain("$99.99");
   });
 
   // M10 Phase 5 — the overlap warning, its one-click fix and its dismissal.
