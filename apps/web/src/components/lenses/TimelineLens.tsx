@@ -456,7 +456,11 @@ export function TimelineLens({
   return (
     <div
       data-testid="timeline-lens"
-      className="mx-auto flex flex-col gap-5"
+      // pt-5 matches the gap-5 rhythm between rows, so the first day gets the
+      // same breathing room from the chrome above it that every later row
+      // already gets from its predecessor — it was previously flush against
+      // the sticky header with nothing above it to produce that gap.
+      className="mx-auto flex flex-col gap-5 pt-5"
       // eslint-disable-next-line no-restricted-syntax -- 920px reading-width cap has no token equivalent (between --container-measure/640px and --container-content/1120px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
       style={{ maxWidth: "920px" }}
     >

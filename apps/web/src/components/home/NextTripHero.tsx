@@ -211,15 +211,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         </div>
 
         <div className="bg-moss p-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
-            {/* A column's height is its stop COUNT, not its hours — nothing
-                else on the panel says so, and the graph is ambiguous with
-                a duration reading without it. */}
-            {sparkline.status === "ready" && sparkline.days.length > 0 && (
-              <div className="text-xs text-slate">stops per day</div>
-            )}
-          </div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           <div className="mt-4">
             {sparkline.status === "ready" && sparkline.days.length > 0 ? (
               // Sparkline itself handles a day with zero stops gracefully

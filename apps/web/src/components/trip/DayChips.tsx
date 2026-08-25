@@ -120,7 +120,15 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
   // each day resolving blind to every other one.
   const accents = dayAccents(days.map((d) => d.city));
   return (
-    <div role="group" aria-label="Days" className="flex gap-2 overflow-x-auto pb-1">
+    // Reported twice ("top border cut off"/"still cut off"): `overflow-x-auto`
+    // sets overflow-x to a non-`visible` value, and the CSS overflow spec
+    // forces the paired overflow-y (left at its `visible` default) to compute
+    // as `auto` too — so this container clips vertically even though only the
+    // x-axis was ever meant to scroll. `pb-1` already gave the focused chip's
+    // `ring-2` clearance below the clip edge; `pt-1` is the missing symmetric
+    // case above, where a focused chip's ring (and any chip's own top edge)
+    // sat flush against the clip with nothing to clear it.
+    <div role="group" aria-label="Days" className="flex gap-2 overflow-x-auto pt-1 pb-1">
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
         const isFocused = focusedDay === index;

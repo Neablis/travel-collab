@@ -146,8 +146,19 @@
      matching the handoff's own "persistent side rail" framing — keeps real
      content out from under it instead of trying to punch pointer-events
      holes through a shell that has genuine visible content of its own. */
+  /* Lens content needs its own clearance from the bottom of the page — a
+     day-column/timeline row otherwise ends flush against the viewport edge.
+     24px matches PageContainer's own px-6 gutter, so the content ends with
+     the same margin it starts with horizontally. The Map lens is deliberately
+     full-bleed (Task 2.3's "mapwrap") and opts out via `.full-bleed`
+     (TripBoardScreen.tsx sets it whenever the active lens is Map), the same
+     modifier-class pattern `.assistant-hidden` below uses. */
   .trip-board-content {
     padding-right: 0;
+    padding-bottom: 24px;
+  }
+  .trip-board-content.full-bleed {
+    padding-bottom: 0;
   }
   @media (min-width: 1180px) {
     .trip-board-content {

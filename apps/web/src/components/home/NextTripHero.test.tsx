@@ -381,4 +381,16 @@ describe("NextTripHero", () => {
     expect(screen.queryByText(/planned of/)).toBeNull();
     expect(screen.queryByText("No budget yet")).toBeNull();
   });
+
+  // Preview review fix: the "stops per day" label next to the sparkline
+  // heading was flagged as unneeded and removed. Asserted once the sparkline
+  // itself has real data, since the label only ever rendered in that state.
+  it("does not render a 'stops per day' label next to the sparkline heading", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    await screen.findByRole("group", { name: /shape of the trip/i });
+    expect(screen.queryByText("stops per day")).toBeNull();
+  });
 });

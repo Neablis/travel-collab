@@ -547,6 +547,30 @@ describe("map view hides the day-chips row", () => {
   });
 });
 
+// Preview review fix: lens content gets a bottom margin against the page via
+// `.trip-board-content`'s `padding-bottom` (globals.css), except on the Map
+// lens, which is deliberately full-bleed (Task 2.3's "mapwrap") — exempted
+// via the `.full-bleed` modifier class. jsdom doesn't apply real CSS, so this
+// asserts the class toggle that drives the exemption, not the rendered pixels.
+describe("lens bottom-margin exemption for the full-bleed Map lens", () => {
+  it("carries .full-bleed only while the Map lens is active", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { container } = renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const content = container.querySelector(".trip-board-content");
+    expect(content?.classList.contains("full-bleed")).toBe(false);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Map" }));
+    expect(content?.classList.contains("full-bleed")).toBe(true);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Day columns" }));
+    expect(content?.classList.contains("full-bleed")).toBe(false);
+  });
+});
+
 describe("assistant rail visibility", () => {
   it("starts hidden below the 1180px overlay breakpoint", async () => {
     setViewportMatches({ "(min-width: 1180px)": false });

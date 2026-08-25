@@ -237,8 +237,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           at >=1180px so real content (day columns, header actions) never
           sits underneath the fixed-position Assistant rail below — dropped
           via .assistant-hidden when the rail itself is hidden, so hiding it
-          actually reclaims the width rather than leaving a dead gutter. */}
-      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden")}>
+          actually reclaims the width rather than leaving a dead gutter. It
+          also gives lens content a bottom margin against the page, dropped
+          via .full-bleed for the Map lens, which is deliberately full-bleed
+          (same `isFullLens` this component already computes below). */}
+      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden", isFullLens && "full-bleed")}>
         <TripHeader tripId={tripId}>
           <TripViewTabs />
           {/* Task 2.3: MapRail replaces the chips row's job in map view — the
@@ -338,11 +341,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           onHide={assistant.hide}
         />
       ) : (
+        // Matches the design's minimized launcher (`Trip Planner Redesign
+        // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
+        // not the edge-tab treatment this used to have (variant="secondary",
+        // rounded-r-none, vertically centered against the right edge) — the
+        // design has no bordered edge-tab state for the assistant, only this
+        // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
+        // same component's header).
         <Button
-          variant="secondary"
+          variant="primary"
           onClick={assistant.show}
-          className="fixed right-0 top-1/2 z-50 -translate-y-1/2 rounded-r-none border-r-0 px-2 py-3 text-xs shadow-raised"
+          className="fixed bottom-6 right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
         >
+          <span aria-hidden>◎</span>
           Assistant
         </Button>
       )}
