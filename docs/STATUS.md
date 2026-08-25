@@ -5,9 +5,42 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — M10 Wave 2 Phase 8b is implemented on
-`claude/m10-wave2-phase8b`, awaiting a PR.** `main` is at `c630152` with no
-open PRs. Three PRs merged after Phase 8 was written up below:
+**Last updated: 2026-08-25 — Phase 8b is open as PR #46 and has grown well
+past its plan.** The branch `claude/m10-wave2-phase8b` now carries **24
+commits / ~75 files**, not the six Phase 8b's plan describes. What was added
+after the phase tasks, in order: a **preview-only demo-data reset** endpoint
+and account-menu action (dev tooling, not plan scope — see its own section
+below), **geocoded coordinates** for the Japan seed, a **full calendar-cell
+rebuild** after the first attempt was reported wrong, five **CodeRabbit**
+fixes, and **20 preview-review comments** from Mitchell across three rounds.
+CI is green on `3bb325e` (`static-checks`, `unit-tests`, `integration-e2e`;
+`migrate-production` correctly skipped), CodeRabbit passed, and all 20
+preview threads are resolved.
+
+**Read this before the Phase 9 gate: the "presentational only" gate box is
+under real strain.** This branch contains a route that soft-deletes user
+data, a new env gate, a JSON importer, and two behavioural changes (conflict
+alerts are now clickable; the unscheduled rack is hidden on the Map lens).
+The whole-branch reviewer's position, recorded verbatim in PR #46, was that
+the demo-data work should have been its own PR: *"the five reviewed tasks and
+the one unreviewed destructive endpoint now carry the same approval stamp."*
+Mitchell merged it in deliberately, to test the phase UI against rich data on
+one preview URL. Whoever runs Phase 9 should decide consciously whether this
+still counts as a presentational wave, rather than inheriting the assumption.
+
+**A CI gotcha this cost time on:** `Vercel Preview Comments` is a **one-shot
+snapshot** posted by the Vercel app when a deployment completes — `started_at
+== completed_at`. Resolving threads does **not** re-evaluate it, and GitHub's
+re-run button does nothing because Actions doesn't own that check. It only
+recomputes on a **new deployment**. If it reads red while the threads are
+demonstrably resolved, push a commit; do not go hunting for unresolved
+feedback. (Separately: 16 unresolved threads still sit on the long-dead
+`m5-design-foundations` branch, two of them saying a fix never landed. They
+do not affect this check — it is branch-scoped — but nobody has closed them.)
+
+**Previously (2026-08-24): Phase 8b implemented, awaiting a PR.** `main` is
+at `c630152` with no open PRs. Three PRs merged after Phase 8 was written up
+below:
 **PR #35** (M10 Wave 2 Phase 8 — correctness and polish, the branch this
 file previously described as "open awaiting merge"), **PR #44** (a KI backlog
 pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
@@ -1128,9 +1161,36 @@ which existed only on a branch.
 
 ## Next action
 
-**Open Phase 8b's PR.** `claude/m10-wave2-phase8b` (six commits,
-`9174e06`..`97b1539`) is implemented and ready — see "Phase 8b" under "In
-flight" above for what shipped, and why Task 8b.4 deliberately didn't.
+**Review and merge PR #46.** `claude/m10-wave2-phase8b` (24 commits,
+`9174e06`..HEAD) is open, CI green, CodeRabbit passed, all 20 preview
+comments resolved. See "Phase 8b" under "In flight" above for what shipped,
+why Task 8b.4 deliberately did not, and the demo-data section for the dev
+tooling folded in on top.
+
+**Decide before merging whether this PR ships whole.** It is no longer only
+Phase 8b — see the scope note in this file's header. Splitting the demo-data
+endpoint out is still cheap and would leave the phase tasks reviewable on
+their own terms.
+
+**Three things are deliberately unfinished on this branch**, each recorded
+where it belongs rather than silently dropped:
+1. **Task 8b.4's sync-failure banner** — no honest trigger until the send
+   queue can report persistent failure (**KI-36**). Milestone routing is left
+   for Mitchell at the Phase 9 gate, not assigned here.
+2. **Calendar drag** — the day cards and stop chips are built to the design's
+   drag affordance, but `cursor: grab` was deliberately withheld so the UI
+   does not promise a drag it cannot perform. Recorded in `TODO.md`'s
+   "Unscheduled rack: drag support is Board-view-only" entry.
+3. **`packages/domain`'s conflict-banner formatter** still spells out currency
+   codes while the rest of the UI now renders symbols — a `packages/` change
+   is its own reviewed step per `AGENTS.md`, so it was left alone.
+
+**Known imperfection in the demo seed, by decision not oversight:** 54 of 72
+stops geocoded (75%). The per-city bounded lookup rejects wrong-*city*
+matches but not wrong-POI-in-the-right-city — `d14-s2-shinkansen-to-tokyo`
+resolved to Shinagawa Station rather than Shin-Osaka. Mitchell's call:
+*"lets just go do our best, its seed data."*
+
 `main` is at `c630152`. Six orphan worktrees are still on disk and in
 `.claude/launch.json`; `/cleanup-orphans` (hardened in PR #45) is the way to
 clear them.
