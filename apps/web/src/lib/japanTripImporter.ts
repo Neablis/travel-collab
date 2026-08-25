@@ -35,6 +35,12 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { TripCommand } from "@tc/contracts";
+// The seed itself carries no lat/lng (a design-handoff export, not a
+// geocoder's output) — this overlay is scripts/geocode-japan-seed.mts's
+// output, keyed by the seed's own stop id, and is the ONLY source of
+// coordinates the importer ever attaches. No fallback, no on-the-fly lookup:
+// see that script's own header comment for why (KI-15, docs/known-issues.md).
+import coordinatesOverlay from "./japanTripSeedCoordinates.json" with { type: "json" };
 
 // ---- schema: trip-seed/v1 --------------------------------------------
 
@@ -196,8 +202,30 @@ export const DROPPED_SEED_FIELDS = [
   "unscheduled[].source", // attribution ("Priya added it"), not a Money source — no field for it
 ] as const;
 
-function locationName(place: string, area: string, city: string): string {
+// Exported so scripts/geocode-japan-seed.mts builds the exact same query
+// string this importer uses for a stop's display name — the geocode overlay
+// can't drift from what actually gets stored.
+export function locationName(place: string, area: string, city: string): string {
   return `${place}, ${area}, ${city}, Japan`;
+}
+
+// Unscheduled items carry no city (StopWho/UnscheduledSeed, see the schema
+// above) — same reasoning as locationName's export.
+export function unscheduledLocationName(place: string, area: string): string {
+  return `${place}, ${area}, Japan`;
+}
+
+type CoordinateOverlayEntry = { lat: number; lng: number; canonicalName: string };
+const coordinatesById = coordinatesOverlay.coordinates as Record<string, CoordinateOverlayEntry>;
+
+// Looked up by the seed's own stop id (never by name — two stops can share a
+// display name without being the same lookup, e.g. Nishiki Market appears
+// both scheduled and in the backlog). Absent = unresolved by
+// geocode-japan-seed.mts (no candidate inside its city's box, or the lookup
+// failed) — left coordinate-less rather than guessed, per KI-15.
+function coordsFor(id: string): { lat: number; lng: number } | undefined {
+  const entry = coordinatesById[id];
+  return entry ? { lat: entry.lat, lng: entry.lng } : undefined;
 }
 
 // AddActivity for one scheduled stop, placed directly on its day. No
@@ -206,9 +234,10 @@ function locationName(place: string, area: string, city: string): string {
 // the seed's own per-day order reproduces the seed's order exactly. `city`
 // comes from the containing day, not the stop — stops carry no city of
 // their own in this export (only `area`, folded into the location name).
-// The seed's own stop.id is read only to pick this stop out during mapping
-// (day/city lookups etc.) and never appears in the emitted command — the
-// activity's real id is a fresh randomUUID(), same as db-seed.ts mints one.
+// The seed's own stop.id is read to pick this stop out during mapping
+// (day/city lookups etc.) and to look up its entry in the geocode overlay —
+// it never appears in the emitted command itself, though: the activity's
+// real id is a fresh randomUUID(), same as db-seed.ts mints one.
 function stopToAddActivity(
   tripId: string,
   dayId: string,
@@ -223,7 +252,7 @@ function stopToAddActivity(
     dayId,
     title: stop.title,
     timeWindow: { start: stop.start, end: stop.end },
-    location: { name: locationName(stop.place, stop.area, city), city },
+    location: { name: locationName(stop.place, stop.area, city), city, ...coordsFor(stop.id) },
     ...(stop.note ? { notes: stop.note } : {}),
     ...(cost ? { cost } : {}),
   };
@@ -239,7 +268,7 @@ function unscheduledToAddActivity(tripId: string, item: TripSeedV1["unscheduled"
     tripId,
     activityId: randomUUID(),
     title: item.title,
-    location: { name: `${item.place}, ${item.area}, Japan` },
+    location: { name: unscheduledLocationName(item.place, item.area), ...coordsFor(item.id) },
     ...(item.note ? { notes: item.note } : {}),
   };
 }

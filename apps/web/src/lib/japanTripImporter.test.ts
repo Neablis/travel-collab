@@ -92,4 +92,25 @@ describe("japanTripImporter", () => {
   it("documents at least as many dropped fields as the real export's shape requires", () => {
     expect(DROPPED_SEED_FIELDS.length).toBeGreaterThanOrEqual(25);
   });
+
+  // witness: a real run of scripts/geocode-japan-seed.mts (2026-08-25)
+  // resolved 54/72 stops (75%) against a live LocationIQ lookup — 18 stayed
+  // coordinate-less: 9 transit stops whose day is labeled with the
+  // destination city but whose stop is physically in the departure city (the
+  // seed gives no per-stop city, only a per-day one — see stopToAddActivity's
+  // comment), and 9 where LocationIQ itself returned zero results for the
+  // exact "place, area, city, Japan" query (confirmed non-transient by a
+  // manual re-query, not a rate limit — see /tmp/geocode-seed-report.md).
+  // 50 is a floor a few below that measured 54, not the measured value
+  // itself, so a future re-run's minor vendor-data drift doesn't flap this;
+  // it still catches the overlay silently regressing toward empty (KI-15:
+  // MapLens's 0-of-72 starting point this whole task exists to fix).
+  it("attaches lat/lng to a substantial majority of the 72 stops via the committed geocode overlay", () => {
+    const seed = loadRealSeed();
+    const commands = importJapanTripSeed(seed, randomUUID());
+    const withCoords = commands.filter(
+      (c) => c.type === "AddActivity" && c.location?.lat !== undefined && c.location?.lng !== undefined,
+    );
+    expect(withCoords.length).toBeGreaterThanOrEqual(50);
+  });
 });
