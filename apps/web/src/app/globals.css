@@ -146,8 +146,19 @@
      matching the handoff's own "persistent side rail" framing — keeps real
      content out from under it instead of trying to punch pointer-events
      holes through a shell that has genuine visible content of its own. */
+  /* Lens content needs its own clearance from the bottom of the page — a
+     day-column/timeline row otherwise ends flush against the viewport edge.
+     24px matches PageContainer's own px-6 gutter, so the content ends with
+     the same margin it starts with horizontally. The Map lens is deliberately
+     full-bleed (Task 2.3's "mapwrap") and opts out via `.full-bleed`
+     (TripBoardScreen.tsx sets it whenever the active lens is Map), the same
+     modifier-class pattern `.assistant-hidden` below uses. */
   .trip-board-content {
     padding-right: 0;
+    padding-bottom: 24px;
+  }
+  .trip-board-content.full-bleed {
+    padding-bottom: 0;
   }
   @media (min-width: 1180px) {
     .trip-board-content {
@@ -232,5 +243,36 @@
     display: flex;
     flex-direction: column;
     gap: 34px;
+  }
+
+  /* SyncIndicator (Task 8b.3, dc.html:18/3109): the saving state's two
+     expanding-ring haloes. `animate-[om-save-pulse_1.4s...]` would trip the
+     color wall's any-bracket ban, so this is a named class, same pattern as
+     `.hero-grid` above. Dropped under prefers-reduced-motion rather than just
+     frozen — a ring stuck mid-scale-2.1 reads as a stray halo, not a pulse. */
+  @keyframes om-save-pulse {
+    0% {
+      transform: scale(0.5);
+      opacity: 0.7;
+    }
+    75% {
+      transform: scale(2.1);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(2.1);
+      opacity: 0;
+    }
+  }
+  .sync-halo {
+    animation: om-save-pulse 1.4s ease-out infinite;
+  }
+  .sync-halo-delayed {
+    animation-delay: 0.7s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sync-halo {
+      display: none;
+    }
   }
 }

@@ -10,3 +10,8 @@ export function formatTripDate(iso: string): string {
 export function formatTripDateLong(iso: string): string {
   return parse(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
+// Derived-end label only (TripDateControl's "→ Oct 16, 2026", …dc.html:1122):
+// no weekday — the date alone is the point, not which day it falls on.
+export function formatTripDateWithYear(iso: string): string {
+  return parse(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}

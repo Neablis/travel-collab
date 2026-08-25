@@ -6,8 +6,7 @@ import type { TripSpend } from "@/lib/cost";
 // Handoff `current/…dc.html:255-296`: a bordered pill, left column a headline
 // spend total over "of <budget>", a slim moss track showing spend-vs-budget,
 // right a Badge for the remaining/over figure. Money renders through
-// formatMoney (KI-2) — the same "N,NNN.NN CCC" convention every other money
-// display in the app uses, not a currency-symbol prefix.
+// formatMoney (KI-2/#46) — the shared formatter, not a hand-rolled string.
 export function BudgetChip({
   spend,
   currency,
@@ -45,9 +44,15 @@ export function BudgetChip({
           <span className="font-mono text-xs text-slate">of {formatMoney(spend.budget, currency)}</span>
         </div>
         <div
-          className="h-1 overflow-hidden rounded-full bg-moss"
-          // eslint-disable-next-line no-restricted-syntax -- 132x4px track has no token equivalent, matching TimelineLens/DayChips's computed-geometry pattern
-          style={{ width: "132px" }}
+          // Mitchell, reviewing the preview: "Budget bar should be full
+          // length up to the 'Amount left' element." `w-full` resolves
+          // against this flex-col's own shrink-to-fit width (CSS's
+          // percentage-in-shrink-to-fit-container resolution), which is set
+          // by the headline row above it — so the track spans exactly to
+          // where that row ends, not the fixed 132px the handoff mock used.
+          // The Badge is a separate flex item after this column, so "up to
+          // the Amount left element" falls out for free.
+          className="h-1 w-full overflow-hidden rounded-full bg-moss"
         >
           <div
             data-testid="budget-chip-fill"

@@ -86,3 +86,17 @@ escape hatch inside `aiLive()` that short-circuits the flag entirely before
 the adapter is ever asked. On Vercel this variable must stay unset so the
 `ai-live` flag remains the sole source of truth — setting it there would
 make the dashboard and Toolbar controls silently inert.
+
+## Debug-only routes
+
+`POST /api/dev/reset-demo-data` (`apps/web/src/app/api/dev/reset-demo-data/route.ts`)
+wipes the signed-in caller's own trips and reseeds the 14-day/68-stop Japan
+demo trip, for reproducing UI bugs against rich data without a terminal.
+Gated by `isDemoDataResetEnabled()` (`apps/web/src/lib/demoDataReset.ts`)
+requiring **both** `VERCEL_ENV=preview` and `SEED_DEMO_DATA=true` —
+`VERCEL_ENV` is set by Vercel itself, never by us, so **production can never
+satisfy this regardless of `SEED_DEMO_DATA`**. Either condition failing
+404s the route (not 403), so its existence isn't advertised. Set
+`SEED_DEMO_DATA=true` in a Preview environment (Vercel dashboard, Preview
+scope) to enable it there; leave it unset everywhere else, including local
+`.env.local`, since it has no effect outside Preview.

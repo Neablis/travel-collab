@@ -89,16 +89,17 @@ Captured so they aren't lost; not committed to a milestone yet.
     M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
     row: richer, human-readable metadata" idea below** — that item wants exactly
     this field.
-  - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23 and scheduled.** The
-    end is always start + day count; there is no end-date input anywhere.
-    Landed as **Task 8b.6** in `docs/plans/M10-delta/phase-8b-design-sync.md`
-    (after Phase 6), with Phase 7's wizard step 2 amended to match. It turned
-    out to be UI-only: `endDate` is stored nowhere — not on `TripState`, not on
-    `TripDetail` — and `TripHeader.tsx:228` already derives it from the plan's
-    last day, so no contract, command or domain change is involved. **This also
-    closes the "trip end-date picker may drift from the day count" item below,
-    and corrects its diagnosis:** not stored-field drift, but a derived value
-    presented in an editable field.
+  - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23, landed 2026-08-24.**
+    The end is always start + day count; there is no end-date input anywhere.
+    Shipped as **Task 8b.6** (`docs/plans/M10-delta/phase-8b-design-sync.md`),
+    with Phase 7's wizard already matching (its length chips predate this
+    task). It turned out to be UI-only: `endDate` is stored nowhere — not on
+    `TripState`, not on `TripDetail` — and `TripHeader.tsx:228` already
+    derives it from the plan's last day, so no contract, command or domain
+    change was involved. **This also closed the "trip end-date picker may
+    drift from the day count" item that used to sit below** (removed from
+    Candidate ideas by this task): not stored-field drift, but a derived
+    value presented in an editable field.
   - **Design coverage the build is still owed** — History beyond the popover,
     `MapRail`, trip lifecycle (delete → undo → restore, duplicate), and
     error/empty states for the new landing, auth and first-run screens. Design
@@ -234,35 +235,28 @@ Captured so they aren't lost; not committed to a milestone yet.
      deliberate behavior) or collapse/hide itself on a view change is worth
      revisiting now that dragging into it only actually works from Board —
      showing it everywhere reads as "this works here" in views where it
-     doesn't.
+     doesn't. **Decided (Mitchell, preview review, 2026-08-25):** hide it on
+     Map only — Map is the one lens where the rack is a `position: fixed`
+     overlay over a full-bleed canvas with nothing under it. Timeline and
+     Calendar keep it mounted, because unlike Map they have a working
+     non-drag path (the day-assign `NativeSelect` → real `MoveActivity`/
+     `UpdateActivity`), so hiding it there would remove a capability, not
+     just a misleading affordance.
   4. The drawer is `position: fixed; bottom: 0` (`globals.css`) with no
      clearance reserved in any lens's own content — unlike the assistant
      rail, which gets `.trip-board-content`'s right-padding reservation, no
      lens pads its bottom for the drawer. In Timeline (day list) and Calendar
      (month grid), real content can end up sitting underneath it near the
      bottom of the viewport instead of alongside it.
-
-- **[SUPERSEDED 2026-08-23 — closed by Task 8b.6, and its diagnosis below is
-  wrong.]** There is no stored `endDate` to drift: it is absent from `TripState`
-  and `TripDetail`, and `TripHeader.tsx:228` already derives it from the plan's
-  last day. The real fault was showing that derived value in an editable field.
-  Task 8b.6 (`docs/plans/M10-delta/phase-8b-design-sync.md`) removes the field,
-  which removes the disagreement. Original entry kept below as written.
-
-  **Trip end-date picker may drift from the trip's actual day count
-  (2026-08-23, manual QA on PR #26's preview deploy — likely predates this
-  PR, Phase 4/PR #25 territory, not yet root-caused).** `TripDateControl.tsx`
-  does wire up both `startDate` and `endDate` and computes `SetTripDates`'s
-  `newDayIds` from `daySpan(start, end) - dayCount`, so the control itself
-  isn't naively start-date-only. But `AddDay`/`RemoveDay`
-  (`packages/domain/src/trip/decide.ts`) only touch the `days` array — they
-  never update `startDate`/`endDate` — so a trip whose length was changed via
-  the board's own "+ Add day" / remove-day controls (rather than through the
-  date picker's "Set dates") can end up with a day count the picker's
-  `endDate` field no longer reflects. Needs confirming end-to-end (does the
-  picker re-derive/pre-fill correctly on reopen, or does it show a genuinely
-  stale value) before deciding whether the fix belongs in `TripDateControl`,
-  `SettingsSheet`, or the `AddDay`/`RemoveDay` handlers themselves.
+  5. (2026-08-24, Phase 8b cell rebuild) `CalendarLens.tsx`'s day cards and
+     stop chips are now built to the design's drag affordance (dc.html:670-
+     672's 6-dot grip, `cursor: grab` on both the grip and each chip) but
+     are not draggable — `cursor: grab` was deliberately withheld so the UI
+     never promises a drag it can't perform (the same failure mode gap 1-2
+     already describe). Wiring them needs a drop target registered in the
+     calendar lens itself (nothing under `apps/web/src/components/lenses/`
+     does today, per the gap above) and reuses `MoveActivity`, the same
+     command Board's `ActivityCard` drag already dispatches.
 
 ## Standing tasks (every milestone)
 

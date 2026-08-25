@@ -1,0 +1,265 @@
+{
+  "$schema": "japan-trip-seed-coordinates/v1",
+  "generatedBy": "apps/web/scripts/geocode-japan-seed.mts",
+  "generatedAt": "2026-08-25",
+  "sourceSeed": "japan-trip-seed.json",
+  "resolvedStopCount": 51,
+  "totalStopCount": 72,
+  "coordinates": {
+    "d1-s2-check-in-at-trunk-hotel": {
+      "lat": 35.6643974,
+      "lng": 139.7040659,
+      "canonicalName": "TRUNK (HOTEL) cat street, 神宮前五丁目, 神宮前, 渋谷区, 東京都, 150-0001, 日本"
+    },
+    "d1-s3-dinner-at-gonpachi": {
+      "lat": 35.660165,
+      "lng": 139.7235945,
+      "canonicalName": "権八 西麻布, 外苑西通り, 西麻布一丁目, 西麻布, 港区, 東京都, 106-0031, 日本"
+    },
+    "d1-s4-nightcap-at-bar-trench": {
+      "lat": 35.648424,
+      "lng": 139.7079184,
+      "canonicalName": "Bar TRENCH, 恵比寿一番街, 恵比寿西一丁目, 恵比寿西, 渋谷区, 東京都, 150-0021, 日本"
+    },
+    "d2-s1-coffee-at-onibus": {
+      "lat": 35.603737,
+      "lng": 139.67124,
+      "canonicalName": "Onibus Coffee, Setagaya, Tokyo, Setagaya, Tokyo, Japan"
+    },
+    "d2-s2-teamlab-planets": {
+      "lat": 35.64938,
+      "lng": 139.789728,
+      "canonicalName": "チームラボ プラネッツ, 16, 豊洲六丁目, 豊洲, 江東区, 東京都, 135-0061, 日本"
+    },
+    "d2-s3-lunch-at-tsukiji-outer-market": {
+      "lat": 35.6653884,
+      "lng": 139.7704732,
+      "canonicalName": "築地場外市場, 波除通り, 築地六丁目, 築地, 中央区, 東京都, 104-0045, 日本"
+    },
+    "d2-s4-hama-rikyu-gardens": {
+      "lat": 35.695126,
+      "lng": 139.75391,
+      "canonicalName": "Tokyo, Chiyoda, Tokyo, Japan"
+    },
+    "d2-s5-yakitori-at-torishiki": {
+      "lat": 35.626097,
+      "lng": 139.707628,
+      "canonicalName": "MeGuro, Shinagawa, Tokyo, Shinagawa, Tokyo, Japan"
+    },
+    "d3-s1-breakfast-at-bread-espresso": {
+      "lat": 35.676018,
+      "lng": 139.778759,
+      "canonicalName": "Cawaii Bread & Coffee, 16, Chūō, Tokyo, Chuo, Tokyo, 104-0032, Japan"
+    },
+    "d3-s2-meiji-jingu": {
+      "lat": 35.6748417,
+      "lng": 139.6996266,
+      "canonicalName": "明治神宮, 1, 代々木神園町, 渋谷区, 東京都, 151-8557, 日本"
+    },
+    "d3-s3-lunch-at-afuri": {
+      "lat": 35.670432,
+      "lng": 139.703008,
+      "canonicalName": "WITH HARAJUKU, 30, Shibuya, Tokyo, Shibuya, Tokyo, 150-0001, Japan"
+    },
+    "d3-s4-shimokitazawa-record-shops": {
+      "lat": 35.6616779,
+      "lng": 139.6663345,
+      "canonicalName": "下北沢, 北沢二丁目, 北沢, 世田谷区, 東京都, 155-0031, 日本"
+    },
+    "d3-s5-dinner-at-den": {
+      "lat": 35.6731999,
+      "lng": 139.712806,
+      "canonicalName": "Den, 外苑西通り, 神宮前二丁目, 神宮前, 渋谷区, 東京都, 150-0001, 日本"
+    },
+    "d4-s2-tosho-gu-shrine": {
+      "lat": 36.7576378,
+      "lng": 139.59911,
+      "canonicalName": "日光東照宮, 表参道, 安川町, 日光市, 栃木県, 321-1401, 日本"
+    },
+    "d4-s5-train-back-to-tokyo": {
+      "lat": 36.747956,
+      "lng": 139.619259,
+      "canonicalName": "東武日光駅, 日光街道, 稲荷町三丁目, 松原町, 日光市, 栃木県, 321-1413, 日本"
+    },
+    "d5-s2-nezu-museum": {
+      "lat": 35.6622429,
+      "lng": 139.7172555,
+      "canonicalName": "根津美術館, 1, 南青山六丁目, 南青山, 港区, 東京都, 107-0062, 日本"
+    },
+    "d5-s3-lunch-at-kagari": {
+      "lat": 35.6748366,
+      "lng": 139.7679616,
+      "canonicalName": "Kagari, 銀座ガス灯通り, 銀座一丁目, 銀座, 中央区, 東京都, 104-0061, 日本"
+    },
+    "d5-s4-itoya-and-ginza-six": {
+      "lat": 35.672957,
+      "lng": 139.7674251,
+      "canonicalName": "伊東屋, 15, 銀座二丁目, 銀座, 中央区, 東京都, 104-0061, 日本"
+    },
+    "d5-s5-omakase-at-sushi-yoshitake": {
+      "lat": 35.688265,
+      "lng": 139.720539,
+      "canonicalName": "Sushi Wasabi, Shinjuku, Tokyo, Shinjuku, Tokyo, 160-0004, Japan"
+    },
+    "d6-s2-hakone-open-air-museum": {
+      "lat": 35.2442838,
+      "lng": 139.0520834,
+      "canonicalName": "彫刻の森美術館, 関本小涌谷線, 木賀, 箱根町, 足柄下郡, 神奈川県, 250-0398, 日本"
+    },
+    "d6-s3-lunch-at-bakery-table": {
+      "lat": 35.20178,
+      "lng": 139.030948,
+      "canonicalName": "Bakery & Table, Hakone, Kanagawa Prefecture, Japan"
+    },
+    "d6-s4-check-in-at-gora-kadan": {
+      "lat": 35.24758,
+      "lng": 139.048543,
+      "canonicalName": "Gōra Kadan, Hakone, Kanagawa Prefecture, Japan"
+    },
+    "d6-s5-kaiseki-dinner-at-the-ryokan": {
+      "lat": 35.24758,
+      "lng": 139.048543,
+      "canonicalName": "Gōra Kadan, Hakone, Kanagawa Prefecture, Japan"
+    },
+    "d7-s2-lunch-at-honke-owariya": {
+      "lat": 35.0127481,
+      "lng": 135.7601451,
+      "canonicalName": "本家尾張屋, 車屋町通, 西九軒町, 中京区, 京都市, 京都府, 604-0836, 日本"
+    },
+    "d7-s3-nijo-castle": {
+      "lat": 35.0140076,
+      "lng": 135.7485369,
+      "canonicalName": "二条城, 猪熊通, 中之町, 中京区, 京都市, 京都府, 602-8134, 日本"
+    },
+    "d7-s5-dinner-at-gion-nanba": {
+      "lat": 35.003028,
+      "lng": 135.772977,
+      "canonicalName": "GION KIMUTAKO, 16-1, 大和大路, Kyoto-shi, Kyoto, Kyoto Prefecture, Japan"
+    },
+    "d8-s1-fushimi-inari-at-dawn": {
+      "lat": 34.9675192,
+      "lng": 135.7797101,
+      "canonicalName": "伏見稲荷大社, 伏見区, 京都市, 京都府, 612-0882, 日本"
+    },
+    "d8-s2-breakfast-at-arabica": {
+      "lat": 34.9992097,
+      "lng": 135.7781237,
+      "canonicalName": "% Arabica, 維新の道, 下弁天町, 辰巳町, 東山区, 京都市, 京都府, 605-0827, 日本"
+    },
+    "d8-s3-kiyomizu-dera-and-sannenzaka": {
+      "lat": 34.994303,
+      "lng": 135.7844389,
+      "canonicalName": "清水寺, Kiyomizu Slope, 清水一丁目, 辰巳町, 東山区, 京都市, 京都府, 605-0862, 日本"
+    },
+    "d8-s5-nishiki-market": {
+      "lat": 35.0050244,
+      "lng": 135.7655699,
+      "canonicalName": "錦市場, 錦小路通, 東魚屋町, 中京区, 京都市, 京都府, 600-8006, 日本"
+    },
+    "d9-s1-breakfast-at-walden-woods": {
+      "lat": 34.9933451,
+      "lng": 135.7631743,
+      "canonicalName": "ウォールデンウッズ, 花屋町通, 烏丸二丁目, 下京区, 京都市, 京都府, 600-8184, 日本"
+    },
+    "d9-s2-arashiyama-and-tenryu-ji": {
+      "lat": 35.0162243,
+      "lng": 135.6729408,
+      "canonicalName": "天龍寺, 嵯峨嵐山停車場線, 嵯峨天龍寺北造路町, 右京区, 京都市, 京都府, 616-0000, 日本"
+    },
+    "d9-s3-lunch-at-yoshida-ya": {
+      "lat": 35.008446,
+      "lng": 135.770953,
+      "canonicalName": "Coffee Yoshida, Kyoto-shi, Kyoto, Kyoto Prefecture, Japan"
+    },
+    "d9-s5-dinner-at-kichi-kichi": {
+      "lat": 35.005627,
+      "lng": 135.769373,
+      "canonicalName": "KICHIRI 河原町店, Kyoto-shi, Kyoto, Kyoto Prefecture, Japan"
+    },
+    "d10-s1-ginkaku-ji-and-the-philosopher-s-path": {
+      "lat": 35.0268996,
+      "lng": 135.7983714,
+      "canonicalName": "銀閣寺, 銀閣寺町, 左京区, 京都市, 京都府, 606-8402, 日本"
+    },
+    "d10-s2-lunch-at-monk": {
+      "lat": 35.0231413,
+      "lng": 135.7957648,
+      "canonicalName": "monk, 哲学の道, 鹿ケ谷法然院町, 左京区, 京都市, 京都府, 606-8427, 日本"
+    },
+    "d10-s3-pottery-at-kyoto-handicraft-center": {
+      "lat": 35.0175601,
+      "lng": 135.7802525,
+      "canonicalName": "京都ハンディクラフトセンター (Kyoto Handicraft Center), 17, 丸太町通, 聖護院山王町, 左京区, 京都市, 京都府, 606-8341, 日本"
+    },
+    "d11-s3-lunch-at-harukoma-sushi": {
+      "lat": 34.707755,
+      "lng": 135.511409,
+      "canonicalName": "Harukoma Sushi, Osaka-shi, Osaka, Osaka Prefecture, Japan"
+    },
+    "d11-s4-osaka-castle-park": {
+      "lat": 34.6873735,
+      "lng": 135.5258555,
+      "canonicalName": "大阪城, 1, 大阪城, 中央区, 大阪市, 大阪府, 540-0002, 日本"
+    },
+    "d11-s5-dotonbori-food-crawl": {
+      "lat": 34.6690306,
+      "lng": 135.5015715,
+      "canonicalName": "道頓堀, 道頓堀一丁目, 中央区, 大阪市, 大阪府, 542-0071, 日本"
+    },
+    "d12-s1-breakfast-at-mel-coffee": {
+      "lat": 34.676816,
+      "lng": 135.495867,
+      "canonicalName": "Mel Coffee Roasters, 新町通, 新町一丁目, 西区, 大阪市, 大阪府, 550-0012, 日本"
+    },
+    "d12-s2-nakanoshima-museum": {
+      "lat": 34.6923805,
+      "lng": 135.4913682,
+      "canonicalName": "大阪中之島美術館, 中之島通, 中之島四丁目, 北区, 大阪市, 大阪府, 530-6190, 日本"
+    },
+    "d12-s3-lunch-at-kuromon-market": {
+      "lat": 34.6653277,
+      "lng": 135.5069795,
+      "canonicalName": "黒門市場, 黒門市場 日二会, 日本橋一丁目, 中央区, 大阪市, 大阪府, 542-0073, 日本"
+    },
+    "d12-s4-shinsekai-and-tsutenkaku": {
+      "lat": 34.6525393,
+      "lng": 135.5063098,
+      "canonicalName": "通天閣, 6, 新世界市場, 恵美須東一丁目, 浪速区, 大阪市, 大阪府, 556-0002, 日本"
+    },
+    "d12-s5-kushikatsu-at-yaekatsu": {
+      "lat": 34.6496804,
+      "lng": 135.5059972,
+      "canonicalName": "Yaekatsu, ジャンジャン横丁, 恵美須東三丁目, 浪速区, 大阪市, 大阪府, 556-0002, 日本"
+    },
+    "d13-s2-chichu-art-museum": {
+      "lat": 34.4478026,
+      "lng": 133.9847608,
+      "canonicalName": "地中美術館, 北風戸積浦線, 直島町, 香川郡, 香川県, 761-3110, 日本"
+    },
+    "d13-s4-benesse-house-and-yellow-pumpkin": {
+      "lat": 34.4452356,
+      "lng": 133.9907302,
+      "canonicalName": "ベネッセアートサイト直島, 北風戸積浦線, 直島町, 香川郡, 香川県, 761-3110, 日本"
+    },
+    "b1": {
+      "lat": 34.994303,
+      "lng": 135.7844389,
+      "canonicalName": "清水寺, Kiyomizu Slope, 清水一丁目, 辰巳町, 東山区, 京都市, 京都府, 605-0862, 日本"
+    },
+    "b2": {
+      "lat": 35.7049419,
+      "lng": 139.649909,
+      "canonicalName": "高円寺, 杉並区, 東京都, 166-0002, 日本"
+    },
+    "b3": {
+      "lat": 35.0050244,
+      "lng": 135.7655699,
+      "canonicalName": "錦市場, 錦小路通, 東魚屋町, 中京区, 京都市, 京都府, 600-8006, 日本"
+    },
+    "b4": {
+      "lat": 35.6961731,
+      "lng": 139.5706324,
+      "canonicalName": "三鷹の森ジブリ美術館, 83, 下連雀一丁目, 下連雀, 三鷹市, 東京都, 181-0013, 日本"
+    }
+  }
+}

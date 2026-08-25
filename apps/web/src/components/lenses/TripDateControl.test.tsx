@@ -1,26 +1,87 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripCommand } from "@tc/contracts";
+import { uuidFrom } from "@tc/factories";
 import { TripDateControl } from "./TripDateControl";
 
-const TRIP_ID = "7d9a1f8e-0000-4000-8000-00000000000a";
+const TRIP_ID = uuidFrom(1);
 
 afterEach(cleanup);
 
+// Task 8b.6's own Step 1 helper: TripDateControl's props are scalars, not a
+// TripDetail, so there's no tripDetailFixture literal to build here (ADR-020
+// governs projection fixtures) — this just keeps every call site's tripId
+// consistent with the factories package's deterministic ids.
+function renderDateControl(props: { startDate: string | null; endDate?: string | null; dayCount?: number }) {
+  const onCommand = vi.fn<(command: TripCommand) => void>();
+  render(<TripDateControl tripId={TRIP_ID} onCommand={onCommand} {...props} />);
+  return { onCommand };
+}
+
 describe("TripDateControl", () => {
-  it("setting only a start date and committing dispatches SetTripDates with the end date untouched", async () => {
-    const onCommand = vi.fn<(command: TripCommand) => void>();
-    render(<TripDateControl tripId={TRIP_ID} startDate={null} onCommand={onCommand} />);
-    fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: "2026-10-12" } });
-    fireEvent.click(screen.getByRole("button", { name: /set dates/i }));
+  it("has no end-date field", () => {
+    renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    expect(screen.queryByLabelText("End date")).toBeNull();
+  });
+
+  it("shows the end derived from the plan's day count", () => {
+    renderDateControl({ startDate: "2026-10-03", endDate: "2026-10-16", dayCount: 14 });
+    expect(screen.getByText("→ Oct 16, 2026")).toBeTruthy();
+  });
+
+  it("says how the end follows the plan", () => {
+    renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    expect(screen.getByText(/The end follows the 14 days in your plan/)).toBeTruthy();
+  });
+
+  // Mitchell testing the preview, 2026-08-24: "Selecting the date with the
+  // date picker should automatically save, you shouldnt have to hit done."
+  // Done is now a close affordance only (see below) — selection itself
+  // commits, leaving day count untouched.
+  it("commits the start alone as soon as a valid date is selected, with no Done click", () => {
+    const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    fireEvent.change(screen.getByLabelText("Trip start date"), { target: { value: "2026-10-05" } });
+
     expect(onCommand).toHaveBeenCalledWith({
-      type: "SetTripDates",
+      type: "SetTripStartDate",
       tripId: TRIP_ID,
-      startDate: "2026-10-12",
-      endDate: null,
-      newDayIds: [],
+      startDate: "2026-10-05",
     });
+  });
+
+  // A native type="date" input's `value` is only ever a complete calendar
+  // date or "" (the HTML5 sanitization algorithm withholds it while a
+  // segment is unfilled) — but some browsers have been observed firing
+  // `change` on a partial edit anyway. Guard against both: an empty value
+  // (that's the dedicated Clear-date X's job, not this field) and a
+  // malformed/partial one must never reach onCommand.
+  it("dispatches nothing for an empty or incomplete date value", () => {
+    const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    const input = screen.getByLabelText("Trip start date");
+
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "2026-10" } });
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("dispatches nothing when the selected date matches the current start date (no redundant history entry)", () => {
+    const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    fireEvent.change(screen.getByLabelText("Trip start date"), { target: { value: "2026-10-03" } });
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("Done closes the control without dispatching a command", () => {
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    const onClose = vi.fn();
+    render(
+      <TripDateControl tripId={TRIP_ID} startDate="2026-10-03" dayCount={14} onCommand={onCommand} onClose={onClose} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("the Clear date X clears the start date directly (#19)", () => {
@@ -38,76 +99,23 @@ describe("TripDateControl", () => {
     expect(screen.queryByRole("button", { name: /clear date/i })).toBeNull();
   });
 
-  it("dispatches SetTripDates with enough fresh day ids to cover the range", async () => {
-    const onCommand = vi.fn();
-    render(<TripDateControl tripId={TRIP_ID} startDate={null} endDate={null} dayCount={1} onCommand={onCommand} />);
-    await userEvent.type(screen.getByLabelText(/start date/i), "2026-07-07");
-    await userEvent.type(screen.getByLabelText(/end date/i), "2026-07-09");
-    await userEvent.click(screen.getByRole("button", { name: /set dates/i }));
-
-    const command = onCommand.mock.calls[0]![0];
-    expect(command.type).toBe("SetTripDates");
-    expect(command.startDate).toBe("2026-07-07");
-    expect(command.endDate).toBe("2026-07-09");
-    // 3-day range against 1 existing day → 2 new ids needed; send a safe surplus.
-    expect(command.newDayIds.length).toBeGreaterThanOrEqual(2);
-  });
-
-  // Correction to the task brief: this repo's Dialog primitive
-  // (apps/web/src/components/ui/dialog.tsx) wraps plain Radix Dialog, not
-  // AlertDialog, so it renders role="dialog" — never "alertdialog".
-  it("warns before shrinking a range that would drop days", async () => {
-    const onCommand = vi.fn();
-    render(
-      <TripDateControl tripId={TRIP_ID} startDate="2026-07-07" endDate="2026-07-09" dayCount={3} onCommand={onCommand} />,
-    );
-    await userEvent.clear(screen.getByLabelText(/end date/i));
-    await userEvent.type(screen.getByLabelText(/end date/i), "2026-07-07");
-    await userEvent.click(screen.getByRole("button", { name: /set dates/i }));
-    expect(screen.getByRole("dialog").textContent).toMatch(/2 days.*backlog/i);
-    expect(onCommand).not.toHaveBeenCalled();
-  });
-
-  it("only dispatches SetTripDates after the shrink is confirmed", async () => {
-    const onCommand = vi.fn();
-    render(
-      <TripDateControl tripId={TRIP_ID} startDate="2026-07-07" endDate="2026-07-09" dayCount={3} onCommand={onCommand} />,
-    );
-    await userEvent.clear(screen.getByLabelText(/end date/i));
-    await userEvent.type(screen.getByLabelText(/end date/i), "2026-07-07");
-    await userEvent.click(screen.getByRole("button", { name: /set dates/i }));
-    await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
-
-    expect(onCommand).toHaveBeenCalledWith({
-      type: "SetTripDates",
-      tripId: TRIP_ID,
-      startDate: "2026-07-07",
-      endDate: "2026-07-07",
-      newDayIds: [],
-    });
-  });
-
-  it("resyncs the staged inputs when startDate/endDate props change externally (e.g. a collaborator's concurrent edit)", () => {
+  it("resyncs the staged start input when startDate changes externally (e.g. a collaborator's concurrent edit)", () => {
     const onCommand = vi.fn();
     const { rerender } = render(
-      <TripDateControl tripId={TRIP_ID} startDate="2026-07-07" endDate="2026-07-09" dayCount={3} onCommand={onCommand} />,
+      <TripDateControl tripId={TRIP_ID} startDate="2026-07-07" dayCount={3} onCommand={onCommand} />,
     );
-    expect((screen.getByLabelText(/start date/i) as HTMLInputElement).value).toBe("2026-07-07");
-    expect((screen.getByLabelText(/end date/i) as HTMLInputElement).value).toBe("2026-07-09");
+    expect((screen.getByLabelText("Trip start date") as HTMLInputElement).value).toBe("2026-07-07");
 
     // Simulate a collaborator's edit landing via useTrip() context while this
-    // user still has the Settings sheet open — the parent re-renders with
-    // new startDate/endDate props without the control unmounting.
-    rerender(
-      <TripDateControl tripId={TRIP_ID} startDate="2026-08-01" endDate="2026-08-05" dayCount={5} onCommand={onCommand} />,
-    );
+    // user still has the Settings sheet open — the parent re-renders with a
+    // new startDate prop without the control unmounting.
+    rerender(<TripDateControl tripId={TRIP_ID} startDate="2026-08-01" dayCount={3} onCommand={onCommand} />);
 
-    // The displayed values must reflect the NEW props, not whatever this
-    // user had staged before the external update arrived. Prop-wins-on-change
-    // is intentional here: silently discarding an in-progress local edit is
-    // far safer than letting a stale "Set dates" click stomp a collaborator's
-    // newer data, so no merge/preserve-local-edits behavior is implemented.
-    expect((screen.getByLabelText(/start date/i) as HTMLInputElement).value).toBe("2026-08-01");
-    expect((screen.getByLabelText(/end date/i) as HTMLInputElement).value).toBe("2026-08-05");
+    // The displayed value must reflect the NEW prop, not whatever this user
+    // had staged before the external update arrived. Prop-wins-on-change is
+    // intentional here: silently discarding an in-progress local edit is far
+    // safer than letting a stale "Done" click stomp a collaborator's newer
+    // data, so no merge/preserve-local-edits behavior is implemented.
+    expect((screen.getByLabelText("Trip start date") as HTMLInputElement).value).toBe("2026-08-01");
   });
 });

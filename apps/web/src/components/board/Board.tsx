@@ -191,11 +191,19 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
   }, []);
 
   return (
-    <div className="flex flex-col gap-3">
+    // pt-3 matches the gap-3 rhythm below (ConflictBanner <-> the columns
+    // row), so the columns get the same top clearance from the chrome above
+    // that they'd get from a banner row that renders — ConflictBanner
+    // returns null when there's nothing to show, so without this the
+    // columns sat flush against the header (same gap TimelineLens's rows
+    // needed above their own first row).
+    <div className="flex flex-col gap-3 pt-3">
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}
+        activities={trip.activities}
         onDismiss={callbacks.onDismissConflict}
+        onSelectActivity={openEdit}
       />
       {/* The unscheduled pool is no longer a full-width Backlog column above
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted

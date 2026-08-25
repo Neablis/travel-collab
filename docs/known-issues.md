@@ -98,6 +98,9 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   close it, and it remains real for anyone who navigates away without
   reading it. Revisit alongside M13, where concurrent multi-actor writes
   make the silent loss more consequential.
+- **Same bug class, different trigger:** **KI-36** is the failed-send half of
+  this — `failHead` in the same `optimistic.ts` drops the whole pending queue
+  on a failed send, not just on abrupt navigation.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
@@ -315,6 +318,148 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it's not fixed here:** the real fix is a contract change — a dedicated `area` field on `Location` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.7) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth.
 - **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
+
+### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed
+- **Severity:** correctness (silent loss of the *rest of the queue*, not of
+  the alert itself) — the **same bug class as KI-5**: an in-memory optimistic
+  queue that can lose confirmed-to-the-user work without telling the user the
+  true scope of what was lost. KI-5 is triggered by the user navigating away
+  mid-send; this is triggered by the send itself failing.
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-83`
+  (`failHead`)
+- **Symptom:** `failHead` responds to a failed send with
+  `{ ...state, pending: [] }` — every unit still queued behind the one that
+  just failed is dropped, not just the failed one. A failed send **does**
+  raise a visible alert: `TripProvider.tsx:137` calls
+  `setError(result.error.message)`, and `TripBoardScreen.tsx:249-251` renders
+  it as `<p role="alert">{error}</p>` until the next successful send. But
+  that alert reports only the server's rejection of the one failed command —
+  it never says that the queued edits behind it were also dropped, nor how
+  many. There is no retry path, no on-device persistence of the discarded
+  units, no failure timestamp, and no retained count exposed anywhere. The UI
+  has already shown the user's edits as applied (client-side prediction); on
+  a failed send those edits vanish from the queue with the alert giving no
+  indication that anything beyond the reported error occurred.
+- **Blocks:** Task 8b.4 (M10 Wave 2 Phase 8b) — the design's persistent
+  sync-failure banner needs a real, live count of unsent changes and a real
+  `(since <time>)` timestamp to render (`Your last three changes are saved on
+  this device but haven't reached the trip yet`, plus a **Retry now** action).
+  None of that state exists: the count is always what was about to be
+  discarded, not what's retained, there is no failure timestamp, and there is
+  nothing to retry against. Every clause of the design's copy would be false,
+  so the banner has no honest trigger and was **deliberately not shipped**;
+  the phase record is
+  `docs/design-feedback/2026-08-23-design-sync-review.md` §6. The same root
+  cause forced Task 8b.3 to ship only the saved/saving states of its
+  three-state save indicator, dropping the error state.
+- **Options (cheapest first):**
+  1. **Retain the failed head and expose a retry.** Change `failHead` to keep
+     `pending` (or at least its head) instead of clearing it, add a `failedAt`
+     timestamp and a `retry()` that re-sends the retained head. Gets the
+     banner and the save indicator's error state to an honest minimum: a real
+     count, a real timestamp, a real retry action. Does not survive a reload
+     or tab close — an in-memory queue is still lost the moment the tab goes
+     away.
+  2. **Persist the queue across reloads** (e.g. `localStorage` or IndexedDB,
+     keyed by trip), replayed on mount. Closes the reload/tab-close gap KI-5
+     also describes, not just the failed-send gap; substantially more surface
+     (serialization, staleness against a since-changed server state, cross-tab
+     conflicts) for one fix.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4 — found while
+  implementing the phase plan's sync-failure banner; the plan itself directs
+  stopping and reporting rather than fabricating a trigger).
+
+### KI-37 — `commandsFor`'s second-activity time window is malformed for any scenario with 2+ activities on a day
+- **Severity:** correctness (silent wrong output — same family as KI-36)
+- **Area:** `packages/factories/src/commands.ts` (the `AddActivity` loop inside `commandsFor`)
+- **Symptom:** the per-activity `timeWindow` is built as
+  `` `0${9 + i}:00` `` for `start`. That's correct only for `i === 0`
+  (`"09:00"`); for `i >= 1` (a scenario's second, third, … activity on the
+  same day) `9 + i` is already two digits, so the template literal produces
+  `"010:00"`, `"011:00"`, etc. — five characters, not the `HH:MM` `TimeWindow`
+  contract regex requires. Any caller that runs the resulting command through
+  `executeTripCommand`/`executeTripCommandBatch` gets an `invalid-command`
+  rejection, not a wrong-but-valid time.
+- **Bounds:** only scenarios with `activitiesPerDay >= 2` are affected — the
+  factory's `unscheduledHeavy` scenario (`activitiesPerDay: 1`) and any
+  single-activity-per-day scenario are unaffected. `end` (`` `1${0 + i}:00` ``)
+  has the same shape but happens not to overflow within the ranges any
+  current scenario uses.
+- **Discovered:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`
+  deliberately seeds fixture trips with `"unscheduledHeavy"` rather than a
+  2-per-day scenario specifically to route around this.
+- **Why not fixed here:** `packages/factories` is outside this task's file
+  scope (a `packages/` change needs its own reviewed step per AGENTS.md).
+- **Fix path:** zero-pad `9 + i` (and `0 + i`) to two digits before
+  interpolating, or build the window with a real time-formatting helper
+  instead of string concatenation.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix wave — found while wiring `executeTripCommandBatch` into the reset route's integration test).
+
+### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough
+- **Severity:** correctness (silent wrong output — same family as KI-36/KI-37)
+- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
+- **Symptom:** `uuidFrom(sequence, salt)` builds each UUID group with
+  `hex(n, len).padStart(len, "0")`, which only *pads short* — it does not
+  truncate a hex string already longer than `len`. The `b` group
+  (`hex(sequence + salt * 97, 4)`) overflows its 4-hex-digit budget once
+  `sequence + salt * 97 >= 0x10000` (65536), and the trailing segment
+  (`e`) has the same shape. The result is a string with the right
+  dash-separated *positions* but wrong-length *groups* — not a valid v4 UUID
+  and not something `z.string().uuid()` accepts — returned with no error.
+  `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` (24, not the
+  usual 12, hex digits in the 2nd group).
+- **Bounds:** `uuidFrom` is documented as taking "a Fishery sequence number",
+  which Fishery starts at 1 and increments per built object — no current
+  factory usage runs a sequence anywhere near 65536. This is a latent trap
+  for a future caller (a large `salt`, or a very long factory run), not a
+  live bug in any current test.
+- **Why not fixed here:** `packages/factories` is outside this task's file
+  scope. Also, per its own doc comment `uuidFrom` exists specifically to keep
+  factory-built ids *deterministic and diffable*, not to be a general-purpose
+  UUID generator — misuse outside its documented input range is the caller's
+  fault. The trap is that it fails silently rather than throwing.
+- **Fix path:** validate `sequence`/`salt` stay in range up front (e.g.
+  `sequence < 0x10000`) and throw, rather than let `padStart` silently no-op
+  on an overflowed group.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix
+  wave — found auditing the module while filing KI-37).
+
+### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
+- **Severity:** correctness (a confidently wrong pin, same family as KI-15)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`,
+  `apps/web/src/lib/japanTripSeedCoordinates.json`
+- **Symptom:** the script's acceptance test (`withinBox`, a per-city bounding
+  box — see the script's own header comment) only rejects a wrong-*city*
+  match; it has no way to reject a wrong-*venue* match that happens to fall
+  inside the correct city's box. Three of the 54 stops the script originally
+  resolved were exactly that: a plausible-sounding, in-city LocationIQ result
+  for the wrong place. All three were hand-verified and their entries deleted
+  from the overlay (CodeRabbit's final PR #46 review, 2026-08-25) rather than
+  shipped:
+  - `d4-s4-kegon-falls` resolved to "Urami Falls, Nikko…" — a different
+    waterfall in the same city.
+  - `d11-s2-check-in-at-zentis-osaka` resolved to "Hotels Inn Osaka
+    KitaUmeda…" — a different hotel in the same city.
+  - `d14-s2-shinkansen-to-tokyo` resolved to Shinagawa Station — the wrong
+    Shinkansen station; the real stop is Shin-Osaka.
+  The overlay now carries 51 of the seed's 72 stops (down from 54); those
+  three stops render no pin rather than a wrong one, which is the standing
+  principle this branch established for `MapLens` — a missing pin is fine, a
+  confidently wrong one is not.
+- **Why not fixed here:** a name-identity check (e.g. requiring the
+  candidate's own name/address to match the queried place, not just its
+  coordinates falling in a box) is real design work on a script that already
+  does one offline, hand-verified pass — not a mechanical fix, and explicitly
+  deferred rather than bundled into a CodeRabbit-response task.
+- **Fix path:** before the overlay is ever regenerated, add a name-identity
+  check alongside `withinBox` — e.g. a fuzzy match between the queried place
+  name and the candidate's returned `display_name`/address components —
+  rejecting a same-city, different-venue candidate the box alone can't catch.
+- **Cross-reference:** KI-15 — same family ("a plausible wrong location is
+  worse than none"), different call site (live AI enrichment vs. this offline
+  one-off script).
+- **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
+  review round).
 
 ## Resolved
 

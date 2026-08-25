@@ -8,7 +8,7 @@ import { useEditor } from "../trip/context/EditorHost";
 import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, routeLine, type MapDay } from "./mapRailData";
-import { MapRail } from "./MapRail";
+import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
 
@@ -54,13 +54,20 @@ export function MapLens({
   // added here, so they're structurally excluded from ghosting.
   const markersByDayRef = useRef<Map<number, import("maplibre-gl").Marker[]>>(new Map());
   const pins = activityPins(detail);
+  // activityPins includes backlog-located stops (dayId: null) for callers
+  // that need the full set; this lens draws day-attached stops only (see the
+  // marker loop below), so mount/centring/the empty-state check must all key
+  // off this filtered list too — a backlog pin sorting first used to center
+  // the map on (or, if it was the only pin, render a live map for) an
+  // activity the map deliberately never plots.
+  const plottedPins = pins.filter((p) => p.dayId !== null);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const firstPin = pins[0];
+    const firstPin = plottedPins[0];
     if (!firstPin) return;
     const el = containerRef.current;
     if (!el) return;
@@ -81,8 +88,14 @@ export function MapLens({
         // responding to a real focus change below; calling it on mount too
         // would be indistinguishable from "the whole trip" being the focused
         // day, which it isn't.
+        // zoom 9, not 10 (Mitchell, preview review, 2026-08-25): the rail
+        // sits over the map's left edge regardless of zoom, so a pin
+        // centered under it at mount is still hidden — one notch further out
+        // gives more of the frame around the center point a fighting chance
+        // of clearing the rail's ~284px, without abandoning "static, not
+        // fitBounds" for this first paint.
         center: [firstPin.lng, firstPin.lat],
-        zoom: 10,
+        zoom: 9,
       });
       mapRef.current = map;
 
@@ -147,10 +160,11 @@ export function MapLens({
           });
         }
 
-        // Backlog-located pins belong to no day, so they get no accent —
-        // same neutral brand marker this lens always drew before per-day
-        // colouring existed.
-        const brandColor = accentVar("brand") || undefined;
+        // Day-attached located stops only (Mitchell, preview review,
+        // 2026-08-25: "dont plot locations that arent attached to a day,
+        // anything unscheduled isnt on the map"). A backlog activity with a
+        // location used to get a neutral-brand marker here too; that loop is
+        // gone — the map no longer plots anything that isn't on a day.
         for (const day of days) {
           const dayMarkers: import("maplibre-gl").Marker[] = [];
           for (const stop of day.stops) {
@@ -165,15 +179,6 @@ export function MapLens({
             dayMarkers.push(marker);
           }
           markersByDayRef.current.set(day.index, dayMarkers);
-        }
-        const dayStopIds = new Set(days.flatMap((d) => d.stops.map((s) => s.activityId)));
-        for (const pin of pins) {
-          if (dayStopIds.has(pin.activityId)) continue; // already drawn above, with its day's accent
-          const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
-          if (onSelectActivity) {
-            marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
-            marker.getElement().style.cursor = "pointer";
-          }
         }
 
         setReady(true);
@@ -191,7 +196,7 @@ export function MapLens({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
+  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
   // Focus-driven camera + opacity, kept separate from the creation effect
   // above so clicking a rail day never tears down and rebuilds the whole map
@@ -250,7 +255,18 @@ export function MapLens({
     // the original 60/15 so a focused day's stops get breathing room instead
     // of filling the viewport edge-to-edge — tuned live against the actual
     // trip fixture.
-    map.fitBounds(bounds, { padding: 100, maxZoom: 13, animate: false });
+    // Uniform padding can't clear the rail at any zoom (Mitchell, preview
+    // review, 2026-08-25): it's a sticky overlay on the canvas's left edge
+    // only, so a pin near the left of a day's bounds still ends up under it
+    // regardless of how much room the other three sides get. `left` gets the
+    // rail's own footprint (MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX) plus the
+    // same 100px breathing room the other sides already had, instead of the
+    // bare 100 they keep.
+    map.fitBounds(bounds, {
+      padding: { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
+      maxZoom: 13,
+      animate: false,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusedDay]);
 
@@ -266,7 +282,7 @@ export function MapLens({
           {unlocated.length} {unlocated.length === 1 ? "activity has" : "activities have"} no location — add a place
         </Button>
       )}
-      {pins.length > 0 ? (
+      {plottedPins.length > 0 ? (
         <div
           className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
           // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.

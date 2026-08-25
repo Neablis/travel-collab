@@ -10,7 +10,7 @@ const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600"]
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-next-sans" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-next-mono" });
 
-export const metadata = { title: "travel-collab" };
+export const metadata = { title: "Caesura" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

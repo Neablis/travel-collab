@@ -5,11 +5,10 @@ import { BudgetChip } from "./BudgetChip";
 
 afterEach(cleanup);
 
-// Money renders with the app's one shared formatter (formatMoney.ts, KI-2):
-// grouped 2-decimal amount + currency-code suffix ("9,085.00 USD"), not a
-// currency-symbol prefix — every other money display in the app (BudgetMeter,
-// the lenses) uses this same convention, and a second one here would reopen
-// the "money formatted two ways in the same screen" bug KI-2 already closed.
+// Money renders with the app's one shared formatter (formatMoney.ts, KI-2)
+// — grouped 2-decimal amount, currency prefixed as its symbol where one's
+// well-known ("$9,085.00", #46). Everywhere else that calls formatMoney
+// picks this up automatically, same as it did for KI-2's grouping.
 describe("BudgetChip", () => {
   it("shows the planned total, the budget and the remaining badge", () => {
     render(
@@ -20,9 +19,9 @@ describe("BudgetChip", () => {
       />,
     );
 
-    expect(screen.getByText("9,085.00 USD")).toBeTruthy();
-    expect(screen.getByText("of 16,400.00 USD")).toBeTruthy();
-    expect(screen.getByText("7,315.00 USD left")).toBeTruthy();
+    expect(screen.getByText("$9,085.00")).toBeTruthy();
+    expect(screen.getByText("of $16,400.00")).toBeTruthy();
+    expect(screen.getByText("$7,315.00 left")).toBeTruthy();
   });
 
   it("reads as over budget with a warning badge", () => {
@@ -34,7 +33,7 @@ describe("BudgetChip", () => {
       />,
     );
 
-    expect(screen.getByText("820.00 USD over")).toBeTruthy();
+    expect(screen.getByText("$820.00 over")).toBeTruthy();
   });
 
   it("invites setting a budget when there is none", () => {
@@ -47,6 +46,22 @@ describe("BudgetChip", () => {
     );
 
     expect(screen.getByText("Set a budget")).toBeTruthy();
+  });
+
+  // Mitchell, reviewing the preview: "Budget bar should be full length up to
+  // the 'Amount left' element" — not the fixed 132px the handoff mock used.
+  it("sizes the moss track to the flex column's own width, not a fixed pixel value", () => {
+    const { container } = render(
+      <BudgetChip
+        spend={{ total: 908_500, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
+        currency="USD"
+        onOpenSettings={() => {}}
+      />,
+    );
+
+    const track = container.querySelector(".bg-moss");
+    expect(track?.className).toContain("w-full");
+    expect((track as HTMLElement | null)?.style.width).toBe("");
   });
 
   it("opens settings when clicked", async () => {

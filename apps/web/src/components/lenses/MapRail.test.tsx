@@ -45,6 +45,16 @@ describe("MapRail", () => {
     expect(first!.className).not.toMatch(/opacity-|text-slate\b/);
   });
 
+  // Scrolling — not hovering — is how a day gets selected; a hover tint
+  // would compete with aria-current's own highlight as a second cue.
+  it("carries no hover background on the day buttons", () => {
+    render(<MapRail days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]} focusedDay={0} onFocus={vi.fn()} />);
+
+    for (const button of screen.getAllByRole("button")) {
+      expect(button.className).not.toMatch(/hover:bg-/);
+    }
+  });
+
   it("shows a warning flag when the day carries one", () => {
     render(<MapRail days={[day({ flagText: "2 stops have no place yet" })]} focusedDay={null} onFocus={vi.fn()} />);
     expect(screen.getByText("2 stops have no place yet")).toBeTruthy();

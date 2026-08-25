@@ -138,24 +138,26 @@ describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
   it("opens TripDateControl when the Dates row is clicked", async () => {
     renderSheet();
 
-    expect(screen.queryByLabelText("Start date")).toBeNull();
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));
 
-    expect(await screen.findByLabelText("Start date")).toBeTruthy();
+    expect(await screen.findByLabelText("Trip start date")).toBeTruthy();
   });
 
-  it("forwards a committed date change to the sheet's own onCommand as SetTripDates", async () => {
+  // Task 8b.6: the end is derived, never picked — TripDateControl commits
+  // the start alone, via SetTripStartDate, not SetTripDates. Selecting a
+  // date now commits immediately (feedback fix, 2026-08-24) — no Done click,
+  // and the commit closes the Dates popover itself (same onCommand wrapper
+  // the Clear-date X used before this change).
+  it("forwards a committed date change to the sheet's own onCommand as SetTripStartDate", async () => {
     const { onCommand } = renderSheet(vi.fn(), { onCommand: vi.fn() });
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));
-    await userEvent.type(await screen.findByLabelText("Start date"), "2027-01-05");
-    await userEvent.click(screen.getByRole("button", { name: "Set dates" }));
+    await userEvent.type(await screen.findByLabelText("Trip start date"), "2027-01-05");
 
     await waitFor(() =>
-      expect(onCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "SetTripDates", tripId, startDate: "2027-01-05" }),
-      ),
+      expect(onCommand).toHaveBeenCalledWith({ type: "SetTripStartDate", tripId, startDate: "2027-01-05" }),
     );
   });
 });

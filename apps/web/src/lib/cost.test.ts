@@ -38,10 +38,10 @@ describe("tripSpend", () => {
 });
 
 describe("plannedOfBudgetLine", () => {
-  it("formats planned spend against the budget via formatMoney (KI-2), not a hand-rolled '$' string", () => {
+  it("formats planned spend against the budget via formatMoney (KI-2), not a hand-rolled string", () => {
     // costedTripDetailFixture: tripCostTotal 49100 minor, budget 100000 minor, USD.
     const spend = tripSpend(costedTripDetailFixture());
-    expect(plannedOfBudgetLine(spend, "USD")).toBe("491.00 USD planned of 1,000.00 USD");
+    expect(plannedOfBudgetLine(spend, "USD")).toBe("$491.00 planned of $1,000.00");
   });
 
   it("reports the honest 'No budget yet' when the trip has none, never a fabricated figure", () => {

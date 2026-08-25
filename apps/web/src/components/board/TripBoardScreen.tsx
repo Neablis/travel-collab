@@ -79,6 +79,37 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
   // Whether the rail's last answer was simulated (ai-live flag off).
   const [askSimulated, setAskSimulated] = useState(false);
+  // CodeRabbit (PR #46 final review): the assistant's minimized launcher and
+  // the unscheduled rack are both independently `position: fixed` to the
+  // viewport (see UnscheduledRack's own comment for why the rack can't just
+  // be a flow sibling) — nothing in normal layout keeps them apart. Below
+  // 1180px (or above it, if the user hides the rail manually — same
+  // launcher, same fixed bottom-right spot) every non-Map lens has the rack
+  // pinned across that same bottom edge, so a static offset covered a real
+  // slice of the rack — collapsed, and worse once open, since the rack's own
+  // height then grows with its card row. Measuring the rack's actual
+  // rendered height and clearing it is the only offset that survives both
+  // the open/collapsed toggle and the item count changing.
+  //
+  // `rackWrapperRef.current?.firstElementChild`, not the wrapper div itself:
+  // the rack's own root is `position: fixed` (UnscheduledRack/globals.css),
+  // so it never contributes to its static-positioned wrapper's flow height —
+  // that wrapper would always measure 0. The wrapper ref is only a DOM
+  // foothold to reach the fixed child's own real box (getBoundingClientRect
+  // reports a fixed element's true viewport rect regardless of its
+  // ancestors' layout), without UnscheduledRack needing to forward a ref.
+  const rackWrapperRef = useRef<HTMLDivElement>(null);
+  const [rackHeight, setRackHeight] = useState(0);
+  useEffect(() => {
+    const el = rackWrapperRef.current?.firstElementChild ?? null;
+    if (!el) {
+      setRackHeight(0);
+      return;
+    }
+    const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [lens]);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -93,7 +124,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   if (status === "unauthenticated") {
     return (
       <PageContainer width="full">
-        <Heading level={1}>travel-collab</Heading>
+        <Heading level={1}>Caesura</Heading>
         <Link
           href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}
           className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
@@ -237,8 +268,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           at >=1180px so real content (day columns, header actions) never
           sits underneath the fixed-position Assistant rail below — dropped
           via .assistant-hidden when the rail itself is hidden, so hiding it
-          actually reclaims the width rather than leaving a dead gutter. */}
-      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden")}>
+          actually reclaims the width rather than leaving a dead gutter. It
+          also gives lens content a bottom margin against the page, dropped
+          via .full-bleed for the Map lens, which is deliberately full-bleed
+          (same `isFullLens` this component already computes below). */}
+      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden", isFullLens && "full-bleed")}>
         <TripHeader tripId={tripId}>
           <TripViewTabs />
           {/* Task 2.3: MapRail replaces the chips row's job in map view — the
@@ -338,11 +372,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           onHide={assistant.hide}
         />
       ) : (
+        // Matches the design's minimized launcher (`Trip Planner Redesign
+        // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
+        // not the edge-tab treatment this used to have (variant="secondary",
+        // rounded-r-none, vertically centered against the right edge) — the
+        // design has no bordered edge-tab state for the assistant, only this
+        // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
+        // same component's header).
         <Button
-          variant="secondary"
+          variant="primary"
           onClick={assistant.show}
-          className="fixed right-0 top-1/2 z-50 -translate-y-1/2 rounded-r-none border-r-0 px-2 py-3 text-xs shadow-raised"
+          className="fixed right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
+          // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+          style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
         >
+          <span aria-hidden>◎</span>
           Assistant
         </Button>
       )}
@@ -360,16 +404,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           persisted MoveActivity/UpdateActivity commands same as everything
           else, and dispatch itself has no preview guard — inert on the DOM
           subtree is the only thing stopping a mutation while browsing
-          history, so the rack needs it too. */}
-      <div inert={preview.seq !== null ? true : undefined}>
-        <UnscheduledRack
-          items={rackItems}
-          dayOptions={rackDayOptions}
-          open={rack.open}
-          onToggle={() => onRackEvent({ type: "toggle" })}
-          onAssign={assignFromRack}
-        />
-      </div>
+          history, so the rack needs it too.
+          Hidden on Map only (Mitchell, preview review, 2026-08-25): the rack
+          is a `position: fixed` overlay and Map is a full-bleed canvas, so it
+          sits over the pins with no drag support there to justify the cover.
+          Timeline and Calendar keep it mounted — its day-assign
+          `NativeSelect` dispatches real MoveActivity/UpdateActivity without
+          needing drag, so it's still a working scheduling path in those
+          lenses even though drag itself remains Board-only (TODO.md). */}
+      {lens !== "Map" && (
+        <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
+          <UnscheduledRack
+            items={rackItems}
+            dayOptions={rackDayOptions}
+            open={rack.open}
+            onToggle={() => onRackEvent({ type: "toggle" })}
+            onAssign={assignFromRack}
+          />
+        </div>
+      )}
     </>
   );
 }

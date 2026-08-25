@@ -241,11 +241,10 @@ describe("NextTripHero", () => {
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
     const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(bars).toHaveLength(2);
-    // jsdom normalizes an inline hex color to its computed form on read, so
-    // compare the two blocks against each other rather than against the raw
-    // palette hex string.
-    expect((bars[0] as HTMLElement).style.backgroundColor).not.toBe("");
-    expect((bars[0] as HTMLElement).style.backgroundColor).toBe((bars[1] as HTMLElement).style.backgroundColor);
+    // Color now comes from a dayAccents family token class, not an inline
+    // hex — same class both days, since both resolve to the same city.
+    expect((bars[0] as HTMLElement).className).toMatch(/\bbg-(brand|info|success|warning|danger)\b/);
+    expect((bars[0] as HTMLElement).className).toBe((bars[1] as HTMLElement).className);
   });
 
   // The other half of the real algorithm: a column's height is that day's
@@ -353,16 +352,16 @@ describe("NextTripHero", () => {
   });
 
   // Task 4.1 (M10 Phase 4): the "planned of budget" line derived from the real
-  // TripDetail this component already fetches (tripSpend + formatMoney — the
-  // same KI-2 convention every other money surface uses, not a "$"-prefixed
-  // hand-formatted string).
+  // TripDetail this component already fetches (tripSpend + formatMoney —
+  // never a hand-rolled string; #46 has formatMoney itself prefix a "$" for
+  // USD).
   it("shows planned spend against the budget once the real TripDetail loads", async () => {
     const trip = tripSummaryFixture();
     // costedTripDetailFixture: tripCostTotal 49100 minor, budget 100000 minor, USD.
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: costedTripDetailFixture() });
     render(<NextTripHero trip={trip} />);
 
-    expect(await screen.findByText("491.00 USD planned of 1,000.00 USD")).toBeTruthy();
+    expect(await screen.findByText("$491.00 planned of $1,000.00")).toBeTruthy();
   });
 
   it("shows an honest 'No budget yet' only once it knows the loaded trip truly has none", async () => {
@@ -381,5 +380,17 @@ describe("NextTripHero", () => {
     await screen.findByRole("status", { name: /shape of the trip/i });
     expect(screen.queryByText(/planned of/)).toBeNull();
     expect(screen.queryByText("No budget yet")).toBeNull();
+  });
+
+  // Preview review fix: the "stops per day" label next to the sparkline
+  // heading was flagged as unneeded and removed. Asserted once the sparkline
+  // itself has real data, since the label only ever rendered in that state.
+  it("does not render a 'stops per day' label next to the sparkline heading", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    await screen.findByRole("group", { name: /shape of the trip/i });
+    expect(screen.queryByText("stops per day")).toBeNull();
   });
 });

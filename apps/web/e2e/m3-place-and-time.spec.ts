@@ -45,16 +45,19 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Dates" }).click();
-  await page.getByLabel("Start date").fill("2026-10-10");
-  // TripDateControl (M8/A14) stages date fields locally and only commits via
-  // an explicit "Set dates" click, dispatching SetTripDates. Wait for that
+  // TripDateControl (Task 8b.6: the end is derived, never picked) commits
+  // SetTripStartDate as soon as a complete date is selected (feedback fix,
+  // 2026-08-24: "you shouldnt have to hit done") — fill() sets the whole
+  // value in one go, same as a real picker selection. Wait for that
   // command's POST to resolve before closing the sheet — later assertions
   // (the day column's date label) depend on the commit having landed.
+  // Filling also closes the Dates popover itself (SettingsSheet's onCommand
+  // wrapper), same as the Clear-date X below.
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
     ),
-    page.getByRole("button", { name: "Set dates" }).click(),
+    page.getByLabel("Trip start date").fill("2026-10-10"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
   // TripViewTabs.tsx (M10 redesign-feedback follow-up): Calendar is its own
@@ -119,9 +122,9 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // (D-1: this used to also assert an anchor-violation conflict badge
   // toggling off across the shift/clear/undo below — anchors have no UI to
   // author since Wave B, so there's no conflict to badge. The day column's
-  // date label is still directly observable and still proves SetTripDates
-  // commits/undoes correctly, which was always the actual point of this
-  // section.)
+  // date label is still directly observable and still proves
+  // SetTripStartDate commits/undoes correctly, which was always the actual
+  // point of this section.)
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
   // 2026-10-12 is a Monday.
   await page.getByRole("button", { name: "Trip settings" }).click();
@@ -131,22 +134,16 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // which stays mounted) — so it needs a fresh click here too, not just
   // before the very first date set above.
   await page.getByRole("button", { name: "Dates" }).click();
-  await page.getByLabel("Start date").fill("2026-10-12");
-  // By this point the trip already has dated days (from the first "Set
-  // dates" commit), so TripDateControl's End date field is pre-staged with
-  // the trip's last day's date (TripHeader.tsx derives it from
-  // trip.days[days.length - 1].date), not empty. Clear it so this commit
-  // dispatches endDate: null — a start-only shift with dayCount untouched —
-  // instead of racing a stale end date behind the new start date, which
-  // trips the shrink-confirmation dialog.
-  await page.getByLabel("End date").fill("");
-  // Same commit race as the initial date-set above — wait for the "Set
-  // dates" command's POST before closing the sheet.
+  // Task 8b.6: there is no end field to race — the end is always derived
+  // from the plan's own day count, so shifting the start alone can never
+  // trip a shrink-confirmation (that dialog is gone with the field).
+  // Same commit race as the initial date-set above — wait for the
+  // selection's command POST before closing the sheet.
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
     ),
-    page.getByRole("button", { name: "Set dates" }).click(),
+    page.getByLabel("Trip start date").fill("2026-10-12"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText(/day 1.*oct 12/i)).toBeVisible();
@@ -177,7 +174,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Dates" }).click();
-  await expect(page.getByLabel("Start date")).toHaveValue("2026-10-12");
+  await expect(page.getByLabel("Trip start date")).toHaveValue("2026-10-12");
   await page.getByRole("button", { name: "Close" }).click();
   await Promise.all([
     page.waitForResponse(
@@ -187,7 +184,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Dates" }).click();
-  await expect(page.getByLabel("Start date")).toHaveValue("2026-10-10");
+  await expect(page.getByLabel("Trip start date")).toHaveValue("2026-10-10");
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
 });

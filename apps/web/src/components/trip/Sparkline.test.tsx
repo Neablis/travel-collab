@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { SPARKLINE_PALETTE, UNKNOWN_CITY_COLOR } from "@/lib/sparklineColor";
+import { ACCENT_FAMILIES } from "@/lib/dayAccent";
 import { CHART_HEIGHT_PX, Sparkline, blockMetricsFor, citySegmentsFor, shapeOf } from "./Sparkline";
 
 afterEach(cleanup);
@@ -49,28 +49,39 @@ describe("shapeOf", () => {
       { city: "Kyoto", stopCount: 1 },
       { city: "Rochester", stopCount: 1 },
     ]);
-    expect(groups[0]!.color).toBe(groups[2]!.color);
-    expect(groups[0]!.color).not.toBe(groups[1]!.color);
+    expect(groups[0]!.family).toBe(groups[2]!.family);
+    expect(groups[0]!.family).not.toBe(groups[1]!.family);
   });
 
-  // Regression: colors were hashed per city independently of the trip, so
-  // three cities on one real 14-day trip (Tokyo/Hakone/Kyoto) all drew the
-  // same orange — on a graph where color is the only city signal, that reads
-  // as one continuous city.
-  it("gives every city on a trip a distinct color, up to the palette's size", () => {
-    const groups = shapeOf(
-      ["Tokyo", "Nikkō", "Hakone", "Kyoto", "Osaka", "Naoshima"].map((city) => ({ city, stopCount: 1 })),
-    );
-    expect(new Set(groups.map((group) => group.color)).size).toBe(6);
+  // The sparkline now shares dayAccents' 5 semantic families with every
+  // other city-accented surface (Board/Column/DayChips/TripCard/calendar) —
+  // it no longer has its own 8-hue palette. A trip with up to 5 distinct
+  // cities gets each its own family.
+  it("gives every city on a trip a distinct family, up to the 5-family ceiling", () => {
+    const groups = shapeOf(["Tokyo", "Kyoto", "Osaka", "Nikkō", "Hakone"].map((city) => ({ city, stopCount: 1 })));
+    expect(new Set(groups.map((group) => group.family)).size).toBe(5);
   });
 
-  it("gives a day with no known city a neutral, not a palette hue", () => {
+  // Mitchell's accepted trade-off (2026-08-25, see shapeOf's own comment):
+  // past 5 distinct cities in one trip, a pair shares a family rather than
+  // the sparkline inventing a 6th palette or silently dropping a city. The
+  // sharing must be deterministic (dayAccents' pass-2 probe), not a crash
+  // and not a missing family.
+  it("shares a family past the 5-city ceiling instead of throwing or dropping a city", () => {
+    const cities = ["Tokyo", "Nikkō", "Hakone", "Kyoto", "Osaka", "Naoshima"];
+    const groups = shapeOf(cities.map((city) => ({ city, stopCount: 1 })));
+    expect(groups).toHaveLength(6);
+    expect(groups.every((group) => group.family !== "neutral")).toBe(true);
+    expect(new Set(groups.map((group) => group.family)).size).toBe(5);
+  });
+
+  it("gives a day with no known city the explicit neutral family, not a hashed one", () => {
     const groups = shapeOf([
       { city: "Tokyo", stopCount: 1 },
       { city: null, stopCount: 1 },
     ]);
-    expect(groups[1]!.color).toBe(UNKNOWN_CITY_COLOR);
-    expect(new Set<string>(SPARKLINE_PALETTE)).not.toContain(groups[1]!.color);
+    expect(groups[1]!.family).toBe("neutral");
+    expect(ACCENT_FAMILIES).not.toContain(groups[1]!.family);
   });
 });
 
@@ -184,7 +195,9 @@ describe("Sparkline", () => {
     expect(columns[1]!.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
   });
 
-  it("colors a day's blocks by that day's city", () => {
+  // Token classes, not inline hex (design-system.md's color wall) — the
+  // whole point of moving off the old raw-hex palette.
+  it("colors a day's blocks with a token class, not an inline color", () => {
     const { container } = render(
       <Sparkline
         days={[
@@ -193,17 +206,10 @@ describe("Sparkline", () => {
         ]}
       />,
     );
-    const [kyoto, osaka] = Array.from(
-      container.querySelectorAll<HTMLElement>('[aria-hidden="true"]'),
-      (block) => block.style.backgroundColor,
-    );
-    // jsdom re-serializes the palette's hex into its own channel notation,
-    // so round-trip the expected color through a probe element rather than
-    // comparing against the hex string directly.
-    const probe = document.createElement("span");
-    probe.style.backgroundColor = SPARKLINE_PALETTE[0];
-    expect(kyoto).toBe(probe.style.backgroundColor);
-    expect(osaka).not.toBe(kyoto);
+    const [kyoto, osaka] = Array.from(container.querySelectorAll<HTMLElement>('[aria-hidden="true"]'));
+    expect(kyoto!.style.backgroundColor).toBe("");
+    expect(kyoto!.className).toMatch(/\bbg-(brand|info|success|warning|danger)\b/);
+    expect(kyoto!.className).not.toBe(osaka!.className);
   });
 
   it("renders a city-segment pill list below the blocks", () => {

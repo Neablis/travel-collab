@@ -190,9 +190,9 @@ describe("TripBoardScreen", () => {
     // D-2 entry). This test confirms the real integration once restored:
     // opening Trip settings and clicking the Dates row opens a Popover
     // containing TripDateControl, pre-filled with the trip's real dates.
-    // TripDateControl's own dispatch logic (SetTripDates/SetTripStartDate,
-    // shrink-confirm) stays covered directly in TripDateControl.test.tsx; the
-    // sheet's onCommand pass-through is covered in SettingsSheet.test.tsx.
+    // TripDateControl's own dispatch logic (SetTripStartDate, clearing)
+    // stays covered directly in TripDateControl.test.tsx; the sheet's
+    // onCommand pass-through is covered in SettingsSheet.test.tsx.
     const fixture = tripDetailFixture({ startDate: "2027-06-01" });
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -201,11 +201,11 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
 
     const datesRow = await screen.findByRole("button", { name: "Dates" });
-    expect(screen.queryByLabelText("Start date")).toBeNull();
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
 
     fireEvent.click(datesRow);
 
-    const startInput = (await screen.findByLabelText("Start date")) as HTMLInputElement;
+    const startInput = (await screen.findByLabelText("Trip start date")) as HTMLInputElement;
     expect(startInput.value).toBe("2027-06-01");
   });
 
@@ -544,6 +544,30 @@ describe("map view hides the day-chips row", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "Day columns" }));
     expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
+  });
+});
+
+// Preview review fix: lens content gets a bottom margin against the page via
+// `.trip-board-content`'s `padding-bottom` (globals.css), except on the Map
+// lens, which is deliberately full-bleed (Task 2.3's "mapwrap") — exempted
+// via the `.full-bleed` modifier class. jsdom doesn't apply real CSS, so this
+// asserts the class toggle that drives the exemption, not the rendered pixels.
+describe("lens bottom-margin exemption for the full-bleed Map lens", () => {
+  it("carries .full-bleed only while the Map lens is active", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { container } = renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const content = container.querySelector(".trip-board-content");
+    expect(content?.classList.contains("full-bleed")).toBe(false);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Map" }));
+    expect(content?.classList.contains("full-bleed")).toBe(true);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Day columns" }));
+    expect(content?.classList.contains("full-bleed")).toBe(false);
   });
 });
 
