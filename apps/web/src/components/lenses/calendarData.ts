@@ -99,8 +99,10 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
   const gridEnd = addDays(lastDate, 6 - sundayWeekday(lastDate));
 
   const byDate = new Map<string, { ordinal: number; activityIds: string[] }>();
-  tripDays.forEach((day, index) => {
-    byDate.set(day.date, { ordinal: index + 1, activityIds: day.activityIds });
+  detail.days.forEach((day, index) => {
+    if (day.date !== null) {
+      byDate.set(day.date, { ordinal: index + 1, activityIds: day.activityIds });
+    }
   });
 
   const months: CalendarMonth[] = [];

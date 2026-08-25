@@ -88,10 +88,12 @@ describe("CalendarLens", () => {
   it("renders the 7-column weekday header, Sunday first", () => {
     renderLens(detailFixture());
     const grid = screen.getByRole("grid", { name: JUNE_GRID_LABEL });
-    for (const label of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
-      expect(screen.getByText(label)).toBeDefined();
-    }
-    expect(grid).toBeDefined();
+    // The header is the grid's first 7 children, in order — asserting each
+    // label merely exists would also pass for a Monday-first grid.
+    const headerLabels = Array.from(grid.children)
+      .slice(0, 7)
+      .map((el) => el.textContent);
+    expect(headerLabels).toEqual(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
   });
 
   it("renders the month header and the days-held note", () => {

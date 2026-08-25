@@ -62,6 +62,23 @@ describe("calendarMonths", () => {
     }
   });
 
+  it("gives a dated day its position in detail.days, not its position among dated days (sparse trip)", () => {
+    // An undated day sits between two dated ones. The third day's ordinal must
+    // stay 3 — its position in detail.days — not collapse to 2 by counting only
+    // dated entries, which would make CalendarLens focus the wrong planning day.
+    const detail = tripDetailFixture({
+      startDate: "2026-01-01",
+      days: [
+        { dayId: uuid(0), activityIds: [], date: "2026-01-01", costSubtotal: 0 },
+        { dayId: uuid(1), activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: uuid(2), activityIds: [], date: "2026-01-03", costSubtotal: 0 },
+      ],
+    });
+    const months = calendarMonths(detail);
+    const lastCell = months[0]!.cells.find((c) => !c.blank && c.date === "2026-01-03");
+    expect(lastCell).toMatchObject({ inTrip: true, ordinal: 3 });
+  });
+
   it("undated trip → no months", () => {
     const detail = tripDetailFixture({
       startDate: null,

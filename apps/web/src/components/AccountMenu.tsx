@@ -109,7 +109,14 @@ export function AccountMenu({
           <Button
             variant="ghost"
             className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
-            onClick={() => setResetConfirmOpen(true)}
+            onClick={() => {
+              // Close the popover behind the dialog and drop any error from a
+              // prior attempt — otherwise a stale failure message is already
+              // showing the moment this dialog reopens.
+              setOpen(false);
+              setResetError(null);
+              setResetConfirmOpen(true);
+            }}
           >
             Reset to demo data
           </Button>

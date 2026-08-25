@@ -26,4 +26,12 @@ describe("SyncIndicator", () => {
     expect(status.getAttribute("title")).toBe("All changes saved");
     expect(status.getAttribute("aria-label")).toBe("All changes saved");
   });
+
+  it("rejects a third 'error' pending state at compile time (compile-time assertion, not a runtime check)", () => {
+    // Pins the contract note above: `pending` stays `boolean | number` until
+    // the send queue can report a persisted failure. If this line stops
+    // erroring, the prop widened without that decision being revisited.
+    // @ts-expect-error -- "error" is not a valid `pending` value
+    render(<SyncIndicator pending="error" />);
+  });
 });
