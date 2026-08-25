@@ -6,16 +6,32 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `docs/known-issues.md`.
 
 **Last updated: 2026-08-25 — Phase 8b is open as PR #46 and has grown well
-past its plan.** The branch `claude/m10-wave2-phase8b` now carries **24
+past its plan.** The branch `claude/m10-wave2-phase8b` now carries **25
 commits / ~75 files**, not the six Phase 8b's plan describes. What was added
 after the phase tasks, in order: a **preview-only demo-data reset** endpoint
 and account-menu action (dev tooling, not plan scope — see its own section
 below), **geocoded coordinates** for the Japan seed, a **full calendar-cell
 rebuild** after the first attempt was reported wrong, five **CodeRabbit**
 fixes, and **20 preview-review comments** from Mitchell across three rounds.
-CI is green on `3bb325e` (`static-checks`, `unit-tests`, `integration-e2e`;
-`migrate-production` correctly skipped), CodeRabbit passed, and all 20
-preview threads are resolved.
+CI is green on the branch head `111caac` — `static-checks`, `unit-tests`,
+`integration-e2e`, `Vercel`, `Vercel Preview Comments` and `CodeRabbit` all
+pass, `migrate-production` correctly skipped. All 20 preview threads are
+resolved, and CodeRabbit's final pass posted **nothing new**.
+
+**CodeRabbit over three passes: 16 findings — 12 fixed, 2 declined on the
+merits (it later conceded both), 2 were its own replies.** Its best catch was
+a bug this session caused: after the loop that *drew* backlog markers was
+removed, `activityPins` still fed the map's initial centre, so the map could
+centre on an activity it deliberately does not plot, and a backlog-only trip
+rendered a blank canvas instead of the empty state (`111caac`). It also named
+two wrong seed pins nobody had spotted — see KI-39 below.
+
+**Three known issues were filed off this branch besides KI-36:** **KI-37**
+(`commandsFor` emits a malformed `TimeWindow.start` for the second activity on
+a day), **KI-38** (`uuidFrom` silently returns malformed UUIDs above 0xFFFF
+instead of throwing) and **KI-39** (the seed geocoder's city-box acceptance
+test). KI-37 and KI-38 are both in `@tc/factories` and were surfaced by
+accident; neither is fixed, because `packages/` is off-limits on this branch.
 
 **Read this before the Phase 9 gate: the "presentational only" gate box is
 under real strain.** This branch contains a route that soft-deletes user
@@ -49,6 +65,11 @@ pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
 opening Phase 8b's PR** — see "Phase 8b" under "In flight" and "Next action"
 below. One of Phase 8b's five design items, the sync-failure banner (Task
 8b.4), was **deliberately not shipped** — see that section and **KI-36**.
+The save indicator's third (error) state was **descoped by Mitchell on
+2026-08-25** for the same root cause and tracked by the same KI: two states
+ship, and `pending` is pinned to `boolean | number` by a `@ts-expect-error`
+assertion so it cannot quietly grow a third without that decision being
+revisited.
 
 **CI on `main` at `c630152` is green** — run `32785947175`, all four jobs:
 `static-checks`, `unit-tests`, `integration-e2e` and `migrate-production`.
@@ -1161,7 +1182,7 @@ which existed only on a branch.
 
 ## Next action
 
-**Review and merge PR #46.** `claude/m10-wave2-phase8b` (24 commits,
+**Review and merge PR #46.** `claude/m10-wave2-phase8b` (25 commits,
 `9174e06`..HEAD) is open, CI green, CodeRabbit passed, all 20 preview
 comments resolved. See "Phase 8b" under "In flight" above for what shipped,
 why Task 8b.4 deliberately did not, and the demo-data section for the dev
@@ -1185,11 +1206,16 @@ where it belongs rather than silently dropped:
    codes while the rest of the UI now renders symbols — a `packages/` change
    is its own reviewed step per `AGENTS.md`, so it was left alone.
 
-**Known imperfection in the demo seed, by decision not oversight:** 54 of 72
-stops geocoded (75%). The per-city bounded lookup rejects wrong-*city*
-matches but not wrong-POI-in-the-right-city — `d14-s2-shinkansen-to-tokyo`
-resolved to Shinagawa Station rather than Shin-Osaka. Mitchell's call:
-*"lets just go do our best, its seed data."*
+**Known imperfection in the demo seed, by decision not oversight — now
+**KI-39**:** **51 of 72** stops carry coordinates. The per-city bounded lookup
+rejects a wrong *city* but not a wrong *venue in the right city*, which is how
+three wrong pins passed it (Kegon Falls → Urami Falls; Zentis Osaka → a
+different hotel; Shin-Osaka → Shinagawa). **Those three entries were deleted
+rather than shipped** — a missing pin beats a confidently wrong one, the same
+principle that kept Task 8b.4 unshipped. KI-39 records that a name-identity
+check is needed before the overlay is trusted or regenerated; the geocoding was
+deliberately NOT re-run. Mitchell's call: *"lets just go do our best, its seed
+data."*
 
 `main` is at `c630152`. Six orphan worktrees are still on disk and in
 `.claude/launch.json`; `/cleanup-orphans` (hardened in PR #45) is the way to
