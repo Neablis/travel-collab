@@ -12,6 +12,8 @@ const rome = "22222222-2222-4222-8222-222222222222";
 const forum = "33333333-3333-4333-8333-333333333333";
 const flight = "44444444-4444-4444-8444-444444444444";
 
+const JUNE_GRID_LABEL = "Trip calendar, June 2027";
+
 // Reads focusedDay back out of the same FocusProvider CalendarLens is
 // wrapped in — the provider itself has no visible output, so a click's
 // effect on setFocusedDay is otherwise unobservable (mirrors
@@ -30,8 +32,8 @@ function renderLens(detail: ReturnType<typeof tripDetailFixture>) {
   );
 }
 
-// A trip whose days hold no stops at all. `calendarCells` pads the grid out to
-// whole weeks, so this fixture also supplies the out-of-trip cells the
+// A trip whose days hold no stops at all. `calendarMonths` pads the grid out
+// to whole weeks, so this fixture also supplies the out-of-trip cells the
 // empty-day copy must NOT reach.
 function detailWithEmptyDay(dayCount = 1) {
   return tripDetailFixture({
@@ -54,7 +56,7 @@ function detailFixture() {
       [rome]: {
         activityId: rome,
         title: "Colosseum tour",
-        timeWindow: null,
+        timeWindow: { start: "09:00", end: "11:00" },
         location: { name: "Rome" },
         notes: null,
         anchors: [],
@@ -63,7 +65,7 @@ function detailFixture() {
       [forum]: {
         activityId: forum,
         title: "Roman Forum",
-        timeWindow: null,
+        timeWindow: { start: "11:30", end: "13:00" },
         location: { name: "Rome" },
         notes: null,
         anchors: [],
@@ -72,7 +74,7 @@ function detailFixture() {
       [flight]: {
         activityId: flight,
         title: "Flight home",
-        timeWindow: null,
+        timeWindow: { start: "17:00", end: "17:30" },
         location: null,
         notes: null,
         anchors: [],
@@ -83,30 +85,65 @@ function detailFixture() {
 }
 
 describe("CalendarLens", () => {
-  it("renders the 7-column weekday header", () => {
+  it("renders the 7-column weekday header, Sunday first", () => {
     renderLens(detailFixture());
-    const grid = screen.getByRole("grid", { name: "Trip calendar" });
-    for (const label of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+    const grid = screen.getByRole("grid", { name: JUNE_GRID_LABEL });
+    for (const label of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(grid).toBeDefined();
   });
 
+  it("renders the month header and the days-held note", () => {
+    renderLens(detailFixture());
+    expect(screen.getByText("June 2027")).toBeDefined();
+    // "Day 1" appears twice: the note beside the month header, and the cell's
+    // own "Day N" label — both are asserted elsewhere, so just confirm the
+    // note's copy exists at all.
+    expect(screen.getAllByText("Day 1").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("shows the empty state and no grid when the trip has no start date", () => {
     renderLens(tripDetailFixture());
     expect(screen.getByText("Set a start date to see the calendar.")).toBeDefined();
-    expect(screen.queryByRole("grid", { name: "Trip calendar" })).toBeNull();
+    expect(screen.queryByRole("grid")).toBeNull();
   });
 
-  it("shows Day N, city, first stop, and +N more on an in-trip cell", () => {
+  // dc.html:3053's per-day summary line supersedes Task 8.6's "+N more" —
+  // count and the timed stops' clock range, not a first-stop title.
+  it("shows Day N, city, and the stop-count/time-range summary on an in-trip cell", () => {
     renderLens(detailFixture());
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell).toBeDefined();
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
-    expect(cell.textContent).toContain("Colosseum tour");
-    // 3 activityIds → 1 shown as first stop, 2 more.
-    expect(cell.textContent).toContain("+2 more");
+    expect(cell.textContent).toContain("3 stops");
+    // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest end.
+    expect(cell.textContent).toContain("9 am – 5:30 pm");
+    expect(cell.textContent).not.toContain("Colosseum tour");
+    expect(cell.textContent).not.toContain("more");
+  });
+
+  it("omits the time range when none of the day's stops are timed", () => {
+    const detail = tripDetailFixture({
+      startDate: "2027-06-01",
+      days: [{ dayId: day1, activityIds: [rome], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        [rome]: {
+          activityId: rome,
+          title: "Colosseum tour",
+          timeWindow: null,
+          location: { name: "Rome" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+    renderLens(detail);
+    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    expect(cell.textContent).toContain("1 stop");
+    expect(cell.textContent).not.toContain("1 stops");
+    expect(cell.textContent).not.toContain("·");
   });
 
   it("clicking an in-trip cell calls setFocusedDay with the 0-based day index", async () => {
@@ -153,22 +190,21 @@ describe("CalendarLens", () => {
   // rendering a grid of empty-day copy.
   it("renders no grid, and no empty-day copy, for a trip with no days", () => {
     renderLens(tripDetailFixture({ days: [], activities: {} }));
-    expect(screen.queryByRole("grid", { name: "Trip calendar" })).toBeNull();
+    expect(screen.queryByRole("grid")).toBeNull();
     expect(screen.queryByText("Nothing planned yet")).toBeNull();
   });
 
-  // A dated trip whose day list is empty: every cell the grid draws is
-  // out-of-trip padding, so nothing claims to be an unplanned day.
-  it("renders a dated trip with no days as all out-of-trip cells", () => {
+  // A dated trip whose day list is empty falls back to the same "Set a start
+  // date" state as an undated trip — there is no month to derive a block
+  // from, so nothing is rendered rather than an all-padding grid.
+  it("renders the empty state, not a grid, for a dated trip with no days", () => {
     renderLens(tripDetailFixture({ startDate: "2027-06-01", days: [], activities: {} }));
-    const cells = screen.queryAllByTestId("calendar-cell");
-    expect(cells.every((cell) => cell.getAttribute("data-in-trip") === "false")).toBe(true);
+    expect(screen.getByText("Set a start date to see the calendar.")).toBeDefined();
+    expect(screen.queryAllByTestId("calendar-cell")).toHaveLength(0);
     expect(screen.queryByText("Nothing planned yet")).toBeNull();
   });
 
-  // A day with many stops still shows one stop plus the overflow count, and
-  // never the empty-day copy.
-  it("renders a day holding many stops as first stop plus +N more", () => {
+  it("renders a day holding many stops as a stop count, never the empty-day copy", () => {
     const ids = Array.from({ length: 9 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
     renderLens(
       tripDetailFixture({
@@ -183,8 +219,8 @@ describe("CalendarLens", () => {
       }),
     );
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell.textContent).toContain("Stop 1");
-    expect(cell.textContent).toContain("+8 more");
+    expect(cell.textContent).toContain("9 stops");
+    expect(cell.textContent).not.toContain("Stop 1");
     expect(cell.textContent).not.toContain("Nothing planned yet");
   });
 
@@ -197,24 +233,23 @@ describe("CalendarLens", () => {
     expect(button.parentElement?.className).toMatch(/bg-surface/);
   });
 
-  it("does not show +N more when there is only one activity", () => {
-    const detail = tripDetailFixture({
-      startDate: "2027-06-01",
-      days: [{ dayId: day1, activityIds: [rome], date: "2027-06-01", costSubtotal: 0 }],
-      activities: {
-        [rome]: {
-          activityId: rome,
-          title: "Colosseum tour",
-          timeWindow: null,
-          location: { name: "Rome" },
-          notes: null,
-          anchors: [],
-          cost: null,
-        },
-      },
+  // A trip that crosses a month boundary renders one grid per month, each
+  // with its own header — the component-level counterpart to
+  // calendarData.test.ts's pure `calendarMonths` coverage.
+  it("renders one grid per month for a trip crossing a month boundary", () => {
+    const days = Array.from({ length: 10 }, (_, i) => {
+      const dt = new Date(Date.UTC(2022, 10, 27 + i));
+      return {
+        dayId: `88888888-8888-4888-8888-${String(i).padStart(12, "0")}`,
+        activityIds: [],
+        date: dt.toISOString().slice(0, 10),
+        costSubtotal: 0,
+      };
     });
-    renderLens(detail);
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell.textContent).not.toContain("more");
+    renderLens(tripDetailFixture({ startDate: "2022-11-27", days, activities: {} }));
+    expect(screen.getByRole("grid", { name: "Trip calendar, November 2022" })).toBeDefined();
+    expect(screen.getByRole("grid", { name: "Trip calendar, December 2022" })).toBeDefined();
+    expect(screen.getByText("November 2022")).toBeDefined();
+    expect(screen.getByText("December 2022")).toBeDefined();
   });
 });
