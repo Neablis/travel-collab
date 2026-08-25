@@ -298,11 +298,11 @@ its gate.
 
 | Design change | Milestone | Why |
 |---|---|---|
-| Rename to **Caesura** (D1) | M10, Phase 8b † | Two strings and their tests. Shipping the redesign under the old name is the worse outcome |
-| Save state: 3-state dot (`SPEC` §2) | M10, Phase 8b † | Presentational change to a shipped component — squarely "visual craft" |
-| Sync-failure `Banner` (D7) | M10, Phase 8b † | `Banner` exists; reuses `ConflictBanner`'s vocabulary |
-| Calendar month blocks + week trimming (`SPEC` §4, §3.3 above) | M10, Phase 8b † | Trip-plan surface; Task 8.6 already opens `CalendarLens` |
-| **Sign out** in the header | M10, Phase 8b † | A capability gap, not polish — you cannot sign out anywhere today |
+| Rename to **Caesura** (D1) | M10, Phase 8b † | Two strings and their tests. Shipping the redesign under the old name is the worse outcome. **Shipped** `9174e06`. |
+| Save state: 3-state dot (`SPEC` §2) | M10, Phase 8b † | Presentational change to a shipped component — squarely "visual craft". **Shipped** `e37cc20` — saved/saving only, error state omitted; see below and KI-36 |
+| Sync-failure `Banner` (D7) | M10, Phase 8b † | `Banner` exists; reuses `ConflictBanner`'s vocabulary. **Not shipped** — see below and KI-36 |
+| Calendar month blocks + week trimming (`SPEC` §4, §3.3 above) | M10, Phase 8b † | Trip-plan surface; Task 8.6 already opens `CalendarLens`. **Shipped** `cae8fa7` |
+| **Sign out** in the header | M10, Phase 8b † | A capability gap, not polish — you cannot sign out anywhere today. **Shipped** `7d3b6c8` (+ `86ec93f`, a color-wall fix) |
 | Stable identity for `Popover` triggers / `Banner` actions (`SPEC` §5) | **Now** — `docs/guidelines/design-system.md` | Guidance, not a feature. It hard-locks the main thread; the design file hit it for real |
 | `TripSummary.startDate` (D6) | **Its own contract step**, before Phase 8's home-hero task | `AGENTS.md`: a contract change is its own reviewed step. Subsumes `TODO.md`'s trip-list-metadata idea |
 | Start-only trip dates (`SPEC` §3) | **Own step, after M10's gate** — §4.3 | Behaviour change; reverses Phase 4 and rewrites Task 7.2 step 2 |

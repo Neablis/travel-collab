@@ -5,15 +5,17 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-**Last updated: 2026-08-24 — the only work in flight is a docs/bookkeeping
-branch, `claude/reload-skills-d51dc6` (this file, plus the M2/M3 gate
-reconciliation below). `main` is at `c630152` with no open PRs.** Three PRs merged after Phase 8 was written up below:
+**Last updated: 2026-08-24 — M10 Wave 2 Phase 8b is implemented on
+`claude/m10-wave2-phase8b`, awaiting a PR.** `main` is at `c630152` with no
+open PRs. Three PRs merged after Phase 8 was written up below:
 **PR #35** (M10 Wave 2 Phase 8 — correctness and polish, the branch this
 file previously described as "open awaiting merge"), **PR #44** (a KI backlog
 pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
 `minimal-check-subset` skill), and **PR #45** (hardened the
-`/cleanup-orphans` skill after its first real run). **The next work is M10
-Wave 2 Phase 8b** — see "Next action" below.
+`/cleanup-orphans` skill after its first real run). **The next work is
+opening Phase 8b's PR** — see "Phase 8b" under "In flight" and "Next action"
+below. One of Phase 8b's five design items, the sync-failure banner (Task
+8b.4), was **deliberately not shipped** — see that section and **KI-36**.
 
 **CI on `main` at `c630152` is green** — run `32785947175`, all four jobs:
 `static-checks`, `unit-tests`, `integration-e2e` and `migrate-production`.
@@ -1076,6 +1078,31 @@ plus `origin/claude/m10-wave2-phase3-onward` and
 `origin/claude/next-milestone-388cd0`, the counterparts of two of the three
 above. `origin/main` is now the only remote branch.
 
+### Phase 8b (design sync presentational items) — implemented on `claude/m10-wave2-phase8b`, awaiting a PR
+
+Six commits (`9174e06`..`97b1539`), per
+`docs/plans/M10-delta/phase-8b-design-sync.md`. Five of six tasks shipped:
+the product is renamed **Caesura** (`9174e06`); a header account menu with a
+working **sign out** (`7d3b6c8`, plus `86ec93f` for a color-wall fix); the
+calendar renders one trimmed block per month (`cae8fa7`); and the trip
+start is picked with the end derived, no end-date input anywhere
+(`97b1539`).
+
+**Task 8b.4 (the persistent sync-failure banner) was deliberately not
+shipped**, per the plan's own instruction to stop and report rather than
+fabricate a trigger: `optimistic.ts`'s `failHead` discards the entire
+pending queue on a failed send (no retry, no on-device persistence, no
+failure timestamp, no retained count), so the design's copy — a live count
+of unsent changes, a real `(since <time>)`, and a **Retry now** action —
+would be false in every clause. Filed as **KI-36** (same bug class as KI-5:
+silent loss from an in-memory optimistic queue, different trigger). The same
+gap forced Task 8b.3's save indicator (`e37cc20`) to ship only the
+saved/saving states, dropping the error state the design also specifies.
+`docs/design-feedback/2026-08-23-design-sync-review.md` §6 and
+`docs/known-issues.md` carry the full record. Milestone routing for the
+banner is not decided here — blocked on KI-36, to be routed at the Phase 9
+gate.
+
 ## Blocking / broken right now
 
 **Nothing blocking.** **KI-15 is downgraded, not closed:** the
@@ -1101,19 +1128,12 @@ which existed only on a branch.
 
 ## Next action
 
-**Nothing is in flight.** `main` is at `c630152`, there are no open PRs, and
-every `claude/*` and `ki-*` branch that had a worktree is a confirmed ancestor
-of `origin/main`. Six orphan worktrees are still on disk and in
+**Open Phase 8b's PR.** `claude/m10-wave2-phase8b` (six commits,
+`9174e06`..`97b1539`) is implemented and ready — see "Phase 8b" under "In
+flight" above for what shipped, and why Task 8b.4 deliberately didn't.
+`main` is at `c630152`. Six orphan worktrees are still on disk and in
 `.claude/launch.json`; `/cleanup-orphans` (hardened in PR #45) is the way to
 clear them.
-
-**Start M10 Wave 2 Phase 8b** — `docs/plans/M10-delta/phase-8b-design-sync.md`.
-Six tasks: 8b.1 the product is called Caesura, 8b.2 sign out (a real capability
-gap), 8b.3 save state is three states not two strings, 8b.4 one banner pattern
-for sync failure, 8b.5 the calendar is stacked month blocks, 8b.6 the trip has
-a start date and the end is derived. **Every dependency is satisfied and
-merged**: 8b.5 needed Task 8.6 (landed in PR #35) and 8b.6 needed Phase 6
-(PR #30). Branch from `main`, one commit per task in phase-file order.
 
 **Phases 8b and 1b are the 2026-08-23 design sync's approved additions to this
 gate** (see the "Design sync" section above and the gate-scope amendments in
@@ -1121,9 +1141,10 @@ gate** (see the "Design sync" section above and the gate-scope amendments in
 8, 8b, 1b, 9** — 1b depends on both Phase 7 and Phase 8b, so it starts once
 8b merges. Then Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`):
 before/after screenshots, KI-2/3/4 closed or re-deferred, presentational-only
-diff verified, all tests incl. e2e green, retro appended. **M15 Front door
-comes next once M10's gate closes, then M9** (ADR-021) — neither may start
-early.
+diff verified, all tests incl. e2e green, retro appended — **plus, per the
+2026-08-24 amendment above, routing Task 8b.4's banner (blocked on KI-36) to
+a milestone.** **M15 Front door comes next once M10's gate closes, then M9**
+(ADR-021) — neither may start early.
 
 **The debt that keeps rolling forward: the manual browser walk.** Phase 5's
 Step 4, Phase 6's Step 4, and Phase 8's exit checklist were each never walked

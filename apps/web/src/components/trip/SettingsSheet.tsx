@@ -82,8 +82,10 @@ export function SettingsSheet({
   onOpenChange,
   startDate,
   endDate,
-  // Re-mounted use (this task): sizes TripDateControl's newDayIds when a
-  // range grows past the trip's current day count.
+  // Re-mounted use (this task): TripDateControl no longer computes
+  // newDayIds — Task 8b.6 made the end date derived, not picked. dayCount is
+  // still threaded through because the derived-end hint copy needs N ("The
+  // end follows the N days in your plan").
   dayCount,
   currency,
   budget,

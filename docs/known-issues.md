@@ -98,6 +98,9 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   close it, and it remains real for anyone who navigates away without
   reading it. Revisit alongside M13, where concurrent multi-actor writes
   make the silent loss more consequential.
+- **Same bug class, different trigger:** **KI-36** is the failed-send half of
+  this — `failHead` in the same `optimistic.ts` drops the whole pending queue
+  on a failed send, not just on abrupt navigation.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
@@ -315,6 +318,49 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it's not fixed here:** the real fix is a contract change — a dedicated `area` field on `Location` — which this plan (`docs/plans/M10-delta/phase-8-polish.md`, Task 8.7) explicitly rules out of scope: it is presentational-only, no `packages/contracts` growth.
 - **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
+
+### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed
+- **Severity:** correctness (data loss, no error surfaced) — the **same bug
+  class as KI-5**: an in-memory optimistic queue that can lose confirmed-to-the-
+  user work with nothing telling anyone it happened. KI-5 is triggered by the
+  user navigating away mid-send; this is triggered by the send itself failing.
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-84`
+  (`failHead`)
+- **Symptom:** `failHead` responds to a failed send with
+  `{ ...state, pending: [] }` — every unit still queued behind the one that
+  just failed is dropped, not just the failed one. There is no retry path, no
+  on-device persistence of the discarded units, no failure timestamp, and no
+  retained count exposed anywhere. The UI has already shown the user's edits
+  as applied (client-side prediction); on a failed send those edits vanish
+  from the queue with no distinguishable trace from a successful drain.
+- **Blocks:** Task 8b.4 (M10 Wave 2 Phase 8b) — the design's persistent
+  sync-failure banner needs a real, live count of unsent changes and a real
+  `(since <time>)` timestamp to render (`Your last three changes are saved on
+  this device but haven't reached the trip yet`, plus a **Retry now** action).
+  None of that state exists: the count is always what was about to be
+  discarded, not what's retained, there is no failure timestamp, and there is
+  nothing to retry against. Every clause of the design's copy would be false,
+  so the banner has no honest trigger and was **deliberately not shipped**;
+  the phase record is
+  `docs/design-feedback/2026-08-23-design-sync-review.md` §6. The same root
+  cause forced Task 8b.3 to ship only the saved/saving states of its
+  three-state save indicator, dropping the error state.
+- **Options (cheapest first):**
+  1. **Retain the failed head and expose a retry.** Change `failHead` to keep
+     `pending` (or at least its head) instead of clearing it, add a `failedAt`
+     timestamp and a `retry()` that re-sends the retained head. Gets the
+     banner and the save indicator's error state to an honest minimum: a real
+     count, a real timestamp, a real retry action. Does not survive a reload
+     or tab close — an in-memory queue is still lost the moment the tab goes
+     away.
+  2. **Persist the queue across reloads** (e.g. `localStorage` or IndexedDB,
+     keyed by trip), replayed on mount. Closes the reload/tab-close gap KI-5
+     also describes, not just the failed-send gap; substantially more surface
+     (serialization, staleness against a since-changed server state, cross-tab
+     conflicts) for one fix.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4 — found while
+  implementing the phase plan's sync-failure banner; the plan itself directs
+  stopping and reporting rather than fabricating a trigger).
 
 ## Resolved
 
