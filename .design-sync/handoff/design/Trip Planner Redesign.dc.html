@@ -40,10 +40,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 [data-r="meta"] > span { white-space: nowrap; }
 [data-r="dayhead"] [data-nw], [data-r="triphead"] button { white-space: nowrap; }
 @media (max-width: 1180px) {
-  [data-r="assistant"] { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 50 !important; width: min(356px, 88vw) !important; box-shadow: -10px 0 32px rgba(21, 29, 46, 0.18) !important; }
   [data-r="grid4"] { grid-template-columns: repeat(2, 1fr) !important; }
 }
-@media (min-width: 1181px) { [data-r="scrim"] { display: none !important; } }
 @media (max-width: 1040px) {
   [data-r="grid3"] { grid-template-columns: repeat(2, 1fr) !important; }
   [data-r="hero"] { grid-template-columns: 1fr !important; }
@@ -140,7 +138,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <div>
                     <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">Japan: Tokyo → Kyoto → Osaka</x-import>
                     <div data-r="meta" style="margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">
-                      <span>Oct 3 – Oct 16, 2026</span><span>·</span><span>14 days</span><span>·</span><span>6 cities</span>
+                      <span>Sep 20 – Oct 3, 2026</span><span>·</span><span>14 days</span><span>·</span><span>6 cities</span>
                     </div>
                   </div>
                   <div style="display: flex; align-items: center; gap: 10px;">
@@ -293,7 +291,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                 </sc-if>
               </div>
-                <div data-r="meta" style="grid-column: 1; grid-row: 2; justify-self: start; align-self: stretch; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
+              <div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: stretch; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;">
+                <div data-r="meta" style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
                   <span style="display: inline-flex; align-items: center; gap: 8px;">
                     <span style="width: 9px; height: 9px; border-radius: 999px; background: {{ tripAccent }};"></span>
                     <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink);">{{ trip.dates }}</span>
@@ -303,6 +302,19 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
                   <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ tripCities }}</span>
                 </div>
+                <button onClick="{{ openSettings }}" title="Open trip settings" style="display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px; cursor: pointer; font-family: inherit; transition: border-color 140ms ease;" style-hover="border-color: var(--color-border-strong);">
+                  <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
+                    <span style="display: flex; align-items: baseline; gap: 6px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ budgetHeadline }}</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ budgetOf }}</span>
+                    </span>
+                    <span style="display: block; width: 132px; height: 4px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
+                      <span style="display: block; height: 4px; border-radius: 3px; background: {{ budgetFillColor }}; width: {{ budgetFill }};"></span>
+                    </span>
+                  </span>
+                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ budgetBadgeVariant }}">{{ budgetBadge }}</x-import>
+                </button>
+              </div>
               <div style="grid-column: 2; grid-row: 1; justify-self: end; align-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                 <button onClick="{{ openNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;" style-hover="color: var(--color-ink);">Notebook →</button>
                 <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px;">
@@ -350,18 +362,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openAdd }}">Add stop</x-import>
                 </div>
                 </div>
-                <button onClick="{{ openSettings }}" title="Open trip settings" style="grid-column: 2; grid-row: 2; justify-self: end; align-self: stretch; display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px; cursor: pointer; font-family: inherit; transition: border-color 140ms ease;" style-hover="border-color: var(--color-border-strong);">
-                  <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
-                    <span style="display: flex; align-items: baseline; gap: 6px;">
-                      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ budgetHeadline }}</span>
-                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ budgetOf }}</span>
-                    </span>
-                    <span style="display: block; width: 132px; height: 4px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
-                      <span style="display: block; height: 4px; border-radius: 3px; background: {{ budgetFillColor }}; width: {{ budgetFill }};"></span>
-                    </span>
-                  </span>
-                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ budgetBadgeVariant }}">{{ budgetBadge }}</x-import>
-                </button>
             </div>
             <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
             <div style="display: flex; align-items: stretch; gap: 6px; padding: 12px 26px 10px; overflow-x: auto;">
@@ -370,6 +370,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <div style="font-size: 11px; color: {{ c.ink }};">{{ c.dow }}</div>
                   <div style="display: flex; align-items: baseline; gap: 4px;">
                     <span style="font-family: var(--font-next-mono); font-size: 16px; color: {{ c.ink }};">{{ c.num }}</span>
+                    <sc-if value="{{ c.monthEdge }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; color: {{ c.ink }};">{{ c.mon }}</span>
+                    </sc-if>
                     <span style="font-size: 10px; color: {{ c.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.city }}</span>
                   </div>
                   <div style="height: 14px; margin-top: 2px;">
@@ -389,8 +392,21 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </sc-for>
             </div>
             </sc-if>
-            <div style="display: flex; align-items: center; gap: 16px; padding: 2px 26px 12px;">
-              <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ view }}" onValueChange="{{ setView }}" options="{{ viewOptions }}" aria-label="Plan layout"></x-import>
+            <div style="display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 4px 26px 12px; overflow-x: auto;">
+              <div style="flex: 0 0 auto;">
+                <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ view }}" onValueChange="{{ setView }}" options="{{ viewOptions }}" aria-label="Plan layout"></x-import>
+              </div>
+              <sc-if value="{{ showTagFilter }}" hint-placeholder-val="{{ true }}">
+              <div style="flex: 0 0 auto; width: 1px; height: 20px; background: var(--color-hairline);"></div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; flex: 0 0 auto;">
+                <sc-for list="{{ tagFilters }}" as="t" hint-placeholder-count="6">
+                  <button onClick="{{ t.act }}" style="font-size: 12px; font-weight: {{ t.weight }}; color: {{ t.ink }}; background: {{ t.bg }}; border: 1px solid {{ t.edge }}; border-radius: 999px; padding: 4px 11px; cursor: pointer; font-family: inherit;">{{ t.label }}</button>
+                </sc-for>
+                <sc-if value="{{ tagFilterOn }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ clearTagFilter }}" style="background: none; border: 0; padding: 4px 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Show everything</button>
+                </sc-if>
+              </div>
+              </sc-if>
             </div>
           </div>
 
@@ -447,13 +463,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px;">
                     <sc-for list="{{ day.items }}" as="act" hint-placeholder-count="4">
                       <div>
-                        <div data-r="slot" data-stop="{{ act.key }}" style="display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: start; cursor: grab; touch-action: none; border-radius: 12px; outline-offset: 2px;">
+                        <div data-r="slot" data-stop="{{ act.key }}" style="display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: start; cursor: grab; touch-action: none; border-radius: 12px; outline-offset: 2px; opacity: {{ act.dimOp }}; transition: opacity 140ms ease;">
                           <div style="padding-top: 12px; text-align: right;">
                             <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,18px" size="sm" className="block text-ink">{{ act.start }}</x-import>
                             <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,16px" size="xs" className="block">{{ act.end }}</x-import>
                           </div>
                           <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,84px" className="flex items-start gap-4 rounded-lg p-5">
-                            <div style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ day.solid }};"></div>
+                            <div style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ act.railBg }};"></div>
                             <div style="flex: 1; min-width: 0;">
                               <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;">
                                 <span style="font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ act.title }}</span>
@@ -464,6 +480,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                               <div style="display: flex; align-items: center; gap: 7px; margin-top: 4px; font-size: 13px; color: var(--color-slate);">
                                 <span>{{ act.place }}</span><span>·</span><span>{{ act.area }}</span>
                               </div>
+                              <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;">
+                                  <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
+                                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 5px; padding: 2px 8px;">{{ tg.label }}</span>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
                               <sc-if value="{{ act.note }}" hint-placeholder-val="{{ false }}">
                                 <div style="margin-top: 7px; font-size: 13px; color: var(--color-slate); background: var(--color-paper); border-radius: 6px; padding: 6px 9px; text-wrap: pretty;">{{ act.note }}</div>
                               </sc-if>
@@ -473,6 +496,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                                 <span style="font-family: var(--font-next-mono); font-size: 13px; color: {{ act.costInk }};">{{ act.cost }}</span>
                                 <sc-if value="{{ act.costEst }}" hint-placeholder-val="{{ false }}">
                                   <span style="font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">est</span>
+                                </sc-if>
+                                <sc-if value="{{ act.maybe }}" hint-placeholder-val="{{ false }}">
+                                  <span style="font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">{{ act.maybeNote }}</span>
                                 </sc-if>
                               </div>
                               <div style="display: flex; align-items: center; gap: 5px;">
@@ -602,7 +628,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </div>
                     <div data-collist="{{ day.i }}" style="display: flex; flex-direction: column; gap: 7px; position: relative;">
                       <sc-for list="{{ day.items }}" as="act" hint-placeholder-count="4">
-                        <div data-cstop="{{ act.key }}" style="cursor: grab; touch-action: none; border-radius: 12px;">
+                        <div data-cstop="{{ act.key }}" style="cursor: grab; touch-action: none; border-radius: 12px; opacity: {{ act.dimOp }}; transition: opacity 140ms ease;">
                         <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,72px" className="rounded-lg p-3">
                           <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px;">
                             <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,16px" size="xs">{{ act.range }}</x-import>
@@ -611,6 +637,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                             </sc-if>
                           </div>
                           <div style="font-size: 14px; font-weight: 600; color: var(--color-ink); margin-top: 4px; line-height: 1.3;">{{ act.title }}</div>
+                          <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+                              <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
+                                <span style="font-size: 10px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 4px; padding: 1px 6px;">{{ tg.label }}</span>
+                              </sc-for>
+                            </div>
+                          </sc-if>
                           <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: 2px;">
                             <span style="font-size: 12px; color: var(--color-slate); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ act.area }}</span>
                             <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: {{ act.costInk }}; flex: 0 0 auto;">{{ act.cost }}</span>
@@ -711,10 +744,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.date }}</span>
                     </div>
                     <div style="font-size: 14px; font-weight: 600; color: var(--color-ink); margin-top: 3px;">{{ d.city }}</div>
-                    <div style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); margin-top: 7px; letter-spacing: -0.01em;">{{ d.total }}</div>
+                    <div style="font-family: var(--font-next-mono); font-size: 11px; color: {{ d.ink }}; margin-top: 7px; letter-spacing: -0.01em;">{{ d.total }}</div>
                     <div style="display: flex; align-items: center; gap: 2px; margin-top: 8px; height: 6px;">
                       <sc-for list="{{ d.bars }}" as="b" hint-placeholder-count="4">
-                        <span style="height: 6px; border-radius: 3px; flex: {{ b.grow }}; background: {{ b.color }};"></span>
+                        <span style="height: {{ b.h }}; border-radius: 3px; flex: {{ b.grow }}; background: {{ b.color }};"></span>
                       </sc-for>
                     </div>
                     <sc-if value="{{ d.flag }}" hint-placeholder-val="{{ false }}">
@@ -949,6 +982,15 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                           <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ b.repeatLabel }}</span>
                           <button onClick="{{ b.editRow }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Edit the wording</button>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                          <span style="font-size: 11.5px; color: var(--color-slate);">Only stops tagged</span>
+                          <sc-for list="{{ b.tagChips }}" as="t" hint-placeholder-count="6">
+                            <button onClick="{{ t.act }}" style="font-size: 11.5px; font-weight: 600; color: {{ t.ink }}; background: {{ t.bg }}; border: 1px solid {{ t.edge }}; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-family: inherit;">{{ t.label }}</button>
+                          </sc-for>
+                        </div>
+                        <sc-if value="{{ b.noRows }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-size: 13px; color: var(--color-slate); background: var(--color-paper); border-radius: 8px; padding: 9px 12px; text-wrap: pretty;">Nothing on this day carries that tag, so the block prints nothing. Tag a stop and the line appears here.</div>
+                        </sc-if>
                       </sc-if>
                       <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
                         <div style="display: grid; grid-template-columns: 78px 1fr; gap: 14px; align-items: baseline;">
@@ -1016,51 +1058,51 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
     </main>
 
-    <sc-if value="{{ asstOpen }}" hint-placeholder-val="{{ true }}">
-      <div data-r="scrim" onClick="{{ closeAsst }}" style="position: fixed; inset: 0; z-index: 49; background: rgba(21, 29, 46, 0.32);"></div>
-    </sc-if>
-    <sc-if value="{{ asstOpen }}" hint-placeholder-val="{{ true }}">
-      <aside data-r="assistant" style="flex: 0 0 auto; width: 356px; border-left: 1px solid var(--color-hairline); background: var(--color-surface); display: flex; flex-direction: column; min-height: 0;">
-        <div style="padding: 14px 16px 12px; border-bottom: 1px solid var(--color-hairline);">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="width: 22px; height: 22px; border-radius: 7px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 11px;">◎</span>
-            <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">Assistant</span>
-            <div style="flex: 1;"></div>
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="ghost" size="sm" onClick="{{ closeAsst }}">Hide</x-import>
-          </div>
-          <div style="margin-top: 8px; font-size: 12px; color: var(--color-slate); background: var(--color-paper); border-radius: 6px; padding: 6px 9px;">{{ asstContext }}</div>
-        </div>
-        <div style="flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
-          <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ true }}">
-            <div style="font-size: 13px; color: var(--color-slate); line-height: 1.5; text-wrap: pretty;">Ask about this trip and the conversation stays here.</div>
-          </sc-if>
-          <sc-for list="{{ chat }}" as="m" hint-placeholder-count="0">
-            <div style="display: flex; flex-direction: column; gap: 3px; padding-top: 4px;">
-              <span style="font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">{{ m.from }}</span>
-              <div style="font-size: 13px; color: var(--color-ink); line-height: 1.5; background: var(--color-paper); border-radius: 8px; padding: 9px 11px; text-wrap: pretty;">{{ m.text }}</div>
+    <div data-r="asstdock" style="position: {{ asstPosMode }}; left: {{ asstX }}; top: {{ asstY }}; flex: {{ asstFlex }}; align-self: stretch; min-height: 0; z-index: 55; touch-action: none;">
+      <sc-if value="{{ asstClosed }}" hint-placeholder-val="{{ true }}">
+        <button onPointerDown="{{ asstGrabBubble }}" title="Assistant — drag to move, click to open" style="width: 56px; height: 56px; border-radius: 999px; border: 0; padding: 0; background: var(--color-brand); color: var(--color-surface); font-size: 21px; line-height: 1; font-family: inherit; display: grid; place-items: center; cursor: {{ asstCursor }}; box-shadow: 0 10px 26px rgba(21, 29, 46, 0.26); transition: transform 140ms ease;" style-hover="transform: scale(1.05);">◎</button>
+      </sc-if>
+      <sc-if value="{{ asstOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="width: {{ asstW }}; height: {{ asstH }}; display: flex; flex-direction: column; background: var(--color-surface); border: {{ asstBorder }}; border-left: {{ asstEdge }}; border-radius: {{ asstRadius }}; box-shadow: {{ asstShadow }}; overflow: hidden;">
+          <div onPointerDown="{{ asstGrabPanel }}" style="padding: 12px 10px 11px 14px; border-bottom: 1px solid var(--color-hairline); cursor: {{ asstCursor }}; background: var(--color-paper);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 22px; height: 22px; border-radius: 7px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 11px;">◎</span>
+              <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">Assistant</span>
+              <div style="flex: 1;"></div>
+              <span onPointerDown="{{ stopGrab }}" style="display: flex; align-items: center; gap: 2px;">
+                <button onClick="{{ toggleDock }}" title="{{ dockTitle }}" style="width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--color-slate); font-size: 14px; cursor: pointer; font-family: inherit;" style-hover="background: var(--color-moss);">{{ dockIcon }}</button>
+                <button onClick="{{ closeAsst }}" title="Collapse to bubble" style="width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--color-slate); font-size: 15px; cursor: pointer; font-family: inherit;" style-hover="background: var(--color-moss);">—</button>
+              </span>
             </div>
-          </sc-for>
-        </div>
-        <div style="border-top: 1px solid var(--color-hairline); padding: 12px 16px;">
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 9px;">
-            <sc-for list="{{ quickAsks }}" as="q" hint-placeholder-count="3">
-              <button onClick="{{ q.act }}" style="font-size: 12px; color: var(--color-slate); background: var(--color-moss); border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: inherit;">{{ q.label }}</button>
+            <div style="margin-top: 8px; font-size: 12px; color: var(--color-slate); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 6px 9px;">{{ asstContext }}</div>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size: 13px; color: var(--color-slate); line-height: 1.5; text-wrap: pretty;">{{ asstEmptyHint }}</div>
+            </sc-if>
+            <sc-for list="{{ chat }}" as="m" hint-placeholder-count="0">
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <span style="font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">{{ m.from }}</span>
+                <div style="font-size: 13px; color: var(--color-ink); line-height: 1.5; background: var(--color-paper); border-radius: 8px; padding: 9px 11px; text-wrap: pretty;">{{ m.text }}</div>
+              </div>
             </sc-for>
           </div>
-          <div style="display: flex; gap: 6px;">
-            <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Ask about this day…" value="{{ ask }}" onChange="{{ setAsk }}"></x-import>
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ send }}">Ask</x-import>
+          <div style="border-top: 1px solid var(--color-hairline); padding: 11px 14px 13px;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 9px;">
+              <sc-for list="{{ quickAsks }}" as="q" hint-placeholder-count="3">
+                <button onClick="{{ q.act }}" style="font-size: 12px; color: var(--color-slate); background: var(--color-moss); border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: inherit;">{{ q.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Ask about this day…" value="{{ ask }}" onChange="{{ setAsk }}"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ send }}">Ask</x-import>
+            </div>
           </div>
         </div>
-      </aside>
-    </sc-if>
+      </sc-if>
+    </div>
   </div>
 
-  <sc-if value="{{ asstClosed }}" hint-placeholder-val="{{ false }}">
-    <button onClick="{{ openAsst }}" style="position: fixed; right: 22px; bottom: {{ fabBottom }}; z-index: 40; display: flex; align-items: center; gap: 9px; background: var(--color-brand); color: var(--color-surface); border: 0; border-radius: 999px; padding: 11px 16px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; box-shadow: var(--shadow-overlay, 0 6px 20px rgba(21, 29, 46, 0.22));">
-      <span>◎</span><span>Assistant</span>
-    </button>
-  </sc-if>
 
   <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
     <div style="position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 60; background: var(--color-ink); color: var(--color-surface); font-size: 13px; padding: 10px 16px; border-radius: 999px; animation: riseIn 180ms ease both;">{{ toast }}</div>
@@ -1351,6 +1393,21 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="a6" placeholder="e.g. 120" value="{{ addCost }}" onChange="{{ setAddCost }}"></x-import>
       </x-import>
       <div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px;">
+          <span style="font-size: 12px; color: var(--color-slate);">Tags</span>
+          <span style="font-size: 11px; color: var(--color-slate);">Pick as many as fit</span>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <sc-for list="{{ addTagChips }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.act }}" title="{{ t.power }}" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: {{ t.weight }}; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; border: 1px solid {{ t.edge }}; background: {{ t.bg }}; color: {{ t.ink }};">
+              <span style="font-size: 11px; opacity: 0.75;">{{ t.mark }}</span>
+              {{ t.label }}
+            </button>
+          </sc-for>
+        </div>
+        <div style="font-size: 12px; line-height: 1.5; color: var(--color-slate); margin-top: 8px; text-wrap: pretty;">{{ addTagPower }}</div>
+      </div>
+      <div>
         <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Who is in</div>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <sc-for list="{{ crewChips }}" as="c" hint-placeholder-count="4">
@@ -1428,7 +1485,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       </x-import>
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="i3" label="Which trip">
         <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="i3" className="w-full" value="{{ insTrip }}" onChange="{{ setInsTrip }}">
-          <option value="japan">Japan: Tokyo → Kyoto → Osaka · Oct 2026</option>
+          <option value="japan">Japan: Tokyo → Kyoto → Osaka · Sep – Oct 2026</option>
           <option value="nola">New Orleans · Sep 2026</option>
         </x-import>
       </x-import>
@@ -1629,17 +1686,19 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;rail&quot;,&quot;orb&quot;],&quot;default&quot;:&quot;rail&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
     view: this.props.defaultView || 'timeline',
     focus: 0,
-    asst: (this.props.assistantDefault || 'rail') === 'rail' && (typeof window === 'undefined' || window.innerWidth > 1180),
+    asst: (this.props.assistantDefault || 'expanded') === 'expanded' && (typeof window === 'undefined' || window.innerWidth > 1180),
+    asstPos: null, asstDragging: false, asstDock: false,
     ask: '', chat: [], dismissed: [], ghosts: [],
     ntOpen: false, step: 0, dest: '', start: '2027-04-10', end: '2027-04-17',
     people: ['Sam K', 'Priya R'], invitee: '', pace: 'balanced',
     addOpen: false, addTitle: '', addDayV: '10', addStart: '19:00', addDur: '2 hours', addNote: '',
+    tagOv: {}, tagFilter: [], addTags: [], addKey: '', docTagF: [],
     pbOpen: false, pbDay: 7, pbName: '', pbVis: 'link', savedDays: [], justKept: null,
     insOpen: false, insPbIdx: 0, insTripId: 'japan', insDay: '12', insStart: '09:00',
     pbFilter: 'all', pbCity: 'All cities', toast: '', rev: 0,
@@ -1668,73 +1727,73 @@ class Component extends DCLogic {
   TRIPS = {
     japan: {
       name: 'Japan: Tokyo → Kyoto → Osaka', state: 'Planning',
-      dates: 'Oct 3 – Oct 16, 2026', mon: 'Oct', firstDow: 4, monthDays: 31,
+      dates: 'Sep 20 – Oct 3, 2026', mon: 'Sep', firstDow: 2, monthDays: 30,
       crewLabel: '4 travelers',
       days: [
-        ['Tokyo', 'Fri', 3, 'Tokyo', [['14:30', '16:00', 'Land at Haneda', 'HND Terminal 3', 'Ōta', 'All', 'transit', ''],
+        ['Tokyo', 'Sun', 20, 'Tokyo', [['14:30', '16:00', 'Land at Haneda', 'HND Terminal 3', 'Ōta', 'All', 'transit', ''],
           ['17:00', '17:30', 'Check in at Trunk Hotel', 'Trunk Hotel', 'Shibuya', 'All', 'booked', 'Bags to the room, then straight out — nobody sleeps yet.'],
           ['19:00', '20:30', 'Dinner at Gonpachi', 'Gonpachi Nishiazabu', 'Nishi-Azabu', 'All', 'hold', ''],
           ['21:00', '22:30', 'Nightcap at Bar Trench', 'Bar Trench', 'Ebisu', 'Sam K + Jonah M', 'idea', '']]],
-        ['Tokyo', 'Sat', 4, 'Tokyo', [['07:30', '08:15', 'Coffee at Onibus', 'Onibus Coffee', 'Nakameguro', 'All', '', ''],
+        ['Tokyo', 'Mon', 21, 'Tokyo', [['07:30', '08:15', 'Coffee at Onibus', 'Onibus Coffee', 'Nakameguro', 'All', '', ''],
           ['09:00', '11:00', 'teamLab Planets', 'teamLab Planets', 'Toyosu', 'All', 'booked', 'Timed entry 9 am. Barefoot — no tights.'],
           ['12:00', '13:00', 'Lunch at Tsukiji Outer Market', 'Tsukiji Outer Market', 'Tsukiji', 'All', '', ''],
           ['14:00', '16:00', 'Hama-rikyū Gardens', 'Hama-rikyū Gardens', 'Hamamatsuchō', 'Priya R + Mei T', '', ''],
           ['19:00', '21:00', 'Yakitori at Torishiki', 'Torishiki', 'Meguro', 'All', 'hold', '']]],
-        ['Tokyo', 'Sun', 5, 'Tokyo', [['08:00', '09:00', 'Breakfast at Bread & Espresso', 'Bread & Espresso', 'Omotesandō', 'All', '', ''],
+        ['Tokyo', 'Tue', 22, 'Tokyo', [['08:00', '09:00', 'Breakfast at Bread & Espresso', 'Bread & Espresso', 'Omotesandō', 'All', '', ''],
           ['09:30', '11:30', 'Meiji Jingū', 'Meiji Jingū', 'Yoyogi', 'All', '', ''],
           ['12:30', '14:00', 'Lunch at Afuri', 'Afuri', 'Harajuku', 'All', '', ''],
           ['15:00', '17:30', 'Shimokitazawa record shops', 'Shimokitazawa', 'Setagaya', 'Jonah M', '', ''],
           ['19:30', '21:30', 'Dinner at Den', 'Den', 'Jingūmae', 'All', 'booked', 'Held with a card. 48h cancellation.']]],
-        ['Nikkō', 'Mon', 6, 'Tokyo', [['07:10', '09:10', 'Limited Express to Nikkō', 'Tobu Asakusa Station', 'Asakusa', 'All', 'transit', ''],
+        ['Nikkō', 'Wed', 23, 'Tokyo', [['07:10', '09:10', 'Limited Express to Nikkō', 'Tobu Asakusa Station', 'Asakusa', 'All', 'transit', ''],
           ['10:00', '12:30', 'Tōshō-gū Shrine', 'Tōshō-gū', 'Nikkō', 'All', '', ''],
           ['13:00', '14:00', 'Lunch at Hippari Dako', 'Hippari Dako', 'Nikkō', 'All', '', ''],
           ['15:00', '16:30', 'Kegon Falls', 'Kegon Falls', 'Chūzenji', 'All', '', ''],
           ['18:30', '20:30', 'Train back to Tokyo', 'Tobu Nikkō Station', 'Nikkō', 'All', 'transit', '']]],
-        ['Tokyo', 'Tue', 7, 'Tokyo', [['09:00', '10:00', 'Coffee at Koffee Mameya', 'Koffee Mameya', 'Omotesandō', 'All', '', ''],
+        ['Tokyo', 'Thu', 24, 'Tokyo', [['09:00', '10:00', 'Coffee at Koffee Mameya', 'Koffee Mameya', 'Omotesandō', 'All', '', ''],
           ['10:30', '13:00', 'Nezu Museum', 'Nezu Museum', 'Minami-Aoyama', 'Priya R + Mei T', '', ''],
           ['12:30', '14:00', 'Lunch at Kagari', 'Kagari', 'Ginza', 'All', '', ''],
           ['16:00', '18:00', 'Itoya and Ginza Six', 'Itoya', 'Ginza', 'All', '', ''],
           ['20:00', '22:00', 'Omakase at Sushi Yoshitake', 'Sushi Yoshitake', 'Ginza', 'All', 'hold', 'Concierge is chasing this one.']]],
-        ['Hakone', 'Wed', 8, 'Tokyo', [['08:20', '09:55', 'Romancecar to Hakone-Yumoto', 'Shinjuku Station', 'Shinjuku', 'All', 'transit', ''],
+        ['Hakone', 'Fri', 25, 'Tokyo', [['08:20', '09:55', 'Romancecar to Hakone-Yumoto', 'Shinjuku Station', 'Shinjuku', 'All', 'transit', ''],
           ['10:30', '12:30', 'Hakone Open-Air Museum', 'Open-Air Museum', 'Ninotaira', 'All', 'booked', ''],
           ['13:00', '14:00', 'Lunch at Bakery & Table', 'Bakery & Table', 'Motohakone', 'All', '', ''],
           ['16:40', '17:10', 'Check in at Gora Kadan', 'Gora Kadan', 'Gōra', 'All', 'booked', 'Check-in closes at 16:00 — this is the conflict the assistant flagged.'],
           ['18:30', '20:30', 'Kaiseki dinner at the ryokan', 'Gora Kadan', 'Gōra', 'All', 'booked', '']]],
-        ['Kyoto', 'Thu', 9, 'Hakone', [['09:30', '11:45', 'Shinkansen Odawara → Kyoto', 'Odawara Station', 'Odawara', 'All', 'transit', ''],
+        ['Kyoto', 'Sat', 26, 'Hakone', [['09:30', '11:45', 'Shinkansen Odawara → Kyoto', 'Odawara Station', 'Odawara', 'All', 'transit', ''],
           ['12:30', '13:30', 'Lunch at Honke Owariya', 'Honke Owariya', 'Nakagyō', 'All', '', ''],
           ['14:30', '16:30', 'Nijō Castle', 'Nijō Castle', 'Nakagyō', 'All', '', ''],
           ['17:00', '17:30', 'Check in at Nazuna Gosho', 'Nazuna Kyoto Gosho', 'Kamigyō', 'All', 'booked', ''],
           ['19:00', '21:00', 'Dinner at Gion Nanba', 'Gion Nanba', 'Gion', 'All', 'idea', 'No reservation yet. Priya wants kaiseki here.']]],
-        ['Kyoto', 'Fri', 10, 'Kyoto', [['06:30', '08:00', 'Fushimi Inari at dawn', 'Fushimi Inari Taisha', 'Fushimi', 'All', '', 'Go before 7 am or the gates are shoulder to shoulder.'],
+        ['Kyoto', 'Sun', 27, 'Kyoto', [['06:30', '08:00', 'Fushimi Inari at dawn', 'Fushimi Inari Taisha', 'Fushimi', 'All', '', 'Go before 7 am or the gates are shoulder to shoulder.'],
           ['09:00', '10:00', 'Breakfast at % Arabica', '% Arabica', 'Higashiyama', 'All', '', ''],
           ['10:30', '12:30', 'Kiyomizu-dera and Sannenzaka', 'Kiyomizu-dera', 'Higashiyama', 'All', '', ''],
           ['12:00', '13:15', 'Lunch at Omen Kodaiji', 'Omen Kodaiji', 'Higashiyama', 'All', '', ''],
           ['16:00', '17:30', 'Nishiki Market', 'Nishiki Market', 'Nakagyō', 'Jonah M + Mei T', '', ''],
           ['19:30', '21:30', 'Dinner at Giro Giro Hitoshina', 'Giro Giro Hitoshina', 'Shimogyō', 'All', 'hold', '']]],
-        ['Kyoto', 'Sat', 11, 'Kyoto', [['08:00', '09:00', 'Breakfast at Walden Woods', 'Walden Woods', 'Shimogyō', 'All', '', ''],
+        ['Kyoto', 'Mon', 28, 'Kyoto', [['08:00', '09:00', 'Breakfast at Walden Woods', 'Walden Woods', 'Shimogyō', 'All', '', ''],
           ['09:45', '12:00', 'Arashiyama and Tenryū-ji', 'Tenryū-ji', 'Arashiyama', 'All', '', ''],
           ['12:30', '13:30', 'Lunch at Yoshida-ya', 'Yoshida-ya', 'Arashiyama', 'All', '', ''],
           ['15:00', '16:30', 'Tea at Ippodo Kaboku', 'Ippodo Kaboku', 'Nakagyō', 'Priya R', '', ''],
           ['18:00', '19:30', 'Dinner at Kichi Kichi', 'Kichi Kichi', 'Pontochō', 'All', 'booked', '']]],
-        ['Kyoto', 'Sun', 12, 'Kyoto', [['09:00', '11:00', "Ginkaku-ji and the Philosopher's Path", 'Ginkaku-ji', 'Sakyō', 'All', '', ''],
+        ['Kyoto', 'Tue', 29, 'Kyoto', [['09:00', '11:00', "Ginkaku-ji and the Philosopher's Path", 'Ginkaku-ji', 'Sakyō', 'All', '', ''],
           ['11:30', '12:30', 'Lunch at Monk', 'Monk', 'Sakyō', 'All', 'booked', ''],
           ['14:00', '16:00', 'Pottery at Kyoto Handicraft Center', 'Handicraft Center', 'Sakyō', 'Mei T', '', '']]],
-        ['Osaka', 'Mon', 13, 'Kyoto', [['10:00', '10:40', 'Train Kyoto → Osaka', 'Kyoto Station', 'Shimogyō', 'All', 'transit', ''],
+        ['Osaka', 'Wed', 30, 'Kyoto', [['10:00', '10:40', 'Train Kyoto → Osaka', 'Kyoto Station', 'Shimogyō', 'All', 'transit', ''],
           ['11:30', '12:00', 'Check in at Zentis Osaka', 'Zentis Osaka', 'Kita', 'All', 'booked', ''],
           ['12:30', '14:00', 'Lunch at Harukoma Sushi', 'Harukoma Sushi', 'Nakazakichō', 'All', '', ''],
           ['15:00', '17:00', 'Osaka Castle Park', 'Osaka Castle', 'Chūō', 'All', '', ''],
           ['19:00', '21:30', 'Dōtonbori food crawl', 'Dōtonbori', 'Chūō', 'All', '', 'Five stops, one bite each. Jonah is picking.']]],
-        ['Osaka', 'Tue', 14, 'Osaka', [['08:30', '09:30', 'Breakfast at Mel Coffee', 'Mel Coffee Roasters', 'Nishi', 'All', '', ''],
+        ['Osaka', 'Thu', 1, 'Osaka', [['08:30', '09:30', 'Breakfast at Mel Coffee', 'Mel Coffee Roasters', 'Nishi', 'All', '', ''],
           ['10:00', '12:00', 'Nakanoshima Museum', 'Nakanoshima Museum', 'Kita', 'Priya R + Mei T', '', ''],
           ['13:00', '14:30', 'Lunch at Kuromon Market', 'Kuromon Ichiba', 'Chūō', 'All', '', ''],
           ['16:00', '18:00', 'Shinsekai and Tsūtenkaku', 'Tsūtenkaku', 'Naniwa', 'All', '', ''],
           ['20:00', '22:00', 'Kushikatsu at Yaekatsu', 'Yaekatsu', 'Naniwa', 'All', 'hold', '']]],
-        ['Naoshima', 'Wed', 15, 'Osaka', [['07:00', '10:00', 'Train and ferry to Naoshima', 'Uno Port', 'Tamano', 'All', 'transit', ''],
+        ['Naoshima', 'Fri', 2, 'Osaka', [['07:00', '10:00', 'Train and ferry to Naoshima', 'Uno Port', 'Tamano', 'All', 'transit', ''],
           ['10:30', '12:30', 'Chichū Art Museum', 'Chichū Art Museum', 'Naoshima', 'All', 'booked', 'Timed ticket 10:30 am. Late arrivals are turned away.'],
           ['13:00', '14:00', 'Lunch at Aisunao', 'Aisunao', 'Honmura', 'All', '', ''],
           ['14:30', '16:30', 'Benesse House and Yellow Pumpkin', 'Benesse House', 'Naoshima', 'All', '', ''],
           ['17:30', '20:30', 'Ferry and train back to Osaka', 'Miyanoura Port', 'Naoshima', 'All', 'transit', '']]],
-        ['Tokyo', 'Thu', 16, 'Osaka', [['08:00', '08:45', 'Breakfast at the hotel', 'Zentis Osaka', 'Kita', 'All', '', ''],
+        ['Tokyo', 'Sat', 3, 'Osaka', [['08:00', '08:45', 'Breakfast at the hotel', 'Zentis Osaka', 'Kita', 'All', '', ''],
           ['09:30', '11:45', 'Shinkansen to Tokyo', 'Shin-Osaka Station', 'Yodogawa', 'All', 'transit', ''],
           ['12:30', '14:00', 'Last lunch at Maisen', 'Tonkatsu Maisen', 'Omotesandō', 'All', '', ''],
           ['16:30', '18:00', 'Transfer to Haneda', 'HND Terminal 3', 'Ōta', 'All', 'booked', ''],
@@ -1887,9 +1946,9 @@ class Component extends DCLogic {
   componentDidMount() {
     this._watchScroll();
     this._rz = () => {
-      const narrow = window.innerWidth <= 1180;
-      if (narrow && this.state.asst && !this._userOpened) this.setState({ asst: false });
-      if (!narrow && !this.state.asst && this.props.assistantDefault !== 'orb') this.setState({ asst: true });
+      // The assistant floats now, so a narrow window no longer has to evict it —
+      // it only needs pulling back inside the viewport.
+      this.setState(s => ({ asstPos: s.asstPos ? this.asstClamp(s.asstPos.x, s.asstPos.y, s.asst) : null }));
     };
     window.addEventListener('resize', this._rz);
     this._rz();
@@ -1943,7 +2002,16 @@ class Component extends DCLogic {
   once(key, make) { if (!(key in this._once)) this._once[key] = make(); return this._once[key]; }
   MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   DOWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  START = { japan: '2026-10-03', nola: '2026-09-04' };
+  START = { japan: '2026-09-20', nola: '2026-09-04' };
+
+  // A trip can straddle a month boundary, so no day may take its month from the
+  // trip. Every date label is derived from the start date plus the day's index.
+  dayStamp(i, tripId) {
+    const t = (this.START[tripId || this.state.tripId] || this.startISO()).split('-');
+    const d = new Date(+t[0], +t[1] - 1, +t[2]);
+    d.setDate(d.getDate() + i);
+    return { dow: this.DOWS[d.getDay()], mon: this.MONS[d.getMonth()], num: d.getDate(), first: d.getDate() === 1 };
+  }
   startISO() { return this.START[this.state.tripId] || '2026-10-03'; }
   tripEndDate() {
     const t = this.startISO().split('-');
@@ -2006,6 +2074,27 @@ class Component extends DCLogic {
     if (d.id === 'overview') return this.trip().dates;
     return 'Yours · nothing connected to the plan yet';
   }
+  // The repeater is where tags earn their keep: same sentence, narrowed to the
+  // stops that carry a tag. Filtering by Meal turns the day page into "where we
+  // ate" without anyone writing a query.
+  repeatBlock(day) {
+    const df = this.state.docTagF || [];
+    const rows = day.items.filter(a => !df.length || a.tagIds.filter(x => df.indexOf(x) >= 0).length);
+    const mealOnly = df.length === 1 && df[0] === 'meal';
+    const lead = mealOnly ? 'We ate at ' : 'Today we’re going to ';
+    return {
+      isRepeat: true, edge: day.solid,
+      repeatLabel: 'Repeats for every stop ' + (df.length ? 'tagged ' + df.map(x => this.TAG(x).label.toLowerCase()).join(' or ') : 'on this day') + ' · ' + rows.length + (rows.length === 1 ? ' stop' : ' stops'),
+      tagChips: this.TAGS.map(t => {
+        const on = df.indexOf(t.id) >= 0;
+        return { label: t.label, bg: on ? t.bg : 'transparent', ink: on ? t.ink : 'var(--color-slate)', edge: on ? 'transparent' : 'var(--color-hairline)',
+          act: () => this.setState(s => ({ docTagF: this.toggleIn(s.docTagF, t.id) })) };
+      }),
+      noRows: !rows.length,
+      editRow: () => this.flash('Row wording: “' + lead + '{stop} in {area}.”'),
+      rows: rows.map(a => ({ time: a.start, segs: [this.txt(lead), this.chip('stop.name', a.title), this.txt(' in '), this.chip('stop.area', a.area), this.txt('.')] }))
+    };
+  }
   docBlocks(days, trip) {
     const d = this.doc();
     if (d.id === 'day') {
@@ -2013,9 +2102,7 @@ class Component extends DCLogic {
       if (!day) return [];
       return [
         { isP: true, segs: [this.txt('It’s '), this.chip('day.date', day.dateLabel), this.txt(' and you’re in '), this.chip('day.city', day.city), this.txt('. '), this.chip('cost.day', day.costLabel), this.txt(' of the budget is spoken for today.')] },
-        { isRepeat: true, edge: day.solid, repeatLabel: 'Repeats for every stop on this day · ' + day.items.length + ' stops',
-          editRow: () => this.flash('Row wording: “Today we’re going to {stop} in {area}.”'),
-          rows: day.items.map(a => ({ time: a.start, segs: [this.txt('Today we’re going to '), this.chip('stop.name', a.title), this.txt(' in '), this.chip('stop.area', a.area), this.txt('.')] })) },
+        this.repeatBlock(day),
         { isH: true, text: 'Notes for the group' },
         { isP: true, segs: [this.txt('Bring cash — the ryokan doesn’t take cards for the onsen. Meet in the lobby ten minutes before we leave.')] },
         { isNote: true, noteLabel: 'Only you', text: 'Ask about the late dinner. Priya wants an early night.' }
@@ -2049,9 +2136,9 @@ class Component extends DCLogic {
     { scope: 'account', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'Sam K' },
     { scope: 'account', kind: 'single', title: 'Your email', body: 'The address you signed in with.', preview: 'sam@example.com' },
     { scope: 'account', kind: 'single', title: 'Home airport', body: 'Where you usually fly out of.', preview: 'SFO', needs: 'needs a field' },
-    { scope: 'account', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'Japan — 14 days in October.' },
+    { scope: 'account', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'Japan — 14 days from late September.' },
     { scope: 'trip', kind: 'single', title: 'Trip name', body: 'The trip’s name.', preview: 'Japan: Tokyo → Kyoto → Osaka' },
-    { scope: 'trip', kind: 'single', title: 'Trip dates', body: 'The trip’s date range.', preview: 'Oct 3 – Oct 16, 2026' },
+    { scope: 'trip', kind: 'single', title: 'Trip dates', body: 'The trip’s date range.', preview: 'Sep 20 – Oct 3, 2026' },
     { scope: 'trip', kind: 'single', title: 'Total cost', body: 'Total cost of the whole trip.', preview: '$9,085' },
     { scope: 'trip', kind: 'single', title: 'Budget left', body: 'What’s left of the trip budget.', preview: '$7,315 left of $16,400' },
     { scope: 'trip', kind: 'single', title: 'Number of days', body: 'How many days the trip runs.', preview: '14 days' },
@@ -2060,12 +2147,13 @@ class Component extends DCLogic {
     { scope: 'trip', kind: 'block', title: 'Everyone on the trip', body: 'The travellers and what they’re down for.', preview: 'Sam, Priya, Jonah, Mei' },
     { scope: 'trip', kind: 'repeat', title: 'A line for every day', body: 'Write one sentence and it repeats for each day, filled in with that day’s own detail.', preview: 'Day 6 — Hakone, five stops, $1,175.' },
     { scope: 'trip', kind: 'repeat', title: 'A line for every city', body: 'One sentence per city, in the order you reach them.', preview: 'Kyoto — four nights, eleven stops.' },
-    { scope: 'day', kind: 'single', title: 'The day’s date', body: 'The date of the day this page is pointed at.', preview: 'Wed Oct 8' },
+    { scope: 'day', kind: 'single', title: 'The day’s date', body: 'The date of the day this page is pointed at.', preview: 'Fri Sep 25' },
     { scope: 'day', kind: 'single', title: 'The day’s city', body: 'Where you are on that day.', preview: 'Hakone' },
     { scope: 'day', kind: 'single', title: 'The day’s cost', body: 'Total cost of the day this page is pointed at.', preview: '$1,175' },
     { scope: 'day', kind: 'single', title: 'First and last stop', body: 'When the day starts and ends.', preview: '8:20 am – 8:30 pm' },
     { scope: 'day', kind: 'block', title: 'The day’s stops', body: 'The stop list for the day this page is pointed at.', preview: '8:20 am · Romancecar — 10:30 am · Open-Air Museum' },
     { scope: 'day', kind: 'repeat', title: 'A line for every stop', body: 'One sentence per stop on this day, in your own wording.', preview: 'Today we’re going to Hakone Open-Air Museum in Ninotaira.' },
+    { scope: 'day', kind: 'repeat', title: 'A line for every stop with a tag', body: 'The same sentence, narrowed to the stops carrying the tags you pick — meals, lodging, travel.', preview: 'We ate at Kichi Kichi in Pontochō.' },
     { scope: 'day', kind: 'repeat', title: 'A line for every booking', body: 'One sentence per confirmed booking on this day.', preview: 'Gora Kadan — checked in at 4:40 pm, $340.' }
   ];
   SHAPES = { single: 'one value', block: 'a block', repeats: 'repeats', repeat: 'repeats' };
@@ -2079,19 +2167,19 @@ class Component extends DCLogic {
       .filter(x => !q || (x.title + ' ' + x.body + ' ' + x.preview).toLowerCase().indexOf(q) >= 0);
   }
   HIST = [
-    { description: 'Moved Ryokan check-in to 4:00 pm', when: 'Oct 2', undone: false },
-    { description: 'Added Nishiki Market to Day 6', when: 'Oct 2', undone: false },
-    { description: 'Set the budget to $16,400', when: 'Oct 1', undone: false },
-    { description: 'Unscheduled Ghibli Museum', when: 'Oct 1', undone: true },
-    { description: 'Invited Mei T', when: 'Sep 29', undone: false },
-    { description: 'Created the trip', when: 'Sep 28', undone: false }
+    { description: 'Moved Ryokan check-in to 4:00 pm', when: 'Sep 18', undone: false },
+    { description: 'Added Nishiki Market to Day 6', when: 'Sep 18', undone: false },
+    { description: 'Set the budget to $16,400', when: 'Sep 17', undone: false },
+    { description: 'Unscheduled Ghibli Museum', when: 'Sep 17', undone: true },
+    { description: 'Invited Mei T', when: 'Sep 15', undone: false },
+    { description: 'Created the trip', when: 'Sep 14', undone: false }
   ];
   componentDidUpdate(prev, ps) {
     if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
     if (prev.showSyncError !== this.props.showSyncError) this.setState({ syncOff: false });
     if (prev.assistantDefault !== this.props.assistantDefault) {
       this._userOpened = false;
-      this.setState({ asst: this.props.assistantDefault !== 'orb' && window.innerWidth > 1180 });
+      this.setState({ asst: this.props.assistantDefault !== 'bubble' && window.innerWidth > 1180, asstPos: null });
     }
     if (ps && (ps.view !== this.state.view || ps.route !== this.state.route || ps.tripId !== this.state.tripId)) this.stopRail();
   }
@@ -2141,8 +2229,12 @@ class Component extends DCLogic {
   // One day's geography: the stops that have coordinates, and the legs between them.
   mapDay(d, i) {
     const ac = this.accent(d[3] || d[0]);
+    const tf = this.state.tagFilter || [];
     const pts = d[4].map((a, j) => ({
-      title: a[2], place: a[3], area: a[4], time: this.fmt(a[0]), kind: a[6], c: this.COORDS[a[3]]
+      title: a[2], place: a[3], area: a[4], time: this.fmt(a[0]), kind: a[6], c: this.COORDS[a[3]],
+      // A filter never removes geography — the route still has to make sense.
+      // Off-tag pins stay on the map, quietly.
+      off: tf.length ? !this.tagsOf(a).filter(x => tf.indexOf(x) >= 0).length : false
     })).filter(p => p.c).map((p, j) => Object.assign(p, { n: j + 1 }));
     const legs = [];
     for (let j = 0; j < pts.length - 1; j++) {
@@ -2162,8 +2254,19 @@ class Component extends DCLogic {
     const longest = legs.slice().sort((a, b) => b.km - a.km)[0];
     return { i, day: d, ac, pts, legs, walkKm, rideKm, mins, totalKm, span, wander, center, longest };
   }
+  // Calendar cells are three lines deep, so the tag filter picks which three.
+  calStops(d) {
+    const tf = this.state.tagFilter || [];
+    return tf.length ? d[4].filter(a => this.tagsOf(a).filter(x => tf.indexOf(x) >= 0).length) : d[4];
+  }
+  calMore(d) {
+    const tf = this.state.tagFilter || [], list = this.calStops(d);
+    if (!list.length) return tf.length ? 'Nothing tagged that way' : 'Nothing planned yet';
+    if (tf.length) return list.length + (list.length === 1 ? ' stop' : ' stops') + ' of ' + d[4].length;
+    return d[4].length + ' stops · ' + this.fmt(d[4][0][0]) + ' – ' + this.fmt(d[4][d[4].length - 1][1]);
+  }
   mapTrip() {
-    const key = this.state.tripId + ':' + (this.state.rev || 0);
+    const key = this.state.tripId + ':' + (this.state.rev || 0) + ':' + (this.state.tagFilter || []).join(',') + ':' + Object.keys(this.state.tagOv).join(',');
     if (this._mapCacheKey !== key) { this._mapCacheKey = key; this._mapCache = this.trip().days.map((d, i) => this.mapDay(d, i)); }
     return this._mapCache;
   }
@@ -2266,13 +2369,14 @@ class Component extends DCLogic {
     pts.forEach(p => {
       boxes.push({ x: p.sx - 11, y: p.sy - 11, w: 22, h: 22 });
       const el = document.createElement('div');
-      el.style.cssText = 'width:22px;height:22px;border-radius:50%;background:' + color + ';color:#fff;font:600 11px/22px var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.28);cursor:default;';
+      el.style.cssText = 'width:22px;height:22px;border-radius:50%;background:' + color + ';color:#fff;font:600 11px/22px var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.28);cursor:default;opacity:' + (p.off ? '.28' : '1') + ';';
       el.textContent = p.n;
       el.title = p.time + ' · ' + p.title;
       this._markers.push(new maplibregl.Marker({ element: el }).setLngLat(p.pin).addTo(map));
     });
 
     pts.forEach(p => {
+      if (p.off) return;
       const w = Math.min(190, p.title.length * 6.3 + 14);
       const r = { x: p.sx + 18, y: p.sy - 9, w, h: 18 };
       if (!clear(r)) return;
@@ -2332,7 +2436,8 @@ class Component extends DCLogic {
     }
     if (!this._map) { requestAnimationFrame(() => { this.initMap(); this.watchRail(); }); return; }
     this.watchRail();
-    if (!prev || prev.focus !== s.focus || prev.tripId !== s.tripId) this.drawMap(prev && prev.tripId !== s.tripId);
+    const tags = (s.tagFilter || []).join(',');
+    if (!prev || prev.focus !== s.focus || prev.tripId !== s.tripId || prev.tags !== tags) this.drawMap(prev && prev.tripId !== s.tripId);
   }
 
   // ---- editing model -------------------------------------------------
@@ -2861,20 +2966,49 @@ class Component extends DCLogic {
     setTimeout(() => this.jump(i), 60);
   }
   openAddAt(i, time) {
-    this.setState({ addOpen: true, addTitle: '', addDayV: String(i + 1), addStart: time, addDur: '1 hour', addCost: '' });
+    this.setState({ addOpen: true, addTitle: '', addDayV: String(i + 1), addStart: time, addDur: '1 hour', addCost: '', addTags: [], addKey: '' });
   }
   openIns(dayIdx, pbIdx) {
     this.setState({ insOpen: true, insTripId: this.state.tripId, insDay: String((dayIdx === undefined ? this.trip().days.length - 1 : dayIdx) + 1), insPbIdx: pbIdx === undefined ? this.state.insPbIdx : pbIdx });
   }
 
+  // Tags are many-per-stop and come from a known list, never freeform, so each
+  // one can power something real: a maybe stays out of the committed read, a
+  // meal fills the day's meal line, lodging pins the night, travel swallows the
+  // walking leg. The list is short on purpose — a tag nobody acts on is a label.
+  TAGS = [
+    { id: 'considering', label: 'Considering', bg: 'var(--color-moss)', ink: 'var(--color-slate)', power: 'Reads as a maybe — dashed everywhere, and its cost sits outside the committed total.' },
+    { id: 'meal', label: 'Meal', bg: 'var(--color-warning-tint)', ink: 'var(--color-warning-ink)', power: 'Counts toward the day’s meals, and the Notebook can pull just these.' },
+    { id: 'lodging', label: 'Lodging', bg: 'var(--color-info-tint)', ink: 'var(--color-info-ink)', power: 'Pins where you sleep that night. One per day.' },
+    { id: 'travel', label: 'Travel', bg: 'var(--color-brand-tint)', ink: 'var(--color-brand-pressed)', power: 'No “time until next stop” — it is the time between stops.' },
+    { id: 'ticketed', label: 'Ticketed', bg: 'var(--color-success-tint)', ink: 'var(--color-success-ink)', power: 'Wants a booking date. The assistant keeps asking until there is one.' },
+    { id: 'outdoors', label: 'Outdoors', bg: 'var(--color-surface)', ink: 'var(--color-slate)', power: 'Weather-sensitive — flagged if the forecast turns that day.' }
+  ];
+  TAG(id) { return this.TAGS.filter(t => t.id === id)[0] || { id, label: id, bg: 'var(--color-moss)', ink: 'var(--color-slate)' }; }
+  // Seed data predates tags, so read them off the stop until someone edits it.
+  inferTags(a) {
+    const t = (a[2] + ' ' + a[3]).toLowerCase(), out = [];
+    if (a[6] === 'idea') out.push('considering');
+    if (/dinner|lunch|breakfast|coffee|kaiseki|omakase|yakitori|ramen|sushi|market|tea|bakery|kushikatsu|katsu|crawl/.test(t)) out.push('meal');
+    if (/check in|ryokan|hotel|gora kadan/.test(t)) out.push('lodging');
+    if (a[6] === 'transit' || /train|shinkansen|ferry|flight|land at|transfer|romancecar|express/.test(t)) out.push('travel');
+    if (/museum|teamlab|castle|chich|benesse|nezu/.test(t)) out.push('ticketed');
+    if (/gardens|falls|park|inari|path|shrine|jing|arashiyama|-ji\b/.test(t)) out.push('outdoors');
+    return out.slice(0, 3);
+  }
+  tagsOf(a) { const ov = this.state.tagOv[a[2]]; return ov || this.inferTags(a); }
+  toggleIn(list, id) { return (list || []).indexOf(id) >= 0 ? list.filter(x => x !== id) : (list || []).concat([id]); }
+
   buildDays() {
     const legs = this.props.showTravelTimes !== false;
     return this.trip().days.map((d, i) => {
-      const raw = d[4], startCity = d[3] || d[0];
+      const raw = d[4], startCity = d[3] || d[0], day0Solid = this.accent(startCity).solid;
       const items = raw.map((a, j) => {
         const next = raw[j + 1];
+        const tags = this.tagsOf(a), tf = this.state.tagFilter;
+        const maybe = tags.indexOf('considering') >= 0;
         let leg = '', gap = '';
-        if (next && legs && a[6] !== 'transit') {
+        if (next && legs && a[6] !== 'transit' && tags.indexOf('travel') < 0) {
           const idle = this.toMin(next[0]) - this.toMin(a[1]);
           leg = idle > 0 ? this.dur(idle) + ' until next stop' : 'Back to back';
           if (idle >= 150) gap = 'Nothing planned';
@@ -2886,7 +3020,7 @@ class Component extends DCLogic {
         return {
           cost: c.priced ? this.money(c.amt) : 'No cost yet',
           costEst: c.priced && c.est,
-          costInk: c.priced ? 'var(--color-ink)' : 'var(--color-slate)',
+          costInk: (c.priced && !maybe) ? 'var(--color-ink)' : 'var(--color-slate)',
           fill: () => this.openAddAt(i, a[1]),
           fillLabel: 'Add something at ' + this.fmt(a[1]),
           conf: cl ? 'Overlaps ' + cl.other[2] + ', ' + this.fmt(cl.other[0]) + ' – ' + this.fmt(cl.other[1]) + ' — ' + this.dur(cl.mins) + ' on top of each other.' : '',
@@ -2899,14 +3033,21 @@ class Component extends DCLogic {
           who: who === 'All' ? 'Everyone' : who,
           whoInitials: who === 'All' ? '4' : who.split(' ')[0].slice(0, 1) + (who.split(' ')[1] || '').slice(0, 1),
           badge: bm[0], badgeVariant: bm[1], note: a[7], leg, gap,
+          tagIds: tags,
+          tags: tags.map(id => this.TAG(id)),
+          hasTags: tags.length > 0,
+          maybe, maybeNote: maybe ? 'if you go' : '',
+          railBg: maybe ? 'repeating-linear-gradient(to bottom, ' + day0Solid + ' 0 5px, transparent 5px 10px)' : day0Solid,
+          dimOp: (tf.length && !tags.filter(x => tf.indexOf(x) >= 0).length) ? '0.3' : '1',
           ask: () => this.askAbout(a[2], i),
-          edit: () => this.setState({ addOpen: true, addTitle: a[2], addStart: a[0], addDayV: String(i + 1) })
+          edit: () => this.setState({ addOpen: true, addTitle: a[2], addStart: a[0], addDayV: String(i + 1), addTags: tags.slice(), addKey: a[2] })
         };
       });
       const areas = [];
       raw.forEach(a => { if (areas[areas.length - 1] !== a[4]) areas.push(a[4]); });
       const km = (2.4 + ((i * 13) % 9) * 0.7).toFixed(1);
-      const dateLabel = d[1] + ' ' + this.trip().mon + ' ' + d[2];
+      const st = this.dayStamp(i);
+      const dateLabel = st.dow + ' ' + st.mon + ' ' + st.num;
       const clashN = raw.filter((_, j) => this.liveClash(raw, j)).length;
       return {
         costLabel: this.money(this.dayCost(d)),
@@ -2914,7 +3055,7 @@ class Component extends DCLogic {
         i, label: 'Day ' + (i + 1), dateLabel, city: d[0], items,
         tint: this.accent(startCity).tint, ink: this.accent(startCity).ink, solid: this.accent(startCity).solid,
         split: startCity !== d[0], solo: startCity === d[0], fromCity: startCity, toTint: this.accent(d[0]).tint, toInk: this.accent(d[0]).ink,
-        dots: raw.map((_, k) => k), num: d[2], dow: d[1],
+        dots: raw.map((_, k) => k), num: st.num, dow: st.dow, mon: st.mon, monthEdge: st.first || i === 0,
         colMeta: dateLabel + ' · ' + d[0],
         summary: raw.length ? raw.length + ' stops · ' + this.dur(this.toMin(raw[raw.length - 1][1]) - this.toMin(raw[0][0])) + ' out' : 'Nothing planned yet',
         stopCount: raw.length,
@@ -2951,6 +3092,17 @@ class Component extends DCLogic {
         const sc = document.getElementById('colscroll');
         const el = document.querySelector('[data-colsec="' + i + '"]');
         if (sc && el) sc.scrollLeft = el.offsetLeft - 24;
+      } else if (this.state.view === 'calendar') {
+        const sc = document.getElementById('planscroll');
+        const el = document.querySelector('[data-calday="' + i + '"]');
+        if (sc && el) {
+          sc.scrollTop = Math.max(0, sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140);
+          if (el.animate) this.anim(el, [
+            { boxShadow: '0 0 0 0 rgba(0,0,0,0)' },
+            { boxShadow: '0 0 0 3px var(--color-brand)', offset: 0.35 },
+            { boxShadow: '0 0 0 0 rgba(0,0,0,0)' }
+          ], { duration: 780, easing: 'ease-out' });
+        }
       } else {
         const sc = document.getElementById('planscroll');
         const el = document.querySelector('[data-daysec="' + i + '"]');
@@ -3000,6 +3152,57 @@ class Component extends DCLogic {
     return d[4].map(a => ({ t: this.fmt(a[0]), n: a[2] + ' · ' + a[4] }));
   }
 
+  // ---- floating assistant: geometry and dragging -------------------------
+  asstSize(open) { return open ? { w: 364, h: 476 } : { w: 56, h: 56 }; }
+
+  asstClamp(x, y, open) {
+    const s = this.asstSize(open), pad = 16;
+    const maxX = Math.max(pad, window.innerWidth - s.w - pad);
+    const maxY = Math.max(pad, window.innerHeight - s.h - pad);
+    return { x: Math.min(Math.max(pad, x), maxX), y: Math.min(Math.max(pad, y), maxY) };
+  }
+
+  asstHome(open) {
+    const s = this.asstSize(open);
+    return { x: window.innerWidth - s.w - 24, y: window.innerHeight - s.h - 24 };
+  }
+
+  asstAt(open) {
+    const p = this.state.asstPos || this.asstHome(open);
+    return this.asstClamp(p.x, p.y, open);
+  }
+
+  // Expanding and collapsing both keep the bottom-right corner planted, so the
+  // panel grows out of the bubble instead of jumping across the screen.
+  asstSetOpen(open) {
+    if (this.state.asstDock) { this.setState({ asst: open, asstDock: false, asstPos: null }); return; }
+    const from = this.asstAt(this.state.asst), a = this.asstSize(this.state.asst), b = this.asstSize(open);
+    const p = this.asstClamp(from.x + a.w - b.w, from.y + a.h - b.h, open);
+    this._userOpened = open;
+    this.setState({ asst: open, asstPos: p });
+  }
+
+  asstGrab(e, tapToggles) {
+    if (e.button || this.state.asstDock) return;
+    const open = this.state.asst, start = this.asstAt(open);
+    const ox = e.clientX - start.x, oy = e.clientY - start.y;
+    let moved = false;
+    const move = ev => {
+      if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
+      moved = true;
+      this.setState({ asstDragging: true, asstPos: this.asstClamp(ev.clientX - ox, ev.clientY - oy, open) });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (moved) this.setState({ asstDragging: false });
+      else if (tapToggles) this.asstSetOpen(!open);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    e.preventDefault();
+  }
+
   renderVals() {
     const s = this.state, route = s.route, trip = this.trip();
     // Focus scope: account (many trips) → trip (one trip, whole) → day (one day).
@@ -3013,9 +3216,9 @@ class Component extends DCLogic {
     const mapData = route === 'trip' ? this.mapTrip() : [];
     const mapFocus = mapData[Math.min(s.focus, mapData.length - 1)];
     // the map is an imperative canvas beside the tree — reconcile it after every render
-    const snap = { route: route, view: s.view, tripId: s.tripId, focus: s.focus };
+    const snap = { route: route, view: s.view, tripId: s.tripId, focus: s.focus, tags: (s.tagFilter || []).join(',') };
     const prevSnap = this._syncSnap;
-    if (!prevSnap || prevSnap.route !== snap.route || prevSnap.view !== snap.view || prevSnap.tripId !== snap.tripId || prevSnap.focus !== snap.focus) {
+    if (!prevSnap || prevSnap.route !== snap.route || prevSnap.view !== snap.view || prevSnap.tripId !== snap.tripId || prevSnap.focus !== snap.focus || prevSnap.tags !== snap.tags) {
       this._syncSnap = snap;
       if (prevSnap && (prevSnap.view !== snap.view || prevSnap.route !== snap.route || prevSnap.tripId !== snap.tripId)) this.stopRail();
       requestAnimationFrame(() => this.syncMap(prevSnap));
@@ -3049,8 +3252,8 @@ class Component extends DCLogic {
           mc.push({
             num: cur.getDate(), inTrip: inTrip, di, label: inTrip ? 'Day ' + (di + 1) : '',
             city: d ? d[0] : '', tint: ac.tint, ink: ac.ink,
-            chips: d ? d[4].slice(0, 3).map((a, j) => ({ key: di + ':' + j, t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
-            more: d ? (d[4].length ? d[4].length + ' stops · ' + this.fmt(d[4][0][0]) + ' – ' + this.fmt(d[4][d[4].length - 1][1]) : 'Nothing planned yet') : '',
+            chips: d ? this.calStops(d).slice(0, 3).map((a, j) => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
+            more: d ? this.calMore(d) : '',
             jump: () => { if (this._noClick || !inTrip) return; this.setState({ view: 'timeline' }); this.jump(di); }
           });
         }
@@ -3074,8 +3277,8 @@ class Component extends DCLogic {
         num: n, inTrip: inTrip, di, label: inTrip ? 'Day ' + (di + 1) : '',
         monthTag: n === 1 || cells.length === 0 ? this.MONS[cur.getMonth()] : '',
         city: d ? d[0] : '', first: d && d[4].length ? d[4][0][2] : '', tint: ac.tint, ink: ac.ink,
-        chips: d ? d[4].slice(0, 3).map((a, j) => ({ key: di + ':' + j, t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
-        more: d ? (d[4].length ? d[4].length + ' stops · ' + this.fmt(d[4][0][0]) + ' – ' + this.fmt(d[4][d[4].length - 1][1]) : 'Nothing planned yet') : '',
+        chips: d ? this.calStops(d).slice(0, 3).map(a => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
+        more: d ? this.calMore(d) : '',
         jump: () => { if (this._noClick || !inTrip) return; this.setState({ view: 'timeline' }); this.jump(di); }
       });
     }
@@ -3205,9 +3408,9 @@ class Component extends DCLogic {
       waitlist: () => this.flash("You're on the list"),
       crew: this.CREW,
       segments: [{ label: 'Tokyo · 5 nights' }, { label: 'Nikkō day trip' }, { label: 'Hakone · 1' }, { label: 'Kyoto · 4' }, { label: 'Osaka · 2' }, { label: 'Naoshima day trip' }],
-      spark: this.TRIPS.japan.days.map((d, i) => ({ num: d[2], dots: d[4].map((_, k) => k), solid: this.accent(d[3] || d[0]).solid, open: () => { this.setState({ route: 'trip', tripId: 'japan', view: 'timeline' }); this.jump(i); } })),
+      spark: this.TRIPS.japan.days.map((d, i) => ({ num: this.dayStamp(i, 'japan').num, dots: d[4].map((_, k) => k), solid: this.accent(d[3] || d[0]).solid, open: () => { this.setState({ route: 'trip', tripId: 'japan', view: 'timeline' }); this.jump(i); } })),
       tripCards: [
-        { name: 'Japan', dates: 'Oct 3 – 16, 2026', state: 'Planning', stateVariant: 'brand', summary: '14 days across 6 cities. Seven stops unbooked and two dates to lock.', people: ['SK', 'PR', 'JM', 'MT'], progress: '68 stops', budgetLine: this.money(this.spend('japan').total) + ' planned of ' + this.money(this.spend('japan').budget), solid: 'var(--color-brand)', open: () => this.setState({ route: 'trip', tripId: 'japan', focus: 0 }) },
+        { name: 'Japan', dates: 'Sep 20 – Oct 3, 2026', state: 'Planning', stateVariant: 'brand', summary: '14 days across 6 cities. Seven stops unbooked and two dates to lock.', people: ['SK', 'PR', 'JM', 'MT'], progress: '68 stops', budgetLine: this.money(this.spend('japan').total) + ' planned of ' + this.money(this.spend('japan').budget), solid: 'var(--color-brand)', open: () => this.setState({ route: 'trip', tripId: 'japan', focus: 0 }) },
         { name: 'New Orleans', dates: 'Sep 4 – 7, 2026', state: 'Booked', stateVariant: 'success', summary: 'Long weekend, four days, everything but one dinner confirmed.', people: ['SK', 'DR'], progress: '16 stops', budgetLine: this.money(this.spend('nola').total) + ' planned of ' + this.money(this.spend('nola').budget), solid: 'var(--color-success-ink)', open: () => this.setState({ route: 'trip', tripId: 'nola', focus: 0 }) },
         { name: 'Lisbon', dates: 'Dates not set', state: 'Draft', stateVariant: 'neutral', summary: 'Two saved Playbooks and a note about Alentejo. Nothing scheduled yet.', people: ['SK'], progress: '0 stops', budgetLine: 'No budget yet', solid: 'var(--color-border-strong)', open: () => this.flash('Draft — add dates to open the plan') }
       ],
@@ -3287,7 +3490,13 @@ class Component extends DCLogic {
       view: s.view, setView: v => this.setState({ view: v, focused: v === 'timeline' || v === 'columns' ? s.focused : false }),
       viewOptions: [{ value: 'timeline', label: 'Timeline' }, { value: 'columns', label: 'Day columns' }, { value: 'calendar', label: 'Calendar' }, { value: 'map', label: 'Map' }],
       isTimeline: s.view === 'timeline', isColumns: s.view === 'columns', isCalendar: s.view === 'calendar', isMap: s.view === 'map',
-      showChips: s.view === 'timeline' || s.view === 'columns',
+      // The day rail stays put in every view except Map, where the side rail is
+      // the same control at full size — two day selectors would be one too many,
+      // and the map gets the height back.
+      showChips: s.view !== 'map',
+      // The map already speaks in pins and colour; a filter row on top of it was
+      // one control too many. Timeline, Day columns and Calendar keep it.
+      showTagFilter: s.view !== 'map',
       isOverview: route === 'home' || route === 'playbooks',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
 
@@ -3376,16 +3585,16 @@ class Component extends DCLogic {
       dragHint: { timeline: 'Drag a stop up or down to reschedule it — snaps to 15 minutes. ⌘Z undoes.', columns: 'Drag stops between days, or a column by its handle to reorder days. ⌘Z undoes.', calendar: 'Drag a stop to another date, or the day handle to reorder days. ⌘Z undoes.', map: 'Scroll the day rail — the map follows.' }[s.view] || '',
       mapIntro: route === 'trip' ? 'Every day drawn at once. Scroll to move through them — the focused day comes forward, the rest stay as faint context.' : '',
       mapDays: mapData.map(m => {
-        const on = m.i === s.focus, d = m.day;
+        const on = m.i === s.focus, d = m.day, st = this.dayStamp(m.i);
         const parts = [];
         if (m.walkKm > 0.05) parts.push(this.kmLabel(m.walkKm) + ' on foot');
         if (m.rideKm > 0.05) parts.push(this.kmLabel(m.rideKm) + ' riding');
         return {
-          i: m.i, label: 'Day ' + (m.i + 1), date: d[1] + ' ' + d[2], city: d[0],
+          i: m.i, label: 'Day ' + (m.i + 1), date: (st.first || m.i === 0) ? st.dow + ' ' + st.mon + ' ' + st.num : st.dow + ' ' + st.num, city: d[0],
           ink: m.ac.ink, edge: m.ac.solid,
           bg: on ? m.ac.tint : 'var(--color-surface)',
           total: !m.pts.length ? 'Nothing planned yet' : (parts.join(' · ') || 'One place, all day') + '  ·  ' + this.minLabel(m.mins) + ' moving',
-          bars: m.legs.map(l => ({ grow: Math.max(1, Math.round(l.km * 10)), color: l.ride ? m.ac.tint : m.ac.solid })),
+          bars: m.legs.map(l => ({ grow: Math.max(1, Math.round(l.km * 10)), color: m.ac.solid, h: l.ride ? '3px' : '6px' })),
           flag: on && m.wander > 2.4 && m.totalKm > 4,
           flagText: on && m.longest ? 'This day doubles back — you cross the same ground twice between ' + m.longest.a.title + ' and ' + m.longest.b.title + '.' : '',
           jump: () => this.railTo(m.i)
@@ -3399,7 +3608,7 @@ class Component extends DCLogic {
         : 'A single anchor. Nothing to travel between.') : '',
       days,
       chips: days.map(d => ({
-        dow: d.dow, num: d.num, city: d.fromCity, dest: d.split ? d.city : '',
+        dow: d.dow, num: d.num, mon: d.mon, monthEdge: d.monthEdge, city: d.fromCity, dest: d.split ? d.city : '',
         dots: d.dots.slice(0, 6), tint: d.tint, ink: d.ink, solid: d.solid,
         destSolid: d.split ? d.toInk : '',
         ring: d.i === s.focus ? 'inset 0 0 0 2px ' + d.solid : 'none',
@@ -3409,8 +3618,32 @@ class Component extends DCLogic {
       openInsertFromTrip: () => this.setState({ insOpen: true }),
 
       asstOpen: s.asst, asstClosed: !s.asst,
-      openAsst: () => { this._userOpened = true; this.setState({ asst: true }); },
-      closeAsst: () => { this._userOpened = false; this.setState({ asst: false }); },
+      asstX: s.asstDock ? 'auto' : this.asstAt(s.asst).x + 'px',
+      asstY: s.asstDock ? 'auto' : this.asstAt(s.asst).y + 'px',
+      asstCursor: s.asstDock ? 'default' : (s.asstDragging ? 'grabbing' : 'grab'),
+      asstGrabBubble: e => this.asstGrab(e, true),
+      asstDocked: s.asstDock,
+      asstEmptyHint: s.asstDock
+        ? 'Ask about this trip and the conversation stays here.'
+        : 'Ask about this trip and the conversation stays here. Drag the header to park it anywhere.',
+      asstPosMode: s.asstDock ? 'relative' : 'fixed',
+      asstFlex: s.asstDock ? '0 0 356px' : '0 0 auto',
+      asstW: s.asstDock ? '356px' : '364px',
+      asstH: s.asstDock ? '100%' : '476px',
+      asstBorder: s.asstDock ? '0' : '1px solid var(--color-hairline)',
+      asstEdge: s.asstDock ? '2px solid var(--color-border-strong)' : '1px solid var(--color-hairline)',
+      asstRadius: s.asstDock ? '0' : '16px',
+      asstShadow: s.asstDock ? 'none' : '0 20px 52px rgba(21, 29, 46, 0.24)',
+      dockIcon: s.asstDock ? '\u2921' : '\u21e5',
+      dockTitle: s.asstDock ? 'Float it free' : 'Dock to the side',
+      // Docking is the old fixed rail: a real flex sibling, so the plan shrinks
+      // rather than hides under the panel. Floating never touches layout.
+      toggleDock: () => this.setState(st => ({ asstDock: !st.asstDock, asst: true, asstPos: null })),
+      asstGrabPanel: e => this.asstGrab(e, false),
+      stopGrab: e => e.stopPropagation(),
+    
+      openAsst: () => this.asstSetOpen(true),
+      closeAsst: () => this.asstSetOpen(false),
       asstContext: route === 'trip'
         ? 'Looking at ' + (dayScope && focusDay ? focusDay.label + ' · ' + focusDay.city : trip.name)
         : route === 'notebook' ? 'Looking at the Notebook for ' + trip.name
@@ -3453,6 +3686,22 @@ class Component extends DCLogic {
       prevStep: () => this.setState({ step: Math.max(0, s.step - 1) }),
       createBlank: () => { this.setState({ ntOpen: false, step: 0 }); this.flash('Empty trip created'); },
 
+      tagFilters: this.TAGS.map(t => {
+        const on = s.tagFilter.indexOf(t.id) >= 0;
+        return { label: t.label, bg: on ? t.bg : 'var(--color-surface)', ink: on ? t.ink : 'var(--color-slate)',
+          edge: on ? 'transparent' : 'var(--color-hairline)', weight: on ? '600' : '500',
+          act: () => this.setState(st => ({ tagFilter: this.toggleIn(st.tagFilter, t.id) })) };
+      }),
+      tagFilterOn: s.tagFilter.length > 0,
+      clearTagFilter: () => this.setState({ tagFilter: [] }),
+      addTagChips: this.TAGS.map(t => {
+        const on = s.addTags.indexOf(t.id) >= 0;
+        return { label: t.label, power: t.power, bg: on ? t.bg : 'var(--color-surface)', ink: on ? t.ink : 'var(--color-slate)',
+          edge: on ? 'transparent' : 'var(--color-hairline)', weight: on ? '600' : '500', mark: on ? '✓' : '+',
+          act: () => this.setState(st => ({ addTags: this.toggleIn(st.addTags, t.id) })) };
+      }),
+      addTagPower: s.addTags.length ? this.TAG(s.addTags[s.addTags.length - 1]).power : 'Tags are a known list, so each one can do something. Pick as many as fit.',
+
       addOpen: s.addOpen, setAddOpen: v => this.setState({ addOpen: v }),
       openAdd: () => this.setState({ addOpen: true }), closeAdd: () => this.setState({ addOpen: false }),
       addTitle: s.addTitle, setAddTitle: e => this.setState({ addTitle: e.target.value }),
@@ -3462,14 +3711,22 @@ class Component extends DCLogic {
         { kind: '◇', name: 'Another nearby match', detail: 'Restaurant · Gion · open 6 pm – 11 pm · 14 min by taxi' }
       ].map(m => Object.assign({}, m, { act: () => this.flash('Place attached — hours and travel time filled in') })),
       addDay: s.addDayV, setAddDay: e => this.setState({ addDayV: e.target.value }),
-      dayOptions: this.TRIPS[s.insOpen ? s.insTripId : s.tripId].days.map((d, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + d[1] + ' ' + d[2] + ' · ' + d[0] })),
+      dayOptions: this.TRIPS[s.insOpen ? s.insTripId : s.tripId].days.map((d, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + this.dayStamp(i, s.insOpen ? s.insTripId : s.tripId).mon + ' ' + this.dayStamp(i, s.insOpen ? s.insTripId : s.tripId).num + ' · ' + d[0] })),
       addStart: s.addStart, setAddStart: e => this.setState({ addStart: e.target.value }),
       addDur: s.addDur, setAddDur: e => this.setState({ addDur: e.target.value }),
       addSlotNote: 'That slot is free. The nearest stop ends at 4 pm, so you have a comfortable gap either side.',
       crewChips: this.CREW.map(c => ({ name: c.name, initials: c.initials, act: () => this.flash(c.name + ' toggled') })),
       addNote: s.addNote, setAddNote: e => this.setState({ addNote: e.target.value }),
       addCost: s.addCost, setAddCost: e => this.setState({ addCost: e.target.value }),
-      saveAdd: () => { this.setState({ addOpen: false }); this.flash('Added to Day ' + s.addDayV); },
+      saveAdd: () => {
+        const key = s.addKey || s.addTitle;
+        this.setState(st => {
+          const ov = Object.assign({}, st.tagOv);
+          if (key) ov[key] = st.addTags.slice();
+          return { addOpen: false, tagOv: ov };
+        });
+        this.flash(s.addKey ? (s.addKey + ' — ' + (s.addTags.length ? s.addTags.map(x => this.TAG(x).label.toLowerCase()).join(', ') : 'no tags')) : 'Added to Day ' + s.addDayV);
+      },
 
       pbOpen: s.pbOpen, setPbOpen: v => this.setState({ pbOpen: v }), closePb: () => this.setState({ pbOpen: false }),
       pbDayLabel: 'Day ' + (s.pbDay + 1) + ' of ' + trip.name.split(':')[0],

@@ -1,6 +1,7 @@
 # Spec — what the design file cannot say out loud
 
-Companion to `design/Trip Planner Redesign.dc.html`. Current as of 2026-08-22.
+Companion to `design/Trip Planner Redesign.dc.html` and `design/Trip Planner Mobile.dc.html`.
+Current as of 2026-08-24.
 
 ## 1. Focus scope — the model behind the chrome
 
@@ -57,6 +58,15 @@ lead-in days before the start, nothing trailing past the end. No month paging.
 
 Days are matched by **full date**, never by day-of-month: matching on day-of-month scattered
 a Nov 27 → Dec 10 trip's December days onto November's 1st–10th.
+
+**The seed trip now straddles a boundary on purpose.** Japan runs **Sep 20 – Oct 3, 2026**:
+eleven days in September, three in October, so the two-month case is the default thing you
+see rather than an edge case nobody looks at.
+
+The same rule binds every date label outside the calendar. A day's month comes from
+*start date + day index*, never from the trip's month — a trip does not have a month. The
+day rail prints the month alongside the number on **day 1 and on the 1st of any month**, so
+a rail reading "… Wed 30 · Thu 1 Oct · Fri 2" is never ambiguous.
 
 ## 5. Component mapping — the "unnamed element" answers
 
@@ -151,3 +161,40 @@ there is no account model beyond that, so anything else at that scope needs fiel
   FullTripOverview, MapRail).
 - Everything in `preview-registry.ts` — that registry, not this file, is the authoritative
   list of unbuilt surfaces.
+
+## 9. The assistant — one panel, three presentations
+
+The assistant is **not a fixed rail**. One panel, three presentations, and the user picks:
+
+| Mode | What it is | Layout cost |
+|---|---|---|
+| **Bubble** | A 56px brand circle, dragged anywhere, clicked to expand | none — `position: fixed` |
+| **Floating** | 364×476 card with overlay shadow, dragged by its header | none — `position: fixed` |
+| **Docked** | The old right-hand rail: 356px, full height under the header | **real** — a flex sibling, so the plan shrinks instead of hiding |
+
+Rules that matter for the build:
+
+- Expanding and collapsing keep the **bottom-right corner planted**, so the panel grows out
+  of the bubble rather than jumping across the screen.
+- Position is clamped to the viewport with a 16px pad, and re-clamped on resize. A narrow
+  window no longer evicts the assistant — floating costs no layout width, so there is
+  nothing to evict.
+- Docked is the only mode that touches layout, and the only mode where dragging is off
+  (cursor `default`). Its left edge is a **2px `--color-border-strong`** divider, not a
+  hairline: it is a structural wall, not a card edge.
+- Minimising from any mode returns to the bubble. Docking always opens the panel.
+- Copy follows the mode — the empty state drops "Drag the header to park it anywhere"
+  while docked, because that interaction is switched off there.
+
+## 10. Mobile is a companion, not a second planner
+
+`design/Trip Planner Mobile.dc.html` is deliberately narrower in scope than the desktop
+design: **retrieval and small edits while you are on the trip**, not trip planning.
+
+- Two views, not four. Day columns and Calendar exist to show *density*, which a phone
+  cannot show honestly.
+- A pinned day-rail spine is the only navigation.
+- Tags carry more weight than on desktop: the filter row is the only way to thin a 402px
+  column, and the stop editor's tag picker sits above the fold with 44px targets.
+- If a future screen needs multi-day restructuring, that is a signal it belongs on desktop
+  — not a signal to widen the mobile scope.

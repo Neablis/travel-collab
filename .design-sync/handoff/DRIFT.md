@@ -79,6 +79,24 @@ This is the biggest surprise and where I'd spend the next pass:
 | D6 | Keep upcoming framing — **add a start date to TripSummary** | Contract change for code |
 | D7 | **Reuse ConflictBanner** — one banner pattern | Done — sync failure now uses `Banner variant="danger"` |
 
+## Review pass — comment resolutions
+
+- **Day rail in Map: removed.** Earlier call kept it in all four views for header
+  stability. Map already carries a full-size day rail down its side, so the header
+  strip was a second selector for the same job; Map now gets that height back.
+  Timeline / Day columns / Calendar keep the strip unchanged.
+- **Rail bars: no grey.** Ride legs were tinted, which read as "disabled" next to
+  solid stop legs. Ride legs are now the same city colour at 3px instead of 6px —
+  travel reads as thinner, not weaker. Day totals inherit the day's ink.
+- **Budget meter moved into its own header row**, so a long city list and the meter
+  can't collide in the same grid cell.
+- **Mobile cards: colour spine is now flush.** The city stripe was an inset rounded
+  bar inside padded cards; it now runs edge to edge as a real spine (card padding
+  moved inward), matching the desktop timeline.
+- **Trip-list rows** rebuilt on the same flush-card structure for consistency.
+- **Mobile day-header gradient** now holds solid surface until the last 34px, so
+  scrolled content doesn't ghost through the title.
+
 Next: Notebook / Pages — a **trip journal** (written during and after), with **live** macro blocks that always reflect the plan.
 
 ## Suggested order
@@ -88,3 +106,17 @@ Next: Notebook / Pages — a **trip journal** (written during and after), with *
    extra lenses.
 3. I refresh the handoff so `AGENT-PROMPT.md` points at the registry instead of
    restating unbuilt features as if they were pending design.
+
+## Design pass — 2026-08-24
+
+- **Assistant re-presented as a floating bubble** that drags anywhere and expands into a
+  floating panel, with the old side rail kept as an explicit **dock** mode (SPEC §9). The
+  rail is no longer the only way to have the assistant, and it is no longer evicted on
+  narrow windows.
+- **Seed trip moved to Sep 20 – Oct 3, 2026** so the multi-month calendar is the default
+  view, not an edge case. This surfaced a real bug worth flagging to the build: date labels
+  took their month from the *trip*, so October days rendered as September. Fixed in the
+  design by deriving every label from start date + day index — **check the build for the
+  same assumption** (`CalendarLens`, `MapRail`, any day-chip label).
+- **Mobile scope stated out loud** (SPEC §10): retrieval and small edits on the trip, not
+  planning. Recorded so future mobile screens don't drift back toward a second planner.

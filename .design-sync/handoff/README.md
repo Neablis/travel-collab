@@ -10,7 +10,8 @@ that class of dead end is resolvable in-repo.
 
 | Path | What it is |
 |---|---|
-| `design/Trip Planner Redesign.dc.html` | The living design reference — every screen, all copy, all interaction behaviour |
+| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
+| `design/Trip Planner Mobile.dc.html` | The mobile companion (on-trip retrieval + small edits — see SPEC §10) |
 | `SPEC.md` | Written spec for what the design file cannot say out loud: the focus-scope model, decisions, and the component-mapping rules |
 | `DRIFT.md` | Design ↔ build reconciliation: drifted / unbuilt / undesigned |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
@@ -25,7 +26,7 @@ map 1:1 to the real design-system package components.
 
 ## Resolving a "the design references X but never gives its copy" dead end
 
-1. Search `design/Trip Planner Redesign.dc.html` for the nearest label or `aria-label`.
+1. Search the design files for the nearest label or `aria-label` (desktop first).
 2. Check `SPEC.md` § Component mapping — most "unnamed element" cases are a design-system
    component used in a specific way, not a missing component.
 3. Only if both fail, ask. Do not invent product copy.
