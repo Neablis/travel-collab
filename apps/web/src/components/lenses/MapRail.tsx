@@ -313,7 +313,11 @@ export function MapRail({
                   aria-current={active ? "true" : undefined}
                   onClick={() => onFocus(day.index)}
                   className={cn(
-                    "block w-full cursor-pointer border-b border-hairline px-3.5 py-3 text-left text-ink transition-colors hover:bg-paper",
+                    // No hover tint: the rail already signals the current day via
+                    // aria-current's tint (below), and scrolling — not hovering —
+                    // is how a day gets selected, so a hover state would compete
+                    // with that as a second, misleading selection cue.
+                    "block w-full cursor-pointer border-b border-hairline px-3.5 py-3 text-left text-ink transition-colors",
                     active ? TINT_BG[day.accent] : "bg-transparent",
                   )}
                   // eslint-disable-next-line no-restricted-syntax -- 3px left spine has no Tailwind border-width step (0/2/4/8), matching TimelineLens's computed-geometry pattern

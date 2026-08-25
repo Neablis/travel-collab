@@ -145,7 +145,22 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
             moved out of the header entirely (Task 1.4) — the design moved it
             into the plan flow; Phase 6 rebuilds it there. */}
         <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center gap-4">
+          {/* `sm:flex-nowrap`, not a bare flex-wrap removal: this row's own
+              content (settings/share/add-stop + sync/undo/history) never
+              needs more than ~433px, but a nested flex item's own content
+              width isn't what decides whether the OUTER row (the
+              title/right-cluster split above) wraps — that uses the right
+              cluster's unwrapped intrinsic size, so this row can still get
+              squeezed narrower than its content while staying on the
+              outer row's first line, and its own `flex-wrap` would then
+              split "settings/share/add stop" from "sync/undo/history"
+              internally rather than the whole cluster dropping below the
+              title (confirmed live by forcing this row's parent narrower
+              than its content). `flex-wrap` stays as the floor below `sm`
+              (640px) — comfortably above the ~480px this row's content
+              needs — so genuinely narrow viewports keep the old two-line
+              fallback instead of overflowing. */}
+          <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
             <div className="flex flex-wrap items-center gap-2">
               {preview.seq === null && (
                 <Button variant="ghost" size="icon" aria-label="Trip settings" onClick={() => setSettingsOpen(true)}>
