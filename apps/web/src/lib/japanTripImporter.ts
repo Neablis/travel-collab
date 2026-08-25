@@ -2,28 +2,39 @@
 // (.design-sync/handoff/data/japan-trip-seed.json — 14 days, 68 stops, 6
 // cities, 4 unscheduled items). Nothing else in the repo reads that file, so
 // without this module a contract change could silently leave it unimportable
-// — the drift guard in src/lib/japanTripImporter.test.ts is the point.
+// — the drift guard in japanTripImporter.test.ts (same directory) is the
+// point.
 //
 // This is a FIXTURE format (`trip-seed/v1`), not a cross-boundary contract —
 // it describes an export from the Trip Planner redesign prototype, not a
-// travel-collab request/response shape — so its schema lives here, next to
-// the seed script that's its only intended consumer, rather than in
-// packages/contracts (AGENTS.md: a contracts change is its own reviewed
-// step). Living in apps/web/scripts also keeps it dependency-free of the
-// `@/` path alias, which only bundlers/tsc resolve — this file (like
-// db-seed.ts) is run directly by Node's native type-stripping when a script
-// needs it, so it only imports workspace packages (resolved via
-// node_modules, not relative-path aliasing) and Node builtins.
+// travel-collab request/response shape — so its schema lives here rather
+// than in packages/contracts (AGENTS.md: a contracts change is its own
+// reviewed step). Lives under src/lib rather than apps/web/scripts so both
+// intended callers can reach it: db-seed.ts (a relative import, same as any
+// other apps/web module) and the future import endpoint (bundled server
+// code, which src/lib already is).
 //
 // TripCommand[] is the output, not TripState — importing is "produce the
 // commands a real user's actions would have produced," never a direct
 // projection write (Invariant 1). Nothing here calls the command API; that's
 // left to whoever wires this into db-seed.ts or an endpoint (out of scope
 // for this module on purpose).
+//
+// Ids: the trip id is never generated here — POST /api/trips (or a
+// CreateTrip command) mints it server-side, exactly as db-seed.ts's
+// createTrip() already does, and this module takes that tripId as a
+// parameter. Day and activity ids are freshly minted with randomUUID(),
+// matching db-seed.ts's own pattern (its SetTripDates/AddActivity calls) —
+// not derived from the seed's own string ids. Nothing downstream snapshots
+// these ids or re-imports the same seed expecting stable output, and the
+// domain can't mint ids itself (Invariant 4), so a plain random mint is the
+// right shape here (see apps/web/src/server/ai/idFields.ts's mint/ref/inject
+// taxonomy — day/activity ids are "mint": the caller's job, not something to
+// derive).
 
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { TripCommand } from "@tc/contracts";
-import { uuidFrom } from "@tc/factories";
 
 // ---- schema: trip-seed/v1 --------------------------------------------
 
@@ -139,47 +150,6 @@ export function parseTripSeed(json: unknown): TripSeedV1 {
   return TripSeedV1.parse(json);
 }
 
-// ---- deterministic ids --------------------------------------------------
-
-// FNV-1a 32-bit — cheap, dependency-free, stable across runs/platforms.
-// uuidFrom (@tc/factories) wants a numeric sequence; this turns each seed
-// string id into one, so re-running the importer on the same JSON always
-// produces the same command ids instead of a fresh crypto.randomUUID() set.
-function fnv1a32(input: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
-// uuidFrom's own fields (packages/factories/src/ids.ts) are only 4 hex
-// digits wide in three of five UUID segments — it's built for Fishery's
-// small incrementing counters, not an arbitrary 32-bit value. Feeding it a
-// full hash produces a mis-shaped, non-UUID string once the hash exceeds
-// 0xFFFF. Reducing to 16 bits keeps every segment the width uuidFrom assumes.
-const SEQUENCE_SPACE = 0x10000;
-
-// Namespaced (`kind:seedId`) so a trip id, a day date, and a stop id that
-// happened to collide as raw strings still can't collide as hash inputs.
-// idFor asserts global uniqueness of the ids it hands out (below) rather
-// than trusting a 16-bit hash space never collides across this seed's ~90
-// ids — verified collision-free for the real file, but a future edit to it
-// should fail loudly, not silently double-assign an id.
-const keyById = new Map<string, string>(); // id -> seed key that produced it
-
-function idFor(kind: "trip" | "day" | "activity", seedId: string): string {
-  const key = `${kind}:${seedId}`;
-  const id = uuidFrom(fnv1a32(key) % SEQUENCE_SPACE);
-  const priorKey = keyById.get(id);
-  if (priorKey !== undefined && priorKey !== key) {
-    throw new Error(`idFor: hash collision between "${priorKey}" and "${key}" — both mapped to ${id}`);
-  }
-  keyById.set(id, key);
-  return id;
-}
-
 // ---- import: TripSeedV1 -> TripCommand[] ---------------------------------
 
 // Fields read from the seed but with no TripCommand/contract equivalent —
@@ -236,6 +206,9 @@ function locationName(place: string, area: string, city: string): string {
 // the seed's own per-day order reproduces the seed's order exactly. `city`
 // comes from the containing day, not the stop — stops carry no city of
 // their own in this export (only `area`, folded into the location name).
+// The seed's own stop.id is read only to pick this stop out during mapping
+// (day/city lookups etc.) and never appears in the emitted command — the
+// activity's real id is a fresh randomUUID(), same as db-seed.ts mints one.
 function stopToAddActivity(
   tripId: string,
   dayId: string,
@@ -246,7 +219,7 @@ function stopToAddActivity(
   return {
     type: "AddActivity",
     tripId,
-    activityId: idFor("activity", stop.id),
+    activityId: randomUUID(),
     dayId,
     title: stop.title,
     timeWindow: { start: stop.start, end: stop.end },
@@ -264,7 +237,7 @@ function unscheduledToAddActivity(tripId: string, item: TripSeedV1["unscheduled"
   return {
     type: "AddActivity",
     tripId,
-    activityId: idFor("activity", item.id),
+    activityId: randomUUID(),
     title: item.title,
     location: { name: `${item.place}, ${item.area}, Japan` },
     ...(item.note ? { notes: item.note } : {}),
@@ -272,19 +245,22 @@ function unscheduledToAddActivity(tripId: string, item: TripSeedV1["unscheduled"
 }
 
 /**
- * Maps a validated trip-seed/v1 document to the TripCommand[] that would
- * produce it: CreateTrip, SetTripDates (minting one day id per seed day),
- * SetTripBudget, then one AddActivity per stop (scheduled stops carry a
- * dayId; unscheduled items don't, landing in the backlog) — in the seed's
- * own day/stop order, so replaying these commands reproduces both the day
- * layout and each day's activity order.
+ * Maps a validated trip-seed/v1 document to the TripCommand[] that finishes
+ * setting it up: SetTripDates (minting one fresh day id per seed day via
+ * randomUUID()), SetTripBudget, then one AddActivity per stop (scheduled
+ * stops carry a dayId; unscheduled items don't, landing in the backlog) — in
+ * the seed's own day/stop order, so replaying these commands reproduces both
+ * the day layout and each day's activity order.
+ *
+ * `tripId` is supplied by the caller, not generated here: creating the trip
+ * (POST /api/trips, or a CreateTrip command) is what mints it, matching
+ * db-seed.ts's own two-step createTrip()-then-cmd() pattern. This function
+ * only returns the commands that come after that.
  */
-export function importJapanTripSeed(seed: TripSeedV1): TripCommand[] {
-  const tripId = idFor("trip", seed.trip.id);
-  const dayIds = seed.days.map((day) => idFor("day", day.date));
+export function importJapanTripSeed(seed: TripSeedV1, tripId: string): TripCommand[] {
+  const dayIds = seed.days.map(() => randomUUID());
 
   const commands: TripCommand[] = [
-    { type: "CreateTrip", tripId, name: seed.trip.name },
     { type: "SetTripDates", tripId, startDate: seed.trip.startDate, endDate: seed.trip.endDate, newDayIds: dayIds },
     {
       type: "SetTripBudget",

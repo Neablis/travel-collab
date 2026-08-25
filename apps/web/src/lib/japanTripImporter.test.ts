@@ -5,11 +5,12 @@
 // required property — this test goes red, which is the whole point (the
 // task that created this importer: nothing else in the repo reads this
 // file, so nothing else would ever notice the drift).
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TripCommand } from "@tc/contracts";
-import { DROPPED_SEED_FIELDS, importJapanTripSeed, parseTripSeed } from "../../scripts/japanTripImporter";
+import { DROPPED_SEED_FIELDS, importJapanTripSeed, parseTripSeed } from "./japanTripImporter";
 
 const SEED_PATH = resolve(import.meta.dirname, "../../../../.design-sync/handoff/data/japan-trip-seed.json");
 
@@ -25,7 +26,7 @@ describe("japanTripImporter", () => {
 
   it("produces only commands that validate against the current TripCommand contract", () => {
     const seed = loadRealSeed();
-    const commands = importJapanTripSeed(seed);
+    const commands = importJapanTripSeed(seed, randomUUID());
 
     expect(commands.length).toBeGreaterThan(0);
     for (const command of commands) {
@@ -42,7 +43,7 @@ describe("japanTripImporter", () => {
     expect(seed.trip.stopCount).toBe(68);
     expect(seed.unscheduled).toHaveLength(4);
 
-    const commands = importJapanTripSeed(seed);
+    const commands = importJapanTripSeed(seed, randomUUID());
 
     const setDates = commands.find((c) => c.type === "SetTripDates");
     expect(setDates?.type).toBe("SetTripDates");
@@ -57,34 +58,31 @@ describe("japanTripImporter", () => {
     expect(backlog).toHaveLength(4);
   });
 
-  it("assigns every scheduled stop to one of the 14 minted day ids", () => {
+  it("assigns every scheduled stop to one of the 14 minted day ids, and mints every id fresh (not derived, no repeats)", () => {
     const seed = loadRealSeed();
-    const commands = importJapanTripSeed(seed);
+    const commands = importJapanTripSeed(seed, randomUUID());
     const setDates = commands.find((c) => c.type === "SetTripDates");
     if (setDates?.type !== "SetTripDates") throw new Error("expected a SetTripDates command");
     const dayIds = new Set(setDates.newDayIds);
+    expect(dayIds.size).toBe(setDates.newDayIds.length); // no repeated day id
 
+    const activityIds = new Set<string>();
     for (const command of commands) {
-      if (command.type === "AddActivity" && command.dayId !== undefined) {
-        expect(dayIds.has(command.dayId)).toBe(true);
+      if (command.type === "AddActivity") {
+        expect(activityIds.has(command.activityId)).toBe(false); // no repeated activity id
+        activityIds.add(command.activityId);
+        if (command.dayId !== undefined) expect(dayIds.has(command.dayId)).toBe(true);
       }
     }
   });
 
-  it("re-running the importer on the same seed produces identical ids (deterministic, not crypto.randomUUID)", () => {
+  it("does not generate the trip id — every command carries whatever tripId the caller supplied", () => {
     const seed = loadRealSeed();
-    const first = importJapanTripSeed(seed);
-    const second = importJapanTripSeed(seed);
-    expect(second).toEqual(first);
-  });
-
-  it("keeps every command's tripId consistent with CreateTrip's", () => {
-    const seed = loadRealSeed();
-    const commands = importJapanTripSeed(seed);
-    const created = commands.find((c) => c.type === "CreateTrip");
-    if (created?.type !== "CreateTrip") throw new Error("expected a CreateTrip command");
+    const suppliedTripId = randomUUID();
+    const commands = importJapanTripSeed(seed, suppliedTripId);
+    expect(commands.some((c) => c.type === "CreateTrip")).toBe(false);
     for (const command of commands) {
-      expect("tripId" in command ? command.tripId : undefined).toBe(created.tripId);
+      expect(command.tripId).toBe(suppliedTripId);
     }
   });
 
