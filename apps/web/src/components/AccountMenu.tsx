@@ -6,6 +6,12 @@ import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { initialsFor } from "@/lib/initials";
 
+// Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
+// (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
+// CalendarLens's CELL_MIN_HEIGHT (no token equivalent, so a style object
+// rather than an arbitrary `h-[30px]` className the color wall bans).
+const AVATAR_SIZE = { height: "30px", width: "30px" };
+
 // Handoff `…dc.html:94-103, 3091-3095`: the header's avatar button, opening
 // a Popover with the signed-in identity and Sign out. Self-contained — no
 // trip context — so Phase 1b's scope-aware header can absorb it later
@@ -36,7 +42,9 @@ export function AccountMenu({
         size="icon"
         aria-label="Account menu"
         title={name}
-        className="h-[30px] w-[30px] shrink-0 rounded-full border border-hairline bg-moss text-xs font-semibold text-slate hover:bg-moss hover:text-slate"
+        className="shrink-0 rounded-full border border-hairline bg-moss text-xs font-semibold text-slate hover:bg-moss hover:text-slate"
+        // eslint-disable-next-line no-restricted-syntax -- see AVATAR_SIZE above
+        style={AVATAR_SIZE}
       >
         {initials}
       </Button>
@@ -47,12 +55,18 @@ export function AccountMenu({
   return (
     <Popover open={open} onOpenChange={setOpen} align="end" contentClassName="w-56 p-1" trigger={trigger}>
       <div className="flex flex-col gap-0.5 border-b border-hairline px-2.5 pt-2 pb-2.5">
-        <span className="text-[13px] font-semibold text-ink">{name}</span>
-        <span className="font-mono text-[11.5px] text-slate">{email}</span>
+        <span className="text-sm font-semibold text-ink">{name}</span>
+        <span
+          className="font-mono text-slate"
+          // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
+          style={{ fontSize: "11.5px" }}
+        >
+          {email}
+        </span>
       </div>
       <Button
         variant="ghost"
-        className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-[13px] font-normal text-ink"
+        className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
         onClick={() => onSignOut?.()}
       >
         Sign out
