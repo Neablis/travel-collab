@@ -47,8 +47,9 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // docs/known-issues.md's former D-2 entry).
   await page.getByRole("button", { name: /trip settings/i }).click();
   await page.getByRole("button", { name: /dates/i }).click();
-  await page.getByLabel(/trip start date/i).fill("2026-08-03");
-  await Promise.all([waitForCommand(page), page.getByRole("button", { name: /done/i }).click()]);
+  // TripDateControl commits on selection, not on Done (feedback fix,
+  // 2026-08-24) — filling the complete date is the commit itself.
+  await Promise.all([waitForCommand(page), page.getByLabel(/trip start date/i).fill("2026-08-03")]);
   await page.getByRole("button", { name: /close/i }).click();
   await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add a day", exact: true }).click()]);
   await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add a day", exact: true }).click()]);

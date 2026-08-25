@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripCommand } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
@@ -35,17 +34,54 @@ describe("TripDateControl", () => {
     expect(screen.getByText(/The end follows the 14 days in your plan/)).toBeTruthy();
   });
 
-  it("commits the start alone, leaving day count untouched", async () => {
+  // Mitchell testing the preview, 2026-08-24: "Selecting the date with the
+  // date picker should automatically save, you shouldnt have to hit done."
+  // Done is now a close affordance only (see below) — selection itself
+  // commits, leaving day count untouched.
+  it("commits the start alone as soon as a valid date is selected, with no Done click", () => {
     const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
-    await userEvent.clear(screen.getByLabelText("Trip start date"));
-    await userEvent.type(screen.getByLabelText("Trip start date"), "2026-10-05");
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.change(screen.getByLabelText("Trip start date"), { target: { value: "2026-10-05" } });
 
     expect(onCommand).toHaveBeenCalledWith({
       type: "SetTripStartDate",
       tripId: TRIP_ID,
       startDate: "2026-10-05",
     });
+  });
+
+  // A native type="date" input's `value` is only ever a complete calendar
+  // date or "" (the HTML5 sanitization algorithm withholds it while a
+  // segment is unfilled) — but some browsers have been observed firing
+  // `change` on a partial edit anyway. Guard against both: an empty value
+  // (that's the dedicated Clear-date X's job, not this field) and a
+  // malformed/partial one must never reach onCommand.
+  it("dispatches nothing for an empty or incomplete date value", () => {
+    const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    const input = screen.getByLabelText("Trip start date");
+
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "2026-10" } });
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("dispatches nothing when the selected date matches the current start date (no redundant history entry)", () => {
+    const { onCommand } = renderDateControl({ startDate: "2026-10-03", dayCount: 14 });
+    fireEvent.change(screen.getByLabelText("Trip start date"), { target: { value: "2026-10-03" } });
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("Done closes the control without dispatching a command", () => {
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    const onClose = vi.fn();
+    render(
+      <TripDateControl tripId={TRIP_ID} startDate="2026-10-03" dayCount={14} onCommand={onCommand} onClose={onClose} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("the Clear date X clears the start date directly (#19)", () => {

@@ -17,18 +17,30 @@ import { formatTripDateWithYear } from "../../lib/formatDate";
 // the input. Nothing here grows or shrinks the day count — that's still
 // legal at create time (SetTripDates, the wizard's length chips) and for
 // the AI's planning tool, just not through this control.
+// Mirrors the contracts package's own SetTripStartDate.startDate regex
+// (trip.ts) — not imported from there because it isn't exported, and this
+// is a UI dispatch guard, not a re-declaration of the command's shape.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export function TripDateControl({
   tripId,
   startDate,
   endDate = null,
   dayCount = 0,
   onCommand,
+  onClose,
 }: {
   tripId: string;
   startDate: string | null;
   endDate?: string | null;
   dayCount?: number;
   onCommand: (command: TripCommand) => void;
+  // Feedback from Mitchell testing the preview, 2026-08-24: selecting a date
+  // now saves immediately (see handleChange below), so Done no longer has a
+  // command to send. It still needs to close the popover this control lives
+  // in (SettingsSheet.tsx) — that open/closed state is the parent's, not
+  // this control's, so it's handed down rather than dispatched as a command.
+  onClose?: () => void;
 }) {
   const [pendingStart, setPendingStart] = useState(startDate ?? "");
 
@@ -45,8 +57,23 @@ export function TripDateControl({
     setPendingStart(startDate ?? "");
   }, [startDate]);
 
-  const commit = () => {
-    onCommand({ type: "SetTripStartDate", tripId, startDate: pendingStart === "" ? null : pendingStart });
+  // Selecting a date commits it immediately (Mitchell, testing the preview:
+  // "Selecting the date with the date picker should automatically save, you
+  // shouldnt have to hit done.") — but a native type="date" input's `change`
+  // fires on partial states too in some browsers (typing into a segment,
+  // clearing one), and its `value` is only guaranteed complete-or-empty by
+  // spec, not by every implementation. Two guards, both required:
+  //   1. Never dispatch on "" — that's the dedicated Clear-date X's job.
+  //   2. Never dispatch a value that isn't a full YYYY-MM-DD, so a half-typed
+  //      segment can't reach SetTripStartDate.
+  // A third guard is just hygiene, not safety: skip dispatch entirely if the
+  // value already matches the server's startDate, so re-selecting the same
+  // date doesn't add a redundant no-op entry to trip history/undo.
+  const handleChange = (value: string) => {
+    setPendingStart(value);
+    if (!ISO_DATE_RE.test(value)) return;
+    if (value === (startDate ?? "")) return;
+    onCommand({ type: "SetTripStartDate", tripId, startDate: value });
   };
 
   return (
@@ -60,11 +87,16 @@ export function TripDateControl({
           type="date"
           aria-label="Trip start date"
           value={pendingStart}
-          onChange={(e) => setPendingStart(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           className="w-auto"
         />
         {endDate !== null && <DataText size="sm">{`→ ${formatTripDateWithYear(endDate)}`}</DataText>}
-        <Button type="button" variant="ghost" size="sm" onClick={commit}>
+        {/* Close-only now (see onClose above) — saving happens on selection,
+            not here. Kept rather than deleted: the design
+            (…dc.html:1122-1138) has a ghost Done in this edit state, and the
+            control still needs an explicit way back to its read state
+            beyond relying on the popover's own outside-click/Escape dismiss. */}
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           Done
         </Button>
         {/* #19: clearing is a rare, single-action op — a direct X next to the

@@ -191,6 +191,7 @@ export function SettingsSheet({
               onCommand(command);
               setDatesOpen(false);
             }}
+            onClose={() => setDatesOpen(false)}
           />
         </Popover>
 

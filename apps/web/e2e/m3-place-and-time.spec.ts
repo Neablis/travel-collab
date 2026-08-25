@@ -45,17 +45,19 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Dates" }).click();
-  await page.getByLabel("Trip start date").fill("2026-10-10");
-  // TripDateControl (Task 8b.6: the end is derived, never picked) stages the
-  // start field locally and only commits via an explicit "Done" click,
-  // dispatching SetTripStartDate. Wait for that command's POST to resolve
-  // before closing the sheet — later assertions (the day column's date
-  // label) depend on the commit having landed.
+  // TripDateControl (Task 8b.6: the end is derived, never picked) commits
+  // SetTripStartDate as soon as a complete date is selected (feedback fix,
+  // 2026-08-24: "you shouldnt have to hit done") — fill() sets the whole
+  // value in one go, same as a real picker selection. Wait for that
+  // command's POST to resolve before closing the sheet — later assertions
+  // (the day column's date label) depend on the commit having landed.
+  // Filling also closes the Dates popover itself (SettingsSheet's onCommand
+  // wrapper), same as the Clear-date X below.
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
     ),
-    page.getByRole("button", { name: "Done" }).click(),
+    page.getByLabel("Trip start date").fill("2026-10-10"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
   // TripViewTabs.tsx (M10 redesign-feedback follow-up): Calendar is its own
@@ -132,17 +134,16 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // which stays mounted) — so it needs a fresh click here too, not just
   // before the very first date set above.
   await page.getByRole("button", { name: "Dates" }).click();
-  await page.getByLabel("Trip start date").fill("2026-10-12");
   // Task 8b.6: there is no end field to race — the end is always derived
   // from the plan's own day count, so shifting the start alone can never
   // trip a shrink-confirmation (that dialog is gone with the field).
-  // Same commit race as the initial date-set above — wait for the "Done"
-  // command's POST before closing the sheet.
+  // Same commit race as the initial date-set above — wait for the
+  // selection's command POST before closing the sheet.
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
     ),
-    page.getByRole("button", { name: "Done" }).click(),
+    page.getByLabel("Trip start date").fill("2026-10-12"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText(/day 1.*oct 12/i)).toBeVisible();
