@@ -65,11 +65,11 @@ const TAG_CHIP_SHAPE = ["Food", "Art", "Hiking", "Nightlife", "Markets", "Archit
 // logic.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Inclusive-length day arithmetic, the reverse of lib/dates.ts's daySpan: a
-// chip picking N days from arrival A gives endDate = A + (N-1) days. Same
-// pure-UTC style as that file's daySpan/dayLabel (the domain never reads
-// dates, so this stays local Date.UTC arithmetic, never a bare `new Date()`
-// parse of a date string) — no packages/domain import allowed here. Callers
+// Inclusive-length day arithmetic: a chip picking N days from arrival A
+// gives endDate = A + (N-1) days. Same pure-UTC style as lib/dates.ts's
+// dayLabel (the domain never reads dates, so this stays local Date.UTC
+// arithmetic, never a bare `new Date()` parse of a date string) — no
+// packages/domain import allowed here. Callers
 // must gate on ISO_DATE.test(startIso) first (see above) — an incomplete
 // intermediate value parses to an Invalid Date, and toISOString() throws a
 // RangeError on one rather than returning garbage.

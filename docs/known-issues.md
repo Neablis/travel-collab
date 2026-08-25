@@ -320,19 +320,26 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
 
 ### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed
-- **Severity:** correctness (data loss, no error surfaced) — the **same bug
-  class as KI-5**: an in-memory optimistic queue that can lose confirmed-to-the-
-  user work with nothing telling anyone it happened. KI-5 is triggered by the
-  user navigating away mid-send; this is triggered by the send itself failing.
-- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-84`
+- **Severity:** correctness (silent loss of the *rest of the queue*, not of
+  the alert itself) — the **same bug class as KI-5**: an in-memory optimistic
+  queue that can lose confirmed-to-the-user work without telling the user the
+  true scope of what was lost. KI-5 is triggered by the user navigating away
+  mid-send; this is triggered by the send itself failing.
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-83`
   (`failHead`)
 - **Symptom:** `failHead` responds to a failed send with
   `{ ...state, pending: [] }` — every unit still queued behind the one that
-  just failed is dropped, not just the failed one. There is no retry path, no
-  on-device persistence of the discarded units, no failure timestamp, and no
-  retained count exposed anywhere. The UI has already shown the user's edits
-  as applied (client-side prediction); on a failed send those edits vanish
-  from the queue with no distinguishable trace from a successful drain.
+  just failed is dropped, not just the failed one. A failed send **does**
+  raise a visible alert: `TripProvider.tsx:137` calls
+  `setError(result.error.message)`, and `TripBoardScreen.tsx:249-251` renders
+  it as `<p role="alert">{error}</p>` until the next successful send. But
+  that alert reports only the server's rejection of the one failed command —
+  it never says that the queued edits behind it were also dropped, nor how
+  many. There is no retry path, no on-device persistence of the discarded
+  units, no failure timestamp, and no retained count exposed anywhere. The UI
+  has already shown the user's edits as applied (client-side prediction); on
+  a failed send those edits vanish from the queue with the alert giving no
+  indication that anything beyond the reported error occurred.
 - **Blocks:** Task 8b.4 (M10 Wave 2 Phase 8b) — the design's persistent
   sync-failure banner needs a real, live count of unsent changes and a real
   `(since <time>)` timestamp to render (`Your last three changes are saved on

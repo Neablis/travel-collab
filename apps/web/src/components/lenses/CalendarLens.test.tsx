@@ -123,6 +123,40 @@ describe("CalendarLens", () => {
     expect(cell.textContent).not.toContain("more");
   });
 
+  // A shorter window nested entirely inside a longer one sorts *after* it by
+  // start (10:00 > 09:00), so "take the last-sorted end" would report 11 am
+  // and hide that the day actually runs to 5 pm.
+  it("reports the enclosing window's end, not a shorter window nested inside it", () => {
+    const detail = tripDetailFixture({
+      startDate: "2027-06-01",
+      days: [{ dayId: day1, activityIds: [rome, forum], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        [rome]: {
+          activityId: rome,
+          title: "All-day pass",
+          timeWindow: { start: "09:00", end: "17:00" },
+          location: { name: "Rome" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+        [forum]: {
+          activityId: forum,
+          title: "Guided tour",
+          timeWindow: { start: "10:00", end: "11:00" },
+          location: { name: "Rome" },
+          notes: null,
+          anchors: [],
+          cost: null,
+        },
+      },
+    });
+    renderLens(detail);
+    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    expect(cell.textContent).toContain("9 am – 5 pm");
+    expect(cell.textContent).not.toContain("11 am");
+  });
+
   it("omits the time range when none of the day's stops are timed", () => {
     const detail = tripDetailFixture({
       startDate: "2027-06-01",

@@ -305,7 +305,7 @@ its gate.
 | **Sign out** in the header | M10, Phase 8b † | A capability gap, not polish — you cannot sign out anywhere today. **Shipped** `7d3b6c8` (+ `86ec93f`, a color-wall fix) |
 | Stable identity for `Popover` triggers / `Banner` actions (`SPEC` §5) | **Now** — `docs/guidelines/design-system.md` | Guidance, not a feature. It hard-locks the main thread; the design file hit it for real |
 | `TripSummary.startDate` (D6) | **Its own contract step**, before Phase 8's home-hero task | `AGENTS.md`: a contract change is its own reviewed step. Subsumes `TODO.md`'s trip-list-metadata idea |
-| Start-only trip dates (`SPEC` §3) | **Own step, after M10's gate** — §4.3 | Behaviour change; reverses Phase 4 and rewrites Task 7.2 step 2 |
+| Start-only trip dates (`SPEC` §3) | M10, Phase 8b † | Behaviour change; reverses Phase 4 and rewrites Task 7.2 step 2. **Shipped** as Task 8b.6, `97b1539` — see §4.3, §8 |
 | **Landing page** (D2) | **M15 Front door** (new, proposed) | Net-new public surface. Not visual polish, and not M10's gate |
 | **Sign-in / sign-up screens** (D2) | M15 Front door | Same surface, same milestone |
 | **First-run screen** (D4) | M15 Front door | Un-defers M8's trimmed D1 with a design behind it; it is the post-sign-up moment |

@@ -46,8 +46,12 @@ const MONTH_LABEL_SIZE = { fontSize: "17px" };
 // 8.6's "+N more" line — see this task's commit message. Unlike the design's
 // literal mock (which assumes every stop is time-windowed and already in
 // time order), real activities can be untimed, so only timed stops
-// contribute a range, sorted by start rather than trusting activityIds'
-// array order (same reasoning as timelineRows' `timed.sort`).
+// contribute a range. The end is the max over every window's end, not the
+// last window sorted by start — a window can nest inside an earlier, longer
+// one (9–17 then 10–11), so "sorted by start, take the last end" would
+// silently shrink the reported span. (timelineRows' `timed.sort` is not
+// precedent here: that sort only orders rows for display, it never derives
+// a boundary value from the result.)
 function stopsSummary(activityIds: string[], activities: TripDetail["activities"]): string {
   if (activityIds.length === 0) return "Nothing planned yet";
   const count = activityIds.length;
@@ -55,11 +59,12 @@ function stopsSummary(activityIds: string[], activities: TripDetail["activities"
 
   const timed = activityIds
     .map((id) => activities[id]?.timeWindow)
-    .filter((window): window is NonNullable<typeof window> => window != null)
-    .sort((a, b) => a.start.localeCompare(b.start));
+    .filter((window): window is NonNullable<typeof window> => window != null);
   if (timed.length === 0) return label;
 
-  return `${label} · ${toClockLabel(timed[0]!.start)} – ${toClockLabel(timed[timed.length - 1]!.end)}`;
+  const start = timed.reduce((min, w) => (w.start < min ? w.start : min), timed[0]!.start);
+  const end = timed.reduce((max, w) => (w.end > max ? w.end : max), timed[0]!.end);
+  return `${label} · ${toClockLabel(start)} – ${toClockLabel(end)}`;
 }
 
 export function CalendarLens({

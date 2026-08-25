@@ -26,9 +26,4 @@ describe("SyncIndicator", () => {
     expect(status.getAttribute("title")).toBe("All changes saved");
     expect(status.getAttribute("aria-label")).toBe("All changes saved");
   });
-
-  it("does not render an error state — the send queue cannot report one (optimistic.ts's failHead discards it)", () => {
-    render(<SyncIndicator pending={0} />);
-    expect(screen.queryByText(/couldn.t save/i)).toBeNull();
-  });
 });
