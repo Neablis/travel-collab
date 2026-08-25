@@ -369,6 +369,61 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   implementing the phase plan's sync-failure banner; the plan itself directs
   stopping and reporting rather than fabricating a trigger).
 
+### KI-37 — `commandsFor`'s second-activity time window is malformed for any scenario with 2+ activities on a day
+- **Severity:** correctness (silent wrong output — same family as KI-36)
+- **Area:** `packages/factories/src/commands.ts` (the `AddActivity` loop inside `commandsFor`)
+- **Symptom:** the per-activity `timeWindow` is built as
+  `` `0${9 + i}:00` `` for `start`. That's correct only for `i === 0`
+  (`"09:00"`); for `i >= 1` (a scenario's second, third, … activity on the
+  same day) `9 + i` is already two digits, so the template literal produces
+  `"010:00"`, `"011:00"`, etc. — five characters, not the `HH:MM` `TimeWindow`
+  contract regex requires. Any caller that runs the resulting command through
+  `executeTripCommand`/`executeTripCommandBatch` gets an `invalid-command`
+  rejection, not a wrong-but-valid time.
+- **Bounds:** only scenarios with `activitiesPerDay >= 2` are affected — the
+  factory's `unscheduledHeavy` scenario (`activitiesPerDay: 1`) and any
+  single-activity-per-day scenario are unaffected. `end` (`` `1${0 + i}:00` ``)
+  has the same shape but happens not to overflow within the ranges any
+  current scenario uses.
+- **Discovered:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`
+  deliberately seeds fixture trips with `"unscheduledHeavy"` rather than a
+  2-per-day scenario specifically to route around this.
+- **Why not fixed here:** `packages/factories` is outside this task's file
+  scope (a `packages/` change needs its own reviewed step per AGENTS.md).
+- **Fix path:** zero-pad `9 + i` (and `0 + i`) to two digits before
+  interpolating, or build the window with a real time-formatting helper
+  instead of string concatenation.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix wave — found while wiring `executeTripCommandBatch` into the reset route's integration test).
+
+### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough
+- **Severity:** correctness (silent wrong output — same family as KI-36/KI-37)
+- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
+- **Symptom:** `uuidFrom(sequence, salt)` builds each UUID group with
+  `hex(n, len).padStart(len, "0")`, which only *pads short* — it does not
+  truncate a hex string already longer than `len`. The `b` group
+  (`hex(sequence + salt * 97, 4)`) overflows its 4-hex-digit budget once
+  `sequence + salt * 97 >= 0x10000` (65536), and the trailing segment
+  (`e`) has the same shape. The result is a string with the right
+  dash-separated *positions* but wrong-length *groups* — not a valid v4 UUID
+  and not something `z.string().uuid()` accepts — returned with no error.
+  `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` (24, not the
+  usual 12, hex digits in the 2nd group).
+- **Bounds:** `uuidFrom` is documented as taking "a Fishery sequence number",
+  which Fishery starts at 1 and increments per built object — no current
+  factory usage runs a sequence anywhere near 65536. This is a latent trap
+  for a future caller (a large `salt`, or a very long factory run), not a
+  live bug in any current test.
+- **Why not fixed here:** `packages/factories` is outside this task's file
+  scope. Also, per its own doc comment `uuidFrom` exists specifically to keep
+  factory-built ids *deterministic and diffable*, not to be a general-purpose
+  UUID generator — misuse outside its documented input range is the caller's
+  fault. The trap is that it fails silently rather than throwing.
+- **Fix path:** validate `sequence`/`salt` stay in range up front (e.g.
+  `sequence < 0x10000`) and throw, rather than let `padStart` silently no-op
+  on an overflowed group.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix
+  wave — found auditing the module while filing KI-37).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here

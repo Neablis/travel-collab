@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { auth } from "@/server/auth";
-import { executeTripCommand } from "@/server/commands";
+import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { listTripSummaries } from "@/server/projections";
 import { importJapanTripSeed, parseTripSeed } from "@/lib/japanTripImporter";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
@@ -20,6 +20,15 @@ import rawJapanTripSeed from "../../../../../../../.design-sync/handoff/data/jap
 // existence isn't advertised outside preview+SEED_DEMO_DATA=true (see
 // docs/known-issues.md KI-24 for the shape this deliberately avoids: a
 // bypassable env check with only a log line as evidence).
+//
+// The seed batches ~70 commands into one executeTripCommandBatch call (see
+// below), but the delete loop and CreateTrip stay outside it (DeleteTrip
+// isn't BatchableCommand, and CreateTrip is a trip's genesis) — a Vercel
+// function's default timeout is comfortably enough for that, but not
+// necessarily for what used to be ~70 sequential round trips against a
+// growing event stream, so this still gets an explicit ceiling.
+export const maxDuration = 30;
+
 export async function POST(_request: Request) {
   if (!isDemoDataResetEnabled()) {
     return new Response(null, { status: 404 });
@@ -35,6 +44,11 @@ export async function POST(_request: Request) {
   // deletePriorSeedTrips: a soft delete (M8's RestoreTrip can recover it),
   // never a hard row delete, and scoped to trips this user is a member of —
   // never another user's, never every trip in the table.
+  // "Own" means "member of", matching accessPolicy.ts's soleMemberPolicy —
+  // correct today because projections.ts only sets `members` at TripCreated
+  // and no command mutates it since. Once invites exist (M13 Collaboration)
+  // this membership check stops meaning "created by me" and this route
+  // silently becomes "delete every trip I've been invited to."
   const rows = await listTripSummaries();
   const ownTrips = rows.filter((r) => r.members.some((m) => m.userId === userId));
   for (const trip of ownTrips) {
@@ -60,17 +74,25 @@ export async function POST(_request: Request) {
   const seed = parseTripSeed(rawJapanTripSeed);
   const commands = importJapanTripSeed(seed, tripId);
 
-  // Sequential, not Promise.all: these are ordered AddActivity calls against
-  // the same trip's event stream, and the command pipeline's optimistic
-  // concurrency check would reject concurrent writers on one stream.
-  let detail = created.detail;
-  for (const command of commands) {
-    const result = await executeTripCommand(command, userId);
-    if (!result.ok) {
-      return Response.json({ error: result.error.message, code: result.error.code }, { status: 400 });
-    }
-    detail = result.detail;
+  // One executeTripCommandBatch call, not ~70 sequential executeTripCommand
+  // calls: SetTripDates, SetTripBudget and AddActivity (everything
+  // importJapanTripSeed emits) are all BatchableCommand
+  // (packages/contracts/src/trip.ts), so the whole seed decides and appends
+  // under one batchId inside one transaction — a rejection partway through
+  // rolls the whole batch back rather than leaving N of ~70 activities
+  // committed. It still leaves the bare, dateless trip CreateTrip already
+  // committed above (CreateTrip isn't batchable — a stream's genesis command
+  // can't share a transaction with commands that require the stream to
+  // already exist), a far smaller blast radius than before but not zero.
+  // Not Promise.all either: batching preserves the seed's per-day/per-stop
+  // ordering (AddActivity appends to the end of a day's activityIds —
+  // packages/domain/src/trip/evolve.ts), which concurrent writers against
+  // one stream would not.
+  const seeded = await executeTripCommandBatch(commands, userId);
+  if (!seeded.ok) {
+    return Response.json({ error: seeded.error.message, code: seeded.error.code }, { status: 400 });
   }
+  const detail = seeded.detail;
 
   return Response.json({
     ok: true,
