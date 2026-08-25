@@ -1,6 +1,15 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-import { AppHeader } from "./AppHeader";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// AppHeader renders AccountMenuFromSession (task 8b.2), which calls
+// next-auth/react's getSession() on mount — mock it so these stay plain
+// jsdom unit tests with no real network call.
+vi.mock("next-auth/react", () => ({
+  getSession: vi.fn(async () => null),
+  signOut: vi.fn(async () => {}),
+}));
+
+const { AppHeader } = await import("./AppHeader");
 
 afterEach(cleanup);
 

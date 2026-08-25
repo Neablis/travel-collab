@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { AccountMenuFromSession } from "@/components/AccountMenu";
 
 // Handoff `current/…dc.html:63-78`: a persistent bar on every route. Before
 // this, /playbooks had no way back to the trip list at all. Deliberately a
 // server component with no trip context — it must not force layout.tsx client-
 // side. The prototype's "Quick add" is omitted: it needs a trip to add to, so
 // it belongs on the trip surface, not here.
+//
+// The account avatar (task 8b.2) is `AccountMenuFromSession`, the one client
+// island this renders — it resolves its own identity client-side rather than
+// AppHeader calling `auth()`, because `auth()` lives in src/server and this
+// file is UI (see AccountMenu.tsx's comment for why that boundary holds).
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-hairline bg-surface px-6">
@@ -25,6 +31,9 @@ export function AppHeader() {
           Playbooks
         </Link>
       </nav>
+      <div className="ml-auto flex items-center">
+        <AccountMenuFromSession />
+      </div>
     </header>
   );
 }
