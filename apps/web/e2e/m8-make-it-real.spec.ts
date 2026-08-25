@@ -102,7 +102,10 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // <div> and TripHeader's actual h2 unless scoped to the heading role.
   await expect(page.getByRole("heading", { name: renamedTripName, level: 2 })).toBeVisible();
 
-  await expect(page.getByText(/all changes saved/i)).toBeVisible(); // KI-5, C4
+  // Task 8b.3: the saved state no longer renders visible text (a bare dot
+  // only) — "All changes saved" lives on the status element's accessible
+  // name (title/aria-label) instead, so this asserts that, not text content.
+  await expect(page.getByRole("status", { name: "All changes saved" })).toBeVisible(); // KI-5, C4
 
   // -- delete + undo, from the trip list --
   await page.goto("/");
