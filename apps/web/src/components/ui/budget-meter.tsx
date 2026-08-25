@@ -1,6 +1,6 @@
 import { DataText } from "./data-text";
 import { cn } from "../../lib/cn";
-import { formatAmount } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/components/lenses/formatMoney";
 
 // Read-only spent-vs-budget glance for the header (#30). Fill is brand under
 // budget, warning-amber over (over budget is a warning, not a failure).
@@ -16,8 +16,12 @@ export function BudgetMeter({ cost, budget, currency }: { cost: number; budget: 
           style={{ width: `${pct}%` }}
         />
       </div>
+      {/* formatMoney, not a second hand-rolled formatter (9ae98aa's
+          CURRENCY_SYMBOLS) — a bare "of {currency}" tail rendered a code
+          (USD) here after that commit routed everything else through
+          symbols, visibly disagreeing with the rest of the UI. */}
       <DataText size="sm" className={cn(over && "text-warning-ink")}>
-        {formatAmount(cost)} of {formatAmount(budget)} {currency}
+        {formatMoney(cost, currency)} of {formatMoney(budget, currency)}
       </DataText>
     </div>
   );

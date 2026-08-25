@@ -1,4 +1,5 @@
-import { UNKNOWN_CITY_COLOR, sparklineColorsFor } from "@/lib/sparklineColor";
+import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { cn } from "@/lib/cn";
 
 // The "shape of the trip" graph (README §1 next-trip hero): one equal-width
 // column per real trip day, built from one equal-height block per stop that
@@ -24,22 +25,54 @@ export type SparklineDayGroup = {
   key: string;
   /** 1-indexed position in the trip — "day 3 of the trip", not a calendar date. */
   dayLabel: number;
-  color: string;
+  family: AccentFamily;
   blockCount: number;
 };
 
+// Same static-map pattern as DayChips.tsx's DOT_BG / TripCard.tsx's
+// ACCENT_BAR_BG: Tailwind's JIT scanner can't see a template-interpolated
+// `bg-${family}`, so this is the only route from an AccentFamily to a real
+// class. Reusing DOT_BG's exact family->class pairing (solid tones, not
+// tints) rather than inventing a second one for the bars.
+const BAR_BG: Record<AccentFamily, string> = {
+  brand: "bg-brand",
+  info: "bg-info",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  neutral: "bg-slate",
+};
+
 // Pure: no DOM, fully testable standalone. One group per day, in trip order.
-// Colors come from one whole-trip assignment (sparklineColorsFor) rather than
-// per-city lookups, so every distinct city in this trip gets its own palette
-// slot — a per-day lookup can't see the other days and so can't guarantee
-// that.
+//
+// Colors come from dayAccents — the same 5-family assignment Board/Column/
+// TripCard/DayChips/the calendar all use — not a bespoke per-city palette.
+// This used to be its own 8-hue hashed palette (sparklineColorFor), chosen
+// specifically because dayAccents' 5 families couldn't give an unbounded
+// number of real city names each their own hue. Mitchell's call (2026-08-25),
+// after being shown that trade-off directly: unify anyway. A trip's own
+// sparkline disagreeing with that same trip's Board/Timeline about a city's
+// color reads as a bug, and it was one — Kyoto could be blue in one panel and
+// orange in another. The accepted cost is the reverse of the deleted
+// palette's own tradeoff: a trip with 6+ distinct cities has one pair sharing
+// a family (dayAccents' pass-2 probe falls back to the colliding home bucket
+// rather than inventing a 6th family), so the sharing is deterministic and
+// stable per trip, not random and not a dropped city. Do not reintroduce a
+// second palette to "fix" this back.
+//
+// One dayAccents() call over the whole trip's cities (not per-day lookups),
+// so a collision between two of this trip's cities is resolved against the
+// same set Board's own dayAccents() call sees — the two MUST be called with
+// the same city list (all of the trip's days, in order) for their
+// assignments to agree; see NextTripHero.tsx's derivation, which mirrors
+// DayChips.tsx's chipModel exactly for this reason.
 export function shapeOf(days: SparklineDay[]): SparklineDayGroup[] {
-  const colors = sparklineColorsFor(days.map((day) => day.city));
+  const accents = dayAccents(days.map((day) => day.city));
 
   return days.map((day, index) => ({
     key: String(index),
     dayLabel: index + 1,
-    color: day.city === null ? UNKNOWN_CITY_COLOR : colors.get(day.city)!,
+    family: accents[index]!.tint,
     blockCount: day.stopCount,
   }));
 }
@@ -165,12 +198,11 @@ export function Sparkline({ days }: SparklineProps) {
                 <span
                   key={blockIndex}
                   aria-hidden
-                  className="w-full shrink-0 rounded-sm"
-                  // eslint-disable-next-line no-restricted-syntax -- height/width/color are computed per-trip data (scaled block geometry, hashed city), not design constants
+                  className={cn("w-full shrink-0 rounded-sm", BAR_BG[group.family])}
+                  // eslint-disable-next-line no-restricted-syntax -- height/width are computed per-trip block geometry (see blockMetricsFor/MAX_BLOCK_WIDTH_PX), not design constants; color comes from BAR_BG above, a token class
                   style={{
                     height: `${blockHeight}px`,
                     maxWidth: `${MAX_BLOCK_WIDTH_PX}px`,
-                    backgroundColor: group.color,
                   }}
                 />
               ))}

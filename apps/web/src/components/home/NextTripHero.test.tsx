@@ -241,11 +241,10 @@ describe("NextTripHero", () => {
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
     const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(bars).toHaveLength(2);
-    // jsdom normalizes an inline hex color to its computed form on read, so
-    // compare the two blocks against each other rather than against the raw
-    // palette hex string.
-    expect((bars[0] as HTMLElement).style.backgroundColor).not.toBe("");
-    expect((bars[0] as HTMLElement).style.backgroundColor).toBe((bars[1] as HTMLElement).style.backgroundColor);
+    // Color now comes from a dayAccents family token class, not an inline
+    // hex — same class both days, since both resolve to the same city.
+    expect((bars[0] as HTMLElement).className).toMatch(/\bbg-(brand|info|success|warning|danger)\b/);
+    expect((bars[0] as HTMLElement).className).toBe((bars[1] as HTMLElement).className);
   });
 
   // The other half of the real algorithm: a column's height is that day's
