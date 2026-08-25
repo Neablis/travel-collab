@@ -65,6 +65,11 @@ pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
 opening Phase 8b's PR** — see "Phase 8b" under "In flight" and "Next action"
 below. One of Phase 8b's five design items, the sync-failure banner (Task
 8b.4), was **deliberately not shipped** — see that section and **KI-36**.
+The save indicator's third (error) state was **descoped by Mitchell on
+2026-08-25** for the same root cause and tracked by the same KI: two states
+ship, and `pending` is pinned to `boolean | number` by a `@ts-expect-error`
+assertion so it cannot quietly grow a third without that decision being
+revisited.
 
 **CI on `main` at `c630152` is green** — run `32785947175`, all four jobs:
 `static-checks`, `unit-tests`, `integration-e2e` and `migrate-production`.

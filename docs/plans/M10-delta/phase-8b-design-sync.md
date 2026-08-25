@@ -388,13 +388,15 @@ Build fixtures with `@tc/factories` (ADR-020).
 
 ## Phase 8b exit checklist
 
-*Walked 2026-08-25 against PR #46. Thirteen of fourteen hold; the one that
-does not is left unticked with its reason, not quietly ticked.*
+*Walked 2026-08-25 against PR #46. All fourteen hold. One — the save
+indicator's third state — holds because Mitchell descoped it that day rather
+than because it shipped; it is ticked with the decision and its tracking KI
+named, not silently.*
 
 - [x] The wordmark and the browser tab both read **Caesura**; nothing else was renamed. — `9174e06`; the two extra files it touched were `<Heading>travel-collab</Heading>` shown to signed-out visitors, judged in scope on review.
 - [x] A signed-in user can sign out from the header, and `AppHeader` is still a server component. — `7d3b6c8`. Verified in a real browser: avatar → Sign out → session dead, `/api/trips` returned 401. `AppHeader` has no `"use client"`, no hooks, no `@/server/*` import.
 - [x] "Your account" is either absent or a registered `<Preview>` — never a toast saying it does not exist. — absent, confirmed on review.
-- [ ] ~~The save indicator has three states~~ — **only two shipped**, deliberately. `failHead` (`optimistic.ts:81-83`) discards the pending queue, so nothing retries and the design's `Couldn't save — retrying` label would be false (**KI-36**). The rest of this line **is** met: the saved state keeps its `All changes saved` accessible name, and `prefers-reduced-motion` drops the haloes while keeping the label. Left unticked because the line as written says three.
+- [x] The save indicator ships **two** states, not three — **descoped by Mitchell, 2026-08-25**: *"I really dont think we need the third state, just list it as a KI, and we can come back someday to it."* The error state is deferred to **KI-36**, which already records that `failHead` (`optimistic.ts:81-83`) discards the pending queue, so nothing retries and the design's `Couldn't save — retrying` label would be false today. Everything else on this line shipped: `e37cc20` gives the 11px dot, the twin haloes with the 0.7s-delayed second, the `om-save-pulse` keyframes, the saved state's `All changes saved` accessible name, and `prefers-reduced-motion` dropping the haloes while keeping the label. A `@ts-expect-error` assertion pins `pending` to `boolean | number` so the prop cannot quietly grow a third state without this decision being revisited.
 - [x] Sync failure uses `Banner variant="danger"` … **or is deliberately not shipped, with the reason recorded** — not shipped; reason in **KI-36** and in `docs/design-feedback/2026-08-23-design-sync-review.md` §6. Milestone routing left for the Phase 9 gate rather than invented here.
 - [x] The calendar renders one trimmed, headed block per month, Sunday-start, still matching days by full date. — `cae8fa7`; ISO-date `Map` preserved (no `SPEC.md` §4 regression). The cell *interior* was rebuilt later in `5978cb1` after Mitchell reported it wrong — the plan had described the `more` line but never the `chips` above it.
 - [x] There is no end-date input anywhere in the app; the end is derived from the plan's last day and shown as text. — `97b1539`; the only remaining `End date` string is a test asserting its absence.
