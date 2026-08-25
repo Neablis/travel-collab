@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
@@ -111,8 +111,8 @@ describe("CalendarLens", () => {
     expect(screen.queryByRole("grid")).toBeNull();
   });
 
-  // dc.html:3053's per-day summary line supersedes Task 8.6's "+N more" —
-  // count and the timed stops' clock range, not a first-stop title.
+  // dc.html:3053's per-day summary line sits BELOW up to three stop chips
+  // (dc.html:663-696) — it does not replace them (that was 8b.5's gap).
   it("shows Day N, city, and the stop-count/time-range summary on an in-trip cell", () => {
     renderLens(detailFixture());
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
@@ -121,8 +121,44 @@ describe("CalendarLens", () => {
     expect(cell.textContent).toContain("3 stops");
     // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest end.
     expect(cell.textContent).toContain("9 am – 5:30 pm");
-    expect(cell.textContent).not.toContain("Colosseum tour");
-    expect(cell.textContent).not.toContain("more");
+  });
+
+  // dc.html:685-691: up to three chips (`c.chips`, `slice(0, 3)`), each
+  // time (font-mono) then name, inside the in-trip inner card.
+  it("renders up to three stop chips with time and name", () => {
+    renderLens(detailFixture());
+    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const chips = within(cell).getAllByTestId("calendar-chip");
+    expect(chips).toHaveLength(3);
+    expect(chips[0]!.textContent).toContain("9 am");
+    expect(chips[0]!.textContent).toContain("Colosseum tour");
+    expect(chips[1]!.textContent).toContain("11:30 am");
+    expect(chips[1]!.textContent).toContain("Roman Forum");
+    expect(chips[2]!.textContent).toContain("5 pm");
+    expect(chips[2]!.textContent).toContain("Flight home");
+  });
+
+  // dc.html:686's `slice(0, 3)` — a fourth stop is real (it counts toward
+  // the "N stops" summary) but is not itself a chip.
+  it("does not render a fourth stop as a chip", () => {
+    const ids = Array.from({ length: 4 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
+    renderLens(
+      tripDetailFixture({
+        startDate: "2027-06-01",
+        days: [{ dayId: day1, activityIds: ids, date: "2027-06-01", costSubtotal: 0 }],
+        activities: Object.fromEntries(
+          ids.map((id, i) => [
+            id,
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome" }, notes: null, anchors: [], cost: null },
+          ]),
+        ),
+      }),
+    );
+    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const chips = within(cell).getAllByTestId("calendar-chip");
+    expect(chips).toHaveLength(3);
+    expect(cell.textContent).toContain("4 stops");
+    expect(cell.textContent).not.toContain("Stop 4");
   });
 
   // A shorter window nested entirely inside a longer one sorts *after* it by
@@ -256,17 +292,61 @@ describe("CalendarLens", () => {
     );
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
     expect(cell.textContent).toContain("9 stops");
-    expect(cell.textContent).not.toContain("Stop 1");
+    // Only the first three become chips (dc.html:686's slice(0, 3)) — the
+    // rest are counted in the summary but not individually named.
+    expect(within(cell).getAllByTestId("calendar-chip")).toHaveLength(3);
+    expect(cell.textContent).not.toContain("Stop 4");
     expect(cell.textContent).not.toContain("Nothing planned yet");
   });
 
   // Phase 8 Task 8.6: the tint belongs to the button inside the cell, not the
   // cell itself — the cell is a plain bg-surface wrapper at least 116px tall.
-  it("puts the day tint on an inner button, not the cell", () => {
+  // dc.html:679: the tint belongs to the inner day card (data-calday), not
+  // the surface cell around it — restated for the rebuilt markup, where the
+  // whole cell is the clickable button and the tint moved to a child div.
+  it("puts the day tint on the inner card, not the cell button", () => {
     renderLens(detailFixture());
-    const button = screen.getByRole("button", { name: /Day 1/ });
-    expect(button.className).toMatch(/bg-\w+-tint/);
-    expect(button.parentElement?.className).toMatch(/bg-surface/);
+    const button = screen.getByRole("button", { name: /Day 1, Rome/ });
+    expect(button.className).toMatch(/bg-surface/);
+    expect(button.className).not.toMatch(/-tint\b/);
+    const card = within(button).getByTestId("calendar-day-card");
+    expect(card.className).toMatch(/bg-\w+-tint/);
+  });
+
+  // dc.html:663-696: the city name lives in the tinted card's header row,
+  // beside the grip — not loose text in the cell.
+  it("shows the city in the day card header", () => {
+    renderLens(detailFixture());
+    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const card = within(cell).getByTestId("calendar-day-card");
+    expect(card.textContent).toContain("Rome");
+  });
+
+  // dc.html:668-670: "Day N" sits on the cell's top row, right of the date
+  // number, only when `c.inTrip`.
+  it("renders Day N on the right for in-trip days only, never for out-of-trip days", () => {
+    renderLens(detailWithEmptyDay());
+    expect(screen.getByRole("button", { name: /Day 1/ })).toBeDefined();
+    const outOfTrip = screen
+      .getAllByTestId("calendar-cell")
+      .filter((cell) => cell.getAttribute("data-in-trip") === "false");
+    expect(outOfTrip.length).toBeGreaterThan(0);
+    for (const cell of outOfTrip) {
+      expect(cell.textContent).not.toMatch(/Day \d/);
+    }
+  });
+
+  // dc.html:678's `sc-if value="c.inTrip"` — an out-of-trip cell renders no
+  // inner card at all (no tint, no grip, no chips), just the bare date.
+  it("renders no inner card on an out-of-trip cell", () => {
+    renderLens(detailWithEmptyDay());
+    const outOfTrip = screen
+      .getAllByTestId("calendar-cell")
+      .filter((cell) => cell.getAttribute("data-in-trip") === "false");
+    expect(outOfTrip.length).toBeGreaterThan(0);
+    for (const cell of outOfTrip) {
+      expect(within(cell).queryByTestId("calendar-day-card")).toBeNull();
+    }
   });
 
   // A trip that crosses a month boundary renders one grid per month, each

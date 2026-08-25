@@ -242,6 +242,15 @@ Captured so they aren't lost; not committed to a milestone yet.
      lens pads its bottom for the drawer. In Timeline (day list) and Calendar
      (month grid), real content can end up sitting underneath it near the
      bottom of the viewport instead of alongside it.
+  5. (2026-08-24, Phase 8b cell rebuild) `CalendarLens.tsx`'s day cards and
+     stop chips are now built to the design's drag affordance (dc.html:670-
+     672's 6-dot grip, `cursor: grab` on both the grip and each chip) but
+     are not draggable — `cursor: grab` was deliberately withheld so the UI
+     never promises a drag it can't perform (the same failure mode gap 1-2
+     already describe). Wiring them needs a drop target registered in the
+     calendar lens itself (nothing under `apps/web/src/components/lenses/`
+     does today, per the gap above) and reuses `MoveActivity`, the same
+     command Board's `ActivityCard` drag already dispatches.
 
 ## Standing tasks (every milestone)
 
