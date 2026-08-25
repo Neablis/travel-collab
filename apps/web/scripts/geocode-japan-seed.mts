@@ -5,7 +5,7 @@
 // carries none, which is why MapLens's 72 demo stops render zero pins today.
 //
 // Run from apps/web:
-//   node --env-file=.env.local scripts/geocode-japan-seed.mjs
+//   node --env-file=.env.local scripts/geocode-japan-seed.mts
 //
 // Offline and committed, not looked up at reset time: 70-odd lookups at
 // LocationIQ's real per-second cap would add over a minute to every demo

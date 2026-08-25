@@ -79,6 +79,37 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
   // Whether the rail's last answer was simulated (ai-live flag off).
   const [askSimulated, setAskSimulated] = useState(false);
+  // CodeRabbit (PR #46 final review): the assistant's minimized launcher and
+  // the unscheduled rack are both independently `position: fixed` to the
+  // viewport (see UnscheduledRack's own comment for why the rack can't just
+  // be a flow sibling) — nothing in normal layout keeps them apart. Below
+  // 1180px (or above it, if the user hides the rail manually — same
+  // launcher, same fixed bottom-right spot) every non-Map lens has the rack
+  // pinned across that same bottom edge, so a static offset covered a real
+  // slice of the rack — collapsed, and worse once open, since the rack's own
+  // height then grows with its card row. Measuring the rack's actual
+  // rendered height and clearing it is the only offset that survives both
+  // the open/collapsed toggle and the item count changing.
+  //
+  // `rackWrapperRef.current?.firstElementChild`, not the wrapper div itself:
+  // the rack's own root is `position: fixed` (UnscheduledRack/globals.css),
+  // so it never contributes to its static-positioned wrapper's flow height —
+  // that wrapper would always measure 0. The wrapper ref is only a DOM
+  // foothold to reach the fixed child's own real box (getBoundingClientRect
+  // reports a fixed element's true viewport rect regardless of its
+  // ancestors' layout), without UnscheduledRack needing to forward a ref.
+  const rackWrapperRef = useRef<HTMLDivElement>(null);
+  const [rackHeight, setRackHeight] = useState(0);
+  useEffect(() => {
+    const el = rackWrapperRef.current?.firstElementChild ?? null;
+    if (!el) {
+      setRackHeight(0);
+      return;
+    }
+    const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [lens]);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -351,7 +382,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         <Button
           variant="primary"
           onClick={assistant.show}
-          className="fixed bottom-6 right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
+          className="fixed right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
+          // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+          style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
         >
           <span aria-hidden>◎</span>
           Assistant
@@ -380,7 +413,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           needing drag, so it's still a working scheduling path in those
           lenses even though drag itself remains Board-only (TODO.md). */}
       {lens !== "Map" && (
-        <div inert={preview.seq !== null ? true : undefined}>
+        <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
             items={rackItems}
             dayOptions={rackDayOptions}

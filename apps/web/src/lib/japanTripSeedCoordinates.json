@@ -1,9 +1,9 @@
 {
   "$schema": "japan-trip-seed-coordinates/v1",
-  "generatedBy": "apps/web/scripts/geocode-japan-seed.mjs",
+  "generatedBy": "apps/web/scripts/geocode-japan-seed.mts",
   "generatedAt": "2026-08-25",
   "sourceSeed": "japan-trip-seed.json",
-  "resolvedStopCount": 54,
+  "resolvedStopCount": 51,
   "totalStopCount": 72,
   "coordinates": {
     "d1-s2-check-in-at-trunk-hotel": {
@@ -75,11 +75,6 @@
       "lat": 36.7576378,
       "lng": 139.59911,
       "canonicalName": "日光東照宮, 表参道, 安川町, 日光市, 栃木県, 321-1401, 日本"
-    },
-    "d4-s4-kegon-falls": {
-      "lat": 36.75688,
-      "lng": 139.556247,
-      "canonicalName": "Urami Falls, Nikko, Tochigi Prefecture, Japan"
     },
     "d4-s5-train-back-to-tokyo": {
       "lat": 36.747956,
@@ -196,11 +191,6 @@
       "lng": 135.7802525,
       "canonicalName": "京都ハンディクラフトセンター (Kyoto Handicraft Center), 17, 丸太町通, 聖護院山王町, 左京区, 京都市, 京都府, 606-8341, 日本"
     },
-    "d11-s2-check-in-at-zentis-osaka": {
-      "lat": 34.71298,
-      "lng": 135.498074,
-      "canonicalName": "Hotels Inn Osaka KitaUmeda, Osaka-shi, Osaka, Osaka Prefecture, Japan"
-    },
     "d11-s3-lunch-at-harukoma-sushi": {
       "lat": 34.707755,
       "lng": 135.511409,
@@ -250,11 +240,6 @@
       "lat": 34.4452356,
       "lng": 133.9907302,
       "canonicalName": "ベネッセアートサイト直島, 北風戸積浦線, 直島町, 香川郡, 香川県, 761-3110, 日本"
-    },
-    "d14-s2-shinkansen-to-tokyo": {
-      "lat": 35.628635,
-      "lng": 139.737848,
-      "canonicalName": "品川駅 (Shinagawa Station), Minato, Tokyo, Minato, Tokyo, Japan"
     },
     "b1": {
       "lat": 34.994303,

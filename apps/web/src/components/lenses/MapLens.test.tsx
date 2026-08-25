@@ -186,6 +186,31 @@ function detailWithBacklogPin(): TripDetail {
   });
 }
 
+// Backlog pin declared before the day-attached one, so Object.entries (the
+// iteration order activityPins relies on) yields it first — reproducing the
+// CodeRabbit-flagged bug where an unfiltered pins[0] centred the map on a
+// backlog stop the map deliberately never draws.
+function detailWithBacklogPinSortingFirst(): TripDetail {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1"], date: "2027-06-01", costSubtotal: 0 }],
+    backlog: ["c1"],
+    activities: {
+      c1: locatedActivity("c1", 40.0, 10.0),
+      a1: locatedActivity("a1", 41.89, 12.49),
+    },
+  });
+}
+
+function detailWithBacklogPinOnly(): TripDetail {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: [], date: "2027-06-01", costSubtotal: 0 }],
+    backlog: ["c1"],
+    activities: {
+      c1: locatedActivity("c1", 40.0, 10.0),
+    },
+  });
+}
+
 function detailWithEmptyDay(): TripDetail {
   return tripDetailFixture({
     days: [
@@ -280,6 +305,30 @@ describe("MapLens", () => {
 
     const [options] = mapConstructorMock.mock.calls.at(-1)!;
     expect((options as { zoom: number }).zoom).toBe(9);
+  });
+
+  it("centres the initial camera on the first day-attached pin, never a backlog pin that sorts first", async () => {
+    mapConstructorMock.mockClear();
+    renderMap(detailWithBacklogPinSortingFirst());
+    await waitFor(() => expect(mapConstructorMock).toHaveBeenCalled());
+
+    const [options] = mapConstructorMock.mock.calls.at(-1)!;
+    // a1 (day-attached), not c1 (backlog) despite c1 being declared first —
+    // a backlog stop is never drawn, so it must never drive the centre either.
+    expect((options as { center: [number, number] }).center).toEqual([12.49, 41.89]);
+  });
+
+  it("renders the empty state, not a blank canvas, when every located activity is backlog-only", () => {
+    // A backlog-only pin must never reach the "construct a map" branch at
+    // all — the effect's `if (!firstPin) return` guard runs synchronously,
+    // before the maplibre-gl dynamic import, so this is deterministic with
+    // no waitFor needed.
+    const callsBefore = mapConstructorMock.mock.calls.length;
+    const { container } = renderMap(detailWithBacklogPinOnly());
+
+    expect(screen.getByText(/no located activities yet/i)).toBeTruthy();
+    expect(container.querySelector(".map-lens-canvas")).toBeNull();
+    expect(mapConstructorMock.mock.calls.length).toBe(callsBefore);
   });
 
   describe("route ghosting on focus", () => {

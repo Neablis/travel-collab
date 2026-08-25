@@ -42,7 +42,12 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 // (`1,234.00 CHF`), the pre-existing convention, since gluing a 3-letter code
 // straight onto the digits (`CHF1,234.00`) reads as a typo, not a currency.
 export function formatMoney(amountMinor: number, currency: string): string {
-  const symbol = CURRENCY_SYMBOLS[currency];
+  // Object.hasOwn, not a plain `CURRENCY_SYMBOLS[currency]` lookup: a
+  // currency code of "constructor"/"toString"/etc. resolves through the
+  // prototype chain to an inherited Object.prototype function instead of
+  // `undefined`, skipping the unknown-currency fallback below entirely
+  // (CodeRabbit, PR #46 final review).
+  const symbol = Object.hasOwn(CURRENCY_SYMBOLS, currency) ? CURRENCY_SYMBOLS[currency] : undefined;
   const sign = amountMinor < 0 ? "-" : "";
   const abs = formatAmount(Math.abs(amountMinor));
   return symbol ? `${sign}${symbol}${abs}` : `${sign}${abs} ${currency}`;

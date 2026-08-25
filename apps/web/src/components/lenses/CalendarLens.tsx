@@ -255,6 +255,7 @@ export function CalendarLens({
         <div className="flex items-center justify-between">
           <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
           <span
+            data-testid="calendar-day-label"
             className={cn("font-semibold", INK_TEXT[accent.ink])}
             // eslint-disable-next-line no-restricted-syntax -- dc.html:668's 10px "Day N" label has no token equivalent
             style={DAY_LABEL_SIZE}
@@ -269,6 +270,7 @@ export function CalendarLens({
           style={CARD_STYLE}
         >
           <div
+            data-testid="calendar-day-header"
             className="flex items-center"
             // eslint-disable-next-line no-restricted-syntax -- dc.html:680's 5px header gap has no token equivalent
             style={CARD_HEADER_GAP}

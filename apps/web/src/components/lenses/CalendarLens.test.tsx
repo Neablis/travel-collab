@@ -315,24 +315,40 @@ describe("CalendarLens", () => {
 
   // dc.html:663-696: the city name lives in the tinted card's header row,
   // beside the grip — not loose text in the cell.
+  //
+  // CodeRabbit (PR #46 final review): the cell's `aria-label` already bakes
+  // in "Day 1, Rome" regardless of what actually renders, and the old
+  // `card.textContent` check searched the whole card, so this couldn't fail
+  // even if the header row were deleted (aria-label unaffected) or "Rome"
+  // only survived somewhere else in the card. Scoped to the header element
+  // itself, found by test id rather than by the accessible name that isn't
+  // wired to the visible markup either.
   it("shows the city in the day card header", () => {
     renderLens(detailFixture());
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
     const card = within(cell).getByTestId("calendar-day-card");
-    expect(card.textContent).toContain("Rome");
+    const header = within(card).getByTestId("calendar-day-header");
+    expect(header.textContent).toContain("Rome");
   });
 
   // dc.html:668-670: "Day N" sits on the cell's top row, right of the date
   // number, only when `c.inTrip`.
+  //
+  // CodeRabbit (PR #46 final review): `getByRole("button", { name: /Day 1/ })`
+  // matches the button's `aria-label`, which is set unconditionally and
+  // independently of whatever actually renders inside it — this assertion
+  // could never fail even if the visible "Day N" span were deleted entirely.
+  // Query the visible label element itself instead.
   it("renders Day N on the right for in-trip days only, never for out-of-trip days", () => {
     renderLens(detailWithEmptyDay());
-    expect(screen.getByRole("button", { name: /Day 1/ })).toBeDefined();
+    const day1Cell = screen.getByRole("button", { name: /^Day 1$/ });
+    expect(within(day1Cell).getByTestId("calendar-day-label").textContent).toBe("Day 1");
     const outOfTrip = screen
       .getAllByTestId("calendar-cell")
       .filter((cell) => cell.getAttribute("data-in-trip") === "false");
     expect(outOfTrip.length).toBeGreaterThan(0);
     for (const cell of outOfTrip) {
-      expect(cell.textContent).not.toMatch(/Day \d/);
+      expect(within(cell).queryByTestId("calendar-day-label")).toBeNull();
     }
   });
 

@@ -101,16 +101,21 @@ describe("japanTripImporter", () => {
   // comment), and 9 where LocationIQ itself returned zero results for the
   // exact "place, area, city, Japan" query (confirmed non-transient by a
   // manual re-query, not a rate limit — see /tmp/geocode-seed-report.md).
-  // 50 is a floor a few below that measured 54, not the measured value
-  // itself, so a future re-run's minor vendor-data drift doesn't flap this;
-  // it still catches the overlay silently regressing toward empty (KI-15:
-  // MapLens's 0-of-72 starting point this whole task exists to fix).
+  // 3 of those 54 were then hand-deleted (CodeRabbit's final PR #46 review,
+  // 2026-08-25): the per-city bounding box the script accepts a candidate
+  // against only rejects a wrong-*city* match, not a wrong-venue match inside
+  // the right city, and all three were the latter — a different waterfall, a
+  // different hotel, and the wrong Shinkansen station (see KI-39). 51 is the
+  // real current count; 47 is a floor a few below that, not the measured
+  // value itself, so a future re-run's minor vendor-data drift doesn't flap
+  // this — it still catches the overlay silently regressing toward empty
+  // (KI-15: MapLens's 0-of-72 starting point this whole task exists to fix).
   it("attaches lat/lng to a substantial majority of the 72 stops via the committed geocode overlay", () => {
     const seed = loadRealSeed();
     const commands = importJapanTripSeed(seed, randomUUID());
     const withCoords = commands.filter(
       (c) => c.type === "AddActivity" && c.location?.lat !== undefined && c.location?.lng !== undefined,
     );
-    expect(withCoords.length).toBeGreaterThanOrEqual(50);
+    expect(withCoords.length).toBeGreaterThanOrEqual(47);
   });
 });

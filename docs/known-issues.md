@@ -424,6 +424,43 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix
   wave — found auditing the module while filing KI-37).
 
+### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
+- **Severity:** correctness (a confidently wrong pin, same family as KI-15)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`,
+  `apps/web/src/lib/japanTripSeedCoordinates.json`
+- **Symptom:** the script's acceptance test (`withinBox`, a per-city bounding
+  box — see the script's own header comment) only rejects a wrong-*city*
+  match; it has no way to reject a wrong-*venue* match that happens to fall
+  inside the correct city's box. Three of the 54 stops the script originally
+  resolved were exactly that: a plausible-sounding, in-city LocationIQ result
+  for the wrong place. All three were hand-verified and their entries deleted
+  from the overlay (CodeRabbit's final PR #46 review, 2026-08-25) rather than
+  shipped:
+  - `d4-s4-kegon-falls` resolved to "Urami Falls, Nikko…" — a different
+    waterfall in the same city.
+  - `d11-s2-check-in-at-zentis-osaka` resolved to "Hotels Inn Osaka
+    KitaUmeda…" — a different hotel in the same city.
+  - `d14-s2-shinkansen-to-tokyo` resolved to Shinagawa Station — the wrong
+    Shinkansen station; the real stop is Shin-Osaka.
+  The overlay now carries 51 of the seed's 72 stops (down from 54); those
+  three stops render no pin rather than a wrong one, which is the standing
+  principle this branch established for `MapLens` — a missing pin is fine, a
+  confidently wrong one is not.
+- **Why not fixed here:** a name-identity check (e.g. requiring the
+  candidate's own name/address to match the queried place, not just its
+  coordinates falling in a box) is real design work on a script that already
+  does one offline, hand-verified pass — not a mechanical fix, and explicitly
+  deferred rather than bundled into a CodeRabbit-response task.
+- **Fix path:** before the overlay is ever regenerated, add a name-identity
+  check alongside `withinBox` — e.g. a fuzzy match between the queried place
+  name and the candidate's returned `display_name`/address components —
+  rejecting a same-city, different-venue candidate the box alone can't catch.
+- **Cross-reference:** KI-15 — same family ("a plausible wrong location is
+  worse than none"), different call site (live AI enrichment vs. this offline
+  one-off script).
+- **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
+  review round).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here

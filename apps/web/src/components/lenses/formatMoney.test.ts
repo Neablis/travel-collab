@@ -46,4 +46,15 @@ describe("formatMoney", () => {
   it("never renders an empty string for an unrecognized currency", () => {
     expect(formatMoney(100, "XYZ")).toBe("1.00 XYZ");
   });
+
+  // CodeRabbit (PR #46 final review): a plain `{}`-shaped lookup table finds
+  // inherited Object.prototype members too — `CURRENCY_SYMBOLS["constructor"]`
+  // resolves to `Object`'s constructor function rather than `undefined`, so
+  // the unknown-currency fallback below never triggers for these names.
+  it.each(["constructor", "toString", "hasOwnProperty", "__proto__"])(
+    "treats %s as an unrecognized currency, not an inherited Object.prototype member",
+    (currency) => {
+      expect(formatMoney(100, currency)).toBe(`1.00 ${currency}`);
+    },
+  );
 });

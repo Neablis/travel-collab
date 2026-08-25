@@ -54,13 +54,20 @@ export function MapLens({
   // added here, so they're structurally excluded from ghosting.
   const markersByDayRef = useRef<Map<number, import("maplibre-gl").Marker[]>>(new Map());
   const pins = activityPins(detail);
+  // activityPins includes backlog-located stops (dayId: null) for callers
+  // that need the full set; this lens draws day-attached stops only (see the
+  // marker loop below), so mount/centring/the empty-state check must all key
+  // off this filtered list too — a backlog pin sorting first used to center
+  // the map on (or, if it was the only pin, render a live map for) an
+  // activity the map deliberately never plots.
+  const plottedPins = pins.filter((p) => p.dayId !== null);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const firstPin = pins[0];
+    const firstPin = plottedPins[0];
     if (!firstPin) return;
     const el = containerRef.current;
     if (!el) return;
@@ -189,7 +196,7 @@ export function MapLens({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
+  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
 
   // Focus-driven camera + opacity, kept separate from the creation effect
   // above so clicking a rail day never tears down and rebuilds the whole map
@@ -275,7 +282,7 @@ export function MapLens({
           {unlocated.length} {unlocated.length === 1 ? "activity has" : "activities have"} no location — add a place
         </Button>
       )}
-      {pins.length > 0 ? (
+      {plottedPins.length > 0 ? (
         <div
           className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
           // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
