@@ -38,17 +38,21 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  // -- a 3-day date range (TripDateControl mints day ids to match the span,
-  // decide.ts's SetTripDates handling) --
+  // -- a start date, then 3 real days (Task 8b.6: the end is derived, never
+  // picked — TripDateControl only sets the start, so a range is built via
+  // the board's own "Add a day", the same always-real control m1-board.spec.ts
+  // and friends already use, not the removed end-date field). --
   // TripDateControl is reached via the Settings sheet's Dates row, which
   // opens a popover mounting it (restored, M10 Phase 4 — see
   // docs/known-issues.md's former D-2 entry).
   await page.getByRole("button", { name: /trip settings/i }).click();
   await page.getByRole("button", { name: /dates/i }).click();
-  await page.getByLabel(/start date/i).fill("2026-08-03");
-  await page.getByLabel(/end date/i).fill("2026-08-05");
-  await Promise.all([waitForCommand(page), page.getByRole("button", { name: /set dates/i }).click()]);
+  await page.getByLabel(/trip start date/i).fill("2026-08-03");
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: /done/i }).click()]);
   await page.getByRole("button", { name: /close/i }).click();
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add a day", exact: true }).click()]);
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add a day", exact: true }).click()]);
+  await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add a day", exact: true }).click()]);
   await expect(page.getByTestId("day-column")).toHaveCount(3);
 
   // -- existing activity editor (ActivityEditor.tsx), same pattern as

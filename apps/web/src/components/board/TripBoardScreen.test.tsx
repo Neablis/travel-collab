@@ -190,9 +190,9 @@ describe("TripBoardScreen", () => {
     // D-2 entry). This test confirms the real integration once restored:
     // opening Trip settings and clicking the Dates row opens a Popover
     // containing TripDateControl, pre-filled with the trip's real dates.
-    // TripDateControl's own dispatch logic (SetTripDates/SetTripStartDate,
-    // shrink-confirm) stays covered directly in TripDateControl.test.tsx; the
-    // sheet's onCommand pass-through is covered in SettingsSheet.test.tsx.
+    // TripDateControl's own dispatch logic (SetTripStartDate, clearing)
+    // stays covered directly in TripDateControl.test.tsx; the sheet's
+    // onCommand pass-through is covered in SettingsSheet.test.tsx.
     const fixture = tripDetailFixture({ startDate: "2027-06-01" });
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
@@ -201,11 +201,11 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
 
     const datesRow = await screen.findByRole("button", { name: "Dates" });
-    expect(screen.queryByLabelText("Start date")).toBeNull();
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
 
     fireEvent.click(datesRow);
 
-    const startInput = (await screen.findByLabelText("Start date")) as HTMLInputElement;
+    const startInput = (await screen.findByLabelText("Trip start date")) as HTMLInputElement;
     expect(startInput.value).toBe("2027-06-01");
   });
 
