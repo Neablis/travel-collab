@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { getSession, signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { Text } from "@/components/ui/text";
 import { initialsFor } from "@/lib/initials";
+import { resetDemoData } from "@/lib/apiClient";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -26,13 +29,43 @@ export function AccountMenu({
   name,
   email,
   onSignOut,
+  demoResetEnabled = false,
+  onResetDemoData,
 }: {
   name: string;
   email: string;
   onSignOut?: () => void;
+  // Preview-only "Reset to demo data" item (see AppHeader.tsx /
+  // src/lib/demoDataReset.ts) — deliberate deviation from the design's
+  // "Your account" + "Sign out" dropdown (task 8b.2 omitted a third item
+  // rather than ship one that did nothing; this one is real and never
+  // renders outside preview). `undefined` when `demoResetEnabled` is false,
+  // same as `onSignOut` — nothing to call when the item doesn't exist.
+  demoResetEnabled?: boolean;
+  onResetDemoData?: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const initials = initialsFor(name);
+
+  // Discards the caller's trips (via DeleteTrip — recoverable server-side,
+  // but not from this dialog), so a single click must not do it — same
+  // confirm-before-destructive shape as page.tsx's "Delete trip" Dialog.
+  async function handleConfirmReset() {
+    if (!onResetDemoData) return;
+    setResetBusy(true);
+    setResetError(null);
+    try {
+      await onResetDemoData();
+      setResetConfirmOpen(false);
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Reset failed.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   const trigger = useMemo(
     () => (
@@ -53,25 +86,57 @@ export function AccountMenu({
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen} align="end" contentClassName="w-56 p-1" trigger={trigger}>
-      <div className="flex flex-col gap-0.5 border-b border-hairline px-2.5 pt-2 pb-2.5">
-        <span className="text-sm font-semibold text-ink">{name}</span>
-        <span
-          className="font-mono text-slate"
-          // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
-          style={{ fontSize: "11.5px" }}
+    <>
+      <Popover open={open} onOpenChange={setOpen} align="end" contentClassName="w-56 p-1" trigger={trigger}>
+        <div className="flex flex-col gap-0.5 border-b border-hairline px-2.5 pt-2 pb-2.5">
+          <span className="text-sm font-semibold text-ink">{name}</span>
+          <span
+            className="font-mono text-slate"
+            // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
+            style={{ fontSize: "11.5px" }}
+          >
+            {email}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+          onClick={() => onSignOut?.()}
         >
-          {email}
-        </span>
-      </div>
-      <Button
-        variant="ghost"
-        className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
-        onClick={() => onSignOut?.()}
-      >
-        Sign out
-      </Button>
-    </Popover>
+          Sign out
+        </Button>
+        {demoResetEnabled && (
+          <Button
+            variant="ghost"
+            className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+            onClick={() => setResetConfirmOpen(true)}
+          >
+            Reset to demo data
+          </Button>
+        )}
+      </Popover>
+      {demoResetEnabled && (
+        <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen} title="Reset to demo data">
+          <Text variant="secondary">
+            This deletes all of your trips and replaces them with the Japan demo trip. This can&apos;t be undone
+            from here.
+          </Text>
+          {resetError && (
+            <Text role="alert" variant="secondary" className="text-danger-ink">
+              {resetError}
+            </Text>
+          )}
+          <DialogFooter>
+            <Button variant="secondary" disabled={resetBusy} onClick={() => setResetConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={resetBusy} onClick={() => void handleConfirmReset()}>
+              Reset
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -84,7 +149,7 @@ export function AccountMenu({
 // client-side door (`/api/auth/session`, `/api/auth/signout`, both already
 // registered by src/app/api/auth/[...nextauth]/route.ts) rather than a
 // second auth path.
-export function AccountMenuFromSession() {
+export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
   const [user, setUser] = useState<{ name?: string | null; email?: string | null } | null>(null);
 
   useEffect(() => {
@@ -99,11 +164,23 @@ export function AccountMenuFromSession() {
 
   if (!user) return null;
 
+  // A hard reload, not a router.push: this can be confirmed from any page
+  // (a trip page whose own trip was just deleted included), and the freshly
+  // seeded trip needs every client-fetched view — Home's trip list, any open
+  // trip board — to refetch from scratch rather than reconcile stale state.
+  async function handleResetDemoData() {
+    const result = await resetDemoData();
+    if (!result.ok) throw new Error(result.error.message);
+    window.location.reload();
+  }
+
   return (
     <AccountMenu
       name={user.name ?? user.email ?? "Account"}
       email={user.email ?? ""}
       onSignOut={() => void signOut({ callbackUrl: "/" })}
+      demoResetEnabled={demoResetEnabled}
+      onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />
   );
 }

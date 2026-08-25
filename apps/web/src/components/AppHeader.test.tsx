@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // AppHeader renders AccountMenuFromSession (task 8b.2), which calls
@@ -9,9 +10,17 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(async () => {}),
 }));
 
+let demoResetEnabled = false;
+vi.mock("@/lib/demoDataReset", () => ({
+  isDemoDataResetEnabled: () => demoResetEnabled,
+}));
+
 const { AppHeader } = await import("./AppHeader");
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  demoResetEnabled = false;
+});
 
 describe("AppHeader", () => {
   it("links to both routes so every page has a way back", () => {
@@ -29,5 +38,21 @@ describe("AppHeader", () => {
   it("is a banner landmark", () => {
     render(<AppHeader />);
     expect(screen.getByRole("banner")).toBeTruthy();
+  });
+
+  it("threads the demo-data-reset gate down to the account menu as a prop", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValue({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
+
+    demoResetEnabled = false;
+    const { unmount } = render(<AppHeader />);
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
+    unmount();
+
+    demoResetEnabled = true;
+    render(<AppHeader />);
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    expect(screen.getByRole("button", { name: "Reset to demo data" })).toBeTruthy();
   });
 });

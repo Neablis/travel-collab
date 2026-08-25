@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccountMenuFromSession } from "@/components/AccountMenu";
+import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 
 // Handoff `current/…dc.html:63-78`: a persistent bar on every route. Before
 // this, /playbooks had no way back to the trip list at all. Deliberately a
@@ -11,7 +12,16 @@ import { AccountMenuFromSession } from "@/components/AccountMenu";
 // island this renders — it resolves its own identity client-side rather than
 // AppHeader calling `auth()`, because `auth()` lives in src/server and this
 // file is UI (see AccountMenu.tsx's comment for why that boundary holds).
+//
+// The preview-only "Reset to demo data" item is different: `demoResetEnabled`
+// is a plain env-var read (isDemoDataResetEnabled(), src/lib/demoDataReset.ts
+// — not `@/server/*`, so it doesn't cross the lint wall this file is bound
+// by), computed here and passed down as a prop. This is the same rule
+// src/server/flags.ts documents for flag values: they reach the UI as props
+// from a server component, never by a client component importing server
+// code.
 export function AppHeader() {
+  const demoResetEnabled = isDemoDataResetEnabled();
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-hairline bg-surface px-6">
       <Link href="/" className="flex items-center gap-2.5 no-underline">
@@ -32,7 +42,7 @@ export function AppHeader() {
         </Link>
       </nav>
       <div className="ml-auto flex items-center">
-        <AccountMenuFromSession />
+        <AccountMenuFromSession demoResetEnabled={demoResetEnabled} />
       </div>
     </header>
   );

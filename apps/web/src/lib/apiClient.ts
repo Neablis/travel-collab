@@ -205,3 +205,16 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
   const data = (await res.json()) as { tripId: string };
   return { ok: true, value: data };
 }
+
+// AccountMenu's "Reset to demo data" item (preview only — see
+// src/lib/demoDataReset.ts). Clears the signed-in user's own trips and
+// reseeds the Japan demo trip; POST, no body, 200 with the new trip's id.
+export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
+  const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  }
+  const data = (await res.json()) as { tripId: string };
+  return { ok: true, value: data };
+}

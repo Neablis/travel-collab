@@ -8,6 +8,11 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(async () => {}),
 }));
 
+const resetDemoDataMock = vi.fn();
+vi.mock("@/lib/apiClient", () => ({
+  resetDemoData: (...args: unknown[]) => resetDemoDataMock(...args),
+}));
+
 afterEach(cleanup);
 
 describe("AccountMenu", () => {
@@ -23,6 +28,48 @@ describe("AccountMenu", () => {
     await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  // Task 8b.2 deliberately omitted a third dropdown item ("Your account")
+  // rather than ship one that does nothing — this is the exception, and only
+  // real outside preview (see AppHeader.tsx / demoDataReset.ts), so its
+  // absence when the prop is false must be exact: no disabled item, no trace.
+  it("hides the reset item when demoResetEnabled is false", async () => {
+    render(<AccountMenu name="Sam K" email="sam@example.com" />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
+  });
+
+  it("requires confirmation before calling onResetDemoData", async () => {
+    const onResetDemoData = vi.fn().mockResolvedValue(undefined);
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    expect(onResetDemoData).not.toHaveBeenCalled();
+
+    expect(screen.getByRole("heading", { name: "Reset to demo data" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(onResetDemoData).toHaveBeenCalled());
+  });
+
+  it("cancels the reset confirmation without calling onResetDemoData", async () => {
+    const onResetDemoData = vi.fn();
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onResetDemoData).not.toHaveBeenCalled();
+  });
+
+  it("shows an error inline when the reset fails, without closing the dialog", async () => {
+    const onResetDemoData = vi.fn().mockRejectedValue(new Error("boom"));
+    render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(await screen.findByText("boom")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reset to demo data" })).toBeTruthy();
   });
 });
 
@@ -50,5 +97,46 @@ describe("AccountMenuFromSession", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+  });
+
+  it("defaults demoResetEnabled to off, so no reset item appears without an explicit prop", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({
+      user: { name: "Sam K", email: "sam@example.com" },
+      expires: "",
+    });
+
+    render(<AccountMenuFromSession />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
+  });
+
+  it("calls the real resetDemoData endpoint and reloads on success", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({
+      user: { name: "Sam K", email: "sam@example.com" },
+      expires: "",
+    });
+    resetDemoDataMock.mockResolvedValueOnce({ ok: true, value: { tripId: "trip-1" } });
+    // jsdom's window.location.reload isn't a configurable own property, so
+    // vi.spyOn can't redefine it directly — replace the whole location object
+    // for the span of this test instead.
+    const originalLocation = window.location;
+    const reloadSpy = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, reload: reloadSpy },
+    });
+
+    render(<AccountMenuFromSession demoResetEnabled />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    await waitFor(() => expect(resetDemoDataMock).toHaveBeenCalled());
+    await waitFor(() => expect(reloadSpy).toHaveBeenCalled());
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
   });
 });
