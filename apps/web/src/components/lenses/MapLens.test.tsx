@@ -4,6 +4,7 @@ import type { TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
+import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
 
 // MapLens dynamically imports maplibre-gl, whose real module init touches
 // browser APIs jsdom doesn't implement (window.URL.createObjectURL, WebGL),
@@ -15,11 +16,12 @@ import { MapLens } from "./MapLens";
 // `vi.hoisted` because `vi.mock` factories run before the rest of the module
 // evaluates — these spies need to exist by the time the factory closure
 // captures them, and also be importable by the tests below to assert on.
-const { addLayerMock, addSourceMock, fitBoundsMock, mapOnLoad, setPaintPropertyMock, markerInstances } = vi.hoisted(
+const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, setPaintPropertyMock, markerInstances } = vi.hoisted(
   () => ({
     addLayerMock: vi.fn(),
     addSourceMock: vi.fn(),
     fitBoundsMock: vi.fn(),
+    mapConstructorMock: vi.fn(),
     mapOnLoad: vi.fn(),
     setPaintPropertyMock: vi.fn(),
     // Real maplibre's Marker#getElement() returns the *same* DOM node on
@@ -67,6 +69,9 @@ vi.mock("maplibre-gl", () => {
     }
   }
   class Map {
+    constructor(options: unknown) {
+      mapConstructorMock(options);
+    }
     on(event: string, cb: () => void) {
       // Real maplibre fires "load" async, after style/tiles resolve — a
       // microtask keeps that ordering (and satisfies the `await waitFor`
@@ -174,8 +179,8 @@ function detailWithBacklogPin(): TripDetail {
     activities: {
       a1: locatedActivity("a1", 41.89, 12.49),
       a2: locatedActivity("a2", 41.9, 12.48),
-      // Located, but not on any day — a "backlog-located" pin, drawn with no
-      // day accent and outside the per-day focus loop entirely.
+      // Located, but not on any day — a "backlog-located" activity, which the
+      // map no longer plots at all (Mitchell, preview review, 2026-08-25).
       c1: locatedActivity("c1", 40.0, 10.0),
     },
   });
@@ -207,7 +212,11 @@ function renderMap(detail: TripDetail, overrides: { focusedDay?: number | null; 
 }
 
 describe("MapLens", () => {
-  it("shows no located-activities list; unlocated activities get a compact affordance", () => {
+  it("shows no located-activities list; only a day-attached unlocated activity gets the compact affordance", () => {
+    // detailFixture()'s unlocated2 is backlog-only (no day) — scoped out per
+    // Mitchell's preview-review call: the map doesn't plot the backlog, so it
+    // shouldn't nag about the backlog's missing locations either. Only
+    // unlocated1 (on d1) counts.
     const onSelectActivity = vi.fn();
     useFocusMock.mockReturnValue({ focusedDay: null, setFocusedDay: vi.fn() });
     const { container } = render(
@@ -218,7 +227,7 @@ describe("MapLens", () => {
 
     expect(container.querySelector(".map-lens-pin-list")).toBeNull();
 
-    const affordance = screen.getByRole("button", { name: /2 activities have no location/i });
+    const affordance = screen.getByRole("button", { name: /1 activity has no location/i });
     expect(affordance).toBeTruthy();
 
     fireEvent.click(affordance);
@@ -246,6 +255,31 @@ describe("MapLens", () => {
 
     const [, options] = fitBoundsMock.mock.calls[0]!;
     expect((options as { animate?: boolean }).animate).toBe(false);
+  });
+
+  it("pads fitBounds asymmetrically so the left rail can't cover a focused day's pins", async () => {
+    fitBoundsMock.mockClear();
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+
+    // .at(-1): fitBoundsMock accumulates across this file's tests (nothing
+    // clears it globally — same reason setPaintPropertyMock's own tests
+    // mockClear() themselves above), so the freshest call is this render's.
+    const [, options] = fitBoundsMock.mock.calls.at(-1)!;
+    const padding = (options as { padding: { top: number; right: number; bottom: number; left: number } }).padding;
+    expect(padding.top).toBe(100);
+    expect(padding.right).toBe(100);
+    expect(padding.bottom).toBe(100);
+    // The left side alone clears the rail's own footprint (inset + width),
+    // on top of the same 100px breathing room every other side keeps.
+    expect(padding.left).toBe(MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100);
+  });
+
+  it("starts a little more zoomed out than before, so a pin near the left edge has a better chance of clearing the rail", () => {
+    renderMap(detailWithTwoDays());
+
+    const [options] = mapConstructorMock.mock.calls.at(-1)!;
+    expect((options as { zoom: number }).zoom).toBe(9);
   });
 
   describe("route ghosting on focus", () => {
@@ -378,17 +412,14 @@ describe("MapLens", () => {
       expect(Number(a1!.getElement().style.opacity)).toBeLessThan(1);
     });
 
-    it("leaves backlog-located markers (belonging to no day) untouched by focus", async () => {
+    it("never plots a backlog-located activity — only the day-attached stops get markers", async () => {
       markerInstances.length = 0;
       renderMap(detailWithBacklogPin(), { focusedDay: 0 });
-      await waitFor(() => expect(markerInstances).toHaveLength(3));
+      await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
 
-      // a1, a2 (day 0's stops), then c1 (backlog, drawn in the second loop).
-      // It belongs to no day, so the focus effect never touches its element
-      // at all — style.opacity stays unset ("", full-strength in a real
-      // browser), not merely "set to 1".
-      const backlogMarker = markerInstances[2]!;
-      expect(backlogMarker.getElement().style.opacity).toBe("");
+      // a1, a2 (day 0's stops) only — c1 (backlog-located) gets no marker at
+      // all now that the map doesn't plot anything off a day.
+      expect(markerInstances).toHaveLength(2);
     });
   });
 });

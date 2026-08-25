@@ -15,7 +15,14 @@ export function activityPins(detail: TripDetail): ActivityPin[] {
   return pins;
 }
 
+// Scoped to day-attached activities only (Mitchell, preview review,
+// 2026-08-25: "dont plot locations that arent attached to a day, anything
+// unscheduled isnt on the map"). A backlog activity with no location isn't
+// something the map is skipping because of its missing place — the map
+// never draws backlog stops at all, located or not — so nagging about it
+// here would flag a gap this lens deliberately doesn't care about.
 export function unlocatedActivities(detail: TripDetail): ActivityView[] {
+  const dayActivityIds = new Set(detail.days.flatMap((d) => d.activityIds));
   const values = Object.values(detail.activities) as ActivityView[];
-  return values.filter((a) => a.location?.lat === undefined);
+  return values.filter((a) => dayActivityIds.has(a.activityId) && a.location?.lat === undefined);
 }

@@ -201,7 +201,9 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}
+        activities={trip.activities}
         onDismiss={callbacks.onDismissConflict}
+        onSelectActivity={openEdit}
       />
       {/* The unscheduled pool is no longer a full-width Backlog column above
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted

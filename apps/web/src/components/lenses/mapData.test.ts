@@ -23,7 +23,19 @@ describe("map data", () => {
   it("returns a pin only for located activities, tagged with its day", () => {
     expect(activityPins(detail)).toEqual([{ activityId: A1, title: "Colosseum", lat: 41.89, lng: 12.49, dayId: DAY }]);
   });
-  it("lists located-less activities separately", () => {
-    expect(unlocatedActivities(detail).map((a) => a.activityId)).toEqual([A2]);
+  it("excludes a backlog activity even with no location — the map never plots the backlog, located or not", () => {
+    expect(unlocatedActivities(detail)).toEqual([]);
+  });
+  it("lists a day-attached activity that has no location", () => {
+    const A3 = "7d9a1f8e-0000-4000-8000-0000000000a3";
+    const withDayAttached: TripDetail = {
+      ...detail,
+      days: [{ dayId: DAY, activityIds: [A1, A3], date: null, costSubtotal: 0 }],
+      activities: {
+        ...detail.activities,
+        [A3]: { activityId: A3, title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+      },
+    };
+    expect(unlocatedActivities(withDayAttached).map((a) => a.activityId)).toEqual([A3]);
   });
 });

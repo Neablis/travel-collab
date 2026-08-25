@@ -371,16 +371,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           persisted MoveActivity/UpdateActivity commands same as everything
           else, and dispatch itself has no preview guard — inert on the DOM
           subtree is the only thing stopping a mutation while browsing
-          history, so the rack needs it too. */}
-      <div inert={preview.seq !== null ? true : undefined}>
-        <UnscheduledRack
-          items={rackItems}
-          dayOptions={rackDayOptions}
-          open={rack.open}
-          onToggle={() => onRackEvent({ type: "toggle" })}
-          onAssign={assignFromRack}
-        />
-      </div>
+          history, so the rack needs it too.
+          Hidden on Map only (Mitchell, preview review, 2026-08-25): the rack
+          is a `position: fixed` overlay and Map is a full-bleed canvas, so it
+          sits over the pins with no drag support there to justify the cover.
+          Timeline and Calendar keep it mounted — its day-assign
+          `NativeSelect` dispatches real MoveActivity/UpdateActivity without
+          needing drag, so it's still a working scheduling path in those
+          lenses even though drag itself remains Board-only (TODO.md). */}
+      {lens !== "Map" && (
+        <div inert={preview.seq !== null ? true : undefined}>
+          <UnscheduledRack
+            items={rackItems}
+            dayOptions={rackDayOptions}
+            open={rack.open}
+            onToggle={() => onRackEvent({ type: "toggle" })}
+            onAssign={assignFromRack}
+          />
+        </div>
+      )}
     </>
   );
 }

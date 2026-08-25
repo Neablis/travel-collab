@@ -8,7 +8,7 @@ import { useEditor } from "../trip/context/EditorHost";
 import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, routeLine, type MapDay } from "./mapRailData";
-import { MapRail } from "./MapRail";
+import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
 
@@ -81,8 +81,14 @@ export function MapLens({
         // responding to a real focus change below; calling it on mount too
         // would be indistinguishable from "the whole trip" being the focused
         // day, which it isn't.
+        // zoom 9, not 10 (Mitchell, preview review, 2026-08-25): the rail
+        // sits over the map's left edge regardless of zoom, so a pin
+        // centered under it at mount is still hidden — one notch further out
+        // gives more of the frame around the center point a fighting chance
+        // of clearing the rail's ~284px, without abandoning "static, not
+        // fitBounds" for this first paint.
         center: [firstPin.lng, firstPin.lat],
-        zoom: 10,
+        zoom: 9,
       });
       mapRef.current = map;
 
@@ -147,10 +153,11 @@ export function MapLens({
           });
         }
 
-        // Backlog-located pins belong to no day, so they get no accent —
-        // same neutral brand marker this lens always drew before per-day
-        // colouring existed.
-        const brandColor = accentVar("brand") || undefined;
+        // Day-attached located stops only (Mitchell, preview review,
+        // 2026-08-25: "dont plot locations that arent attached to a day,
+        // anything unscheduled isnt on the map"). A backlog activity with a
+        // location used to get a neutral-brand marker here too; that loop is
+        // gone — the map no longer plots anything that isn't on a day.
         for (const day of days) {
           const dayMarkers: import("maplibre-gl").Marker[] = [];
           for (const stop of day.stops) {
@@ -165,15 +172,6 @@ export function MapLens({
             dayMarkers.push(marker);
           }
           markersByDayRef.current.set(day.index, dayMarkers);
-        }
-        const dayStopIds = new Set(days.flatMap((d) => d.stops.map((s) => s.activityId)));
-        for (const pin of pins) {
-          if (dayStopIds.has(pin.activityId)) continue; // already drawn above, with its day's accent
-          const marker = new Marker(brandColor ? { color: brandColor } : undefined).setLngLat([pin.lng, pin.lat]).addTo(map);
-          if (onSelectActivity) {
-            marker.getElement().addEventListener("click", () => onSelectActivity(pin.activityId));
-            marker.getElement().style.cursor = "pointer";
-          }
         }
 
         setReady(true);
@@ -250,7 +248,18 @@ export function MapLens({
     // the original 60/15 so a focused day's stops get breathing room instead
     // of filling the viewport edge-to-edge — tuned live against the actual
     // trip fixture.
-    map.fitBounds(bounds, { padding: 100, maxZoom: 13, animate: false });
+    // Uniform padding can't clear the rail at any zoom (Mitchell, preview
+    // review, 2026-08-25): it's a sticky overlay on the canvas's left edge
+    // only, so a pin near the left of a day's bounds still ends up under it
+    // regardless of how much room the other three sides get. `left` gets the
+    // rail's own footprint (MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX) plus the
+    // same 100px breathing room the other sides already had, instead of the
+    // bare 100 they keep.
+    map.fitBounds(bounds, {
+      padding: { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
+      maxZoom: 13,
+      animate: false,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusedDay]);
 

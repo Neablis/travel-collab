@@ -235,7 +235,13 @@ Captured so they aren't lost; not committed to a milestone yet.
      deliberate behavior) or collapse/hide itself on a view change is worth
      revisiting now that dragging into it only actually works from Board —
      showing it everywhere reads as "this works here" in views where it
-     doesn't.
+     doesn't. **Decided (Mitchell, preview review, 2026-08-25):** hide it on
+     Map only — Map is the one lens where the rack is a `position: fixed`
+     overlay over a full-bleed canvas with nothing under it. Timeline and
+     Calendar keep it mounted, because unlike Map they have a working
+     non-drag path (the day-assign `NativeSelect` → real `MoveActivity`/
+     `UpdateActivity`), so hiding it there would remove a capability, not
+     just a misleading affordance.
   4. The drawer is `position: fixed; bottom: 0` (`globals.css`) with no
      clearance reserved in any lens's own content — unlike the assistant
      rail, which gets `.trip-board-content`'s right-padding reservation, no

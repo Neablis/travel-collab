@@ -6,6 +6,13 @@ import type { MapDay } from "./mapRailData";
 import { gearedTravel, pickFocusedDay, railScrollGeometry, type RailItem } from "./mapRailFocus";
 import { onMapRailTuningChange, readMapRailTuning } from "./mapRailTuning";
 
+// Exported so MapLens can size the left clearance it reserves in its
+// fitBounds() padding — the rail is a `position: absolute` overlay with no
+// footprint in the canvas's own layout, so nothing but this component's own
+// geometry tells the camera a pin under these first 284px is actually hidden.
+export const MAP_RAIL_WIDTH_PX = 268;
+export const MAP_RAIL_INSET_PX = 16;
+
 // Tailwind's JIT can't see a template-interpolated `bg-${accent}-tint` —
 // same static-Record pattern as DayChips.tsx's CHIP_BG.
 const TINT_BG: Record<AccentFamily, string> = {
@@ -258,8 +265,8 @@ export function MapRail({
       ref={containerRef}
       aria-label="Days"
       className="absolute overflow-y-auto rounded-2xl border border-hairline bg-surface shadow-overlay"
-      // eslint-disable-next-line no-restricted-syntax -- 268px rail width + 16px inset + z-index 4 have no token equivalent, matching AssistantRail's computed-geometry pattern
-      style={{ left: "16px", top: "16px", bottom: "16px", width: "268px", zIndex: 4 }}
+      // eslint-disable-next-line no-restricted-syntax -- rail width/inset (MAP_RAIL_WIDTH_PX/MAP_RAIL_INSET_PX above) + z-index 4 have no token equivalent, matching AssistantRail's computed-geometry pattern
+      style={{ left: `${MAP_RAIL_INSET_PX}px`, top: "16px", bottom: "16px", width: `${MAP_RAIL_WIDTH_PX}px`, zIndex: 4 }}
     >
       {/* Manufactures the geared scroll travel. Height is set in the effect
           above; `auto` is the pre-measure fallback, which renders as a plain
