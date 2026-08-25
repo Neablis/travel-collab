@@ -388,17 +388,22 @@ Build fixtures with `@tc/factories` (ADR-020).
 
 ## Phase 8b exit checklist
 
-- [ ] The wordmark and the browser tab both read **Caesura**; nothing else was renamed.
-- [ ] A signed-in user can sign out from the header, and `AppHeader` is still a server component.
-- [ ] "Your account" is either absent or a registered `<Preview>` — never a toast saying it does not exist.
-- [ ] The save indicator has three states, the saved state keeps its accessible name, and reduced motion is honoured.
-- [ ] Sync failure uses `Banner variant="danger"` with `ConflictBanner`'s vocabulary — or is deliberately not shipped, with the reason recorded, because the queue cannot report persistent failure.
-- [ ] The calendar renders one trimmed, headed block per month, Sunday-start, still matching days by full date.
-- [ ] There is no end-date input anywhere in the app; the end is derived from the plan's last day and shown as text.
-- [ ] `packages/` is untouched by Task 8b.6 — no contract, command or domain change.
-- [ ] `SetTripDates` still exists and its three non-UI callers still work (`duplicateTrip`, the AI batch resolver, the wizard's length chips).
-- [ ] `TODO.md`'s end-date-drift item is closed, not left open against a field that no longer exists.
-- [ ] Every `Popover` trigger and `Banner` `actions` value added here keeps a stable element identity across renders (`SPEC.md` §5).
-- [ ] `pnpm typecheck && pnpm lint`, unit, int and the full e2e suite green against a **production** build with `CI=true` (KI-27).
-- [ ] `node scripts/check-color-wall.mjs` clean.
-- [ ] `docs/design-feedback/2026-08-23-design-sync-review.md` §6 updated: these five marked done, and any item that turned out not to be shippable moved to its real milestone with the reason.
+*Walked 2026-08-25 against PR #46. Thirteen of fourteen hold; the one that
+does not is left unticked with its reason, not quietly ticked.*
+
+- [x] The wordmark and the browser tab both read **Caesura**; nothing else was renamed. — `9174e06`; the two extra files it touched were `<Heading>travel-collab</Heading>` shown to signed-out visitors, judged in scope on review.
+- [x] A signed-in user can sign out from the header, and `AppHeader` is still a server component. — `7d3b6c8`. Verified in a real browser: avatar → Sign out → session dead, `/api/trips` returned 401. `AppHeader` has no `"use client"`, no hooks, no `@/server/*` import.
+- [x] "Your account" is either absent or a registered `<Preview>` — never a toast saying it does not exist. — absent, confirmed on review.
+- [ ] ~~The save indicator has three states~~ — **only two shipped**, deliberately. `failHead` (`optimistic.ts:81-83`) discards the pending queue, so nothing retries and the design's `Couldn't save — retrying` label would be false (**KI-36**). The rest of this line **is** met: the saved state keeps its `All changes saved` accessible name, and `prefers-reduced-motion` drops the haloes while keeping the label. Left unticked because the line as written says three.
+- [x] Sync failure uses `Banner variant="danger"` … **or is deliberately not shipped, with the reason recorded** — not shipped; reason in **KI-36** and in `docs/design-feedback/2026-08-23-design-sync-review.md` §6. Milestone routing left for the Phase 9 gate rather than invented here.
+- [x] The calendar renders one trimmed, headed block per month, Sunday-start, still matching days by full date. — `cae8fa7`; ISO-date `Map` preserved (no `SPEC.md` §4 regression). The cell *interior* was rebuilt later in `5978cb1` after Mitchell reported it wrong — the plan had described the `more` line but never the `chips` above it.
+- [x] There is no end-date input anywhere in the app; the end is derived from the plan's last day and shown as text. — `97b1539`; the only remaining `End date` string is a test asserting its absence.
+- [x] `packages/` is untouched by Task 8b.6 — no contract, command or domain change. — verified across the **whole branch**, not just that task.
+- [x] `SetTripDates` still exists and its three non-UI callers still work. — verified: `duplicateTrip.ts:78`, the AI path, `NewTripWizard.tsx:186`. No UI surface but the wizard dispatches it.
+- [x] `TODO.md`'s end-date-drift item is closed. — `97b1539`.
+- [x] Every `Popover` trigger and `Banner` `actions` value keeps a stable element identity (`SPEC.md` §5). — the trigger is built in `useMemo(..., [name, initials])` and merged via `Trigger asChild`; no `Banner` `actions` were added.
+- [x] typecheck, lint, unit, int and the full e2e suite green against a **production** build with `CI=true` (KI-27). — green locally through the phase, and CI's `integration-e2e` job is green on the branch head.
+- [x] `node scripts/check-color-wall.mjs` clean.
+- [x] `docs/design-feedback/2026-08-23-design-sync-review.md` §6 updated.
+
+**Not in this plan, but on the same branch** (Mitchell's call, to test the phase UI against rich data on one preview URL): a preview-only demo-data reset endpoint, geocoded seed coordinates (51/72, **KI-39**), the calendar-cell rebuild above, and two rounds of UI feedback. Phase 9 should read `docs/STATUS.md`'s header before treating this branch as a presentational-only wave.
