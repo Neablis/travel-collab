@@ -256,10 +256,18 @@ export function CalendarLens({
           // day cards at top, or the clicking here." The click already set
           // focus — what was missing was any sign of it, so selecting a cell
           // looked like nothing had happened. Same ring the focused day chip
-          // and day column wear, and `z-10` because the grid's cells sit
-          // edge-to-edge: without it the neighbours' borders paint over the
-          // ring on two sides.
-          focusedDay === ordinal - 1 && "z-10 ring-2 ring-brand",
+          // and day column wear.
+          //
+          // `ring-inset` is load-bearing, not taste (Mitchell again, same
+          // round: "Bottom border is cut off"). The grid above is
+          // `overflow-hidden` so its cells clip to the design's 10px radius —
+          // so an OUTSET ring on any cell touching the grid's edge is cut off
+          // by that clip, and `z-10` cannot help: this is a clip, not paint
+          // order. Drawn inside the cell's own box instead, there is nothing
+          // outside to clip, and nothing bleeding into the 1px gridline gaps
+          // for a neighbour to paint over either — which is why the z-10 this
+          // replaces is gone rather than kept alongside.
+          focusedDay === ordinal - 1 && "ring-2 ring-brand ring-inset",
         )}
         // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
         style={CELL_STYLE}
