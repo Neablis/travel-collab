@@ -90,18 +90,37 @@ export function commandsFor(scenario: ScenarioName, tripId: string, options: Com
     return commands;
   }
 
-  // Activity `i` of a day gets a one-hour window starting at 09:00 + i. Both
-  // components have to be zero-padded HH:MM — that is what the contract's
-  // TimeWindow regex accepts, and a command that misses it comes back
-  // `invalid-command` rather than as a wrong-but-usable time (KI-37: the old
-  // `0${9 + i}:00` template only padded correctly for i === 0 and emitted
-  // "010:00" from a day's second activity onward). The start hour is capped so
-  // the window can never run past 23:00 however many activities a future
-  // scenario asks for per day.
-  const hhmm = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+  // Activity `i` of a day gets a one-hour window, the i-th step of a stagger
+  // from 09:00. Both components have to be zero-padded HH:MM — that is what
+  // the contract's TimeWindow regex accepts, and a command that misses it
+  // comes back `invalid-command` rather than as a wrong-but-usable time
+  // (KI-37: the old `0${9 + i}:00` template only padded correctly for i === 0
+  // and emitted "010:00" from a day's second activity onward). The start is
+  // capped so the window can never run past 23:00 however many activities a
+  // future scenario asks for per day.
+  //
+  // The stagger is a whole hour for every scenario but `overlappingDay`, whose
+  // entire point is to produce a `time-overlap` conflict. `windowsOverlap`
+  // (packages/domain/src/trip/conflicts.ts) is strict — `a.start < b.end &&
+  // b.start < a.end` — so back-to-back hourly windows (09:00-10:00 then
+  // 10:00-11:00) merely touch at 10:00 and the rule never fires: the scenario
+  // promised an overlap and delivered none. A half-hour stagger gives
+  // 09:00-10:00 and 09:30-10:30, a genuine *partial* overlap, which exercises
+  // more of the rule than two identical windows (the degenerate case) would.
+  // Every other scenario keeps byte-identical hourly windows — the arithmetic
+  // below reduces to the old `9 + i` hours whenever the stagger is 60, KI-37's
+  // fix was verified against exactly those, and e2e/m10-unscheduled-rack.spec.ts
+  // asserts on mappedTrip's literal "09:00"/"10:00" (which is emitted by the
+  // mappedTrip branch above, not here). src/commands.test.ts pins both halves.
+  const WINDOW_MINUTES = 60;
+  const FIRST_START_MINUTES = 9 * 60;
+  const LAST_START_MINUTES = 22 * 60;
+  const staggerMinutes = scenario === "overlappingDay" ? 30 : 60;
+  const hhmm = (minutes: number) =>
+    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const timeWindowFor = (i: number) => {
-    const startHour = Math.min(9 + i, 22);
-    return { start: hhmm(startHour), end: hhmm(startHour + 1) };
+    const startMinutes = Math.min(FIRST_START_MINUTES + i * staggerMinutes, LAST_START_MINUTES);
+    return { start: hhmm(startMinutes), end: hhmm(startMinutes + WINDOW_MINUTES) };
   };
 
   let locationIndex = 0;
