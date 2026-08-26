@@ -21,6 +21,15 @@ anything there. Seeding is still yours to run, because it needs the dev server
 up (see the reset/reseed bullet below). If the hook could not start it, it says
 so on stderr and leaves `/tmp/postgres.log` and `/tmp/db-migrate.log` behind.
 
+**`pnpm test:int` runs against that same database and will wipe your seeded
+data.** `vitest.config.ts` loads `.env.local`, so the integration suite shares
+`DATABASE_URL` with dev — and one of its specs
+(`api/dev/reset-demo-data/route.int.test.ts`) drives the real reset handler,
+which soft-deletes every trip its caller is a member of. Expect to re-run
+`db:reseed` after `test:int`. Not a bug in the tests; a shared database is what
+"integration test" means here. It only started biting once web sessions could
+run the suite at all.
+
 Running more than one worktree's dev server at once: each needs its own
 port. `WEB_PORT=3010 pnpm --filter web dev` (or set `WEB_PORT` in that
 worktree's `.env.local`) — see `.env.example`'s port-override section.

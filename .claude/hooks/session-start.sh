@@ -57,8 +57,15 @@ start_postgres() {
   fi
   pgdata=/var/lib/postgresql/travel
 
-  mkdir -p "$pgdata" /var/run/postgresql
-  chown -R postgres:postgres "$pgdata" /var/run/postgresql
+  # Guarded, like every other step here: this file runs under `set -e`, so an
+  # unguarded failure would abort the whole hook and fail session start — the
+  # exact opposite of this function's "never fail the session over the
+  # database" contract. A read-only path, or an image without a `postgres`
+  # user, should cost you a database, not a session.
+  mkdir -p "$pgdata" /var/run/postgresql 2>/dev/null \
+    || { echo "session-start: cannot create $pgdata; skipping database setup." >&2; return 0; }
+  chown -R postgres:postgres "$pgdata" /var/run/postgresql 2>/dev/null \
+    || { echo "session-start: cannot chown $pgdata to postgres; skipping database setup." >&2; return 0; }
 
   if [ ! -f "$pgdata/PG_VERSION" ]; then
     su postgres -c "$pgbin/initdb -D $pgdata -U postgres --auth=trust" >/tmp/initdb.log 2>&1 || {
