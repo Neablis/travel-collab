@@ -88,7 +88,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="30px,30px" open="{{ acctOpen }}" onOpenChange="{{ setAcctOpen }}" align="end" contentClassName="w-56 p-1" trigger="{{ acctTrigger }}">
         <div style="display: flex; flex-direction: column;">
           <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; border-bottom: 1px solid var(--color-hairline);">
-            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Sam K</span>
+            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ acctName }}</span>
             <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">sam@example.com</span>
           </div>
           <button onClick="{{ openAccount }}" style="text-align: left; background: none; border: 0; padding: 9px 10px; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--color-ink); border-radius: 6px;" style-hover="background: var(--color-moss);">Your account</button>
@@ -260,7 +260,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="neutral">{{ trip.state }}</x-import>
                 </button>
               </div>
-              <div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: stretch; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;">
+              <div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;">
                 <div data-r="meta" style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
                   <span style="display: inline-flex; align-items: center; gap: 8px;">
                     <span style="width: 9px; height: 9px; border-radius: 999px; background: {{ tripAccent }};"></span>
@@ -274,7 +274,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <button onClick="{{ openSettings }}" title="Open trip settings" style="display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px; cursor: pointer; font-family: inherit; transition: border-color 140ms ease;" style-hover="border-color: var(--color-border-strong);">
                   <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
                     <span style="display: flex; align-items: baseline; gap: 6px;">
-                      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ budgetHeadline }}</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ budgetHeadline }}</span>
                       <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ budgetOf }}</span>
                     </span>
                     <span style="display: block; width: 132px; height: 4px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
@@ -451,13 +451,16 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <span>{{ day.route }}</span>
                   </div>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px;">
+                  <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 16px;">
                     <sc-for list="{{ day.items }}" as="act" hint-placeholder-count="4">
                       <div>
                         <div data-r="slot" data-stop="{{ act.key }}" style="display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: start; cursor: grab; touch-action: none; border-radius: 12px; outline-offset: 2px; opacity: {{ act.dimOp }}; transition: opacity 140ms ease;">
-                          <div style="padding-top: 12px; text-align: right;">
+                          <div onMouseEnter="{{ act.homeIn }}" onMouseLeave="{{ act.homeOut }}" style="padding-top: 12px; text-align: right;">
                             <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,18px" size="sm" className="block text-ink">{{ act.start }}</x-import>
                             <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,16px" size="xs" className="block">{{ act.end }}</x-import>
+                            <sc-if value="{{ act.showHome }}" hint-placeholder-val="{{ false }}">
+                              <span style="display: block; margin-top: 5px; font-family: var(--font-next-mono); font-size: 10px; line-height: 1.25; color: var(--color-slate); text-wrap: pretty;">{{ act.homeTime }}</span>
+                            </sc-if>
                           </div>
                           <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,84px" className="flex items-start gap-4 rounded-lg p-5">
                             <div style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ act.railBg }};"></div>
@@ -689,32 +692,52 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <div style="background: var(--color-surface); padding: 10px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">{{ h }}</div>
                 </sc-for>
                 <sc-for list="{{ mo.cells }}" as="c" hint-placeholder-count="35">
-                  <div style="background: var(--color-surface); min-width: 0; min-height: 116px; padding: 8px 9px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="background: var(--color-surface); min-width: 0; min-height: 118px; padding: 8px 9px; display: flex; flex-direction: column; gap: 7px; box-shadow: {{ c.ring }}; transition: box-shadow 160ms ease;">
+                    <div data-dayhandle="{{ c.di }}" style="display: flex; align-items: center; justify-content: space-between; gap: 6px; cursor: {{ c.gripCursor }}; touch-action: none;">
                       <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ c.num }}</span>
                       <sc-if value="{{ c.inTrip }}" hint-placeholder-val="{{ false }}">
-                        <span style="font-size: 10px; font-weight: 600; color: {{ c.ink }};">{{ c.label }}</span>
-                      </sc-if>
-                    </div>
-                    <sc-if value="{{ c.inTrip }}" hint-placeholder-val="{{ false }}">
-                      <div data-calday="{{ c.di }}" style="min-width: 0; margin-top: 6px; background: {{ c.tint }}; border-radius: 10px; padding: 7px 8px; outline-offset: 2px;">
-                        <div data-dayhandle="{{ c.di }}" onClick="{{ c.jump }}" style="display: flex; align-items: center; gap: 5px; cursor: grab; touch-action: none;">
-                          <span style="display: flex; flex-direction: column; gap: 2px; flex: none;">
+                        <span style="display: flex; align-items: center; gap: 5px;">
+                          <span style="font-size: 10px; font-weight: 600; color: {{ c.ink }};">{{ c.label }}</span>
+                          <span style="display: flex; flex-direction: column; gap: 2px; flex: none; opacity: 0.55;">
                             <span style="display: flex; gap: 2px;"><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span></span>
                             <span style="display: flex; gap: 2px;"><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span></span>
                             <span style="display: flex; gap: 2px;"><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span><span style="width: 2px; height: 2px; border-radius: 999px; background: {{ c.ink }};"></span></span>
                           </span>
-                          <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: {{ c.ink }};">{{ c.city }}</span>
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px;">
-                          <sc-for list="{{ c.chips }}" as="ch" hint-placeholder-count="3">
-                            <div data-castop="{{ ch.key }}" style="display: flex; align-items: baseline; gap: 5px; min-width: 0; background: var(--color-surface); border-radius: 6px; padding: 3px 6px; cursor: grab; touch-action: none; opacity: {{ ch.dim }}; transition: opacity 140ms ease;">
-                              <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate); flex: none;">{{ ch.t }}</span>
-                              <span style="flex: 1; min-width: 0; font-size: 10.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ ch.n }}</span>
-                            </div>
-                          </sc-for>
-                        </div>
-                        <div style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); margin-top: 5px;">{{ c.more }}</div>
+                        </span>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ c.inTrip }}" hint-placeholder-val="{{ false }}">
+                      <div data-calday="{{ c.di }}" style="min-width: 0; display: flex; flex-direction: column; gap: 5px; outline-offset: 2px;">
+                        <sc-for list="{{ c.cities }}" as="ct" hint-placeholder-count="1">
+                          <sc-if value="{{ ct.isLead }}" hint-placeholder-val="{{ false }}">
+                            <button onClick="{{ c.jump }}" style="display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; font-family: inherit; border: 0; cursor: pointer; min-width: 0; background: {{ ct.tint }}; border-radius: 9px; padding: 5px 8px; opacity: {{ ct.dim }}; transition: opacity 160ms ease;">
+                              <span style="flex: 1 0 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; color: {{ ct.ink }};">{{ ct.city }}</span>
+                              <span style="flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-next-mono); font-size: 10px; color: {{ ct.ink }};">{{ ct.leadTime }}</span>
+                            </button>
+                          </sc-if>
+                          <sc-if value="{{ ct.isMain }}" hint-placeholder-val="{{ true }}">
+                          <button onClick="{{ c.jump }}" style="display: block; width: 100%; text-align: left; font-family: inherit; border: 0; cursor: pointer; min-width: 0; background: {{ ct.tint }}; border-radius: 9px; padding: 7px 8px 8px; opacity: {{ ct.dim }}; transition: opacity 160ms ease, transform 140ms ease;" style-hover="transform: translateY(-1px);">
+                            <span style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; letter-spacing: -0.005em; color: {{ ct.ink }};">{{ ct.city }}</span>
+                            <span style="display: block; position: relative; height: 3px; border-radius: 999px; background: rgba(21, 29, 46, 0.09); margin: 7px 0 6px;">
+                              <span style="position: absolute; top: 0; bottom: 0; left: {{ ct.barLeft }}; width: {{ ct.barWidth }}; border-radius: 999px; background: {{ ct.solid }};"></span>
+                            </span>
+                            <span style="display: flex; align-items: baseline; justify-content: space-between; gap: 5px; font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">
+                              <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ ct.countLabel }}</span>
+                              <span style="flex: none;">{{ ct.costLabel }}</span>
+                            </span>
+                            <span style="display: block; font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); margin-top: 2px;">{{ ct.timeLabel }}</span>
+                            <sc-if value="{{ ct.needsBooking }}" hint-placeholder-val="{{ false }}">
+                              <span style="display: inline-block; margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--color-warning-ink); background: var(--color-warning-tint); border-radius: 5px; padding: 1px 6px;">{{ ct.openLabel }}</span>
+                            </sc-if>
+                            <sc-if value="{{ ct.filtered }}" hint-placeholder-val="{{ false }}">
+                              <span style="display: block; margin-top: 6px; font-size: 10px; font-weight: 600; color: {{ ct.ink }};">{{ ct.hitLabel }}</span>
+                            </sc-if>
+                          </button>
+                          </sc-if>
+                        </sc-for>
+                        <sc-if value="{{ c.empty }}" hint-placeholder-val="{{ false }}">
+                          <button onClick="{{ c.jump }}" style="display: block; width: 100%; text-align: left; font-family: inherit; border: 1px dashed var(--color-hairline); background: none; border-radius: 9px; padding: 9px 8px; cursor: pointer; font-size: 10.5px; color: var(--color-slate);">Nothing planned yet</button>
+                        </sc-if>
                       </div>
                     </sc-if>
                   </div>
@@ -775,7 +798,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">Unscheduled</span>
                 <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="neutral">{{ blCountLabel }}</x-import>
               </button>
-              <span style="font-size: 12px; color: var(--color-slate);">{{ blHint }}</span>
             </div>
             <sc-if value="{{ blOpen }}" hint-placeholder-val="{{ true }}">
               <div style="display: flex; gap: 10px; overflow-x: auto; padding: 0 26px 14px;">
@@ -1100,7 +1122,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </sc-if>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ insertOpen }}" onOpenChange="{{ setInsertOpen }}" title="Insert from the plan">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 4px;">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 2px;">
       <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Search — cost, stops, name…" value="{{ insQ }}" onChange="{{ setInsQ }}" aria-label="Search insertable values"></x-import>
 
       <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -1148,8 +1170,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ setOpen }}" onOpenChange="{{ setSetOpen }}" title="Trip settings">
-    <div style="display: flex; flex-direction: column; gap: 18px; padding-top: 4px;">
-      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="s1" label="Trip name" description="Everyone invited sees this name.">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 4px 4px 2px;">
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="s1" label="Trip name">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="s1" value="{{ tripName }}" onChange="{{ setTripName }}"></x-import>
       </x-import>
       <div style="display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
@@ -1232,8 +1254,42 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
+  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ acctSheet }}" onOpenChange="{{ setAcctSheet }}" title="Account settings">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 4px 4px 2px;">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="ac1" label="Your name">
+          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="ac1" value="{{ acctName }}" onChange="{{ setAcctName }}"></x-import>
+        </x-import>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
+          <span style="font-size: 12px; color: var(--color-slate);">Signed in as</span>
+          <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">sam@example.com</span>
+        </div>
+        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="ac2" label="Home airport">
+          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="ac2" value="{{ homeAirport }}" onChange="{{ setHomeAirport }}" placeholder="SFO"></x-import>
+        </x-import>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 18px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Display</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Distance</span>
+          </div>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ units }}" onValueChange="{{ setUnits }}" options="{{ unitOptions }}" aria-label="Distance units"></x-import>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--color-hairline); padding-top: 14px; margin-top: 5px;">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Home time on hover</span>
+          </div>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ homeHover }}" onValueChange="{{ setHomeHover }}" options="{{ homeHoverOptions }}" aria-label="Home time on hover"></x-import>
+        </div>
+      </div>
+
+    </div>
+  </x-import>
+
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ ntOpen }}" onOpenChange="{{ setNtOpen }}" title="New trip">
-    <div style="display: flex; flex-direction: column; gap: 18px; padding-top: 4px;">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 4px 4px 2px;">
       <div style="display: flex; align-items: center; gap: 6px;">
         <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
           <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
@@ -1341,7 +1397,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ addOpen }}" onOpenChange="{{ setAddOpen }}" title="Add a stop">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 4px;">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 2px;">
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="a1" label="What or where" description="Type a place and we fill in the address, hours and travel time.">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="a1" placeholder="e.g. Dinner at Kikunoi Roan" value="{{ addTitle }}" onChange="{{ setAddTitle }}"></x-import>
       </x-import>
@@ -1424,7 +1480,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
   <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ pbOpen }}" onOpenChange="{{ setPbOpen }}" title="Save this day as a Playbook">
     <div style="display: flex; flex-direction: column; gap: 14px;">
-      <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding-right: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
       <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ pbDayLabel }} becomes a standalone day. It keeps the order, the gaps between stops and the notes — but not the date, so it fits any trip.</div>
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="p1" label="Name">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="p1" value="{{ pbName }}" onChange="{{ setPbName }}"></x-import>
@@ -1460,7 +1516,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
   <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ insOpen }}" onOpenChange="{{ setInsOpen }}" title="Add a saved day to a trip">
     <div style="display: flex; flex-direction: column; gap: 14px;">
-      <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding-right: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
       <div style="display: flex; align-items: center; gap: 12px; background: var(--color-moss); border-radius: 12px; padding: 12px 14px;">
         <div style="flex: 1;">
           <div style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ insName }}</div>
@@ -1695,7 +1751,8 @@ class Component extends DCLogic {
     pbFilter: 'all', pbCity: 'All cities', toast: '', rev: 0,
     blOpen: false,
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
-    acctOpen: false, histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
+    acctOpen: false, acctSheet: false, acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
+    histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
     docId: 'overview', docMode: 'read', docDay: 6, docFollowed: false, insertOpen: false,
     boundDocs: [], insScope: 'trip', insKind: 'all', insQ: '', blankMade: false,
@@ -1719,7 +1776,7 @@ class Component extends DCLogic {
     japan: {
       name: 'Japan: Tokyo → Kyoto → Osaka', state: 'Planning',
       dates: 'Sep 20 – Oct 3, 2026', mon: 'Sep', firstDow: 2, monthDays: 30,
-      crewLabel: '4 travelers',
+      crewLabel: '4 travelers', tz: 9,
       days: [
         ['Tokyo', 'Sun', 20, 'Tokyo', [['14:30', '16:00', 'Land at Haneda', 'HND Terminal 3', 'Ōta', 'All', 'transit', ''],
           ['17:00', '17:30', 'Check in at Trunk Hotel', 'Trunk Hotel', 'Shibuya', 'All', 'booked', 'Bags to the room, then straight out — nobody sleeps yet.'],
@@ -1793,7 +1850,7 @@ class Component extends DCLogic {
     },
     nola: {
       name: 'New Orleans', state: 'Booked', dates: 'Sep 4 – Sep 7, 2026',
-      mon: 'Sep', firstDow: 2, monthDays: 30, crewLabel: '2 travelers',
+      mon: 'Sep', firstDow: 2, monthDays: 30, crewLabel: '2 travelers', tz: -5,
       days: [
         ['French Quarter', 'Fri', 4, 'French Quarter', [['08:00', '09:30', 'Breakfast at Café du Monde', 'Café du Monde', 'French Quarter', 'All', '', ''],
           ['12:30', '14:00', 'Lunch at Cochon', 'Cochon', 'Warehouse District', 'All', 'booked', ''],
@@ -2214,7 +2271,25 @@ class Component extends DCLogic {
     const h = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(a[1] * t) * Math.cos(b[1] * t) * Math.pow(Math.sin(dLng / 2), 2);
     return 2 * R * Math.asin(Math.sqrt(h));
   }
-  kmLabel(v) { return v < 1 ? Math.round(v / 0.05) * 50 + ' m' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' km'; }
+  // Home time is a REFERENCE, not a display mode: the plan always reads in the
+  // trip's own local time (7pm dinner means 7pm in Kyoto). Hovering a stop's time
+  // answers "what is that for me back home" without rewriting the itinerary.
+  HOME_TZ = -7;
+  homeDelta() { const t = this.trip(); return (this.HOME_TZ - (t.tz || 0)) * 60; }
+  homeTimeOf(hhmm) {
+    const m = this.toMin(hhmm) + this.homeDelta();
+    const shift = Math.floor(m / 1440), mins = ((m % 1440) + 1440) % 1440;
+    const where = (this.state.homeAirport || '').trim().toUpperCase() || 'Home';
+    return where + ' ' + this.fmt(this.hhmm(mins)) + (shift === 0 ? '' : shift < 0 ? ' −1d' : ' +1d');
+  }
+  kmLabel(v) {
+    if (this.state.units === 'mi') {
+      const mi = v * 0.621371;
+      if (mi < 0.19) return Math.round(mi * 5280 / 50) * 50 + ' ft';
+      return (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + ' mi';
+    }
+    return v < 1 ? Math.round(v / 0.05) * 50 + ' m' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' km';
+  }
   minLabel(m) { return m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' m' : '') : m + ' min'; }
 
   // One day's geography: the stops that have coordinates, and the legs between them.
@@ -2249,6 +2324,57 @@ class Component extends DCLogic {
   // Tag focus dims, never hides — the shape of the day has to stay readable.
   tagOff(a) { const tf = this.state.tagFilter || []; return tf.length ? !this.tagsOf(a).filter(x => tf.indexOf(x) >= 0).length : false; }
   calStops(d) { return d[4]; }
+  // Calendar is the high-level lens: it answers "where am I and how full is that
+  // day", not "what am I doing at 2pm" (that is Timeline / Day columns). So a cell
+  // carries one card per CITY the day touches, each summarising its own stops.
+  // A travel day splits at the last transit stop — before it belongs to the city
+  // you leave, after it to the city you arrive in.
+  CAL_DAY0 = 7 * 60;
+  CAL_DAY1 = 23 * 60;
+  calCities(d, di) {
+    const stops = d[4], start = d[3] || d[0], end = d[0];
+    if (!stops.length) return [];
+    let groups;
+    if (start === end) groups = [{ city: end, stops: stops }];
+    else {
+      let p = -1;
+      stops.forEach((a, j) => { if (a[6] === 'transit') p = j; });
+      if (p < 0) p = 0;
+      groups = [{ city: start, stops: stops.slice(0, p + 1) }, { city: end, stops: stops.slice(p + 1) }]
+        .filter(g => g.stops.length);
+    }
+    const tf = this.state.tagFilter || [];
+    const span = this.CAL_DAY1 - this.CAL_DAY0;
+    return groups.map((g, k) => {
+      const ac = this.accent(g.city), n = g.stops.length;
+      const first = g.stops[0], last = g.stops[n - 1];
+      const cost = g.stops.reduce((t, a) => t + this.costOf(a).amt, 0);
+      const open = g.stops.filter(a => a[6] !== 'booked' && a[6] !== 'transit').length;
+      const hits = tf.length ? g.stops.filter(a => !this.tagOff(a)).length : 0;
+      const s0 = first ? Math.max(0, Math.min(1, (this.toMin(first[0]) - this.CAL_DAY0) / span)) : 0;
+      const s1 = last ? Math.max(0, Math.min(1, (this.toMin(last[1]) - this.CAL_DAY0) / span)) : 0;
+      return {
+        key: di + ':' + k, city: g.city, tint: ac.tint, ink: ac.ink, solid: ac.solid,
+        // A travel day keeps the week's rhythm by giving the city you LEAVE a
+        // one-line strip and the city you land in the full card — the day belongs
+        // to where you end up.
+        isLead: groups.length > 1 && k === 0,
+        isMain: !(groups.length > 1 && k === 0),
+        // The lead group ends on the transit stop, so its START is the departure.
+        leadTime: last ? this.fmt(last[0]).replace(' ', '') : '',
+        countLabel: n + (n === 1 ? ' stop' : ' stops'),
+        timeLabel: first ? this.fmt(first[0]).replace(' ', '') + '–' + this.fmt(last[1]).replace(' ', '') : '',
+        costLabel: this.money(cost),
+        needsBooking: open > 0,
+        openLabel: open === 1 ? '1 to book' : open + ' to book',
+        barLeft: (s0 * 100) + '%',
+        barWidth: Math.max(3, (s1 - s0) * 100) + '%',
+        filtered: tf.length > 0,
+        hitLabel: hits + ' of ' + n + ' match',
+        dim: tf.length && !hits ? '0.28' : '1'
+      };
+    });
+  }
   calMore(d) {
     const tf = this.state.tagFilter || [], list = d[4];
     if (!list.length) return 'Nothing planned yet';
@@ -2484,7 +2610,6 @@ class Component extends DCLogic {
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && this._drag) {
         this._drag.drop = null;
-        if (this._blAuto) { this._blAuto = false; this.setState({ blOpen: false }); }
         this.dragEnd();
         return;
       }
@@ -2526,11 +2651,9 @@ class Component extends DCLogic {
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'grabbing';
     this._drag = { kind: p.kind, el, proxy, chip, dx: e.clientX - r.left, dy: e.clientY - r.top, drop: null, marks: [] };
-    // the drawer is a drop target, so it shows itself the moment a stop is in hand
-    if (p.kind !== 'bl' && p.kind !== 'colday' && p.kind !== 'day' && !this.state.blOpen) {
-      this._blAuto = true;
-      this.setState({ blOpen: true });
-    }
+    // The drawer used to open itself the moment a stop was in hand, which made the
+    // whole bottom of the page (and the assistant with it) jump mid-drag. It stays
+    // where the user put it; the drop target works whether or not it is expanded.
   }
   dragMove(e) {
     if (this._pd && !this._drag) {
@@ -2849,10 +2972,6 @@ class Component extends DCLogic {
     this._noClick = true;
     setTimeout(() => { this._noClick = false; }, 60);
     if (drop) this.applyDrop(drop);
-    if (this._blAuto) {
-      this._blAuto = false;
-      if (!drop || drop.kind !== 'unschedule') this.setState({ blOpen: false });
-    }
     this.dragEnd();
   }
   applyDrop(p) {
@@ -3020,7 +3139,12 @@ class Component extends DCLogic {
         const who = a[5];
         const c = this.costOf(a), cl = this.liveClash(raw, j);
         const cKey = cl ? a[2] + '|' + cl.other[2] : '';
+        const hKey = i + ':' + j;
         return {
+          homeIn: () => { if (this.state.homeHover) this.setState({ homeAt: hKey }); },
+          homeOut: () => { if (this.state.homeAt === hKey) this.setState({ homeAt: null }); },
+          showHome: this.state.homeHover && this.state.homeAt === hKey,
+          homeTime: this.homeTimeOf(a[0]),
           cost: c.priced ? this.money(c.amt) : 'No cost yet',
           costEst: c.priced && c.est,
           costInk: (c.priced && !maybe) ? 'var(--color-ink)' : 'var(--color-slate)',
@@ -3054,7 +3178,7 @@ class Component extends DCLogic {
       });
       const areas = [];
       raw.forEach(a => { if (areas[areas.length - 1] !== a[4]) areas.push(a[4]); });
-      const km = (2.4 + ((i * 13) % 9) * 0.7).toFixed(1);
+      const km = this.kmLabel(2.4 + ((i * 13) % 9) * 0.7);
       const st = this.dayStamp(i);
       const dateLabel = st.dow + ' ' + st.mon + ' ' + st.num;
       const clashN = raw.filter((_, j) => this.liveClash(raw, j)).length;
@@ -3069,7 +3193,7 @@ class Component extends DCLogic {
         summary: raw.length ? raw.length + ' stops · ' + this.dur(this.toMin(raw[raw.length - 1][1]) - this.toMin(raw[0][0])) + ' out' : 'Nothing planned yet',
         stopCount: raw.length,
         outLabel: raw.length ? this.dur(this.toMin(raw[raw.length - 1][1]) - this.toMin(raw[0][0])) + ' out' : 'Open day',
-        route: raw.length ? areas.slice(0, 4).join(' → ') + (areas.length > 4 ? ' → +' + (areas.length - 4) + ' more' : '') + ' · ' + km + ' km on foot' : 'No stops yet — add one, or drop a saved day onto it',
+        route: raw.length ? areas.slice(0, 4).join(' → ') + (areas.length > 4 ? ' → +' + (areas.length - 4) + ' more' : '') + ' · ' + km + ' on foot' : 'No stops yet — add one, or drop a saved day onto it',
         empty: !raw.length,
         addAtEnd: () => this.openAddAt(i, raw.length ? this.hhmm(this.toMin(raw[raw.length - 1][1]) + 30) : '09:00'),
         addAtEndLabel: raw.length ? 'Add a stop after ' + this.fmt(raw[raw.length - 1][1]) : 'Add the first stop',
@@ -3104,14 +3228,9 @@ class Component extends DCLogic {
       } else if (this.state.view === 'calendar') {
         const sc = document.getElementById('planscroll');
         const el = document.querySelector('[data-calday="' + i + '"]');
-        if (sc && el) {
-          sc.scrollTop = Math.max(0, sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140);
-          if (el.animate) this.anim(el, [
-            { boxShadow: '0 0 0 0 rgba(0,0,0,0)' },
-            { boxShadow: '0 0 0 3px var(--color-brand)', offset: 0.35 },
-            { boxShadow: '0 0 0 0 rgba(0,0,0,0)' }
-          ], { duration: 780, easing: 'ease-out' });
-        }
+        // No flash here: the selected day holds a ring for as long as it stays
+        // selected (see calMonths' `ring`), so the highlight is state, not an event.
+        if (sc && el) sc.scrollTop = Math.max(0, sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 140);
       } else {
         const sc = document.getElementById('planscroll');
         const el = document.querySelector('[data-daysec="' + i + '"]');
@@ -3262,9 +3381,14 @@ class Component extends DCLogic {
           mc.push({
             num: cur.getDate(), inTrip: inTrip, di, label: inTrip ? 'Day ' + (di + 1) : '',
             city: d ? d[0] : '', tint: ac.tint, ink: ac.ink,
-            chips: d ? this.calStops(d).slice(0, 3).map((a, j) => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2], dim: this.tagOff(a) ? '0.32' : '1' })) : [],
-            more: d ? this.calMore(d) : '',
-            jump: () => { if (this._noClick || !inTrip) return; this.setState({ view: 'timeline' }); this.jump(di); }
+            cities: d ? this.calCities(d, di) : [],
+            empty: !!d && !d[4].length,
+            gripCursor: inTrip ? 'grab' : 'default',
+            // Selecting a day is a state you can see, not a flash you might miss.
+            ring: (inTrip && s.focused && s.focus === di) ? 'inset 0 0 0 2px ' + ac.solid : 'inset 0 0 0 0 rgba(0,0,0,0)',
+            // Clicking picks the day and stays put — Calendar is where you read the
+            // shape of the trip, so it shouldn't throw you into another view.
+            jump: () => { if (this._noClick || !inTrip) return; this.jump(di); }
           });
         }
         while (mc.length % 7) mc.push({ num: '', inTrip: false, blank: true });
@@ -3301,11 +3425,27 @@ class Component extends DCLogic {
 
       acctOpen: !!s.acctOpen,
       setAcctOpen: v => this.setState({ acctOpen: v }),
-      acctTrigger: this.once('acct', () => React.createElement('button', {
-        title: 'Sam K', 'aria-label': 'Account menu',
+      acctTrigger: this.once('acct:' + s.acctName, () => React.createElement('button', {
+        title: s.acctName, 'aria-label': 'Account menu',
         style: { width: 30, height: 30, borderRadius: 999, background: 'var(--color-moss)', border: '1px solid var(--color-hairline)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 600, color: 'var(--color-slate)', marginLeft: 4, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }
-      }, 'SK')),
-      openAccount: () => { this.setState({ acctOpen: false }); this.flash('Account settings aren’t built yet'); },
+      }, (s.acctName || 'S').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join(''))),
+      // Account scope (Rule 1): things true of you across every trip. Distance
+      // units live here, not in Trip settings — a trip doesn't have a unit, you do.
+      openAccount: () => this.setState({ acctOpen: false, acctSheet: true }),
+      acctSheet: !!s.acctSheet,
+      setAcctSheet: v => this.setState({ acctSheet: v }),
+      acctName: s.acctName, setAcctName: e => this.setState({ acctName: e.target.value }),
+      homeAirport: s.homeAirport, setHomeAirport: e => this.setState({ homeAirport: e.target.value }),
+      units: s.units,
+      setUnits: v => { this.setState({ units: v }); this.flash(v === 'mi' ? 'Distances now in miles' : 'Distances now in kilometres'); },
+      unitOptions: [{ value: 'km', label: 'Kilometres' }, { value: 'mi', label: 'Miles' }],
+      unitsNote: s.units === 'mi' ? 'Walks and hops show in miles and feet.' : 'Walks and hops show in kilometres and metres.',
+      homeHover: s.homeHover ? 'on' : 'off',
+      setHomeHover: v => this.setState({ homeHover: v === 'on', homeAt: null }),
+      homeHoverOptions: [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }],
+      homeHoverNote: s.homeHover
+        ? 'Hovering a stop’s time shows what it is where you live. The plan itself stays in the trip’s local time.'
+        : 'Times read in the trip’s local time only.',
 
       // Rule 1/4: renaming lives in Trip settings only — the title button opens it.
       // No inline rename, no pencil. (Was here until the 2026-08-25 rules pass.)
@@ -3458,7 +3598,8 @@ class Component extends DCLogic {
       budgetHeadline: sp.budget ? this.money(sp.total) : this.money(sp.total) + ' planned',
       budgetOf: sp.budget ? 'of ' + this.money(sp.budget) : 'no budget set',
       budgetBadge: sp.budget ? (sp.over ? this.money(sp.left) + ' over' : this.money(sp.left) + ' left') : 'Set a budget',
-      budgetBadgeVariant: sp.budget ? (sp.over ? 'warning' : 'neutral') : 'neutral',
+      // What's left is the number you act on — the spend/total beside it is reference.
+      budgetBadgeVariant: sp.budget ? (sp.over ? 'warning' : 'success') : 'neutral',
       budgetFill: (sp.budget ? Math.min(100, Math.round(sp.total / sp.budget * 100)) : 0) + '%',
       budgetFillColor: sp.over ? 'var(--color-warning)' : 'var(--color-brand)',
       budgetInk: sp.over ? 'var(--color-warning-ink)' : 'var(--color-slate)',
@@ -3505,10 +3646,11 @@ class Component extends DCLogic {
       invite: () => this.flash('Invites come next — nothing sent yet'),
       // A view that draws the whole trip at once (calendar, map) is a trip-scope
       // view: it can't be "looking at a day", so entering one drops day focus.
-      view: s.view, setView: v => this.setState({ view: v, focused: v === 'timeline' || v === 'columns' ? s.focused : false }),
+      // Calendar now carries a selected day too, so it keeps focus like the day views.
+      view: s.view, setView: v => this.setState({ view: v, focused: v === 'map' ? false : s.focused }),
       viewOptions: [{ value: 'timeline', label: 'Timeline' }, { value: 'columns', label: 'Day columns' }, { value: 'calendar', label: 'Calendar' }, { value: 'map', label: 'Map' }],
       isTimeline: s.view === 'timeline', isColumns: s.view === 'columns', isCalendar: s.view === 'calendar', isMap: s.view === 'map',
-      showChips: true,
+      showChips: s.view !== 'map',
       isOverview: route === 'home' || route === 'playbooks',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
 
@@ -3587,15 +3729,11 @@ class Component extends DCLogic {
       blOpen: s.blOpen, blCaret: s.blOpen ? '▼' : '▲', blToggleLabel: s.blOpen ? 'Hide' : 'Show', blCountLabel: String(s.backlog.length), blEmpty: !s.backlog.length,
       showRack: s.view === 'columns',
       chatEmpty: !s.chat.length,
-      blHint: '', blHintUnused: !s.blOpen ? '' : (s.view === 'columns' ? 'Drag one onto a day — it stretches to fill the gap you drop it in. Drop a stop here to take it off the schedule.' : 'Switch to Day columns to drag these in, or pick a day on the card.'),
-      toggleBacklog: () => { this._blAuto = false; this.setState(st => ({ blOpen: !st.blOpen })); },
-      fabBottom: route !== 'trip' ? '22px' : (s.view === 'map' ? '116px' : '68px'),
+      toggleBacklog: () => this.setState(st => ({ blOpen: !st.blOpen })),
       blDayOptions: trip.days.map((d, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + d[0] })),
       backlogItems: s.backlog.map(b => Object.assign({}, b, {
         assign: e => { const v = e.target.value; if (v) this.scheduleFromBacklog(b.id, +v); }
       })),
-      dragHint: { timeline: 'Drag a stop up or down to reschedule it — snaps to 15 minutes. ⌘Z undoes.', columns: 'Drag stops between days, or a column by its handle to reorder days. ⌘Z undoes.', calendar: 'Drag a stop to another date, or the day handle to reorder days. ⌘Z undoes.', map: 'Scroll the day rail — the map follows.' }[s.view] || '',
-      mapIntro: route === 'trip' ? 'Every day drawn at once. Scroll to move through them — the focused day comes forward, the rest stay as faint context.' : '',
       mapDays: mapData.map(m => {
         const on = m.i === s.focus, d = m.day, st = this.dayStamp(m.i);
         const parts = [];
@@ -3661,9 +3799,6 @@ class Component extends DCLogic {
         : route === 'notebook' ? 'Looking at the Notebook for ' + trip.name
         : route === 'doc' ? 'Looking at “' + this.doc().title + '”'
         : route === 'playbooks' ? 'Looking at your Playbook library' : 'Looking at all three of your trips',
-      sugHeading: route === 'trip' ? 'What I noticed in this trip' : 'What I noticed',
-      suggestions: sugs.map(x => ({ where: x.where, title: x.title, body: x.body, cta: x.cta, act: x.act, dismiss: () => this.setState(st => ({ dismissed: st.dismissed.concat([x.id]) })) })),
-      sugCount: sugs.length,
       chat: s.chat, ask: s.ask, setAsk: e => this.setState({ ask: e.target.value }),
       send: () => {
         if (!s.ask.trim()) return;
