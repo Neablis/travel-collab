@@ -1,37 +1,18 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AssistantRail, type Suggestion } from "./AssistantRail";
+import { AssistantRail } from "./AssistantRail";
 
 afterEach(cleanup);
 
-const suggestions: Suggestion[] = [
-  {
-    id: "s1",
-    location: "Day 2 · Kyoto",
-    title: "Sunday has no dinner",
-    body: "Three stops and nothing after 4 pm — the only night in Kyoto like that.",
-    cta: "Propose dinner",
-  },
-  {
-    id: "s2",
-    location: "Day 4 · Nikkō",
-    title: "Nikkō is four hours of train",
-    body: "Swapping it with Day 5 gives you two calm Tokyo days first, same total travel.",
-    cta: "Preview swap",
-  },
-];
 
 // Required-prop fixture for tests that assert on a specific optional prop
 // (e.g. `simulated`) without needing renderRail's override merging — mirrors
 // the same values renderRail defaults to below.
 const baseProps: React.ComponentProps<typeof AssistantRail> = {
   contextLine: "Looking at Day 2 · Kyoto",
-  suggestions,
   quickAsks: ["Where am I overbooked?", "Find a rainy-day swap"],
   onAsk: vi.fn(),
-  onKeepGhost: vi.fn(),
-  onDismiss: vi.fn(),
   onHide: vi.fn(),
 };
 
@@ -39,11 +20,8 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail
   return render(
     <AssistantRail
       contextLine="Looking at Day 2 · Kyoto"
-      suggestions={suggestions}
       quickAsks={["Where am I overbooked?", "Find a rainy-day swap"]}
       onAsk={vi.fn()}
-      onKeepGhost={vi.fn()}
-      onDismiss={vi.fn()}
       onHide={vi.fn()}
       {...overrides}
     />,
@@ -53,33 +31,24 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail
 // M10 redesign-feedback follow-up: the rail is no longer wrapped in a single
 // outer <Preview id="assistant-rail"> — its header/context line/ask box are
 // real (the same composeAiPlan feature the old standalone ComposePanel used
-// to expose directly), while "What I noticed" suggestions and the quick-ask
-// chips stay behind their own, narrower <Preview> wraps internally (still
-// M9, nothing generates a real suggestion yet).
+// to expose directly), while the quick-ask chips stay behind their own,
+// narrower <Preview> wrap internally (still M9 — nothing generates a real
+// nudge yet).
 describe("AssistantRail", () => {
   it("renders the context line", () => {
     renderRail();
     expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
   });
 
-  it("renders a suggestion card per fixture entry, inert inside its own Preview region", () => {
+  // The "What I noticed" shelf is deliberately absent (Mitchell, preview
+  // feedback on PR #55; the 2026-08-24 design's panel markup has no such
+  // block either). Asserted, not merely deleted, so re-adding it is a
+  // failing test rather than a silent regression.
+  it("has no suggestions shelf, and holds the conversation space with the design's hint", () => {
     const { container } = renderRail();
-    const region = container.querySelector('[data-preview-id="assistant-suggestions"]');
-    expect(region).not.toBeNull();
-    for (const s of suggestions) {
-      expect(screen.getByText(s.location)).not.toBeNull();
-      expect(screen.getByText(s.title)).not.toBeNull();
-      expect(screen.getByText(s.body)).not.toBeNull();
-      expect(screen.getByRole("button", { name: s.cta })).not.toBeNull();
-    }
-    expect(screen.getAllByRole("button", { name: "Dismiss" })).toHaveLength(suggestions.length);
-  });
-
-  it("does not call onKeepGhost when a suggestion's CTA is clicked — the shield swallows it", async () => {
-    const onKeepGhost = vi.fn();
-    renderRail({ onKeepGhost });
-    await userEvent.click(screen.getByRole("button", { name: suggestions[0]!.cta })).catch(() => {});
-    expect(onKeepGhost).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-preview-id="assistant-suggestions"]')).toBeNull();
+    expect(screen.queryByText("What I noticed")).toBeNull();
+    expect(screen.getByText("Ask about this trip and the conversation stays here.")).not.toBeNull();
   });
 
   it("renders quick-ask chips, inert inside their own Preview region", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getSession, signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -172,7 +173,51 @@ export function AccountMenu({
 // client-side door (`/api/auth/session`, `/api/auth/signout`, both already
 // registered by src/app/api/auth/[...nextauth]/route.ts) rather than a
 // second auth path.
-export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
+// The whole right-of-the-logo half of the app header, session-gated as one
+// unit. Both halves need to know whether anyone is signed in — the nav links
+// into authenticated routes, the avatar is the account — and AppHeader is a
+// server component barred from importing `@/server/*` (AGENTS.md invariant 6),
+// so it cannot answer that itself. One island, one `getSession()`: gating the
+// nav separately would mean a second fetch of the same fact.
+//
+// Signed out, this renders nothing at all. Before PR #55 the header offered a
+// signed-out visitor "Trips" and "Playbooks" — links into pages they cannot
+// see (Mitchell, preview feedback: "Trips and playbooks shouldnt render when
+// signed out"). The logo stays, because it is the way back to the landing
+// page.
+export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
+  const user = useSessionUser();
+  if (!user) return null;
+
+  return (
+    <>
+      <nav className="flex items-center gap-1 pl-2">
+        <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
+          Trips
+        </Link>
+        <Link
+          href="/playbooks"
+          className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink"
+        >
+          Playbooks
+        </Link>
+      </nav>
+      <div className="ml-auto flex items-center">
+        {/* AccountMenuFor, not AccountMenuFromSession: the latter resolves the
+            session itself, which would make this header fetch the same fact
+            twice. We already have `user`. */}
+        <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />
+      </div>
+    </>
+  );
+}
+
+// One `getSession()` per component that needs identity. The header has exactly
+// one such component (HeaderSessionChrome), which passes the resolved user down
+// to AccountMenuFor rather than mounting a second resolver — CodeRabbit caught
+// the first version doing precisely that, and the comment here claiming
+// otherwise was a lie the code did not keep.
+function useSessionUser() {
   const [user, setUser] = useState<{ name?: string | null; email?: string | null } | null>(null);
 
   useEffect(() => {
@@ -185,8 +230,19 @@ export function AccountMenuFromSession({ demoResetEnabled = false }: { demoReset
     };
   }, []);
 
-  if (!user) return null;
+  return user;
+}
 
+// The session-independent half: given a user, wire up the menu. Both entry
+// points below render this — HeaderSessionChrome with the user it already
+// resolved, AccountMenuFromSession with one it resolves itself.
+function AccountMenuFor({
+  user,
+  demoResetEnabled = false,
+}: {
+  user: { name?: string | null; email?: string | null };
+  demoResetEnabled?: boolean;
+}) {
   // A hard reload, not a router.push: this can be confirmed from any page
   // (a trip page whose own trip was just deleted included), and the freshly
   // seeded trip needs every client-fetched view — Home's trip list, any open
@@ -206,4 +262,12 @@ export function AccountMenuFromSession({ demoResetEnabled = false }: { demoReset
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />
   );
+}
+
+// Standalone entry point: resolves the session itself. Kept for callers that
+// have no user to hand (its own tests today).
+export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
+  const user = useSessionUser();
+  if (!user) return null;
+  return <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />;
 }

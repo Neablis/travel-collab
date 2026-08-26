@@ -8,6 +8,13 @@ export type ChipDay = {
   dow: string;
   dateNum: string;
   city: string | null;
+  // The city this day arrived FROM — the previous day's derived city, set only
+  // when it differs from this day's. Named "from" rather than "to" because
+  // that is what it has always held the other half of: `transitionTo` was, by
+  // construction, `city` itself (see chipModel), so the two could never carry
+  // different information. Storing the from-half is what lets a chip render a
+  // real "Tokyo → Nikkō" instead of "Nikkō → Nikkō".
+  transitionFrom: string | null;
   transitionTo: string | null;
   stops: number;
 };
@@ -86,7 +93,9 @@ export function chipModel(detail: TripDetail): ChipDay[] {
 
   return detail.days.map((day, index) => {
     const city = cityFor(day, detail.activities);
-    const transitionTo = previousCity !== null && city !== null && city !== previousCity ? city : null;
+    const moved = previousCity !== null && city !== null && city !== previousCity;
+    const transitionFrom = moved ? previousCity : null;
+    const transitionTo = moved ? city : null;
     previousCity = city;
 
     const dow =
@@ -95,7 +104,7 @@ export function chipModel(detail: TripDetail): ChipDay[] {
         : parseLocalDate(day.date).toLocaleDateString("en-US", { weekday: "short" });
     const dateNum = day.date === null ? "" : String(parseLocalDate(day.date).getDate());
 
-    return { dow, dateNum, city, transitionTo, stops: day.activityIds.length };
+    return { dow, dateNum, city, transitionFrom, transitionTo, stops: day.activityIds.length };
   });
 }
 
@@ -108,9 +117,20 @@ export type DayChipsProps = {
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
 // horizontally scrolling row of 92px, 12px-radius (rounded-lg), day-tinted
 // chips — line 1 day-of-week, line 2 mono date number + city, line 3 the
-// transition line ("→ dest city"), line 4 stop dots. The transition line is
-// a fixed h-3.5 (14px) slot rendered on every chip, empty or not, so the row
-// doesn't jump height as a real timeline (Task 10) supplies real transitions.
+// transition line, line 4 stop dots. The transition line is a fixed h-3.5
+// (14px) slot rendered on every chip, empty or not, so the row doesn't jump
+// height as a real timeline (Task 10) supplies real transitions.
+//
+// The handoff draws line 3 as "→ dest city", which this built as a bare
+// `→ ${transitionTo}` under a line-2 city — and since transitionTo WAS
+// line 2's city (chipModel set it to `city` itself), every travel chip read
+// its destination twice: "Nikkō" over "→ Nikkō" (Mitchell, preview feedback
+// on PR #55: "Shouldnt this be Tokyo for the city? Since it ends the day in
+// Nikko?"). The arrow only means anything with both ends, so line 3 now
+// spells out the whole move and line 2 yields the city to it on those days.
+// TimelineLens had already worked around the same gap by reaching back to
+// `days[index - 1].city` for its travel pill's "from" — it now reads
+// transitionFrom instead, so the two surfaces derive the move once.
 // Clicking a chip calls onSelect — TripBoardScreen wires this straight to
 // Task 4's useFocus().setFocusedDay; this component dispatches no trip
 // command and knows nothing about the active lens.
@@ -120,15 +140,23 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
   // each day resolving blind to every other one.
   const accents = dayAccents(days.map((d) => d.city));
   return (
-    // Reported twice ("top border cut off"/"still cut off"): `overflow-x-auto`
-    // sets overflow-x to a non-`visible` value, and the CSS overflow spec
-    // forces the paired overflow-y (left at its `visible` default) to compute
-    // as `auto` too — so this container clips vertically even though only the
-    // x-axis was ever meant to scroll. `pb-1` already gave the focused chip's
-    // `ring-2` clearance below the clip edge; `pt-1` is the missing symmetric
-    // case above, where a focused chip's ring (and any chip's own top edge)
-    // sat flush against the clip with nothing to clear it.
-    <div role="group" aria-label="Days" className="flex gap-2 overflow-x-auto pt-1 pb-1">
+    // Reported three times ("top border cut off"/"still cut off"/"border on
+    // the left side here is cut off"): `overflow-x-auto` sets overflow-x to a
+    // non-`visible` value, and the CSS overflow spec forces the paired
+    // overflow-y (left at its `visible` default) to compute as `auto` too — so
+    // this container clips on every side even though only the x-axis was ever
+    // meant to scroll. `pb-1` already gave the focused chip's `ring-2`
+    // clearance below the clip edge and `pt-1` covered the symmetric case
+    // above; the horizontal axis was still flush, so focusing the FIRST chip
+    // clipped the left half of its ring against the scroll origin (and the
+    // last chip's right half at the far end).
+    //
+    // `px-1` with a matching `-mx-1` rather than bare padding: padding inside
+    // a scroll container would indent the row from the header's own `px-6`
+    // gutter, so the negative margin gives the ring its gutter back without
+    // moving where the chips sit. Same pairing as `ui/sheet.tsx`, which needed
+    // it for the same reason on the vertical axis.
+    <div role="group" aria-label="Days" className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-1">
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
         const isFocused = focusedDay === index;
@@ -136,7 +164,9 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
           <Button
             key={index}
             variant="ghost"
-            aria-label={`${day.dow}${day.city ? `, ${day.city}` : ""}, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
+            aria-label={`${day.dow}${
+              day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""
+            }, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
             aria-pressed={isFocused}
             onClick={() => onSelect(index)}
             className={cn(
@@ -152,7 +182,11 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
-              {day.city ? (
+              {/* On a travel day the city moves down to the transition line, which
+                  spells out both ends of the move — printing it here as well would
+                  be the same fact twice on one chip (RULES.md 4), and printing it
+                  here alone is what produced the reported "Nikkō" over "→ Nikkō". */}
+              {day.city && !day.transitionTo ? (
                 <span
                   className="truncate text-slate"
                   // eslint-disable-next-line no-restricted-syntax -- 10px city label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
@@ -168,7 +202,7 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               // eslint-disable-next-line no-restricted-syntax -- 10px transition label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
               style={{ fontSize: "10px" }}
             >
-              {day.transitionTo ? `→ ${day.transitionTo}` : null}
+              {day.transitionTo ? `${day.transitionFrom} → ${day.transitionTo}` : null}
             </div>
             <div className="flex flex-wrap gap-0.5" aria-hidden>
               {Array.from({ length: day.stops }, (_, dotIndex) => (

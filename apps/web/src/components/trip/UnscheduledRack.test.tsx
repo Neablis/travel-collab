@@ -57,7 +57,10 @@ describe("UnscheduledRack", () => {
     renderRack({ open: true });
 
     expect(screen.getByText("No time yet")).toBeTruthy();
-    expect(screen.getByText("08:00–09:00")).toBeTruthy();
+    // 12-hour, via lib/time's toClockRange (Mitchell, PR #55: "this is still
+    // military time"). Storage is still 24-hour "08:00"/"09:00" — this is the
+    // rendering only.
+    expect(screen.getByText("8 am–9 am")).toBeTruthy();
   });
 
   it("makes every card a drag handle the board's monitor can pick up", () => {

@@ -5,6 +5,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toClockRange } from "@/lib/time";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Preview } from "@/components/ui/preview";
@@ -215,7 +216,7 @@ function RackCard({
           >
             {item.timeWindow === null
               ? "No time yet"
-              : `${item.timeWindow.start}–${item.timeWindow.end}`}
+              : toClockRange(item.timeWindow.start, item.timeWindow.end)}
           </div>
         </div>
         {/* Provenance is not modelled: no field records who parked a

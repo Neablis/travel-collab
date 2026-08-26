@@ -270,9 +270,30 @@
   .sync-halo-delayed {
     animation-delay: 0.7s;
   }
+  /* SPEC "The logo is the save light": a 1.5s opacity pulse, explicitly not a
+     spinner — the mark keeps its shape and position so the header doesn't
+     twitch every time a command goes out. */
+  .save-light-breathing {
+    animation: om-save-breathe 1.5s ease-in-out infinite;
+  }
+  @keyframes om-save-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .sync-halo {
       display: none;
+    }
+    /* The colour change still carries the failed state, and the sr-only
+       status region still carries all three, so dropping the pulse costs
+       nothing a reduced-motion reader needed. */
+    .save-light-breathing {
+      animation: none;
     }
   }
 }

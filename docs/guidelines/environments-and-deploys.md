@@ -11,13 +11,32 @@ automatically, `db:*` and drizzle-kit scripts do via
 `--env-file-if-exists=.env.local`. You should not need to `export` env vars
 by hand for any of them.
 
+**In a Claude Code web session there is no docker daemon, and you do not need
+one.** `.claude/hooks/session-start.sh` starts a *native* Postgres 16 cluster
+from the remote image's own binaries on the same port 5433 the compose file
+publishes, creates the `travel` database, and runs `db:migrate` — about three
+seconds, and the app's `DATABASE_URL` reaches it unchanged. `docker ps` will
+show nothing; `pg_isready -h 127.0.0.1 -p 5433` is the check that means
+anything there. Seeding is still yours to run, because it needs the dev server
+up (see the reset/reseed bullet below). If the hook could not start it, it says
+so on stderr and leaves `/tmp/postgres.log` and `/tmp/db-migrate.log` behind.
+
+**`pnpm test:int` runs against that same database and will wipe your seeded
+data.** `vitest.config.ts` loads `.env.local`, so the integration suite shares
+`DATABASE_URL` with dev — and one of its specs
+(`api/dev/reset-demo-data/route.int.test.ts`) drives the real reset handler,
+which soft-deletes every trip its caller is a member of. Expect to re-run
+`db:reseed` after `test:int`. Not a bug in the tests; a shared database is what
+"integration test" means here. It only started biting once web sessions could
+run the suite at all.
+
 Running more than one worktree's dev server at once: each needs its own
 port. `WEB_PORT=3010 pnpm --filter web dev` (or set `WEB_PORT` in that
 worktree's `.env.local`) — see `.env.example`'s port-override section.
 
 | Environment | App | Database | DATABASE_URL source |
 |---|---|---|---|
-| Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433) | `apps/web/src/server/config.ts` default / `.env.local` |
+| Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
 | Preview | Vercel preview deploys | **Neon branch `preview`** (pooled) | Vercel env, Preview scope |
 | Production | Vercel production | Neon `main` (pooled) | Vercel env, Production scope |

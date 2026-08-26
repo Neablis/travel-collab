@@ -17,10 +17,12 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
+import { rackDropWindow } from "./rackDropWindow";
+import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
+import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
 import { composeAiPlan } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
@@ -197,6 +199,34 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
   };
 
+  // Dragging a parked stop onto a day is the same two-command job
+  // assignFromRack does — MoveActivity, then a real time — but the drag knows
+  // something the day dropdown doesn't: WHERE in the day you dropped it
+  // (Mitchell, preview feedback on PR #55: "dragging a unscheduled element
+  // into the UI should set the time between the elements it was dropped
+  // between"). Before this the drag dispatched a bare MoveActivity, so a stop
+  // dragged from the rack landed on the day still holding no time at all,
+  // while the dropdown path gave it one — the same action, two outcomes.
+  //
+  // fitIntoDay already takes a preferred start; the drop index is what feeds
+  // it. The stop above the drop point hands over its end time, and fitIntoDay
+  // searches forward from there for a gap that actually fits, so dropping into
+  // a full stretch of the day still yields a real window rather than one
+  // overlapping its neighbours. Dropped at the top (position 0) there is no
+  // stop above, so it falls back to the day's own default.
+  //
+  // The drag's counterpart to assignFromRack: MoveActivity, then a real time.
+  // The decision of WHICH time — and whether to set one at all — is
+  // rackDropWindow, a pure function so it can be tested without a drag
+  // (rackDropWindow.ts explains why, and carries the reasoning that used to
+  // live here). `activeTrip` is read before the dispatch on purpose: the move
+  // is applied optimistically and empties the backlog the decision reads.
+  const moveActivity = (activityId: string, toDayId: string | null, position: number) => {
+    const timeWindow = rackDropWindow(activeTrip, activityId, toDayId, position);
+    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position });
+    if (timeWindow !== null) void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
+  };
+
   // The mirror image of assignFromRack, and two commands for the same reason:
   // MoveActivity(toDayId: null) parks the stop, then UpdateActivity clears the
   // window — the design's "unscheduling strips the times". They are two
@@ -249,9 +279,30 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // horizontal padding without doubling up. Chrome that's shared across all
   // lenses (the tab strip, the error banner) gets its padding from this
   // PageContainer width="full" wrapper instead.
-  // Board is capped to content width (#31) — its columns scroll horizontally
-  // (Task 11) rather than wrapping, so only Map remains full-bleed.
+  // Only Map is full-BLEED (no gutter, and it reclaims the assistant rail's
+  // reserved strip). Board is a separate case: full WIDTH, normal gutter,
+  // rail still respected — see boardUsesFullWidth below.
   const isFullLens = lens === "Map";
+
+  // Board opts out of the 1120px content cap. That cap (#31, wave-3 Area 1)
+  // was decided as one half of a pair: "cap the board to a max content width"
+  // AND "day columns flow into a wrapped grid instead of a single
+  // horizontally-scrolling row — all days visible, no horizontal scroll."
+  // A readable measure is the right call for a wrapped grid. The design later
+  // went back to scrolling columns (Board.tsx: handoff §"Day columns view",
+  // 268px columns "rather than wrapping into rows") and the cap stayed behind,
+  // which is the worst of both: you scroll MORE, because the row is 1072px of
+  // a 1728px window with the leftover 250px sitting as empty gutter either
+  // side of a centred container (measured, 2026-08-26). That is what Mitchell
+  // reported on PR #55 — "why cant we use more of the screen when scrolling
+  // left and right?" — and it is close to the original wave-3 ask the cap was
+  // meant to serve ("we probably don't even want to have to scroll right").
+  //
+  // So this is not reversing #31 so much as finishing a reversal already made
+  // elsewhere. Timeline and Calendar keep the cap: they scroll vertically, and
+  // a 1372px-wide line of prose or a 1372px calendar cell is worse, not
+  // better.
+  const boardUsesFullWidth = lens === "Board";
 
   // The assistant's context line — "Looking at Day N" once a day is focused
   // (Task 4's FocusProvider, already read above for the day chips), else
@@ -294,13 +345,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
             </PageContainer>
           ) : (
-            <PageContainer width="content">
+            <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
               {lens === "Board" && (
                 <Board
                   trip={activeTrip}
+                  focusedDay={focusedDay}
                   callbacks={{
-                    onMove: (activityId, toDayId, position) =>
-                      void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+                    onSelectDay: setFocusedDay,
+                    onMove: moveActivity,
                     onUnschedule: unscheduleActivity,
                     onDragStart: () => onRackEvent({ type: "dragStart" }),
                     onDragEnd: () => onRackEvent({ type: "dragEnd" }),
@@ -361,14 +413,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {assistant.open ? (
         <AssistantRail
           contextLine={assistantContextLine}
-          suggestions={PREVIEW_SUGGESTIONS}
           quickAsks={PREVIEW_QUICK_ASKS}
           onAsk={(text) => void submitAssistantAsk(text)}
           asking={askStatus === "loading"}
           askError={askStatus === "error" ? askError : null}
           simulated={askSimulated}
-          onKeepGhost={() => {}}
-          onDismiss={() => {}}
           onHide={assistant.hide}
         />
       ) : (
@@ -405,14 +454,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           else, and dispatch itself has no preview guard — inert on the DOM
           subtree is the only thing stopping a mutation while browsing
           history, so the rack needs it too.
-          Hidden on Map only (Mitchell, preview review, 2026-08-25): the rack
-          is a `position: fixed` overlay and Map is a full-bleed canvas, so it
-          sits over the pins with no drag support there to justify the cover.
-          Timeline and Calendar keep it mounted — its day-assign
-          `NativeSelect` dispatches real MoveActivity/UpdateActivity without
-          needing drag, so it's still a working scheduling path in those
-          lenses even though drag itself remains Board-only (TODO.md). */}
-      {lens !== "Map" && (
+          Rendered only where a stop can actually be dropped onto the page
+          (`lensAcceptsDrops`, which is Board today). RULES.md 2 — "don't
+          render the bottom drawer on a page where activities can't be dragged
+          onto or out of the schedule" — and Mitchell's call on it, 2026-08-26:
+          remove it for now, and add it back per lens as that lens gains real
+          page interactions. This reverses the 2026-08-25 decision recorded in
+          STATUS.md, which kept it on Timeline and Calendar for its day-assign
+          `NativeSelect`; that dropdown is a real scheduling path, but it is
+          reachable from the Board drawer, so keeping a fixed overlay mounted
+          on two lenses for it alone is the "purposeless UI" the rule is about.
+          The gate is a question about drop targets rather than a lens list so
+          the drawer comes back on its own when Timeline and Calendar get
+          theirs (TODO.md's four rack/lens gaps). */}
+      {lensAcceptsDrops(lens) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
             items={rackItems}

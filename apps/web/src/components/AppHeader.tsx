@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { AccountMenuFromSession } from "@/components/AccountMenu";
+import { HeaderSessionChrome } from "@/components/AccountMenu";
+import { SaveLightMark } from "@/components/SaveLight";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 
 // Handoff `current/…dc.html:63-78`: a persistent bar on every route. Before
@@ -24,26 +24,16 @@ export function AppHeader() {
   const demoResetEnabled = isDemoDataResetEnabled();
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-hairline bg-surface px-6">
-      <Link href="/" className="flex items-center gap-2.5 no-underline">
-        <span
-          aria-hidden
-          className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand text-surface"
-        >
-          ◎
-        </span>
-        <span className="font-display text-md font-semibold text-ink">Caesura</span>
-      </Link>
-      <nav className="flex items-center gap-1 pl-2">
-        <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
-          Trips
-        </Link>
-        <Link href="/playbooks" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
-          Playbooks
-        </Link>
-      </nav>
-      <div className="ml-auto flex items-center">
-        <AccountMenuFromSession demoResetEnabled={demoResetEnabled} />
-      </div>
+      {/* The logo mark is also the save light (SPEC "The logo is the save
+          light", RULES.md 4 — the trip header carried a second dot saying the
+          same thing). It is a client island for the same reason the account
+          menu is: the state it reads is client state. */}
+      <SaveLightMark />
+      {/* Nav + account together, and only when signed in — see
+          HeaderSessionChrome. A signed-out visitor used to be shown "Trips"
+          and "Playbooks", links into pages they cannot open (Mitchell,
+          preview feedback on PR #55). The logo above stays either way. */}
+      <HeaderSessionChrome demoResetEnabled={demoResetEnabled} />
     </header>
   );
 }

@@ -49,6 +49,31 @@ export function toClockLabel(time: string): string {
   return mins === 0 ? `${hours12} ${suffix}` : `${hours12}:${mins.toString().padStart(2, "0")} ${suffix}`;
 }
 
+/**
+ * A start–end pair as one label: "2:30 pm–4 pm".
+ *
+ * Mitchell, preview feedback on PR #55: "this is still military time, lets
+ * focus on local time if thats possible, so if this is japan, the first time
+ * of the day will be 2pm -4pm". Every display surface renders through this or
+ * `toClockLabel` now — the board card, the timeline rail, the rack card and
+ * the assistant's ghost proposal were each hand-assembling `${start}–${end}`
+ * from the raw 24-hour strings, which is precisely the "second variant"
+ * toClockLabel's own note above asks callers not to write.
+ *
+ * Storage is untouched and stays 24-hour `HH:MM`: it is what the domain
+ * compares, what the contracts carry, and what `<input type="time">` requires.
+ * This is a rendering concern only — do not route the editor's inputs through
+ * it, or they will stop accepting input.
+ *
+ * "Local time" in the sense meant here is the trip's own wall clock, which is
+ * what these strings have always been — there is no zone conversion happening,
+ * and none is wanted: 14:30 in Tokyo is 2:30 pm in Tokyo regardless of where
+ * the person reading the screen happens to be.
+ */
+export function toClockRange(start: string, end: string): string {
+  return `${toClockLabel(start)}–${toClockLabel(end)}`;
+}
+
 // Hoisted verbatim out of components/lenses/TimelineLens.tsx (where it was
 // file-local) for the same reason toMinutes moved here: the overlap warning's
 // "30 m on top of each other." copy is the same "X h Y m <suffix>" shape as

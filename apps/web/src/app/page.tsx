@@ -20,8 +20,7 @@ import { NextTripHero } from "../components/home/NextTripHero";
 import { TripCard } from "../components/home/TripCard";
 import { NewTripWizard } from "../components/home/NewTripWizard";
 import { PlaybooksStrip } from "../components/home/PlaybooksStrip";
-import { WorthYourAttention } from "../components/home/WorthYourAttention";
-import { PREVIEW_PLAYBOOKS, PREVIEW_ATTENTION } from "../components/home/preview-fixtures";
+import { PREVIEW_PLAYBOOKS } from "../components/home/preview-fixtures";
 import { Preview } from "../components/ui/preview";
 import { ShareButton } from "../components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "../lib/apiClient";
@@ -359,21 +358,19 @@ export default function Home() {
           )}
         </div>
 
-        {/* Task 16 Preview shells (README §1 home layout): "Your Playbooks"
-            strip after the all-trips grid, then "Worth your attention" last.
-            The handoff shows both as part of the normal home layout
-            regardless of trip count (they're cross-trip surfaces, not
-            per-trip ones), so — unlike NextTripHero/the trips grid above —
-            these render unconditionally rather than gating on `visibleTrips`.
-            Real fixture data + no-op: both are entirely inert inside their
-            own <Preview> seam (Task 3), which shields pointer events and
-            stamps the "Preview · M9"/"Preview · M11" chip. */}
+        {/* Task 16 Preview shell (README §1 home layout): the "Your
+            Playbooks" strip after the all-trips grid. A cross-trip surface,
+            not a per-trip one, so — unlike NextTripHero/the trips grid above
+            — it renders unconditionally rather than gating on
+            `visibleTrips`. Real fixture data + no-op: entirely inert inside
+            its own <Preview> seam (Task 3), which shields pointer events and
+            stamps the "Preview · M11" chip.
+
+            "Worth your attention" used to sit below it and is gone: Mitchell,
+            preview feedback on PR #55 — "Removed 'Worth your attention' in
+            the designs". */}
         <Preview id="home-playbooks-strip" size="container">
           <PlaybooksStrip playbooks={PREVIEW_PLAYBOOKS} />
-        </Preview>
-
-        <Preview id="home-worth-attention" size="container">
-          <WorthYourAttention items={PREVIEW_ATTENTION} />
         </Preview>
       </div>
 

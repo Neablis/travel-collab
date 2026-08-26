@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Preview } from "@/components/ui/preview";
@@ -18,28 +17,17 @@ import { Preview } from "@/components/ui/preview";
 // things to ask), each wrapped in their own <Preview> below — narrower than
 // the old single whole-rail wrap this replaces, so the real ask box stays
 // usable while those two still read as previews.
-export type Suggestion = {
-  id: string;
-  location: string;
-  title: string;
-  body: string;
-  cta: string;
-};
 
 export function AssistantRail({
   contextLine,
-  suggestions,
   quickAsks,
   onAsk,
   asking = false,
   askError = null,
   simulated = false,
-  onKeepGhost,
-  onDismiss,
   onHide,
 }: {
   contextLine: string;
-  suggestions: Suggestion[];
   quickAsks: string[];
   onAsk: (text: string) => void;
   /** True while a real composeAiPlan request from this rail is in flight. */
@@ -50,8 +38,6 @@ export function AssistantRail({
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The change is real; the authorship is not a model. */
   simulated?: boolean;
-  onKeepGhost: (id: string) => void;
-  onDismiss: (id: string) => void;
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
@@ -114,33 +100,22 @@ export function AssistantRail({
           <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{contextLine}</div>
         </div>
 
+        {/* The design's assistant panel is header -> context -> conversation
+            -> quick asks -> ask box. There is no "What I noticed" block:
+            Mitchell, preview feedback on PR #55 — "What i noticed was
+            removed, its not the chat box area for talking with bot". The
+            2026-08-24 handoff's own panel markup agrees; the shelf was ours,
+            not the design's.
+
+            Nothing renders a conversation transcript yet (an answer becomes a
+            ghost proposal on the timeline, `timeline-ghost`), so this is the
+            design's docked-mode empty hint holding the space the transcript
+            will take. Docked-mode copy specifically: SPEC §9 drops the "drag
+            the header" half when docked, and this rail is always docked. */}
         <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3.5">
-          {/* Still M9: nothing generates a real suggestion yet. Narrower than
-              the old whole-rail Preview wrap — the real ask box below stays
-              usable regardless. */}
-          <Preview id="assistant-suggestions" size="container">
-            <div className="flex flex-col gap-2.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate">What I noticed</div>
-              {suggestions.map((suggestion) => (
-                <Card key={suggestion.id} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                    <span className="font-mono text-xs text-slate">{suggestion.location}</span>
-                  </div>
-                  <div className="text-sm font-semibold leading-snug text-ink">{suggestion.title}</div>
-                  <p className="text-sm leading-relaxed text-slate">{suggestion.body}</p>
-                  <div className="flex gap-1.5 pt-0.5">
-                    <Button variant="secondary" size="sm" onClick={() => onKeepGhost(suggestion.id)}>
-                      {suggestion.cta}
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDismiss(suggestion.id)}>
-                      Dismiss
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </Preview>
+          <p className="text-sm leading-relaxed text-slate">
+            Ask about this trip and the conversation stays here.
+          </p>
         </div>
 
         <div className="border-t border-hairline px-4 py-3">

@@ -5,6 +5,68 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## Design ↔ build UI audit, 2026-08-26 — read before Phase 9's browser walk
+
+The 2026-08-24 design handoff (`.design-sync/handoff/`, commit `9b8681a`) has
+been compared against the running app, screen by screen, at 1440 / 1100 / 402
+px. **The report is `docs/design-feedback/2026-08-26-design-sync-ui-audit.md`**
+and it is the build-side counterpart to the handoff's own `DRIFT.md`. Phase 9's
+gate makes a manual browser walk blocking; this is that walk, done once and
+written down, so the gate can spend its time deciding rather than discovering.
+
+**Verdict: the trip surfaces are close.** Timeline, Calendar, the day-chip
+rail, the map rail, the trip header, Trip settings (its start-only date editor
+matches SPEC §3 word for word, hint copy included), the Playbooks route, the
+New-trip wizard, the Unscheduled rack and the End-of-trip block all read as
+designed. Three things are not close, and only one of them touches M10:
+
+1. **The Day-columns lens.** `Board.tsx:201` stacks one full-width `Banner` per
+   conflict above the columns — 12 on the Japan seed, ~700px, the board below
+   the fold — and the design puts conflicts *inside* the card, which
+   `Column.tsx` already does. **KI-43.**
+2. **Notebook / Pages** was designed in this handoff (SPEC §7) and the build has
+   not moved. Its cheapest piece is a plain bug: `.tc-page-editor` is applied to
+   every page and **defined nowhere in the repo**, so page prose renders with no
+   typography at all (**KI-44**).
+3. **Mobile** is the desktop layout at 402px; the handoff's mobile file is a
+   different product (SPEC §10). **KI-46.** At 1100px the app is fine — the gap
+   is entirely between those widths.
+
+**One fix landed with the audit**: `db-seed.ts` moved every seeded stop with
+`position: 0`, so each day was stored in reverse. Timeline hid it (it sorts);
+Day columns and the calendar cells render `activityIds` verbatim, so both read
+9 pm first. Fixed at the seed and re-verified. **The preview was never
+affected** — its demo-data reset goes through `japanTripImporter.ts`, which
+emits `AddActivity` with a `dayId` and so appends (`evolve.ts:90`); the bug was
+local dev and e2e fixtures only. **Whether a day column should sort by start
+time the way the design does is a separate, still-open product question**
+(audit D3) — the seed fix does not answer it.
+
+**Six known issues filed**: KI-43 (conflict wall), KI-44 (`.tc-page-editor`),
+KI-45 (`Preview size="container"` covers host content — including a currency
+amount in Trip settings), KI-46 (small screens), KI-47 (no `tags` field, which
+blocks five separate designed surfaces), KI-48 (six one-file cosmetics,
+including `1 travellers`).
+
+**Two decisions the audit surfaced that are not code:**
+- **SPEC §7 contradicts `packages/pages/src/templates.ts:15-18`.** The spec's
+  whole premise is that pages are prose with live macro chips; the build
+  deliberately removed macro authoring in M8 and seeds templates with no macro
+  nodes. Settle that before anyone builds to §7.
+- **`TripSummary` still carries no dates** (`contracts/src/trip.ts:238-244`), so
+  the home grid cards say "Created Aug 26" where the design wants trip dates,
+  and the "next trip" is still `visibleTrips[0]`. This is `DRIFT.md` D6, still
+  open. The *hero* no longer needs it — it already fetches the TripDetail.
+- **The handoff dates the Japan trip three different ways**, and no seed in the
+  repo produces the two-month calendar SPEC §4 was written to protect: SPEC §4
+  says Sep 20 – Oct 3; `data/japan-trip-seed.json` (what the preview's demo
+  reset imports) says Oct 3 – 16, entirely inside October; the mobile design
+  agrees with the JSON. `db-seed.ts` uses `isoDateInDays(10)`, so locally it
+  straddles a boundary only by luck. Send back to design (audit §E).
+
+Nothing in the audit is a reason to hold M10's gate. `DRIFT.md` §3's "extra
+lenses" bullet is stale and can be struck: those three lenses no longer exist.
+
 ## Phase 1b is cancelled, 2026-08-26 — M10's gate narrows, Phase 9 is next
 
 **Mitchell's decision, no code changed.** Phase 1b ("the header adopts the
@@ -40,6 +102,26 @@ Calendar drops the unscheduled rack the way Map does.
 documented reason — its day-assign `NativeSelect` is a real scheduling path in
 Timeline and Calendar, and Map only loses it because drag is Board-only. Hiding
 it would delete working functionality.
+
+> **Reversed 2026-08-26 (Mitchell), PR #55.** `RULES.md` 2 restated this as a
+> binding project rule — "don't render the bottom drawer on a page where
+> activities can't be dragged onto or out of the schedule" — and Mitchell
+> decided for the rule: **remove the drawer from Timeline and Calendar now, and
+> add it back per lens as that lens gains real page interactions.** The
+> dropdown is still a real scheduling path, but it is reachable from the Board
+> drawer, so keeping a `position: fixed` overlay mounted on two lenses for it
+> alone is the "purposeless UI" the rule names.
+>
+> The general rule he set, in his words: *"If the drawer element has page
+> interactions (almost always a drag / drop onto the page) then add it back."*
+> Designs for dropping onto a timeline and a calendar exist and are deferred,
+> not dropped — see `TODO.md`'s "Unscheduled rack: drag support is
+> Board-view-only" entry.
+>
+> Encoded as `board/lensAcceptsDrops.ts` rather than a lens list, so the drawer
+> returns to those lenses by changing that one function when their drop targets
+> land. The old gate is what this paragraph describes; the live gate is that
+> function.
 
 **Also corrected in this change: the "Next action" section below had gone
 stale** — it still said "Review and merge PR #46" and "`main` is at `c630152`".

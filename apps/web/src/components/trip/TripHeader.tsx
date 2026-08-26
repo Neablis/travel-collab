@@ -3,11 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Clock, Pencil, Settings } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
 import { Toast } from "@/components/ui/toast";
 import { useTrip } from "@/components/trip/context/TripProvider";
@@ -15,20 +14,24 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
-import { UndoRedoControls } from "@/components/board/UndoRedoControls";
+import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
-import { SyncIndicator } from "./SyncIndicator";
 import { ShareButton } from "./ShareButton";
 import { TripMetaPill } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
-// trip identity (name, now renameable inline — task A13) + a budget-vs-total
-// glance, plus the action affordances (undo/redo, History popover, Settings
-// sheet gear). A visual boundary (bg-surface + border-hairline) separates this
-// chrome from lens content below (#14). No editable date/budget inputs live
-// here — those moved to SettingsSheet (comments 15, 12b); the name is the one
-// piece of identity that's directly editable in the chrome itself.
+// trip identity (name + status) on one row with Share / Add stop / sync /
+// History, then the meta pill and budget chip together on the next. A visual
+// boundary (bg-surface + border-hairline) separates this chrome from lens
+// content below (#14).
+//
+// Nothing in the header edits the trip directly any more. The title is the
+// door to Trip settings, and every field — name included — is edited in
+// there; the inline rename Input, its pencil, and the separate settings cog
+// are all gone (Mitchell, preview feedback on PR #55). Undo/redo moved into
+// the History popover in the same pass, keeping its ⌘Z binding out here where
+// it stays mounted.
 export function TripHeader({ tripId, children }: { tripId: string; children?: React.ReactNode }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
@@ -36,7 +39,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, sync, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
   const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -47,7 +50,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [renaming, setRenaming] = useState(false);
   // A15: the settings sheet's own subtree closes/unmounts on a successful
   // delete, so it can't host its own toast — it reports success here via
   // `onDeleted` and this level raises it. Undo reconciles in place
@@ -62,6 +64,19 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // already-deleted server state) for the entire toast window.
   const [deleteToast, setDeleteToast] = useState<{ tripId: string; name: string } | null>(null);
 
+  // Above the early return, because it owns a useEffect and hooks cannot run
+  // conditionally — and because the whole point of splitting it out is that it
+  // stays mounted when the History popover (which now holds the buttons) is
+  // closed. Gated on `preview.seq === null` so ⌘Z is inert while previewing a
+  // past version, exactly as it was when the buttons carried the binding.
+  useUndoRedoShortcuts({
+    canUndo: preview.seq === null && (history?.canUndo ?? false),
+    canRedo: preview.seq === null && (history?.canRedo ?? false),
+    onUndo: () => void dispatch({ type: "UndoLastChange", tripId }),
+    onRedo: () => void dispatch({ type: "RedoChange", tripId }),
+    isBusy: pending,
+  });
+
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
   async function undoDelete() {
@@ -71,18 +86,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
     const result = await sendTripCommand({ type: "RestoreTrip", tripId: restoreId });
     if (result.ok) applyOutcome(result.value);
   }
-
-  const commitRename = (value: string) => {
-    const name = value.trim();
-    // Skip the dispatch entirely for a no-op (unchanged or empty) rename —
-    // the domain would reject an empty/unchanged name anyway, and a rejected
-    // round-trip is worse UX than just not sending it (mirrors the #7HuQy
-    // no-op handling in TripProvider).
-    if (name !== "" && name !== activeTrip.name) {
-      void dispatch({ type: "SetTripName", tripId, name });
-    }
-    setRenaming(false);
-  };
 
   // Handoff §2: "neutral `Badge` state" next to the trip name — just a
   // display of activeTrip.status ("active" | "deleted", contracts/trip.ts),
@@ -104,37 +107,48 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               Notebook
             </Link>
           </nav>
-          {renaming ? (
-            <Input
-              aria-label="Trip name"
-              defaultValue={activeTrip.name}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  // Unmounting the input here (no blur event fires when a
-                  // focused node is removed from the DOM) reverts to
-                  // read-only without ever invoking the onBlur commit below.
-                  setRenaming(false);
-                }
-              }}
-              onBlur={(e) => commitRename(e.currentTarget.value)}
-              className="w-auto max-w-xs"
-            />
-          ) : (
-            <div className="flex items-center gap-2">
-              <Heading level={2}>{activeTrip.name}</Heading>
-              <Badge variant="neutral">{statusLabel}</Badge>
-              <Button variant="ghost" size="icon" aria-label="Rename trip" onClick={() => setRenaming(true)}>
-                <Pencil className="size-3.5" aria-hidden />
+          {/* The title IS the way into Trip settings, and the only way:
+              Mitchell, preview feedback on PR #55 — "In the designs, removed
+              the pencil, and made the trip title clickable to open the Trip
+              edit display the cog currently opens, already remove the cog".
+              Renaming therefore happens in that sheet's own "Trip name"
+              field, which already existed; the inline Input this replaced is
+              gone with the pencil.
+
+              The accessible name deliberately carries BOTH — a bare
+              aria-label="Trip settings" would announce the control and
+              swallow the trip's name, and the trip name alone never says
+              what the button does. Playwright's getByRole name matching is
+              substring-and-case-insensitive, so the e2e specs that click
+              { name: "Trip settings" } keep working against this. */}
+          <div className="flex items-center gap-2">
+            {/* The button goes INSIDE the h2, not around it. The other way
+                round renders `<button><h2>…</h2></button>`, which is invalid
+                (a button's content model is phrasing content) and, worse,
+                silently costs the trip its heading: a button's descendants
+                are presentational in the accessibility tree, so the h2's role
+                is dropped and the name disappears from heading navigation
+                entirely. e2e caught it — m8-make-it-real asserts
+                getByRole("heading", { level: 2 }) on the trip name.
+
+                Nested this way both roles survive: h2 for structure, button
+                for the action. The type classes are restated on the button
+                because buttonVariants sets its own `font-medium` + size
+                `text-base`, which would otherwise shrink the title inside its
+                own heading. */}
+            <Heading level={2}>
+              <Button
+                variant="ghost"
+                onClick={() => setSettingsOpen(true)}
+                aria-label={`${activeTrip.name} — Trip settings`}
+                title="Trip settings"
+                className="h-auto justify-start p-0 text-left font-display text-xl font-semibold text-ink hover:bg-transparent hover:underline"
+              >
+                {activeTrip.name}
               </Button>
-            </div>
-          )}
-          {/* Handoff `current/…dc.html:255-296`: the meta pill (dates, day/
-              stop/city counts, crew) replaces the bare start date + BudgetMeter
-              glance — TripMetaPill.tsx (Task 1.4). */}
-          <TripMetaPill detail={activeTrip} onOpenSettings={() => setSettingsOpen(true)} />
+            </Heading>
+            <Badge variant="neutral">{statusLabel}</Badge>
+          </div>
         </div>
 
         {/* Right side: the handoff action cluster (ghost Trip settings · ghost
@@ -162,11 +176,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               fallback instead of overflowing. */}
           <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
             <div className="flex flex-wrap items-center gap-2">
-              {preview.seq === null && (
-                <Button variant="ghost" size="icon" aria-label="Trip settings" onClick={() => setSettingsOpen(true)}>
-                  <Settings className="size-3.5" aria-hidden />
-                </Button>
-              )}
               {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
                   Share is self-wrapped in its own <Preview> internally
                   (ShareButton.tsx, Task 18), so this header just mounts it like
@@ -179,25 +188,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
             </div>
 
             <div className="flex items-center gap-0.5">
-              {/* KI-36: fed from the queue's own state — `sync.unsent` is the
-                  live count of units the server has not accepted, and
-                  `sync.retry` re-sends the retained head. Not `pending`, which
-                  is a boolean and cannot tell "saving" from "couldn't save". */}
-              <SyncIndicator
-                unsent={sync.unsent}
-                failure={sync.failure}
-                onRetry={sync.retry}
-                className="mr-2"
-              />
-              {preview.seq === null && (
-                <UndoRedoControls
-                  canUndo={history?.canUndo ?? false}
-                  canRedo={history?.canRedo ?? false}
-                  onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-                  onRedo={() => void dispatch({ type: "RedoChange", tripId })}
-                  isBusy={pending}
-                />
-              )}
               {/* The Popover stays mounted during preview (not gated on
                   preview.seq === null like undo/redo/settings) — HistoryPanel's
                   "Viewing version N (read-only)" banner and its Revert/Back-to-now
@@ -222,6 +212,26 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   </Button>
                 }
               >
+                {/* Undo/redo live here now, not out in the header row —
+                    Mitchell, preview feedback on PR #55: "In the designs, the
+                    next/previous history button was moved into the history
+                    dropdown at the top". Hidden while previewing a past
+                    version, same gate they had in the header: the panel's own
+                    Revert / back-to-now controls are what act then. The ⌘Z
+                    shortcut does NOT live with them (see
+                    useUndoRedoShortcuts, called above) — popover content
+                    unmounts when closed, and undo must keep working. */}
+                {preview.seq === null && (
+                  <div className="mb-2 flex justify-end border-b border-hairline pb-2">
+                    <UndoRedoControls
+                      canUndo={history?.canUndo ?? false}
+                      canRedo={history?.canRedo ?? false}
+                      onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+                      onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+                      isBusy={pending}
+                    />
+                  </div>
+                )}
                 <HistoryPanel
                   history={history}
                   previewSeq={preview.seq}
@@ -232,9 +242,21 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               </Popover>
             </div>
           </div>
-
-          <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
+      </div>
+
+      {/* The meta pill and the budget chip are one row, not one-per-column:
+          Mitchell, preview feedback on PR #55 — "The Budget card should be
+          same height, and aligned with the left side Date / Days / Stops /
+          cities Card". `items-stretch` is what makes them equal height (the
+          budget chip is the taller of the two — it carries a progress bar
+          under its amount — so the meta pill grows to meet it rather than
+          either being pinned to a hardcoded height). This is also what the
+          2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
+          justify-between. */}
+      <div className="mt-2 flex flex-wrap items-stretch justify-between gap-3">
+        <TripMetaPill detail={activeTrip} onOpenSettings={() => setSettingsOpen(true)} />
+        <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
 
       {/* Handoff `current/…dc.html:249`: the tab strip and the day-chips row

@@ -296,8 +296,12 @@ describe("TimelineLens", () => {
   it("renders the activity's real start/end time and title as a row (not a percentage-positioned block)", () => {
     renderLens();
     const row = screen.getByTestId("timeline-item-timed1");
-    expect(within(row).getByText("09:00")).not.toBeNull();
-    expect(within(row).getByText("11:00")).not.toBeNull();
+    // 12-hour on the rail, via lib/time's toClockLabel (Mitchell, PR #55:
+    // "this is still military time"). The row still *carries* 09:00/11:00 —
+    // the fixture above sets them and the domain compares them — so this
+    // asserts the rendering changed and the data did not.
+    expect(within(row).getByText("9 am")).not.toBeNull();
+    expect(within(row).getByText("11 am")).not.toBeNull();
     expect(within(row).getByText("Colosseum tour")).not.toBeNull();
   });
 

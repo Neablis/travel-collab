@@ -6,6 +6,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { attachClosestEdge, extractClosestEdge, type Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { AlertTriangle, Pencil, X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
+import { toClockRange } from "@/lib/time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -120,7 +121,7 @@ export function ActivityCard({
         </span>
       </div>
       {activity.timeWindow && (
-        <DataText size="xs">{activity.timeWindow.start}–{activity.timeWindow.end}</DataText>
+        <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
       )}
       {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
       {/* Task 4.1 (M10 Phase 4): the board's per-stop cost, same treatment as

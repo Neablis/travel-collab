@@ -80,95 +80,32 @@ async function renderHeader(children?: React.ReactNode) {
   return { getEditorState: () => editorState };
 }
 
-describe("TripHeader rename", () => {
-  it("dispatches SetTripName when the title is edited", async () => {
+// Renaming moved into the Trip settings sheet (PR #55 preview feedback: the
+// pencil is gone and the title opens the sheet). The dispatch behaviour is
+// covered where it now lives, in SettingsSheet.test.tsx — what belongs here
+// is the door: that the title IS the way in, and that the controls it
+// replaced are really gone rather than merely hidden.
+describe("TripHeader trip settings entry point", () => {
+  it("opens Trip settings from the trip title, and offers no pencil or cog", async () => {
     await renderHeader();
 
-    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
-    const input = screen.getByRole("textbox", { name: /trip name/i });
-    await userEvent.clear(input);
-    await userEvent.type(input, "Japan 2027{Enter}");
+    expect(screen.queryByRole("button", { name: /rename trip/i })).toBeNull();
+    // The cog carried this exact accessible name on its own; the title now
+    // carries it alongside the trip's name, so an exact match finds nothing.
+    expect(screen.queryByRole("button", { name: "Trip settings" })).toBeNull();
 
-    await waitFor(() =>
-      expect(sendTripCommandMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "SetTripName", tripId: "x", name: "Japan 2027" }),
-      ),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+    expect(screen.getByRole("dialog", { name: /trip settings/i })).toBeTruthy();
   });
 
-  it("does not dispatch when the name is unchanged", async () => {
+  it("keeps the trip name in the title's accessible name, not just the action", async () => {
     await renderHeader();
-
-    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
-    const input = screen.getByRole("textbox", { name: /trip name/i });
-    await userEvent.click(input);
-    await userEvent.keyboard("{Enter}");
-
-    expect(sendTripCommandMock).not.toHaveBeenCalled();
-  });
-
-  it("does not dispatch when the name is cleared to empty/whitespace", async () => {
-    await renderHeader();
-
-    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
-    const input = screen.getByRole("textbox", { name: /trip name/i });
-    await userEvent.clear(input);
-    await userEvent.type(input, "   {Enter}");
-
-    expect(sendTripCommandMock).not.toHaveBeenCalled();
-  });
-
-  it("shows the new name immediately, before the server confirms it (optimistic)", async () => {
-    // A deferred promise: sendTripCommand won't resolve until we say so, so
-    // we can assert the heading already updated while the request is still
-    // in flight — this is what "optimistic" actually means, not just "no
-    // full-page reload". Regression coverage for TripHeader having read
-    // `trip` (confirmed-only) instead of `activeTrip` (optimistic-aware).
-    let resolveCommand: (value: { ok: true; value: unknown }) => void;
-    sendTripCommandMock.mockReturnValue(
-      new Promise((resolve) => {
-        resolveCommand = resolve;
-      }),
-    );
-
-    await renderHeader();
-
-    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
-    const input = screen.getByRole("textbox", { name: /trip name/i });
-    await userEvent.clear(input);
-    await userEvent.type(input, "Japan 2027{Enter}");
-
-    // Still in flight — sendTripCommandMock's promise hasn't resolved yet —
-    // but the heading should already read the new name.
-    await waitFor(() => expect(screen.getByText("Japan 2027")).toBeTruthy());
-    expect(screen.queryByText("Japan")).toBeNull();
-
-    resolveCommand!({
-      ok: true,
-      value: { detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }), history: historyFixture("x") },
-    });
-    await waitFor(() => expect(screen.getByText("Japan 2027")).toBeTruthy());
-  });
-
-  it("Escape cancels without dispatching and reverts to read-only", async () => {
-    await renderHeader();
-
-    await userEvent.click(screen.getByRole("button", { name: /rename trip/i }));
-    const input = screen.getByRole("textbox", { name: /trip name/i });
-    await userEvent.clear(input);
-    await userEvent.type(input, "Something else");
-    await userEvent.keyboard("{Escape}");
-
-    expect(sendTripCommandMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("textbox", { name: /trip name/i })).toBeNull();
-    expect(screen.getByText("Japan")).toBeTruthy();
+    // A bare aria-label="Trip settings" would have announced the control and
+    // swallowed which trip it belongs to.
+    expect(screen.getByRole("button", { name: /Japan/i })).toBeTruthy();
   });
 });
 
-// A15: exercises the cross-component handoff — SettingsSheet's own subtree
-// closes on a successful delete, so it can't host the toast itself; it
-// reports success via onDeleted and TripHeader raises the toast one level up
-// (see the comment on TripHeader's deleteToast state).
 describe("TripHeader delete/undo (A15)", () => {
   async function deleteViaSettings() {
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));

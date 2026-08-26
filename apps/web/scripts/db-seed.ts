@@ -1,6 +1,7 @@
 // Populates the local dev DB with a couple of realistic trips, entirely
-// through the real command API (POST /api/trips/:id/commands) — never a
-// direct DB write. This is deliberate, not a shortcut: the app is
+// through the real command API (POST /api/trips/:id/commands, and its batch
+// sibling /commands/batch — see `batch` below) — never a direct DB write.
+// This is deliberate, not a shortcut: the app is
 // event-sourced (packages/domain), so a row inserted straight into
 // `trip_details`/`trip_summaries` wouldn't have a matching event and would
 // silently diverge from what replay would produce. Going through the API
@@ -31,7 +32,11 @@
 //      through. There is no separate copy of the rules to fall out of sync.
 //   2. `api()` below throws on any non-OK response, including the server's
 //      own validation error message — a renamed/removed/retyped field fails
-//      the very next time this script runs, loudly, not silently.
+//      the very next time this script runs, loudly, not silently. One caveat
+//      since batching (`batch` below): a rejected batch reports the first
+//      command that failed, and the whole batch is rolled back with it, so
+//      the error names one command out of a day's worth rather than being
+//      the only command in flight. Still loud, slightly less precise.
 //   3. If you add or change a command in packages/contracts, re-run this
 //      script as part of that change (docs/guidelines/connecting-the-parts.md
 //      "Changing a contract" says the same) — it's the cheapest smoke test
@@ -53,7 +58,7 @@
 // content differs.
 
 import { randomUUID } from "node:crypto";
-import type { TripCommand } from "@tc/contracts";
+import type { BatchableCommand, TripCommand } from "@tc/contracts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3001";
 const DEV_USER = process.env.SEED_USER ?? "alice";
@@ -137,6 +142,33 @@ type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : nev
 const cmd = (cookie: string, tripId: string, command: DistributiveOmit<TripCommand, "tripId">) =>
   api(cookie, "POST", `/api/trips/${tripId}/commands`, { ...command, tripId });
 
+// The same command vocabulary, sent as ONE request through the batch endpoint
+// (`/commands/batch` -> executeTripCommandBatch), which decides each command in
+// order against the state the previous one produced. Only BatchableCommand
+// members are accepted — notably NOT CreateTrip or DeleteTrip, which is why
+// those two still go through `cmd`/`createTrip` above.
+//
+// Why this exists: the seed used to send ~200 single-command POSTs and took
+// 56.5s end to end (measured 2026-08-26). Each request re-reads and re-folds
+// the whole event stream, so the cost grew with every stop already seeded.
+//
+// GRANULARITY IS DELIBERATE, and is the reason this isn't one batch per trip.
+// One batch == one history entry (commands.ts:179 appends everything under a
+// single batchId), and a batch's description is every event's description
+// joined with "; " (packages/domain/src/trip/history.ts's describeUserBatch).
+// Seeding a whole trip in one call would therefore leave the History popover —
+// a real designed surface, and one the demo data exists to exercise — showing
+// a single entry with two hundred semicolon-joined clauses. Batching per day
+// keeps each entry readable ("Added Coffee at Onibus; Moved Coffee at Onibus
+// to Day 2; ...") and arguably more lifelike than 200 atomic entries: it reads
+// as someone planning a day at a time.
+const batch = (cookie: string, tripId: string, commands: DistributiveOmit<BatchableCommand, "tripId">[]) =>
+  commands.length === 0
+    ? Promise.resolve(undefined)
+    : api(cookie, "POST", `/api/trips/${tripId}/commands/batch`, {
+        commands: commands.map((c) => ({ ...c, tripId })),
+      });
+
 // ---- idempotency: clear out any trips this script created before ------
 
 async function deletePriorSeedTrips(cookie: string): Promise<void> {
@@ -198,15 +230,14 @@ type SeedStop = {
 async function seedJapanTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Japan: Tokyo → Kyoto → Osaka");
   const dayIds = Array.from({ length: 14 }, () => randomUUID());
-  const { detail } = await cmd(cookie, tripId, {
-    type: "SetTripDates",
-    startDate: isoDateInDays(10),
-    endDate: isoDateInDays(23),
-    newDayIds: dayIds,
-  });
-  const days = detail.days;
-
-  await cmd(cookie, tripId, { type: "SetTripBudget", budget: { amountMinor: 1_640_000, currency: "USD" } });
+  // `newDayIds` is consumed in order (decide.ts:170 emits one DayAdded per id,
+  // evolve.ts:60 appends each to `days`), and this trip has no days yet — so
+  // dayIds[i] IS day i+1, and there is no need to round-trip the response just
+  // to read back ids this script minted.
+  await batch(cookie, tripId, [
+    { type: "SetTripDates", startDate: isoDateInDays(10), endDate: isoDateInDays(23), newDayIds: dayIds },
+    { type: "SetTripBudget", budget: { amountMinor: 1_640_000, currency: "USD" } },
+  ]);
 
   const stops = [
     // Day 1 — Tokyo
@@ -311,9 +342,11 @@ async function seedJapanTrip(cookie: string): Promise<void> {
     { day: 14, title: "Flight home", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", lat: 35.5494, lng: 139.7798, start: "20:10", end: "21:00", status: "booked", note: "Check-in opens 5:10 pm.", cost: 160 },
   ];
 
-  for (const s of stops) {
-    await addActivity(cookie, tripId, {
-      day: days[s.day - 1].dayId,
+  await addActivities(
+    cookie,
+    tripId,
+    stops.map((s) => ({
+      day: dayIds[s.day - 1]!,
       title: s.title,
       start: s.start,
       end: s.end,
@@ -324,8 +357,8 @@ async function seedJapanTrip(cookie: string): Promise<void> {
       country: "JP",
       costMinor: s.cost !== undefined ? Math.round(s.cost * 100) : undefined,
       notes: buildNotes(s.note, s.status, s.who),
-    });
-  }
+    })),
+  );
 
   // Unscheduled backlog — ideas raised but not yet placed on a day.
   const backlog = [
@@ -334,38 +367,41 @@ async function seedJapanTrip(cookie: string): Promise<void> {
     { title: "Nishiki Market", place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", lat: 35.005, lng: 135.765, note: "From a saved day" },
     { title: "Ghibli Museum, if tickets appear", place: "Ghibli Museum", area: "Mitaka", city: "Tokyo", lat: 35.696, lng: 139.5704, note: "Mei added it" },
   ];
-  for (const b of backlog) {
-    const notes = buildNotes(b.note, "idea", b.who);
-    await cmd(cookie, tripId, {
-      type: "AddActivity",
-      activityId: randomUUID(),
-      title: b.title,
-      location: { name: `${b.place}, ${b.area}, ${b.city}, Japan`, city: b.city, lat: b.lat, lng: b.lng, countryCode: "JP" },
-      ...(notes ? { notes } : {}),
-    });
-  }
+  // One batch, so the four parked ideas read as one "someone dumped their
+  // wishlist in" entry in History rather than four separate ones.
+  await batch(
+    cookie,
+    tripId,
+    backlog.map((b) => {
+      const notes = buildNotes(b.note, "idea", b.who);
+      return {
+        type: "AddActivity" as const,
+        activityId: randomUUID(),
+        title: b.title,
+        location: { name: `${b.place}, ${b.area}, ${b.city}, Japan`, city: b.city, lat: b.lat, lng: b.lng, countryCode: "JP" },
+        ...(notes ? { notes } : {}),
+      };
+    }),
+  );
 }
 
 async function seedRochesterTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Rochester to Niagara");
   const newDayIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-  const { detail } = await cmd(cookie, tripId, {
-    type: "SetTripDates",
-    startDate: isoDateInDays(21),
-    endDate: isoDateInDays(24),
-    newDayIds,
-  });
-  const [day1, day2, , day4] = detail.days; // day3 is left empty on purpose (exercises that sparkline case)
+  const [day1, day2, , day4] = newDayIds; // day3 is left empty on purpose (exercises that sparkline case)
 
   // Currency defaults to USD already (packages/domain/src/trip/evolve.ts) —
   // no SetTripCurrency needed for a USD trip; the domain rejects a same-
   // value command as a no-op (exactly the drift-detection this script
   // relies on: this exact line 400'd until the redundant call was removed).
-  await cmd(cookie, tripId, { type: "SetTripBudget", budget: { amountMinor: 40000, currency: "USD" } });
+  await batch(cookie, tripId, [
+    { type: "SetTripDates", startDate: isoDateInDays(21), endDate: isoDateInDays(24), newDayIds },
+    { type: "SetTripBudget", budget: { amountMinor: 40000, currency: "USD" } },
+  ]);
 
   const activities = [
     {
-      day: day1.dayId,
+      day: day1!,
       title: "Coffee at Ugly Duck",
       start: "07:00",
       end: "07:20",
@@ -376,7 +412,7 @@ async function seedRochesterTrip(cookie: string): Promise<void> {
       country: "US",
     },
     {
-      day: day1.dayId,
+      day: day1!,
       title: "The Strong Museum of Play",
       start: "09:00",
       end: "12:30",
@@ -388,7 +424,7 @@ async function seedRochesterTrip(cookie: string): Promise<void> {
       costMinor: 2200,
     },
     {
-      day: day2.dayId,
+      day: day2!,
       title: "Lunch at Highland Park Diner",
       start: "12:00",
       end: "13:00",
@@ -400,7 +436,7 @@ async function seedRochesterTrip(cookie: string): Promise<void> {
       costMinor: 1850,
     },
     {
-      day: day4.dayId,
+      day: day4!,
       title: "Niagara Falls day trip",
       start: "08:00",
       end: "16:00",
@@ -412,31 +448,26 @@ async function seedRochesterTrip(cookie: string): Promise<void> {
       costMinor: 4500,
     },
   ];
-  for (const a of activities) await addActivity(cookie, tripId, a);
+  await addActivities(cookie, tripId, activities);
 
   // One unscheduled item left in the backlog — real trips rarely have every
   // stop assigned to a day immediately.
-  await cmd(cookie, tripId, {
-    type: "AddActivity",
-    activityId: randomUUID(),
-    title: "Souvenir shopping",
-  });
+  await batch(cookie, tripId, [
+    { type: "AddActivity", activityId: randomUUID(), title: "Souvenir shopping" },
+  ]);
 }
 
 async function seedPortlandTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, "Portland Weekend");
   const newDayIds = [randomUUID(), randomUUID()];
-  const { detail } = await cmd(cookie, tripId, {
-    type: "SetTripDates",
-    startDate: isoDateInDays(60),
-    endDate: isoDateInDays(61),
-    newDayIds,
-  });
-  const [day1, day2] = detail.days;
+  const [day1, day2] = newDayIds;
+  await batch(cookie, tripId, [
+    { type: "SetTripDates", startDate: isoDateInDays(60), endDate: isoDateInDays(61), newDayIds },
+  ]);
 
   const activities = [
     {
-      day: day1.dayId,
+      day: day1!,
       title: "Powell's City of Books",
       start: "10:00",
       end: "12:00",
@@ -447,7 +478,7 @@ async function seedPortlandTrip(cookie: string): Promise<void> {
       country: "US",
     },
     {
-      day: day1.dayId,
+      day: day1!,
       title: "Pioneer Courthouse Square",
       start: "13:00",
       end: "14:00",
@@ -458,7 +489,7 @@ async function seedPortlandTrip(cookie: string): Promise<void> {
       country: "US",
     },
     {
-      day: day2.dayId,
+      day: day2!,
       title: "Forest Park hike",
       start: "09:00",
       end: "11:30",
@@ -469,21 +500,56 @@ async function seedPortlandTrip(cookie: string): Promise<void> {
       country: "US",
     },
   ];
-  for (const a of activities) await addActivity(cookie, tripId, a);
+  await addActivities(cookie, tripId, activities);
 }
 
-async function addActivity(cookie: string, tripId: string, a: SeedStop): Promise<void> {
+// The two commands that place one stop on one day: create it (AddActivity with
+// no dayId lands it in the backlog), then move it to its day at `position`.
+// A pure builder, so a caller can decide how many of these travel together —
+// see `batch` above on why that decision matters.
+function activityCommands(a: SeedStop, position: number): DistributiveOmit<BatchableCommand, "tripId">[] {
   const activityId = randomUUID();
-  await cmd(cookie, tripId, {
-    type: "AddActivity",
-    activityId,
-    title: a.title,
-    timeWindow: { start: a.start, end: a.end },
-    location: { name: a.place, city: a.city, lat: a.lat, lng: a.lng, countryCode: a.country },
-    ...(a.costMinor !== undefined ? { cost: { amountMinor: a.costMinor, currency: "USD" } } : {}),
-    ...(a.notes ? { notes: a.notes } : {}),
-  });
-  await cmd(cookie, tripId, { type: "MoveActivity", activityId, toDayId: a.day, position: 0 });
+  return [
+    {
+      type: "AddActivity",
+      activityId,
+      title: a.title,
+      timeWindow: { start: a.start, end: a.end },
+      location: { name: a.place, city: a.city, lat: a.lat, lng: a.lng, countryCode: a.country },
+      ...(a.costMinor !== undefined ? { cost: { amountMinor: a.costMinor, currency: "USD" } } : {}),
+      ...(a.notes ? { notes: a.notes } : {}),
+    },
+    { type: "MoveActivity", activityId, toDayId: a.day, position },
+  ];
+}
+
+/**
+ * Places a day's stops in the order they are written above — which, in every
+ * list in this file, is chronological.
+ *
+ * Every call used to pass `position: 0`, so each stop was inserted *before* the
+ * one seeded ahead of it and each day ended up reversed. Timeline hid it
+ * (`timelineData.ts` sorts by start time), but the Day-columns lens and the
+ * calendar cells render `day.activityIds` verbatim — `Column.tsx:121`,
+ * `calendarData.ts:104` — so both read a day backwards, 9 pm first.
+ * See docs/design-feedback/2026-08-26-design-sync-ui-audit.md (A1).
+ *
+ * Counting per day rather than passing a large index keeps the emitted
+ * commands honest: `position` is the real index the stop lands at, not a value
+ * that only works because `insertAt` happens to clamp (`evolve.ts:15-19`).
+ */
+async function addActivities(cookie: string, tripId: string, stops: SeedStop[]): Promise<void> {
+  const byDay = new Map<string, DistributiveOmit<BatchableCommand, "tripId">[]>();
+  for (const a of stops) {
+    const commands = byDay.get(a.day) ?? [];
+    // `commands.length / 2` is the count of stops already queued for this day:
+    // activityCommands emits exactly two per stop.
+    byDay.set(a.day, [...commands, ...activityCommands(a, commands.length / 2)]);
+  }
+  // Sequential, not Promise.all: every batch appends to the same event stream
+  // at an expected sequence number, so two in flight at once would make one of
+  // them lose the optimistic-concurrency check and 409 (commands.ts:181).
+  for (const commands of byDay.values()) await batch(cookie, tripId, commands);
 }
 
 // ---- run --------------------------------------------------------------

@@ -149,11 +149,45 @@ export function SettingsSheet({
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
       <div className="flex flex-col gap-4 pt-1">
         <FormField id="trip-name-setting" label="Trip name" description="Everyone invited sees this name.">
-          {/* Read-only here: renaming already lives inline in the header
-              (TripHeader's pencil icon dispatches SetTripName) — this row is
-              a settings-surface confirmation of the name, not a second
-              editable copy of that capability. */}
-          <Input id="trip-name-setting" value={tripName} readOnly />
+          {/* Editable, and now the ONLY way to rename a trip. This row used to
+              be read-only because the header carried an inline rename behind a
+              pencil icon; PR #55's preview feedback removed that pencil and
+              made the title open this sheet instead, which would have left the
+              app with no rename at all if this row had stayed read-only.
+              `defaultValue` + commit-on-blur, not a controlled value, so
+              typing isn't a command per keystroke. */}
+          <Input
+            id="trip-name-setting"
+            defaultValue={tripName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              // Escape restores the last committed name and drops focus, so
+              // the blur below sees an unchanged value and sends nothing.
+              else if (e.key === "Escape") {
+                e.currentTarget.value = tripName;
+                e.currentTarget.blur();
+              }
+            }}
+            onBlur={(e) => {
+              const name = e.currentTarget.value.trim();
+              // Same no-op guard the header's inline rename had: the domain
+              // rejects an empty or unchanged name, and a rejected round-trip
+              // is worse than not sending one. Put the field back to the
+              // committed name so it never shows a value the trip doesn't have.
+              if (name === "" || name === tripName) {
+                e.currentTarget.value = tripName;
+                return;
+              }
+              // Show what was actually saved. `name` is trimmed but the field
+              // still holds the raw text, so renaming to "  Japan  " would
+              // dispatch "Japan" and leave the input displaying the spaces —
+              // a field disagreeing with the trip it just renamed (CodeRabbit,
+              // PR #55). The guard above already does this for the two no-op
+              // cases; this is the third.
+              e.currentTarget.value = name;
+              onCommand({ type: "SetTripName", tripId, name });
+            }}
+          />
         </FormField>
 
         {/* Clickable dates row (this task, restoring TripDateControl's mount

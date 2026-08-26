@@ -96,10 +96,18 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // persistent dev DB would otherwise leave multiple same-named trips behind
   // and make the "Trip actions for …" lookup below ambiguous.
   const renamedTripName = `${tripName} renamed`;
-  await page.getByRole("button", { name: /rename trip/i }).click();
+  // Renaming moved into Trip settings: the header's pencil is gone and the
+  // trip title itself is the button that opens the sheet (design RULES pass,
+  // 2026-08-25 — "the trip name + state badge are one button that opens Trip
+  // settings, where the name field already lived"). The title's accessible
+  // name is "<trip name> — Trip settings", which this substring matches.
+  await page.getByRole("button", { name: /trip settings/i }).click();
   const renameInput = page.getByRole("textbox", { name: /trip name/i });
   await renameInput.fill(renamedTripName);
+  // Commit-on-blur, so Enter (which blurs) is still what sends the command.
   await Promise.all([waitForCommand(page), renameInput.press("Enter")]);
+  // Close the sheet so the assertions below see the header, not the overlay.
+  await page.keyboard.press("Escape");
   // getByRole("heading", ...), not getByText: the Assistant rail's real
   // context line ("Looking at {trip name}", M10 redesign-feedback follow-up)
   // now also contains the renamed trip's name as a substring — Playwright's

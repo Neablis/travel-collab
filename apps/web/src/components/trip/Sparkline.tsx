@@ -144,18 +144,38 @@ const MAX_BLOCK_WIDTH_PX = 72;
 export type CitySegment = { key: string; label: string };
 
 // Every distinct city visited anywhere in the trip, in first-appearance
-// order, each with a count of how many stops (not days) happened there —
-// not grouped by contiguous same-city day runs, so a city revisited later
-// in the trip (a return leg) still counts as one line, not two. A day with
-// no known city (no located activity yet) contributes nothing, rather than
-// a fabricated "Unknown" entry.
+// order, each with a count of how many DAYS the trip spent there — not
+// grouped by contiguous same-city day runs, so a city revisited later in the
+// trip (a return leg) still counts as one line, not two. A day with no known
+// city (no located activity yet) contributes nothing, rather than a
+// fabricated "Unknown" entry.
+//
+// Days, not stops (Mitchell, preview feedback on PR #55): "these should be a
+// count of days of the trip that are predominantly in that city". A stop
+// count answered a question nobody asks of this panel — "Tokyo · 24" is a
+// number you cannot picture — where "Tokyo · 5" is the shape of the trip,
+// which is what the panel is called. It also lands exactly on the design's
+// own model: `data/japan-trip-seed.json`'s segments are
+// `{city: 'Tokyo', nights: 5} … {city: 'Kyoto', nights: 4}`, and the seeded
+// trip now prints Tokyo · 5 / Kyoto · 4 against those.
+//
+// A day counts toward ONE city — `day.city`, which is `cityFor`'s
+// first-located-activity rule (DayChips.tsx), shared with the day chips and
+// the accent assignment. The feedback wondered whether the rule was instead
+// "the city it ends in"; it is not, and on real data it does not matter,
+// because the seed (like a real itinerary) files a travel stop under the
+// city it travels TO — checked across all 14 Japan days, first and last
+// agree on every one. Deliberately NOT introducing a second, end-of-day
+// city derivation just for this row: a pill disagreeing with that same
+// day's chip about which city a day belonged to is the exact class of bug
+// the accent unification above exists to prevent.
 export function citySegmentsFor(days: SparklineDay[]): CitySegment[] {
-  const counts = new Map<string, number>();
+  const dayCounts = new Map<string, number>();
   for (const day of days) {
     if (day.city === null) continue;
-    counts.set(day.city, (counts.get(day.city) ?? 0) + day.stopCount);
+    dayCounts.set(day.city, (dayCounts.get(day.city) ?? 0) + 1);
   }
-  return Array.from(counts, ([city, count]) => ({ key: city, label: `${city} · ${count}` }));
+  return Array.from(dayCounts, ([city, days]) => ({ key: city, label: `${city} · ${days}` }));
 }
 
 export type SparklineProps = { days: SparklineDay[] };
@@ -164,8 +184,8 @@ export type SparklineProps = { days: SparklineDay[] };
 // Structure: a fixed-height row of equal-width day columns (each a bottom-up
 // stack of that day's stops), a trip-day number under each column, and —
 // when at least one day has a known city — a row listing every distinct city
-// visited with its stop count underneath ("Tokyo · 6"), not a per-day-run
-// legend.
+// visited with the number of DAYS spent there underneath ("Tokyo · 5"), not
+// a per-day-run legend.
 //
 // The columns bottom-align for free: the row is `items-end`, so each column
 // is exactly as tall as its own blocks and sits on the row's baseline. No
