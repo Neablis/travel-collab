@@ -435,7 +435,9 @@ Phase 9's gate:
 - the calendar renders one trimmed, headed block per month instead of one continuous padded grid;
 - (added later the same day) **Task 8b.6** — see amendment 3 below.
 
-**2. Phase 1b — the header adopts the focus-scope model**
+**2. Phase 1b — the header adopts the focus-scope model** — **CANCELLED
+2026-08-26, see the amendment at the end of this file. Described below as it
+stood when approved; it was never built.**
 (`docs/plans/M10-delta/phase-1b-header-scope.md`). An explicit revisit of the
 merged Phase 1, running after Phase 7 and Phase 8b, before Phase 9's gate.
 `SPEC.md` §1 supplies a model — one focus scope at a time, account → trip → day
@@ -452,7 +454,8 @@ routed **out** of M10 — to **M15 Front door** (ADR-021), **M14**, **M11**, and
 standalone contract step — precisely so this gate does not reopen a third time.
 The review's §6 carries the full routing table.
 
-**Phase 9's exit checklist now covers Phases 8b and 1b too.**
+**Phase 9's exit checklist now covers Phases 8b and 1b too.** *(Superseded
+2026-08-26: 8b only — Phase 1b is cancelled.)*
 
 **3. Task 8b.6 — the trip start is picked, the end is derived.** Added to Phase
 8b later the same day, on Mitchell's call: *"I do not want us picking an end
@@ -472,3 +475,49 @@ which Phase 6 makes real in every view. Phase 7's wizard step 2 loses its
 It also closes `TODO.md`'s "end-date picker may drift from the day count" item —
 and corrects its diagnosis: not stored-field drift, but a derived value shown in
 an editable field.
+
+## Gate-scope amendment, 2026-08-26 — Phase 1b is cancelled
+
+Mitchell's decision, on reading a before/after of what Phase 1b would put in
+the global header: **the trip actions stay where they are.**
+
+> *"i dont think we should move share to the top bar, it doesnt make sense, top
+> bar is for functionality larger than a trip, and the elements below the top
+> bar are trip scoped actions"*
+
+and, on the header's Quick add:
+
+> *"Only 'Add stop' where it is now"*
+
+**This narrows the gate.** Amendment 2 above (Phase 1b) is **superseded** —
+Phase order to the gate is now **5, 6, 7, 8, 8b, 9**, and Phase 9's exit
+checklist covers Phase 8b but no longer Phase 1b. Amendments 1 and 3 are
+untouched; Phase 8b shipped and merged as PR #46.
+
+**This is a reversion, not a new idea.** `AppHeader.tsx:6-9` has recorded the
+same rule since Phase 1 — *"Deliberately a server component with no trip
+context… The prototype's 'Quick add' is omitted: it needs a trip to add to, so
+it belongs on the trip surface, not here."* — and `DRIFT.md` D3 sided with it:
+*"Code is right to omit Quick add."* The 2026-08-23 sync overrode both in favour
+of `SPEC.md` §1 and created Phase 1b to implement the override. That override is
+now withdrawn, and §1's focus-scope model is rejected as a whole — see
+`docs/design-feedback/2026-08-23-design-sync-review.md` §1.
+
+**Nothing of Phase 1b survives**, and the plan file records why per task. The
+one fragment that looked salvageable — §1's rule that Calendar is a trip-scope
+view and therefore hides the unscheduled rack — was checked against the code and
+**deliberately not adopted**: `TripBoardScreen.tsx:409-414` gates the rack on
+`lens !== "Map"` with a documented reason, that the rack's day-assign
+`NativeSelect` is a real scheduling path in Timeline and Calendar, and Map only
+loses it because drag is Board-only. Hiding it in Calendar would delete working
+functionality to satisfy a model that has just been rejected.
+
+**Two plan claims were found false while scoping this**, and are recorded on the
+cancelled plan file so nothing downstream inherits them: `FocusProvider` does not
+distinguish scope from the day-chip ring (it holds one field, `focusedDay`), and
+there is no `MapRail._railLock` (`MapRail` has a leading+trailing scroll
+*throttle*, which cannot tell a programmatic scroll from a user one). Task 1b.4
+would have had to build both from scratch, not reuse them.
+
+**Phase 9 — the gate — is now the next work in M10.** No code changed for this
+amendment.

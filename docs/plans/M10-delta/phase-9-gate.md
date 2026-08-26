@@ -18,7 +18,13 @@ M2 once stayed unticked for weeks.
 > (`phase-1b-header-scope.md`), both recorded in
 > `docs/milestones/M10-visual-craft.md`. **Neither may be skipped here:** this
 > gate does not close until both have landed and their own exit checklists pass,
-> alongside Phases 5-8. Full phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.
+> alongside Phases 5-8. Full phase order to the gate: 5, 6, 7, 8, 8b, 9.
+>
+> **Phase 1b was cancelled 2026-08-26, unbuilt** (`SPEC.md` §1's focus-scope
+> model rejected — see `docs/milestones/M10-visual-craft.md`'s 2026-08-26
+> amendment). **This checklist covers Phase 8b but NOT Phase 1b**; nothing
+> below should be verified against a scope-aware header, because there isn't
+> one and there will not be one.
 >
 > Also amended: the **design source of truth** is now
 > `.design-sync/handoff/design/Trip Planner Redesign.dc.html` in-repo, not the

@@ -138,6 +138,30 @@ already deferred it), and Share is an M11 `share-button` Preview. If you want
 §1's model adopted, that is a deliberate Phase 1 revisit and should be its own
 decision, not a line item inside a polish phase. **Needs your call.**
 
+> **Resolved 2026-08-26 — `SPEC.md` §1 is REJECTED as a whole, and this
+> section's original recommendation stands after all.** Mitchell's answer on
+> 2026-08-23 was to adopt §1 (see the decisions table below), which created
+> Phase 1b. On 2026-08-26, shown a before/after of what §1 actually puts in the
+> global bar, he withdrew it: *"i dont think we should move share to the top
+> bar, it doesnt make sense, top bar is for functionality larger than a trip,
+> and the elements below the top bar are trip scoped actions"*, and *"Only 'Add
+> stop' where it is now"*.
+>
+> **This is a rejection of the model, not a deferral of a task.** §1's
+> account → trip → day focus scope should not be re-proposed by a future design
+> sync, and a future session should not re-litigate it: the boundary is that the
+> global bar carries only what outlives a single trip, and trip-scoped actions
+> live on the trip surface. That is what `AppHeader.tsx:6-9` and `DRIFT.md` D3
+> both already said.
+>
+> Phase 1b is cancelled and was never built —
+> `docs/plans/M10-delta/phase-1b-header-scope.md` (which also records two claims
+> it made that turned out to be false about the code), and the gate-scope
+> narrowing in `docs/milestones/M10-visual-craft.md`. §1's one non-header rule,
+> that Calendar drops the unscheduled rack, was checked separately and
+> deliberately not adopted: it would delete a working scheduling path
+> (`TripBoardScreen.tsx:409-414`).
+
 ### 4.2 The first-run screen contradicts the new-trip wizard — inside the same design
 
 The DC contains both:
@@ -312,7 +336,7 @@ its gate.
 | Account menu / "Your account" (D3) | M15 Front door | Needs an account model to be worth more than Sign out |
 | "Look around a real trip" (`peekTrip`) | **M11** | Needs unauthenticated read of a real trip. On the M15 landing: omit or Preview |
 | Landing "share with the world / remix" copy | M11 / M12 gate the claim | Copy decision — §4.5 |
-| Scope-aware header, Share + Quick add (`SPEC` §1) | **Not M10.** Share → M11; Quick add → the M8 trim's revisit | Reverses a recorded Phase 1 decision — §4.1 |
+| Scope-aware header, Share + Quick add (`SPEC` §1) | ~~**Not M10.** Share → M11; Quick add → the M8 trim's revisit~~ — **routed nowhere as of 2026-08-26: the model is rejected, not deferred (§4.1).** Share and Add stop keep their existing homes on the trip surface | Reverses a recorded Phase 1 decision — §4.1 |
 | Notebook: read/edit split, value chips, day-binding banner, page list + templates (`SPEC` §7) | **M14 Rich layer** | Design recorded now, built then. The presentational subset is real work: `PageScreen` has no mode split and `MacroView` renders inline values as a bare `<span>` |
 | Notebook insert picker, scope × shape (`SPEC` §7) | M14 | Needs `macroCatalog()` widened with scope; the "needs a field" badge maps onto `preview-registry.ts` |
 | **Repeaters** — a loop macro with an author-supplied row template | **M14, and it needs an ADR** | The one genuinely new engineering decision this sync creates — see §7 |
@@ -357,7 +381,7 @@ commit.
 
 | # | Question | Decision |
 |---|---|---|
-| §4.1 | Scope-aware header (`SPEC` §1) or the code's context-free one? | **Adopt `SPEC` §1**, as an explicit revisit of the merged Phase 1 — not folded into a polish task. Planned at `docs/plans/M10-delta/phase-1b-header-scope.md` |
+| §4.1 | Scope-aware header (`SPEC` §1) or the code's context-free one? | ~~**Adopt `SPEC` §1**, as an explicit revisit of the merged Phase 1 — not folded into a polish task. Planned at `docs/plans/M10-delta/phase-1b-header-scope.md`~~ — **REVERSED 2026-08-26: `SPEC` §1 rejected, the code's context-free header stands, Phase 1b cancelled unbuilt. See §4.1** |
 | §4.2 | Is the one-field first-run screen intentionally different from the four-step wizard? | **Still open** — carried into M15's milestone file as its first open question, since M15 owns first-run and M10 Phase 7 owns the wizard |
 | §4.3 | Start-only trip dates? | **Adopted.** The end is always start + day count. Landed as **Task 8b.6**, not a post-gate step: `endDate` is stored nowhere and already derived, so removing the input is UI-only — no contract, command or domain change |
 | §4.5 | Landing copy selling M11/M12? | **Still open** — carried into M15's milestone file. It is a copy call that only matters when the landing page is built |
@@ -398,7 +422,7 @@ Docs only. No code, no contracts, no test changes.
 - §8 above, replacing the open questions with the answers.
 - `docs/plans/M10-delta/phase-8b-design-sync.md` — **approved**; the banner flipped and its place in the phase order stated. Later gained **Task 8b.6** (start picked, end derived) when that decision came back.
 - `docs/plans/M10-delta/phase-7-forms.md` — Task 7.2's step 2 loses its "Leave" input, same decision.
-- `docs/plans/M10-delta/phase-1b-header-scope.md` — new: the Phase 1 revisit that adopts `SPEC` §1.
+- `docs/plans/M10-delta/phase-1b-header-scope.md` — new: the Phase 1 revisit that adopts `SPEC` §1. **(Cancelled 2026-08-26, never built — §4.1.)**
 - `docs/milestones/M10-visual-craft.md` — both gate-scope amendments recorded.
 - `docs/architecture/ADR-021-front-door-milestone-ahead-of-m9.md` — the M15 reorder.
 - `docs/milestones/M15-front-door.md` — the milestone, its scope, its exit gate, and the two open questions carried from §4.2 and §4.5.
