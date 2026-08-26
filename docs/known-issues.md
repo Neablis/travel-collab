@@ -370,6 +370,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   stopping and reporting rather than fabricating a trigger).
 
 
+### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings
+- **Severity:** cleanup (no live failure today — the projection factory never runs the conflict engine, so the clash is currently unobservable)
+- **Area:** `packages/factories/src/trip.ts` (`activityFactory`'s literal `timeWindow`, and `tripDetailFactory`'s hardcoded `conflicts: []`), `packages/factories/src/scenarios.ts`
+- **Symptom:** `activityFactory` (`trip.ts:47`) gives **every** activity the identical literal window `{ start: "09:00", end: "11:00" }`. Identical windows satisfy the domain's `windowsOverlap` (`a.start < b.end && b.start < a.end`), so every scenario with `activitiesPerDay >= 2` — `threeDayTrip`, `overBudgetTrip`, `ungeocodedTrip` **and** `overlappingDay` — is carrying a mutual time clash on every day. `scenarios.overlappingDay` is therefore not distinguished from its siblings on the projection side at all: the thing its name promises is a property all four share.
+- **Why nothing fails today:** `tripDetailFactory` hardcodes `conflicts: []` (`trip.ts:151`) and never calls `detectConflicts`, so the clash is never computed and never observed. The moment a caller hydrates one of these fixtures and runs the real engine — which is a reasonable thing to do — `threeDayTrip` starts reporting a degenerate `time-overlap` conflict it was never meant to have, and any assertion of the form "the ordinary case has no conflicts" breaks.
+- **Distinct from the command side, which is fixed.** `commandsFor("overlappingDay")` emitted `09:00-10:00` and `10:00-11:00` — touching, not overlapping — and now emits a real partial overlap (`09:00-10:00` / `09:30-10:30`), verified through `decideTripCommand` → `evolveTrip` → `detectConflicts` in `packages/factories/src/conflicts.test.ts`. This entry is the *projection*-side twin of that problem, and the two are now asymmetric: the command twin overlaps deliberately, the projection twin overlaps accidentally and everywhere.
+- **Why not fixed here:** staggering `activityFactory`'s default window is a one-line change with a blast radius nobody has measured — `@tc/factories` is consumed by ~34 `apps/web` test files (`TimelineLens`, `overlapData`, `calendarData`, `ScheduleLens`, `CalendarLens` and others) whose layout and grouping assertions may depend on every activity sharing a window. Verifying that is a scoped change of its own, not a rider on a KI sweep.
+- **Fix path:** stagger `activityFactory`'s `timeWindow` by index the way `commandsFor` now does, run the full `apps/web` unit suite, and repair whatever depended on the shared window. Then decide separately whether `tripDetailFactory` should compute `conflicts` via the real engine instead of hardcoding `[]` — that is a design question about what the factory is for (an inert skeleton vs. a self-consistent projection), and it is Mitchell's, not a mechanical fix.
+- **Cross-reference:** KI-37 (the command-side window bug, resolved 2026-08-25) — same family, opposite twin.
+- **First noted:** 2026-08-25 (KI sweep, found while making `commandsFor("overlappingDay")` actually overlap).
+
 ### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
 - **Severity:** correctness (a confidently wrong pin, same family as KI-15)
 - **Area:** `apps/web/scripts/geocode-japan-seed.mts`,
