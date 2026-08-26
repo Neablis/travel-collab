@@ -432,6 +432,15 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** render the conflict against its subject the way the design does
   (in-card in Day columns, under-the-row in Timeline), and keep at most a
   collapsed summary at the top if a whole-trip count is still wanted.
+- **Partly fixed (2026-08-26, PR #55):** the summary half is in. Above two
+  undismissed conflicts the list collapses to one line ("12 things to look at
+  on this trip" + Show), so the first day column now sits at y=420 of a 950px
+  window instead of below the fold. Collapsed, not truncated — expanding still
+  gives every conflict with its own Dismiss and jump.
+- **Still open:** the in-card half. Distance conflicts ("~309 km apart on the
+  same day") still have no inline home — Timeline's `OverlapWarning` covers
+  overlaps only — so this list remains the only place that copy exists, which
+  is why it was collapsed rather than removed.
 - **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2).
 
 ### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere

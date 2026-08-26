@@ -249,9 +249,30 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // horizontal padding without doubling up. Chrome that's shared across all
   // lenses (the tab strip, the error banner) gets its padding from this
   // PageContainer width="full" wrapper instead.
-  // Board is capped to content width (#31) — its columns scroll horizontally
-  // (Task 11) rather than wrapping, so only Map remains full-bleed.
+  // Only Map is full-BLEED (no gutter, and it reclaims the assistant rail's
+  // reserved strip). Board is a separate case: full WIDTH, normal gutter,
+  // rail still respected — see boardUsesFullWidth below.
   const isFullLens = lens === "Map";
+
+  // Board opts out of the 1120px content cap. That cap (#31, wave-3 Area 1)
+  // was decided as one half of a pair: "cap the board to a max content width"
+  // AND "day columns flow into a wrapped grid instead of a single
+  // horizontally-scrolling row — all days visible, no horizontal scroll."
+  // A readable measure is the right call for a wrapped grid. The design later
+  // went back to scrolling columns (Board.tsx: handoff §"Day columns view",
+  // 268px columns "rather than wrapping into rows") and the cap stayed behind,
+  // which is the worst of both: you scroll MORE, because the row is 1072px of
+  // a 1728px window with the leftover 250px sitting as empty gutter either
+  // side of a centred container (measured, 2026-08-26). That is what Mitchell
+  // reported on PR #55 — "why cant we use more of the screen when scrolling
+  // left and right?" — and it is close to the original wave-3 ask the cap was
+  // meant to serve ("we probably don't even want to have to scroll right").
+  //
+  // So this is not reversing #31 so much as finishing a reversal already made
+  // elsewhere. Timeline and Calendar keep the cap: they scroll vertically, and
+  // a 1372px-wide line of prose or a 1372px calendar cell is worse, not
+  // better.
+  const boardUsesFullWidth = lens === "Board";
 
   // The assistant's context line — "Looking at Day N" once a day is focused
   // (Task 4's FocusProvider, already read above for the day chips), else
@@ -294,7 +315,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
             </PageContainer>
           ) : (
-            <PageContainer width="content">
+            <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
               {lens === "Board" && (
                 <Board
                   trip={activeTrip}
