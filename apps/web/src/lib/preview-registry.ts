@@ -32,6 +32,7 @@ export const PREVIEW_REGISTRY = {
   "wizard-invite-list": { milestone: "M13", wiredUpBy: "Invites and non-owner roles — TripMember.role is literal \"owner\"" },
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
+  "landing-peek-trip": { milestone: "M11", wiredUpBy: "M11 share links — unauthenticated read of a real trip" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;
