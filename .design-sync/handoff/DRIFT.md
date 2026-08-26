@@ -23,7 +23,7 @@ is *designed and shelled, not wired* — not a design gap.
 | D2 | Unauthenticated home | Bare `<Heading>travel-collab</Heading>` + a `Sign in` link to NextAuth's default page | Full landing hero + custom sign-in/sign-up screens | Design wins — this is the new work from this turn. |
 | D3 | Global header contents | Logo, `Trips`, `Playbooks`. No account control. "Quick add" deliberately omitted (needs a trip) | Logo, nav, **avatar that signs out** | Design wins on the avatar (you can't sign out anywhere today). Code is right to omit Quick add. |
 | D4 | New-trip flow | A `Dialog` with **one field: name**. `CreateTrip` in `packages/contracts/src/trip.ts` carries *only* a name | My new first-run screen adds **"Roughly when?" chips** | **Code wins** — my chips have no contract field. Either drop them or treat as a contract change. Flagged as my error. |
-| D5 | Trip header actions | Also has inline rename, status `Badge`, `SyncIndicator`, Undo/Redo, **History popover w/ version preview + revert**, `Notebook` link | None of those five exist in the DC | Code wins — design needs to catch up (see §3). |
+| D5 | Trip header actions | Also has inline rename, status `Badge`, `SyncIndicator`, Undo/Redo, **History popover w/ version preview + revert**, `Notebook` link | Undo/redo now live in History; Notebooks is a menu; save state moved to the logo; **inline rename is gone** | ~~Code wins~~ **Superseded by the rules pass (see R4, R6, R7 below).** Only the status `Badge` is still code-wins. |
 | D6 | Home "next trip" | `TripSummary` has **no start date**, so "next trip" is just `visibleTrips[0]` | Design implies real upcoming-by-date | Code wins for now; needs a server field to do it honestly. |
 | D7 | Sync failure | `SyncIndicator` (pending dot) + `board/ConflictBanner` | My new **persistent sync-failure banner** | Design wins per your "banner" answer — but it should reuse `ConflictBanner`'s vocabulary, not a second pattern. |
 
@@ -120,3 +120,32 @@ Next: Notebook / Pages — a **trip journal** (written during and after), with *
   same assumption** (`CalendarLens`, `MapRail`, any day-chip label).
 - **Mobile scope stated out loud** (SPEC §10): retrieval and small edits on the trip, not
   planning. Recorded so future mobile screens don't drift back toward a second planner.
+
+## Rules pass — 2026-08-25
+
+Six project rules were adopted (`RULES.md`, SPEC §11) and the desktop design was
+reconciled against them. Build-side consequences:
+
+| # | Change in design | Build check |
+|---|---|---|
+| R1 | `Share` / `Quick add` / `New trip` removed from the header | `components/AppHeader.tsx` — header should hold account scope only; Share moves to `trip/TripHeader.tsx` |
+| R2 | Drawer renders in Day columns only | `trip/rackDisclosure.ts` — gate on the columns lens, not `timeline || columns` |
+| R4 | Trip-header save dot removed; logo carries save state | `trip/SyncIndicator.tsx` moves to the header logo; remove the in-trip instance |
+| R4 | `Travel` chip suppressed on transit stops | wherever stop tags render — transit already shows a badge |
+| R5 | Filter row removed; tag chips are the control, dim not hide | `lenses/CalendarLens.tsx` must stop filtering cells; needs an opacity pass keyed on the focused tag |
+| R7 | Undo/redo relocated into History | `board/UndoRedoControls.tsx` + `board/HistoryPanel.tsx` — both were on the *undesigned* list and now have a design |
+| R7 | Notebooks menu at the far right of the view row | `components/pages/NotebookScreen.tsx` entry point; new menu is not in code |
+| R2 | Map day rail restored, clicking jumps | `lenses/MapLens.tsx` + `lenses/MapRail.tsx` — reverses the 2026-08-23 removal |
+| R6 | Trip title *is* the settings button; **pencil icon and ⚙ removed, inline rename removed** | `trip/TripHeader.tsx` — delete the `Pencil` import, the `renaming` state, and the `Rename trip` icon button; the `<h2>` becomes the button that opens `SettingsSheet`. `trip/SettingsSheet.tsx` — the trip-name row stops being read-only and becomes the one place renaming happens (its comment on L152 is now stale). Update `TripHeader.test.tsx` (`describe("TripHeader rename")`) and `e2e/m8-make-it-real.spec.ts` (`getByRole("button", { name: /rename trip/i })`) to drive rename through settings. **Supersedes D5's "code wins".** |
+
+Carried forward from 2026-08-24 and still true: **day labels must derive their month from
+start date + day index**, not from the trip start — check `CalendarLens`, `MapRail`, and
+every day chip.
+
+Design-system note for implementers: arbitrary Tailwind utilities (`max-h-[min(420px,80vh)]`)
+are inert against the precompiled bundle used by the design file. In the real app the JIT
+will compile them, so this is a design-file constraint, not a product one — but any value
+copied *out of* the design file may be an inline style for that reason.
+
+Removed this pass: the Trips page's **"Worth your attention"** panel (nudge rows). There
+was no code counterpart; it is now gone from the design too.

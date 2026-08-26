@@ -30,6 +30,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 @keyframes pbBurst { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
 @keyframes pbSpark { 0% { transform: translate(0, 0) scale(0.3); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; } }
 @keyframes keptCycle { 0% { max-width: 0; opacity: 0; margin-left: 0; } 14%, 86% { max-width: 52px; opacity: 1; margin-left: 6px; } 100% { max-width: 0; opacity: 0; margin-left: 0; } }
+@keyframes om-logo-beat { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 @keyframes pbWave { 0%, 100% { transform: rotate(0deg); } 40% { transform: rotate(-11deg); } 70% { transform: rotate(5deg); } }
 [data-pb="flag"] { display: inline-flex; align-items: center; justify-content: center; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 999px; border: 1px solid transparent; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--pbink); background: var(--color-surface); transition: background-color 240ms ease, color 240ms ease, border-color 140ms ease, transform 140ms ease; }
 [data-pb="flag"]:hover { transform: translateY(-1px); border-color: var(--color-brand); }
@@ -72,8 +73,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 <div style="min-height: 100vh; height: 100vh; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-next-sans);">
 
   <header data-r="row" style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px 18px; padding: 12px 24px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
-    <button onClick="{{ goHome }}" style="display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0; cursor: pointer;">
-      <span style="width: 30px; height: 30px; border-radius: 11px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 15px;">◎</span>
+    <button onClick="{{ goHome }}" title="{{ syncLabel }}" style="display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0; cursor: pointer;">
+      <span role="status" aria-label="{{ syncLabel }}" style="width: 30px; height: 30px; border-radius: 11px; background: {{ logoBg }}; color: var(--color-surface); display: grid; place-items: center; font-size: 15px; transition: background 220ms ease;">
+        <span style="animation: {{ logoBeat }};">◎</span>
+      </span>
       <span style="font-family: var(--font-next-display); font-weight: 600; font-size: 16px; color: var(--color-ink);">Caesura</span>
     </button>
     <nav style="display: flex; align-items: center; gap: 4px; padding-left: 8px;">
@@ -82,13 +85,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </nav>
     <div style="flex: 1;"></div>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <sc-if value="{{ inTripScope }}" hint-placeholder-val="{{ false }}">
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ copyLink }}">Share</x-import>
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ openAdd }}">Quick add</x-import>
-      </sc-if>
-      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
-      </sc-if>
       <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="30px,30px" open="{{ acctOpen }}" onOpenChange="{{ setAcctOpen }}" align="end" contentClassName="w-56 p-1" trigger="{{ acctTrigger }}">
         <div style="display: flex; flex-direction: column;">
           <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; border-bottom: 1px solid var(--color-hairline);">
@@ -196,7 +192,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <div>
               <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;">
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,26px" level="{{ 3 }}">All trips</x-import>
-                <span style="font-size: 13px; color: var(--color-slate);">3 trips · 1 shared with you</span>
               </div>
               <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <sc-for list="{{ tripCards }}" as="t" hint-placeholder-count="3">
@@ -251,21 +246,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </div>
             </div>
 
-            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,200px" title="Worth your attention">
-              <div style="display: flex; flex-direction: column;">
-                <sc-for list="{{ nudges }}" as="n" hint-placeholder-count="3">
-                  <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--color-hairline);">
-                    <span style="width: 10px; height: 10px; border-radius: 999px; background: var(--color-brand); flex: 0 0 auto;"></span>
-                    <div style="flex: 1;">
-                      <div style="font-size: 14px; color: var(--color-ink);">{{ n.title }}</div>
-                      <div style="font-size: 13px; color: var(--color-slate); margin-top: 1px;">{{ n.body }}</div>
-                    </div>
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ n.act }}">{{ n.cta }}</x-import>
-                  </div>
-                </sc-for>
-              </div>
-            </x-import>
-
           </div>
         </x-import>
       </sc-if>
@@ -275,21 +255,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <div style="position: sticky; top: 0; z-index: 5; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
             <div data-r="triphead" style="padding: 14px 26px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 10px; align-items: end;">
               <div style="grid-column: 1; grid-row: 1; min-width: 0;">
-                <nav style="display: flex; align-items: center; gap: 14px;">
-                  <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← Your trips</button>
-                </nav>
-                <sc-if value="{{ renaming }}" hint-placeholder-val="{{ false }}">
-                  <div style="margin-top: 4px; max-width: 320px;">
-                    <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="280px,36px" aria-label="Trip name" defaultValue="{{ trip.name }}" autoFocus="{{ true }}" onKeyDown="{{ renameKey }}" onBlur="{{ commitRename }}"></x-import>
-                  </div>
-                </sc-if>
-                <sc-if value="{{ notRenaming }}" hint-placeholder-val="{{ true }}">
-                  <div style="display: flex; align-items: center; gap: 10px; margin-top: 2px;">
-                    <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,30px" level="{{ 2 }}">{{ trip.name }}</x-import>
-                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="neutral">{{ trip.state }}</x-import>
-                    <button onClick="{{ startRename }}" title="Rename trip" aria-label="Rename trip" style="width: 26px; height: 26px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-slate);" style-hover="background: var(--color-moss); color: var(--color-ink);">✎</button>
-                  </div>
-                </sc-if>
+                <button onClick="{{ openSettings }}" title="Open trip settings" style="display: flex; align-items: center; gap: 10px; margin: 2px 0 0 -8px; padding: 2px 8px; background: none; border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; text-align: left; transition: background 140ms ease;" style-hover="background: var(--color-moss);">
+                  <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,30px" level="{{ 2 }}">{{ trip.name }}</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="neutral">{{ trip.state }}</x-import>
+                </button>
               </div>
               <div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: stretch; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;">
                 <div data-r="meta" style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
@@ -315,26 +284,23 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ budgetBadgeVariant }}">{{ budgetBadge }}</x-import>
                 </button>
               </div>
-              <div style="grid-column: 2; grid-row: 1; justify-self: end; align-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                <button onClick="{{ openNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;" style-hover="color: var(--color-ink);">Notebook →</button>
+              <div style="grid-column: 2; grid-row: 1; justify-self: end; align-self: center;">
                 <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px;">
                   <div style="display: flex; align-items: center; gap: 6px;">
-                    <span title="{{ syncLabel }}" aria-label="{{ syncLabel }}" role="status" style="display: inline-flex; align-items: center; gap: 7px; margin-right: 4px;">
-                      <span style="position: relative; width: 22px; height: 22px; display: grid; place-items: center;">
-                        <sc-if value="{{ syncing }}" hint-placeholder-val="{{ false }}">
-                          <span style="position: absolute; width: 12px; height: 12px; border-radius: 999px; background: {{ syncDot }}; animation: om-save-pulse 1.4s ease-out infinite;"></span>
-                          <span style="position: absolute; width: 12px; height: 12px; border-radius: 999px; background: {{ syncDot }}; animation: om-save-pulse 1.4s ease-out infinite; animation-delay: 0.7s;"></span>
-                        </sc-if>
-                        <span style="width: 11px; height: 11px; border-radius: 999px; background: {{ syncDot }};"></span>
-                      </span>
-                      <sc-if value="{{ syncBusy }}" hint-placeholder-val="{{ false }}">
-                        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 500; color: {{ syncDot }};">{{ syncLabel }}</span>
-                      </sc-if>
-                    </span>
-                    <button onClick="{{ doUndo }}" title="Undo (⌘Z)" aria-label="Undo" style="width: 28px; height: 28px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: {{ undoCursor }}; opacity: {{ undoOpacity }}; font-family: inherit; font-size: 13px; color: var(--color-slate);" style-hover="background: var(--color-moss);">↺</button>
-                    <button onClick="{{ doRedo }}" title="Redo (⇧⌘Z)" aria-label="Redo" style="width: 28px; height: 28px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: {{ redoCursor }}; opacity: {{ redoOpacity }}; font-family: inherit; font-size: 13px; color: var(--color-slate);" style-hover="background: var(--color-moss);">↻</button>
                     <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ histOpen }}" onOpenChange="{{ setHistOpen }}" align="end" contentClassName="w-96" trigger="{{ histTrigger }}">
                       <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--color-hairline);">
+                          <button onClick="{{ doUndo }}" style="flex: 1; display: flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 7px 10px; cursor: {{ undoCursor }}; opacity: {{ undoOpacity }}; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                            <span style="font-size: 13px; color: var(--color-slate);">↺</span>
+                            <span style="flex: 1; font-size: 13px; font-weight: 600; color: var(--color-ink);">Undo</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">⌘Z</span>
+                          </button>
+                          <button onClick="{{ doRedo }}" style="flex: 1; display: flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 7px 10px; cursor: {{ redoCursor }}; opacity: {{ redoOpacity }}; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                            <span style="font-size: 13px; color: var(--color-slate);">↻</span>
+                            <span style="flex: 1; font-size: 13px; font-weight: 600; color: var(--color-ink);">Redo</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">⇧⌘Z</span>
+                          </button>
+                        </div>
                         <sc-if value="{{ histPreviewing }}" hint-placeholder-val="{{ false }}">
                           <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,68px" variant="info">
                             <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -358,7 +324,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </div>
                     </x-import>
                   </div>
-                  <button onClick="{{ openSettings }}" title="Trip settings" aria-label="Trip settings" style="width: 28px; height: 28px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--color-slate);" style-hover="background: var(--color-moss); color: var(--color-ink);">⚙</button>
+                  <button onClick="{{ copyLink }}" title="Copy a share link to this trip" style="height: 28px; padding: 0 10px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-slate);" style-hover="background: var(--color-moss); color: var(--color-ink);">Share</button>
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openAdd }}">Add stop</x-import>
                 </div>
                 </div>
@@ -396,17 +362,42 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <div style="flex: 0 0 auto;">
                 <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ view }}" onValueChange="{{ setView }}" options="{{ viewOptions }}" aria-label="Plan layout"></x-import>
               </div>
-              <sc-if value="{{ showTagFilter }}" hint-placeholder-val="{{ true }}">
-              <div style="flex: 0 0 auto; width: 1px; height: 20px; background: var(--color-hairline);"></div>
-              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; flex: 0 0 auto;">
-                <sc-for list="{{ tagFilters }}" as="t" hint-placeholder-count="6">
-                  <button onClick="{{ t.act }}" style="font-size: 12px; font-weight: {{ t.weight }}; color: {{ t.ink }}; background: {{ t.bg }}; border: 1px solid {{ t.edge }}; border-radius: 999px; padding: 4px 11px; cursor: pointer; font-family: inherit;">{{ t.label }}</button>
-                </sc-for>
-                <sc-if value="{{ tagFilterOn }}" hint-placeholder-val="{{ false }}">
-                  <button onClick="{{ clearTagFilter }}" style="background: none; border: 0; padding: 4px 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Show everything</button>
-                </sc-if>
+              <sc-if value="{{ tagFilterOn }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; gap: 10px; flex: 0 0 auto;">
+                <div style="width: 1px; height: 20px; background: var(--color-hairline);"></div>
+                <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--color-slate);">
+                  <span style="font-size: 11px; font-weight: 600; color: {{ focusInk }}; background: {{ focusBg }}; border-radius: 5px; padding: 2px 8px;">{{ focusLabel }}</span>
+                  in focus — everything else is dimmed
+                </span>
+                <button onClick="{{ clearTagFilter }}" style="background: none; border: 0; padding: 4px 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Clear</button>
               </div>
               </sc-if>
+              <div style="flex: 1 1 auto; min-width: 12px;"></div>
+              <div style="flex: 0 0 auto;">
+                <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ nbOpen }}" onOpenChange="{{ setNbOpen }}" align="end" contentClassName="w-80 p-1" collisionPadding="{{ 12 }}" trigger="{{ nbTrigger }}">
+                  <div style="display: flex; flex-direction: column; min-height: 0; max-height: calc(var(--radix-popover-content-available-height, 420px) - 24px);">
+                    <button onClick="{{ newDoc }}" style="flex: none; display: flex; align-items: center; gap: 10px; background: none; border: 0; border-radius: 8px; padding: 9px 10px; cursor: pointer; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                      <span style="width: 22px; height: 22px; flex: none; border-radius: 6px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 14px; line-height: 1;">+</span>
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">New notebook</span>
+                    </button>
+                    <div style="flex: none; height: 1px; background: var(--color-hairline); margin: 4px 0;"></div>
+                    <div style="display: flex; flex-direction: column; flex: 1 1 auto; min-height: 44px; overflow-y: auto;">
+                      <sc-for list="{{ docs }}" as="nb" hint-placeholder-count="3">
+                        <button onClick="{{ nb.open }}" style="display: flex; align-items: center; gap: 10px; background: none; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                          <span style="width: 4px; align-self: stretch; flex: none; border-radius: 2px; background: {{ nb.solid }};"></span>
+                          <span style="flex: 1; min-width: 0;">
+                            <span style="display: block; font-size: 13px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ nb.title }}</span>
+                            <span style="display: block; font-size: 11px; color: var(--color-slate); margin-top: 1px;">{{ nb.meta }}</span>
+                          </span>
+                          <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="{{ nb.bindVariant }}">{{ nb.bind }}</x-import>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <div style="flex: none; height: 1px; background: var(--color-hairline); margin: 4px 0;"></div>
+                    <button onClick="{{ openNotebook }}" style="flex: none; background: none; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; text-align: left; font-size: 12px; color: var(--color-slate);" style-hover="background: var(--color-moss); color: var(--color-ink);">Browse all notebooks →</button>
+                  </div>
+                </x-import>
+              </div>
             </div>
           </div>
 
@@ -483,7 +474,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                               <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
                                 <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;">
                                   <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
-                                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 5px; padding: 2px 8px;">{{ tg.label }}</span>
+                                    <button onClick="{{ tg.act }}" title="{{ tg.hint }}" style="font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: {{ tg.ink }}; background: {{ tg.bg }}; border: 0; box-shadow: {{ tg.ring }}; border-radius: 5px; padding: 2px 8px; cursor: pointer; font-family: inherit;">{{ tg.label }}</button>
                                   </sc-for>
                                 </div>
                               </sc-if>
@@ -640,7 +631,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                           <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
                             <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
                               <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
-                                <span style="font-size: 10px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 4px; padding: 1px 6px;">{{ tg.label }}</span>
+                                <button onClick="{{ tg.act }}" title="{{ tg.hint }}" style="font-size: 10px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border: 0; box-shadow: {{ tg.ring }}; border-radius: 4px; padding: 1px 6px; cursor: pointer; font-family: inherit;">{{ tg.label }}</button>
                               </sc-for>
                             </div>
                           </sc-if>
@@ -717,7 +708,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px;">
                           <sc-for list="{{ c.chips }}" as="ch" hint-placeholder-count="3">
-                            <div data-castop="{{ ch.key }}" style="display: flex; align-items: baseline; gap: 5px; min-width: 0; background: var(--color-surface); border-radius: 6px; padding: 3px 6px; cursor: grab; touch-action: none;">
+                            <div data-castop="{{ ch.key }}" style="display: flex; align-items: baseline; gap: 5px; min-width: 0; background: var(--color-surface); border-radius: 6px; padding: 3px 6px; cursor: grab; touch-action: none; opacity: {{ ch.dim }}; transition: opacity 140ms ease;">
                               <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate); flex: none;">{{ ch.t }}</span>
                               <span style="flex: 1; min-width: 0; font-size: 10.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ ch.n }}</span>
                             </div>
@@ -1704,7 +1695,7 @@ class Component extends DCLogic {
     pbFilter: 'all', pbCity: 'All cities', toast: '', rev: 0,
     blOpen: false,
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
-    acctOpen: false, renaming: false, histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
+    acctOpen: false, histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
     docId: 'overview', docMode: 'read', docDay: 6, docFollowed: false, insertOpen: false,
     boundDocs: [], insScope: 'trip', insKind: 'all', insQ: '', blankMade: false,
@@ -2254,15 +2245,14 @@ class Component extends DCLogic {
     const longest = legs.slice().sort((a, b) => b.km - a.km)[0];
     return { i, day: d, ac, pts, legs, walkKm, rideKm, mins, totalKm, span, wander, center, longest };
   }
-  // Calendar cells are three lines deep, so the tag filter picks which three.
-  calStops(d) {
-    const tf = this.state.tagFilter || [];
-    return tf.length ? d[4].filter(a => this.tagsOf(a).filter(x => tf.indexOf(x) >= 0).length) : d[4];
-  }
+
+  // Tag focus dims, never hides — the shape of the day has to stay readable.
+  tagOff(a) { const tf = this.state.tagFilter || []; return tf.length ? !this.tagsOf(a).filter(x => tf.indexOf(x) >= 0).length : false; }
+  calStops(d) { return d[4]; }
   calMore(d) {
-    const tf = this.state.tagFilter || [], list = this.calStops(d);
-    if (!list.length) return tf.length ? 'Nothing tagged that way' : 'Nothing planned yet';
-    if (tf.length) return list.length + (list.length === 1 ? ' stop' : ' stops') + ' of ' + d[4].length;
+    const tf = this.state.tagFilter || [], list = d[4];
+    if (!list.length) return 'Nothing planned yet';
+    if (tf.length) return list.filter(a => !this.tagOff(a)).length + ' of ' + list.length + ' in focus';
     return d[4].length + ' stops · ' + this.fmt(d[4][0][0]) + ' – ' + this.fmt(d[4][d[4].length - 1][1]);
   }
   mapTrip() {
@@ -2459,15 +2449,28 @@ class Component extends DCLogic {
     fn(t.days, bl);
     this.setState(s => ({ rev: (s.rev || 0) + 1, backlog: bl }));
   }
+  histTarget(back) {
+    if (back) { for (let i = 0; i < this.HIST.length; i++) if (!this.HIST[i].undone) return i; return -1; }
+    for (let i = this.HIST.length - 1; i >= 0; i--) if (this.HIST[i].undone) return i;
+    return -1;
+  }
   stepHistory(back) {
+    const at = this.histTarget(back);
+    if (at < 0) { this.flash(back ? 'Nothing left to undo' : 'Nothing to redo'); return; }
+    const entry = this.HIST[at];
+    entry.undone = back;
+    // Edits made this session carry a real snapshot; seeded history is a label only.
     const t = this.trip();
     this._undo = this._undo || []; this._redo = this._redo || [];
     const from = back ? this._undo : this._redo, to = back ? this._redo : this._undo;
-    if (!from.length) return;
-    to.push(JSON.stringify({ d: t.days, b: this.state.backlog }));
-    const snap = JSON.parse(from.pop());
-    t.days = snap.d;
-    this.setState(s => ({ rev: (s.rev || 0) + 1, backlog: snap.b || [] }));
+    let backlog = this.state.backlog;
+    if (from.length) {
+      to.push(JSON.stringify({ d: t.days, b: backlog }));
+      const snap = JSON.parse(from.pop());
+      t.days = snap.d; backlog = snap.b || [];
+    }
+    this.flash((back ? 'Undid “' : 'Redid “') + entry.description + '”');
+    this.setState(s => ({ rev: (s.rev || 0) + 1, backlog: backlog, histAt: (s.histAt || 0) + (back ? 1 : -1) }));
   }
 
   // ---- drag ----------------------------------------------------------
@@ -3034,7 +3037,13 @@ class Component extends DCLogic {
           whoInitials: who === 'All' ? '4' : who.split(' ')[0].slice(0, 1) + (who.split(' ')[1] || '').slice(0, 1),
           badge: bm[0], badgeVariant: bm[1], note: a[7], leg, gap,
           tagIds: tags,
-          tags: tags.map(id => this.TAG(id)),
+          tags: tags.filter(id => !(id === 'travel' && a[6] === 'transit')).map(id => {
+            const t = this.TAG(id), on = tf.length === 1 && tf[0] === id;
+            return { label: t.label, bg: t.bg, ink: t.ink,
+              ring: on ? 'inset 0 0 0 1.5px ' + t.ink : 'none',
+              hint: on ? 'Stop focusing on ' + t.label.toLowerCase() : 'Dim everything that is not ' + t.label.toLowerCase(),
+              act: () => this.setState(st => ({ tagFilter: (st.tagFilter || []).length === 1 && st.tagFilter[0] === id ? [] : [id] })) };
+          }),
           hasTags: tags.length > 0,
           maybe, maybeNote: maybe ? 'if you go' : '',
           railBg: maybe ? 'repeating-linear-gradient(to bottom, ' + day0Solid + ' 0 5px, transparent 5px 10px)' : day0Solid,
@@ -3209,6 +3218,7 @@ class Component extends DCLogic {
     // Only the day-by-day views can hold day scope; scrolling drops back to trip.
     const dayScope = route === 'trip' && !!s.focused && (s.view === 'timeline' || s.view === 'columns');
     const saveState = s.pendingSave ? 'saving' : (this.props.saveState || 'saved');
+    const canUndo = this.histTarget(true) >= 0, canRedo = this.histTarget(false) >= 0;
     const days = (route === 'trip' || route === 'notebook' || route === 'doc') ? this.buildDays() : [];
     const sugs = this.suggestionData().filter(x => s.dismissed.indexOf(x.id) < 0);
     const focusDay = days[s.focus];
@@ -3252,7 +3262,7 @@ class Component extends DCLogic {
           mc.push({
             num: cur.getDate(), inTrip: inTrip, di, label: inTrip ? 'Day ' + (di + 1) : '',
             city: d ? d[0] : '', tint: ac.tint, ink: ac.ink,
-            chips: d ? this.calStops(d).slice(0, 3).map((a, j) => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
+            chips: d ? this.calStops(d).slice(0, 3).map((a, j) => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2], dim: this.tagOff(a) ? '0.32' : '1' })) : [],
             more: d ? this.calMore(d) : '',
             jump: () => { if (this._noClick || !inTrip) return; this.setState({ view: 'timeline' }); this.jump(di); }
           });
@@ -3277,7 +3287,7 @@ class Component extends DCLogic {
         num: n, inTrip: inTrip, di, label: inTrip ? 'Day ' + (di + 1) : '',
         monthTag: n === 1 || cells.length === 0 ? this.MONS[cur.getMonth()] : '',
         city: d ? d[0] : '', first: d && d[4].length ? d[4][0][2] : '', tint: ac.tint, ink: ac.ink,
-        chips: d ? this.calStops(d).slice(0, 3).map(a => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2] })) : [],
+        chips: d ? this.calStops(d).slice(0, 3).map(a => ({ key: di + ':' + d[4].indexOf(a), t: this.fmt(a[0]).replace(' ', ''), n: a[2], dim: this.tagOff(a) ? '0.32' : '1' })) : [],
         more: d ? this.calMore(d) : '',
         jump: () => { if (this._noClick || !inTrip) return; this.setState({ view: 'timeline' }); this.jump(di); }
       });
@@ -3297,25 +3307,23 @@ class Component extends DCLogic {
       }, 'SK')),
       openAccount: () => { this.setState({ acctOpen: false }); this.flash('Account settings aren’t built yet'); },
 
-      renaming: !!s.renaming, notRenaming: !s.renaming,
-      startRename: () => this.setState({ renaming: true }),
-      renameKey: e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') this.setState({ renaming: false }); },
-      commitRename: e => {
-        const v = (e.currentTarget.value || '').trim();
-        if (v && v !== trip.name) { this.trip().name = v; this.flash('Renamed to “' + v + '”'); }
-        this.setState({ renaming: false, rev: (s.rev || 0) + 1 });
-      },
+      // Rule 1/4: renaming lives in Trip settings only — the title button opens it.
+      // No inline rename, no pencil. (Was here until the 2026-08-25 rules pass.)
 
       syncing: saveState === 'saving',
       syncBusy: saveState !== 'saved',
       syncLabel: saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Couldn’t save — retrying' : 'All changes saved',
       syncDot: saveState === 'saving' ? 'var(--color-brand)' : saveState === 'error' ? 'var(--color-danger)' : 'var(--color-success-ink)',
-      undoCursor: s.histAt > 0 ? 'pointer' : 'default',
-      undoOpacity: s.histAt > 0 ? 1 : 0.4,
-      redoCursor: s.histAt < 0 ? 'pointer' : 'default',
-      redoOpacity: s.histAt < 0 ? 1 : 0.4,
-      doUndo: () => { if (s.histAt > 0) this.flash('Undid “' + this.HIST[0].description + '”'); },
-      doRedo: () => this.flash('Nothing to redo'),
+      syncFailed: saveState === 'error',
+      // The logo is the save light: the mark breathes while saving, goes red when it can't.
+      logoBg: saveState === 'error' ? 'var(--color-danger)' : 'var(--color-brand)',
+      logoBeat: saveState === 'saving' ? 'om-logo-beat 1.5s ease-in-out infinite' : 'none',
+      undoCursor: canUndo ? 'pointer' : 'default',
+      undoOpacity: canUndo ? 1 : 0.4,
+      redoCursor: canRedo ? 'pointer' : 'default',
+      redoOpacity: canRedo ? 1 : 0.4,
+      doUndo: () => this.stepHistory(true),
+      doRedo: () => this.stepHistory(false),
       histOpen: !!s.histOpen,
       setHistOpen: v => this.setState({ histOpen: v, histPreview: v ? s.histPreview : null }),
       histTrigger: this.once('hist', () => React.createElement('button', {
@@ -3336,7 +3344,22 @@ class Component extends DCLogic {
       histRevert: () => { this.setState({ histPreview: null, histOpen: false }); this.flash('Reverted the trip to that version'); },
       histExit: () => this.setState({ histPreview: null }),
       histOlder: () => this.flash('That’s the whole history for this trip'),
-      openNotebook: () => this.setState({ route: 'notebook' }),
+      openNotebook: () => this.setState({ route: 'notebook', nbOpen: false }),
+      nbOpen: !!s.nbOpen,
+      setNbOpen: v => this.setState({ nbOpen: v }),
+      nbTrigger: this.once('nb', () => React.createElement('button', {
+        title: 'Notebooks for this trip',
+        style: { display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 12px 0 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border-strong)', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', whiteSpace: 'nowrap' }
+      },
+        // A closed notebook seen face-on: stitched spine at the left, ruled lines.
+        React.createElement('svg', { width: 15, height: 15, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true', style: { flex: 'none', display: 'block' } },
+          React.createElement('rect', { x: 2.5, y: 1.75, width: 11, height: 12.5, rx: 1.75, stroke: 'var(--color-slate)', strokeWidth: 1.3 }),
+          React.createElement('path', { d: 'M5.75 1.75v12.5', stroke: 'var(--color-slate)', strokeWidth: 1.3 }),
+          React.createElement('path', { d: 'M8 5.25h3.25M8 8h3.25M8 10.75h2', stroke: 'var(--color-slate)', strokeWidth: 1.1, strokeLinecap: 'round' })
+        ),
+        'Notebooks',
+        React.createElement('span', { style: { fontSize: 9, color: 'var(--color-slate)' } }, '▾')
+      )),
 
       syncActions: this.once('syncActions', () => React.createElement('div', { style: { display: 'flex', gap: 6 } },
         React.createElement('button', {
@@ -3420,11 +3443,6 @@ class Component extends DCLogic {
         window: p.span, shape: this.shapeOf(p.stops, p.days),
         open: () => this.setState({ route: 'playbooks' })
       }, this.accent(p.city))),
-      nudges: [
-        { title: 'Two Kyoto dinners are still only holds', body: 'Both expire this week. Confirming takes one tap each.', cta: 'Review', act: () => this.setState({ route: 'trip', tripId: 'japan' }) },
-        { title: 'Priya added three stops to Day 2', body: 'A coffee place, a bookshop and a bar in Nakameguro.', cta: 'See changes', act: () => { this.setState({ route: 'trip', tripId: 'japan' }); this.jump(1); } },
-        { title: 'Dana asked for your Tremé day', body: 'Send the Playbook instead of the whole trip.', cta: 'Send Playbook', act: () => this.setState({ route: 'playbooks' }) }
-      ],
 
       trip: { name: trip.name, state: trip.state, dates: trip.dates, length: trip.days.length + ' days', stops: trip.days.reduce((a, d) => a + d[4].length, 0) + ' stops', crewLabel: (s.crewBy[s.tripId] || []).length + ' travelers' },
 
@@ -3490,26 +3508,20 @@ class Component extends DCLogic {
       view: s.view, setView: v => this.setState({ view: v, focused: v === 'timeline' || v === 'columns' ? s.focused : false }),
       viewOptions: [{ value: 'timeline', label: 'Timeline' }, { value: 'columns', label: 'Day columns' }, { value: 'calendar', label: 'Calendar' }, { value: 'map', label: 'Map' }],
       isTimeline: s.view === 'timeline', isColumns: s.view === 'columns', isCalendar: s.view === 'calendar', isMap: s.view === 'map',
-      // The day rail stays put in every view except Map, where the side rail is
-      // the same control at full size — two day selectors would be one too many,
-      // and the map gets the height back.
-      showChips: s.view !== 'map',
-      // The map already speaks in pins and colour; a filter row on top of it was
-      // one control too many. Timeline, Day columns and Calendar keep it.
-      showTagFilter: s.view !== 'map',
+      showChips: true,
       isOverview: route === 'home' || route === 'playbooks',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
 
       isNotebook: route === 'notebook', isDoc: route === 'doc',
       backToPlan: () => this.setState({ route: 'trip' }),
       backToNotebook: () => this.setState({ route: 'notebook' }),
-      newDoc: () => { this.setState({ route: 'doc', docId: 'blank', docMode: 'edit', blankMade: true }); this.flash('Blank page created'); },
+      newDoc: () => { this.setState({ route: 'doc', docId: 'blank', docMode: 'edit', blankMade: true, nbOpen: false }); this.flash('Blank page created'); },
       // The untitled page only exists once you've made it.
       docs: this.DOCS.filter(d => !d.fresh || s.blankMade).map(d => Object.assign({}, d, this.accent(d.city || trip.days[0][0]), {
         bind: d.dayBound ? 'Day ' + (s.docDay || 6) : 'Trip-wide',
         bindVariant: d.dayBound ? 'brand' : 'neutral',
         meta: d.origin + ' · edited ' + d.edited,
-        open: () => this.setState({ route: 'doc', docId: d.id })
+        open: () => this.setState({ route: 'doc', docId: d.id, nbOpen: false })
       })),
       docTemplates: [
         { title: 'Trip overview', body: 'The whole trip in one read — dates, the shape of it, every day, what it costs.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'overview' }) },
@@ -3573,7 +3585,7 @@ class Component extends DCLogic {
       docBlocks: this.docBlocks(days, trip),
 
       blOpen: s.blOpen, blCaret: s.blOpen ? '▼' : '▲', blToggleLabel: s.blOpen ? 'Hide' : 'Show', blCountLabel: String(s.backlog.length), blEmpty: !s.backlog.length,
-      showRack: s.view === 'timeline' || s.view === 'columns',
+      showRack: s.view === 'columns',
       chatEmpty: !s.chat.length,
       blHint: '', blHintUnused: !s.blOpen ? '' : (s.view === 'columns' ? 'Drag one onto a day — it stretches to fill the gap you drop it in. Drop a stop here to take it off the schedule.' : 'Switch to Day columns to drag these in, or pick a day on the card.'),
       toggleBacklog: () => { this._blAuto = false; this.setState(st => ({ blOpen: !st.blOpen })); },
@@ -3686,13 +3698,10 @@ class Component extends DCLogic {
       prevStep: () => this.setState({ step: Math.max(0, s.step - 1) }),
       createBlank: () => { this.setState({ ntOpen: false, step: 0 }); this.flash('Empty trip created'); },
 
-      tagFilters: this.TAGS.map(t => {
-        const on = s.tagFilter.indexOf(t.id) >= 0;
-        return { label: t.label, bg: on ? t.bg : 'var(--color-surface)', ink: on ? t.ink : 'var(--color-slate)',
-          edge: on ? 'transparent' : 'var(--color-hairline)', weight: on ? '600' : '500',
-          act: () => this.setState(st => ({ tagFilter: this.toggleIn(st.tagFilter, t.id) })) };
-      }),
       tagFilterOn: s.tagFilter.length > 0,
+      focusLabel: s.tagFilter.length ? this.TAG(s.tagFilter[0]).label : '',
+      focusBg: s.tagFilter.length ? this.TAG(s.tagFilter[0]).bg : 'transparent',
+      focusInk: s.tagFilter.length ? this.TAG(s.tagFilter[0]).ink : 'var(--color-slate)',
       clearTagFilter: () => this.setState({ tagFilter: [] }),
       addTagChips: this.TAGS.map(t => {
         const on = s.addTags.indexOf(t.id) >= 0;
