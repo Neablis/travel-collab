@@ -215,19 +215,15 @@ export default function Home() {
     };
   }, [visibleTripIds]);
 
-  if (unauthenticated) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <Heading level={1}>Caesura</Heading>
-        <Link
-          href="/api/auth/signin?callbackUrl=/"
-          className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
-        >
-          Sign in
-        </Link>
-      </main>
-    );
-  }
+  // The landing page lives at /welcome, outside this route group's AppHeader
+  // shell. `replace`, not `push`, so the back button doesn't bounce a
+  // signed-out visitor straight back into a page that will only redirect
+  // them again.
+  useEffect(() => {
+    if (unauthenticated) router.replace("/welcome");
+  }, [unauthenticated, router]);
+
+  if (unauthenticated) return null;
 
   const tripCountLabel = `${visibleTrips.length} trip${visibleTrips.length === 1 ? "" : "s"}`;
 

@@ -6,8 +6,9 @@ import { tripDetailFixture, historyFixture } from "@tc/factories";
 import { formatMoney } from "@/components/lenses/formatMoney";
 
 const pushMock = vi.fn();
+const replaceMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
 }));
 
 import Home from "./page";
@@ -41,6 +42,7 @@ afterEach(() => {
 
 beforeEach(() => {
   pushMock.mockReset();
+  replaceMock.mockReset();
 });
 
 describe("Home trip actions", () => {
@@ -479,5 +481,16 @@ describe("Home page head", () => {
     renderHome([]);
     await screen.findByText(/no trips yet/i);
     expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
+  });
+});
+
+describe("Home unauthenticated visitor", () => {
+  it("sends an unauthenticated visitor to the landing page", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ error: "unauthenticated" }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/welcome"));
   });
 });

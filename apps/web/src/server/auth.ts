@@ -26,6 +26,11 @@ if (process.env.AUTH_DEV_LOGIN === "true") {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
+  // M15: our screens replace Auth.js's default sign-in page. `error` points
+  // at the same route so a failed or declined Google grant comes back to a
+  // designed screen carrying `?error=<code>` rather than Auth.js's own error
+  // page. AuthScreen renders that code as human copy.
+  pages: { signIn: "/signin", error: "/signin" },
   callbacks: {
     jwt: ({ token, user }) => {
       if (user?.id) token.userId = user.id;
