@@ -28,10 +28,16 @@ two wrong seed pins nobody had spotted — see KI-39 below.
 
 **Three known issues were filed off this branch besides KI-36:** **KI-37**
 (`commandsFor` emits a malformed `TimeWindow.start` for the second activity on
-a day), **KI-38** (`uuidFrom` silently returns malformed UUIDs above 0xFFFF
-instead of throwing) and **KI-39** (the seed geocoder's city-box acceptance
-test). KI-37 and KI-38 are both in `@tc/factories` and were surfaced by
-accident; neither is fixed, because `packages/` is off-limits on this branch.
+a day), **KI-38** (`uuidFrom` silently returns malformed UUIDs) and **KI-39**
+(the seed geocoder's city-box acceptance test). KI-37 and KI-38 were both in
+`@tc/factories` and were surfaced by accident; both are **now fixed and
+resolved** in the 2026-08-25 KI sweep, on their own branch rather than this
+one, since `packages/` was off-limits here. KI-38 turned out to be worse than
+filed: its "latent, not a live bug" bounds claim was false — the overflow is
+on `sequence + salt * 97`, and `trip.ts` salts activity ids from 1000, so
+every activity and backlog id `tripDetailFactory` ever built was a non-UUID.
+Nothing caught it because `TripDetail`'s `z.string().uuid()` fields are never
+`.parse()`d at runtime. KI-39 remains open.
 
 **Read this before the Phase 9 gate: the "presentational only" gate box is
 under real strain.** This branch contains a route that soft-deletes user
