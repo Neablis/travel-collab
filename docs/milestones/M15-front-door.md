@@ -110,8 +110,16 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
 - [x] An unauthenticated visitor to `/` is **redirected to `/welcome`**,
       which shows the landing page (decision 5). Proven by
       `e2e/m15-front-door.spec.ts` (`goto("/")` → `toHaveURL(/\/welcome$/)`,
-      hero heading visible) and `apps/web/src/app/(app)/page.tsx`'s
-      signed-out redirect.
+      hero heading visible) and, as of 2026-08-26,
+      `apps/web/src/middleware.ts`'s server-side redirect (ADR-023) — a
+      `curl` against `/` with no session cookie returns a 307 with
+      `Location: /welcome` before any page renders. This replaces the
+      original client-side implementation (Home fetching `/api/trips`,
+      getting a 401, then `router.replace`), which cost a round trip and
+      briefly showed the authenticated app chrome above an empty body. That
+      client-side path still exists in `apps/web/src/app/(app)/page.tsx`, now
+      narrowed to its real remaining job: a session that expires while the
+      page is already open.
 - [x] Sign-in and sign-up are our screens, not NextAuth's default page.
       Proven by `e2e/m15-front-door.spec.ts` and `AuthScreen.test.tsx`.
 - [ ] Both complete a real Google sign-in end to end on the deployed app.
