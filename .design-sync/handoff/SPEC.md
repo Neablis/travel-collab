@@ -198,3 +198,96 @@ design: **retrieval and small edits while you are on the trip**, not trip planni
   column, and the stop editor's tag picker sits above the fold with 44px targets.
 - If a future screen needs multi-day restructuring, that is a signal it belongs on desktop
   — not a signal to widen the mobile scope.
+
+## 11. Project rules (2026-08-25)
+
+Six rules now govern every screen; the full text is `RULES.md`. They are not style
+preferences — they decide what may exist on a page. Summary and what each one changed:
+
+**R1 — the top bar is account scope only.** Project name / Trips / Playbooks / Avatar.
+Nothing scoped to a single trip may live there. Removed from the header: **Share**,
+**Quick add**, **New trip**. Share now sits in the trip header next to the trip title;
+Quick add was already the in-trip FAB; New trip lives on the Trips page.
+
+**R2 — no purposeless UI.** The unscheduled drawer renders in **Day columns only** — the
+one view where a drop actually lands. Previously it also rendered in Timeline, where a
+drag ended in "Open Day columns to drop this": present and inert.
+
+**R3 — never nest dropdowns two levels deep.** No menu inside a menu, no select inside a
+popover that itself opens from a menu. Currently clean; the watch item is the backlog
+card's day select if that card ever moves into a menu.
+
+**R4 — no duplicated information.** Removed: the trip page's "← Your trips" (the top bar
+has Trips), "3 trips · 1 shared with you" (the grid below it is countable), the trip
+header's own save dot (the logo carries save state), and the redundant "Travel" tag chip
+on stops already badged as transit.
+
+**R5 — few things, made easy.** More options is rarely better. This is why filtering was
+replaced rather than extended (below), and why the trip title collapsed to one control.
+
+**R6 — assume the best case, recover from the worst.** The happy path is the default view;
+every screen still needs a defined empty, offline/sync-fail, and conflict state. Nothing
+was outstanding on this pass.
+
+### Tag focus replaces the filter row
+
+The header filter row is **gone**. Tag chips on a stop are now the control: clicking
+"Meal" on a stop dims everything not tagged Meal to 32% opacity across Timeline, Day
+columns, Calendar and Map; clicking again clears. Single focus, one tag at a time —
+multi-select was the part that earned its keep least.
+
+**Focus dims, never hides.** The calendar used to filter its cells down to three matching
+stops; it now keeps every stop rendered and dims the off-tag ones, so the shape of a day
+survives the filter. Cell overflow copy reads "3 of 5 in focus" while focus is on. When
+focus is active, a line beside the view tabs names the tag and offers Clear.
+
+### The logo is the save light
+
+One mark, two jobs. `◎` is brand at rest, **breathes** (1.5s opacity pulse, no spinner)
+while saving, and turns `--color-danger` when it cannot reach the trip. The separate save
+dot in the trip header was removed. Save state is technically trip-scoped while the logo
+is account-scope; it stays there because it is *status*, not an action.
+
+### Undo / redo moved into History
+
+No undo/redo buttons in the chrome. ⌘Z / ⇧⌘Z are unchanged. The two buttons now sit as a
+two-up row at the top of the History popover with their shortcuts printed, so the list
+below gives them context. **The history list is the single source of truth**: undo walks
+to the newest not-yet-undone entry, marks it undone, and toasts that entry's own
+description; redo walks back up. Session edits still apply their real snapshot.
+
+### Notebooks is a menu, not a tab
+
+Notebook left the view tab strip — clicking a tab and being navigated to another route was
+surprising. It is now a bordered pill (drawn notebook icon + "Notebooks" + ▾) at the **far
+right** of the view row, deliberately styled as a different class of thing from the tabs.
+It opens: **New notebook**, then the trip's notebooks with their day/trip-wide binding,
+then **Browse all notebooks →**. One noun — "notebook" — in all three places.
+
+Height: the popover content is capped inline with
+`max-height: calc(var(--radix-popover-content-available-height, 420px) - 24px)` on the
+inner wrapper, `min-height: 0` plus `overflow-y: auto` on the list. The create row and
+footer are pinned; only the list scrolls. **Do not use arbitrary Tailwind values
+(`max-h-[…]`) here** — this page loads the precompiled `_ds_bundle.css` with no JIT, so
+uncompiled utilities land in the DOM and do nothing.
+
+### Map keeps its day blocks
+
+The header day rail is back in Map, and clicking a day scrolls the side rail and refocuses
+the map. Open R4 tension: Map now has day chips *and* the 268px side rail. They are not
+identical (chips give trip-wide shape, the rail gives per-day detail), but if it reads as
+duplication in use, slim the rail to route/distance and let the chips own day selection.
+
+### Trip title is the way into trip settings
+
+The rename pencil and the ⚙ button are both gone. The trip name + state badge are one
+button that opens Trip settings, where the name field already lived. Hover gets a
+`--color-moss` background so it reads as clickable.
+
+### Still open
+
+- **Calendar's future.** It survives this pass for one reason: it is the only dense,
+  no-scroll read of trip shape (how many weekends you have). The retirement path is to put
+  the month grid into the header day rail as an expand, so shape lives in one persistent
+  strip. Not built.
+- Tagging many-to-many table; Notebook repeater tag parameter; account-scope Notebook values.
