@@ -241,13 +241,16 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
       // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
       style={{ gridTemplateColumns: "92px 1fr" }}
     >
+      {/* 12-hour, via lib/time's toClockLabel — the rail stacks start over end
+          rather than showing a range, so it takes the single-time formatter and
+          not toClockRange. */}
       <div className="pt-3 text-right">
         {start && (
           <DataText size="sm" className="block text-ink">
-            {start}
+            {toClockLabel(start)}
           </DataText>
         )}
-        {end && <DataText size="xs" className="block">{end}</DataText>}
+        {end && <DataText size="xs" className="block">{toClockLabel(end)}</DataText>}
       </div>
       <Card className="flex items-stretch gap-3 rounded-lg p-4">
         <div aria-hidden className={cn("w-1 shrink-0 self-stretch rounded-full", SOLID_BG[accent])} />

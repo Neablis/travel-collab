@@ -172,7 +172,7 @@ export function CalendarLens({
   // this trip's own days get probed, rather than each day resolving blind to
   // every other day.
   const accents = dayAccents(days.map((d) => d.city));
-  const { setFocusedDay } = useFocus();
+  const { focusedDay, setFocusedDay } = useFocus();
 
   if (months.length === 0) {
     return (
@@ -247,8 +247,20 @@ export function CalendarLens({
         data-testid="calendar-cell"
         data-in-trip={true}
         aria-label={`Day ${ordinal}${day?.city ? `, ${day.city}` : ""}`}
+        aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
-        className="h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90"
+        className={cn(
+          "h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
+          // Mitchell, preview feedback on PR #55: "There should be a border on
+          // the day card when i click, and the day is selected, either on the
+          // day cards at top, or the clicking here." The click already set
+          // focus — what was missing was any sign of it, so selecting a cell
+          // looked like nothing had happened. Same ring the focused day chip
+          // and day column wear, and `z-10` because the grid's cells sit
+          // edge-to-edge: without it the neighbours' borders paint over the
+          // ring on two sides.
+          focusedDay === ordinal - 1 && "z-10 ring-2 ring-brand",
+        )}
         // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
         style={CELL_STYLE}
       >
