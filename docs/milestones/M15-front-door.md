@@ -1,6 +1,7 @@
 # M15 — Front door
 
-**Status:** In progress. Tasks 1-5 implemented on this branch (no PR open yet):
+**Status:** In progress. Tasks 1-5 implemented and open as PR #56 (all CI
+checks green — unit-tests, static-checks and integration-e2e):
 landing page, custom sign-in/sign-up with failure states, Home's empty-state
 first-run moment, the account menu (already shipped in M10 Phase 8b), and the
 e2e cover below. **Decision 1 (2026-08-26)** moves this milestone's execution

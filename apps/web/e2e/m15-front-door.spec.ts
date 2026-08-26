@@ -59,7 +59,14 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel(/trip name/i).fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
-  await expect(page.getByText(tripName)).toBeVisible();
+  // `.first()`, not a bare `getByText`: a freshly created trip legitimately
+  // renders twice on Home — once in NextTripHero and once as its TripCard —
+  // so a bare locator matches two elements and Playwright's strict mode
+  // throws. Seen flaking exactly that way on 2026-08-26, after every
+  // redirect and auth assertion above had already passed. What this line
+  // needs to prove is that the trip reached Home at all, which the first
+  // match establishes.
+  await expect(page.getByText(tripName).first()).toBeVisible();
 
   // And back out the front door.
   await page.getByRole("button", { name: "Account menu" }).click();
