@@ -77,7 +77,7 @@ function threeWayOverlapFixture() {
 // needs an EditorHost ancestor, and tests that assert on the trigger observe
 // EditorHost's state through this small consumer (same pattern as E1's
 // TripBoardScreen.test.tsx OpenCreateButton / context.test.tsx Consumer).
-function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks) {
+function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks, focusedDay: number | null = null) {
   let editorState: ReturnType<typeof useEditor>["state"] | undefined;
   function StateSpy() {
     editorState = useEditor().state;
@@ -86,7 +86,7 @@ function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks
   const utils = render(
     <EditorHost>
       <StateSpy />
-      <Board trip={trip} callbacks={callbacks} />
+      <Board trip={trip} callbacks={callbacks} focusedDay={focusedDay} />
     </EditorHost>,
   );
   return { ...utils, getEditorState: () => editorState };
@@ -98,6 +98,7 @@ function noopCallbacks(): BoardCallbacks {
     onUnschedule: vi.fn(),
     onDragStart: vi.fn(),
     onDragEnd: vi.fn(),
+    onSelectDay: vi.fn(),
     onAddDay: vi.fn(),
     onRemoveDay: vi.fn(),
     onAddActivity: vi.fn(),
@@ -437,5 +438,41 @@ describe("Board", () => {
     renderBoard(fixture(), noopCallbacks()); // fixture()'s activities both have cost: null
     const card = screen.getByTestId(`activity-card-${A1}`);
     expect(within(card).getByText("No cost yet")).toBeTruthy();
+  });
+});
+
+// Mitchell, preview feedback on PR #55: "You should also be able to select the
+// day here, and it syncs to the day card above." Before this the day-chips row
+// was the only way to focus a day.
+describe("selecting a day from its column", () => {
+  // The shared fixture has one day; selection is only interesting across two.
+  function twoDays() {
+    return tripDetailFixture({
+      days: [
+        { dayId: DAY, activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+      activities: {},
+    });
+  }
+  const headerOf = (column: HTMLElement) => within(column).getByRole("button", { name: /^Day \d/ });
+
+  it("selects by index, the same state the chips above drive", async () => {
+    const callbacks = noopCallbacks();
+    renderBoard(twoDays(), callbacks);
+
+    await userEvent.click(headerOf(screen.getAllByTestId("day-column")[1]!));
+
+    expect(callbacks.onSelectDay).toHaveBeenCalledWith(1);
+  });
+
+  it("rings the focused column and marks it pressed, so the two agree", () => {
+    renderBoard(twoDays(), noopCallbacks(), 1);
+    const columns = screen.getAllByTestId("day-column");
+
+    expect(columns[1]!.className).toContain("ring-brand");
+    expect(columns[0]!.className).not.toContain("ring-brand");
+    expect(headerOf(columns[1]!).getAttribute("aria-pressed")).toBe("true");
+    expect(headerOf(columns[0]!).getAttribute("aria-pressed")).toBe("false");
   });
 });

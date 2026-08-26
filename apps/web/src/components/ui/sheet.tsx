@@ -34,7 +34,17 @@ export function Sheet({
               </Button>
             </RadixDialog.Close>
           </div>
-          <div className="flex-1 overflow-y-auto">{children}</div>
+          {/* `-mx-1 px-1`, not a bare `overflow-y-auto`: setting overflow on
+              one axis forces the other to a non-visible value, so this
+              scrollport was clipping its children's focus outlines at its own
+              left edge. Input draws its focus ring at `outline-offset-1`, i.e.
+              1px OUTSIDE the control, and a `w-full` field sits flush here —
+              so focusing one showed a ring with its left edge sliced off
+              (Mitchell, preview feedback on PR #55, reported twice: the budget
+              input in Trip settings and the place-name input in Add a stop).
+              The padding gives the outline room to draw; the equal negative
+              margin cancels it, so nothing moves. */}
+          <div className="-mx-1 flex-1 overflow-y-auto px-1">{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>

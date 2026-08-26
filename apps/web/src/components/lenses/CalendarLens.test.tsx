@@ -119,29 +119,32 @@ describe("CalendarLens", () => {
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
     expect(cell.textContent).toContain("3 stops");
-    // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest end.
-    expect(cell.textContent).toContain("9 am – 5:30 pm");
+    // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest
+    // end, through lib/time's toClockRange like every other time surface.
+    expect(cell.textContent).toContain("9 am–5:30 pm");
   });
 
-  // dc.html:685-691: up to three chips (`c.chips`, `slice(0, 3)`), each
-  // time (font-mono) then name, inside the in-trip inner card.
-  it("renders up to three stop chips with time and name", () => {
+  // SPEC §12 replaced the per-stop chips with a per-city summary: "Calendar no
+  // longer lists activities." These two tests used to assert the chips existed
+  // and that a fourth stop was elided; both now assert the opposite, because
+  // naming individual stops here is the thing the redesign removed.
+  it("names no individual stop — the cell summarises, it does not list", () => {
     renderLens(detailFixture());
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    const chips = within(cell).getAllByTestId("calendar-chip");
-    expect(chips).toHaveLength(3);
-    expect(chips[0]!.textContent).toContain("9 am");
-    expect(chips[0]!.textContent).toContain("Colosseum tour");
-    expect(chips[1]!.textContent).toContain("11:30 am");
-    expect(chips[1]!.textContent).toContain("Roman Forum");
-    expect(chips[2]!.textContent).toContain("5 pm");
-    expect(chips[2]!.textContent).toContain("Flight home");
+
+    expect(within(cell).queryAllByTestId("calendar-chip")).toHaveLength(0);
+    expect(cell.textContent).not.toContain("Colosseum tour");
+    expect(cell.textContent).not.toContain("Roman Forum");
+    expect(cell.textContent).not.toContain("Flight home");
+    // What replaces them: the city, its stop count, and its window.
+    expect(cell.textContent).toContain("Rome");
+    expect(cell.textContent).toContain("3 stops");
   });
 
-  // dc.html:686's `slice(0, 3)` — a fourth stop is real (it counts toward
-  // the "N stops" summary) but is not itself a chip.
-  it("does not render a fourth stop as a chip", () => {
-    const ids = Array.from({ length: 4 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
+  it("counts every stop in the summary, however many there are", () => {
+    // The old cell showed three chips and silently dropped the rest; a count
+    // has no such ceiling, which is half the point of the change.
+    const ids = Array.from({ length: 9 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
     renderLens(
       tripDetailFixture({
         startDate: "2027-06-01",
@@ -155,10 +158,10 @@ describe("CalendarLens", () => {
       }),
     );
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    const chips = within(cell).getAllByTestId("calendar-chip");
-    expect(chips).toHaveLength(3);
-    expect(cell.textContent).toContain("4 stops");
-    expect(cell.textContent).not.toContain("Stop 4");
+
+    expect(cell.textContent).toContain("9 stops");
+    expect(cell.textContent).not.toContain("Stop 1");
+    expect(cell.textContent).not.toContain("Nothing planned yet");
   });
 
   // A shorter window nested entirely inside a longer one sorts *after* it by
@@ -191,7 +194,7 @@ describe("CalendarLens", () => {
     });
     renderLens(detail);
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell.textContent).toContain("9 am – 5 pm");
+    expect(cell.textContent).toContain("9 am–5 pm");
     expect(cell.textContent).not.toContain("11 am");
   });
 
@@ -276,34 +279,6 @@ describe("CalendarLens", () => {
     expect(screen.queryByText("Nothing planned yet")).toBeNull();
   });
 
-  it("renders a day holding many stops as a stop count, never the empty-day copy", () => {
-    const ids = Array.from({ length: 9 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
-    renderLens(
-      tripDetailFixture({
-        startDate: "2027-06-01",
-        days: [{ dayId: day1, activityIds: ids, date: "2027-06-01", costSubtotal: 0 }],
-        activities: Object.fromEntries(
-          ids.map((id, i) => [
-            id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome" }, notes: null, anchors: [], cost: null },
-          ]),
-        ),
-      }),
-    );
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell.textContent).toContain("9 stops");
-    // Only the first three become chips (dc.html:686's slice(0, 3)) — the
-    // rest are counted in the summary but not individually named.
-    expect(within(cell).getAllByTestId("calendar-chip")).toHaveLength(3);
-    expect(cell.textContent).not.toContain("Stop 4");
-    expect(cell.textContent).not.toContain("Nothing planned yet");
-  });
-
-  // Phase 8 Task 8.6: the tint belongs to the button inside the cell, not the
-  // cell itself — the cell is a plain bg-surface wrapper at least 116px tall.
-  // dc.html:679: the tint belongs to the inner day card (data-calday), not
-  // the surface cell around it — restated for the rebuilt markup, where the
-  // whole cell is the clickable button and the tint moved to a child div.
   it("puts the day tint on the inner card, not the cell button", () => {
     renderLens(detailFixture());
     const button = screen.getByRole("button", { name: /Day 1, Rome/ });

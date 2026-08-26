@@ -4,12 +4,29 @@ import { DATABASE_URL } from "./src/server/config";
 
 export default defineConfig({
   testDir: "./e2e",
-  reporter: "line",
+  // `line` in both lanes; locally a second reporter appends the lane warning
+  // to a failing run. See e2e/laneReporter.ts for why this is a reporter and
+  // not another paragraph of guidelines.
+  reporter: process.env.CI ? "line" : [["line"], ["./e2e/laneReporter.ts"]],
   // KI-25: runs once, after webServer is up but before every project
   // (including "setup") — refuses to proceed if the running server would
   // make a real, billable model call, independent of how that server was
   // started. See e2e/global.setup.ts and /api/health/ai-mode.
   globalSetup: "./e2e/global.setup.ts",
+  // CI builds first and serves with `next start`; locally `pnpm dev` compiles
+  // each route on demand, and a cold compile can eat a whole test's budget
+  // before the test does anything interesting. At Playwright's 30s default
+  // that made local runs fail at whichever assertion the compile happened to
+  // land on — a *wandering* failure point, which is what a timeout looks like
+  // and a real defect does not. Chasing one of those cost a day and got
+  // written off as "environmental"; it was this. CI keeps the strict budget,
+  // because there the slowness would be a genuine regression.
+  timeout: process.env.CI ? 30_000 : 120_000,
+  // Same reason, the other half: an individual assertion defaults to 5s, and
+  // the first visit to a route locally spends longer than that compiling it.
+  // Raising only the test timeout just moves the failure to the first
+  // `expect` after a cold navigation.
+  expect: { timeout: process.env.CI ? 5_000 : 20_000 },
   // KI-19: the suite ran at Playwright's 1280x720 default with no viewport
   // set, which is why Wave 1's gate passed 11/11 while the page was inert
   // below 1180px. An explicit default plus a narrow project (added

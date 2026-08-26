@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo } from "./helpers";
+import { dragCardTo, openHistory } from "./helpers";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — see m3-place-and-time.spec.ts's
@@ -101,6 +101,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 
   // -- undo the last cost edit: the budget field and the warning both revert --
+  await openHistory(page);
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),

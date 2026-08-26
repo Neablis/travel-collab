@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { toClockRange } from "@/lib/time";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
@@ -48,7 +49,7 @@ export function GhostProposal({
           Assistant proposal
         </span>
         <DataText size="xs" className="text-brand-pressed">
-          {proposal.start}–{proposal.end}
+          {toClockRange(proposal.start, proposal.end)}
         </DataText>
       </div>
       <Heading level={4}>{proposal.title}</Heading>

@@ -62,6 +62,24 @@ slower (a full production build first) — that's the tradeoff for the
 signal being real; don't run it on every iteration, just before trusting
 the result.
 
+**This paragraph was not enough, twice** (2026-08-26, PR #55 — see KI-27's
+amendment). Two supports were added because a rule only read by someone who
+already opened this file is not a control:
+
+- A **failing local run now prints the warning itself**
+  (`apps/web/e2e/laneReporter.ts`), naming `test:e2e:ci-like` at the moment the
+  misreading would otherwise happen.
+- The **non-CI budgets now fit the non-CI server** — `timeout` 120s and
+  `expect` 20s locally, against CI's 30s/5s. That removes a band of false
+  failures from the iteration lane but **does not make it authoritative**: at
+  full-suite parallelism the dev lane still failed specs `ci-like` passed
+  (21/23 vs 23/23). Everything above stands unchanged.
+
+Recognise the shape: **a failure whose location moves between runs is a
+timeout; a real defect fails in the same place every time.** And before
+recording a failure as environmental anywhere, grep `docs/known-issues.md` for
+the symptom — see `cloud-agent-sessions.md`.
+
 ## Definition of done (restated from AGENTS.md — the checklist)
 
 - [ ] `pnpm check` green locally; CI green.

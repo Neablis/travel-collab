@@ -1,11 +1,19 @@
-# Design handoff — 2026-08-25
+# Design handoff — 2026-08-26
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
-bundle. It supersedes `design-sync/handoff/` (2026-08-24) in this project.
+bundle. It supersedes the 2026-08-25 bundle.
 
-What is new since the last bundle: six binding **project rules** now govern what may exist
-on a page, and the desktop design was reconciled against them — filtering, save state,
-undo/redo, the Notebooks entry point, and the trip title all changed as a result.
+What is new since the last bundle:
+
+- **Calendar became a city view.** Cells carry one card per city the day touches, with a
+  7am–11pm span bar, stop count, cost and an unbooked flag — no activity lists. It no
+  longer overlaps Day columns, which closes the open question about retiring it.
+- **Account settings exist**, holding distance units and an opt-in home-time-on-hover.
+- **A design-system bug**: `Sheet`'s scroll body clips `Input`'s focus ring on the left
+  and right. Worked around per-Sheet in the design; the fix belongs upstream. See DRIFT.
+
+The six binding **project rules** from the previous bundle are unchanged and still govern
+what may exist on a page — read `RULES.md` first.
 
 ## Contents
 
@@ -14,8 +22,8 @@ undo/redo, the Notebooks entry point, and the trip title all changed as a result
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | `design/Trip Planner Mobile.dc.html` | The mobile companion (on-trip retrieval + small edits — SPEC §10) |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§11 is this pass** |
-| `DRIFT.md` | Design ↔ build reconciliation. **§ "Rules pass — 2026-08-25" is this pass** |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§12 is this pass**; §11 is the rules pass |
+| `DRIFT.md` | Design ↔ build reconciliation. **§ "Calendar / account settings pass — 2026-08-26" is this pass** |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 
 ## How to read the design file

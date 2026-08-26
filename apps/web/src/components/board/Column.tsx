@@ -52,6 +52,8 @@ export function Column({
   onEditActivity,
   onRemoveActivity,
   onRemoveDay,
+  isFocused = false,
+  onSelect,
   onAddActivity,
   onDismissOverlap,
 }: {
@@ -71,6 +73,10 @@ export function Column({
   onEditActivity: (activityId: string) => void;
   onRemoveActivity: (activityId: string) => void;
   onRemoveDay?: () => void;
+  /** True when this day is the one the day-chips row has ringed. */
+  isFocused?: boolean;
+  /** Selects this day, exactly as clicking its chip above does. */
+  onSelect?: () => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
 }) {
@@ -105,12 +111,33 @@ export function Column({
       className={cn(
         "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",
         TINT_BG[accent],
+        // Same ring the focused chip wears (DayChips), so "this day" reads the
+        // same whichever of the two you picked it from.
+        isFocused && "ring-2 ring-brand",
       )}
       // eslint-disable-next-line no-restricted-syntax -- 268px day-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
       style={{ width: DAY_COLUMN_WIDTH_PX }}
     >
       <header className="flex items-baseline justify-between">
-        <span className="text-sm font-semibold text-ink">{title}</span>
+        {/* Mitchell, preview feedback on PR #55: "You should also be able to
+            select the day here, and it syncs to the day card above." The chips
+            row was the only way to focus a day; the column you are already
+            looking at is the more obvious place to click. Same call as the
+            chip's (`setFocusedDay(index)`), same `aria-pressed`, and
+            deliberately no toggle-off — matching the chips beats inventing a
+            second selection idiom on the same state. */}
+        {onSelect ? (
+          <Button
+            variant="ghost"
+            onClick={onSelect}
+            aria-pressed={isFocused}
+            className="h-auto p-0 text-sm font-semibold text-ink hover:bg-transparent hover:underline"
+          >
+            {title}
+          </Button>
+        ) : (
+          <span className="text-sm font-semibold text-ink">{title}</span>
+        )}
         {onRemoveDay && (
           <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
             <X className="size-3.5" aria-hidden />

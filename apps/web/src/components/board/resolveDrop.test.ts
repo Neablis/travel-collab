@@ -88,6 +88,56 @@ describe("resolveDrop", () => {
     });
   });
 
+  // Mitchell, PR #55: "Select a activity that isnt first or last / Drag around
+  // but dont let go / Move back to the ghost location for the original drop
+  // location and try to drop into original location. Expected: Stay at current
+  // location, dont move. Reality: Moves to end of day."
+  //
+  // The mechanism: ActivityCard's `canDrop` rejects its own source, so a card
+  // is not a drop target for itself. Releasing over a stop's own position
+  // therefore finds no card and lands on the column — which used to append.
+  it("is a no-op when a stop is dropped on the column of the day it is already on", () => {
+    expect(resolveDrop(trip, { activityId: A1 }, { dayId: DAY_1 })).toBeNull();
+    expect(resolveDrop(trip, { activityId: A2 }, { dayId: DAY_1 })).toBeNull();
+  });
+
+  it("still appends a stop arriving on a column from another day", () => {
+    // The behaviour above must not cost the cross-day drop, which is the only
+    // reason the column branch exists.
+    expect(resolveDrop(trip, { activityId: A3 }, { dayId: DAY_1 })).toEqual({
+      kind: "move",
+      activityId: A3,
+      toDayId: DAY_1,
+      position: 2,
+    });
+  });
+
+  it("still appends a stop arriving on a column from the rack", () => {
+    const parked = tripDetailFixture({
+      days: [{ dayId: DAY_1, activityIds: [A1], date: null, costSubtotal: 0 }],
+      backlog: [A2],
+      activities: trip.activities,
+    });
+    expect(resolveDrop(parked, { activityId: A2 }, { dayId: DAY_1 })).toEqual({
+      kind: "move",
+      activityId: A2,
+      toDayId: DAY_1,
+      position: 1,
+    });
+  });
+
+  it("keeps 'send it to the end' working, via the last card's bottom edge", () => {
+    // The deliberate gesture the no-op above must not have eaten: dropping
+    // below the last card resolves through the CARD branch, not the column.
+    const target = { cardActivityId: A2, dayId: DAY_1, ...bottomEdge() };
+    expect(resolveDrop(trip, { activityId: A1 }, target)).toEqual({
+      kind: "move",
+      activityId: A1,
+      toDayId: DAY_1,
+      position: 1,
+    });
+  });
+
   it("inserts before a card when the closest edge is the top", () => {
     const target = { cardActivityId: A2, dayId: DAY_1, ...topEdge() };
     expect(resolveDrop(trip, { activityId: A3 }, target)).toMatchObject({ position: 1 });

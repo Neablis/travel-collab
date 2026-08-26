@@ -97,6 +97,27 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Save light: move Retry out of the mark and into a popover on it
+  (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
+  logo is the save light" justifies putting trip-scoped save state in an
+  account-scope bar on the grounds that it is *status, not an action* — which
+  is exactly the exemption `RULES.md` 1 needs. What shipped makes the mark
+  itself a Retry **button** while a send has failed, because the design gives
+  the failure a colour and no way out of it and this queue only retries when
+  asked (KI-36); that keeps `RULES.md` 6's "recover from the worst" but spends
+  the very justification SPEC used.
+  The better shape, deferred rather than rejected: the mark stays status-only
+  and **clicking it opens a small popover** carrying the failure detail and the
+  Retry control. The top bar then holds status, the action sits one level in,
+  and rule 1 is clean again. It also gives the failure message and
+  `failure.at` timestamp somewhere to live — today nothing renders either, and
+  `SaveLight.tsx` documents why it will not fake a relative "(since …)" without
+  a ticking clock.
+  Not free: a popover on the logo is a new interaction on the one element
+  present on every route, so it needs its own dismiss/focus behaviour and a
+  decision about whether it opens at rest (probably not — there is nothing to
+  say when everything is saved).
+
 - **Design-sync items with no milestone yet (2026-08-23).** From
   `docs/design-feedback/2026-08-23-design-sync-review.md`, which writes each one
   up in full. Decided items are struck through with where they went:
@@ -239,7 +260,12 @@ Captured so they aren't lost; not committed to a milestone yet.
   doubles as the fix for KI-11 (no test ever calls a real model).
 
 - **Unscheduled rack: drag support is Board-view-only (2026-08-23, manual QA
-  on PR #26's preview deploy).** Phase 3 wired `dropTargetForElements` for the
+  on PR #26's preview deploy).** **The drawer now follows this, not the other
+  way round (2026-08-26, Mitchell, PR #55):** it renders only where a stop can
+  actually be dropped, so closing any of the four gaps below brings the drawer
+  back to that lens. The gate is `board/lensAcceptsDrops.ts` — one function,
+  deliberately not a lens list, so "the drawer is here" and "you can drop here"
+  cannot drift apart. Phase 3 wired `dropTargetForElements` for the
   rack's own drop zone, `Column.tsx`'s day columns, and each `ActivityCard` —
   all inside the Board (day-columns) lens. Nothing under
   `apps/web/src/components/lenses/` registers a drop target, so dragging a

@@ -80,6 +80,8 @@ export type BoardCallbacks = {
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
   onDragEnd: () => void;
+  /** Selects a day by index — the same state the day chips above drive. */
+  onSelectDay: (index: number) => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
   onAddActivity: (value: ActivityFormValue) => void;
@@ -88,7 +90,18 @@ export type BoardCallbacks = {
   onDismissConflict: (conflictId: string) => void;
 };
 
-export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
+export function Board({
+  trip,
+  callbacks,
+  focusedDay = null,
+}: {
+  trip: TripDetail;
+  callbacks: BoardCallbacks;
+  /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
+      the same value the day chips read — passed in rather than read from
+      context here so Board stays renderable on its own in tests. */
+  focusedDay?: number | null;
+}) {
   const { openCreate, openEdit } = useEditor();
 
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
@@ -214,7 +227,19 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
           columns rather than wrapping into rows. Adjacency for drag is
           dayId-based, not DOM order, so the switch from wrap to scroll
           doesn't affect drop logic. */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      {/* The clearance the focused column's ring needs, and the fourth report
+          of this same bug: `overflow-x-auto` sets overflow-x to a non-`visible`
+          value, and the CSS overflow spec forces the paired overflow-y to
+          compute as `auto` too, so the container clips on every side and not
+          just the axis meant to scroll. `pb-1` was already here; the ring added
+          in a168835 then landed against a flush top and left edge, so the
+          FIRST column lost the top and left of its ring against the scroll
+          origin (Mitchell, PR #55: "Left side border and top is cut off here"
+          / "Border is cut off here").
+          `-mx-1` with the `px-1` so the row keeps the header's own gutter
+          rather than indenting from it — same pairing as DayChips and
+          ui/sheet.tsx, which needed it for exactly this. */}
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1">
         {trip.days.map((day, index) => (
           <Column
             key={day.dayId}
@@ -229,6 +254,8 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
+            isFocused={focusedDay === index}
+            onSelect={() => callbacks.onSelectDay(index)}
             onAddActivity={() => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
           />

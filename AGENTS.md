@@ -282,6 +282,22 @@ these out immediately:
   dedicated suite.
 - **E2E** (Playwright): one happy-path script per milestone, kept green forever
   after its gate.
+- **An e2e result may only be reported from `pnpm --filter web test:e2e:ci-like`.**
+  Plain `test:e2e` serves `pnpm dev`, which compiles each route on first hit;
+  `ci-like` builds and serves production, which is what CI runs. The dev lane is
+  for iterating on a spec you are writing — never for a verdict, a PR checkbox,
+  or a claim made to Mitchell. A failing local run now prints this at you
+  (`e2e/laneReporter.ts`); it is in the manual too because the reporter only
+  fires once you have already run the wrong thing.
+- **Before attributing any failure to the environment, grep `docs/known-issues.md`
+  for the symptom.** Both times the dev-lane trap has been hit, the entry
+  describing it (KI-27) already existed and was not read — the second time it
+  cost a day and still reached the wrong answer, reported to Mitchell as a
+  hardware limit. "Environmental", "flaky" and "infra" are conclusions that
+  require evidence, and they are the two most expensive things to be wrong
+  about, because both end the investigation. Useful discriminator: **a failure
+  whose location moves between runs is a timeout; a real defect fails in the
+  same place every time.**
 
 ## Conventions
 

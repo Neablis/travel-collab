@@ -274,7 +274,7 @@ uncompiled utilities land in the DOM and do nothing.
 ### Map keeps its day blocks
 
 The header day rail is back in Map, and clicking a day scrolls the side rail and refocuses
-the map. Open R4 tension: Map now has day chips *and* the 268px side rail. They are not
+the map. **Superseded in §12: Map hides the day chips.** Open R4 tension at the time: Map had day chips *and* the 268px side rail. They are not
 identical (chips give trip-wide shape, the rail gives per-day detail), but if it reads as
 duplication in use, slim the rail to route/distance and let the chips own day selection.
 
@@ -284,10 +284,113 @@ The rename pencil and the ⚙ button are both gone. The trip name + state badge 
 button that opens Trip settings, where the name field already lived. Hover gets a
 `--color-moss` background so it reads as clickable.
 
+### Still open (as of §11 — see §12 for what closed)
+
+- Tagging many-to-many table; Notebook repeater tag parameter; account-scope Notebook values.
+
+---
+
+## 12. Calendar as a city view, account settings, focus rings — 2026-08-26
+
+### Calendar stopped competing with Day columns
+
+Calendar no longer lists activities. A cell now carries **one card per city the day
+touches**, and each card summarises its own stops:
+
+| Line | Content | Why |
+|---|---|---|
+| Title | City name, in that city's accent ink | The question Calendar answers |
+| Span bar | Filled segment across a fixed **7am–11pm** track | Where in the day the plan sits — the weekend-shape read no other view gives |
+| Meta | `4 stops` · day cost | Volume and money at a glance |
+| Window | `10:30am–8:30pm` | Mono, secondary |
+| Flag | `2 to book` in warning tint, **only when > 0** | The one actionable thing at this zoom |
+
+Counted as unbooked: every stop whose kind is neither `booked` nor `transit`.
+
+**Travel days split at the LAST transit stop.** Stops up to and including it belong to the
+city you leave; everything after to the city you arrive in. The departing city renders as a
+one-line strip (`Tokyo   8:20am`) and the arriving city gets the full card — the day
+belongs to where you end up, and cell heights stay even across the week instead of doubling
+on transit days. The strip's timestamp is the transit stop's **start** (the departure).
+
+Flex allocation inside the strip matters: city is `flex: 1 0 auto`, the time
+`flex: 0 1 auto; min-width: 0`. The timestamp abbreviates before the city name ever does.
+There is no `↓` glyph — position carries the relationship.
+
+**Tag focus at this zoom.** Instead of dimming individual stops, a card shows
+`2 of 6 match`; a city with no matching stop drops to `opacity: 0.28`. Dim, never hide.
+
+**Consequence:** stop-level drag is gone from Calendar — there are no activity chips left
+to grab, so `overCal`'s source no longer exists. Day-level reorder (drag a day's header
+onto another date) still works. Empty days render a dashed "Nothing planned yet" button.
+
+### Selecting a day in Calendar is state, not a flash
+
+The old behaviour ran a 780ms box-shadow pulse and navigated to Timeline. Both are gone.
+Clicking a day **selects it and stays put**: the cell holds `inset 0 0 0 2px <accent>`
+for as long as it is selected, mirrored by the ring on the header day chip. Calendar now
+keeps day focus when switching views; only Map drops it, because the rail owns focus there.
+
+### Account settings
+
+`Your account` in the avatar menu opens an **Account settings** Sheet — previously it
+flashed "not built yet". Contents, in order: **Your name** (drives the popover name and the
+avatar initials), the signed-in email as a read-only row, **Home airport**, then a
+**Display** section.
+
+Sign out stays in the avatar popover only. Putting it in both was Rule 4.
+
+**Display → Distance** (`Kilometres`/`Miles`, SegmentedControl). Account scope, not trip
+scope — a trip does not have a unit, a person does. One helper, `kmLabel`, owns every
+distance in the app: map rail totals, focus-card stats, the longest-hop line, map leg
+labels, and the Timeline day summary. Miles below 0.19 render as feet; km below 1 as metres.
+
+**Display → Home time on hover** (`Off`/`On`, default Off). Hovering a stop's time gutter
+in Timeline reveals a mono secondary line: `SFO 10:30 pm −1d`, built from the home airport
+code, the trip's UTC offset (`trip.tz`) and a fixed home offset.
+
+This is deliberately **not** a display mode. Every time in a plan is inherently local —
+"dinner at 7pm" means 7pm in Kyoto — so a global toggle would rewrite the itinerary into
+home time and render the 8:20am Romancecar as 4:20pm the previous day. Home time is a
+*reference*, surfaced on demand, and the plan never leaves the trip's own clock.
+
+### Focus rings were being clipped — a design-system bug
+
+`Sheet` renders its body as `<div className="flex-1 overflow-y-auto">`. Setting
+`overflow-y: auto` forces `overflow-x` to `auto` as well, so that div is a scroll box
+whose padding edge clips anything drawn outside it. `Input` focuses with
+`outline-2 outline-offset-1` — 3px outside its border box — so **every full-width input in
+every Sheet had its left and right focus ring cut off.**
+
+Worked around in the design by insetting each Sheet's content wrapper
+(`padding: 4px 4px 2px`), and by giving the two Dialog scrollers symmetric padding
+(they only had `padding-right`). **The durable fix belongs in the design system**: add
+horizontal padding to `Sheet`'s scroll div rather than making every consumer pad around it.
+
+### Trip header
+
+- The **left figure is the answer**: `$7,315 left` is a Badge (`success` under budget,
+  `warning` over), and `$9,085 of $16,400` beside it dropped to slate mono. It used to
+  blend into the reference numbers.
+- The budget pill sat slightly above its sister pill; the row is `align-items: center` now.
+- **Map hides the day chips.** The 268px rail says the same thing, so the map runs from the
+  tabs down. This closes the R4 tension flagged in §11 — chips and rail no longer coexist.
+
+### Mobile
+
+- **Stop cards:** the 3px city spine was eating the left inset, so cost and tag read tight
+  against the opposite edges. Inner padding is `15px 15px 15px 12px` — every side is 15px
+  from the card's outer edge, spine still full-length and flush.
+- **Trip rows:** the leading tile is 38px, matched to the text block's height, so its inset
+  is 14px on all four sides.
+- **Header fade bug.** The sticky header's gradient ran through its own date rail, fading
+  the date cards. The header is solid `--color-surface` now and the fade is a separate
+  30px strip positioned at `top: 100%` — content scrolls away *underneath* the cards. The
+  motif is worth reusing elsewhere, but always as a strip below the surface, never as the
+  surface's own background.
+
 ### Still open
 
-- **Calendar's future.** It survives this pass for one reason: it is the only dense,
-  no-scroll read of trip shape (how many weekends you have). The retirement path is to put
-  the month grid into the header day rail as an expand, so shape lives in one persistent
-  strip. Not built.
 - Tagging many-to-many table; Notebook repeater tag parameter; account-scope Notebook values.
+- Home time currently uses a fixed home UTC offset; a real build needs a tz per trip and a
+  tz resolved from the account's home airport.

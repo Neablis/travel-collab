@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openHistory } from "./helpers";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -194,7 +195,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "History" }).click();
+  await openHistory(page);
   await page.getByRole("button", { name: "Added Day 1" }).click();
   await expect(page.getByText(/Viewing version \d+ \(read-only\)/)).toBeVisible();
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Revert to here" }).click());
@@ -208,6 +209,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // prose still untouched --
   await page.goto(tripUrl);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openHistory(page);
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Undo" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 

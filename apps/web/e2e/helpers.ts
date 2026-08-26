@@ -106,3 +106,27 @@ export async function createMappedTrip(page: Page, name: string, dayCount: numbe
 
   return tripId as string;
 }
+
+/**
+ * Opens the History popover, where undo/redo now live.
+ *
+ * The two buttons left the trip header in PR #55 (design rules pass,
+ * 2026-08-25: "the next/previous history button was moved into the history
+ * dropdown"). Popover content only exists while the popover is open, so every
+ * spec that clicks Undo/Redo has to come through here first.
+ *
+ * `exact: true` on the trigger is load-bearing, not tidiness: the trip title
+ * button's accessible name now ends in "— Trip settings" and *starts* with the
+ * trip name, so a spec whose trip is called "RackHistory …"
+ * (m10-unscheduled-rack) makes a loose /history/i match ambiguous and trips
+ * strict mode. Same trap m10's own comment already documents for /undo/i.
+ *
+ * Idempotent: a no-op when the popover is already open, so two undos in a row
+ * don't toggle it shut.
+ */
+export async function openHistory(page: Page): Promise<void> {
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+  if (await undo.isVisible().catch(() => false)) return;
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await undo.waitFor({ state: "visible" });
+}

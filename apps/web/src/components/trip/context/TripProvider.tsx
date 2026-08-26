@@ -1,6 +1,7 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { BatchableCommand, TripDetail, TripHistory } from "@tc/contracts";
+import { usePublishSaveState } from "@/components/SaveLight";
 import {
   fetchTripDetail,
   fetchTripDetailAt,
@@ -231,6 +232,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const trip = optimistic?.confirmed.detail ?? null;
   const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : confirmedDetail;
 
+  // One object for the context and for the header's save light, so the two
+  // can never disagree about whether there is unsent work.
+  const sync = useMemo(
+    () => ({ unsent: optimistic ? unsentCount(optimistic) : 0, failure: optimistic?.failure ?? null, retry }),
+    [optimistic, retry],
+  );
+
   return (
     <Ctx.Provider
       value={{
@@ -243,11 +251,27 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         dispatch,
         dispatchBatch,
         applyOutcome,
-        sync: { unsent: optimistic ? unsentCount(optimistic) : 0, failure: optimistic?.failure ?? null, retry },
+        sync,
         preview: { seq: previewSeq, enter, exit },
       }}
     >
+      {/* The header logo is the save light (SPEC "The logo is the save
+          light"), and it renders above this provider, so the state has to be
+          published upward rather than read down. Done here rather than in
+          TripHeader because it is the provider that owns the value — and
+          because TripHeader returns early while the trip is loading, which is
+          exactly when "saving…" matters. */}
+      <PublishSaveState sync={sync} />
       {children}
     </Ctx.Provider>
   );
+}
+
+// A component rather than a bare `usePublishSaveState(sync)` call inside
+// TripProvider: the hook subscribes to the SaveLight context, and calling it
+// in the provider body would re-render the whole trip tree whenever the light
+// changed. As a leaf with no children, it re-renders alone.
+function PublishSaveState({ sync }: { sync: { unsent: number; failure: SendFailure | null; retry: () => void } }) {
+  usePublishSaveState(sync);
+  return null;
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createMappedTrip, dragCardTo } from "./helpers";
+import { createMappedTrip, dragCardTo, openHistory } from "./helpers";
 
 // The rack's own drag behaviour can only be tested in a real browser:
 // @atlaskit/pragmatic-drag-and-drop is driven by native HTML5 drag events, and
@@ -77,14 +77,51 @@ test("undo reverses an unschedule", async ({ page }) => {
   // They are deliberately NOT batched: batching would need dispatchBatch and
   // would make unscheduling atomic in a way that scheduling from the rack
   // (assignFromRack, also two dispatches) is not.
+  await openHistory(page);
   const undo = page.getByRole("button", { name: /undo/i });
   await undo.click();
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
-  await expect(page.getByTestId("rack-card").first()).toContainText("09:00–10:00");
+  await expect(page.getByTestId("rack-card").first()).toContainText("9 am–10 am");
 
   await undo.click();
   // Assert the stop actually landed back on its original day, not just that
   // the rack emptied — same reasoning as the round-trip test above.
   await expect(page.getByTestId("rack-card")).toHaveCount(0);
   await expect(page.getByTestId("day-column").first().getByText("Stop on day 1", { exact: false })).toBeVisible();
+});
+
+test("a stop dragged out of the rack lands with a real time, taken from what it was dropped under", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  // Mitchell, preview feedback on PR #55: "dragging a unscheduled element into
+  // the UI should set the time between the elements it was dropped between".
+  // Before the fix the drag dispatched a bare MoveActivity, so a stop dragged
+  // from the rack arrived on the day holding no time at all — while the day
+  // dropdown (assignFromRack) gave the same stop a time. One action, two
+  // outcomes, depending on how you performed it.
+  const name = `RackTime ${Date.now()}`;
+  const tripId = await createMappedTrip(page, name, 2);
+  await page.goto(`/trips/${tripId}?lens=Board`);
+  await expect(page.getByTestId("day-column")).toHaveCount(2);
+
+  // Park day 2's stop. Unscheduling strips the window, so what comes back out
+  // of the rack genuinely has no time of its own to fall back on.
+  await dragCardTo(page.getByTestId("day-column").nth(1).getByTestId(/activity-card-/).first(), page.getByTestId("unscheduled-rack"));
+  await expect(page.getByTestId("rack-card")).toHaveCount(1);
+
+  // Drop it on day 1, which already holds "Stop on day 1" at 09:00-10:00.
+  await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").first());
+  await expect(page.getByTestId("rack-card")).toHaveCount(0);
+
+  // Shown 12-hour (lib/time's toClockRange); the window STORED is still
+  // 10:30–11:30. fitIntoDay searches forward from the end of the stop above it (10:00) and
+  // owes 30 minutes of air where a stop butts up against the window before it,
+  // so the first hour it can offer is 10:30-11:30. Asserting the exact window
+  // rather than merely "has a time": the point of the fix is that the time is
+  // derived from the drop's neighbour, and any window would pass a weaker
+  // check — including the 09:00-10:00 one that would mean it had overlapped.
+  const landed = page.getByTestId("day-column").first().getByText("Stop on day 2", { exact: false });
+  await expect(landed).toBeVisible();
+  await expect(page.getByTestId("day-column").first()).toContainText("10:30 am–11:30 am");
 });

@@ -60,7 +60,29 @@ export function resolveDrop(
     return { kind: "move", activityId, toDayId, position };
   }
 
-  // Dropped on a column: append.
+  // Dropped on a column rather than a card.
+  //
+  // A card is not a drop target for itself (`canDrop` in ActivityCard rejects
+  // its own source), so releasing over a stop's OWN original position finds no
+  // card underneath and lands here. Appending in that case moved the stop to
+  // the end of its day — the drag equivalent of putting something back where
+  // you found it and watching it jump elsewhere. Reported by Mitchell on PR
+  // #55: "Move back to the ghost location for the original drop location and
+  // try to drop into original location. Expected: Stay at current location,
+  // dont move. Reality: Moves to end of day."
+  //
+  // So a column drop for a stop already on that day is a no-op — `null`, not
+  // its current position, because a MoveActivity that changes nothing still
+  // costs a history entry and an undo step.
+  //
+  // This does not cost the deliberate "send it to the end" gesture: dropping
+  // below the last card hits that card's bottom edge and resolves through the
+  // card branch above with `position: list.length`. The column branch is only
+  // reached from the gaps between and around cards, and only matters for a
+  // stop arriving from another day or the rack — which still appends, as
+  // before.
+  if (containerOf(trip, activityId) === toDayId) return null;
+
   return {
     kind: "move",
     activityId,
