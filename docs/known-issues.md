@@ -98,9 +98,12 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   close it, and it remains real for anyone who navigates away without
   reading it. Revisit alongside M13, where concurrent multi-actor writes
   make the silent loss more consequential.
-- **Same bug class, different trigger:** **KI-36** is the failed-send half of
-  this — `failHead` in the same `optimistic.ts` drops the whole pending queue
-  on a failed send, not just on abrupt navigation.
+- **Same bug class, different trigger:** **KI-36** was the failed-send half of
+  this — `failHead` in the same `optimistic.ts` dropped the whole pending queue
+  on a failed send, not just on abrupt navigation. **Resolved 2026-08-25**: a
+  failed send now retains its queue and offers a manual retry. That does *not*
+  close this entry — the queue is still in memory, so navigating away or
+  reloading still loses it.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
@@ -319,55 +322,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
 
-### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed
-- **Severity:** correctness (silent loss of the *rest of the queue*, not of
-  the alert itself) — the **same bug class as KI-5**: an in-memory optimistic
-  queue that can lose confirmed-to-the-user work without telling the user the
-  true scope of what was lost. KI-5 is triggered by the user navigating away
-  mid-send; this is triggered by the send itself failing.
-- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-83`
-  (`failHead`)
-- **Symptom:** `failHead` responds to a failed send with
-  `{ ...state, pending: [] }` — every unit still queued behind the one that
-  just failed is dropped, not just the failed one. A failed send **does**
-  raise a visible alert: `TripProvider.tsx:137` calls
-  `setError(result.error.message)`, and `TripBoardScreen.tsx:249-251` renders
-  it as `<p role="alert">{error}</p>` until the next successful send. But
-  that alert reports only the server's rejection of the one failed command —
-  it never says that the queued edits behind it were also dropped, nor how
-  many. There is no retry path, no on-device persistence of the discarded
-  units, no failure timestamp, and no retained count exposed anywhere. The UI
-  has already shown the user's edits as applied (client-side prediction); on
-  a failed send those edits vanish from the queue with the alert giving no
-  indication that anything beyond the reported error occurred.
-- **Blocks:** Task 8b.4 (M10 Wave 2 Phase 8b) — the design's persistent
-  sync-failure banner needs a real, live count of unsent changes and a real
-  `(since <time>)` timestamp to render (`Your last three changes are saved on
-  this device but haven't reached the trip yet`, plus a **Retry now** action).
-  None of that state exists: the count is always what was about to be
-  discarded, not what's retained, there is no failure timestamp, and there is
-  nothing to retry against. Every clause of the design's copy would be false,
-  so the banner has no honest trigger and was **deliberately not shipped**;
-  the phase record is
-  `docs/design-feedback/2026-08-23-design-sync-review.md` §6. The same root
-  cause forced Task 8b.3 to ship only the saved/saving states of its
-  three-state save indicator, dropping the error state.
-- **Options (cheapest first):**
-  1. **Retain the failed head and expose a retry.** Change `failHead` to keep
-     `pending` (or at least its head) instead of clearing it, add a `failedAt`
-     timestamp and a `retry()` that re-sends the retained head. Gets the
-     banner and the save indicator's error state to an honest minimum: a real
-     count, a real timestamp, a real retry action. Does not survive a reload
-     or tab close — an in-memory queue is still lost the moment the tab goes
-     away.
-  2. **Persist the queue across reloads** (e.g. `localStorage` or IndexedDB,
-     keyed by trip), replayed on mount. Closes the reload/tab-close gap KI-5
-     also describes, not just the failed-send gap; substantially more surface
-     (serialization, staleness against a since-changed server state, cross-tab
-     conflicts) for one fix.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4 — found while
-  implementing the phase plan's sync-failure banner; the plan itself directs
-  stopping and reporting rather than fabricating a trigger).
 
 
 ### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings
@@ -436,6 +390,28 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed — RESOLVED
+- **Severity (as filed):** correctness (silent loss of the *rest of the queue*, not of the alert itself) — the **same bug class as KI-5**: an in-memory optimistic queue that can lose confirmed-to-the-user work without telling the user the true scope of what was lost. KI-5 is triggered by the user navigating away mid-send; this was triggered by the send itself failing.
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`failHead`), `apps/web/src/components/trip/context/TripProvider.tsx` (the sequential sender), `apps/web/src/components/trip/SyncIndicator.tsx`, `apps/web/src/components/trip/TripHeader.tsx`
+- **Symptom (as filed):** `failHead` responded to a failed send with `{ ...state, pending: [] }` — every unit still queued behind the one that just failed was dropped, not just the failed one. The visible alert (`setError` → `<p role="alert">`) reported only the server's rejection of the single failed command; it never said the queued edits behind it were also gone, nor how many. No retry path, no failure timestamp, no retained count.
+- **Reproduced before fixing**, twice, both at the `TripProvider` level with a mocked `sendTripCommand`:
+  1. *The filed symptom.* Dispatch `AddDay d-a`, hold its send open, dispatch `AddDay d-b` behind it (day count 1 → 3), then settle the first send as `{status: 500, message: "Server rejected: AddDay d-a"}`. Result: day count back to **1** (both edits gone), `error` = `"Server rejected: AddDay d-a"` and nothing else, and `sendTripCommand` **called once** — `d-b` was never sent, never rejected, and never mentioned.
+  2. *The hot retry loop the entry's fix path would have created.* The entry says "change `failHead` to keep `pending`". Applied literally — retain the queue, record a `failedAt`, change nothing else — the sequential sender (`TripProvider.tsx`, `if (!optimistic || optimistic.pending.length === 0 || inFlight.current) return`) gates **only on emptiness**, so a retained queue re-fires the effect and re-sends the same rejected command immediately, without bound: `AssertionError: expected "spy" to be called 1 times, but got 41 times` for **one** user edit inside a 300ms window (41 = a deliberate safety cap in the probe, not a ceiling). `pending: []` was the only thing stopping a resend. Retaining the queue therefore *requires* an explicit failure gate; that is the shape the fix takes.
+- **Fix (2026-08-25) — the entry's Option 1 (retain the failed head and expose a retry), chosen explicitly by Mitchell; Option 2 (persisting the queue across reloads) was not implemented.** Four parts:
+  - `OptimisticState` grows `failure?: { at: string; message: string }`. `failHead(state, failure)` now returns `{ ...state, failure }` — the head **and** everything behind it are retained, nothing is discarded, and confirmed state is untouched. `clearFailure(state)` (identity when there is no failure, so it cannot cause a needless re-render) and `unsentCount(state)` join it.
+  - **Time is passed in, never read inside the reducer.** `optimistic.ts` is not `packages/domain`, so Invariant 4 does not formally bind it, but the same discipline applies for a second, local reason: `failHead` is called from inside a `setOptimistic` updater, and React may invoke an updater more than once. The timestamp is built in the effect body (`new Date().toISOString()`), outside the updater — the same place, and for the same stated reason, that the existing code already decides `setError` from the outer scope. The reducer takes the instant as a parameter and is pure, so it is tested against a fixed instant.
+  - The sender's early return grows an `optimistic.failure` clause. This is the load-bearing half: without it the retained queue is a runaway resend. Only `retry()` — which clears the failure and lets the effect pick the retained head back up — resumes sending. **Retry is manual: no timer, no backoff, nothing re-sends on its own.**
+  - `TripProvider` exposes `sync: { unsent, failure, retry }` — a real count of unsent units (the retained queue's length, one unit per user edit), the real failure instant and message, and the manual retry. `SyncIndicator` takes `unsent`/`failure`/`onRetry` instead of `pending: boolean | number` (a boolean cannot tell "saving" from "couldn't save") and ships the third state.
+- **Copy: deliberately NOT the design's.** The handoff (`dc.html:3106-3120`) labels this state **"Couldn't save — retrying"**. Nothing retries on its own, so that word would be false the moment it rendered — which is the entire reason this KI existed rather than the state shipping in Task 8b.3. What ships is **"Couldn't save"** plus a real **Retry** button, with the accessible name carrying the count the chip has no room for (`Couldn't save — 3 changes not sent`, singularised at 1) and the button named for what it does (`Retry saving 3 changes`). A test asserts the string `retrying` does **not** appear. The failure timestamp is real and is exposed on the context, but is deliberately not rendered by the indicator: an honest relative "(since …)" needs a ticking clock the component has not got. It is there for the sync-failure banner to use.
+- **a11y:** the indicator stays a polite `role="status"` in the failed state rather than flipping to `role="alert"`. The page already raises the server's rejection in its own `role="alert"` (`TripBoardScreen`), so a second assertive announcement of one event would talk over itself; and a live region's role is registered when it mounts, so swapping it mid-life is unreliable in assistive tech. The failed state does have visible text (unlike the saved state), so the existing polite region announces it on change, and Retry is a real focusable `Button` with a descriptive name.
+- **The `@ts-expect-error` pin is removed deliberately.** `SyncIndicator.test.tsx`'s compile-time assertion that `pending` could not be `"error"` existed to force this decision to be explicit rather than let the prop widen by drift. The decision has now been made, so the pin is replaced by tests of the real third state, and the contract note above it is rewritten. The component's header comment, which explained at length why this state does not ship, is rewritten to match reality.
+- **One existing test's assertion was inverted, on purpose and not to make a failure go away.** `TripProvider.test.tsx`'s "rolls back the optimistic change on a server failure" asserted the day count returned to 1 after a failed send — i.e. that the edit was thrown away. That assertion was accurate about the code and wrong about the product: it encoded the discard this KI is about. It is now "keeps the optimistic change visible on a server failure, and reports the error", with the reason recorded inline.
+- **Proof:** both reproductions re-run against the fix. (1) The queued-behind edit survives — day count stays **3**, `sync.unsent` is **2** — and after `retry()` both sends go through (`sendTripCommand` called **3** times, `unsent` → 0, failure cleared). (2) The same failing command is sent **exactly once**, with 300ms of room to run away in. The gate was mutation-tested: deleting the `optimistic.failure` clause from the sender turns three tests red at **2677**, 2 and 1535 calls. Regression tests: 7 new reducer tests in `optimistic.test.ts` (retention, verbatim failure record, purity under a fixed instant, failure surviving further enqueues, `clearFailure` identity) and 5 new provider tests in `TripProvider.test.tsx` (the no-loop guard, queue retention, real timestamp+message, retry drains the queue, failure outliving the transient page alert), plus 6 new `SyncIndicator` tests including the "does not say retrying" copy assertion.
+- **Check subset** (per `minimal-check-subset`; only `apps/web/src` changed, no `packages/contracts`): `pnpm --filter web typecheck` clean, `pnpm --filter web lint` clean, and `vitest run -c vitest.unit.config.ts` over the 12 affected files — `optimistic`, `TripProvider`, `SyncIndicator`, `TripBoardScreen`, `context`, `TripHeader`, `board`, `HistoryPanel`, `SettingsSheet`, `toast`, `ActivityEditorSheet`, `TripDateControl` — **129 tests, all passing**. Not run (left to the main session, which runs them serially): the full `pnpm check`, `test:int`, e2e, and a browser walk — the failed state needs a server-side rejection that is awkward to stage in a live browser, and it is covered at the component and provider layers instead.
+- **What this does NOT close.** The queue is still in memory: a reload or tab close still loses it (that is Option 2, and KI-5's other half). Task **8b.4's sync-failure banner is still not shipped** — this change only makes an honest one *possible*, by giving it a real count, a real timestamp and a real retry to render. And there is no "discard these edits" affordance: a permanently-rejected command can only be abandoned by reloading.
+- **Does it make KI-42 worse?** No. `confirmHead`'s silent drop of units that no longer re-predict cleanly is untouched — same loop, same `break`, same behaviour on a successful send. The only interaction is that a queue now survives a failure instead of being emptied, so after a retry more units can reach the re-prediction path in one pass; the same units passed through it before, just spread across the edits the user had to redo by hand.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4). **Resolved:** 2026-08-25 (KI sweep).
 
 ### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough — RESOLVED
 - **Severity (as filed):** correctness (silent wrong output — same family as KI-36/KI-37)
