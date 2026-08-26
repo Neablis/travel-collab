@@ -407,6 +407,159 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
   review round).
 
+### KI-43 — The Day-columns lens stacks one full-width Banner per conflict above the board
+
+- **Severity:** cosmetic (no wrong data — but it hides the surface it sits on)
+- **Area:** `apps/web/src/components/board/Board.tsx:201` (`ConflictBanner`)
+- **Symptom:** `ConflictBanner` renders one full-width `Banner variant="warning"`
+  per undismissed conflict, unbounded, between the tab strip and the day
+  columns. The Japan seed carries 12, which is ~700px of stacked warning: at
+  1440×900 the first day column is entirely below the fold, and the lens looks
+  broken on open. Each banner also repeats both stops' full geocoded addresses,
+  so a single line wraps to two.
+- **Why the design disagrees:** the handoff never stacks conflicts. Timeline
+  attaches `act.conf` (a compact tinted strip with Fix/Dismiss) directly under
+  the activity it belongs to; Day columns puts a one-line `act.confShort` chip
+  *inside* the card. `Column.tsx`/`ActivityCard.tsx` **already render that
+  in-card treatment** — it receives `overlap` and `conflictIds` and uses them —
+  so the wall above is redundant with it rather than the only route to the
+  information.
+- **Not just cosmetic in one respect:** Timeline's inline `OverlapWarning`
+  covers *overlaps* only. The seed's conflicts are mostly distance conflicts
+  ("~309 km apart on the same day"), which on Timeline reduce to a bare warning
+  `Badge` with no explanation anywhere. So deleting the wall without moving the
+  copy would lose it. The fix is to move the copy inline, not to drop it.
+- **Fix path:** render the conflict against its subject the way the design does
+  (in-card in Day columns, under-the-row in Timeline), and keep at most a
+  collapsed summary at the top if a whole-trip count is still wanted.
+- **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2).
+
+### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere
+
+- **Severity:** cosmetic (every notebook page renders with no typography)
+- **Area:** `apps/web/src/components/pages/editor/PageEditor.tsx:41`
+- **Symptom:** `<EditorContent editor={editor} className="tc-page-editor" />`
+  is the only occurrence of that class name in the repository — there is no
+  matching rule in `globals.css` or anywhere else (`grep -rn tc-page-editor
+  apps/web/src` returns exactly one hit, the usage). With Tailwind's preflight
+  reset in force and nothing restoring it, `heading`, `paragraph` and list
+  nodes all render at the same size and weight. On the seeded "Trip Overview"
+  page, the `<h2>` "Overview" is visually identical to the sentence beneath it.
+- **Why it went unnoticed:** the class *looks* intentional at the call site, and
+  no test asserts rendered type scale. `PageEditor.test.tsx` covers behaviour,
+  not appearance.
+- **Fix path:** define the rule (heading/paragraph/list scale off the same
+  tokens `Heading`/`Text` use, `max-w-measure` for the column), or drop the
+  class and compose from the design-system components. This is the cheapest
+  item on the 2026-08-26 audit and it is the whole visual difference on the
+  Notebook surface today.
+- **Cross-reference:** the broader Notebook gap is C1 in the audit; this is the
+  one piece of it that is a plain bug rather than unbuilt design.
+- **First noted:** 2026-08-26 (design-sync UI audit, A3).
+
+### KI-45 — `Preview size="container"`'s chip covers host content whenever the host's top-right corner is occupied
+
+- **Severity:** cosmetic (hides real numbers, including a currency amount)
+- **Area:** `apps/web/src/components/ui/preview.tsx:94-100`
+- **Symptom:** `size="compact"` reserves a `pr-6` gutter and is fine.
+  `size="container"` deliberately reserves nothing — its own comment
+  (`preview.tsx:79-85`) reasons that the chip "insets to the border ... landing
+  on the dotted border itself rather than on whatever content sits beneath".
+  That holds only while the host's own top-right corner is empty. Observed
+  covering content in five places: Trip settings' budget breakdown (the chip
+  sits on Booked's `$4,088.25`), Who-is-invited (over the "Invite someone"
+  button), the New-trip wizard's destination chips (over "Back to Kyoto"),
+  the Unscheduled rack's provenance line, and the home Playbooks strip at
+  402px (over the "NEW ORLEANS" city chip).
+- **Fix path:** give `container` the same treatment `compact` already has —
+  reserve space rather than trusting the corner to be free. A `pt-6` on the
+  wrapper, or a first-child offset, costs one line and removes the whole class.
+- **First noted:** 2026-08-26 (design-sync UI audit, A5).
+
+### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion
+
+- **Severity:** cosmetic (unusable rather than wrong — nothing is lost, but the
+  trip header alone exceeds the viewport)
+- **Area:** `apps/web/src/components/trip/TripHeader.tsx`,
+  `TripMetaPill.tsx`, `lenses/TimelineLens.tsx`, `AppHeader.tsx`
+- **Symptom (measured at 402×844):** the trip header consumes ~1130px of an
+  844px viewport before any plan content — the meta pill wraps
+  `Sat, Sep 5 – Fri, Sep 18` across five lines inside its rounded pill, and the
+  title wraps to two lines at unreduced desktop size. Stop cards collapse: the
+  title wraps, the right-hand cost column crushes into it, and `Ask`/`Edit`
+  overlap the note box. All four lenses are still offered. At **1100×800 the
+  app is fine** — the header cluster reflows to a single row and the timeline
+  reads well — so the gap is entirely between those two widths.
+- **Scope note:** the handoff's `Trip Planner Mobile.dc.html` + SPEC §10 design
+  a *different* product (two lenses not four, a pinned day-rail spine, a bottom
+  tab bar, a tag filter row, 44px targets, cards without the 92px time gutter).
+  **Building that is a milestone, not a fix.** This entry is only the narrower
+  claim that the current small-screen rendering is broken enough to be worth
+  recording independently of whether the designed companion ever gets built.
+- **Cross-reference:** KI-19 (the 1180px blind spot the `narrow` Playwright
+  project exists to cover — it runs at 1100px, above this).
+- **First noted:** 2026-08-26 (design-sync UI audit, C2).
+
+### KI-47 — No `tags` field on an activity, and five designed surfaces depend on one
+
+- **Severity:** cleanup (a contract gap, not a defect — recorded so it stops
+  being re-derived per surface)
+- **Area:** `packages/contracts/src/activity.ts`
+- **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
+  builds five things on top of tags: chips on every stop card, the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
+  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
+  SPEC §10's statement that on a 402px column the filter row is *the only way*
+  to thin a day.
+- **Why it belongs in the registry rather than here, eventually:** this is the
+  same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
+  in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but
+  unlike those, nothing in the build points at it, so it has no entry and no
+  milestone. Give it one.
+- **Adjacent, same shape:** the seed encodes per-stop `status`
+  (`booked`/`hold`/`idea`/`transit`) and `who` **into the note text**
+  (`db-seed.ts`), which is why cards read `(transit)` and
+  `(idea) (Sam K + Jonah M)`. The design's `act.badge` (Booked/Hold/Idea) has
+  no field behind it either, and the home hero's designed "7 not booked" tile
+  is blocked on the same absence (see `NextTripHero.tsx:188-191`).
+- **First noted:** 2026-08-26 (design-sync UI audit, C4).
+
+### KI-48 — Small design-audit cosmetics (2026-08-26)
+
+- **Severity:** cosmetic
+- **Area:** `apps/web/src` (various)
+- Collected small findings from the 2026-08-26 design-sync UI audit. Each is
+  one file; none is worth its own entry.
+  - **`1 travellers`** — `TripMetaPill.tsx:42,58` interpolates
+    `detail.members.length` against a hardcoded plural, in both the visible
+    label and the `aria-label`. Every solo trip's header reads
+    ungrammatically. `NextTripHero.tsx:186` already does this correctly.
+    Note SPEC §8 says travelers should come **off** this pill entirely, which
+    would dispose of this instead of fixing it — settle that first.
+  - **Three empty states for one empty day** — a day with no stops renders the
+    design's `route` fallback ("No stops yet — add one, or drop a saved day
+    onto it"), *then* "Nothing planned yet", *then* "Add the first stop"
+    (`TimelineLens.tsx`; reproduce on the Rochester seed's Day 3). The design
+    has one line and one button.
+  - **The day-chip rail clips its last chip mid-card** at 1440px with no
+    scroll affordance (`DayChips.tsx`) — reads as a rendering error rather
+    than as "scroll me". `MapRail`'s gearing already solves this shape.
+  - **The account menu renders an empty line** where the email goes, for
+    dev-login users, who have none (`AccountMenu.tsx:92-99`). Preview-only,
+    but it is in every preview review screenshot.
+  - **Trip settings' date editor covers "Total for the trip".** The Popover
+    is deliberate (`SettingsSheet.tsx:59` — the read-only dates row opens
+    `TripDateControl` in one), but it opens downward over the budget input
+    rather than expanding inline the way the design's row does. The editor
+    itself is otherwise an exact match to SPEC §3, hint copy included.
+  - **The signed-out home page renders `AppHeader`'s `Trips` and `Playbooks`
+    nav** — links into authenticated routes shown to a signed-out visitor
+    (`app/layout.tsx` mounts `AppHeader` unconditionally; `app/page.tsx`'s
+    `unauthenticated` branch renders beneath it). The design's landing header
+    carries only the logo and `Sign in` / `Start a trip`.
+- **First noted:** 2026-08-26 (design-sync UI audit, A4/A6/A7/A8/B14/C3).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
