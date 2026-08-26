@@ -532,6 +532,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   `(idea) (Sam K + Jonah M)`. The design's `act.badge` (Booked/Hold/Idea) has
   no field behind it either, and the home hero's designed "7 not booked" tile
   is blocked on the same absence (see `NextTripHero.tsx:188-191`).
+- **Escalated 2026-08-26 by design sync `fd2edd6` (SPEC §12).** The missing
+  stop `kind` stopped being one cosmetic tile and became the mechanic of a
+  whole lens: the new Calendar splits a travel day **at the last `transit`
+  stop** (departing city gets a one-line strip, arriving city the full card)
+  and flags `N to book` from "every stop whose kind is neither `booked` nor
+  `transit`". Neither is computable while the kind lives inside note prose a
+  user can edit — and parsing it back out would make a display concern depend
+  on free text. The Japan seed has five travel days, so a Calendar built
+  without it mis-renders a third of the trip rather than degrading quietly.
+  **This wants a contract decision before any of SPEC §12's Calendar work is
+  scheduled** — see `docs/design-feedback/2026-08-26-spec-12-calendar-city-view-review.md`.
 - **First noted:** 2026-08-26 (design-sync UI audit, C4).
 
 ### KI-48 — Small design-audit cosmetics (2026-08-26)
