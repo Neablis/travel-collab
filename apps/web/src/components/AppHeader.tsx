@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AccountMenuFromSession } from "@/components/AccountMenu";
+import { HeaderSessionChrome } from "@/components/AccountMenu";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 
 // Handoff `current/…dc.html:63-78`: a persistent bar on every route. Before
@@ -33,17 +33,11 @@ export function AppHeader() {
         </span>
         <span className="font-display text-md font-semibold text-ink">Caesura</span>
       </Link>
-      <nav className="flex items-center gap-1 pl-2">
-        <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
-          Trips
-        </Link>
-        <Link href="/playbooks" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
-          Playbooks
-        </Link>
-      </nav>
-      <div className="ml-auto flex items-center">
-        <AccountMenuFromSession demoResetEnabled={demoResetEnabled} />
-      </div>
+      {/* Nav + account together, and only when signed in — see
+          HeaderSessionChrome. A signed-out visitor used to be shown "Trips"
+          and "Playbooks", links into pages they cannot open (Mitchell,
+          preview feedback on PR #55). The logo above stays either way. */}
+      <HeaderSessionChrome demoResetEnabled={demoResetEnabled} />
     </header>
   );
 }

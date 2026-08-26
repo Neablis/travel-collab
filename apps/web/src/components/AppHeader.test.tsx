@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -16,17 +16,34 @@ vi.mock("@/lib/demoDataReset", () => ({
 }));
 
 const { AppHeader } = await import("./AppHeader");
+const { getSession: getSessionMock } = await import("next-auth/react");
 
 afterEach(() => {
   cleanup();
   demoResetEnabled = false;
+  vi.mocked(getSessionMock).mockResolvedValue(null);
 });
 
 describe("AppHeader", () => {
-  it("links to both routes so every page has a way back", () => {
+  // getSession is mocked to null by default above, i.e. signed out.
+  it("offers a signed-out visitor no links into authenticated routes", async () => {
     render(<AppHeader />);
 
-    expect(screen.getByRole("link", { name: "Trips" }).getAttribute("href")).toBe("/");
+    // The wordmark resolves synchronously; the session-gated half does not,
+    // so await something before asserting absence — otherwise this passes
+    // for the wrong reason, by running before the nav could have appeared.
+    expect(screen.getByText("Caesura")).toBeTruthy();
+    await waitFor(() => expect(vi.mocked(getSessionMock)).toHaveBeenCalled());
+
+    expect(screen.queryByRole("link", { name: "Trips" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Playbooks" })).toBeNull();
+  });
+
+  it("links to both routes once signed in, so every page has a way back", async () => {
+    vi.mocked(getSessionMock).mockResolvedValue({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
+    render(<AppHeader />);
+
+    expect((await screen.findByRole("link", { name: "Trips" })).getAttribute("href")).toBe("/");
     expect(screen.getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe("/playbooks");
   });
 
