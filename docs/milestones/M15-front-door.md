@@ -1,8 +1,15 @@
 # M15 — Front door
 
-**Status:** Not started. Phase 2 by execution, Phase 3 by number. Added
-2026-08-23 from the design sync; **executes immediately after M10's gate and
-before M9** — ADR-021.
+**Status:** In progress. Tasks 1-5 implemented on this branch (no PR open yet):
+landing page, custom sign-in/sign-up with failure states, Home's empty-state
+first-run moment, the account menu (already shipped in M10 Phase 8b), and the
+e2e cover below. **Decision 1 (2026-08-26)** moves this milestone's execution
+ahead of M10's Phase 9 gate and M16 — superseding the "runs after M16" ordering
+`docs/milestones/README.md`'s roadmap table and "Current milestone" section
+still state as of this writing. That file is **not** amended by this change
+(out of this task's scope); reconciling it is part of "What remains before
+this gate can close" below. The gate itself is **not closed** — see that
+section for the one thing still outstanding.
 
 ## Why this exists
 
@@ -33,12 +40,15 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
    default page. They differ only in copy — one component, two modes, with the
    swap link between them (`authTitle` / `authSub` / `authScopeLine` /
    `authSwapPrompt` / `authSwapCta` in the DC).
-3. **First-run screen.** "What are you planning, Sam?" — one field, "Start
+3. ~~**First-run screen.** "What are you planning, Sam?" — one field, "Start
    planning", and the "Roughly when?" row as a `<Preview>` shell. `CreateTrip`
-   carries only a name and that does not change here (`SPEC.md` D4).
-4. **Account menu.** The header avatar's `Popover`. **Sign out already ships in
-   M10 Phase 8b** — this milestone inherits it and adds whatever "Your account"
-   becomes, if anything.
+   carries only a name and that does not change here (`SPEC.md` D4).~~
+   **Deleted — decision 3 (2026-08-26).** See Decisions below.
+4. **Account menu.** The header avatar's `Popover`. **Already shipped in M10
+   Phase 8b** — `components/AccountMenu.tsx` has name, email and a real
+   `signOut({ callbackUrl: "/" })`. No account model exists (see "Explicitly
+   out of scope" below), so "Your account" gets nothing further — decision 6
+   (2026-08-26). Nothing left to build here.
 5. **The states the design does not draw.** Sign-in failure, a revoked or denied
    Google grant, first-run with the network down. The DC shows the happy path
    only; these are ours to design and are part of the gate.
@@ -58,33 +68,151 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
 
 ## Open questions — decide before or during, not after
 
-1. **Is the one-field first-run screen intentionally different from the four-step
-   new-trip wizard?** M10 Phase 7 Task 7.2 builds a four-step wizard (Where /
-   When / Who / Shape) on a recorded decision from 2026-08-14. The design also
-   contains a one-field first-run screen. So a user's first trip would take one
-   field and their second would take four steps. That is defensible — first run
-   should be frictionless — but it should be a decision, not something an
-   implementer reconciles by guessing.
-2. **May the landing copy sell M11 and M12?** *"Save the highlights when you get
-   back, share them with the world, and let other travelers remix the best parts
-   into their own adventures"* is fork-and-remix (M11) and community (M12),
-   verbatim, on a page shown to strangers. The rest of the hero is honest about
-   what exists. A landing page is the one surface where a `<Preview>` badge is
-   not an option: ship it as aspiration, or trim the clause until M11 lands.
+1. ~~**Is the one-field first-run screen intentionally different from the four-step
+   new-trip wizard?**~~ **Resolved — decision 3 (2026-08-26).** No first-run
+   screen; the merged four-step `NewTripWizard` is the only create path.
+2. ~~**May the landing copy sell M11 and M12?**~~ **Resolved — decision 2
+   (2026-08-26).** Yes — it ships verbatim, as aspiration.
+
+## Decisions — 2026-08-26 (Mitchell)
+
+1. **M15 executes now**, ahead of M10's Phase 9 gate and M16. M10 stays open
+   meanwhile; that is accepted. (See the Status note above — this supersedes
+   ADR-021/ADR-022's ordering; `docs/milestones/README.md` has not yet been
+   updated to match.)
+2. **Open question 2 resolved — the landing copy ships verbatim as
+   aspiration.** The hero's "Save the highlights when you get back, share them
+   with the world, and let other travelers remix the best parts into their own
+   adventures" sells M11 (fork/remix) and M12 (community), and the proof chip
+   "Remix anyone's itinerary" does the same. This is the explicit approval the
+   gate item asks for.
+3. **Open question 1 resolved — there is no first-run screen.** The design's
+   one-field "What are you planning, Sam?" screen is dropped; the merged
+   four-step `NewTripWizard` is the only create path. This is safe because the
+   gate's real requirement — create a first trip from a name alone — is
+   already satisfied: `NewTripWizard.tsx:431` renders a "Create empty" button
+   on every step, gated only by `trimmedName !== ""` (`:215`).
+   `app/(app)/page.test.tsx` now covers it.
+4. **A signed-in user with no trips sees Home's empty state**, not a separate
+   screen. "Brand new account" is inferred from zero trips; there is no user
+   table to record it in. Someone who deletes every trip sees it again, which
+   is correct behavior.
+5. **The landing lives at `/welcome`; `/` redirects to it** when
+   unauthenticated.
+6. **Scope item 4 (account menu) was already shipped** in M10 Phase 8b —
+   `components/AccountMenu.tsx` has name, email and a real
+   `signOut({ callbackUrl: "/" })`. No account model exists, so "Your account"
+   gets nothing further. Scope item 3 (first-run screen) is deleted per
+   decision 3.
 
 ## Exit gate
 
-- [ ] An unauthenticated visitor to `/` sees the landing page, not a bare heading.
-- [ ] Sign-in and sign-up are our screens, not NextAuth's default page, and both complete a real Google sign-in end to end on the deployed app.
-- [ ] A brand-new account lands on the first-run screen and can create its first trip from a name alone.
-- [ ] A signed-in user can sign out from the header and returns to the landing page.
-- [ ] Sign-in failure, a denied Google grant, and a network failure during first run each have a designed, tested state — no blank screen and no raw error.
-- [ ] Nothing on the landing page claims an unbuilt capability that the two open questions above have not explicitly approved.
-- [ ] "Look around a real trip" is absent or `<Preview>`-wrapped; no unauthenticated trip-read path was built.
-- [ ] Every `<Preview>` added here is registered in `apps/web/src/lib/preview-registry.ts` with its real milestone, and the sync test passes.
-- [ ] An e2e script covers landing → sign-in → first trip → sign out, and joins the suite prior milestones' scripts run in.
-- [ ] `pnpm typecheck && pnpm lint`, unit, int and the full e2e suite green against a **production** build with `CI=true` (KI-27), including the narrow-viewport project.
-- [ ] Retro appended here; `TODO.md`, this file's boxes and `docs/milestones/README.md`'s Current milestone all flipped in **one** commit (README's gate-close checklist).
+- [x] An unauthenticated visitor to `/` is **redirected to `/welcome`**,
+      which shows the landing page (decision 5). Proven by
+      `e2e/m15-front-door.spec.ts` (`goto("/")` → `toHaveURL(/\/welcome$/)`,
+      hero heading visible) and `apps/web/src/app/(app)/page.tsx`'s
+      signed-out redirect.
+- [x] Sign-in and sign-up are our screens, not NextAuth's default page.
+      Proven by `e2e/m15-front-door.spec.ts` and `AuthScreen.test.tsx`.
+- [ ] Both complete a real Google sign-in end to end on the deployed app.
+      **Not run.** No Vercel preview deployment exists for this work — there
+      is no upstream branch and no open PR (`git rev-parse @{u}` fails,
+      `gh pr list --head <branch>` is empty). The automated e2e suite
+      (`e2e/m15-front-door.spec.ts`) exercises the **dev-login** provider
+      only; a real Google grant is not something this session can perform.
+      This check is manual, against a Vercel preview, and remains outstanding
+      — see "What remains" below.
+- [x] A signed-in user with no trips sees Home's empty state (decision 4)
+      and can create a trip from a name alone via the wizard's "Create empty"
+      (decision 3). Proven by `apps/web/src/app/(app)/page.test.tsx` and
+      `e2e/m15-front-door.spec.ts`.
+- [x] A signed-in user can sign out from the header and returns to the
+      landing page. Proven by `e2e/m15-front-door.spec.ts` (Account menu →
+      Sign out → `/welcome`).
+- [x] Sign-in failure, a denied Google grant, and a network failure during
+      trip creation each have a designed, tested state — no blank screen and
+      no raw error. ("First run" here now means the wizard's create-trip
+      failure path, since the separate first-run screen was dropped —
+      decision 3.) Proven by `AuthScreen.test.tsx` ("explains a declined
+      Google grant instead of showing a code", "falls back to plain language
+      for an unrecognised error code") and `NewTripWizard.test.tsx` ("shows
+      the create-trip error inline and keeps the sheet open on failure").
+- [x] Nothing on the landing page claims an unbuilt capability that the two
+      open questions above have not explicitly approved (decision 2).
+- [x] "Look around a real trip" is absent or `<Preview>`-wrapped; no
+      unauthenticated trip-read path was built. `LandingScreen.tsx` wraps it
+      in `<Preview id="landing-peek-trip">`; proven inert by
+      `e2e/m15-front-door.spec.ts`.
+- [x] Every `<Preview>` added here is registered in
+      `apps/web/src/lib/preview-registry.ts` with its real milestone, and the
+      sync test passes. `landing-peek-trip` → M11;
+      `preview-registry.test.ts` is part of the unit suite that passed.
+- [x] An e2e script covers landing → sign-in → first trip → sign out, and
+      joins the suite prior milestones' scripts run in.
+      `e2e/m15-front-door.spec.ts` exists and asserts the full flow,
+      including the `/signin` ↔ `/signup` swap-link round trip. **Revision
+      note:** the first version of this spec filled the dev-login username
+      field immediately after the `/signup` → `/signin` swap-link click; both
+      routes render `AuthScreen`'s dev-login form with the same
+      `input[name="username"]`, and the client-side transition between them
+      remounts a fresh `useState("")`, so the fill could race the not-yet-
+      settled navigation and land on a field about to unmount — reproduced by
+      a reviewer's `test:e2e:ci-like` run (failed on the initial attempt and
+      retry #1). Fixed by settling on the `/signin` heading before filling,
+      filling through a `getByLabel` locator, and asserting the value
+      actually stuck before submitting. Verified with
+      `CI=true pnpm exec playwright test m15-front-door.spec.ts
+      --project=desktop` against the production build already in
+      `apps/web/.next` — **2/2 passed**, twice in a row. The full
+      `test:e2e:ci-like` run (all projects, including `narrow`) has not been
+      re-verified by this session since the fix — deferred to the reviewer's
+      authoritative rerun rather than repeating a multi-minute full-suite run
+      per their instruction.
+- [ ] `pnpm typecheck && pnpm lint`, unit, int and the full e2e suite green
+      against a **production** build with `CI=true` (KI-27), including the
+      narrow-viewport project. **Not fully green.** Typecheck is green
+      (`pnpm typecheck`). Unit (794 passed, 1 skipped) and int (85 passed)
+      are green and unaffected by the e2e spec fix above (neither touches
+      those files). `pnpm lint` fails: `scripts/check-color-wall.mjs` flags
+      five arbitrary Tailwind values in `apps/web/src/components/front/
+      LandingScreen.tsx` (lines 47, 53, 82, 87, 97 — `tracking-[0.11em]`,
+      `max-w-[30em]`, `tracking-[0.08em]`, `text-[9.5px]`,
+      `grid-cols-[74px_1fr]`). This is pre-existing in Task 1/2's file
+      (introduced in `0207bc6`, before this task touched anything) and is out
+      of this task's file scope to fix — it needs a design-token decision
+      Task 5 is not positioned to make unilaterally. The full
+      `test:e2e:ci-like` run against the fixed spec has not been re-verified
+      by this session (see the note above) — its authoritative result is the
+      reviewer's rerun, not a claim made here. See "What remains" below.
+- [ ] Retro appended here; `TODO.md`, this file's boxes and
+      `docs/milestones/README.md`'s Current milestone all flipped in **one**
+      commit (README's gate-close checklist). **Deliberately not done** — the
+      milestone is not closing yet (see Status above and "What remains"
+      below).
+
+## What remains before this gate can close
+
+Two things, both outside this task's scope:
+
+1. **Fix the color-wall lint failure** in `LandingScreen.tsx` (five arbitrary
+   Tailwind values, listed above) so `pnpm lint` — and therefore `pnpm
+   check` — is green. Needs a design-token decision (e.g. is 0.11em really
+   distinct from `tracking-widest`'s 0.1em, or does the handoff's transcribed
+   value get rounded to a real token; is there a token for the 9.5px avatar
+   initials and the `74px 1fr` day-row grid, or do they get the same
+   documented-exception treatment `UnscheduledRack.tsx` and `AccountMenu.tsx`
+   use for their own off-token values) — a call for whoever owns that file,
+   not a mechanical fix.
+2. **Verify a real Google sign-in end to end on a deployed preview.** Needs a
+   PR opened for this branch first (none exists yet — see Status above), then
+   a manual sign-in from `/signin` and `/signup` on that PR's Vercel preview,
+   confirming both land on `/`. Record the result on the PR's **Verification
+   actually performed** section per `AGENTS.md`.
+
+Once both are done: tick the two remaining exit-gate boxes, append the retro,
+and flip `TODO.md` / `docs/milestones/README.md`'s Current milestone (and
+reconcile its stated M15 execution order with decision 1 above) in one commit
+per README's gate-close checklist.
 
 ## Retro
 
