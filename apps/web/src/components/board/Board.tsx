@@ -80,6 +80,8 @@ export type BoardCallbacks = {
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
   onDragEnd: () => void;
+  /** Selects a day by index — the same state the day chips above drive. */
+  onSelectDay: (index: number) => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
   onAddActivity: (value: ActivityFormValue) => void;
@@ -88,7 +90,18 @@ export type BoardCallbacks = {
   onDismissConflict: (conflictId: string) => void;
 };
 
-export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardCallbacks }) {
+export function Board({
+  trip,
+  callbacks,
+  focusedDay = null,
+}: {
+  trip: TripDetail;
+  callbacks: BoardCallbacks;
+  /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
+      the same value the day chips read — passed in rather than read from
+      context here so Board stays renderable on its own in tests. */
+  focusedDay?: number | null;
+}) {
   const { openCreate, openEdit } = useEditor();
 
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
@@ -229,6 +242,8 @@ export function Board({ trip, callbacks }: { trip: TripDetail; callbacks: BoardC
             onEditActivity={openEdit}
             onRemoveActivity={callbacks.onRemoveActivity}
             onRemoveDay={() => callbacks.onRemoveDay(day.dayId)}
+            isFocused={focusedDay === index}
+            onSelect={() => callbacks.onSelectDay(index)}
             onAddActivity={() => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
           />

@@ -349,7 +349,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               {lens === "Board" && (
                 <Board
                   trip={activeTrip}
+                  focusedDay={focusedDay}
                   callbacks={{
+                    onSelectDay: setFocusedDay,
                     onMove: moveActivity,
                     onUnschedule: unscheduleActivity,
                     onDragStart: () => onRackEvent({ type: "dragStart" }),
