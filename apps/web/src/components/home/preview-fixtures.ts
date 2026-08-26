@@ -1,12 +1,8 @@
-import type { AttentionRow } from "./WorthYourAttention";
 import type { PlaybookCard } from "./PlaybooksStrip";
 
-// Sample data for Task 16's two home Preview shells.
-//
-// AttentionRow content is cross-trip advice a real assistant might surface
-// on the home page (README §1 "Worth your attention" — not tied to any one
-// trip's data, per the M10 plan notes on this task), rather than
-// lorem-ipsum placeholders.
+// Sample data for the home "Your Playbooks" Preview shell. (PREVIEW_ATTENTION
+// lived here too until PR #55 deleted "Worth your attention" on Mitchell's
+// preview feedback that the designs had dropped it.)
 //
 // PlaybookCard content is sourced in spirit from the design handoff
 // prototype's own `PLAYBOOKS` fixture
@@ -16,26 +12,6 @@ import type { PlaybookCard } from "./PlaybooksStrip";
 // range (`p.span` there), and `shape` is one bar-height percentage per stop
 // (the prototype's own `shapeOf` height cycle, truncated to each card's
 // stop count).
-export const PREVIEW_ATTENTION: AttentionRow[] = [
-  {
-    id: "a1",
-    title: "You haven't set a budget",
-    body: "Add one so your trip stats can show what's left, not just what's spent.",
-    cta: "Set budget",
-  },
-  {
-    id: "a2",
-    title: "3 activities still need times",
-    body: "Untimed stops don't show up on the calendar view until they have one.",
-    cta: "Review",
-  },
-  {
-    id: "a3",
-    title: "Two trips have no cover photo",
-    body: "A photo makes a trip easier to pick out at a glance from the home page.",
-    cta: "Add photos",
-  },
-];
 
 export const PREVIEW_PLAYBOOKS: PlaybookCard[] = [
   {

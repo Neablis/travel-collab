@@ -20,7 +20,7 @@ import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { PREVIEW_QUICK_ASKS, PREVIEW_SUGGESTIONS } from "@/components/assistant/preview-fixtures";
+import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
 import { composeAiPlan } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
@@ -361,13 +361,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {assistant.open ? (
         <AssistantRail
           contextLine={assistantContextLine}
-          suggestions={PREVIEW_SUGGESTIONS}
           quickAsks={PREVIEW_QUICK_ASKS}
           onAsk={(text) => void submitAssistantAsk(text)}
           asking={askStatus === "loading"}
           askError={askStatus === "error" ? askError : null}
           simulated={askSimulated}
-          onKeepGhost={() => {}}
           onDismiss={() => {}}
           onHide={assistant.hide}
         />
