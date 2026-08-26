@@ -198,7 +198,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /trip settings/i }));
 
     const datesRow = await screen.findByRole("button", { name: "Dates" });
     expect(screen.queryByLabelText("Trip start date")).toBeNull();
@@ -271,6 +271,9 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByText("Weekday Market")).toBeTruthy();
     expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
 
+    // Undo moved inside the History popover (PR #55 preview feedback), so it
+    // has to be opened first — it is no longer a bare header button.
+    fireEvent.click(await screen.findByRole("button", { name: /history/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
     await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
@@ -303,7 +306,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     // P2 surface move: TripMoneySettings re-homed into SettingsSheet (comment 12b) —
     // open it via the header's gear button first.
-    fireEvent.click(screen.getByRole("button", { name: "Trip settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /trip settings/i }));
     // Task 4.2 relabeled the field "Total for the trip" (was "Trip budget").
     await userEvent.type(await screen.findByLabelText(/cost|total for the trip/i), "500");
     await userEvent.tab();
