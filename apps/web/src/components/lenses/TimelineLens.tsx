@@ -472,10 +472,13 @@ export function TimelineLens({
         const outMinutes = totalScheduledMinutes(row);
         const route = routeSummary(row, detail.activities);
         // chip.transitionTo only fires when this day's derived city differs
-        // from the PREVIOUS day's — the previous day's own city is the
-        // honest "from" half of the travel pill (chipModel doesn't carry it
-        // directly, but it's just the prior index's chip).
-        const fromCity = index > 0 ? (days[index - 1]?.city ?? null) : null;
+        // from the PREVIOUS day's, and chipModel now carries that previous
+        // city as transitionFrom — so the "from" half comes from the same
+        // derivation as the "to" half rather than being re-read out of the
+        // prior index here (which quietly produced a from-city on days that
+        // weren't travel days at all, harmless only because isTravelDay
+        // gated the render).
+        const fromCity = chip?.transitionFrom ?? null;
         const isTravelDay = chip?.transitionTo !== null && chip?.transitionTo !== undefined;
         // Day-header cost chip (design values table): the day's own real
         // total, read via daySpend, which itself reads the server-computed

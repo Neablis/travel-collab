@@ -16,7 +16,6 @@ import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
-import { SyncIndicator } from "./SyncIndicator";
 import { ShareButton } from "./ShareButton";
 import { TripMetaPill } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
@@ -40,7 +39,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, sync, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
   const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -189,16 +188,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
             </div>
 
             <div className="flex items-center gap-0.5">
-              {/* KI-36: fed from the queue's own state — `sync.unsent` is the
-                  live count of units the server has not accepted, and
-                  `sync.retry` re-sends the retained head. Not `pending`, which
-                  is a boolean and cannot tell "saving" from "couldn't save". */}
-              <SyncIndicator
-                unsent={sync.unsent}
-                failure={sync.failure}
-                onRetry={sync.retry}
-                className="mr-2"
-              />
               {/* The Popover stays mounted during preview (not gated on
                   preview.seq === null like undo/redo/settings) — HistoryPanel's
                   "Viewing version N (read-only)" banner and its Revert/Back-to-now

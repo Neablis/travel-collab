@@ -71,10 +71,17 @@ describe("chipModel", () => {
     const chips = chipModel(detail);
     // Day 0 has no previous day, so no transition regardless of city.
     expect(chips[0]!.transitionTo).toBeNull();
+    expect(chips[0]!.transitionFrom).toBeNull();
     // Day 1's city ("Tokyo") matches day 0's ("Tokyo") — no transition.
     expect(chips[1]!.transitionTo).toBeNull();
-    // Day 2's city ("Osaka") differs from day 1's ("Tokyo") — transition fires.
+    expect(chips[1]!.transitionFrom).toBeNull();
+    // Day 2's city ("Osaka") differs from day 1's ("Tokyo") — transition fires,
+    // and carries BOTH ends. transitionTo used to be set to the day's own city
+    // and nothing held the other half, so every consumer that wanted to name
+    // the move had to reach back into the previous chip for it.
     expect(chips[2]!.transitionTo).toBe("Osaka");
+    expect(chips[2]!.transitionFrom).toBe("Tokyo");
+    expect(chips[2]!.transitionFrom).not.toBe(chips[2]!.city);
   });
 
   it("derives city null and skips a transition when no scheduled activity has a location", () => {
@@ -153,9 +160,14 @@ describe("chipModel", () => {
 });
 
 describe("DayChips", () => {
+  // Note the shape of the old fixture this replaces: `city: "Osaka"` with
+  // `transitionTo: "Osaka"`, asserting a rendered "→ Osaka" under a line-2
+  // "Osaka". That was not an unrealistic fixture — chipModel really did set
+  // transitionTo to the day's own city — so the duplicate city Mitchell
+  // reported was pinned in place by a passing test.
   const days = [
-    { dow: "Tue", dateNum: "1", city: "Tokyo", transitionTo: null, stops: 2 },
-    { dow: "Wed", dateNum: "2", city: "Osaka", transitionTo: "Osaka", stops: 1 },
+    { dow: "Tue", dateNum: "1", city: "Tokyo", transitionFrom: null, transitionTo: null, stops: 2 },
+    { dow: "Wed", dateNum: "2", city: "Osaka", transitionFrom: "Tokyo", transitionTo: "Osaka", stops: 1 },
   ];
 
   it("renders one chip per day", () => {
@@ -176,13 +188,31 @@ describe("DayChips", () => {
     expect(slots).toHaveLength(2);
     // day[0] has transitionTo: null — the slot node still exists, just empty.
     expect(slots[0]!.textContent).toBe("");
-    expect(slots[1]!.textContent).toBe("→ Osaka");
+    expect(slots[1]!.textContent).toBe("Tokyo → Osaka");
+  });
+
+  it("names both ends of the move once, not the destination twice", () => {
+    render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
+
+    // The travel chip prints "Osaka" exactly once — in the transition line.
+    // Before this, line 2 named it too, so the chip read "Osaka" / "→ Osaka".
+    expect(screen.getAllByText(/Osaka/)).toHaveLength(1);
+    expect(screen.getByText("Tokyo → Osaka")).toBeTruthy();
+    // A day that stays put keeps its city on line 2, next to the date.
+    expect(screen.getByText("Tokyo")).toBeTruthy();
+  });
+
+  it("announces the move on a travel chip's accessible name", () => {
+    render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Tue, Tokyo, 2 stops" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wed, Tokyo to Osaka, 1 stop" })).toBeTruthy();
   });
 
   it("shows the date number and the city as separate elements", () => {
     render(
       <DayChips
-        days={[{ dow: "Sat", dateNum: "5", city: "Rochester", transitionTo: null, stops: 2 }]}
+        days={[{ dow: "Sat", dateNum: "5", city: "Rochester", transitionFrom: null, transitionTo: null, stops: 2 }]}
         focusedDay={null}
         onSelect={vi.fn()}
       />,

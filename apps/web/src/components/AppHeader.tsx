@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { HeaderSessionChrome } from "@/components/AccountMenu";
+import { SaveLightMark } from "@/components/SaveLight";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 
 // Handoff `current/…dc.html:63-78`: a persistent bar on every route. Before
@@ -24,15 +24,11 @@ export function AppHeader() {
   const demoResetEnabled = isDemoDataResetEnabled();
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-hairline bg-surface px-6">
-      <Link href="/" className="flex items-center gap-2.5 no-underline">
-        <span
-          aria-hidden
-          className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand text-surface"
-        >
-          ◎
-        </span>
-        <span className="font-display text-md font-semibold text-ink">Caesura</span>
-      </Link>
+      {/* The logo mark is also the save light (SPEC "The logo is the save
+          light", RULES.md 4 — the trip header carried a second dot saying the
+          same thing). It is a client island for the same reason the account
+          menu is: the state it reads is client state. */}
+      <SaveLightMark />
       {/* Nav + account together, and only when signed in — see
           HeaderSessionChrome. A signed-out visitor used to be shown "Trips"
           and "Playbooks", links into pages they cannot open (Mitchell,
