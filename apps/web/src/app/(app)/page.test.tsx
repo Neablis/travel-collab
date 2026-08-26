@@ -495,11 +495,36 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
+  // This is the evidence for a milestone exit-gate requirement (M15 decision
+  // 3: "Create empty" from NewTripWizard's step 1 replaces the designed
+  // one-field first-run screen — see the EmptyState comment above), so it
+  // has to actually prove what it claims: that the *entered* name reaches
+  // the POST, and that the trip that comes back really does replace the
+  // first-run empty state. CodeRabbit (PR #56, finding 3): the previous
+  // version only asserted that *some* POST to /api/trips happened, which a
+  // POST with no name, or the wrong name, would also satisfy.
   it("creates a first trip from a name alone", async () => {
     const created = { tripId, name: "Japan" };
+    let listCallCount = 0;
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      if (init?.method === "POST") return jsonResponse(created, 201);
-      return jsonResponse({ trips: [] });
+      if (url.endsWith("/api/trips") && init?.method === "POST") return jsonResponse(created, 201);
+      if (url.endsWith("/api/trips")) {
+        listCallCount += 1;
+        // First GET (initial load) finds no trips, which is what puts Home
+        // in the first-run empty state this test starts from; the reload
+        // that "Create empty" triggers (Home's onCreated -> load(), same
+        // stay-on-list-and-refresh path "stays on the trip list and shows
+        // the new trip after Create empty" above exercises) finds the trip
+        // that was just created.
+        const trips = listCallCount === 1 ? [] : [tripSummaryFixture({ tripId, name: "Japan" })];
+        return jsonResponse({ trips });
+      }
+      // Anything else (e.g. the per-card TripDetail fetch Home's
+      // plannedOfBudget effect fires once the new trip renders) is
+      // deliberately unmocked here, same as the other tests in this
+      // describe block — Home already treats a failed detail fetch as
+      // honest absence (no plannedOfBudget line), not an error.
+      return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -514,9 +539,17 @@ describe("Home first-run experience", () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/trips"),
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Japan" }) }),
       ),
     );
+
+    // Post-create state: the first-run empty state is gone, the new trip's
+    // own card is showing in its place, and "Create empty" never navigates
+    // (only the full wizard's dates/budget path does — see "stays on the
+    // trip list and shows the new trip after Create empty" above).
+    expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
+    expect(screen.queryByText("Plan your first trip")).toBeNull();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });
 
