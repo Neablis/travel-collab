@@ -33,4 +33,17 @@ describe("safeCallbackUrl", () => {
     expect(safeCallbackUrl("javascript:alert(1)")).toBe("/");
     expect(safeCallbackUrl("data:text/html,<script>alert(1)</script>")).toBe("/");
   });
+
+  // Parser-differential guard: `/\evil.example` and `/\/evil.example` both
+  // "start with a single /" and pass the `//` check above, but a backslash
+  // in an authority position is treated as equivalent to `/` by some URL
+  // parsers (WHATWG backslash normalisation), which could reinterpret them
+  // as scheme-relative or absolute URLs downstream. Not exploitable through
+  // Auth.js's current default redirect callback (it only ever prepends
+  // `baseUrl` to a literal `/`-prefixed string), but the guard should not
+  // depend on that staying true.
+  it("rejects a callbackUrl containing a backslash", () => {
+    expect(safeCallbackUrl("/\\evil.example")).toBe("/");
+    expect(safeCallbackUrl("/\\/evil.example")).toBe("/");
+  });
 });

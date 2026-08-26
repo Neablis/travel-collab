@@ -13,8 +13,24 @@
 // against the *current* protocol, e.g. `https://evil.example`, so it is an
 // open-redirect vector even though it "starts with /"). Anything else falls
 // back to `"/"`.
+//
+// CodeRabbit (PR #56, finding 2): also reject any input containing a
+// backslash (e.g. `/\evil.example`, `/\/evil.example`). A prior review
+// traced this and found it *not currently exploitable* — Auth.js's default
+// redirect callback does `if (url.startsWith("/")) return
+// \`${baseUrl}${url}\``, so the origin is fixed by the literal `/` prefix
+// before any WHATWG backslash normalisation (browsers and some URL parsers
+// treat `\` as equivalent to `/` in an authority position) could reinterpret
+// it as a scheme-relative or absolute URL. That analysis still holds today.
+// But that safety currently depends on a downstream implementation detail —
+// Auth.js never gaining a custom `redirect` callback, and every parser in
+// this chain continuing to agree on what "starts with /" means. A validator
+// should reject the input outright rather than rely on something else,
+// elsewhere, to neutralise it later — this is a parser-differential guard,
+// not a currently-exploitable-bug fix, so don't "simplify" it away as
+// redundant with the `//` check above; it isn't the same check.
 export function safeCallbackUrl(raw: string | null): string {
   if (raw === null) return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
   return raw;
 }
