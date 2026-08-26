@@ -113,6 +113,98 @@ does not disturb.
   schematized in `packages/contracts` — filed as KI-22 in
   `docs/known-issues.md`.
 
+## Amendment — 2026-08-25: the seam is a controlled chokepoint, and it must survive a second entry point
+
+Recorded on Mitchell's decision, 2026-08-25, while scoping **M16** (ADR-022):
+
+> *"Being able to control major chunks of functionality for specific users is
+> important. In the future I might make only pro accounts able to use AI."*
+
+This amendment does not change any decision above. It states the invariant those
+decisions produced, makes it **enforced rather than conventional**, and widens the
+decision point so per-user entitlement can be added inside it later without
+touching a single call site.
+
+### 1. The invariant, stated
+
+Exactly two functions carry this, and no others may:
+
+| Function | Sole responsibility |
+|---|---|
+| `server/ai/gateway.ts` → `aiModel()` | **Constructs** the Vercel AI Gateway client. The only place an `AI_GATEWAY_API_KEY` is ever used. |
+| `server/ai/modelSelection.ts` → `selectAiModel()` | **Decides** whether that client is used at all. The only reader of the `ai-live` flag and of `AI_LIVE`. |
+
+Every AI feature reaches a model by asking `selectAiModel()`, never by
+constructing one. As of this amendment that is already true in production code —
+`aiModel()`'s only non-test caller is `selectAiModel()`, and `selectAiModel()`'s
+only non-test caller is `handleAiRequest` — but it is true by comment and habit,
+not by any mechanism.
+
+### 2. Enforced by lint, not by comment
+
+`apps/web/eslint.config.mjs` already carries two architectural import walls (the
+domain wall and the `@/server/*` UI wall, both from `AGENTS.md`). The gateway
+chokepoint becomes a third: **`@/server/ai/gateway` is importable only from
+`server/ai/modelSelection.ts`** (and its own tests). Any other import is a lint
+error naming this ADR.
+
+The reason to do it now rather than when it is violated: M16 adds a **second AI
+entry point** (`POST /api/trips/[tripId]/ask`). A convention that held while
+there was exactly one caller is not evidence it will hold with two, and the
+failure mode is silent — an endpoint that spends money with the kill switch off
+would look entirely normal in review.
+
+### 3. The decision point becomes actor-aware, and its outcome three-way
+
+Two changes to `selectAiModel()`, both forward-looking:
+
+**It takes the actor.** Today the signature is `selectAiModel(surface)`. It
+becomes `selectAiModel({ surface, userId })`. `handleAiRequest` already resolves
+the session before calling it — the existing comment there says selection happens
+after `guard()` *precisely* so per-user targeting could be added later without
+moving the call site — but the signature never carried the user, so "later" would
+have meant editing every caller. Passing the actor now costs nothing and means a
+pro-account check is a change inside one function.
+
+Deliberately **not** assumed: that entitlement is a flag. The Flags SDK's
+`identify` can target a user, but a paid tier is more likely a database fact than
+a flag value. The signature carries the actor so either implementation fits; the
+mechanism stays undecided until there is an account model (M15 owns the account
+menu; there is no tier field anywhere today).
+
+**Its outcome is three-way: `live` / `simulated` / `denied`.** This is the load-
+bearing part. Decision 2 above makes "off" mean *simulated* — a canned model
+emits tool calls and **the trip really mutates**. That is correct for a kill
+switch, where the goal is that the product still works without spending. It is
+**wrong for entitlement**: a user without access must get a refusal, not a
+fabricated answer that edits their trip under them. Denial is a different
+outcome, not a quieter model, and the return shape has to admit it before
+anything depends on the boolean.
+
+`denied` needs a caller contract, which M16 defines when it builds the second
+endpoint: an HTTP status and a response shape the UI can render as "not
+available on your plan" rather than as an error. Until an entitlement source
+exists, `denied` is unreachable in production — the type exists, nothing returns
+it.
+
+### 4. What M16 must do
+
+- Route the `/ask` endpoint through `selectAiModel()`. **No second gateway
+  construction, no second flag read.**
+- Land the lint rule in §2 as part of the wave that adds the endpoint, not after.
+- Widen the signature and the outcome per §3, with `denied` unreachable but
+  typed.
+- Leave `GET /api/health/ai-mode` reporting the effective mode. It exists for
+  KI-25 (e2e runs refusing to proceed against a live model) and for the
+  observability KI-24 asks for, and a second entry point does not change it —
+  the mode is a property of the seam, not of an endpoint.
+
+### 5. What this is not
+
+Not a rate limit, not a spend cap, not an authorization model. `rateLimit.ts`
+exists separately, and access to a *trip* is `guard()`'s job. This is one
+question only: **may this actor cause a model call, and if so which model.**
+
 ## Alternatives rejected
 
 - **A canned refusal.** An early return in the route emitting a fixed "AI is

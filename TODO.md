@@ -52,8 +52,17 @@ Where the work actually stands right now: `docs/STATUS.md`.
       and the trip start picked with the end derived) and **Phase 1b** (the
       header adopts the focus-scope model, an explicit revisit of the merged
       Phase 1). Phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.)*
-- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
-      *(Blocked on M10's Wave-2 gate — do not start early.)*
+- [ ] **M16 The assistant answers questions** →
+      `docs/milestones/M16-assistant-read-agent.md`
+      *(Approved 2026-08-25, **ADR-022**. Runs right after M10's Wave-2 gate,
+      ahead of M15. Three waves: the sidebar styled to `SPEC.md` §9's docked
+      presentation with both `<Preview>` blocks deleted; a **read-only
+      tool-using agent** on a new `/ask` endpoint — one question, one answer,
+      scoped to the selected day or the whole trip; then analytics on which
+      tools get called and how many calls an answer costs. The existing command
+      path is untouched. It exists because `/ai` derives its reply from
+      committed commands and the envelope carries no time windows, so a question
+      like "where is the most free time" is unanswerable twice over.)*
 
 ## Phase 3 — Outward
 
@@ -67,13 +76,19 @@ Where the work actually stands right now: `docs/STATUS.md`.
       engineering decision that sync created, and every macro today is
       `NoParams`.)*
 - [ ] **M15 Front door** → `docs/milestones/M15-front-door.md`
-      *(Approved 2026-08-23. **Executes right after M10's gate and before M9** —
-      ADR-021, on ADR-018's precedent: numbers unchanged, execution order
-      placed. Landing page, custom sign-in/sign-up, first-run screen, header
+      *(Approved 2026-08-23. **Executes after M16**, which ADR-022 placed ahead
+      of it on 2026-08-25 — ADR-021, on ADR-018's precedent: numbers unchanged,
+      execution order placed. Landing page, custom sign-in/sign-up, first-run screen, header
       account menu; designed in full by the design sync, deliberately not
       absorbed into M10's visual-craft gate. Two open questions ride with it —
       first-run vs. the four-step wizard, and whether the landing copy may sell
       M11/M12 — recorded in the milestone file.)*
+- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
+      *(**Moved to last, after M14 — ADR-022, 2026-08-25.** Mitchell's call: the
+      data layer beneath a planning partner should exist first, and UI polish and
+      sharing come before it. M16 builds the read half, so M9 adds conversation,
+      write tools and approval **to a working agent** and inherits its eval
+      harness. Do not start early.)*
 
 ## Candidate ideas (unscheduled)
 

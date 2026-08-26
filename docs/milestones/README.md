@@ -49,7 +49,8 @@ for collaboration later landing on a product people already want to join.
 | # | Name | Scope |
 |---|---|---|
 | M10 | Visual craft pass | **In flight — Wave 2.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
-| M9 | AI as a planning partner | Thread contract, streaming, propose→review→approve before commit, a refine turn, and the observability that does not exist today (persisted `meta`, replay harness, fixed eval set). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here** |
+| M16 | The assistant answers questions | **Approved 2026-08-25, executes right after M10's gate and before M15 — ADR-022.** The sidebar styled to `SPEC.md` §9's *docked* presentation (a flex sibling, not a scrim overlay; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on its own endpoint — one question, one answer, scoped to the selected day or the trip — then analytics on which tools get called and how many calls an answer costs. The command path is untouched. Exists because the AI endpoint today is a *command* endpoint and structurally cannot answer a question: `M16-assistant-read-agent.md` |
+| M9 | AI as a planning partner | **Moved to last, after M14 — ADR-022 (2026-08-25).** Thread contract, streaming, propose→review→approve before commit, a refine turn, and grounding (`SearchPlaces`). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here.** M16 now builds the read half first, so this milestone adds write tools and conversation *to a working agent* and inherits its eval harness rather than building one |
 
 ## Phase 3 — Outward
 
@@ -59,7 +60,7 @@ for collaboration later landing on a product people already want to join.
 | M12 | Community | Public gallery, discovery, voting, reporting (all trust & safety scope quarantined here) |
 | M13 | Collaboration | Invites, roles, revocation; near-real-time sync (transport ADR due here); concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
 | M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7) |
-| M15 | Front door | **Approved 2026-08-23, executes right after M10's gate and before M9 — ADR-021.** The unauthenticated surface the product has never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, the first-run "what are you planning" screen, and the header account menu. Designed in full by the 2026-08-23 design sync; net-new product surface, so deliberately **not** absorbed into M10's visual-craft gate. Scope, exit gate and two open questions: `M15-front-door.md` |
+| M15 | Front door | **Approved 2026-08-23 — ADR-021; runs after M16, which ADR-022 placed ahead of it on 2026-08-25.** The unauthenticated surface the product has never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, the first-run "what are you planning" screen, and the header account menu. Designed in full by the 2026-08-23 design sync; net-new product surface, so deliberately **not** absorbed into M10's visual-craft gate. Scope, exit gate and two open questions: `M15-front-door.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -91,6 +92,20 @@ for collaboration later landing on a product people already want to join.
   Milestone *numbers* are unchanged — this is an execution-order
   swap, not a renumbering — see `docs/milestones/M10-visual-craft.md` and the
   ADR for the full argument.
+
+- **Reorder (2026-08-25), ADR-022.** **M16 "The assistant answers questions"**
+  is added and executes right after M10's Wave-2 gate, ahead of M15; **M9 moves
+  to last, after M14.** Mitchell declined to open M9 on the grounds that the data
+  layer beneath a planning partner is not strong enough yet and that UI polish
+  and sharing come first. Scoping the smaller ask surfaced why it is not a
+  styling task: the AI endpoint derives its reply from *committed commands*, so a
+  question that changes nothing returns "I couldn't turn that into any changes",
+  and the context envelope carries no activity time windows — a question about
+  free time is unanswerable twice over. M16 builds the read half on its own
+  endpoint, leaving the command pipeline untouched. New execution order:
+  `M8 ✓ → [Phase 1 gate review ✓] → M10 → M16 → M15 → M11 → M12 → M13 → M14 → M9`.
+  Milestone *numbers* are unchanged — the same placement-not-renumbering shape as
+  ADR-018 and ADR-021.
 
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
@@ -151,5 +166,6 @@ Current milestone: **M10 — Visual craft pass, Wave 2** (see
 `M10-visual-craft.md`'s "Gate reopened" section). M8's gate closed 2026-08-08 and
 the Phase 1 gate review with Mitchell completed the same day. M10's Wave-2 gate
 now also covers **Phase 8b** and **Phase 1b** (see that file's 2026-08-23
-gate-scope amendments). **Next after it is M15 Front door, then M9** — ADR-021.
-Neither starts until M10's Wave-2 gate passes.
+gate-scope amendments). **Next after it is M16 — the assistant answers questions
+— then M15 Front door** (ADR-022, which also moves **M9 to last, after M14**).
+Nothing starts until M10's Wave-2 gate passes.

@@ -5,6 +5,48 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## Roadmap changed 2026-08-25 — M16 added, M9 moved to last (ADR-022)
+
+Decided by Mitchell in a scoping conversation, not by a code change: **M9 is not
+next.** A new milestone **M16 "The assistant answers questions"** runs right
+after M10's Wave-2 gate and ahead of M15; **M9 moves to last, after M14**. New
+order: `M10 → M16 → M15 → M11 → M12 → M13 → M14 → M9`. Numbers unchanged —
+placement only, same shape as ADR-018/ADR-021.
+
+The finding that shaped it, and the reason M16 is not a styling task: **the AI
+endpoint is a command endpoint and structurally cannot answer a question.**
+`handleAiRequest` derives its reply from the *committed commands*
+(`planSummary.ts`, deliberately, so it can never claim an edit it did not make),
+so a turn resolving to zero commands returns the fixed string *"I couldn't turn
+that into any changes, so nothing was applied."* And `summarizeTrip` puts no
+activity time windows in the envelope at all — so "where is the most free time"
+is unanswerable twice over, before any model is involved.
+
+M16's shape: the sidebar styled to `SPEC.md` §9's *docked* presentation (a flex
+sibling rather than a fixed overlay, deleting the scrim that produced the
+already-resolved KI-16 and KI-17; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on a new
+`POST /api/trips/[tripId]/ask` endpoint — `ToolLoopAgent`, three read tools,
+`{tripId, userId}` injected via `toolsContext` so another trip is not
+expressible — then per-ask tool-call analytics and a fixed eval set. **The
+existing command path is untouched and is not deleted**; M9's write tools wrap
+it later. Detail: `docs/milestones/M16-assistant-read-agent.md`, decision and
+tool rule: `docs/architecture/ADR-022-read-only-assistant-agent.md`.
+
+**ADR-019 gained an amendment the same day**, on Mitchell's decision that AI
+must be controllable per user (a paid tier, later). The kill switch's chokepoint
+— `gateway.ts#aiModel` constructs the client, `modelSelection.ts#selectAiModel`
+decides whether it is used — is real today but held only by convention, and M16
+adds the *second* AI entry point, which is when convention breaks. M16 therefore
+owes: a lint wall making `@/server/ai/gateway` importable only from
+`modelSelection.ts`; an actor-aware `selectAiModel({ surface, userId })`; and a
+**three-way** outcome `live` / `simulated` / `denied`, because "off" today means
+*simulated* and a simulated answer that mutates the trip is the wrong response to
+"you don't have access". `denied` stays typed and unreachable until an
+entitlement source exists.
+
+Nothing starts until M10's Wave-2 gate passes. Phase 8b below is still the
+in-flight work.
+
 **Last updated: 2026-08-25 — Phase 8b is open as PR #46 and has grown well
 past its plan.** The branch `claude/m10-wave2-phase8b` now carries **25
 commits / ~75 files**, not the six Phase 8b's plan describes. What was added
@@ -198,8 +240,10 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 **The Phase 1 gate review with Mitchell is done (2026-08-08).**
 
 **Current milestone is M10, Wave 2.** Nothing else starts until it passes.
-Order (amended 2026-08-23 by ADR-021, which inserts M15 before M9):
-`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M15 → M9 → M11 → …`.
+Order (amended 2026-08-25 by ADR-022, which inserts M16 ahead of M15 and moves
+M9 to last; ADR-021 had inserted M15 before M9 on 2026-08-23):
+`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M16 → M15 → M11 → M12 →
+M13 → M14 → M9`.
 
 **2026-08-19: feature flagging and an AI kill switch landed as a deliberate
 off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
@@ -1229,8 +1273,9 @@ gate** (see the "Design sync" section above and the gate-scope amendments in
 before/after screenshots, KI-2/3/4 closed or re-deferred, presentational-only
 diff verified, all tests incl. e2e green, retro appended — **plus, per the
 2026-08-24 amendment above, routing Task 8b.4's banner (blocked on KI-36) to
-a milestone.** **M15 Front door comes next once M10's gate closes, then M9**
-(ADR-021) — neither may start early.
+a milestone.** **M16 comes next once M10's gate closes, then M15 Front door**
+(ADR-022, 2026-08-25 — it also moves M9 to last, after M14) — none may start
+early.
 
 **The debt that keeps rolling forward: the manual browser walk.** Phase 5's
 Step 4, Phase 6's Step 4, and Phase 8's exit checklist were each never walked

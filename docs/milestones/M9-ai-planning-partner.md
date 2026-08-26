@@ -1,6 +1,20 @@
 # M9 — AI as a planning partner
 
-**Status:** Not started. Phase 2. Depends on M8's trip-lifecycle contract work.
+**Status:** Not started. **Moved to last in the execution order — after M14 —
+on 2026-08-25 by ADR-022**, on Mitchell's call that the data layer beneath a
+planning partner should exist first and that UI polish and sharing come before
+it. Numbers unchanged; this is a placement, the same shape as ADR-018/ADR-021.
+
+**What changed for this milestone.** **M16** now builds the read half first: a
+read-only tool-using agent on its own `/ask` endpoint, three read tools, and the
+tool-call analytics and eval harness this file's gate asks for. So M9 no longer
+starts from the stateless single-shot RPC described below — it **adds
+conversation, write tools and approval to a working agent**, and inherits the
+observability rather than building it. Read ADR-022 before planning this
+milestone; the scope section below is still true, but its starting point is not.
+Specifically: grounding (`SearchPlaces`/`placeRef`) becomes a fourth read tool
+under ADR-022's rule, and the approval step should be built on AI SDK v7's
+`toolApproval: 'user-approval'` rather than a second mechanism.
 
 ## Why this exists
 
