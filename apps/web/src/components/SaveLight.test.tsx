@@ -121,6 +121,37 @@ describe("SaveLightMark", () => {
     expect(screen.getByRole("status").textContent).toBe("All changes saved");
   });
 
+  // The cost this indirection could have had, pinned so a refactor can't
+  // reintroduce it. Publishing sets state on a provider that sits ABOVE the
+  // whole page, so the obvious worry is that every save re-renders (or worse,
+  // remounts) the entire trip below it. It does neither: `children` reaches
+  // the provider as an already-built element from the layout, and React bails
+  // out of re-rendering a child whose element identity has not changed, so
+  // only the context's real consumer — the mark — re-renders.
+  //
+  // What would break it: giving SaveLightProvider a prop that changes with the
+  // light, or wrapping `children` in something the provider itself builds
+  // during render. Either would make this count climb.
+  it("does not re-render the page below it when the light changes", () => {
+    let renders = 0;
+    function PageBelow() {
+      renders++;
+      return <div />;
+    }
+
+    render(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <PageBelow />
+        <Publisher sync={{ unsent: 3, failure: null, retry: () => {} }} />
+      </SaveLightProvider>,
+    );
+
+    // The publish effect has already fired — the light is showing its result.
+    expect(screen.getByRole("status").textContent).toBe("Saving…");
+    expect(renders).toBe(1);
+  });
+
   it("rests rather than throwing when rendered with no provider above it", () => {
     // AppHeader renders on every route; a page that forgets the provider
     // should lose the light, not the header.
