@@ -8,6 +8,10 @@ export type Slot = { start: string; end: string };
 // A day with nothing on it starts the search here rather than at midnight —
 // nobody wants a suggested stop at 00:00.
 const DEFAULT_START_MIN = 9 * 60;
+// The same 09:00, as a wall-clock string, for callers that need to ask for
+// "the start of the day" explicitly rather than relying on the empty-day
+// fallback below — rackDropWindow does, for a stop dropped above everything.
+export const DEFAULT_DAY_START = toTimeString(DEFAULT_START_MIN);
 const TARGET_MIN = 60; // a fresh stop wants a full hour
 const AIR_MIN = 30; // breathing room between a placed stop and its neighbours
 const FLOOR_MIN = 15; // never suggest a window shorter than this

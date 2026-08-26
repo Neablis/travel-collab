@@ -17,6 +17,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
+import { rackDropWindow } from "./rackDropWindow";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
@@ -213,25 +214,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // overlapping its neighbours. Dropped at the top (position 0) there is no
   // stop above, so it falls back to the day's own default.
   //
-  // Gated on the stop having no time yet, which is exactly the rack case
-  // (unscheduling strips the window). Re-ordering an already-timed stop must
-  // NOT rewrite its time — moving a 14:00 booking up one place should not
-  // silently reschedule it.
+  // The drag's counterpart to assignFromRack: MoveActivity, then a real time.
+  // The decision of WHICH time — and whether to set one at all — is
+  // rackDropWindow, a pure function so it can be tested without a drag
+  // (rackDropWindow.ts explains why, and carries the reasoning that used to
+  // live here). `activeTrip` is read before the dispatch on purpose: the move
+  // is applied optimistically and empties the backlog the decision reads.
   const moveActivity = (activityId: string, toDayId: string | null, position: number) => {
-    const scheduled = activeTrip.activities[activityId]?.timeWindow ?? null;
+    const timeWindow = rackDropWindow(activeTrip, activityId, toDayId, position);
     void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position });
-    if (toDayId === null || scheduled !== null) return;
-
-    const day = activeTrip.days.find((d) => d.dayId === toDayId);
-    if (day === undefined) return;
-    const neighbourIds = day.activityIds.filter((id) => id !== activityId);
-    const existing = neighbourIds
-      .map((id) => activeTrip.activities[id]?.timeWindow)
-      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
-    const above = position > 0 ? neighbourIds[position - 1] : undefined;
-    const preferredStart = above !== undefined ? activeTrip.activities[above]?.timeWindow?.end : undefined;
-
-    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing, preferredStart) });
+    if (timeWindow !== null) void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
   };
 
   // The mirror image of assignFromRack, and two commands for the same reason:
