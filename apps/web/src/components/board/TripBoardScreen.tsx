@@ -197,6 +197,43 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
   };
 
+  // Dragging a parked stop onto a day is the same two-command job
+  // assignFromRack does — MoveActivity, then a real time — but the drag knows
+  // something the day dropdown doesn't: WHERE in the day you dropped it
+  // (Mitchell, preview feedback on PR #55: "dragging a unscheduled element
+  // into the UI should set the time between the elements it was dropped
+  // between"). Before this the drag dispatched a bare MoveActivity, so a stop
+  // dragged from the rack landed on the day still holding no time at all,
+  // while the dropdown path gave it one — the same action, two outcomes.
+  //
+  // fitIntoDay already takes a preferred start; the drop index is what feeds
+  // it. The stop above the drop point hands over its end time, and fitIntoDay
+  // searches forward from there for a gap that actually fits, so dropping into
+  // a full stretch of the day still yields a real window rather than one
+  // overlapping its neighbours. Dropped at the top (position 0) there is no
+  // stop above, so it falls back to the day's own default.
+  //
+  // Gated on the stop having no time yet, which is exactly the rack case
+  // (unscheduling strips the window). Re-ordering an already-timed stop must
+  // NOT rewrite its time — moving a 14:00 booking up one place should not
+  // silently reschedule it.
+  const moveActivity = (activityId: string, toDayId: string | null, position: number) => {
+    const scheduled = activeTrip.activities[activityId]?.timeWindow ?? null;
+    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position });
+    if (toDayId === null || scheduled !== null) return;
+
+    const day = activeTrip.days.find((d) => d.dayId === toDayId);
+    if (day === undefined) return;
+    const neighbourIds = day.activityIds.filter((id) => id !== activityId);
+    const existing = neighbourIds
+      .map((id) => activeTrip.activities[id]?.timeWindow)
+      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
+    const above = position > 0 ? neighbourIds[position - 1] : undefined;
+    const preferredStart = above !== undefined ? activeTrip.activities[above]?.timeWindow?.end : undefined;
+
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing, preferredStart) });
+  };
+
   // The mirror image of assignFromRack, and two commands for the same reason:
   // MoveActivity(toDayId: null) parks the stop, then UpdateActivity clears the
   // window — the design's "unscheduling strips the times". They are two
@@ -320,8 +357,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <Board
                   trip={activeTrip}
                   callbacks={{
-                    onMove: (activityId, toDayId, position) =>
-                      void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position }),
+                    onMove: moveActivity,
                     onUnschedule: unscheduleActivity,
                     onDragStart: () => onRackEvent({ type: "dragStart" }),
                     onDragEnd: () => onRackEvent({ type: "dragEnd" }),
