@@ -12,6 +12,7 @@ practice. Read the one that matches your task:
 | `validating-direction.md` | How do we know we're still building the *right* thing, and when do we stop and ask Mitchell? |
 | `quality-enforcement.md` | What testing/CI/review bar must every change clear? |
 | `design-system.md` | What tokens, colors, and shared components does UI code use — and when? |
+| `cloud-agent-sessions.md` | I'm in a Claude Code cloud session — what's different here, and which failures are the container's fault? |
 
 Document map for orientation:
 
