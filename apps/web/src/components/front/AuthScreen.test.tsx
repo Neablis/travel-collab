@@ -122,4 +122,45 @@ describe("AuthScreen", () => {
     expect(container.querySelector('input[name="username"]')).not.toBeNull();
     expect(screen.getByRole("button", { name: /sign in with dev login/i })).toBeDefined();
   });
+
+  // KI: `signIn("google", ...)` for an unregistered provider bounces the
+  // browser through /api/auth/providers -> /api/auth/signin and back with no
+  // `?error=` at all — that round trip happens entirely client-side, inside
+  // next-auth/react, before Auth.js's own error redirect can ever fire. So
+  // this state has to be caught server-side (the `googleAvailable` prop) and
+  // the button must never be able to trigger that bounce.
+  it("explains an unconfigured Google deployment and disables the button instead of bouncing", async () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable={false} />);
+    expect(screen.getByText(/Sign-in isn't set up on this deployment/)).toBeDefined();
+    const button = screen.getByRole("button", { name: "Continue with Google" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    await userEvent.click(button);
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("still runs the dev-login form when Google is unavailable but dev login is enabled", async () => {
+    const { container } = render(<AuthScreen mode="signin" devLoginEnabled googleAvailable={false} />);
+    expect(screen.getByText(/Sign-in isn't set up on this deployment/)).toBeDefined();
+    expect(container.querySelector('input[name="username"]')).not.toBeNull();
+    await userEvent.type(screen.getByLabelText("Username"), "sam");
+    await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
+    expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/" });
+  });
+
+  it("still explains itself with no dead form when Google and dev login are both unavailable", () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable={false} />);
+    expect(screen.getByText(/Sign-in isn't set up on this deployment/)).toBeDefined();
+    expect(screen.queryByRole("button", { name: /sign in with dev login/i })).toBeNull();
+    expect(screen.queryByLabelText("Username")).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue with Google" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("leaves Google sign-in unchanged when it is available (default behaviour)", async () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    expect(screen.queryByText(/Sign-in isn't set up on this deployment/)).toBeNull();
+    const button = screen.getByRole("button", { name: "Continue with Google" });
+    expect(button.hasAttribute("disabled")).toBe(false);
+    await userEvent.click(button);
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+  });
 });

@@ -43,11 +43,19 @@ export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
 // happy path only, and M15 scope item 5 makes the failure states part of the
 // gate. Every branch says what happened and what to do — no raw code reaches
 // the screen, and there is no blank state.
+// Shared with the client-side "Google isn't configured" state (AuthScreen's
+// `googleAvailable` prop): that state is detected server-side, before any
+// `?error=` param can exist (see server/auth.ts's provider registration and
+// AuthScreen.tsx's `googleAvailable` prop), but it is the same underlying
+// misconfiguration Auth.js's own `Configuration` error describes. One
+// string, referenced from both places, so they can't drift apart.
+export const GOOGLE_UNAVAILABLE_MESSAGE =
+  "Sign-in isn't set up on this deployment. That's our problem, not yours — nothing you do on this screen will fix it.";
+
 const ERROR_MESSAGES: Record<string, string> = {
   AccessDenied:
     "Google didn't hand us an account. If you closed the Google window or declined the permission, try again — we only ask for your name, email and picture.",
-  Configuration:
-    "Sign-in isn't set up on this deployment. That's our problem, not yours — nothing you do on this screen will fix it.",
+  Configuration: GOOGLE_UNAVAILABLE_MESSAGE,
   Verification: "That sign-in link has already been used or has expired. Start again below.",
   OAuthAccountNotLinked:
     "That email is already here under a different sign-in method. Use the one you signed up with.",

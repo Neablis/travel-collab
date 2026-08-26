@@ -12,7 +12,7 @@ import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { AUTH_COPY, errorMessage, type AuthMode } from "@/components/front/authCopy";
+import { AUTH_COPY, GOOGLE_UNAVAILABLE_MESSAGE, errorMessage, type AuthMode } from "@/components/front/authCopy";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 
 // `useSearchParams()` is the only piece of this screen that needs a
@@ -49,7 +49,27 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 // `dc.html:1584-1628`: sign-in and sign-up are the same screen with different
 // copy (M15 scope item 2), so this is one component with a mode, not two
 // near-identical files.
-export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLoginEnabled: boolean }) {
+//
+// `googleAvailable` mirrors `server/auth.ts`'s own check for
+// `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (via `isGoogleSignInAvailable()` in
+// src/lib/googleAuth.ts, read server-side and passed down as a prop — see
+// signin/page.tsx and signup/page.tsx). It defaults to `true` so tests and
+// call sites that predate this prop keep rendering the working path
+// unchanged. When it's `false`, next-auth/react's `signIn("google", ...)`
+// would silently bounce the browser through `/api/auth/providers` ->
+// `/api/auth/signin` -> back to this page with no `?error=` at all (that
+// round trip is client-side, before Auth.js's error redirect ever fires) —
+// so the button must never be clickable, and the explanation has to come
+// from this prop, not from `errorMessage()`.
+export function AuthScreen({
+  mode,
+  devLoginEnabled,
+  googleAvailable = true,
+}: {
+  mode: AuthMode;
+  devLoginEnabled: boolean;
+  googleAvailable?: boolean;
+}) {
   const copy = AUTH_COPY[mode];
   const [username, setUsername] = useState("");
   // Defaults to "/" until AuthSearchParams' effect resolves the real
@@ -68,6 +88,18 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
             <Text as="p" variant="secondary" className="text-pretty">{copy.sub}</Text>
           </div>
 
+          {!googleAvailable && (
+            // This banner is prop-driven (known at render time on the
+            // server), not `?error=`-driven, so it renders straight into
+            // the static prerendered shell — it doesn't need (and must not
+            // be given) its own Suspense boundary. Also covers the
+            // dev-login-disabled case: with no provider registered at all,
+            // this is the only explanation the screen has, and it already
+            // says the deployment itself isn't configured rather than
+            // implying there's a form to fill out.
+            <Banner variant="danger">{GOOGLE_UNAVAILABLE_MESSAGE}</Banner>
+          )}
+
           <Suspense fallback={null}>
             <AuthSearchParams onCallbackUrl={setCallbackUrl} />
           </Suspense>
@@ -77,7 +109,11 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
               type="button"
               variant="secondary"
               className="h-11.5 w-full text-md font-semibold"
-              onClick={() => void signIn("google", { callbackUrl })}
+              disabled={!googleAvailable}
+              onClick={() => {
+                if (!googleAvailable) return;
+                void signIn("google", { callbackUrl });
+              }}
             >
               Continue with Google
             </Button>
