@@ -128,6 +128,43 @@ does not have.
 
 ---
 
+## Decisions taken — 2026-08-26, Mitchell
+
+1. **C5/C6/C7 → a new milestone, not this one.** *"Skip on C5/C6/C7 and make a
+   future milestone, account customization. We will need a new DB table, but i
+   also think we are getting close to just wanting a user table rather than
+   relying on the google auth jwt."* → `docs/milestones/M17-account-customization.md`.
+2. **Budget row: *"I dont care what css gets the effect, keep the two sides
+   symetrical."*** Measured on the running app: both sides 40px tall, same top
+   (127) and same bottom (167) — already symmetrical under `items-stretch`.
+   **No change made.** §12's `align-items: center` must NOT be applied on its
+   own: centring lets the two go back to different heights, which is the thing
+   his PR #55 comment asked to fix.
+3. **Stop kind → a milestone; ship the rest now.** *"Keep Stop Kind as a future
+   milestone, lets just ship what we can for now with the city level cards, and
+   the activities in that city summerized."* → `docs/milestones/M18-stop-kind.md`,
+   and the Calendar ships grouped on `location.city`.
+
+### What shipped, and what it deliberately leaves out
+
+`calendarCityCards` + the rewritten cell: one card per city the day touches,
+with the city in its accent ink, a 7am–11pm span bar, `N stops · cost`, and the
+window. Earlier cities render as one-line strips; the last group takes the full
+card. Activity chips are gone — SPEC §12's "Calendar no longer lists
+activities" — so the cell summarises instead of listing, and a 9-stop day now
+reports 9 rather than showing three chips and silently dropping six.
+
+Left out, both blocked on M18: the travel-day split at the last `transit` stop,
+and the `N to book` flag. Left out, blocked on KI-47's `tags`: the `2 of 6
+match` tag-focus treatment.
+
+One thing the tests caught that the design did not anticipate: a stop with **no
+location** must not split the day. The existing CalendarLens fixture has exactly
+that shape (a "Flight home" with `location: null`), and grouping naively handed
+the day's card to a nameless group while demoting the real city to a strip.
+An unlocated stop tells us nothing about having moved, so it joins the group in
+progress.
+
 ## Suggested order
 
 1. **Decide the stop-`kind` contract field.** Everything interesting in §12 is behind it,

@@ -7,7 +7,9 @@ import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
 import { useFocus } from "../trip/context/FocusProvider";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
-import { toClockLabel } from "@/lib/time";
+import { calendarCityCards } from "./calendarCityCards";
+import { formatMoney } from "./formatMoney";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
 
@@ -80,19 +82,18 @@ const CITY_SIZE = { fontSize: "11px" };
 // dc.html:684: the chip column's 3px gap — off the spacing scale.
 const CHIP_STACK_GAP = { gap: "3px" };
 
-// dc.html:685: each chip's 5px gap and 3px/6px padding — off the spacing
-// scale (padding-y of 3px has no `py-*` step; the gap has no `gap-*` step).
-const CHIP_STYLE = { gap: "5px", padding: "3px 6px" };
 
 // dc.html:686: chip time, 9.5px — below --text-xs.
 const CHIP_TIME_SIZE = { fontSize: "9.5px" };
 
-// dc.html:687: chip name, 10.5px — below --text-xs.
-const CHIP_NAME_SIZE = { fontSize: "10.5px" };
 
 // dc.html:691: the more/summary line under the chips, 10px text + 5px
 // margin-top — both off-scale.
 const MORE_STYLE = { fontSize: "10px", marginTop: "5px" };
+// SPEC §12's span bar. 4px is below Tailwind's spacing floor for a height,
+// and the track is a fixed 7am-11pm scale (see calendarCityCards) so every
+// day is read against the same ruler.
+const SPAN_TRACK_STYLE = { height: "4px" };
 
 // SPEC.md §4: 26px between stacked month blocks — no spacing token lands on
 // it (the scale steps 24px/28px either side), same escape hatch as
@@ -103,31 +104,6 @@ const MONTH_GAP = { gap: "26px" };
 // 16px, neither matches.
 const MONTH_LABEL_SIZE = { fontSize: "17px" };
 
-// The per-day summary line (dc.html:3053): "N stops · 9 am – 5:30 pm", or
-// "Nothing planned yet" for an in-trip day with no stops. Supersedes Task
-// 8.6's "+N more" line — see this task's commit message. Unlike the design's
-// literal mock (which assumes every stop is time-windowed and already in
-// time order), real activities can be untimed, so only timed stops
-// contribute a range. The end is the max over every window's end, not the
-// last window sorted by start — a window can nest inside an earlier, longer
-// one (9–17 then 10–11), so "sorted by start, take the last end" would
-// silently shrink the reported span. (timelineRows' `timed.sort` is not
-// precedent here: that sort only orders rows for display, it never derives
-// a boundary value from the result.)
-function stopsSummary(activityIds: string[], activities: TripDetail["activities"]): string {
-  if (activityIds.length === 0) return "Nothing planned yet";
-  const count = activityIds.length;
-  const label = `${count} stop${count === 1 ? "" : "s"}`;
-
-  const timed = activityIds
-    .map((id) => activities[id]?.timeWindow)
-    .filter((window): window is NonNullable<typeof window> => window != null);
-  if (timed.length === 0) return label;
-
-  const start = timed.reduce((min, w) => (w.start < min ? w.start : min), timed[0]!.start);
-  const end = timed.reduce((max, w) => (w.end > max ? w.end : max), timed[0]!.end);
-  return `${label} · ${toClockLabel(start)} – ${toClockLabel(end)}`;
-}
 
 // 6-dot grip (dc.html:670-672): 3 rows of 2 dots, each 2px, in the day's
 // accent ink. Rendered as a visual identity marker beside the city name
@@ -222,18 +198,17 @@ export function CalendarLens({
     const ordinal = cell.ordinal;
     const day = days[ordinal - 1];
     const accent = accents[ordinal - 1] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
-    // dc.html:685-691: up to three chips sit ABOVE the more/summary line —
-    // 8b.5's brief covered only that line and never mentioned this array,
-    // so the chips never rendered at all. Time first (blank when the stop
-    // isn't timed — the day itself can hold a mix, per stopsSummary above).
-    const chips = cell.activityIds.slice(0, 3).map((activityId) => {
-      const activity = detail.activities[activityId];
-      return {
-        activityId,
-        time: activity?.timeWindow ? toClockLabel(activity.timeWindow.start) : "",
-        name: activity?.title ?? "",
-      };
-    });
+    // SPEC §12: Calendar no longer lists activities. A cell carries one card
+    // per city the day touches, each summarising its own stops. The last group
+    // is where the day ends and gets the full card; earlier ones are one-line
+    // strips, which is what keeps cell heights even across a week instead of
+    // doubling on a travel day.
+    // `day` above is chipModel's ChipDay (city/accent); the stops live on the
+    // trip's own day at the same ordinal.
+    const tripDay = detail.days[ordinal - 1];
+    const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities);
+    const arriving = cityCards[cityCards.length - 1];
+    const departing = cityCards.slice(0, -1);
 
     return (
       // Outer surface cell IS the clickable button (dc.html's own click
@@ -283,72 +258,125 @@ export function CalendarLens({
             Day {ordinal}
           </span>
         </div>
-        <div
-          data-testid="calendar-day-card"
-          className={cn("mt-1.5 min-w-0", TINT_BG[accent.tint])}
-          // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent
-          style={CARD_STYLE}
-        >
-          <div
-            data-testid="calendar-day-header"
-            className="flex items-center"
-            // eslint-disable-next-line no-restricted-syntax -- dc.html:680's 5px header gap has no token equivalent
-            style={CARD_HEADER_GAP}
-          >
-            <DayGrip accent={accent.ink} />
-            <span
-              className={cn("min-w-0 flex-1 truncate font-semibold", INK_TEXT[accent.ink])}
-              // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
-              style={CITY_SIZE}
-            >
-              {day?.city}
-            </span>
-          </div>
-          <div
-            className="mt-1.5 flex flex-col"
-            // eslint-disable-next-line no-restricted-syntax -- dc.html:684's 3px chip-stack gap has no token equivalent
-            style={CHIP_STACK_GAP}
-          >
-            {chips.map((chip) => (
-              <div
-                key={chip.activityId}
-                data-testid="calendar-chip"
-                className="flex min-w-0 items-baseline rounded-sm bg-surface"
-                // eslint-disable-next-line no-restricted-syntax -- dc.html:685's 5px gap / 3px-6px padding has no token equivalent (radius is rounded-sm, a real token)
-                style={CHIP_STYLE}
-              >
-                <DataText
-                  size="xs"
-                  className="shrink-0"
-                  // eslint-disable-next-line no-restricted-syntax -- dc.html:686's 9.5px chip time has no token equivalent
-                  style={CHIP_TIME_SIZE}
-                >
-                  {chip.time}
-                </DataText>
-                <span
-                  className="min-w-0 flex-1 truncate text-ink"
-                  // eslint-disable-next-line no-restricted-syntax -- dc.html:687's 10.5px chip name has no token equivalent
-                  style={CHIP_NAME_SIZE}
-                >
-                  {chip.name}
-                </span>
-              </div>
-            ))}
-          </div>
-          {/* Phase 6, copy table row "calendar empty day"; dc.html:691's
-              summary line BELOW the chips. Only in-trip cells reach here —
-              the !cell.inTrip branch above returns first — so a day outside
-              the trip stays a bare, dimmed date number and never claims a
-              plan is missing from it. */}
+        {cityCards.length === 0 ? (
+          // Copy table row "calendar empty day". Only in-trip cells reach here,
+          // so a date outside the trip never claims a plan is missing from it.
           <DataText
             size="xs"
-            className="block truncate"
+            className="mt-1.5 block truncate"
             // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
             style={MORE_STYLE}
           >
-            {stopsSummary(cell.activityIds, detail.activities)}
+            Nothing planned yet
           </DataText>
-        </div>
+        ) : (
+          <div
+            className="mt-1.5 flex min-w-0 flex-col"
+            // eslint-disable-next-line no-restricted-syntax -- dc.html:684's 3px stack gap has no token equivalent
+            style={CHIP_STACK_GAP}
+          >
+            {/* The departing city (or cities) as a one-line strip: name, then
+                the time it left. SPEC §12 is explicit about the flex here —
+                the city is `flex: 1 0 auto` and the time `flex: 0 1 auto` with
+                `min-width: 0`, so the TIMESTAMP abbreviates before the city
+                name ever does. And no arrow glyph: position carries the
+                relationship. */}
+            {departing.map((card, i) => (
+              <div
+                key={`${card.city ?? "none"}-${i}`}
+                data-testid="calendar-city-strip"
+                className={cn("flex min-w-0 items-baseline gap-1.5", INK_TEXT[accent.ink])}
+                // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
+                style={CITY_SIZE}
+              >
+                <span className="flex-none truncate font-semibold">{card.city}</span>
+                {card.firstStart !== null && (
+                  <DataText
+                    size="xs"
+                    className="min-w-0 flex-shrink truncate"
+                    // eslint-disable-next-line no-restricted-syntax -- dc.html:686's 9.5px time has no token equivalent
+                    style={CHIP_TIME_SIZE}
+                  >
+                    {toClockLabel(card.firstStart)}
+                  </DataText>
+                )}
+              </div>
+            ))}
+
+            {arriving && (
+              <div
+                data-testid="calendar-day-card"
+                className={cn("min-w-0", TINT_BG[accent.tint])}
+                // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent
+                style={CARD_STYLE}
+              >
+                <div
+                  data-testid="calendar-day-header"
+                  className="flex items-center"
+                  // eslint-disable-next-line no-restricted-syntax -- dc.html:680's 5px header gap has no token equivalent
+                  style={CARD_HEADER_GAP}
+                >
+                  <DayGrip accent={accent.ink} />
+                  <span
+                    className={cn("min-w-0 flex-1 truncate font-semibold", INK_TEXT[accent.ink])}
+                    // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
+                    style={CITY_SIZE}
+                  >
+                    {arriving.city}
+                  </span>
+                </div>
+
+                {/* The span bar: where in a fixed 7am–11pm day this city's
+                    plan actually sits. The weekend-shape read no other lens
+                    gives — and the reason the bar is a fixed track rather than
+                    scaled per day, which would make every day look equally
+                    full. */}
+                {arriving.span && (
+                  <div
+                    data-testid="calendar-span-track"
+                    aria-hidden
+                    className="mt-1.5 w-full overflow-hidden rounded-full bg-surface"
+                    // eslint-disable-next-line no-restricted-syntax -- SPEC §12's 4px span bar is below Tailwind's spacing floor
+                    style={SPAN_TRACK_STYLE}
+                  >
+                    <div
+                      data-testid="calendar-span-fill"
+                      className={cn("h-full rounded-full", INK_BG[accent.solid])}
+                      // eslint-disable-next-line no-restricted-syntax -- the fill's offset and width are computed per-day from the span, not design constants
+                      style={{
+                        marginLeft: `${(arriving.span.from * 100).toFixed(2)}%`,
+                        // A zero-width fill would render nothing at all, so a
+                        // stop with no duration still shows as a tick.
+                        width: `${Math.max(2, (arriving.span.to - arriving.span.from) * 100).toFixed(2)}%`,
+                      }}
+                    />
+                  </div>
+                )}
+
+                <DataText
+            size="xs"
+            className="mt-1.5 block truncate"
+            // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
+            style={MORE_STYLE}
+          >
+                  {arriving.stops} stop{arriving.stops === 1 ? "" : "s"}
+                  {arriving.costMinor !== null && ` · ${formatMoney(arriving.costMinor, detail.currency)}`}
+                </DataText>
+
+                {arriving.window && (
+                  <DataText
+                    size="xs"
+                    className="block truncate"
+                    // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
+                    style={MORE_STYLE}
+                  >
+                    {toClockRange(arriving.window.start, arriving.window.end)}
+                  </DataText>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Button>
     );
   }
