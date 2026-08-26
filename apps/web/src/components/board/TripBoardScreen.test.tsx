@@ -107,6 +107,26 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
 
+  // I3 (final review): this used to render a bare `<Heading>Caesura</Heading>`
+  // plus a link to Auth.js's default `/api/auth/signin` — exactly the
+  // bare-front-door pattern M15 exists to eliminate, and it dropped
+  // `callbackUrl` (Auth.js's default page honoured it; our own /signin screen
+  // does too — see AuthScreen.test.tsx — but this one hardcoded it away).
+  // Signed-out now routes through our own /signin, carrying the trip as the
+  // callback target so signing in returns here instead of the trip list.
+  it("prompts a signed-out visitor to sign in at our own /signin, carrying the trip as the callback target", async () => {
+    const fixture = tripDetailFixture();
+    server.use(
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
+      http.get("/api/trips/:tripId/history", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
+    );
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Sign in to see this trip" })).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Sign in" });
+    expect(link.getAttribute("href")).toBe(`/signin?callbackUrl=${encodeURIComponent(`/trips/${fixture.tripId}`)}`);
+  });
+
   it("history panel previews a past version read-only, and reverts to it", async () => {
     const ancientId = "55555555-5555-4555-8555-555555555555";
     const fixture = tripDetailFixture();

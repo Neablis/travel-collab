@@ -10,6 +10,7 @@ import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { ScheduleLens } from "@/components/lenses/ScheduleLens";
 import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { PageContainer } from "@/components/ui/page-container";
@@ -122,15 +123,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       </PageContainer>
     );
   if (status === "unauthenticated") {
+    // I3 (final review): this used to be `<Heading level={1}>Caesura</Heading>`
+    // plus a bare link to Auth.js's default `/api/auth/signin` — exactly the
+    // bare-front-door pattern M15's "Why this exists" names as the problem
+    // this milestone eliminates, left untouched here even though the rest of
+    // the app moved to the designed `/signin` screen (AuthScreen.tsx). It
+    // also dropped `callbackUrl` on the floor: `server/auth.ts` now routes
+    // sign-in through our own screen, which reads `callbackUrl` and restores
+    // it after a successful sign-in (see AuthScreen.tsx / safeCallbackUrl.ts)
+    // — so linking here at our own `/signin` with the trip as the callback
+    // target returns a signed-out deep-linker to the trip they asked for,
+    // the same as Auth.js's own default page used to.
     return (
       <PageContainer width="full">
-        <Heading level={1}>Caesura</Heading>
-        <Link
-          href={`/api/auth/signin?callbackUrl=/trips/${tripId}`}
-          className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
-        >
-          Sign in
-        </Link>
+        <div className="flex flex-col items-start gap-3 py-10">
+          <Heading level={1}>Sign in to see this trip</Heading>
+          <Text as="p" variant="secondary">
+            This trip is waiting — sign in to pick up where the group left off.
+          </Text>
+          <Link
+            href={`/signin?callbackUrl=${encodeURIComponent(`/trips/${tripId}`)}`}
+            className={cn(buttonVariants({ variant: "primary" }), "mt-1")}
+          >
+            Sign in
+          </Link>
+        </div>
       </PageContainer>
     );
   }
