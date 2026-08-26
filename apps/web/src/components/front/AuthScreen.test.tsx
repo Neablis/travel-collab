@@ -37,6 +37,48 @@ describe("AuthScreen", () => {
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
   });
 
+  // I3 (final review): before this branch, Auth.js's own default sign-in
+  // page honoured `?callbackUrl=`, so a signed-out deep link to a trip
+  // landed back on that trip after signing in. `server/auth.ts` now points
+  // at this screen, which used to hardcode `callbackUrl: "/"` regardless of
+  // the query param — a real regression this branch introduced. This test
+  // is the return-to-destination behavior's coverage.
+  it("carries a same-origin callbackUrl through to the Google sign-in", async () => {
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/abc-123" });
+  });
+
+  it("carries a same-origin callbackUrl through to the dev-login sign-in", async () => {
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123");
+    render(<AuthScreen mode="signin" devLoginEnabled />);
+    await userEvent.type(screen.getByLabelText("Username"), "sam");
+    await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
+    expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/trips/abc-123" });
+  });
+
+  // Security constraint: `callbackUrl` is untrusted input taken straight off
+  // the URL and handed to next-auth's signIn(), which redirects the browser
+  // there. A protocol-relative URL ("//evil.example") "starts with /" but
+  // the browser resolves it against the current protocol, so it is an
+  // open-redirect vector unless explicitly rejected — this is that
+  // rejection's regression guard, exercised through the real component, not
+  // just the safeCallbackUrl unit tests.
+  it("rejects a protocol-relative callbackUrl and falls back to / (open-redirect guard)", async () => {
+    searchParams = new URLSearchParams("callbackUrl=//evil.example");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+  });
+
+  it("rejects an absolute cross-origin callbackUrl and falls back to /", async () => {
+    searchParams = new URLSearchParams("callbackUrl=https://evil.example/phish");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+  });
+
   it("explains a declined Google grant instead of showing a code", () => {
     searchParams = new URLSearchParams("error=AccessDenied");
     render(<AuthScreen mode="signin" devLoginEnabled={false} />);

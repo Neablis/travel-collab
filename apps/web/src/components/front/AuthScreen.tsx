@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { AUTH_COPY, errorMessage, type AuthMode } from "@/components/front/authCopy";
+import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 
 // `useSearchParams()` is the only piece of this screen that needs a
 // Suspense boundary during static prerender — isolating it in its own leaf
@@ -23,8 +24,24 @@ import { AUTH_COPY, errorMessage, type AuthMode } from "@/components/front/authC
 // all disappear until client JS hydrates. Scoping the boundary here keeps
 // that static shell intact; only the error banner (which has nothing to
 // show before hydration anyway) waits.
-function AuthErrorBanner() {
-  const failure = errorMessage(useSearchParams().get("error"));
+//
+// I3 (final review): `?callbackUrl=` is read here too, for the same reason —
+// it's a second piece of `useSearchParams()`-derived state, so it rides the
+// same boundary rather than adding a second one. It can't drive the
+// Google/dev-login buttons' `onClick` directly (those live outside this
+// Suspense boundary, in the static shell), so it's lifted to the parent via
+// `onCallbackUrl` and applied through an effect — the buttons read the
+// resulting `callbackUrl` state instead of calling `useSearchParams()`
+// themselves.
+function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => void }) {
+  const params = useSearchParams();
+  const failure = errorMessage(params.get("error"));
+
+  useEffect(() => {
+    onCallbackUrl(safeCallbackUrl(params.get("callbackUrl")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onCallbackUrl` is `setCallbackUrl` from useState, which React guarantees is stable across renders; including it would just be a no-op dependency.
+  }, [params]);
+
   if (!failure) return null;
   return <Banner variant="danger">{failure}</Banner>;
 }
@@ -35,6 +52,11 @@ function AuthErrorBanner() {
 export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLoginEnabled: boolean }) {
   const copy = AUTH_COPY[mode];
   const [username, setUsername] = useState("");
+  // Defaults to "/" until AuthSearchParams' effect resolves the real
+  // `?callbackUrl=` (or confirms there isn't one) — same default `signIn`
+  // calls hardcoded before this fix, so a click that somehow beats the
+  // effect still lands somewhere safe rather than on `undefined`.
+  const [callbackUrl, setCallbackUrl] = useState("/");
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
@@ -47,7 +69,7 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
           </div>
 
           <Suspense fallback={null}>
-            <AuthErrorBanner />
+            <AuthSearchParams onCallbackUrl={setCallbackUrl} />
           </Suspense>
 
           <Card raised className="flex flex-col gap-3.5">
@@ -55,7 +77,7 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
               type="button"
               variant="secondary"
               className="h-11.5 w-full text-md font-semibold"
-              onClick={() => void signIn("google", { callbackUrl: "/" })}
+              onClick={() => void signIn("google", { callbackUrl })}
             >
               Continue with Google
             </Button>
@@ -67,7 +89,7 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
                 className="flex flex-col gap-2 border-t border-hairline pt-3.5"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void signIn("dev-login", { username, callbackUrl: "/" });
+                  void signIn("dev-login", { username, callbackUrl });
                 }}
               >
                 <FormField id="dev-login-username" label="Username" hint="Preview and local only">
