@@ -149,3 +149,41 @@ copied *out of* the design file may be an inline style for that reason.
 
 Removed this pass: the Trips page's **"Worth your attention"** panel (nudge rows). There
 was no code counterpart; it is now gone from the design too.
+
+## Calendar / account settings pass — 2026-08-26
+
+Build-side consequences of SPEC §12.
+
+| # | Change in design | Build check |
+|---|---|---|
+| C1 | Calendar cells render **city cards**, not activities | `lenses/CalendarLens.tsx` — cell content is now a per-city rollup (name, 7am–11pm span bar, stop count + cost, window, unbooked flag). Needs a day→cities split helper keyed on the LAST `transit` stop |
+| C2 | Stop-level drag removed from Calendar | drop handling for calendar cells keeps day reorder only; the stop-drag source is gone |
+| C3 | Calendar day selection is persistent, not a pulse | remove the flash-on-jump animation; selected cell holds `inset 0 0 0 2px <accent>`. Calendar keeps day focus across view switches (Map still clears it) |
+| C4 | Clicking a calendar day no longer navigates to Timeline | it selects in place |
+| C5 | **Account settings** Sheet is real | new surface off the avatar menu: name, email (read-only), home airport, Display section. `Your account` currently has no destination in code |
+| C6 | Distance units are account scope | one formatter owns every distance; do not add a per-trip unit field |
+| C7 | Home time on hover, default off | needs `trip.tz` and a tz for the account's home airport. Do **not** implement as a global display mode — see §12 |
+| C8 | Map hides the header day chips | `lenses/MapLens.tsx` — supersedes the R4 tension logged 2026-08-25 |
+| C9 | Budget: "left" is the emphasised value | `trip/TripHeader.tsx` — Badge (`success`/`warning`) for what's left, slate mono for spend-of-total |
+
+### Design-system bug — belongs upstream, not in consumers
+
+`Sheet`'s body is `<div className="flex-1 overflow-y-auto">`. `overflow-y: auto` forces
+`overflow-x: auto`, making it a scroll box that clips paint outside its padding edge.
+`Input`'s `outline-2 outline-offset-1` draws 3px outside its border box, so **every
+full-width input in every Sheet loses its left and right focus ring.** The design works
+around it per-Sheet; the real fix is horizontal padding on `Sheet`'s scroll div in the
+design-system package. Same class of bug in any Dialog scroller with one-sided padding.
+
+### Resolved since 2026-08-25
+
+- **D5 / R6 (trip rename).** Confirmed: no pencil, no inline rename anywhere in the design.
+  The dead `startRename`/`commitRename` handlers that made this ambiguous have been
+  deleted from the design file. Renaming happens only in Trip settings.
+- **Calendar's future** (§11 "Still open"). Resolved by C1 — Calendar earns its place as
+  the city/shape view. No retirement path needed.
+- Dead values removed from the design file with no template reference: `dragHint`,
+  `mapIntro`, `sugHeading`, `suggestions`, `sugCount`, `blHint`, `fabBottom`.
+  The per-tab drag hints and the "What I noticed" feed are gone from the UI.
+- The Unscheduled drawer no longer force-opens mid-drag, which was shifting the whole
+  bottom of the page (and the assistant with it). It stays where the user left it.
