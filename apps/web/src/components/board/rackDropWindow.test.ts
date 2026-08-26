@@ -8,6 +8,7 @@ const PARKED = "22222222-2222-4222-8222-222222222222";
 const MORNING = "33333333-3333-4333-8333-333333333333";
 const AFTERNOON = "44444444-4444-4444-8444-444444444444";
 const UNTIMED = "55555555-5555-4555-8555-555555555555";
+const PARKED_WITH_TIME = "66666666-6666-4666-8666-666666666666";
 
 function activity(activityId: string, timeWindow: { start: string; end: string } | null): ActivityView {
   return { activityId, title: activityId, timeWindow, location: null, notes: null, anchors: [], cost: null };
@@ -23,6 +24,7 @@ function trip(dayActivityIds: string[], backlogIds: string[]): TripDetail {
       [MORNING]: activity(MORNING, { start: "09:00", end: "10:00" }),
       [AFTERNOON]: activity(AFTERNOON, { start: "15:00", end: "16:00" }),
       [UNTIMED]: activity(UNTIMED, null),
+      [PARKED_WITH_TIME]: activity(PARKED_WITH_TIME, { start: "10:00", end: "12:00" }),
     },
   });
 }
@@ -77,6 +79,23 @@ describe("rackDropWindow", () => {
     // changing more than the order the user dragged.
     expect(rackDropWindow(before, UNTIMED, DAY, 0)).toBeNull();
     expect(rackDropWindow(before, UNTIMED, DAY, 1)).toBeNull();
+  });
+
+  // The regression CI caught and the unit tests here did not, because every
+  // rack fixture was untimed. A stop can be CREATED unscheduled with a real
+  // time and parked — only unscheduling strips a window — so rack membership
+  // alone is not permission to overwrite one. m1-board's whole overlap
+  // scenario is this: two rack stops at 09:00–11:00 and 10:00–12:00 dragged
+  // onto one day to collide. Fitting them politely into free gaps pulled them
+  // apart and the conflict never formed.
+  it("keeps the time a parked stop already had, rather than fitting it into a gap", () => {
+    const parkedWithATime = trip([MORNING], [PARKED_WITH_TIME]);
+
+    expect(rackDropWindow(parkedWithATime, PARKED_WITH_TIME, DAY, 1)).toBeNull();
+    // Including when honouring it means overlapping what is already there —
+    // an overlap the user built on purpose is data, not something to design
+    // away behind their back (AGENTS.md invariant 3).
+    expect(rackDropWindow(parkedWithATime, PARKED_WITH_TIME, DAY, 0)).toBeNull();
   });
 
   it("leaves a timed stop's window alone when it is only reordered", () => {

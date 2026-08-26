@@ -15,16 +15,24 @@ export type Slot = { start: string; end: string };
  *
  * Two things decide it:
  *
- * **Where the stop came from.** Only a stop coming off the rack gets a time.
- * The first version of this asked "does it have a time yet?" instead, reasoning
- * that an untimed stop must have come off the rack because unscheduling strips
- * the window. That is false in one direction — a stop can sit on a day with no
- * time at all (`timelineData.ts` sorts exactly those into `row.untimed`) — and
- * `Board` routes a same-day reorder through the same callback, so dragging an
- * untimed stop one place up its own day would have silently given it a start
- * time it never asked for. A stop already on a day is never in `backlog`, so
- * reading `backlog` answers the question the other test was only approximating.
- * (Caught by CodeRabbit on PR #55.)
+ * **Where the stop came from, AND whether it already has a time.** Both, and
+ * this took two goes to get right:
+ *
+ * - Gating on `timeWindow === null` alone was wrong because a stop can sit on a
+ *   day with no time at all (`timelineData.ts` sorts exactly those into
+ *   `row.untimed`), and `Board` routes a same-day reorder through this same
+ *   callback — so reordering one would have silently given it a start time it
+ *   never asked for. (CodeRabbit, PR #55.)
+ * - Gating on rack membership alone was wrong too, and worse: a stop can be
+ *   *created* unscheduled with a real time and parked, and dragging it onto a
+ *   day would then overwrite the time the user typed with a fitted one. m1's
+ *   whole overlap scenario is exactly that — two rack stops at 09:00–11:00 and
+ *   10:00–12:00 dragged onto one day to collide — and the fitted times pulled
+ *   them apart so the conflict never formed. Caught by CI, not by me.
+ *
+ * So: a time is assigned only when the stop comes off the rack AND has none of
+ * its own. Only `unscheduleActivity` strips a window, so "in the backlog with
+ * no time" is precisely "parked, and never told us when".
  *
  * **Where in the day it landed.** The stop above the drop point hands over its
  * end time as the preferred start; `fitIntoDay` searches forward from there for
@@ -43,6 +51,7 @@ export function rackDropWindow(
 ): Slot | null {
   if (toDayId === null) return null;
   if (!trip.backlog.includes(activityId)) return null;
+  if (trip.activities[activityId]?.timeWindow != null) return null;
 
   const day = trip.days.find((d) => d.dayId === toDayId);
   if (day === undefined) return null;
