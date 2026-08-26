@@ -53,24 +53,39 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 // `googleAvailable` mirrors `server/auth.ts`'s own check for
 // `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (via `isGoogleSignInAvailable()` in
 // src/lib/googleAuth.ts, read server-side and passed down as a prop — see
-// signin/page.tsx and signup/page.tsx). It defaults to `true` so tests and
-// call sites that predate this prop keep rendering the working path
-// unchanged. When it's `false`, next-auth/react's `signIn("google", ...)`
-// would silently bounce the browser through `/api/auth/providers` ->
-// `/api/auth/signin` -> back to this page with no `?error=` at all (that
-// round trip is client-side, before Auth.js's error redirect ever fires) —
-// so the button must never be clickable, and the explanation has to come
-// from this prop, not from `errorMessage()`.
+// signin/page.tsx and signup/page.tsx). It's required, not defaulted: this
+// prop exists specifically so a misconfigured deployment fails loudly
+// (disabled button, visible banner) instead of silently — a default of
+// `true` would make a caller that forgets the prop silently render the
+// working-path UI over a broken provider, which is exactly the bug this
+// prop exists to catch. When it's `false`, next-auth/react's
+// `signIn("google", ...)` would silently bounce the browser through
+// `/api/auth/providers` -> `/api/auth/signin` -> back to this page with no
+// `?error=` at all (that round trip is client-side, before Auth.js's error
+// redirect ever fires) — so the button must never be clickable, and the
+// explanation has to come from this prop, not from `errorMessage()`.
 export function AuthScreen({
   mode,
   devLoginEnabled,
-  googleAvailable = true,
+  googleAvailable,
 }: {
   mode: AuthMode;
   devLoginEnabled: boolean;
-  googleAvailable?: boolean;
+  googleAvailable: boolean;
 }) {
   const copy = AUTH_COPY[mode];
+  // Both of the design's Google-presuming strings, suppressed only in the
+  // states the design never drew: `scopeLine` (both modes) describes what
+  // signing in with Google asks for, and `signin`'s `footnote` promises an
+  // invite-matched account is "waiting" at the address the invite went to —
+  // a guarantee this app can only keep via Google's email-verified OAuth,
+  // not the dev-login form (which takes an arbitrary username, not a
+  // verified address). `signup`'s footnote is generic terms/privacy
+  // language that holds regardless of which provider is active, so it's
+  // unaffected. This isn't new copy — see authCopy.ts's "do not reword"
+  // note — just withholding a design-sourced line in a state the design
+  // never drew, where the line would otherwise assert something false.
+  const showFootnote = googleAvailable || mode !== "signin";
   const [username, setUsername] = useState("");
   // Defaults to "/" until AuthSearchParams' effect resolves the real
   // `?callbackUrl=` (or confirms there isn't one) — same default `signIn`
@@ -118,7 +133,9 @@ export function AuthScreen({
               Continue with Google
             </Button>
 
-            <Text variant="secondary" className="text-xs text-pretty">{copy.scopeLine}</Text>
+            {googleAvailable && (
+              <Text variant="secondary" className="text-xs text-pretty">{copy.scopeLine}</Text>
+            )}
 
             {devLoginEnabled && (
               <form
@@ -150,7 +167,9 @@ export function AuthScreen({
             </div>
           </Card>
 
-          <Text as="p" variant="secondary" className="text-xs text-pretty">{copy.footnote}</Text>
+          {showFootnote && (
+            <Text as="p" variant="secondary" className="text-xs text-pretty">{copy.footnote}</Text>
+          )}
         </div>
       </main>
     </div>

@@ -18,21 +18,21 @@ afterEach(() => {
 
 describe("AuthScreen", () => {
   it("greets a returning user in signin mode", () => {
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.getByRole("heading", { name: "Welcome back" })).toBeDefined();
     expect(screen.getByText(/Google is the only way in/)).toBeDefined();
     expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe("/signup");
   });
 
   it("pitches the product in signup mode", () => {
-    render(<AuthScreen mode="signup" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
     expect(screen.getByRole("heading", { name: "Start planning with Caesura" })).toBeDefined();
     expect(screen.getByText(/name, email and profile picture/)).toBeDefined();
     expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
   });
 
   it("dispatches a real Google sign-in", async () => {
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
   });
@@ -45,14 +45,14 @@ describe("AuthScreen", () => {
   // is the return-to-destination behavior's coverage.
   it("carries a same-origin callbackUrl through to the Google sign-in", async () => {
     searchParams = new URLSearchParams("callbackUrl=/trips/abc-123");
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/abc-123" });
   });
 
   it("carries a same-origin callbackUrl through to the dev-login sign-in", async () => {
     searchParams = new URLSearchParams("callbackUrl=/trips/abc-123");
-    render(<AuthScreen mode="signin" devLoginEnabled />);
+    render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
     expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/trips/abc-123" });
@@ -67,28 +67,28 @@ describe("AuthScreen", () => {
   // just the safeCallbackUrl unit tests.
   it("rejects a protocol-relative callbackUrl and falls back to / (open-redirect guard)", async () => {
     searchParams = new URLSearchParams("callbackUrl=//evil.example");
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
   });
 
   it("rejects an absolute cross-origin callbackUrl and falls back to /", async () => {
     searchParams = new URLSearchParams("callbackUrl=https://evil.example/phish");
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
   });
 
   it("explains a declined Google grant instead of showing a code", () => {
     searchParams = new URLSearchParams("error=AccessDenied");
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.getByText(/didn't hand us an account/)).toBeDefined();
     expect(screen.queryByText("AccessDenied")).toBeNull();
   });
 
   it("falls back to plain language for an unrecognised error code", () => {
     searchParams = new URLSearchParams("error=SomethingNewFromAuthJs");
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.getByText(/Something went wrong signing you in/)).toBeDefined();
     expect(screen.queryByText("SomethingNewFromAuthJs")).toBeNull();
   });
@@ -106,19 +106,19 @@ describe("AuthScreen", () => {
     "falls back to plain language for the adversarial error code %j, never rendering the raw code",
     (code) => {
       searchParams = new URLSearchParams({ error: code });
-      render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+      render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
       expect(screen.getByText(/Something went wrong signing you in/)).toBeDefined();
       expect(screen.queryByText(code)).toBeNull();
     },
   );
 
   it("hides the dev-login form unless it is enabled", () => {
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.queryByRole("button", { name: /sign in with dev login/i })).toBeNull();
   });
 
   it("keeps the dev-login selectors e2e/helpers.ts depends on", () => {
-    const { container } = render(<AuthScreen mode="signin" devLoginEnabled />);
+    const { container } = render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     expect(container.querySelector('input[name="username"]')).not.toBeNull();
     expect(screen.getByRole("button", { name: /sign in with dev login/i })).toBeDefined();
   });
@@ -138,6 +138,36 @@ describe("AuthScreen", () => {
     expect(signInMock).not.toHaveBeenCalled();
   });
 
+  // Correction to the banner added above: `copy.scopeLine` ("Google is the
+  // only way in...") sits directly under that banner and would otherwise
+  // assert something false in this state — there IS no password to lose
+  // because there's no working sign-in at all, not because Google is safe.
+  it("hides the scope line when Google is unavailable, since it promises a Google-only sign-in", () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable={false} />);
+    expect(screen.queryByText(/Google is the only way in/)).toBeNull();
+  });
+
+  it("shows the scope line when Google is available", () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+    expect(screen.getByText(/Google is the only way in/)).toBeDefined();
+  });
+
+  // signin's footnote promises an invite-matched account is "waiting" at the
+  // address the invite went to — a guarantee only Google's email-verified
+  // OAuth can keep, not the dev-login form's arbitrary username. It goes
+  // false in the same state the scope line does.
+  it("hides the invite-address footnote in signin mode when Google is unavailable", () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable={false} />);
+    expect(screen.queryByText(/Invited to someone's trip/)).toBeNull();
+  });
+
+  // signup's footnote is generic terms/privacy copy that doesn't presume
+  // Google works, so it stays even when Google is unavailable.
+  it("keeps the generic terms footnote in signup mode even when Google is unavailable", () => {
+    render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable={false} />);
+    expect(screen.getByText(/By continuing you agree to the terms/)).toBeDefined();
+  });
+
   it("still runs the dev-login form when Google is unavailable but dev login is enabled", async () => {
     const { container } = render(<AuthScreen mode="signin" devLoginEnabled googleAvailable={false} />);
     expect(screen.getByText(/Sign-in isn't set up on this deployment/)).toBeDefined();
@@ -155,8 +185,8 @@ describe("AuthScreen", () => {
     expect(screen.getByRole("button", { name: "Continue with Google" }).hasAttribute("disabled")).toBe(true);
   });
 
-  it("leaves Google sign-in unchanged when it is available (default behaviour)", async () => {
-    render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+  it("leaves Google sign-in unchanged when it is available", async () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.queryByText(/Sign-in isn't set up on this deployment/)).toBeNull();
     const button = screen.getByRole("button", { name: "Continue with Google" });
     expect(button.hasAttribute("disabled")).toBe(false);
