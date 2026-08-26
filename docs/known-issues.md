@@ -369,34 +369,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   implementing the phase plan's sync-failure banner; the plan itself directs
   stopping and reporting rather than fabricating a trigger).
 
-### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough
-- **Severity:** correctness (silent wrong output — same family as KI-36/KI-37)
-- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
-- **Symptom:** `uuidFrom(sequence, salt)` builds each UUID group with
-  `hex(n, len).padStart(len, "0")`, which only *pads short* — it does not
-  truncate a hex string already longer than `len`. The `b` group
-  (`hex(sequence + salt * 97, 4)`) overflows its 4-hex-digit budget once
-  `sequence + salt * 97 >= 0x10000` (65536), and the trailing segment
-  (`e`) has the same shape. The result is a string with the right
-  dash-separated *positions* but wrong-length *groups* — not a valid v4 UUID
-  and not something `z.string().uuid()` accepts — returned with no error.
-  `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` (24, not the
-  usual 12, hex digits in the 2nd group).
-- **Bounds:** `uuidFrom` is documented as taking "a Fishery sequence number",
-  which Fishery starts at 1 and increments per built object — no current
-  factory usage runs a sequence anywhere near 65536. This is a latent trap
-  for a future caller (a large `salt`, or a very long factory run), not a
-  live bug in any current test.
-- **Why not fixed here:** `packages/factories` is outside this task's file
-  scope. Also, per its own doc comment `uuidFrom` exists specifically to keep
-  factory-built ids *deterministic and diffable*, not to be a general-purpose
-  UUID generator — misuse outside its documented input range is the caller's
-  fault. The trap is that it fails silently rather than throwing.
-- **Fix path:** validate `sequence`/`salt` stay in range up front (e.g.
-  `sequence < 0x10000`) and throw, rather than let `padStart` silently no-op
-  on an overflowed group.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix
-  wave — found auditing the module while filing KI-37).
 
 ### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
 - **Severity:** correctness (a confidently wrong pin, same family as KI-15)
@@ -439,6 +411,18 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough — RESOLVED
+- **Severity (as filed):** correctness (silent wrong output — same family as KI-36/KI-37)
+- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
+- **Symptom (as filed):** `uuidFrom(sequence, salt)` built each UUID group with `hex(n, len).padStart(len, "0")`, which only *pads short* — it never truncates a hex string already longer than `len`. The `b` group (`hex(sequence + salt * 97, 4)`) outgrew its 4-hex-digit budget once `sequence + salt * 97 >= 0x10000`, and the trailing `e` segment had the same shape. The result was a string with the right dash *positions* but wrong-length *groups* — not a valid v4 UUID, not something `z.string().uuid()` accepts — returned with no error.
+- **The entry's original "Bounds" paragraph was wrong, and that is the substance of this close.** It claimed this was "a latent trap for a future caller… not a live bug in any current test", reasoning that Fishery sequences start at 1 and no factory run approaches 65536. That reasoning only considered `sequence`; the overflowing expression is `sequence + salt * 97`, and `trip.ts:100` salts activity ids with `1000 + dayIndex * activitiesPerDay + i` and `trip.ts:105` salts the backlog with `5000 + i`. `1000 * 97 = 97,000` is already past `0x10000` at sequence 1, so the group overflowed on the *very first* activity of the *very first* trip any test built. **Every activity id and every backlog id `tripDetailFactory` produced was a non-UUID**, and had been since the salt scheme was introduced. The trap fires at `salt >= 676`, not at `sequence >= 65536`.
+- **Reproduced before fixing.** A throwaway vitest probe (`src/ki38-repro.test.ts`, deleted after) printed the ids and validated each against `z.string().uuid()`. Direct probes: `uuidFrom(1, 1000)` → `9e377d99-17ae9-4001-a3e8-210f7f0f03e9` `groups=[8,5,4,4,12] uuid-valid=false`; `uuidFrom(1, 5000)` → `9e378d39-76689-…` likewise; `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` `groups=[8,5,5,4,13]`. Through the factory, a `dayCount: 2, activitiesPerDay: 3, unscheduledCount: 2` trip reported **`8/11 ids fail z.string().uuid()`** — every activity and backlog id, with only `tripId` and the two `dayId`s well-formed (`dayId` salts are `100 + dayIndex`, still inside the budget).
+- **Why the whole suite was nevertheless green:** nothing validates a factory-built read model at runtime. `packages/contracts`'s `TripDetail` schema does declare `tripId`/`dayId`/`activityIds`/`backlog` as `z.string().uuid()`, but that schema is never `.parse()`d anywhere in the repo — it is consumed as a TypeScript type, and `z.infer` of `z.string().uuid()` is just `string`. Nor do these ids ever reach Postgres: `db-seed.ts` and `e2e/helpers.ts` go through `commandsFor`, which mints ids with `node:crypto`'s `randomUUID`, not `uuidFrom`. The bug was live, wrong, and unobservable — a fixture invariant with no enforcement, the "comment asserting an invariant nothing enforces" species again.
+- **Fix (2026-08-25) — masking, deliberately *not* the "throw on out-of-range" the entry proposed.** Once the Bounds claim collapsed, throwing stopped being available: `uuidFrom(1, 1000)` is what `tripDetailFactory` does on every build, so a range guard would have thrown in ~34 consumer test files on the first line, and repairing that would have meant re-designing `trip.ts`'s salt scheme (a different file, a different blast radius). Instead each group is now clamped on *both* ends — `((n >>> 0) % 16 ** len).toString(16).padStart(len, "0")`. `% 16 ** len` is the **identity** for any value already inside its budget, so every id that was well-formed before is byte-identical after and only the already-broken ones change. The `>>> 0` already bounded the two 8-digit groups, so those were never at risk. The part of the entry's fix path that *was* still available is kept: `uuidFrom` now throws `RangeError` on a negative, non-integer or non-finite `sequence`/`salt`, since `n >>> 0` maps `NaN`, `-0` and `2**32` all onto `0` — the same silent-wrong-output class, in the one corner masking does not cover. No live caller passes such a value.
+- **Blast radius on id *values*, not just id *shapes*:** `tripId` and `dayId` are unchanged (verified byte-for-byte). Activity ids and backlog ids **do change value** — necessarily, since they were malformed. Nothing can be depending on the old strings: the repo contains **no hardcoded UUID literal at all** (`grep -rE "[0-9a-f]{8}-[0-9a-f]{5,}-"` across `apps/` and `packages/` returns nothing) and **no snapshot files** (`*.snap`, `toMatchSnapshot`, `toMatchInlineSnapshot` — zero hits repo-wide), so every consumer reads ids off the object it just built. Relative *ordering* is also preserved: the leading 8-digit group dominates lexicographic comparison and is untouched, which matters because `conflicts.ts` sorts by content-derived conflict ids that embed activity ids.
+- **Proof:** the same reproduction re-run is `0/11 ids fail z.string().uuid()`, with every group back to `[8,4,4,4,12]`. Regression test in a **new** `packages/factories/src/ids.test.ts` (8 tests): the three named KI-38 witnesses; a shape/version/variant sweep over 10 sequences × 12 salts spanning every budget boundary (676, 65535, 65536, 2^32); a differential against a verbatim inline copy of the pre-fix implementation over `sequence 0..200 × salt 0..300`, asserting byte-identical output everywhere the *old* code was already well-formed (>1000 pairs compared) — that is the "masking is the identity in range" claim, checked rather than asserted; determinism and collision-freeness over the salt bands `trip.ts` actually uses; the `RangeError` guards; and a `tripDetailFactory` end-to-end check that a 3-day × 12-activity + 6-backlog trip yields only valid UUIDs and no duplicates. **The test was confirmed non-vacuous**: reverted against the pre-fix `ids.ts` it reports **6 of 8 failing**; it is green on the fix. Check subset (per `minimal-check-subset`; only `packages/factories/src` changed): `pnpm --filter @tc/factories typecheck` clean, `pnpm --filter @tc/factories test` **13/13 across 2 files**, plus `scripts/check-lint-wall.mjs` and `scripts/check-case-collisions.mjs` (the only repo-wide parts of `pnpm lint`; `pnpm lint`'s eslint step is `--filter web` and does not cover this package).
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, found auditing the module while filing KI-37). **Resolved:** 2026-08-25 (KI backlog pass).
 
 ### KI-37 — `commandsFor`'s second-activity time window is malformed for any scenario with 2+ activities on a day — RESOLVED
 - **Severity (as filed):** correctness (silent wrong output — same family as KI-36)
@@ -496,6 +480,7 @@ needs action — skip this section when triaging.
   literal assertion that a day's first two windows are `09:00`–`10:00` and
   `10:00`–`11:00`.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix wave). **Resolved:** 2026-08-25 (KI backlog pass).
+
 ### KI-6 — `listPages` lazy-instantiation race on concurrent first visits — RESOLVED
 - **Severity (as filed):** correctness (non-atomicity), low likelihood
 - **Area:** `apps/web/src/server/pages.ts` (`listPages`'s zero-rows guard that seeds a trip's default pages on first Notebook visit)
