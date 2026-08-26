@@ -111,7 +111,8 @@ export function commandsFor(scenario: ScenarioName, tripId: string, options: Com
   // below reduces to the old `9 + i` hours whenever the stagger is 60, KI-37's
   // fix was verified against exactly those, and e2e/m10-unscheduled-rack.spec.ts
   // asserts on mappedTrip's literal "09:00"/"10:00" (which is emitted by the
-  // mappedTrip branch above, not here). src/commands.test.ts pins both halves.
+  // mappedTrip branch above, not here). src/conflicts.test.ts pins both halves
+  // through the real conflict engine: one overlap here, none anywhere else.
   const WINDOW_MINUTES = 60;
   const FIRST_START_MINUTES = 9 * 60;
   const LAST_START_MINUTES = 22 * 60;
