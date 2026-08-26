@@ -349,6 +349,27 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** KI-37 (the symptom, resolved), KI-40 (the projection-side twin's shared-window problem — same package, different half).
 - **First noted:** 2026-08-25 (KI sweep — Mitchell, reviewing why a factory was synthesizing time windows from a loop index at all).
 
+### KI-42 — `confirmHead` silently drops queued units on a *successful* send when they no longer predict cleanly
+- **Severity:** correctness (silent loss of confirmed-to-the-user work — the **same class as KI-5 and KI-36**, on the one trigger neither of them covers)
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts:65-77` (`confirmHead`)
+- **Symptom:** when the head send *succeeds*, `confirmHead` adopts the authoritative confirmed state and then re-predicts each remaining queued unit against the new base. Any unit that no longer predicts cleanly is dropped — and, via the `break`, so is **every unit queued behind it**:
+  ```ts
+  for (const unit of rest) {
+    const r = enqueue(acc, unit.id, unit.commands);
+    if (r.ok) acc = r.state;
+    // If a queued unit no longer predicts cleanly against the new base, drop it
+    // (and, by breaking, everything after it) ...
+    else break;
+  }
+  ```
+  The user has already been shown those edits as applied (client-side prediction). They vanish with **no alert at all** — unlike a failed send, which at least calls `setError` and renders a `role="alert"`. Nothing counts what was dropped, names it, or offers a retry.
+- **Why this is the sharpest of the three:** KI-5 needs the user to navigate away mid-send; KI-36 needs the send to fail. This one fires on the **happy path** — a perfectly successful save silently discards later queued edits. The code comment claims the loss "will be reported via `failHead` semantics at send time", but that is not what happens: the units are removed from `pending` here, so they are never sent, and `failHead` never sees them. **That comment is a stated invariant nothing enforces** — the exact species AGENTS.md's testing model calls out ("if a comment asserts an invariant, a test enforces it or the comment is a lie with a timer on it"), and the same species as KI-1, KI-14 and KI-38.
+- **How it is reached:** any queued unit whose prediction depends on state the server's authoritative outcome changed underneath it — e.g. a queued `UpdateActivity` against an activity a just-confirmed batch removed or moved, or a positional command whose index no longer resolves. Rare in single-player, but the whole point of Invariant 6 is that Phase 2 makes concurrent writes normal, at which case re-prediction failures stop being rare.
+- **Why not fixed with KI-36:** found while scoping KI-36's Option 1 (2026-08-25) and deliberately kept out of that change to keep it reviewable — KI-36 is the failed-send path, this is the successful-send path, and they want different answers. KI-36's fix adds the machinery (a retained queue, a failure record, a `retry()`) that a fix here could reuse.
+- **Fix path:** decide what a re-prediction failure *means* rather than dropping it silently. At minimum, surface it the way a failed send now is — a count, a description of what was lost, and either a retry or an explicit "these could not be applied" message. Then either enforce the code comment's claim with a test or delete the claim.
+- **Cross-reference:** KI-5 (navigation trigger), KI-36 (failed-send trigger, resolved 2026-08-25). Three triggers, one queue, one class of silent loss.
+- **First noted:** 2026-08-25 (KI sweep, found reading the send loop while scoping KI-36's Option 1).
+
 ### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
 - **Severity:** correctness (a confidently wrong pin, same family as KI-15)
 - **Area:** `apps/web/scripts/geocode-japan-seed.mts`,

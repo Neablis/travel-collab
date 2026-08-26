@@ -39,6 +39,29 @@ every activity and backlog id `tripDetailFactory` ever built was a non-UUID.
 Nothing caught it because `TripDetail`'s `z.string().uuid()` fields are never
 `.parse()`d at runtime. KI-39 remains open.
 
+**KI-36 is resolved (2026-08-25), which supersedes two claims made below.**
+A failed send no longer discards the pending queue: `failHead` retains it and
+records a `failure { at, message }`, the sequential sender is gated on that
+failure (without the gate a retained queue re-sends the failing command in a
+hot loop — measured at **41 resends in 300ms**, the probe's safety cap, and
+2,677 with the gate mutated back out), and `retry()` clears it so the queue
+drains. The save indicator therefore **does** now ship its third state, and
+the `@ts-expect-error` pin holding `pending` to `boolean | number` has been
+deliberately removed — the two "Previously" blocks below that describe both
+as descoped are accurate as of 2026-08-24 and are left as written.
+**Task 8b.4's sync-failure banner is still not shipped** and is still
+descoped; this change makes it possible, it does not build it. The indicator's
+copy reads **"Couldn't save"**, not the handoff's "Couldn't save — retrying",
+because retry is manual and "retrying" would be false the instant it rendered
+— a test asserts that string never appears.
+
+**Two new known issues came out of that work:** **KI-42** (`confirmHead`
+silently drops queued units on a *successful* send when they no longer
+predict cleanly — the same silent-loss class as KI-5/KI-36 on the happy path,
+and its code comment's claim that the loss "will be reported via `failHead`
+semantics" is false) and **KI-41** (`commandsFor` has no override surface, the
+root cause behind KI-37 and its follow-on patches).
+
 **Read this before the Phase 9 gate: the "presentational only" gate box is
 under real strain.** This branch contains a route that soft-deletes user
 data, a new env gate, a JSON importer, and two behavioural changes (conflict
