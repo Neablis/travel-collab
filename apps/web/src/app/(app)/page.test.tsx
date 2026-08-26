@@ -486,7 +486,7 @@ describe("Home page head", () => {
 
 describe("Home first-run experience", () => {
   it("welcomes a signed-in user who has no trips yet", async () => {
-    fetchMock = vi.fn(async () => jsonResponse([]));
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
@@ -499,7 +499,7 @@ describe("Home first-run experience", () => {
     const created = { tripId, name: "Japan" };
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === "POST") return jsonResponse(created, 201);
-      return jsonResponse([]);
+      return jsonResponse({ trips: [] });
     });
     vi.stubGlobal("fetch", fetchMock);
 
