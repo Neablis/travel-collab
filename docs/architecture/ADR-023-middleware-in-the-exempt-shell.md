@@ -1,9 +1,21 @@
 # ADR-023: `src/middleware.ts` joins the lint wall's exempt shell
 
-**Status:** Accepted — 2026-08-26
+**Status:** Superseded by ADR-024 — 2026-08-26 (originally Accepted — 2026-08-26)
 **Deciders:** Mitchell (product/eng), Claude (implementer)
 Related: ADR-002 (server/UI boundary), ADR-019 (§ lint wall widened for `.well-known`)
 Milestone: `docs/milestones/M15-front-door.md`
+
+> **Superseded 2026-08-26.** CodeRabbit's review of PR #56 flagged this
+> exemption; Mitchell ruled in its favor. Auth.js v5's own documented
+> split-config pattern (a shared, edge-safe config object that middleware and
+> the server auth instance each build their own `NextAuth()` instance from)
+> removes the need for middleware to import `@/server/auth` at all, so the
+> exempt list did not need to grow to solve this. See ADR-024 for the
+> restructure, the argument that carried, and the residual tradeoff (auth
+> config now lives in `src/lib/authConfig.ts`, reachable from UI in a way
+> `src/server/auth.ts` never was — mitigated by a narrow
+> `no-restricted-imports` rule). The content below is kept as-written for the
+> historical record; it is no longer the operative decision.
 
 ## Context
 

@@ -112,7 +112,9 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
       which shows the landing page (decision 5). Proven by
       `e2e/m15-front-door.spec.ts` (`goto("/")` → `toHaveURL(/\/welcome$/)`,
       hero heading visible) and, as of 2026-08-26,
-      `apps/web/src/middleware.ts`'s server-side redirect (ADR-023) — a
+      `apps/web/src/middleware.ts`'s server-side redirect (its own
+      split-config Auth.js instance built from `@/lib/authConfig.ts`,
+      ADR-024, superseding ADR-023) — a
       `curl` against `/` with no session cookie returns a 307 with
       `Location: /welcome` before any page renders. This replaces the
       original client-side implementation (Home fetching `/api/trips`,
