@@ -4,7 +4,10 @@ import { DATABASE_URL } from "./src/server/config";
 
 export default defineConfig({
   testDir: "./e2e",
-  reporter: "line",
+  // `line` in both lanes; locally a second reporter appends the lane warning
+  // to a failing run. See e2e/laneReporter.ts for why this is a reporter and
+  // not another paragraph of guidelines.
+  reporter: process.env.CI ? "line" : [["line"], ["./e2e/laneReporter.ts"]],
   // KI-25: runs once, after webServer is up but before every project
   // (including "setup") — refuses to proceed if the running server would
   // make a real, billable model call, independent of how that server was
