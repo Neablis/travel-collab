@@ -25,6 +25,11 @@ const PROOF_CHIPS = ["Four people, one plan", "Costs as you go", "Remix anyone's
 
 const CREW = ["PS", "SK", "MJ", "AL"] as const;
 
+// Handoff `…dc.html:1541`: the itinerary row's 74px time column has no
+// equivalent on the 4px spacing grid (74 / 4 = 18.5) — same
+// computed-geometry escape hatch as AccountMenu's AVATAR_SIZE.
+const STOP_GRID = { gridTemplateColumns: "74px 1fr" };
+
 export function LandingScreen() {
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
@@ -44,13 +49,13 @@ export function LandingScreen() {
       <main className="grid flex-1 place-items-center px-7 pt-6 pb-18">
         <div className="grid w-full max-w-285 items-center gap-15 lg:grid-cols-2">
           <div className="flex flex-col gap-5.5">
-            <DataText size="xs" className="tracking-[0.11em] uppercase">The open-source itinerary</DataText>
+            <DataText size="xs" className="tracking-widest uppercase">The open-source itinerary</DataText>
 
             <Heading level={1} className="text-pretty">
               Plan the trip together, not in twelve group chats.
             </Heading>
 
-            <Text as="p" variant="secondary" className="max-w-[30em] text-pretty">
+            <Text as="p" variant="secondary" className="max-w-98 text-pretty">
               Everyone on the trip can edit the same plan — days, times, costs, who&apos;s in. Save the
               highlights when you get back, share them with the world, and let other travelers remix the
               best parts into their own adventures.
@@ -79,12 +84,21 @@ export function LandingScreen() {
           <div className="flex flex-col gap-3">
             <Card raised className="overflow-hidden p-0">
               <div className="flex items-center gap-2.5 border-b border-hairline bg-moss px-4 py-3">
-                <DataText size="xs" className="tracking-[0.08em] uppercase">Day 6 · Kyoto</DataText>
+                <DataText
+                  size="xs"
+                  className="uppercase"
+                  // eslint-disable-next-line no-restricted-syntax -- 0.08em tracking sits between Tailwind's tracking-wider (0.05em) and tracking-widest (0.1em), same convention as UnscheduledRack.tsx's 0.04em label
+                  style={{ letterSpacing: "0.08em" }}
+                >
+                  Day 6 · Kyoto
+                </DataText>
                 <div className="ml-auto flex">
                   {CREW.map((initials) => (
                     <span
                       key={initials}
-                      className="-ml-1.5 grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint text-[9.5px] font-semibold text-brand-pressed"
+                      className="-ml-1.5 grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed"
+                      // eslint-disable-next-line no-restricted-syntax -- 9.5px crew-initials text (handoff `…dc.html:1531`) is below Tailwind's text-xs (12px) floor, same convention as AccountMenu's 11.5px email text
+                      style={{ fontSize: "9.5px" }}
                     >
                       {initials}
                     </span>
@@ -94,7 +108,12 @@ export function LandingScreen() {
 
               <div className="px-4 pt-1.5 pb-3.5">
                 {STOPS.map((stop) => (
-                  <div key={stop.title} className="grid grid-cols-[74px_1fr] gap-3.5 border-b border-hairline py-2.5">
+                  <div
+                    key={stop.title}
+                    className="grid gap-3.5 border-b border-hairline py-2.5"
+                    // eslint-disable-next-line no-restricted-syntax -- see STOP_GRID above
+                    style={STOP_GRID}
+                  >
                     <DataText size="xs" className="pt-0.5">{stop.time}</DataText>
                     <div className="flex flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
