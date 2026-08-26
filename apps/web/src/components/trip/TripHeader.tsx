@@ -123,15 +123,31 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               substring-and-case-insensitive, so the e2e specs that click
               { name: "Trip settings" } keep working against this. */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setSettingsOpen(true)}
-              aria-label={`${activeTrip.name} — Trip settings`}
-              title="Trip settings"
-              className="h-auto justify-start p-0 text-left font-normal hover:bg-transparent hover:underline"
-            >
-              <Heading level={2}>{activeTrip.name}</Heading>
-            </Button>
+            {/* The button goes INSIDE the h2, not around it. The other way
+                round renders `<button><h2>…</h2></button>`, which is invalid
+                (a button's content model is phrasing content) and, worse,
+                silently costs the trip its heading: a button's descendants
+                are presentational in the accessibility tree, so the h2's role
+                is dropped and the name disappears from heading navigation
+                entirely. e2e caught it — m8-make-it-real asserts
+                getByRole("heading", { level: 2 }) on the trip name.
+
+                Nested this way both roles survive: h2 for structure, button
+                for the action. The type classes are restated on the button
+                because buttonVariants sets its own `font-medium` + size
+                `text-base`, which would otherwise shrink the title inside its
+                own heading. */}
+            <Heading level={2}>
+              <Button
+                variant="ghost"
+                onClick={() => setSettingsOpen(true)}
+                aria-label={`${activeTrip.name} — Trip settings`}
+                title="Trip settings"
+                className="h-auto justify-start p-0 text-left font-display text-xl font-semibold text-ink hover:bg-transparent hover:underline"
+              >
+                {activeTrip.name}
+              </Button>
+            </Heading>
             <Badge variant="neutral">{statusLabel}</Badge>
           </div>
         </div>
