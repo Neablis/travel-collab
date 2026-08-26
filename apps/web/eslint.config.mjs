@@ -6,6 +6,20 @@ const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
 });
 
+// Shared by both lint-wall blocks below so the UI-scoped block (which must
+// add one more restriction on top of these) can't drift from the base wall
+// by editing only one of the two copies.
+const domainAndServerWallPatterns = [
+  {
+    group: ["@tc/domain", "@tc/domain/*"],
+    message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
+  },
+  {
+    group: ["@/server/*"],
+    message: "UI must call the API, not server internals (AGENTS.md lint wall).",
+  },
+];
+
 export default [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -23,25 +37,53 @@ export default [
     // to `route.ts` files only (not the whole `.well-known/**` tree) so a
     // future non-route file placed under `.well-known` doesn't inherit the
     // exemption for free.
-    // `src/middleware.ts` joins the shell too (ADR-023): Next.js middleware
-    // never ships to the browser and runs only on the server before a
-    // request is handled, which makes it categorically the same kind of
-    // code as a route handler, not UI reaching into server internals. The
-    // exemption is an exact path, not a subtree, so nothing else inherits it.
+    // `src/middleware.ts` is NOT in this list (ADR-024, superseding ADR-023):
+    // it now builds its own Auth.js instance from `@/lib/authConfig` instead
+    // of importing `@/server/auth`, so it no longer needs an exemption from
+    // this rule — it's held to the same standard as any other UI file.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts", "src/middleware.ts"],
+    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: domainAndServerWallPatterns,
+        },
+      ],
+    },
+  },
+  {
+    // THE AUTH-CONFIG WALL (ADR-024): `src/lib/authConfig.ts` holds the
+    // edge-safe Auth.js provider/callback config so both `src/server/auth.ts`
+    // and `src/middleware.ts` can build their own instance from it (the
+    // split-config pattern) without middleware reaching into server
+    // internals. That makes it importable by genuine UI too — closed here.
+    // Only `src/server/auth.ts` and `src/middleware.ts` may import it; both
+    // are naturally outside this block's `files` glob (server/** is a
+    // separate tree, middleware.ts isn't under components/ or app/), so no
+    // extra ignore is needed for them.
+    //
+    // This block's `files` glob overlaps the wall above's, and ESLint flat
+    // config fully replaces a rule's config with the last matching block's
+    // value rather than merging arrays — so this repeats
+    // `domainAndServerWallPatterns` (from the shared constant, to avoid the
+    // two copies drifting) alongside the new pattern, rather than appending
+    // to the previous block's rule. Its `ignores` mirrors the wall above's
+    // exempt shell for the same reason: without repeating
+    // `src/app/.well-known/**/route.ts` here too, this block would silently
+    // re-impose the domain/server-internal restriction on that exempt file.
+    files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
+    ignores: ["src/app/api/**", "src/app/.well-known/**/route.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
+            ...domainAndServerWallPatterns,
             {
-              group: ["@tc/domain", "@tc/domain/*"],
-              message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
-            },
-            {
-              group: ["@/server/*"],
-              message: "UI must call the API, not server internals (AGENTS.md lint wall).",
+              group: ["@/lib/authConfig"],
+              message:
+                "Only src/server/auth.ts and src/middleware.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
             },
           ],
         },
