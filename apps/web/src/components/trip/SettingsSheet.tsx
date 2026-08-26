@@ -178,6 +178,13 @@ export function SettingsSheet({
                 e.currentTarget.value = tripName;
                 return;
               }
+              // Show what was actually saved. `name` is trimmed but the field
+              // still holds the raw text, so renaming to "  Japan  " would
+              // dispatch "Japan" and leave the input displaying the spaces —
+              // a field disagreeing with the trip it just renamed (CodeRabbit,
+              // PR #55). The guard above already does this for the two no-op
+              // cases; this is the third.
+              e.currentTarget.value = name;
               onCommand({ type: "SetTripName", tripId, name });
             }}
           />

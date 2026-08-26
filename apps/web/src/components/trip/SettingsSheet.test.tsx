@@ -83,6 +83,60 @@ function renderSettings(
   renderSheet(vi.fn(), { spend, members: opts.members });
 }
 
+// Renaming lives here now: PR #55's preview feedback removed the header's
+// pencil and made the title open this sheet, so this field went from readOnly
+// to being the only way to rename a trip.
+describe("SettingsSheet rename", () => {
+  it("dispatches SetTripName on blur", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { onCommand });
+
+    const field = screen.getByLabelText("Trip name");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Japan 2027");
+    await userEvent.tab();
+
+    expect(onCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SetTripName", name: "Japan 2027" }),
+    );
+  });
+
+  // CodeRabbit, PR #55: the trimmed name was dispatched but the raw text was
+  // left in the field, so the input disagreed with the trip it had just
+  // renamed.
+  it("shows the saved name, not the raw text, when the input had surrounding whitespace", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { onCommand });
+
+    const field = screen.getByLabelText("Trip name");
+    await userEvent.clear(field);
+    await userEvent.type(field, "  Japan 2027  ");
+    await userEvent.tab();
+
+    expect(onCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SetTripName", name: "Japan 2027" }),
+    );
+    expect((field as HTMLInputElement).value).toBe("Japan 2027");
+  });
+
+  it.each([
+    ["unchanged", "Japan"],
+    ["empty", ""],
+    ["whitespace only", "   "],
+  ])("sends nothing and restores the field when the name is %s", async (_label, typed) => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { onCommand });
+
+    const field = screen.getByLabelText("Trip name");
+    await userEvent.clear(field);
+    if (typed !== "") await userEvent.type(field, typed);
+    await userEvent.tab();
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect((field as HTMLInputElement).value).toBe("Japan");
+  });
+});
+
 describe("SettingsSheet redesign (Task 4.2)", () => {
   it("shows the trip name, the dates row and the budget fields", () => {
     renderSettings({ open: true });

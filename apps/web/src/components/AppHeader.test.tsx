@@ -22,6 +22,7 @@ afterEach(() => {
   cleanup();
   demoResetEnabled = false;
   vi.mocked(getSessionMock).mockResolvedValue(null);
+  vi.mocked(getSessionMock).mockClear();
 });
 
 describe("AppHeader", () => {
@@ -37,6 +38,18 @@ describe("AppHeader", () => {
 
     expect(screen.queryByRole("link", { name: "Trips" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Playbooks" })).toBeNull();
+  });
+
+  // CodeRabbit, PR #55: the first version of HeaderSessionChrome rendered
+  // AccountMenuFromSession, which resolves the session itself — so the header
+  // fetched the same fact twice while a comment claimed it fetched it once.
+  it("resolves the session exactly once for the whole header", async () => {
+    vi.mocked(getSessionMock).mockResolvedValue({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
+    render(<AppHeader />);
+
+    await screen.findByRole("link", { name: "Trips" });
+    await screen.findByRole("button", { name: "Account menu" });
+    expect(vi.mocked(getSessionMock)).toHaveBeenCalledTimes(1);
   });
 
   it("links to both routes once signed in, so every page has a way back", async () => {

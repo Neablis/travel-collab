@@ -203,13 +203,20 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
         </Link>
       </nav>
       <div className="ml-auto flex items-center">
-        <AccountMenuFromSession demoResetEnabled={demoResetEnabled} />
+        {/* AccountMenuFor, not AccountMenuFromSession: the latter resolves the
+            session itself, which would make this header fetch the same fact
+            twice. We already have `user`. */}
+        <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />
       </div>
     </>
   );
 }
 
-// Shared by both halves above, so the session is fetched once per header.
+// One `getSession()` per component that needs identity. The header has exactly
+// one such component (HeaderSessionChrome), which passes the resolved user down
+// to AccountMenuFor rather than mounting a second resolver — CodeRabbit caught
+// the first version doing precisely that, and the comment here claiming
+// otherwise was a lie the code did not keep.
 function useSessionUser() {
   const [user, setUser] = useState<{ name?: string | null; email?: string | null } | null>(null);
 
@@ -226,11 +233,16 @@ function useSessionUser() {
   return user;
 }
 
-export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
-  const user = useSessionUser();
-
-  if (!user) return null;
-
+// The session-independent half: given a user, wire up the menu. Both entry
+// points below render this — HeaderSessionChrome with the user it already
+// resolved, AccountMenuFromSession with one it resolves itself.
+function AccountMenuFor({
+  user,
+  demoResetEnabled = false,
+}: {
+  user: { name?: string | null; email?: string | null };
+  demoResetEnabled?: boolean;
+}) {
   // A hard reload, not a router.push: this can be confirmed from any page
   // (a trip page whose own trip was just deleted included), and the freshly
   // seeded trip needs every client-fetched view — Home's trip list, any open
@@ -250,4 +262,12 @@ export function AccountMenuFromSession({ demoResetEnabled = false }: { demoReset
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />
   );
+}
+
+// Standalone entry point: resolves the session itself. Kept for callers that
+// have no user to hand (its own tests today).
+export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
+  const user = useSessionUser();
+  if (!user) return null;
+  return <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />;
 }
