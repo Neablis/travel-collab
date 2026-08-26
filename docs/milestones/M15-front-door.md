@@ -115,13 +115,13 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
 - [x] Sign-in and sign-up are our screens, not NextAuth's default page.
       Proven by `e2e/m15-front-door.spec.ts` and `AuthScreen.test.tsx`.
 - [ ] Both complete a real Google sign-in end to end on the deployed app.
-      **Not run.** No Vercel preview deployment exists for this work — there
-      is no upstream branch and no open PR (`git rev-parse @{u}` fails,
-      `gh pr list --head <branch>` is empty). The automated e2e suite
+      **Not run.** PR #56 is open and its Vercel preview deployed
+      successfully, so a preview now exists to test against. What is
+      outstanding is the sign-in itself: the automated e2e suite
       (`e2e/m15-front-door.spec.ts`) exercises the **dev-login** provider
-      only; a real Google grant is not something this session can perform.
-      This check is manual, against a Vercel preview, and remains outstanding
-      — see "What remains" below.
+      only, and a real Google grant is not something an agent session can
+      perform. This check is manual and remains outstanding — see "What
+      remains" below.
 - [x] A signed-in user with no trips sees Home's empty state (decision 4)
       and can create a trip from a name alone via the wizard's "Create empty"
       (decision 3). Proven by `apps/web/src/app/(app)/page.test.tsx` and
@@ -176,12 +176,25 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
       `apps/web/src/components/front/LandingScreen.tsx` (`tracking-widest`,
       `max-w-98`, and three documented `style` escapes), so `pnpm check`
       (typecheck, ESLint, the lint wall, the colour wall, the case-collision
-      check) is green: 106 unit test files, 794 tests passing, 1 skipped.
-      `pnpm --filter web test:int` is also green: 13 files, 85 tests. Both
-      re-verified 2026-08-26. The full `test:e2e:ci-like` run against the
-      fixed spec has not been re-verified by this session (see the note
-      above) — its authoritative result is the reviewer's rerun, not a claim
-      made here. See "What remains" below.
+      check) is green. Re-verified 2026-08-26 **after merging `origin/main`**
+      (commit `90a07e6`): 109 unit test files, 850 tests passing, 1 skipped;
+      the colour wall scans 307 files with 0 pending re-skin.
+      `pnpm --filter web test:int` is also green: 13 files, 85 tests.
+
+      **The full `test:e2e:ci-like` run is NOT green, and this box stays
+      unticked because of it.** Run against `c581151` (pre-merge): 22 passed,
+      1 failed. This milestone's own `e2e/m15-front-door.spec.ts` **passed**;
+      the failure was `e2e/m10-map-rail.spec.ts:29`, which is untouched by
+      this branch (`git diff --stat` over `MapRail` and that spec is empty)
+      and which **passed** in the immediately preceding run of the identical
+      command. That earlier run took 1.1 minutes and this one 33.8, so the
+      33.8-minute run's failure reads as local machine contention rather than
+      a defect here — but per KI-1's precedent it is recorded rather than
+      waved through as "probably a flake", and it has not been re-run since
+      the merge. `origin/main` has since landed local-e2e reliability work
+      (`3617453` KI-27 local Playwright budgets, `c3a1285`, `db2c3f9`) which
+      may change this picture. **CI on PR #56 is the authoritative signal.**
+      See "What remains" below.
 - [ ] Retro appended here; `TODO.md`, this file's boxes and
       `docs/milestones/README.md`'s Current milestone all flipped in **one**
       commit (README's gate-close checklist). **Deliberately not done** — the
@@ -199,7 +212,7 @@ One thing, outside this task's scope:
    Vercel preview, confirming both land on `/`. Record the result on the PR's
    **Verification actually performed** section per `AGENTS.md`.
 
-Once that's done: tick the two remaining exit-gate boxes, append the retro,
+Once that's done: tick the remaining exit-gate boxes, append the retro,
 and flip `TODO.md` / `docs/milestones/README.md`'s Current milestone (and
 reconcile its stated M15 execution order with decision 1 above) in one commit
 per README's gate-close checklist.
