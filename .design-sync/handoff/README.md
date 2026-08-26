@@ -1,4 +1,10 @@
-# Design handoff — 2026-08-26
+# Design handoff — the living bundle
+
+This folder is the **only** handoff. Dated snapshot folders are gone: previous states live
+in version control, not beside the current one. Re-read this file each time — it is
+rewritten in place.
+
+Last substantive pass: 2026-08-26
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
 bundle. It supersedes the 2026-08-25 bundle.
@@ -9,8 +15,13 @@ What is new since the last bundle:
   7am–11pm span bar, stop count, cost and an unbooked flag — no activity lists. It no
   longer overlaps Day columns, which closes the open question about retiring it.
 - **Account settings exist**, holding distance units and an opt-in home-time-on-hover.
-- **A design-system bug**: `Sheet`'s scroll body clips `Input`'s focus ring on the left
-  and right. Worked around per-Sheet in the design; the fix belongs upstream. See DRIFT.
+- **Mobile is now a live surface of the same prototype, not a second file.** Set the design
+  file's `surface` prop to `phone` and the phone renders over the same state: same trip,
+  same focused day, same tag filter, same edit sheet. Day rail, tab switching, sheet
+  open/close and long-press-to-reschedule all work. `SPEC.md` §13 states its foundations.
+- **Design-system items now have their own file.** `DS-UPSTREAM.md` collects the five things
+  owed to the DS package — including the `Sheet` focus-ring bug — so they stop living in
+  DRIFT as if they were product work.
 
 The six binding **project rules** from the previous bundle are unchanged and still govern
 what may exist on a page — read `RULES.md` first.
@@ -21,10 +32,11 @@ what may exist on a page — read `RULES.md` first.
 |---|---|
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
-| `design/Trip Planner Mobile.dc.html` | The mobile companion (on-trip retrieval + small edits — SPEC §10) |
+| _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations |
 | `SPEC.md` | Written spec for what the design file cannot say out loud. **§12 is this pass**; §11 is the rules pass |
 | `DRIFT.md` | Design ↔ build reconciliation. **§ "Calendar / account settings pass — 2026-08-26" is this pass** |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
+| `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 
 ## How to read the design file
 

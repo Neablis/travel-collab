@@ -3,11 +3,28 @@
 Companion to `design/Trip Planner Redesign.dc.html` and `design/Trip Planner Mobile.dc.html`.
 Current as of 2026-08-24.
 
-## 1. Focus scope — the model behind the chrome
+## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
-There is exactly one focus scope at any moment: **account → trip → day**. It decides what
-the global header, the trip header and the assistant show. Nothing else should introduce a
-competing notion of "current thing".
+> **Struck 2026-08-26.** Mitchell rejected this section **as a whole**, not deferred it, and
+> Phase 1b was cancelled unbuilt. The rule that replaces it: *the top bar is for
+> functionality larger than a trip, and the elements below the top bar are trip-scoped
+> actions* — and on the header's Quick add, *"Only 'Add stop' where it is now"*. That is what
+> `AppHeader.tsx` already said and what this project's own rule 1 now says. The section is
+> kept here as a record of a rejected proposal; nothing below it is a design instruction.
+>
+> Two factual claims in it were also found false while the cancellation was scoped:
+> `FocusProvider` does **not** distinguish scope from the day-chip ring (it holds one field,
+> `focusedDay`), and **`MapRail._railLock` does not exist** — `MapRail` has a
+> leading+trailing scroll throttle, which cannot tell a programmatic scroll from a user one.
+> The 900ms lock below was written as if mirroring an existing pattern; there was none.
+>
+> §1's one non-header rule — that Calendar drops the unscheduled rack the way Map does — was
+> superseded by a broader decision the same day: the drawer is removed from Timeline and
+> Calendar entirely, gated by `board/lensAcceptsDrops.ts`, and returns per lens as each
+> gains real drop targets. See this project's rule 2.
+
+~~There is exactly one focus scope at any moment: **account → trip → day**. It decides what
+the global header, the trip header and the assistant show.~~
 
 | Scope | When | Global header | Assistant context |
 |---|---|---|---|
@@ -394,3 +411,80 @@ horizontal padding to `Sheet`'s scroll div rather than making every consumer pad
 - Tagging many-to-many table; Notebook repeater tag parameter; account-scope Notebook values.
 - Home time currently uses a fixed home UTC offset; a real build needs a tz per trip and a
   tz resolved from the account's home airport.
+
+
+## §13 — Mobile foundations
+
+Mobile is a **surface of the same design system**, not a second one. §10 already set its
+scope (retrieval and small edits on the trip, not planning); this section sets what is
+binding on any new phone screen. Anything not listed here is inherited from the desktop
+baseline unchanged, and a mobile screen may not introduce a pattern the desktop does not
+have.
+
+1. **44px targets, always.** Every tag chip, nav item and row action clears 44px even when
+   the label is small. Chips grow by `min-height`, never by font size — the type scale is
+   shared with desktop.
+2. **The city spine is flush.** A stop card's accent runs edge to edge as a 3px spine with
+   the card's padding moved inward; never an inset rounded bar. A dashed spine means the
+   stop is not committed.
+3. **Time and money are mono.** Every clock time, date, duration and currency uses
+   `DataText`. Mobile drops the desktop's 92px time gutter, so mono is the only remaining
+   signal that a value is data.
+4. **The day rail never collapses.** It is the spine of every trip-scoped screen and holds
+   the same selection across Plan, Map and Notebook. A phone can hold one day at a time;
+   the rail is how you change which.
+5. **Nothing floats over data.** No floating action button. A control hovering over a
+   scrolling list will cover a value at some scroll position, and costs are right-aligned.
+   Adding sits at the end of the day, as on desktop.
+6. **Sheets, not pages.** Editing keeps the day visible behind it. The sheet carries its
+   own Cancel / title / Save header, because mobile has no top bar to hang actions on.
+7. **No invented data.** Mobile renders the same trip the desktop file renders — same
+   dates, same day numbering, same stops. A field that does not exist on desktop is not
+   mocked up on mobile.
+
+### City accents are shared, not redrawn
+
+The ten-hue city accent scale (SPEC §5) is the same on mobile. It is declared once on the
+page root as `--c-<city>-tint | -ink | -solid` and inherited; no mobile screen carries a
+literal colour. The scale itself belongs in the design-system package —
+`DS-UPSTREAM.md` **U2**, which also records that the ramp is currently saturated at ten
+cities.
+
+### The phone is a surface, not a file
+
+Mobile lives inside `Trip Planner Redesign.dc.html`, selected by the `surface` prop. It reads
+the same trip, the same focused day, the same tag filter and the same edit-sheet state as the
+desktop; its only own state is which tab is showing. A new phone screen is a new layout over
+existing state — if it needs state the desktop does not have, that is the signal to ask
+whether the desktop needs it too.
+
+### The tab bar is the router
+
+Trips = home; Plan / Map / Notebook = inside a trip. "Trips" is **not** a storable tab value —
+the route alone says whether the list is showing, so no handler can desync them. The phone
+must never hold tab state that can disagree with the route — a Plan screen outside a trip has no focused day and
+renders an empty itinerary under a header that still counts stops.
+
+### Mobile is a variant layer
+
+Mobile is not a separate design system and must not become one. Where a phone pattern has a
+desktop counterpart doing the same job, it is the same component at a different density —
+see `DS-UPSTREAM.md` **U6** for the five patterns currently inline and the variants
+proposed for them. The two layouts are picked explicitly, not by media query: mobile scope
+(§10) makes them different screens, not one responsive screen.
+
+### Still open on mobile
+
+- **Day 6's stop list is not yet the desktop's.** The three cards on the Plan screen use
+  the right city and the right day, but their times, order and one stop's estimate
+  treatment predate the seed data. Reconcile against `TRIPS.japan.days[5]` next pass.
+- **Derived values must be derived, not typed.** The next-trip countdown was three
+  contradictory hardcoded strings across two files before it was caught. Any number that
+  restates something else on screen — a countdown, a day count, a total — is computed in the
+  logic class from one constant, never written into the template.
+- The phone's **Map tab has an offline state** (tiles fail → titled panel, stops-still-readable
+  message, Try again + Open Plan). The phone still has no **conflict** state, and no
+  sync-fail state outside the map (project rule 6).
+- **Notebook on the phone** reads the focused day only. The full macro document (templates,
+  inline + block macros) has no phone treatment yet.
+  Desktop reuses `ConflictBanner`; mobile needs the equivalent decided.
