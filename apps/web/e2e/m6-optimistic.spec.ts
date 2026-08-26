@@ -39,7 +39,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   await expect(days).toHaveCount(before + 1);
 });
 
-test("a rejected change reverts and shows an error", async ({ page }) => {
+test("a rejected change stays visible, shows an error, and can be retried", async ({ page }) => {
   const tripName = `Bergen ${Date.now()}`;
   await page.goto("/");
 
@@ -71,7 +71,34 @@ test("a rejected change reverts and shows an error", async ({ page }) => {
   await page.getByRole("button", { name: "Add a day", exact: true }).click();
   // Applied optimistically first...
   await expect(days).toHaveCount(before + 1);
-  // ...then reverted once the forced 500 comes back.
-  await expect(days).toHaveCount(before);
+  // ...and KI-36: it STAYS applied when the send fails. The queue is retained
+  // with a recorded failure instead of discarded, so the user's work is still
+  // on screen and still sendable. This assertion previously read
+  // `toHaveCount(before)` — it encoded the silent discard KI-36 is about, and
+  // was accurate about the code rather than right about the product.
+  await expect(days).toHaveCount(before + 1);
   await expect(page.getByText("boom")).toBeVisible();
+  // The failure is visible in the sync indicator, with a way out of it.
+  await expect(page.getByRole("status")).toHaveAttribute("aria-label", /Couldn't save/);
+  const retry = page.getByRole("button", { name: /^Retry saving/ });
+  await expect(retry).toBeVisible();
+
+  // Retry drains the retained queue once the server stops failing — the half
+  // that makes retention worth anything. Without this, a retained queue is
+  // just a stuck queue.
+  await page.unroute("**/api/trips/*/commands");
+  // Wait on the retried POST's own 2xx, not on the indicator's label. The label
+  // is a render away from the response and reloading on it races the write:
+  // observed once in a full-suite run as a reload that found zero days.
+  const retried = page.waitForResponse(
+    (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
+  );
+  await retry.click();
+  await retried;
+  await expect(page.getByRole("status")).toHaveAttribute("aria-label", "All changes saved");
+
+  // The strong check: reload discards all in-memory optimistic state, so a day
+  // still here came from the server's event log, not the client's prediction.
+  await page.reload();
+  await expect(page.getByTestId("day-column")).toHaveCount(before + 1);
 });
