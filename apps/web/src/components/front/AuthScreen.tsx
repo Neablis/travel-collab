@@ -2,51 +2,59 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Heading } from "@/components/ui/heading";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
+import { Heading } from "@/components/ui/heading";
+import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { AUTH_COPY, errorMessage, type AuthMode } from "@/components/front/authCopy";
 
-// One component, two modes — they differ only in copy (M15 scope item 2).
-// Task 3 fills in that copy from dc.html:3388-3396 and adds the error states.
-export function AuthScreen({
-  mode,
-  devLoginEnabled,
-}: {
-  mode: "signin" | "signup";
-  devLoginEnabled: boolean;
-}) {
+// `dc.html:1584-1628`: sign-in and sign-up are the same screen with different
+// copy (M15 scope item 2), so this is one component with a mode, not two
+// near-identical files.
+export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLoginEnabled: boolean }) {
+  const copy = AUTH_COPY[mode];
+  const failure = errorMessage(useSearchParams().get("error"));
   const [username, setUsername] = useState("");
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <FrontDoorHeader />
-      <main className="flex flex-1 items-center justify-center px-6 pb-20">
+      <main className="grid flex-1 place-items-center px-6 pt-3 pb-20">
         <div className="flex w-full max-w-101 flex-col gap-4.5">
-          <Heading level={1}>{mode === "signup" ? "Start planning with Caesura" : "Welcome back"}</Heading>
+          <div className="flex flex-col gap-2">
+            <Heading level={1}>{copy.title}</Heading>
+            <Text as="p" variant="secondary" className="text-pretty">{copy.sub}</Text>
+          </div>
+
+          {failure ? <Banner variant="danger">{failure}</Banner> : null}
 
           <Card raised className="flex flex-col gap-3.5">
             <Button
               type="button"
               variant="secondary"
-              className="w-full"
+              className="h-11.5 w-full text-md font-semibold"
               onClick={() => void signIn("google", { callbackUrl: "/" })}
             >
               Continue with Google
             </Button>
 
+            <Text variant="secondary" className="text-xs text-pretty">{copy.scopeLine}</Text>
+
             {devLoginEnabled && (
               <form
-                className="flex flex-col gap-2"
+                className="flex flex-col gap-2 border-t border-hairline pt-3.5"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void signIn("dev-login", { username, callbackUrl: "/" });
                 }}
               >
-                <FormField id="dev-login-username" label="Username">
+                <FormField id="dev-login-username" label="Username" hint="Preview and local only">
                   <Input
                     id="dev-login-username"
                     name="username"
@@ -54,16 +62,21 @@ export function AuthScreen({
                     onChange={(event) => setUsername(event.target.value)}
                   />
                 </FormField>
-                <Button type="submit" variant="ghost">
-                  Sign in with dev login
-                </Button>
+                <Button type="submit" variant="ghost">Sign in with dev login</Button>
               </form>
             )}
 
-            <Link href={mode === "signup" ? "/signin" : "/signup"} className="text-sm font-semibold text-brand">
-              {mode === "signup" ? "Sign in" : "Create an account"}
-            </Link>
+            <div className="border-t border-hairline pt-3.5">
+              <Text variant="secondary" className="text-sm">
+                {copy.swapPrompt}{" "}
+                <Link href={copy.swapHref} className="font-semibold text-brand underline">
+                  {copy.swapCta}
+                </Link>
+              </Text>
+            </div>
           </Card>
+
+          <Text as="p" variant="secondary" className="text-xs text-pretty">{copy.footnote}</Text>
         </div>
       </main>
     </div>
