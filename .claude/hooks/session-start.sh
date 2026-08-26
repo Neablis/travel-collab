@@ -118,10 +118,42 @@ start_postgres() {
     || echo "session-start: db:migrate failed; run it by hand (see $logdir/db-migrate.log)." >&2
 }
 
+# The image ships Playwright's browsers at PLAYWRIGHT_BROWSERS_PATH, but the
+# revision `@playwright/test` asks for and the revision that has a usable
+# headless-shell binary are not always the same one — 2026-08-26, chromium
+# 1228's chrome-headless-shell-linux64/ was present and empty while 1194's full
+# chrome was fine, so every e2e run died on a missing executable until the two
+# were linked by hand. That hand-fix does not survive the container, so it
+# belongs here. Deliberately generic (any empty shell dir, any full chromium)
+# so a Playwright bump does not silently reintroduce it.
+link_playwright_shell() {
+  browsers="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
+  [ -d "$browsers" ] || return 0
+
+  fallback=""
+  for candidate in "$browsers"/chromium-*/chrome-linux/chrome; do
+    if [ -x "$candidate" ]; then fallback="$candidate"; break; fi
+  done
+  [ -n "$fallback" ] || return 0
+
+  for shellroot in "$browsers"/chromium_headless_shell-*; do
+    [ -d "$shellroot" ] || continue
+    target="$shellroot/chrome-headless-shell-linux64/chrome-headless-shell"
+    # -e follows the link, so an existing GOOD link is skipped and a dangling
+    # one is repaired rather than left to fail at test time.
+    [ -e "$target" ] && continue
+    mkdir -p "$(dirname "$target")" 2>/dev/null || continue
+    if ln -sfn "$fallback" "$target" 2>/dev/null; then
+      echo "session-start: linked $(basename "$shellroot")'s missing headless shell -> $fallback"
+    fi
+  done
+}
+
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   pnpm install
   pnpm run setup
   start_postgres
+  link_playwright_shell
   exit 0
 fi
 
