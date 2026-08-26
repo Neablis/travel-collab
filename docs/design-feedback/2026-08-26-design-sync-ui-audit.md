@@ -59,6 +59,60 @@ this PR (A1, the local seed's stop ordering); it never affected the preview.
 
 ---
 
+## Status — 2026-08-26, end of the PR #55 review round
+
+Fifteen preview comments from Mitchell were worked through on this branch, plus
+the design's own rules pass. What that closed, and what it did **not**:
+
+**Closed against the design (`RULES.md` / `DRIFT.md` "Rules pass — 2026-08-25"):**
+
+| Rule | Change | Where |
+|---|---|---|
+| R6 | Trip title *is* the settings button; pencil and ⚙ gone; renaming moved into Trip settings | `TripHeader.tsx`, `SettingsSheet.tsx` |
+| R7 | Undo/redo relocated into the History popover | `UndoRedoControls.tsx` |
+| R4 | Trip-header save dot removed; **the logo carries save state** | `SaveLight.tsx` (new), `AppHeader.tsx`, `layout.tsx` |
+| R1 | Signed-out header is the logo only — no links into pages you cannot open | `AccountMenu.tsx` |
+| — | "Worth your attention" removed from the trips list | deleted, incl. its `preview-registry` entry |
+
+**Closed as defects:** A1 (seed ordering), **A2 in part** — see KI-43 below — A4
+(`1 travellers`), the three "cut-off border" reports (one root cause: an
+`overflow-x-auto` container clipping on all four sides, in `ui/sheet.tsx` and
+`DayChips.tsx`), the day-chip transition printing its destination twice, the
+board's width, city day-counts, and the drag-from-rack time gap.
+
+**Two things the design specifies that this round could not settle, and that
+need Mitchell's call before the milestone closes:**
+
+1. **R2 — "Drawer renders in Day columns only."** `RULES.md` 2 ("don't render
+   the bottom drawer on a page where activities can't be dragged onto or out of
+   the schedule") reverses a decision Mitchell made on 2026-08-25 and which
+   `STATUS.md` records: the rack stays mounted on Timeline and Calendar because
+   its day-assign `NativeSelect` is a real scheduling path there without drag.
+   Both positions are defensible — the rule reads the drawer as drag-only
+   furniture, the recorded decision reads it as a scheduling surface that also
+   supports drag. **Not flipped here**, because reversing a recorded decision
+   silently is exactly how the board-width cap (#31) ended up outliving its own
+   reasoning. Whichever way it goes, one of the two needs amending.
+
+2. **The save light's failed state.** SPEC gives it a colour and no way out.
+   Shipped with the mark itself as the retry button while a failure stands,
+   because `RULES.md` 6 asks every screen to recover from the worst and this
+   queue only retries when asked (KI-36) — but that does put an *action* in the
+   top bar, which is what `RULES.md` 1 exists to prevent. Flagged on the
+   preview thread.
+
+**Still open from the rules pass, not started:** R4 (`Travel` chip suppressed on
+transit stops), R5 (filter row removed; tag chips become the control — blocked
+on C4's missing `tags` field), R7 (Notebooks becomes a menu at the far right of
+the view row), R2 (map day rail restored, clicking jumps).
+
+**Unchanged and still the headline gaps:** C1 (Notebook/Pages has no design
+applied), C2 (mobile is the desktop layout at 402px), C4 (no `tags` contract
+field blocks five designed surfaces). None of these are close to done, and none
+were in scope for this round.
+
+---
+
 ## A. Fix — built, and wrong
 
 These are defects, not design disagreements. Each is filed as a KI.
@@ -66,12 +120,12 @@ These are defects, not design disagreements. Each is filed as a KI.
 | # | What | Where | Why it matters |
 |---|---|---|---|
 | **A1** | **Local seed only.** Day columns and calendar cells listed stops newest-first — Day 1 read Nightcap 21:00 → Dinner 19:00 → Check-in 17:00 → Land 14:30. | `apps/web/scripts/db-seed.ts` moved every seeded activity with `position: 0`, reversing insertion order. `Column.tsx:121` and `calendarData.ts:104` render `day.activityIds` verbatim — neither sorts by time — so nothing corrected it. Timeline was unaffected (`timelineData.ts` sorts). | **Fixed in this PR** at the seed, and re-verified. **The Vercel preview was never affected**: its "Reset to demo data" path (`japanTripImporter.ts:231-259`) emits `AddActivity` with a `dayId`, and `ActivityAdded` appends (`evolve.ts:90`), so it always reproduced the export's order. The bug was local dev and e2e fixtures only. The *second* half — whether a day column should sort by start time the way the design does — is untouched and is a real decision, see D3. |
-| **A2** | The **conflict wall**. `Board.tsx:201` renders one full-width `Banner` per undismissed conflict, unbounded, above the columns. The Japan seed has 12, ≈700px of stacked warning that puts the board below the fold. | `apps/web/src/components/board/Board.tsx:201` | The design never stacks conflicts: Timeline attaches `act.conf` under the activity, Day columns puts a one-line `act.confShort` chip *inside* the card. `Column.tsx` already renders that in-card treatment, so the wall is **redundant with it**, not a substitute. |
+| **A2** ✅ *summary half fixed (KI-43), in-card half open* | The **conflict wall**. `Board.tsx:201` renders one full-width `Banner` per undismissed conflict, unbounded, above the columns. The Japan seed has 12, ≈700px of stacked warning that puts the board below the fold. | `apps/web/src/components/board/Board.tsx:201` | The design never stacks conflicts: Timeline attaches `act.conf` under the activity, Day columns puts a one-line `act.confShort` chip *inside* the card. `Column.tsx` already renders that in-card treatment, so the wall is **redundant with it**, not a substitute. |
 | **A3** | `.tc-page-editor` is applied to the TipTap editor but **has no CSS rule anywhere in the repo**. | `apps/web/src/components/pages/editor/PageEditor.tsx:41` | Every notebook page renders headings, paragraphs and lists at the reset's default size and weight. "Overview" and the sentence under it are visually identical. This is the single cheapest fix on this list. |
-| **A4** | `1 travellers`. | `apps/web/src/components/trip/TripMetaPill.tsx:42,58` (both the visible label and the `aria-label`) | Every solo trip's header reads ungrammatically. `NextTripHero.tsx:186` already does the plural correctly — the pattern exists. |
+| **A4** ✅ *fixed* | `1 travellers`. | `apps/web/src/components/trip/TripMetaPill.tsx:42,58` (both the visible label and the `aria-label`) | Every solo trip's header reads ungrammatically. `NextTripHero.tsx:186` already does the plural correctly — the pattern exists. |
 | **A5** | `Preview · Mn` chips cover the content they annotate. Confirmed on Trip settings (M11 chip over Booked's `$4,088.25`), Who-is-invited (M13 chip over "Invite someone"), New-trip wizard (M11 chip over the "Back to Kyoto" chip), the Unscheduled rack cards, and the mobile Playbooks strip. | `apps/web/src/components/ui/preview.tsx:94-100` | `size="compact"` reserves a `pr-6` gutter and is fine. `size="container"` deliberately does not (`preview.tsx:79-85`: "landing on the dotted border itself rather than on whatever content sits beneath") — which holds only while the host's own top-right corner is empty. In all five cases above it isn't, and the chip hides a real number. |
 | **A6** | An empty day renders **two** empty states: the design's `route` fallback ("No stops yet — add one, or drop a saved day onto it") *and* "Nothing planned yet", *and* "Add the first stop". | Rochester trip, Day 3 — `TimelineLens.tsx` | Three affordances for one condition. The design has one line and one button. |
-| **A7** | The day-chip rail clips its last chip mid-card at 1440px with no scroll affordance. | `apps/web/src/components/trip/DayChips.tsx` | Reads as a rendering error rather than as "scroll me". The design's chip row has the same overflow but the map rail's gearing pattern already solves it elsewhere in this codebase. |
+| **A7** ⚠️ *the focus-ring clipping half is fixed; the missing scroll affordance is not* | The day-chip rail clips its last chip mid-card at 1440px with no scroll affordance. | `apps/web/src/components/trip/DayChips.tsx` | Reads as a rendering error rather than as "scroll me". The design's chip row has the same overflow but the map rail's gearing pattern already solves it elsewhere in this codebase. |
 | **A8** | The account menu renders an **empty second line** where the email goes for dev-login users (dev-login has no email). | `apps/web/src/components/AccountMenu.tsx:92-99` | Preview-only cosmetic, but it is what Mitchell will see in every preview review. |
 
 ---
