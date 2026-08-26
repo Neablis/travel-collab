@@ -227,7 +227,19 @@ export function Board({
           columns rather than wrapping into rows. Adjacency for drag is
           dayId-based, not DOM order, so the switch from wrap to scroll
           doesn't affect drop logic. */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      {/* The clearance the focused column's ring needs, and the fourth report
+          of this same bug: `overflow-x-auto` sets overflow-x to a non-`visible`
+          value, and the CSS overflow spec forces the paired overflow-y to
+          compute as `auto` too, so the container clips on every side and not
+          just the axis meant to scroll. `pb-1` was already here; the ring added
+          in a168835 then landed against a flush top and left edge, so the
+          FIRST column lost the top and left of its ring against the scroll
+          origin (Mitchell, PR #55: "Left side border and top is cut off here"
+          / "Border is cut off here").
+          `-mx-1` with the `px-1` so the row keeps the header's own gutter
+          rather than indenting from it — same pairing as DayChips and
+          ui/sheet.tsx, which needed it for exactly this. */}
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1">
         {trip.days.map((day, index) => (
           <Column
             key={day.dayId}
