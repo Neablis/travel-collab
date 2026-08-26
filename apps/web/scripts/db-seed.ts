@@ -311,8 +311,10 @@ async function seedJapanTrip(cookie: string): Promise<void> {
     { day: 14, title: "Flight home", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", lat: 35.5494, lng: 139.7798, start: "20:10", end: "21:00", status: "booked", note: "Check-in opens 5:10 pm.", cost: 160 },
   ];
 
-  for (const s of stops) {
-    await addActivity(cookie, tripId, {
+  await addActivities(
+    cookie,
+    tripId,
+    stops.map((s) => ({
       day: days[s.day - 1].dayId,
       title: s.title,
       start: s.start,
@@ -324,8 +326,8 @@ async function seedJapanTrip(cookie: string): Promise<void> {
       country: "JP",
       costMinor: s.cost !== undefined ? Math.round(s.cost * 100) : undefined,
       notes: buildNotes(s.note, s.status, s.who),
-    });
-  }
+    })),
+  );
 
   // Unscheduled backlog — ideas raised but not yet placed on a day.
   const backlog = [
@@ -412,7 +414,7 @@ async function seedRochesterTrip(cookie: string): Promise<void> {
       costMinor: 4500,
     },
   ];
-  for (const a of activities) await addActivity(cookie, tripId, a);
+  await addActivities(cookie, tripId, activities);
 
   // One unscheduled item left in the backlog — real trips rarely have every
   // stop assigned to a day immediately.
@@ -469,10 +471,10 @@ async function seedPortlandTrip(cookie: string): Promise<void> {
       country: "US",
     },
   ];
-  for (const a of activities) await addActivity(cookie, tripId, a);
+  await addActivities(cookie, tripId, activities);
 }
 
-async function addActivity(cookie: string, tripId: string, a: SeedStop): Promise<void> {
+async function addActivity(cookie: string, tripId: string, a: SeedStop, position: number): Promise<void> {
   const activityId = randomUUID();
   await cmd(cookie, tripId, {
     type: "AddActivity",
@@ -483,7 +485,31 @@ async function addActivity(cookie: string, tripId: string, a: SeedStop): Promise
     ...(a.costMinor !== undefined ? { cost: { amountMinor: a.costMinor, currency: "USD" } } : {}),
     ...(a.notes ? { notes: a.notes } : {}),
   });
-  await cmd(cookie, tripId, { type: "MoveActivity", activityId, toDayId: a.day, position: 0 });
+  await cmd(cookie, tripId, { type: "MoveActivity", activityId, toDayId: a.day, position });
+}
+
+/**
+ * Places a day's stops in the order they are written above — which, in every
+ * list in this file, is chronological.
+ *
+ * Every call used to pass `position: 0`, so each stop was inserted *before* the
+ * one seeded ahead of it and each day ended up reversed. Timeline hid it
+ * (`timelineData.ts` sorts by start time), but the Day-columns lens and the
+ * calendar cells render `day.activityIds` verbatim — `Column.tsx:121`,
+ * `calendarData.ts:104` — so both read a day backwards, 9 pm first.
+ * See docs/design-feedback/2026-08-26-design-sync-ui-audit.md (A1).
+ *
+ * Counting per day rather than passing a large index keeps the emitted
+ * commands honest: `position` is the real index the stop lands at, not a value
+ * that only works because `insertAt` happens to clamp (`evolve.ts:15-19`).
+ */
+async function addActivities(cookie: string, tripId: string, stops: SeedStop[]): Promise<void> {
+  const placedPerDay = new Map<string, number>();
+  for (const a of stops) {
+    const position = placedPerDay.get(a.day) ?? 0;
+    await addActivity(cookie, tripId, a, position);
+    placedPerDay.set(a.day, position + 1);
+  }
 }
 
 // ---- run --------------------------------------------------------------
