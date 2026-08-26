@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Preview } from "@/components/ui/preview";
@@ -26,7 +25,6 @@ export function AssistantRail({
   asking = false,
   askError = null,
   simulated = false,
-  onDismiss,
   onHide,
 }: {
   contextLine: string;
@@ -40,7 +38,6 @@ export function AssistantRail({
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The change is real; the authorship is not a model. */
   simulated?: boolean;
-  onDismiss: (id: string) => void;
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");

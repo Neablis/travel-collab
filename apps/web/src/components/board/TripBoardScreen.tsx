@@ -366,7 +366,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           asking={askStatus === "loading"}
           askError={askStatus === "error" ? askError : null}
           simulated={askSimulated}
-          onDismiss={() => {}}
           onHide={assistant.hide}
         />
       ) : (

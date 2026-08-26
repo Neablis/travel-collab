@@ -13,7 +13,6 @@ const baseProps: React.ComponentProps<typeof AssistantRail> = {
   contextLine: "Looking at Day 2 · Kyoto",
   quickAsks: ["Where am I overbooked?", "Find a rainy-day swap"],
   onAsk: vi.fn(),
-  onDismiss: vi.fn(),
   onHide: vi.fn(),
 };
 
@@ -23,7 +22,6 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail
       contextLine="Looking at Day 2 · Kyoto"
       quickAsks={["Where am I overbooked?", "Find a rainy-day swap"]}
       onAsk={vi.fn()}
-      onDismiss={vi.fn()}
       onHide={vi.fn()}
       {...overrides}
     />,
