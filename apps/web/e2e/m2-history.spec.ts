@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { dragCardTo } from "./helpers";
+import { dragCardTo, openHistory } from "./helpers";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
 // assertions against it) update instantly from a client-side prediction,
@@ -73,6 +73,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // survived the reload
 
   // -- undo / redo (dismissal is an ordinary change) --
+  await openHistory(page);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
   await page.getByRole("button", { name: "Redo" }).click();

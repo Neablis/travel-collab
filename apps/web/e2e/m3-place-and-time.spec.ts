@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo } from "./helpers";
+import { dragCardTo, openHistory } from "./helpers";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
@@ -166,6 +166,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // Wait for each undo's command POST to resolve before firing the next one —
   // undo is an ordinary optimistic-concurrency-checked command, and firing
   // both clicks back-to-back can race the trip's version and silently no-op.
+  await openHistory(page);
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),
@@ -176,6 +177,9 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("button", { name: "Dates" }).click();
   await expect(page.getByLabel("Trip start date")).toHaveValue("2026-10-12");
   await page.getByRole("button", { name: "Close" }).click();
+  // Opening the settings sheet above closed the History popover, so it has to
+  // be reopened before this second undo.
+  await openHistory(page);
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok(),

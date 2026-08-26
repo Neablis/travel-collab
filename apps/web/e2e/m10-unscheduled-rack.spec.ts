@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createMappedTrip, dragCardTo } from "./helpers";
+import { createMappedTrip, dragCardTo, openHistory } from "./helpers";
 
 // The rack's own drag behaviour can only be tested in a real browser:
 // @atlaskit/pragmatic-drag-and-drop is driven by native HTML5 drag events, and
@@ -77,6 +77,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   // They are deliberately NOT batched: batching would need dispatchBatch and
   // would make unscheduling atomic in a way that scheduling from the rack
   // (assignFromRack, also two dispatches) is not.
+  await openHistory(page);
   const undo = page.getByRole("button", { name: /undo/i });
   await undo.click();
   await expect(page.getByTestId("rack-card")).toHaveCount(1);

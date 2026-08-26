@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openHistory } from "./helpers";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -208,6 +209,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // prose still untouched --
   await page.goto(tripUrl);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openHistory(page);
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Undo" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
