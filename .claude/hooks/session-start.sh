@@ -49,7 +49,7 @@ cd "$CLAUDE_PROJECT_DIR"
 # aborting startup over any of them is worse than a warning and a working
 # shell. Every step below is therefore advisory, and says what it skipped.
 start_postgres() {
-  local pgbin pgdata
+  local pgbin pgdata logdir live
   pgbin="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1 || true)"
   if [ -z "$pgbin" ] || [ ! -x "$pgbin/initdb" ]; then
     echo "session-start: no Postgres in this image; skipping database setup." >&2
@@ -67,20 +67,42 @@ start_postgres() {
   chown -R postgres:postgres "$pgdata" /var/run/postgresql 2>/dev/null \
     || { echo "session-start: cannot chown $pgdata to postgres; skipping database setup." >&2; return 0; }
 
+  # Logs go in a fresh mktemp -d (0700, unguessable name), not at fixed /tmp
+  # paths. This function runs as root, and `>` follows symlinks: a fixed
+  # /tmp/initdb.log a local process had pre-created as a link to something
+  # else would be truncated as root (CWE-377). The postmaster's own log is the
+  # exception — it lives in $pgdata, which postgres owns and which is where a
+  # server log conventionally belongs anyway.
+  logdir="$(mktemp -d 2>/dev/null)" \
+    || { echo "session-start: cannot create a log directory; skipping database setup." >&2; return 0; }
+
   if [ ! -f "$pgdata/PG_VERSION" ]; then
-    su postgres -c "$pgbin/initdb -D $pgdata -U postgres --auth=trust" >/tmp/initdb.log 2>&1 || {
-      echo "session-start: initdb failed; see /tmp/initdb.log" >&2
+    su postgres -c "$pgbin/initdb -D $pgdata -U postgres --auth=trust" >"$logdir/initdb.log" 2>&1 || {
+      echo "session-start: initdb failed; see $logdir/initdb.log" >&2
       return 0
     }
   fi
 
-  # `pg_ctl start` on an already-running cluster exits non-zero; treat it as
-  # success and let the readiness check below be the real verdict.
-  su postgres -c "$pgbin/pg_ctl -D $pgdata -o '-p 5433 -k /var/run/postgresql' -l /tmp/postgres.log start" \
-    >/dev/null 2>&1 || true
+  # Start only if OUR cluster is down. `pg_ctl status` reads
+  # $pgdata/postmaster.pid, so it answers "is this data directory's own
+  # postmaster up", not the much weaker "is anything listening on 5433".
+  if ! su postgres -c "$pgbin/pg_ctl -D $pgdata status" >/dev/null 2>&1; then
+    su postgres -c "$pgbin/pg_ctl -D $pgdata -o '-p 5433 -k /var/run/postgresql' -l $pgdata/postgres.log start" \
+      >/dev/null 2>&1 || {
+      echo "session-start: could not start Postgres on :5433; see $pgdata/postgres.log" >&2
+      return 0
+    }
+  fi
 
-  if ! "$pgbin/pg_isready" -h 127.0.0.1 -p 5433 -q 2>/dev/null; then
-    echo "session-start: Postgres did not come up on :5433; see /tmp/postgres.log" >&2
+  # Prove the server answering on 5433 is the one we just vouched for, before
+  # creating a database or running a migration against it. `pg_ctl start`
+  # fails when the port is already taken, and a bare readiness probe would
+  # cheerfully succeed against the squatter — reproduced 2026-08-26 by
+  # standing a second cluster on 5433: pg_ctl exited 1, pg_isready still said
+  # yes, and `SHOW data_directory` was the only thing that noticed.
+  live="$(psql -h 127.0.0.1 -p 5433 -U postgres -tAc 'SHOW data_directory' 2>/dev/null | tr -d '[:space:]')"
+  if [ "$live" != "$pgdata" ]; then
+    echo "session-start: :5433 is served by '${live:-nothing}', not $pgdata — refusing to migrate it." >&2
     return 0
   fi
 
@@ -92,8 +114,8 @@ start_postgres() {
   # Without this the first `db:reseed` of every session dies on
   # `relation "events" does not exist` — db-reset.mjs truncates tables that
   # only a migration creates.
-  pnpm --filter web db:migrate >/tmp/db-migrate.log 2>&1 \
-    || echo "session-start: db:migrate failed; run it by hand (see /tmp/db-migrate.log)." >&2
+  pnpm --filter web db:migrate >"$logdir/db-migrate.log" 2>&1 \
+    || echo "session-start: db:migrate failed; run it by hand (see $logdir/db-migrate.log)." >&2
 }
 
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
