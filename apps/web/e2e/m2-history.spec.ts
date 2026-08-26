@@ -82,8 +82,11 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // -- history + read-only preview + revert --
   // P2 surface move (#13): History is now a Popover trigger in the trip
   // header, and its entries render inside the popover instead of an inline
-  // panel pushing page content down.
-  await page.getByRole("button", { name: "History" }).click();
+  // panel pushing page content down. Since PR #55 it also holds undo/redo —
+  // which the block above already opened it to reach, so this must NOT be a
+  // bare click: that would toggle the open popover shut. openHistory is
+  // idempotent precisely for this.
+  await openHistory(page);
   await expect(page.getByTestId("history-entry").first()).toContainText("Redid: Dismissed a conflict");
   // preview the moment just before Vatican Museums moved onto Day 1:
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();
