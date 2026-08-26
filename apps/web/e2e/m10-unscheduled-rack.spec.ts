@@ -81,7 +81,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   const undo = page.getByRole("button", { name: /undo/i });
   await undo.click();
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
-  await expect(page.getByTestId("rack-card").first()).toContainText("09:00–10:00");
+  await expect(page.getByTestId("rack-card").first()).toContainText("9 am–10 am");
 
   await undo.click();
   // Assert the stop actually landed back on its original day, not just that
@@ -114,7 +114,8 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").first());
   await expect(page.getByTestId("rack-card")).toHaveCount(0);
 
-  // fitIntoDay searches forward from the end of the stop above it (10:00) and
+  // Shown 12-hour (lib/time's toClockRange); the window STORED is still
+  // 10:30–11:30. fitIntoDay searches forward from the end of the stop above it (10:00) and
   // owes 30 minutes of air where a stop butts up against the window before it,
   // so the first hour it can offer is 10:30-11:30. Asserting the exact window
   // rather than merely "has a time": the point of the fix is that the time is
@@ -122,5 +123,5 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   // check — including the 09:00-10:00 one that would mean it had overlapped.
   const landed = page.getByTestId("day-column").first().getByText("Stop on day 2", { exact: false });
   await expect(landed).toBeVisible();
-  await expect(page.getByTestId("day-column").first()).toContainText("10:30–11:30");
+  await expect(page.getByTestId("day-column").first()).toContainText("10:30 am–11:30 am");
 });
