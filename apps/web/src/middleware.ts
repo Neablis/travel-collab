@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/server/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/authConfig";
 
-// M15 (ADR-023): `/` sends a signed-out visitor to the landing page at
+// M15 (ADR-024, superseding ADR-023): middleware builds its own lightweight
+// Auth.js instance from the shared edge-safe config in `@/lib/authConfig`,
+// rather than importing `@/server/auth`'s live singleton. This is Auth.js
+// v5's own documented split-config pattern for edge-compatible middleware —
+// middleware now depends on configuration (data), not on the server's auth
+// instance or any server internal, so it no longer needs a lint-wall
+// exemption. `authConfig` has no `@/server/*` imports and nothing Node-only,
+// so this instance is safe to construct in the Edge runtime.
+const { auth } = NextAuth(authConfig);
+
+// `/` sends a signed-out visitor to the landing page at
 // `/welcome`. This used to happen client-side — Home rendered nothing, fetched
 // /api/trips, got a 401, and only then called router.replace("/welcome") —
 // which cost a round trip and briefly flashed the authenticated app chrome
