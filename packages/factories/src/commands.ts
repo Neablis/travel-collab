@@ -90,6 +90,20 @@ export function commandsFor(scenario: ScenarioName, tripId: string, options: Com
     return commands;
   }
 
+  // Activity `i` of a day gets a one-hour window starting at 09:00 + i. Both
+  // components have to be zero-padded HH:MM — that is what the contract's
+  // TimeWindow regex accepts, and a command that misses it comes back
+  // `invalid-command` rather than as a wrong-but-usable time (KI-37: the old
+  // `0${9 + i}:00` template only padded correctly for i === 0 and emitted
+  // "010:00" from a day's second activity onward). The start hour is capped so
+  // the window can never run past 23:00 however many activities a future
+  // scenario asks for per day.
+  const hhmm = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+  const timeWindowFor = (i: number) => {
+    const startHour = Math.min(9 + i, 22);
+    return { start: hhmm(startHour), end: hhmm(startHour + 1) };
+  };
+
   let locationIndex = 0;
   const realLocations = [
     { name: "Colosseum, Rome, Italy", city: "Rome", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
@@ -106,7 +120,7 @@ export function commandsFor(scenario: ScenarioName, tripId: string, options: Com
         tripId,
         activityId,
         title: `Stop ${dayIndex + 1}.${i + 1}`,
-        timeWindow: { start: `0${9 + i}:00`, end: `1${0 + i}:00` },
+        timeWindow: timeWindowFor(i),
         location: located ? realLocations[locationIndex++ % realLocations.length] : undefined,
         cost: costed ? { amountMinor: 2500 + i * 1100, currency: "USD" } : undefined,
       });
