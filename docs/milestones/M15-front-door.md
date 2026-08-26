@@ -170,20 +170,18 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
       per their instruction.
 - [ ] `pnpm typecheck && pnpm lint`, unit, int and the full e2e suite green
       against a **production** build with `CI=true` (KI-27), including the
-      narrow-viewport project. **Not fully green.** Typecheck is green
-      (`pnpm typecheck`). Unit (794 passed, 1 skipped) and int (85 passed)
-      are green and unaffected by the e2e spec fix above (neither touches
-      those files). `pnpm lint` fails: `scripts/check-color-wall.mjs` flags
-      five arbitrary Tailwind values in `apps/web/src/components/front/
-      LandingScreen.tsx` (lines 47, 53, 82, 87, 97 — `tracking-[0.11em]`,
-      `max-w-[30em]`, `tracking-[0.08em]`, `text-[9.5px]`,
-      `grid-cols-[74px_1fr]`). This is pre-existing in Task 1/2's file
-      (introduced in `0207bc6`, before this task touched anything) and is out
-      of this task's file scope to fix — it needs a design-token decision
-      Task 5 is not positioned to make unilaterally. The full
-      `test:e2e:ci-like` run against the fixed spec has not been re-verified
-      by this session (see the note above) — its authoritative result is the
-      reviewer's rerun, not a claim made here. See "What remains" below.
+      narrow-viewport project. **`pnpm check` and `test:int` are green; the
+      full e2e suite is the remaining piece.** Commit `c581151` cleared the
+      five arbitrary Tailwind values this box used to list in
+      `apps/web/src/components/front/LandingScreen.tsx` (`tracking-widest`,
+      `max-w-98`, and three documented `style` escapes), so `pnpm check`
+      (typecheck, ESLint, the lint wall, the colour wall, the case-collision
+      check) is green: 106 unit test files, 794 tests passing, 1 skipped.
+      `pnpm --filter web test:int` is also green: 13 files, 85 tests. Both
+      re-verified 2026-08-26. The full `test:e2e:ci-like` run against the
+      fixed spec has not been re-verified by this session (see the note
+      above) — its authoritative result is the reviewer's rerun, not a claim
+      made here. See "What remains" below.
 - [ ] Retro appended here; `TODO.md`, this file's boxes and
       `docs/milestones/README.md`'s Current milestone all flipped in **one**
       commit (README's gate-close checklist). **Deliberately not done** — the
@@ -192,24 +190,16 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
 
 ## What remains before this gate can close
 
-Two things, both outside this task's scope:
+One thing, outside this task's scope:
 
-1. **Fix the color-wall lint failure** in `LandingScreen.tsx` (five arbitrary
-   Tailwind values, listed above) so `pnpm lint` — and therefore `pnpm
-   check` — is green. Needs a design-token decision (e.g. is 0.11em really
-   distinct from `tracking-widest`'s 0.1em, or does the handoff's transcribed
-   value get rounded to a real token; is there a token for the 9.5px avatar
-   initials and the `74px 1fr` day-row grid, or do they get the same
-   documented-exception treatment `UnscheduledRack.tsx` and `AccountMenu.tsx`
-   use for their own off-token values) — a call for whoever owns that file,
-   not a mechanical fix.
-2. **Verify a real Google sign-in end to end on a deployed preview.** Needs a
-   PR opened for this branch first (none exists yet — see Status above), then
-   a manual sign-in from `/signin` and `/signup` on that PR's Vercel preview,
-   confirming both land on `/`. Record the result on the PR's **Verification
-   actually performed** section per `AGENTS.md`.
+1. **Verify a real Google sign-in end to end on a deployed preview.** A
+   Vercel preview for PR #56 now exists and deployed successfully, so this is
+   no longer blocked on "no preview exists" — what's outstanding is a human
+   performing a real Google sign-in from `/signin` and `/signup` on that PR's
+   Vercel preview, confirming both land on `/`. Record the result on the PR's
+   **Verification actually performed** section per `AGENTS.md`.
 
-Once both are done: tick the two remaining exit-gate boxes, append the retro,
+Once that's done: tick the two remaining exit-gate boxes, append the retro,
 and flip `TODO.md` / `docs/milestones/README.md`'s Current milestone (and
 reconcile its stated M15 execution order with decision 1 above) in one commit
 per README's gate-close checklist.
