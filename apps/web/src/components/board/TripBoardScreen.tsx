@@ -136,6 +136,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // — so linking here at our own `/signin` with the trip as the callback
     // target returns a signed-out deep-linker to the trip they asked for,
     // the same as Auth.js's own default page used to.
+    //
+    // CodeRabbit (PR #56, finding 1): `src/middleware.ts` now guards
+    // `/trips/:path*` (and `/playbooks/:path*`) the same way it already
+    // guarded `/`, so a signed-out *arrival* at this route never reaches
+    // this component at all — it's redirected to `/signin?callbackUrl=...`
+    // at the HTTP layer before rendering starts. That makes this branch
+    // unreachable in the normal flow, but it is not dead code: it remains
+    // the correct fallback for a session that expires while this page is
+    // already open (a `useTrip` refetch turns up a 401 mid-session), the
+    // same division of labour — middleware owns arrival, the component owns
+    // expiry-in-place — that `(app)/page.tsx`'s Home documents for `/`.
     return (
       <PageContainer width="full">
         <div className="flex flex-col items-start gap-3 py-10">
