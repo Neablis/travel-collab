@@ -113,6 +113,12 @@ export function commandsFor(scenario: ScenarioName, tripId: string, options: Com
   // asserts on mappedTrip's literal "09:00"/"10:00" (which is emitted by the
   // mappedTrip branch above, not here). src/conflicts.test.ts pins both halves
   // through the real conflict engine: one overlap here, none anywhere else.
+  // KI-41: this helper only exists because `commandsFor` has no override
+  // surface, so it has to invent a time window from the loop index. The
+  // LAST_START_MINUTES clamp below is defensive code for a case a caller
+  // cannot create (`activitiesPerDay` maxes at 2 and is not settable), and it
+  // is deliberately left rather than made to throw, because KI-41's fix
+  // deletes this helper outright. If KI-41 is closed won't-fix, revisit it.
   const WINDOW_MINUTES = 60;
   const FIRST_START_MINUTES = 9 * 60;
   const LAST_START_MINUTES = 22 * 60;
