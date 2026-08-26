@@ -214,10 +214,17 @@ export default function Home() {
     };
   }, [visibleTripIds]);
 
-  // The landing page lives at /welcome, outside this route group's AppHeader
-  // shell. `replace`, not `push`, so the back button doesn't bounce a
-  // signed-out visitor straight back into a page that will only redirect
-  // them again.
+  // M15 (ADR-023): `src/middleware.ts` now handles *arrival* — a signed-out
+  // visitor hitting `/` is redirected to `/welcome` before this page ever
+  // renders, so this branch no longer fires on first load. What it still
+  // covers is *expiry-in-place*: a session that lapses while this page is
+  // already open produces a 401 the next time `load()` fetches /api/trips
+  // (a manual refresh, a background poll, etc.), and that visitor should
+  // still be sent to the front door rather than left looking at a stuck or
+  // broken authenticated view. The landing page lives at /welcome, outside
+  // this route group's AppHeader shell. `replace`, not `push`, so the back
+  // button doesn't bounce them straight back into a page that will only
+  // redirect them again.
   useEffect(() => {
     if (unauthenticated) router.replace("/welcome");
   }, [unauthenticated, router]);

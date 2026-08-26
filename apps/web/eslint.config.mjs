@@ -23,8 +23,13 @@ export default [
     // to `route.ts` files only (not the whole `.well-known/**` tree) so a
     // future non-route file placed under `.well-known` doesn't inherit the
     // exemption for free.
+    // `src/middleware.ts` joins the shell too (ADR-023): Next.js middleware
+    // never ships to the browser and runs only on the server before a
+    // request is handled, which makes it categorically the same kind of
+    // code as a route handler, not UI reaching into server internals. The
+    // exemption is an exact path, not a subtree, so nothing else inherits it.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts"],
+    ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts", "src/middleware.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
