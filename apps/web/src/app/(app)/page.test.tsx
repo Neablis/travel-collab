@@ -479,8 +479,44 @@ describe("Home page head", () => {
 
   it("does not render the All trips heading when there are no trips to show", async () => {
     renderHome([]);
-    await screen.findByText(/no trips yet/i);
+    await screen.findByText(/A name is enough to start/i);
     expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
+  });
+});
+
+describe("Home first-run experience", () => {
+  it("welcomes a signed-in user who has no trips yet", async () => {
+    fetchMock = vi.fn(async () => jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    expect(await screen.findByText("Plan your first trip")).toBeDefined();
+    expect(screen.getByText(/A name is enough to start/)).toBeDefined();
+  });
+
+  it("creates a first trip from a name alone", async () => {
+    const created = { tripId, name: "Japan" };
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return jsonResponse(created, 201);
+      return jsonResponse([]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
+    await userEvent.type(screen.getByLabelText(/trip name/i), "Japan");
+
+    // Step 1 of 4 — "Create empty" is enabled by the name alone, which is why
+    // M15 needs no separate one-field first-run screen (decision 3).
+    await userEvent.click(screen.getByRole("button", { name: "Create empty" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/trips"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
   });
 });
 

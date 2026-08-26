@@ -301,7 +301,17 @@ export default function Home() {
 
         <div>
           {trips !== null && visibleTrips.length === 0 ? (
-            <EmptyState title="Start your first trip" body="No trips yet — create one." />
+            <>
+              {/* This is M15's first-run moment. The design's separate one-field
+                  "What are you planning?" screen was dropped on 2026-08-26 (decision 3
+                  in docs/milestones/M15-front-door.md) because NewTripWizard's "Create
+                  empty" already creates a trip from a name alone on step 1 — a second
+                  create path would have been a divergence with nothing to buy it. */}
+              <EmptyState
+                title="Plan your first trip"
+                body="A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in."
+              />
+            </>
           ) : (
             <>
               {visibleTrips.length > 0 && (
