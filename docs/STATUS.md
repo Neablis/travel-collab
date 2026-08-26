@@ -5,6 +5,46 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## Phase 1b is cancelled, 2026-08-26 — M10's gate narrows, Phase 9 is next
+
+**Mitchell's decision, no code changed.** Phase 1b ("the header adopts the
+focus-scope model") is **cancelled unbuilt**, and `SPEC.md` §1's
+account → trip → day focus-scope model is **rejected as a whole** rather than
+deferred. His rule: *"top bar is for functionality larger than a trip, and the
+elements below the top bar are trip scoped actions"*, and on the header's Quick
+add, *"Only 'Add stop' where it is now"*.
+
+**This reverts the 2026-08-23 design sync's §4.1 decision** and restores what the
+code already said: `AppHeader.tsx:6-9`'s Phase 1 comment and `DRIFT.md` D3
+(*"Code is right to omit Quick add"*). The sync's review had originally
+recommended keeping the code; that recommendation now stands. Recorded in
+`docs/milestones/M10-visual-craft.md` (2026-08-26 gate-scope amendment),
+`docs/design-feedback/2026-08-23-design-sync-review.md` §4.1, and on the plan
+file itself.
+
+**Phase order to the gate is now 5, 6, 7, 8, 8b, 9.** All of 5-8b are merged, so
+**Phase 9 — M10's exit gate — is the next work**
+(`docs/plans/M10-delta/phase-9-gate.md`). Its checklist covers Phase 8b but not
+1b.
+
+**Two plan claims were found false while scoping the cancellation**, and are
+recorded on the cancelled plan file so nothing downstream inherits them:
+`FocusProvider` does **not** distinguish scope from the day-chip ring (it holds
+one field, `focusedDay`), and there is **no** `MapRail._railLock` — `MapRail`
+has a leading+trailing scroll *throttle*, which cannot tell a programmatic
+scroll from a user one. Task 1b.4 would have built both from scratch.
+
+**§1's one non-header rule was checked and deliberately not adopted:** that
+Calendar drops the unscheduled rack the way Map does.
+`TripBoardScreen.tsx:409-414` gates the rack on `lens !== "Map"` for a
+documented reason — its day-assign `NativeSelect` is a real scheduling path in
+Timeline and Calendar, and Map only loses it because drag is Board-only. Hiding
+it would delete working functionality.
+
+**Also corrected in this change: the "Next action" section below had gone
+stale** — it still said "Review and merge PR #46" and "`main` is at `c630152`".
+PR #46 merged 2026-08-25 and `main` has moved twice since (PR #52, then PR #53).
+
 ## Roadmap changed 2026-08-25 — M16 added, M9 moved to last (ADR-022)
 
 Decided by Mitchell in a scoping conversation, not by a code change: **M9 is not
@@ -1255,16 +1295,29 @@ which existed only on a branch.
 
 ## Next action
 
-**Review and merge PR #46.** `claude/m10-wave2-phase8b` (25 commits,
-`9174e06`..HEAD) is open, CI green, CodeRabbit passed, all 20 preview
-comments resolved. See "Phase 8b" under "In flight" above for what shipped,
-why Task 8b.4 deliberately did not, and the demo-data section for the dev
-tooling folded in on top.
+**Run Phase 9 — M10's Wave-2 exit gate**
+(`docs/plans/M10-delta/phase-9-gate.md`). Phases 5, 6, 7, 8 and 8b are all
+merged and **Phase 1b is cancelled** (see this file's 2026-08-26 header entry),
+so the gate is the only thing left between here and M10 closing. Its checklist
+covers Phase 8b; it does **not** cover Phase 1b.
 
-**Decide before merging whether this PR ships whole.** It is no longer only
-Phase 8b — see the scope note in this file's header. Splitting the demo-data
-endpoint out is still cheap and would leave the phase tasks reviewable on
-their own terms.
+`main` is at **`44bebae`** (merge of PR #53). CI on that SHA: `static-checks`,
+`unit-tests` and `integration-e2e` all green in run `32921598736`;
+`migrate-production` was still running when this was written and was not
+re-checked. The only open PR is **#51**, a dependabot `npm_and_yarn` bump,
+unrelated to this work.
+
+**Two things the gate must decide rather than inherit:**
+1. **Whether "presentational only" still holds.** PR #46 shipped a soft-delete
+   route, an env gate and a JSON importer alongside the phase tasks — the
+   scope note in this file's 2026-08-25 header entry has the reviewer's
+   verbatim objection. Decide it consciously.
+2. **The manual browser walk.** Phase 5's Step 4, Phase 6's Step 4 and Phase
+   8's exit checklist were each never walked by hand. Phase 9's gate makes it
+   blocking, so it stops here.
+
+**Historical note:** this section previously read "Review and merge PR #46" with
+`main` at `c630152`. PR #46 merged 2026-08-25; PRs #52 and #53 landed after it.
 
 **Three things are deliberately unfinished on this branch**, each recorded
 where it belongs rather than silently dropped:
@@ -1294,11 +1347,11 @@ data."*
 `.claude/launch.json`; `/cleanup-orphans` (hardened in PR #45) is the way to
 clear them.
 
-**Phases 8b and 1b are the 2026-08-23 design sync's approved additions to this
+**Phases 8b and 1b were the 2026-08-23 design sync's approved additions to this
 gate** (see the "Design sync" section above and the gate-scope amendments in
-`docs/milestones/M10-visual-craft.md`). **Phase order to the gate is 5, 6, 7,
-8, 8b, 1b, 9** — 1b depends on both Phase 7 and Phase 8b, so it starts once
-8b merges. Then Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`):
+`docs/milestones/M10-visual-craft.md`). **8b shipped; 1b was cancelled unbuilt
+on 2026-08-26**, so **the phase order to the gate is 5, 6, 7, 8, 8b, 9** and
+every one of those is merged. Phase 9's gate (`docs/plans/M10-delta/phase-9-gate.md`):
 before/after screenshots, KI-2/3/4 closed or re-deferred, presentational-only
 diff verified, all tests incl. e2e green, retro appended — **plus, per the
 2026-08-24 amendment above, routing Task 8b.4's banner (blocked on KI-36) to

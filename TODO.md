@@ -51,7 +51,10 @@ Where the work actually stands right now: `docs/STATUS.md`.
       three-state save indicator, sync-failure banner, calendar month blocks,
       and the trip start picked with the end derived) and **Phase 1b** (the
       header adopts the focus-scope model, an explicit revisit of the merged
-      Phase 1). Phase order to the gate: 5, 6, 7, 8, 8b, 1b, 9.)*
+      Phase 1). **Phase 1b was CANCELLED 2026-08-26, unbuilt** — `SPEC.md` §1's
+      focus-scope model is rejected; the global bar carries nothing trip-scoped.
+      Phase order to the gate is now: 5, 6, 7, 8, 8b, 9, and **Phase 9 is the
+      next work**.)*
 - [ ] **M16 The assistant answers questions** →
       `docs/milestones/M16-assistant-read-agent.md`
       *(Approved 2026-08-25, **ADR-022**. Runs right after M10's Wave-2 gate,

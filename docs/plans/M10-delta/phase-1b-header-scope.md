@@ -1,5 +1,38 @@
 # Phase 1b — the header learns what you are looking at
 
+> **STATUS: CANCELLED 2026-08-26 (Mitchell). Never built — no code from this
+> plan exists.** The header keeps no trip-scoped actions: *"top bar is for
+> functionality larger than a trip, and the elements below the top bar are trip
+> scoped actions"*, and on the header's Quick add, *"Only 'Add stop' where it is
+> now"*. That reverts to `AppHeader.tsx:6-9`'s original Phase 1 decision and to
+> `DRIFT.md` D3, both of which this plan was written to override. `SPEC.md` §1's
+> focus-scope model is rejected as a whole — see
+> `docs/design-feedback/2026-08-23-design-sync-review.md` §1. The gate-scope
+> narrowing is recorded in `docs/milestones/M10-visual-craft.md`.
+>
+> **Two claims below are factually wrong about the code as it stands**, found
+> while scoping the phase and left visible here rather than deleted, so a future
+> reader does not rediscover them:
+>
+> 1. *"`FocusProvider` already distinguishes these"* (ring vs. scope) — it does
+>    not. `components/trip/context/FocusProvider.tsx` holds exactly one field,
+>    `focusedDay: number | null`. Task 1b.4 would have had to build the scope
+>    state, not read it.
+> 2. *"`MapRail` already has this pattern as `_railLock`"* — there is no
+>    `_railLock` anywhere in the repo (`grep -rn railLock` is empty).
+>    `MapRail.tsx:143-175` has a leading+trailing scroll **throttle**,
+>    explicitly documented as *not* a settle-debounce; a throttle cannot
+>    distinguish a programmatic scroll from a user scroll, so it could not have
+>    served as the 900ms lock. That lock would have been written from scratch.
+>
+> One fragment was checked for salvage and **deliberately not adopted**: §1's
+> rule that Calendar drops day scope and hides the unscheduled rack.
+> `TripBoardScreen.tsx:409-414` gates the rack on `lens !== "Map"` for a
+> documented reason — its day-assign `NativeSelect` is a real scheduling path in
+> Timeline and Calendar. Hiding it would delete working functionality.
+>
+> Original approval record follows.
+>
 > **STATUS: APPROVED 2026-08-23 (Mitchell).** An explicit revisit of the merged
 > Phase 1, adopting `.design-sync/handoff/SPEC.md` §1's focus-scope model. This
 > is a gate-scope amendment to M10, recorded in
