@@ -10,7 +10,17 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { activeDetail, activeHistory, confirmHead, enqueue, failHead, type OptimisticState } from "./optimistic";
+import {
+  activeDetail,
+  activeHistory,
+  clearFailure,
+  confirmHead,
+  enqueue,
+  failHead,
+  unsentCount,
+  type OptimisticState,
+  type SendFailure,
+} from "./optimistic";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
@@ -29,6 +39,12 @@ type TripCtx = {
   // from it (no refetch round-trip) — same shape as how undo/redo/revert
   // reconcile from their command response below.
   applyOutcome: (outcome: CommandOutcome) => void;
+  // KI-36: the send queue's honest failure surface. `unsent` is the live count
+  // of queued units the server has NOT accepted (retained, not discarded);
+  // `failure` carries when the send failed and what the server said; `retry`
+  // is the only thing that resumes sending. Retry is manual by design — there
+  // is no timer, no backoff, and nothing re-sends on its own.
+  sync: { unsent: number; failure: SendFailure | null; retry: () => void };
   preview: { seq: number | null; enter: (seq: number) => Promise<void>; exit: () => void };
 };
 
@@ -106,7 +122,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // while a send is outstanding don't kick off a second send for the same head.
   const inFlight = useRef(false);
   useEffect(() => {
-    if (!optimistic || optimistic.pending.length === 0 || inFlight.current) return;
+    // The `failure` clause is load-bearing (KI-36): now that a failed send
+    // RETAINS its queue, emptiness alone no longer stops the sender, and
+    // without this the effect re-fires on the retained head and re-sends the
+    // same rejected command without bound. Only `retry()` lifts the gate.
+    if (!optimistic || optimistic.pending.length === 0 || optimistic.failure || inFlight.current) return;
     const head = optimistic.pending[0]!;
     inFlight.current = true;
     (async () => {
@@ -115,6 +135,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           ? await sendTripCommand(head.commands[0]! as BoardCommand)
           : await sendTripCommandBatch(tripId, head.commands);
       inFlight.current = false;
+      // Built out here, not inside the updater below: `new Date()` is a
+      // wall-clock read and updaters must stay pure (React may invoke them
+      // more than once), which is the same reason setError is decided out
+      // here. `failHead` takes the timestamp as a parameter and never reads a
+      // clock itself, so the reducer stays testable with a fixed instant.
+      const failure: SendFailure | null =
+        result.ok || result.error.code === "no-op"
+          ? null
+          : { at: new Date().toISOString(), message: result.error.message };
       setOptimistic((prev) => {
         if (!prev) return prev;
         if (result.ok) {
@@ -124,9 +153,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // nothing — surfacing it as a page alert alarms the user for a
         // harmless action (#7HuQy). Treat it as a benign no-op: no error, and
         // the (already-applied-optimistically) head is simply confirmed away
-        // against the existing confirmed state.
-        if (result.error.code === "no-op") return confirmHead(prev, prev.confirmed);
-        return failHead(prev);
+        // against the existing confirmed state. `failure === null` on a failed
+        // result means exactly this case.
+        if (!failure) return confirmHead(prev, prev.confirmed);
+        return failHead(prev, failure);
       });
       // Decided from `result` (already known, outer scope) rather than from
       // inside the setOptimistic updater above — updater functions must stay
@@ -173,6 +203,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     [runDispatch, pending, exit],
   );
 
+  // KI-36: the manual retry. Clearing the failure is all it takes — the
+  // sequential sender's effect re-runs on the new state and picks the retained
+  // head back up. No re-enqueue, no re-prediction: the queue never left.
+  const retry = useCallback(() => {
+    setError(null);
+    setOptimistic((prev) => (prev ? clearFailure(prev) : prev));
+  }, []);
+
   const dispatchBatch = useCallback(
     async (commands: BatchableCommand[]) => {
       runDispatch(commands);
@@ -205,6 +243,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         dispatch,
         dispatchBatch,
         applyOutcome,
+        sync: { unsent: optimistic ? unsentCount(optimistic) : 0, failure: optimistic?.failure ?? null, retry },
         preview: { seq: previewSeq, enter, exit },
       }}
     >

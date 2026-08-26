@@ -98,9 +98,12 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   close it, and it remains real for anyone who navigates away without
   reading it. Revisit alongside M13, where concurrent multi-actor writes
   make the silent loss more consequential.
-- **Same bug class, different trigger:** **KI-36** is the failed-send half of
-  this — `failHead` in the same `optimistic.ts` drops the whole pending queue
-  on a failed send, not just on abrupt navigation.
+- **Same bug class, different trigger:** **KI-36** was the failed-send half of
+  this — `failHead` in the same `optimistic.ts` dropped the whole pending queue
+  on a failed send, not just on abrupt navigation. **Resolved 2026-08-25**: a
+  failed send now retains its queue and offers a manual retry. That does *not*
+  close this entry — the queue is still in memory, so navigating away or
+  reloading still loses it.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
@@ -319,110 +322,53 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
 
-### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed
-- **Severity:** correctness (silent loss of the *rest of the queue*, not of
-  the alert itself) — the **same bug class as KI-5**: an in-memory optimistic
-  queue that can lose confirmed-to-the-user work without telling the user the
-  true scope of what was lost. KI-5 is triggered by the user navigating away
-  mid-send; this is triggered by the send itself failing.
-- **Area:** `apps/web/src/components/trip/context/optimistic.ts:81-83`
-  (`failHead`)
-- **Symptom:** `failHead` responds to a failed send with
-  `{ ...state, pending: [] }` — every unit still queued behind the one that
-  just failed is dropped, not just the failed one. A failed send **does**
-  raise a visible alert: `TripProvider.tsx:137` calls
-  `setError(result.error.message)`, and `TripBoardScreen.tsx:249-251` renders
-  it as `<p role="alert">{error}</p>` until the next successful send. But
-  that alert reports only the server's rejection of the one failed command —
-  it never says that the queued edits behind it were also dropped, nor how
-  many. There is no retry path, no on-device persistence of the discarded
-  units, no failure timestamp, and no retained count exposed anywhere. The UI
-  has already shown the user's edits as applied (client-side prediction); on
-  a failed send those edits vanish from the queue with the alert giving no
-  indication that anything beyond the reported error occurred.
-- **Blocks:** Task 8b.4 (M10 Wave 2 Phase 8b) — the design's persistent
-  sync-failure banner needs a real, live count of unsent changes and a real
-  `(since <time>)` timestamp to render (`Your last three changes are saved on
-  this device but haven't reached the trip yet`, plus a **Retry now** action).
-  None of that state exists: the count is always what was about to be
-  discarded, not what's retained, there is no failure timestamp, and there is
-  nothing to retry against. Every clause of the design's copy would be false,
-  so the banner has no honest trigger and was **deliberately not shipped**;
-  the phase record is
-  `docs/design-feedback/2026-08-23-design-sync-review.md` §6. The same root
-  cause forced Task 8b.3 to ship only the saved/saving states of its
-  three-state save indicator, dropping the error state.
-- **Options (cheapest first):**
-  1. **Retain the failed head and expose a retry.** Change `failHead` to keep
-     `pending` (or at least its head) instead of clearing it, add a `failedAt`
-     timestamp and a `retry()` that re-sends the retained head. Gets the
-     banner and the save indicator's error state to an honest minimum: a real
-     count, a real timestamp, a real retry action. Does not survive a reload
-     or tab close — an in-memory queue is still lost the moment the tab goes
-     away.
-  2. **Persist the queue across reloads** (e.g. `localStorage` or IndexedDB,
-     keyed by trip), replayed on mount. Closes the reload/tab-close gap KI-5
-     also describes, not just the failed-send gap; substantially more surface
-     (serialization, staleness against a since-changed server state, cross-tab
-     conflicts) for one fix.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4 — found while
-  implementing the phase plan's sync-failure banner; the plan itself directs
-  stopping and reporting rather than fabricating a trigger).
 
-### KI-37 — `commandsFor`'s second-activity time window is malformed for any scenario with 2+ activities on a day
-- **Severity:** correctness (silent wrong output — same family as KI-36)
-- **Area:** `packages/factories/src/commands.ts` (the `AddActivity` loop inside `commandsFor`)
-- **Symptom:** the per-activity `timeWindow` is built as
-  `` `0${9 + i}:00` `` for `start`. That's correct only for `i === 0`
-  (`"09:00"`); for `i >= 1` (a scenario's second, third, … activity on the
-  same day) `9 + i` is already two digits, so the template literal produces
-  `"010:00"`, `"011:00"`, etc. — five characters, not the `HH:MM` `TimeWindow`
-  contract regex requires. Any caller that runs the resulting command through
-  `executeTripCommand`/`executeTripCommandBatch` gets an `invalid-command`
-  rejection, not a wrong-but-valid time.
-- **Bounds:** only scenarios with `activitiesPerDay >= 2` are affected — the
-  factory's `unscheduledHeavy` scenario (`activitiesPerDay: 1`) and any
-  single-activity-per-day scenario are unaffected. `end` (`` `1${0 + i}:00` ``)
-  has the same shape but happens not to overflow within the ranges any
-  current scenario uses.
-- **Discovered:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`
-  deliberately seeds fixture trips with `"unscheduledHeavy"` rather than a
-  2-per-day scenario specifically to route around this.
-- **Why not fixed here:** `packages/factories` is outside this task's file
-  scope (a `packages/` change needs its own reviewed step per AGENTS.md).
-- **Fix path:** zero-pad `9 + i` (and `0 + i`) to two digits before
-  interpolating, or build the window with a real time-formatting helper
-  instead of string concatenation.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix wave — found while wiring `executeTripCommandBatch` into the reset route's integration test).
 
-### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough
-- **Severity:** correctness (silent wrong output — same family as KI-36/KI-37)
-- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
-- **Symptom:** `uuidFrom(sequence, salt)` builds each UUID group with
-  `hex(n, len).padStart(len, "0")`, which only *pads short* — it does not
-  truncate a hex string already longer than `len`. The `b` group
-  (`hex(sequence + salt * 97, 4)`) overflows its 4-hex-digit budget once
-  `sequence + salt * 97 >= 0x10000` (65536), and the trailing segment
-  (`e`) has the same shape. The result is a string with the right
-  dash-separated *positions* but wrong-length *groups* — not a valid v4 UUID
-  and not something `z.string().uuid()` accepts — returned with no error.
-  `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` (24, not the
-  usual 12, hex digits in the 2nd group).
-- **Bounds:** `uuidFrom` is documented as taking "a Fishery sequence number",
-  which Fishery starts at 1 and increments per built object — no current
-  factory usage runs a sequence anywhere near 65536. This is a latent trap
-  for a future caller (a large `salt`, or a very long factory run), not a
-  live bug in any current test.
-- **Why not fixed here:** `packages/factories` is outside this task's file
-  scope. Also, per its own doc comment `uuidFrom` exists specifically to keep
-  factory-built ids *deterministic and diffable*, not to be a general-purpose
-  UUID generator — misuse outside its documented input range is the caller's
-  fault. The trap is that it fails silently rather than throwing.
-- **Fix path:** validate `sequence`/`salt` stay in range up front (e.g.
-  `sequence < 0x10000`) and throw, rather than let `padStart` silently no-op
-  on an overflowed group.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix
-  wave — found auditing the module while filing KI-37).
+### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings
+- **Severity:** cleanup (no live failure today — the projection factory never runs the conflict engine, so the clash is currently unobservable)
+- **Area:** `packages/factories/src/trip.ts` (`activityFactory`'s literal `timeWindow`, and `tripDetailFactory`'s hardcoded `conflicts: []`), `packages/factories/src/scenarios.ts`
+- **Symptom:** `activityFactory` (`trip.ts:47`) gives **every** activity the identical literal window `{ start: "09:00", end: "11:00" }`. Identical windows satisfy the domain's `windowsOverlap` (`a.start < b.end && b.start < a.end`), so every scenario with `activitiesPerDay >= 2` — `threeDayTrip`, `overBudgetTrip`, `ungeocodedTrip` **and** `overlappingDay` — is carrying a mutual time clash on every day. `scenarios.overlappingDay` is therefore not distinguished from its siblings on the projection side at all: the thing its name promises is a property all four share.
+- **Why nothing fails today:** `tripDetailFactory` hardcodes `conflicts: []` (`trip.ts:151`) and never calls `detectConflicts`, so the clash is never computed and never observed. The moment a caller hydrates one of these fixtures and runs the real engine — which is a reasonable thing to do — `threeDayTrip` starts reporting a degenerate `time-overlap` conflict it was never meant to have, and any assertion of the form "the ordinary case has no conflicts" breaks.
+- **Distinct from the command side, which is fixed.** `commandsFor("overlappingDay")` emitted `09:00-10:00` and `10:00-11:00` — touching, not overlapping — and now emits a real partial overlap (`09:00-10:00` / `09:30-10:30`), verified through `decideTripCommand` → `evolveTrip` → `detectConflicts` in `packages/factories/src/conflicts.test.ts`. This entry is the *projection*-side twin of that problem, and the two are now asymmetric: the command twin overlaps deliberately, the projection twin overlaps accidentally and everywhere.
+- **Why not fixed here:** staggering `activityFactory`'s default window is a one-line change with a blast radius nobody has measured — `@tc/factories` is consumed by ~34 `apps/web` test files (`TimelineLens`, `overlapData`, `calendarData`, `ScheduleLens`, `CalendarLens` and others) whose layout and grouping assertions may depend on every activity sharing a window. Verifying that is a scoped change of its own, not a rider on a KI sweep.
+- **Fix path:** stagger `activityFactory`'s `timeWindow` by index the way `commandsFor` now does, run the full `apps/web` unit suite, and repair whatever depended on the shared window. Then decide separately whether `tripDetailFactory` should compute `conflicts` via the real engine instead of hardcoding `[]` — that is a design question about what the factory is for (an inert skeleton vs. a self-consistent projection), and it is Mitchell's, not a mechanical fix.
+- **Cross-reference:** KI-37 (the command-side window bug, resolved 2026-08-25) — same family, opposite twin.
+- **First noted:** 2026-08-25 (KI sweep, found while making `commandsFor("overlappingDay")` actually overlap).
+
+### KI-41 — `commandsFor` is a scenario generator with no override surface, so it must invent data it has no business inventing
+- **Severity:** cleanup (no user impact — `@tc/factories` is test-fixture-only and never reaches the app bundle; this is the root cause behind KI-37 and two follow-on patches)
+- **Area:** `packages/factories/src/commands.ts` (`commandsFor`, `CommandsForOptions`)
+- **Symptom:** `commandsFor`'s entire override surface is `{ dayCount?: number }`, and its own comment concedes that is "only meaningful for `mappedTrip`". Everything else is a hardcoded switch on the scenario name: `dayCounts`, `activitiesPerDay`, `located`, `costed`, `unscheduledCount`, a three-element `realLocations` array cycled by index, a cost of `2500 + i * 1100`, and a time window synthesized from the loop index. It is not a factory — a factory returns a default-shaped model the caller overrides per test. Its own sibling in the same package, `tripDetailFactory`/`activityFactory` (`trip.ts`), *is* a Fishery factory with full `Partial<T>` overrides and seeded faker; `scenarios.threeDayTrip(overrides)` takes `Partial<TripDetail>` while its command-side twin takes essentially nothing. Same conceptual fixture, two different contracts.
+- **Why this matters — it is the root cause behind three separate patches:** because no caller can say what a window should be, the generator has to invent one from `i`, and every downstream problem follows from that single fact:
+  1. Inventing it as `` `0${9 + i}:00` `` produced `"010:00"` — **KI-37** (resolved 2026-08-25).
+  2. An invented value can run past midnight, so KI-37's fix added a `Math.min(..., 22:00)` clamp — which silently emits duplicate `22:00-23:00` windows from the 14th activity on a day rather than failing loudly, the very shape of defect KI-38 was about. Unreachable today (`activitiesPerDay` maxes at 2 and is not caller-settable), and now guarded by `conflicts.test.ts`'s zero-overlap assertions, but it is defensive code for a situation the caller cannot even create.
+  3. `overlappingDay` needed a *different* invention rule, so a scenario-name special case (`staggerMinutes`) was bolted into the helper — the factory manufacturing an overlap by matching on a string, instead of a test simply passing two overlapping windows.
+- **Deliberate decision (Mitchell, 2026-08-25):** the clamp in (2) is **left as-is rather than converted to a throw**, on the explicit premise that this entry's refactor deletes it. If this entry is closed as won't-fix instead, revisit the clamp — that premise is the only reason it was left.
+- **Fix path:** give `commandsFor` the override surface its projection twin already has — named scenarios keep supplying defaults, callers override what their test actually cares about — then delete `timeWindowFor`, the clamp and the `staggerMinutes` special case outright. What justifies `commandsFor` existing at all is unaffected and should be preserved: per its header and ADR-020, integration/e2e/seed paths need an ordered `TripCommand[]` replayed through the real write path, because directly inserting projection rows would silently diverge from replay. That argues for a command-emitting fixture; it does not argue for one without overrides.
+- **Blast radius (small — measured 2026-08-25):** only four real consumers. `apps/web/e2e/responsive.spec.ts` (three call sites, `threeDayTrip`) and `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts` (`unscheduledHeavy`). `apps/web/e2e/helpers.ts` uses `mappedTrip`, which early-returns before any of this code. `scripts/db-seed.ts` imports the package but does not call `commandsFor`.
+- **Cross-reference:** KI-37 (the symptom, resolved), KI-40 (the projection-side twin's shared-window problem — same package, different half).
+- **First noted:** 2026-08-25 (KI sweep — Mitchell, reviewing why a factory was synthesizing time windows from a loop index at all).
+
+### KI-42 — `confirmHead` silently drops queued units on a *successful* send when they no longer predict cleanly
+- **Severity:** correctness (silent loss of confirmed-to-the-user work — the **same class as KI-5 and KI-36**, on the one trigger neither of them covers)
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts:65-77` (`confirmHead`)
+- **Symptom:** when the head send *succeeds*, `confirmHead` adopts the authoritative confirmed state and then re-predicts each remaining queued unit against the new base. Any unit that no longer predicts cleanly is dropped — and, via the `break`, so is **every unit queued behind it**:
+  ```ts
+  for (const unit of rest) {
+    const r = enqueue(acc, unit.id, unit.commands);
+    if (r.ok) acc = r.state;
+    // If a queued unit no longer predicts cleanly against the new base, drop it
+    // (and, by breaking, everything after it) ...
+    else break;
+  }
+  ```
+  The user has already been shown those edits as applied (client-side prediction). They vanish with **no alert at all** — unlike a failed send, which at least calls `setError` and renders a `role="alert"`. Nothing counts what was dropped, names it, or offers a retry.
+- **Why this is the sharpest of the three:** KI-5 needs the user to navigate away mid-send; KI-36 needs the send to fail. This one fires on the **happy path** — a perfectly successful save silently discards later queued edits. The code comment claims the loss "will be reported via `failHead` semantics at send time", but that is not what happens: the units are removed from `pending` here, so they are never sent, and `failHead` never sees them. **That comment is a stated invariant nothing enforces** — the exact species AGENTS.md's testing model calls out ("if a comment asserts an invariant, a test enforces it or the comment is a lie with a timer on it"), and the same species as KI-1, KI-14 and KI-38.
+- **How it is reached:** any queued unit whose prediction depends on state the server's authoritative outcome changed underneath it — e.g. a queued `UpdateActivity` against an activity a just-confirmed batch removed or moved, or a positional command whose index no longer resolves. Rare in single-player, but the whole point of Invariant 6 is that Phase 2 makes concurrent writes normal, at which case re-prediction failures stop being rare.
+- **Why not fixed with KI-36:** found while scoping KI-36's Option 1 (2026-08-25) and deliberately kept out of that change to keep it reviewable — KI-36 is the failed-send path, this is the successful-send path, and they want different answers. KI-36's fix adds the machinery (a retained queue, a failure record, a `retry()`) that a fix here could reuse.
+- **Fix path:** decide what a re-prediction failure *means* rather than dropping it silently. At minimum, surface it the way a failed send now is — a count, a description of what was lost, and either a retry or an explicit "these could not be applied" message. Then either enforce the code comment's claim with a test or delete the claim.
+- **Cross-reference:** KI-5 (navigation trigger), KI-36 (failed-send trigger, resolved 2026-08-25). Three triggers, one queue, one class of silent loss.
+- **First noted:** 2026-08-25 (KI sweep, found reading the send loop while scoping KI-36's Option 1).
 
 ### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
 - **Severity:** correctness (a confidently wrong pin, same family as KI-15)
@@ -465,6 +411,97 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed — RESOLVED
+- **Severity (as filed):** correctness (silent loss of the *rest of the queue*, not of the alert itself) — the **same bug class as KI-5**: an in-memory optimistic queue that can lose confirmed-to-the-user work without telling the user the true scope of what was lost. KI-5 is triggered by the user navigating away mid-send; this was triggered by the send itself failing.
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`failHead`), `apps/web/src/components/trip/context/TripProvider.tsx` (the sequential sender), `apps/web/src/components/trip/SyncIndicator.tsx`, `apps/web/src/components/trip/TripHeader.tsx`
+- **Symptom (as filed):** `failHead` responded to a failed send with `{ ...state, pending: [] }` — every unit still queued behind the one that just failed was dropped, not just the failed one. The visible alert (`setError` → `<p role="alert">`) reported only the server's rejection of the single failed command; it never said the queued edits behind it were also gone, nor how many. No retry path, no failure timestamp, no retained count.
+- **Reproduced before fixing**, twice, both at the `TripProvider` level with a mocked `sendTripCommand`:
+  1. *The filed symptom.* Dispatch `AddDay d-a`, hold its send open, dispatch `AddDay d-b` behind it (day count 1 → 3), then settle the first send as `{status: 500, message: "Server rejected: AddDay d-a"}`. Result: day count back to **1** (both edits gone), `error` = `"Server rejected: AddDay d-a"` and nothing else, and `sendTripCommand` **called once** — `d-b` was never sent, never rejected, and never mentioned.
+  2. *The hot retry loop the entry's fix path would have created.* The entry says "change `failHead` to keep `pending`". Applied literally — retain the queue, record a `failedAt`, change nothing else — the sequential sender (`TripProvider.tsx`, `if (!optimistic || optimistic.pending.length === 0 || inFlight.current) return`) gates **only on emptiness**, so a retained queue re-fires the effect and re-sends the same rejected command immediately, without bound: `AssertionError: expected "spy" to be called 1 times, but got 41 times` for **one** user edit inside a 300ms window (41 = a deliberate safety cap in the probe, not a ceiling). `pending: []` was the only thing stopping a resend. Retaining the queue therefore *requires* an explicit failure gate; that is the shape the fix takes.
+- **Fix (2026-08-25) — the entry's Option 1 (retain the failed head and expose a retry), chosen explicitly by Mitchell; Option 2 (persisting the queue across reloads) was not implemented.** Four parts:
+  - `OptimisticState` grows `failure?: { at: string; message: string }`. `failHead(state, failure)` now returns `{ ...state, failure }` — the head **and** everything behind it are retained, nothing is discarded, and confirmed state is untouched. `clearFailure(state)` (identity when there is no failure, so it cannot cause a needless re-render) and `unsentCount(state)` join it.
+  - **Time is passed in, never read inside the reducer.** `optimistic.ts` is not `packages/domain`, so Invariant 4 does not formally bind it, but the same discipline applies for a second, local reason: `failHead` is called from inside a `setOptimistic` updater, and React may invoke an updater more than once. The timestamp is built in the effect body (`new Date().toISOString()`), outside the updater — the same place, and for the same stated reason, that the existing code already decides `setError` from the outer scope. The reducer takes the instant as a parameter and is pure, so it is tested against a fixed instant.
+  - The sender's early return grows an `optimistic.failure` clause. This is the load-bearing half: without it the retained queue is a runaway resend. Only `retry()` — which clears the failure and lets the effect pick the retained head back up — resumes sending. **Retry is manual: no timer, no backoff, nothing re-sends on its own.**
+  - `TripProvider` exposes `sync: { unsent, failure, retry }` — a real count of unsent units (the retained queue's length, one unit per user edit), the real failure instant and message, and the manual retry. `SyncIndicator` takes `unsent`/`failure`/`onRetry` instead of `pending: boolean | number` (a boolean cannot tell "saving" from "couldn't save") and ships the third state.
+- **Copy: deliberately NOT the design's.** The handoff (`dc.html:3106-3120`) labels this state **"Couldn't save — retrying"**. Nothing retries on its own, so that word would be false the moment it rendered — which is the entire reason this KI existed rather than the state shipping in Task 8b.3. What ships is **"Couldn't save"** plus a real **Retry** button, with the accessible name carrying the count the chip has no room for (`Couldn't save — 3 changes not sent`, singularised at 1) and the button named for what it does (`Retry saving 3 changes`). A test asserts the string `retrying` does **not** appear. The failure timestamp is real and is exposed on the context, but is deliberately not rendered by the indicator: an honest relative "(since …)" needs a ticking clock the component has not got. It is there for the sync-failure banner to use.
+- **a11y:** the indicator stays a polite `role="status"` in the failed state rather than flipping to `role="alert"`. The page already raises the server's rejection in its own `role="alert"` (`TripBoardScreen`), so a second assertive announcement of one event would talk over itself; and a live region's role is registered when it mounts, so swapping it mid-life is unreliable in assistive tech. The failed state does have visible text (unlike the saved state), so the existing polite region announces it on change, and Retry is a real focusable `Button` with a descriptive name.
+- **The `@ts-expect-error` pin is removed deliberately.** `SyncIndicator.test.tsx`'s compile-time assertion that `pending` could not be `"error"` existed to force this decision to be explicit rather than let the prop widen by drift. The decision has now been made, so the pin is replaced by tests of the real third state, and the contract note above it is rewritten. The component's header comment, which explained at length why this state does not ship, is rewritten to match reality.
+- **One existing test's assertion was inverted, on purpose and not to make a failure go away.** `TripProvider.test.tsx`'s "rolls back the optimistic change on a server failure" asserted the day count returned to 1 after a failed send — i.e. that the edit was thrown away. That assertion was accurate about the code and wrong about the product: it encoded the discard this KI is about. It is now "keeps the optimistic change visible on a server failure, and reports the error", with the reason recorded inline.
+- **Proof:** both reproductions re-run against the fix. (1) The queued-behind edit survives — day count stays **3**, `sync.unsent` is **2** — and after `retry()` both sends go through (`sendTripCommand` called **3** times, `unsent` → 0, failure cleared). (2) The same failing command is sent **exactly once**, with 300ms of room to run away in. The gate was mutation-tested: deleting the `optimistic.failure` clause from the sender turns three tests red at **2677**, 2 and 1535 calls. Regression tests: 7 new reducer tests in `optimistic.test.ts` (retention, verbatim failure record, purity under a fixed instant, failure surviving further enqueues, `clearFailure` identity) and 5 new provider tests in `TripProvider.test.tsx` (the no-loop guard, queue retention, real timestamp+message, retry drains the queue, failure outliving the transient page alert), plus 6 new `SyncIndicator` tests including the "does not say retrying" copy assertion.
+- **Check subset** (per `minimal-check-subset`; only `apps/web/src` changed, no `packages/contracts`): `pnpm --filter web typecheck` clean, `pnpm --filter web lint` clean, and `vitest run -c vitest.unit.config.ts` over the 12 affected files — `optimistic`, `TripProvider`, `SyncIndicator`, `TripBoardScreen`, `context`, `TripHeader`, `board`, `HistoryPanel`, `SettingsSheet`, `toast`, `ActivityEditorSheet`, `TripDateControl` — **129 tests, all passing**. Not run (left to the main session, which runs them serially): the full `pnpm check`, `test:int`, e2e, and a browser walk — the failed state needs a server-side rejection that is awkward to stage in a live browser, and it is covered at the component and provider layers instead.
+- **What this does NOT close.** The queue is still in memory: a reload or tab close still loses it (that is Option 2, and KI-5's other half). Task **8b.4's sync-failure banner is still not shipped** — this change only makes an honest one *possible*, by giving it a real count, a real timestamp and a real retry to render. And there is no "discard these edits" affordance: a permanently-rejected command can only be abandoned by reloading.
+- **Does it make KI-42 worse?** No. `confirmHead`'s silent drop of units that no longer re-predict cleanly is untouched — same loop, same `break`, same behaviour on a successful send. The only interaction is that a queue now survives a failure instead of being emptied, so after a retry more units can reach the re-prediction path in one pass; the same units passed through it before, just spread across the edits the user had to redo by hand.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, Task 8b.4). **Resolved:** 2026-08-25 (KI sweep).
+
+### KI-38 — `uuidFrom` returns a malformed UUID instead of throwing once its sequence number is large enough — RESOLVED
+- **Severity (as filed):** correctness (silent wrong output — same family as KI-36/KI-37)
+- **Area:** `packages/factories/src/ids.ts` (`uuidFrom`)
+- **Symptom (as filed):** `uuidFrom(sequence, salt)` built each UUID group with `hex(n, len).padStart(len, "0")`, which only *pads short* — it never truncates a hex string already longer than `len`. The `b` group (`hex(sequence + salt * 97, 4)`) outgrew its 4-hex-digit budget once `sequence + salt * 97 >= 0x10000`, and the trailing `e` segment had the same shape. The result was a string with the right dash *positions* but wrong-length *groups* — not a valid v4 UUID, not something `z.string().uuid()` accepts — returned with no error.
+- **The entry's original "Bounds" paragraph was wrong, and that is the substance of this close.** It claimed this was "a latent trap for a future caller… not a live bug in any current test", reasoning that Fishery sequences start at 1 and no factory run approaches 65536. That reasoning only considered `sequence`; the overflowing expression is `sequence + salt * 97`, and `trip.ts:100` salts activity ids with `1000 + dayIndex * activitiesPerDay + i` and `trip.ts:105` salts the backlog with `5000 + i`. `1000 * 97 = 97,000` is already past `0x10000` at sequence 1, so the group overflowed on the *very first* activity of the *very first* trip any test built. **Every activity id and every backlog id `tripDetailFactory` produced was a non-UUID**, and had been since the salt scheme was introduced. The trap fires at `salt >= 676`, not at `sequence >= 65536`.
+- **Reproduced before fixing.** A throwaway vitest probe (`src/ki38-repro.test.ts`, deleted after) printed the ids and validated each against `z.string().uuid()`. Direct probes: `uuidFrom(1, 1000)` → `9e377d99-17ae9-4001-a3e8-210f7f0f03e9` `groups=[8,5,4,4,12] uuid-valid=false`; `uuidFrom(1, 5000)` → `9e378d39-76689-…` likewise; `uuidFrom(65536)` → `79b10000-10000-40000-a000-9e37000010000` `groups=[8,5,5,4,13]`. Through the factory, a `dayCount: 2, activitiesPerDay: 3, unscheduledCount: 2` trip reported **`8/11 ids fail z.string().uuid()`** — every activity and backlog id, with only `tripId` and the two `dayId`s well-formed (`dayId` salts are `100 + dayIndex`, still inside the budget).
+- **Why the whole suite was nevertheless green:** nothing validates a factory-built read model at runtime. `packages/contracts`'s `TripDetail` schema does declare `tripId`/`dayId`/`activityIds`/`backlog` as `z.string().uuid()`, but that schema is never `.parse()`d anywhere in the repo — it is consumed as a TypeScript type, and `z.infer` of `z.string().uuid()` is just `string`. Nor do these ids ever reach Postgres: `db-seed.ts` and `e2e/helpers.ts` go through `commandsFor`, which mints ids with `node:crypto`'s `randomUUID`, not `uuidFrom`. The bug was live, wrong, and unobservable — a fixture invariant with no enforcement, the "comment asserting an invariant nothing enforces" species again.
+- **Fix (2026-08-25) — masking, deliberately *not* the "throw on out-of-range" the entry proposed.** Once the Bounds claim collapsed, throwing stopped being available: `uuidFrom(1, 1000)` is what `tripDetailFactory` does on every build, so a range guard would have thrown in ~34 consumer test files on the first line, and repairing that would have meant re-designing `trip.ts`'s salt scheme (a different file, a different blast radius). Instead each group is now clamped on *both* ends — `((n >>> 0) % 16 ** len).toString(16).padStart(len, "0")`. `% 16 ** len` is the **identity** for any value already inside its budget, so every id that was well-formed before is byte-identical after and only the already-broken ones change. The `>>> 0` already bounded the two 8-digit groups, so those were never at risk. The part of the entry's fix path that *was* still available is kept: `uuidFrom` now throws `RangeError` on a negative, non-integer or non-finite `sequence`/`salt`, since `n >>> 0` maps `NaN`, `-0` and `2**32` all onto `0` — the same silent-wrong-output class, in the one corner masking does not cover. No live caller passes such a value.
+- **Blast radius on id *values*, not just id *shapes*:** `tripId` and `dayId` are unchanged (verified byte-for-byte). Activity ids and backlog ids **do change value** — necessarily, since they were malformed. Nothing can be depending on the old strings: the repo contains **no hardcoded UUID literal at all** (`grep -rE "[0-9a-f]{8}-[0-9a-f]{5,}-"` across `apps/` and `packages/` returns nothing) and **no snapshot files** (`*.snap`, `toMatchSnapshot`, `toMatchInlineSnapshot` — zero hits repo-wide), so every consumer reads ids off the object it just built. Relative *ordering* is also preserved: the leading 8-digit group dominates lexicographic comparison and is untouched, which matters because `conflicts.ts` sorts by content-derived conflict ids that embed activity ids.
+- **Proof:** the same reproduction re-run is `0/11 ids fail z.string().uuid()`, with every group back to `[8,4,4,4,12]`. Regression test in a **new** `packages/factories/src/ids.test.ts` (8 tests): the three named KI-38 witnesses; a shape/version/variant sweep over 10 sequences × 12 salts spanning every budget boundary (676, 65535, 65536, 2^32); a differential against a verbatim inline copy of the pre-fix implementation over `sequence 0..200 × salt 0..300`, asserting byte-identical output everywhere the *old* code was already well-formed (>1000 pairs compared) — that is the "masking is the identity in range" claim, checked rather than asserted; determinism and collision-freeness over the salt bands `trip.ts` actually uses; the `RangeError` guards; and a `tripDetailFactory` end-to-end check that a 3-day × 12-activity + 6-backlog trip yields only valid UUIDs and no duplicates. **The test was confirmed non-vacuous**: reverted against the pre-fix `ids.ts` it reports **6 of 8 failing**; it is green on the fix. Check subset (per `minimal-check-subset`; only `packages/factories/src` changed): `pnpm --filter @tc/factories typecheck` clean, `pnpm --filter @tc/factories test` **13/13 across 2 files**, plus `scripts/check-lint-wall.mjs` and `scripts/check-case-collisions.mjs` (the only repo-wide parts of `pnpm lint`; `pnpm lint`'s eslint step is `--filter web` and does not cover this package).
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, found auditing the module while filing KI-37). **Resolved:** 2026-08-25 (KI backlog pass).
+
+### KI-37 — `commandsFor`'s second-activity time window is malformed for any scenario with 2+ activities on a day — RESOLVED
+- **Severity (as filed):** correctness (silent wrong output — same family as KI-36)
+- **Area:** `packages/factories/src/commands.ts` (the `AddActivity` loop inside `commandsFor`)
+- **Symptom (as filed):** the per-activity `timeWindow` was built as
+  `` `0${9 + i}:00` `` for `start` — correct only for `i === 0` (`"09:00"`);
+  for `i >= 1` the template produced `"010:00"`, five characters, which the
+  contract's `HHMM` regex rejects, so the command came back `invalid-command`
+  rather than as a wrong-but-usable time.
+- **Reproduced first**, as a new `packages/factories/src/commands.test.ts` that
+  runs every scenario's `commandsFor` output through the real `TripCommand`
+  schema. Four of the seven scenarios failed, all on the same string:
+  `threeDayTrip: {"type":"AddActivity",…,"title":"Stop 1.2","timeWindow":{"start":"010:00","end":"11:00"},…} -> [{"validation":"regex","code":"invalid_string","path":["timeWindow","start"]}]`,
+  and identically for `overBudgetTrip`, `overlappingDay`, `ungeocodedTrip`.
+  `emptyTrip` (no activities), `unscheduledHeavy` (1/day) and `mappedTrip`
+  (its own literal `09:00`–`10:00` window) passed, exactly as the entry's
+  Bounds predicted.
+- **The `end` claim in the original entry was checked, not assumed, and holds.**
+  `` `1${0 + i}:00` `` yields `"11:00"` at `i === 1` — valid — and only
+  overflows at `i >= 10`; the largest `activitiesPerDay` any current scenario
+  uses is 2, so `end` was never malformed in practice. Only `start` ever
+  produced an invalid string.
+- **Fix (2026-08-25):** the entry's own fix path. The inline template is
+  replaced by a local `timeWindowFor(i)` that zero-pads with
+  `String(hour).padStart(2, "0")`, so activity `i` of a day gets
+  `09:00`–`10:00`, `10:00`–`11:00`, … The start hour is additionally capped at
+  22, so no future scenario with a large `activitiesPerDay` can emit a `24:00`
+  end or a start past the end of the day — the same class of latent overflow,
+  closed by construction rather than left to the next caller. `mappedTrip`'s
+  branch returns before this code and is untouched, so the shape
+  `e2e/m10-unscheduled-rack.spec.ts` asserts on literally is unchanged.
+- **Output change for consumers:** the only bytes that change are the ones that
+  were invalid. `i === 0` windows are byte-identical (`09:00`–`10:00`), `end`
+  is byte-identical everywhere, and `i === 1` `start` goes `"010:00"` →
+  `"10:00"`. Of the three `commandsFor` call sites outside the package, two
+  (`e2e/helpers.ts` → `mappedTrip`, `reset-demo-data/route.int.test.ts` →
+  `unscheduledHeavy`) have byte-identical output. The third,
+  `e2e/responsive.spec.ts` → `threeDayTrip`, now has its second-per-day
+  `AddActivity` *accepted* where it was silently 400ing, so those trips hold
+  six stops instead of three; that spec asserts only on rail/tab/sheet
+  behaviour and no activity count or title, so nothing there depends on the
+  old number.
+- **Proof:** the reproduction above now passes — `pnpm --filter @tc/factories test`
+  is 13/13 across `commands.test.ts` (8) and `trip.test.ts` (5), and
+  `pnpm --filter @tc/factories typecheck` is clean. Check subset per
+  `minimal-check-subset`: one file changed in one leaf package, no
+  `packages/contracts` change, so the package's own typecheck + test is
+  sufficient; the ~34 consumer test files were deliberately not run here (the
+  serial full `pnpm check` covers them, and a parallel full run is the KI-13
+  load pattern).
+- **Regression test:** `packages/factories/src/commands.test.ts` (new file) —
+  a `it.each` over every scenario name asserting every emitted command parses
+  as a `TripCommand`, so any future scenario or field that violates the
+  contract fails in the factory package itself rather than downstream, plus a
+  literal assertion that a day's first two windows are `09:00`–`10:00` and
+  `10:00`–`11:00`.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8b, reset-demo-data fix wave). **Resolved:** 2026-08-25 (KI backlog pass).
 
 ### KI-6 — `listPages` lazy-instantiation race on concurrent first visits — RESOLVED
 - **Severity (as filed):** correctness (non-atomicity), low likelihood

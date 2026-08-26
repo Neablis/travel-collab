@@ -37,9 +37,16 @@ export const scenarios = {
       },
     }),
 
-  // Two activities on one day — a real overlap conflict needs an explicit
-  // clashing timeWindow, which the caller sets via `overrides.activities`;
-  // this scenario supplies the day/activity skeleton to override onto.
+  // Two activities on one day. Their windows already clash — `activityFactory`
+  // gives every activity the same 09:00-11:00 window, and identical windows
+  // satisfy `windowsOverlap`. The reason this scenario still reports no
+  // conflict is that `tripDetailFactory` hardcodes `conflicts: []` and never
+  // runs the conflict engine; the windows were never the missing piece. A
+  // caller that wants populated conflicts sets them via `overrides.conflicts`,
+  // or hydrates the fixture and calls `detectConflicts` itself. Note this
+  // scenario is NOT distinguished from its `activitiesPerDay >= 2` siblings on
+  // the projection side — see KI-40. The command-side twin,
+  // `commandsFor("overlappingDay")`, does produce a real partial overlap.
   overlappingDay: (overrides: Partial<TripDetail> = {}): TripDetail =>
     tripDetailFactory.build(overrides, {
       transient: { dayCount: 1, activitiesPerDay: 2, startDate: "2027-06-01" },
