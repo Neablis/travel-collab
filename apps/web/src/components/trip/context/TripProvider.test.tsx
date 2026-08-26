@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
 
@@ -127,7 +127,15 @@ describe("TripProvider optimistic overlay (M6)", () => {
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
   });
 
-  it("rolls back the optimistic change on a server failure", async () => {
+  // KI-36 changed this deliberately. This test used to be "rolls back the
+  // optimistic change on a server failure" and asserted `dayCount` returned
+  // to 1 — i.e. the failed edit was thrown away. That assertion was not
+  // wrong about the code, it was wrong about the product: `failHead` threw
+  // away the whole queue, not just the rejected command, and the user was
+  // told only what the server said about the one command it named. A failed
+  // send now RETAINS the queue and offers a retry, so the edit staying
+  // visible is the point, not a regression.
+  it("keeps the optimistic change visible on a server failure, and reports the error", async () => {
     sendTripCommandMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom", code: "server-error" } });
 
     render(
@@ -139,7 +147,155 @@ describe("TripProvider optimistic overlay (M6)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "add-day" }));
     await waitFor(() => expect(screen.getByTestId("error").textContent).toBe("boom"));
-    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1")); // reverted
+    // Retained, not reverted: the change is unsent, not undone.
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KI-36: a failed send retains its queue, gates further sending on an explicit
+// failure, and resumes only on a manual retry.
+// ---------------------------------------------------------------------------
+
+function SyncProbe() {
+  const { activeTrip, error, sync, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="error">{error ?? "none"}</span>
+      <span data-testid="unsent">{sync.unsent}</span>
+      <span data-testid="failedAt">{sync.failure?.at ?? "none"}</span>
+      <span data-testid="failureMessage">{sync.failure?.message ?? "none"}</span>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-a" } as never)}>add-a</button>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-b" } as never)}>add-b</button>
+      <button onClick={() => sync.retry()}>retry</button>
+    </div>
+  );
+}
+
+const rejection = { ok: false, error: { status: 500, message: "Server rejected: AddDay d-a", code: "server-error" } };
+
+describe("TripProvider failed-send queue (KI-36)", () => {
+  it("does not re-send the failed head on a loop — the failure gates the sender", async () => {
+    // THE REGRESSION THIS FILE EXISTS FOR. `pending.length === 0` used to be
+    // the only thing stopping the sequential sender, so simply retaining the
+    // queue (KI-36's stated fix path) re-fired the effect and re-sent the same
+    // rejected command without bound — measured at 41 sends in 300ms before
+    // the gate was added. If the `optimistic.failure` clause is ever dropped
+    // from the sender's early return, this test hangs on the count.
+    sendTripCommandMock.mockResolvedValue(rejection);
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+
+    // Give a runaway loop several hundred milliseconds of room to run away in.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the edit queued BEHIND the failed one instead of discarding it", async () => {
+    // The KI's actual symptom: d-b was never sent, never rejected, and never
+    // mentioned — it just vanished with an alert that only named d-a.
+    let settleFirst: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockImplementationOnce(() => new Promise((res) => { settleFirst = res; }));
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "add-b" })); // queues behind the in-flight head
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("3"));
+
+    await act(async () => { settleFirst(rejection); });
+    await waitFor(() => expect(screen.getByTestId("error").textContent).toMatch(/Server rejected/));
+
+    // Both edits are still here, and the count of unsent work is real.
+    expect(screen.getByTestId("dayCount").textContent).toBe("3");
+    expect(screen.getByTestId("unsent").textContent).toBe("2");
+  });
+
+  it("exposes a real failure timestamp and the server's message", async () => {
+    sendTripCommandMock.mockResolvedValue(rejection);
+    const before = Date.now();
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+    const at = Date.parse(screen.getByTestId("failedAt").textContent!);
+    expect(Number.isNaN(at)).toBe(false);
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+    expect(screen.getByTestId("failureMessage").textContent).toBe("Server rejected: AddDay d-a");
+  });
+
+  it("retry re-sends the retained head, then drains the rest of the queue", async () => {
+    let settleFirst: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockImplementationOnce(() => new Promise((res) => { settleFirst = res; }));
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("3"));
+
+    await act(async () => { settleFirst(rejection); });
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("2"));
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1); // gated: nothing re-sent on its own
+
+    // Both retried sends now succeed.
+    sendTripCommandMock.mockResolvedValue({ ok: true, value: { detail: twoDayDetail(), history: historyFixture("x") } });
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("0"));
+    // The head went again AND the edit queued behind it finally reached the
+    // server — it was never discarded, so there was something left to send.
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("failedAt").textContent).toBe("none");
+    expect(screen.getByTestId("error").textContent).toBe("none");
+  });
+
+  it("keeps the failure recorded when the user makes further edits (the page alert does not)", async () => {
+    sendTripCommandMock.mockResolvedValue(rejection);
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+
+    // A fresh dispatch clears the transient page alert...
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    await waitFor(() => expect(screen.getByTestId("error").textContent).toBe("none"));
+    // ...but the queue is still unsent and still failed, and stays gated.
+    expect(screen.getByTestId("failedAt").textContent).not.toBe("none");
+    expect(screen.getByTestId("unsent").textContent).toBe("2");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -8,7 +8,24 @@ export type PendingUnit = {
   description: string;
 };
 export type Confirmed = { detail: TripDetail; history: TripHistory };
-export type OptimisticState = { confirmed: Confirmed; pending: PendingUnit[] };
+
+// A send that the server rejected. Recorded on the state (rather than only as
+// a transient page alert) because it has to do two jobs the alert cannot: gate
+// the sequential sender so the retained queue is not re-fired in a loop, and
+// survive the user making further edits — `runDispatch` clears the page alert
+// on every accepted enqueue, but the failure is still true until a retry
+// succeeds. `at` is passed in by the caller, never read from a clock in here:
+// these are reducers, and React may invoke a state updater more than once.
+export type SendFailure = { at: string; message: string };
+
+export type OptimisticState = {
+  confirmed: Confirmed;
+  pending: PendingUnit[];
+  // Absent = the queue is healthy and the sender may run. Present = the head
+  // send failed, the queue is RETAINED (nothing discarded), and no further
+  // send happens until `clearFailure` (i.e. the user's manual retry).
+  failure?: SendFailure;
+};
 export type CommandOutcome = { detail: TripDetail; history: TripHistory };
 
 // A history row for display: a real (confirmed) entry, or a not-yet-confirmed
@@ -76,8 +93,32 @@ export function confirmHead(state: OptimisticState, outcome: CommandOutcome): Op
   return acc;
 }
 
-// The head send failed: drop the head and everything queued behind it (they were
-// predicted on a state that will never exist). Confirmed state is untouched.
-export function failHead(state: OptimisticState): OptimisticState {
-  return { ...state, pending: [] };
+// The head send failed (KI-36). The queue is kept exactly as it is — the head
+// included — and the failure is recorded. Nothing is discarded, so the user's
+// already-rendered edits stay real and retryable instead of vanishing behind a
+// one-line alert about the single command the server rejected.
+//
+// Retaining `pending` on its own would be a bug, not a fix: TripProvider's
+// sequential sender gates on the queue being empty, so a retained queue with no
+// failure recorded re-fires the same rejected command without bound (measured:
+// 41 sends of one command in 300ms). `failure` is that gate.
+export function failHead(state: OptimisticState, failure: SendFailure): OptimisticState {
+  return { ...state, failure };
+}
+
+// The user asked to retry: forget the failure so the sender picks the retained
+// head back up. Deliberately the ONLY way out of the failed state — there is no
+// automatic retry and no backoff, so nothing re-sends without a user action.
+export function clearFailure(state: OptimisticState): OptimisticState {
+  if (!state.failure) return state; // no-op keeps the identity stable (no re-render/effect churn)
+  const next = { ...state }; // copy-then-delete, so a future field isn't dropped by an explicit rebuild
+  delete next.failure;
+  return next;
+}
+
+// The number of queued-but-unsent units — one per edit the user made (a batched
+// dispatch is one unit, i.e. one user action). This is a real count of work the
+// server has not accepted, which is exactly what the failure UI may claim.
+export function unsentCount(state: OptimisticState): number {
+  return state.pending.length;
 }
