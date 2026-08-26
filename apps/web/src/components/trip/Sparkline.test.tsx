@@ -111,24 +111,39 @@ describe("blockMetricsFor", () => {
 });
 
 describe("citySegmentsFor", () => {
-  it("lists every distinct city once, with a stop count across the whole trip", () => {
+  // Days, not stops (preview feedback, PR #55): two Tokyo days carrying three
+  // stops between them is "Tokyo · 2". The stop counts here are deliberately
+  // uneven and deliberately ignored — a change back to summing them would
+  // read "Tokyo · 3" and fail here.
+  it("lists every distinct city once, counting the DAYS spent there, not the stops", () => {
     const segments = citySegmentsFor([
       { city: "Tokyo", stopCount: 2 },
       { city: "Tokyo", stopCount: 1 },
       { city: "Kyoto", stopCount: 1 },
     ]);
-    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 3", "Kyoto · 1"]);
+    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 2", "Kyoto · 1"]);
+  });
+
+  // A day with no stops planned yet is still a day spent in that city — it
+  // has a known city, so it counts. Under the old stop-count rule it added
+  // nothing and the city could vanish from the row entirely.
+  it("counts a day with a known city but no stops", () => {
+    const segments = citySegmentsFor([
+      { city: "Hakone", stopCount: 0 },
+      { city: "Hakone", stopCount: 3 },
+    ]);
+    expect(segments.map((s) => s.label)).toEqual(["Hakone · 2"]);
   });
 
   // A city revisited later in the trip (a return leg) is still one line
   // with a combined count, not a separate entry per visit.
-  it("combines a city's stops even when it's revisited non-contiguously", () => {
+  it("combines a city's days even when it's revisited non-contiguously", () => {
     const segments = citySegmentsFor([
       { city: "Tokyo", stopCount: 1 },
       { city: "Nikkō", stopCount: 2 },
       { city: "Tokyo", stopCount: 1 },
     ]);
-    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 2", "Nikkō · 2"]);
+    expect(segments.map((s) => s.label)).toEqual(["Tokyo · 2", "Nikkō · 1"]);
   });
 
   it("skips days with no known city rather than fabricating a label", () => {
@@ -223,7 +238,7 @@ describe("Sparkline", () => {
       />,
     );
     const list = screen.getByRole("list", { name: "Cities visited" });
-    expect(screen.getByText("Tokyo · 2")).toBeTruthy();
+    expect(screen.getByText("Tokyo · 2")).toBeTruthy(); // two days, not two stops
     expect(screen.getByText("Kyoto · 1")).toBeTruthy();
     expect(list.querySelectorAll('[role="listitem"]')).toHaveLength(2);
   });
