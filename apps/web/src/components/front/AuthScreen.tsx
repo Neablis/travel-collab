@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -14,12 +14,26 @@ import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { AUTH_COPY, errorMessage, type AuthMode } from "@/components/front/authCopy";
 
+// `useSearchParams()` is the only piece of this screen that needs a
+// Suspense boundary during static prerender — isolating it in its own leaf
+// component means the boundary wraps just this banner, not the whole
+// screen. Wrapping the whole `<AuthScreen/>` (as an earlier version of this
+// file did) makes Next prerender the *fallback* — i.e. nothing — into the
+// shipped HTML, so the header, heading, Google button and footnote would
+// all disappear until client JS hydrates. Scoping the boundary here keeps
+// that static shell intact; only the error banner (which has nothing to
+// show before hydration anyway) waits.
+function AuthErrorBanner() {
+  const failure = errorMessage(useSearchParams().get("error"));
+  if (!failure) return null;
+  return <Banner variant="danger">{failure}</Banner>;
+}
+
 // `dc.html:1584-1628`: sign-in and sign-up are the same screen with different
 // copy (M15 scope item 2), so this is one component with a mode, not two
 // near-identical files.
 export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLoginEnabled: boolean }) {
   const copy = AUTH_COPY[mode];
-  const failure = errorMessage(useSearchParams().get("error"));
   const [username, setUsername] = useState("");
 
   return (
@@ -32,7 +46,9 @@ export function AuthScreen({ mode, devLoginEnabled }: { mode: AuthMode; devLogin
             <Text as="p" variant="secondary" className="text-pretty">{copy.sub}</Text>
           </div>
 
-          {failure ? <Banner variant="danger">{failure}</Banner> : null}
+          <Suspense fallback={null}>
+            <AuthErrorBanner />
+          </Suspense>
 
           <Card raised className="flex flex-col gap-3.5">
             <Button

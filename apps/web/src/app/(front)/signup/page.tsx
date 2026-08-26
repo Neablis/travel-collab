@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 import { AuthScreen } from "@/components/front/AuthScreen";
 
@@ -8,13 +7,10 @@ export const metadata = { title: "Start planning — Caesura" };
 // populated on the server. The boolean crosses to the client island as a prop
 // — the same rule AppHeader.tsx documents for `demoResetEnabled`.
 //
-// AuthScreen reads `useSearchParams()` (for `?error=`), which requires a
-// Suspense boundary during static prerender — Next.js otherwise bails the
-// build with "useSearchParams() should be wrapped in a suspense boundary".
+// AuthScreen owns its own Suspense boundary around the one piece that reads
+// `useSearchParams()` (the error banner) — see AuthScreen.tsx. Wrapping the
+// whole screen here would make Next prerender a blank fallback for the
+// entire page instead of just that banner.
 export default function SignUpPage() {
-  return (
-    <Suspense fallback={null}>
-      <AuthScreen mode="signup" devLoginEnabled={isDevLoginEnabled()} />
-    </Suspense>
-  );
+  return <AuthScreen mode="signup" devLoginEnabled={isDevLoginEnabled()} />;
 }
