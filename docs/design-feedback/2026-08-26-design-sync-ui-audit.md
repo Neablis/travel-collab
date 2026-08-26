@@ -80,26 +80,35 @@ the design's own rules pass. What that closed, and what it did **not**:
 `DayChips.tsx`), the day-chip transition printing its destination twice, the
 board's width, city day-counts, and the drag-from-rack time gap.
 
-**Two things the design specifies that this round could not settle, and that
-need Mitchell's call before the milestone closes:**
+**Both open questions were put to Mitchell and answered on 2026-08-26:**
 
-1. **R2 — "Drawer renders in Day columns only."** `RULES.md` 2 ("don't render
-   the bottom drawer on a page where activities can't be dragged onto or out of
-   the schedule") reverses a decision Mitchell made on 2026-08-25 and which
-   `STATUS.md` records: the rack stays mounted on Timeline and Calendar because
-   its day-assign `NativeSelect` is a real scheduling path there without drag.
-   Both positions are defensible — the rule reads the drawer as drag-only
-   furniture, the recorded decision reads it as a scheduling surface that also
-   supports drag. **Not flipped here**, because reversing a recorded decision
-   silently is exactly how the board-width cap (#31) ended up outliving its own
-   reasoning. Whichever way it goes, one of the two needs amending.
+1. **R2 — "Drawer renders in Day columns only." → apply the rule, and
+   generalise it.** `RULES.md` 2 reversed a decision `STATUS.md` recorded the
+   day before (the rack stays on Timeline and Calendar for its day-assign
+   `NativeSelect`). Mitchell decided for the rule, with a general form that
+   outlives this instance:
 
-2. **The save light's failed state.** SPEC gives it a colour and no way out.
-   Shipped with the mark itself as the retry button while a failure stands,
-   because `RULES.md` 6 asks every screen to recover from the worst and this
-   queue only retries when asked (KI-36) — but that does put an *action* in the
-   top bar, which is what `RULES.md` 1 exists to prevent. Flagged on the
-   preview thread.
+   > Lets remove for now, but follow the more general rule from now on. If the
+   > drawer element has page interactions (Almost always a drag / drop onto the
+   > page) then add it back. We have some designs about dropping onto
+   > timelines, and calendars, and complex logic how that works, but we can
+   > delay that to later, and when its added, we add back the drawer to those
+   > pages.
+
+   Built as `board/lensAcceptsDrops.ts` — a question about drop targets, not a
+   lens list — so closing any of `TODO.md`'s four rack/lens gaps brings the
+   drawer back to that lens by changing one function. The reversal is recorded
+   in `STATUS.md` beside the decision it overturns rather than replacing it,
+   and `TODO.md`'s drag-scope entry now notes that the drawer follows it.
+
+2. **The save light's failed state → keep the mark as the retry button for
+   now; the popover is a nice-to-have.** SPEC gives the failure a colour and no
+   way out, and this queue only retries when asked (KI-36), so the shipped mark
+   doubles as Retry while a send has failed. That does put an *action* in the
+   top bar, spending the "status, not an action" justification SPEC itself used
+   against `RULES.md` 1 — accepted deliberately for this milestone. The
+   status-only mark with a popover carrying the failure detail and Retry is
+   filed under `TODO.md`'s candidate ideas.
 
 **Still open from the rules pass, not started:** R4 (`Travel` chip suppressed on
 transit stops), R5 (filter row removed; tag chips become the control — blocked

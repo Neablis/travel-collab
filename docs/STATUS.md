@@ -103,6 +103,26 @@ documented reason — its day-assign `NativeSelect` is a real scheduling path in
 Timeline and Calendar, and Map only loses it because drag is Board-only. Hiding
 it would delete working functionality.
 
+> **Reversed 2026-08-26 (Mitchell), PR #55.** `RULES.md` 2 restated this as a
+> binding project rule — "don't render the bottom drawer on a page where
+> activities can't be dragged onto or out of the schedule" — and Mitchell
+> decided for the rule: **remove the drawer from Timeline and Calendar now, and
+> add it back per lens as that lens gains real page interactions.** The
+> dropdown is still a real scheduling path, but it is reachable from the Board
+> drawer, so keeping a `position: fixed` overlay mounted on two lenses for it
+> alone is the "purposeless UI" the rule names.
+>
+> The general rule he set, in his words: *"If the drawer element has page
+> interactions (almost always a drag / drop onto the page) then add it back."*
+> Designs for dropping onto a timeline and a calendar exist and are deferred,
+> not dropped — see `TODO.md`'s "Unscheduled rack: drag support is
+> Board-view-only" entry.
+>
+> Encoded as `board/lensAcceptsDrops.ts` rather than a lens list, so the drawer
+> returns to those lenses by changing that one function when their drop targets
+> land. The old gate is what this paragraph describes; the live gate is that
+> function.
+
 **Also corrected in this change: the "Next action" section below had gone
 stale** — it still said "Review and merge PR #46" and "`main` is at `c630152`".
 PR #46 merged 2026-08-25 and `main` has moved twice since (PR #52, then PR #53).

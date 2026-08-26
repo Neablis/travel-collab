@@ -18,6 +18,7 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
+import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
@@ -451,14 +452,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           else, and dispatch itself has no preview guard — inert on the DOM
           subtree is the only thing stopping a mutation while browsing
           history, so the rack needs it too.
-          Hidden on Map only (Mitchell, preview review, 2026-08-25): the rack
-          is a `position: fixed` overlay and Map is a full-bleed canvas, so it
-          sits over the pins with no drag support there to justify the cover.
-          Timeline and Calendar keep it mounted — its day-assign
-          `NativeSelect` dispatches real MoveActivity/UpdateActivity without
-          needing drag, so it's still a working scheduling path in those
-          lenses even though drag itself remains Board-only (TODO.md). */}
-      {lens !== "Map" && (
+          Rendered only where a stop can actually be dropped onto the page
+          (`lensAcceptsDrops`, which is Board today). RULES.md 2 — "don't
+          render the bottom drawer on a page where activities can't be dragged
+          onto or out of the schedule" — and Mitchell's call on it, 2026-08-26:
+          remove it for now, and add it back per lens as that lens gains real
+          page interactions. This reverses the 2026-08-25 decision recorded in
+          STATUS.md, which kept it on Timeline and Calendar for its day-assign
+          `NativeSelect`; that dropdown is a real scheduling path, but it is
+          reachable from the Board drawer, so keeping a fixed overlay mounted
+          on two lenses for it alone is the "purposeless UI" the rule is about.
+          The gate is a question about drop targets rather than a lens list so
+          the drawer comes back on its own when Timeline and Calendar get
+          theirs (TODO.md's four rack/lens gaps). */}
+      {lensAcceptsDrops(lens) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
             items={rackItems}
