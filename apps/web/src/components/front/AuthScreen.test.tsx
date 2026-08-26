@@ -48,7 +48,27 @@ describe("AuthScreen", () => {
     searchParams = new URLSearchParams("error=SomethingNewFromAuthJs");
     render(<AuthScreen mode="signin" devLoginEnabled={false} />);
     expect(screen.getByText(/Something went wrong signing you in/)).toBeDefined();
+    expect(screen.queryByText("SomethingNewFromAuthJs")).toBeNull();
   });
+
+  // I2 (final review): `ERROR_MESSAGES[code] ?? FALLBACK` on a plain object
+  // literal inherits from `Object.prototype`, so a `?error=` value matching
+  // an inherited member (`__proto__`, `toString`, `constructor`, ...)
+  // resolved to that inherited object/function instead of the fallback
+  // string — `errorMessage`'s `string | null` contract was a lie for these
+  // inputs. React would then either throw rendering an object child
+  // (`__proto__`) or silently drop a function child (`toString`), producing
+  // exactly the blank/broken error state this milestone's gate claims can't
+  // happen. These adversarial codes are the regression guard for that fix.
+  it.each(["__proto__", "toString", "constructor", "hasOwnProperty"])(
+    "falls back to plain language for the adversarial error code %j, never rendering the raw code",
+    (code) => {
+      searchParams = new URLSearchParams({ error: code });
+      render(<AuthScreen mode="signin" devLoginEnabled={false} />);
+      expect(screen.getByText(/Something went wrong signing you in/)).toBeDefined();
+      expect(screen.queryByText(code)).toBeNull();
+    },
+  );
 
   it("hides the dev-login form unless it is enabled", () => {
     render(<AuthScreen mode="signin" devLoginEnabled={false} />);

@@ -58,5 +58,12 @@ const FALLBACK =
 
 export function errorMessage(code: string | null): string | null {
   if (!code) return null;
-  return ERROR_MESSAGES[code] ?? FALLBACK;
+  // Plain-object lookup: `code` is untrusted (it comes straight off the URL's
+  // `?error=` query param), and `ERROR_MESSAGES[code]` on a plain object
+  // literal inherits from `Object.prototype` — `code` values like
+  // "__proto__", "toString" or "constructor" resolve to an inherited object
+  // or function, not undefined, so `?? FALLBACK` never catches them and this
+  // function's `string | null` return type would be a lie at runtime.
+  // `Object.hasOwn` restricts the lookup to the map's own declared keys.
+  return Object.hasOwn(ERROR_MESSAGES, code) ? (ERROR_MESSAGES[code] ?? FALLBACK) : FALLBACK;
 }
