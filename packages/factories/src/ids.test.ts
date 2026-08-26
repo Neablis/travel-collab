@@ -48,17 +48,26 @@ describe("uuidFrom", () => {
   });
 
   it("leaves every id that was already well-formed byte-identical", () => {
-    let compared = 0;
+    // AGENTS.md: a property whose precondition filters every case still
+    // reports OK, so count the assertions and assert a floor. This is the
+    // only test in this file with a `continue`, so it is the only one that
+    // can silently empty out. Floor MEASURED, not guessed: all 60,501
+    // (sequence 0..200) x (salt 0..300) pairs are in budget today
+    // (max `salt * 97` here is 29,100, well under 0x10000), so the floor
+    // sits near half the observed count per AGENTS.md's own guidance. The
+    // old floor of 1,000 was 1.7% of observed - low enough that the
+    // precondition could start rejecting 95% of pairs and still pass.
+    let witness = 0;
     for (let sequence = 0; sequence <= 200; sequence++) {
       for (let salt = 0; salt <= 300; salt++) {
         const legacy = legacyUuidFrom(sequence, salt);
         // Only the in-budget region: outside it the legacy output is the bug.
         if (!UUID.safeParse(legacy).success) continue;
-        compared++;
+        witness++;
         expect(uuidFrom(sequence, salt), `uuidFrom(${sequence}, ${salt})`).toBe(legacy);
       }
     }
-    expect(compared).toBeGreaterThan(1000);
+    expect(witness).toBeGreaterThan(30_000);
   });
 
   it("is deterministic and collision-free over a realistic factory grid", () => {
