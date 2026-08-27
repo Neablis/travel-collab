@@ -8,10 +8,23 @@
 // producing valid commands would otherwise degrade each test in isolation and
 // invisibly.
 import fc from "fast-check";
-import type { Anchor, TripCommand, TripEvent } from "@tc/contracts";
+import type { Anchor, TripCommand, TripEvent, TripLineage } from "@tc/contracts";
 import { decideTripCommand, detectConflicts, evolveTrip, type TripState } from "../../src";
 
 export const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
+
+/**
+ * A lineage pointer, or null. Genesis-only, so it can never be reached by
+ * replaying raw ops — see `historyFrom`'s comment.
+ */
+export const arbLineage: fc.Arbitrary<TripLineage | null> = fc.option(
+  fc.record({
+    tripId: fc.constant("7d9a1f8e-0000-4000-8000-00000000000b"),
+    atSeq: fc.integer({ min: 1, max: 200 }),
+    name: fc.string({ minLength: 1, maxLength: 40 }),
+  }),
+  { nil: null },
+);
 export const CTX = { actorId: "u1" };
 export const uuid = (n: number) => `7d9a1f8e-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
@@ -137,11 +150,19 @@ export function resetGeneratorCounters(): void {
   generator.accepted = 0;
 }
 
-/** Fold raw ops into a real, valid event history (starting with TripCreated). */
-export function historyFrom(rawOps: RawOp[]): TripEvent[] {
+/**
+ * Fold raw ops into a real, valid event history (starting with TripCreated).
+ *
+ * `forkedFrom` is a parameter rather than a hardcoded `null` because no raw op
+ * can produce one: lineage is set at genesis and no command touches it, so a
+ * generator that always passed null would let every property built on this
+ * pass while never once seeing a forked trip — the same trap M18 PR 1's
+ * changelog names for hand-enumerated fields (M11 link 5).
+ */
+export function historyFrom(rawOps: RawOp[], forkedFrom: TripLineage | null = null): TripEvent[] {
   const events: TripEvent[] = [];
   let state: TripState | null = null;
-  const create = decideTripCommand(null, { type: "CreateTrip", tripId: TRIP, name: "Prop trip" }, CTX);
+  const create = decideTripCommand(null, { type: "CreateTrip", tripId: TRIP, name: "Prop trip", forkedFrom }, CTX);
   if (!create.ok) throw new Error("CreateTrip must succeed");
   for (const event of create.events) {
     events.push(event);

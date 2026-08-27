@@ -24,6 +24,12 @@ export async function getTripHistory(tripId: string): Promise<TripHistory | null
   };
 }
 
+/** How many events the trip's stream carries, or null if it has none. */
+export async function getTripHead(tripId: string): Promise<number | null> {
+  const envelopes = await readStream(db, tripId);
+  return envelopes.length === 0 ? null : envelopes.length;
+}
+
 export async function getTripDetailAt(tripId: string, seq: number): Promise<TripDetail | null> {
   return (await getTripDetailAtWithHead(tripId, seq))?.detail ?? null;
 }

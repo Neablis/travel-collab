@@ -32,6 +32,7 @@ describe("projectTripSummaries", () => {
       name: "Rome 2027",
       status: "active",
       members: [{ userId: "user-1", role: "owner" }],
+     
       createdAt: "2026-07-07T12:00:00.000Z",
     });
   });

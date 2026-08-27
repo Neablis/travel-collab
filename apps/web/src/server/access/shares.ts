@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import type { SharedTripView, TripShare } from "@tc/contracts";
+import type { SharedTripView, TripDetail, TripShare } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripShares } from "../db/schema";
 import { getTripDetailAtWithHead } from "../history";
@@ -128,6 +128,45 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
   return {
     ok: true,
     value: toSharedView(replayed.detail, share, members.length, replayed.headSeq),
+  };
+}
+
+/**
+ * The same lookup `readShare` does, but handing back the full replayed
+ * `TripDetail` and the pin instead of the narrowed public view.
+ *
+ * Cloning needs planning state the public view deliberately drops (it is
+ * building a real trip, not rendering a page), and it needs the ancestor's
+ * name AT THE PIN — `TripCreated.forkedFrom.name` is a snapshot, so it has to
+ * be the name the person cloning actually saw, not today's.
+ */
+export async function readShareForClone(
+  token: string,
+): Promise<AccessResult<{ detail: TripDetail; tripId: string; atSeq: number; name: string }>> {
+  const rows = await db.select().from(tripShares).where(eq(tripShares.token, token));
+  const share = rows[0];
+  if (share === undefined) {
+    return { ok: false, error: { code: "not-found", message: "This link is not valid." } };
+  }
+  if (share.revokedAt !== null) {
+    return { ok: false, error: { code: "gone", message: "This link has been turned off." } };
+  }
+  const current = await getTripDetail(share.tripId);
+  if (current === null || current.status === "deleted") {
+    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
+  }
+  const replayed = await getTripDetailAtWithHead(share.tripId, share.seq);
+  if (replayed === null) {
+    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
+  }
+  return {
+    ok: true,
+    value: {
+      detail: replayed.detail,
+      tripId: share.tripId,
+      atSeq: share.seq,
+      name: replayed.detail.name,
+    },
   };
 }
 

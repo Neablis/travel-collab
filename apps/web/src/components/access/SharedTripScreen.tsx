@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { SharedTripView } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -14,7 +15,7 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockRange } from "@/lib/time";
-import { fetchSharedTrip } from "@/lib/apiClient";
+import { cloneSharedTrip, fetchSharedTrip } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 
 // The read side of M11 link 4. Read-only by construction rather than by
@@ -31,8 +32,37 @@ function timeLabel(window: SharedTripView["activities"][string]["timeWindow"]): 
 }
 
 export function SharedTripScreen({ token }: { token: string }) {
+  const router = useRouter();
   const [trip, setTrip] = useState<SharedTripView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [cloning, setCloning] = useState(false);
+
+  // M11's third user story: "Clone a trip someone shared with me into my own,
+  // where it is editable because it is now mine." What gets copied is the
+  // PINNED state — what this page is showing — not whatever the source has
+  // become since (ADR-028).
+  //
+  // The page itself is public, so the button is offered to everyone and a
+  // signed-out visitor is sent to sign in and brought straight back here,
+  // reusing the same `callbackUrl` machinery M15 built. Hiding the button
+  // until you sign in would mean the one thing this page is for is invisible
+  // to exactly the people it is trying to win over.
+  async function clone() {
+    setCloning(true);
+    setCloneError(null);
+    const result = await cloneSharedTrip(token);
+    setCloning(false);
+    if (result.ok) {
+      router.push(`/trips/${result.value.tripId}`);
+      return;
+    }
+    if (result.error.status === 401) {
+      router.push(`/signin?callbackUrl=${encodeURIComponent(`/s/${token}`)}`);
+      return;
+    }
+    setCloneError(result.error.message);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -85,10 +115,21 @@ export function SharedTripScreen({ token }: { token: string }) {
         }
       />
       <main className="mx-auto flex w-full max-w-285 flex-col gap-5 px-7 pt-8 pb-16">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <Heading level={1}>{trip.name}</Heading>
-          <Badge variant="neutral">Read only</Badge>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <Heading level={1}>{trip.name}</Heading>
+            <Badge variant="neutral">Read only</Badge>
+          </div>
+          <Button variant="secondary" disabled={cloning} onClick={() => void clone()}>
+            Make this my trip
+          </Button>
         </div>
+
+        {cloneError !== null && (
+          <Text as="span" className="text-xs text-danger-ink">
+            {cloneError}
+          </Text>
+        )}
 
         <div className="flex flex-wrap items-center gap-4">
           <Text as="span" variant="secondary">

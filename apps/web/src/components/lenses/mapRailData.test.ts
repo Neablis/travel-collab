@@ -6,6 +6,7 @@ function detailWith(days: { dayId: string; date: string | null; activityIds: str
   return {
     tripId: "t", name: "T", status: "active", startDate: null, currency: "USD", budget: null,
     members: [{ userId: "u", role: "owner" }],
+    forkedFrom: null,
     days: days.map((d) => ({ ...d, costSubtotal: 0 })),
     backlog: [], activities: activities as TripDetail["activities"],
     conflicts: [], dismissedConflictIds: [], createdAt: "2026-01-01T00:00:00.000Z",

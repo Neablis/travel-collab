@@ -147,6 +147,11 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
       currency,
       budget,
       members: [tripMemberFactory.build()],
+      // Null by default: most fixtures are trips that started from nothing.
+      // A clone's lineage is asserted directly where it matters (M11 link 5)
+      // rather than generated, for the same reason non-owner roles are —
+      // nothing a fixture replays produces one.
+      forkedFrom: null,
       days,
       backlog,
       activities,

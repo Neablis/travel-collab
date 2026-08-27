@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripCommand } from "@tc/contracts";
+import type { TripCommand, TripDetail } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -50,7 +50,11 @@ const defaultSpend: TripSpend = {
 // capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
   onDeleted = vi.fn(),
-  overrides: { spend?: TripSpend; onCommand?: (command: TripCommand) => void } = {},
+  overrides: {
+    spend?: TripSpend;
+    forkedFrom?: TripDetail["forkedFrom"];
+    onCommand?: (command: TripCommand) => void;
+  } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
   render(
@@ -65,6 +69,7 @@ function renderSheet(
       currency="USD"
       budget={null}
       spend={overrides.spend ?? defaultSpend}
+      forkedFrom={overrides.forkedFrom ?? null}
       onCommand={onCommand}
       onDeleted={onDeleted}
     />,
@@ -263,5 +268,29 @@ describe("SettingsSheet delete/duplicate (A15)", () => {
 
     await waitFor(() => expect(duplicateTripMock).toHaveBeenCalledWith(tripId));
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+  });
+});
+
+
+// M11 link 5 — the visible half of clone-with-lineage.
+describe("SettingsSheet lineage", () => {
+  it("says nothing about provenance for a trip that started from nothing", () => {
+    renderSheet();
+    expect(screen.queryByText("Where this came from")).toBeNull();
+  });
+
+  it("names the ancestor and the history point it was copied from", () => {
+    renderSheet(vi.fn(), {
+      forkedFrom: { tripId, atSeq: 14, name: "Kyoto in spring" },
+    });
+    expect(screen.getByText("Where this came from")).toBeTruthy();
+    // The copy is split across text nodes by the JSX interpolation, so match
+    // on the containing span's own text rather than on a text node.
+    const line = screen
+      .getAllByText(/Copied from/)
+      .map((node) => node.textContent)
+      .join(" ");
+    expect(line).toContain("Kyoto in spring");
+    expect(line).toContain("as it was at change 14");
   });
 });

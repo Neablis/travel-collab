@@ -12,6 +12,12 @@ export function hydrate(detail: TripDetail): TripState {
     tripId: detail.tripId,
     name: detail.name,
     members: [...detail.members],
+    // `?? null` for the same reason the schema carries a default: this is
+    // called on a `trip_details.doc` straight out of Postgres (duplicateTrip,
+    // the AI batch resolver), which for a row written before M11 link 5 has
+    // no `forkedFrom` key at all. TripDetail's type says otherwise because
+    // Zod's default fills it in on parse — and that read does not parse.
+    forkedFrom: detail.forkedFrom ?? null,
     startDate: detail.startDate,
     days: detail.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
     backlog: [...detail.backlog],

@@ -281,6 +281,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
         currency={activeTrip.currency}
         budget={activeTrip.budget}
         spend={tripSpend(activeTrip)}
+        forkedFrom={activeTrip.forkedFrom}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

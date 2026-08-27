@@ -8,6 +8,7 @@ const baseState: TripState = {
   tripId,
   name: "Rome",
   members: [{ userId: "u1", role: "owner" }],
+  forkedFrom: null,
   startDate: null,
   days: [{ dayId: "d1", activityIds: [] }],
   backlog: [],

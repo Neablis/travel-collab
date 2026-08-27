@@ -15,6 +15,7 @@ import {
   TRIP,
   foldTo,
   generator,
+  arbLineage,
   historyFrom,
   rawOp,
   resetGeneratorCounters,
@@ -28,8 +29,13 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
       fc.property(
         fc.array(rawOp, { minLength: 1, maxLength: 40 }),
         fc.nat(),
-        (rawOps, cutSeed) => {
-          const events = historyFrom(rawOps);
+        // Lineage is genesis-only — no raw op can produce one — so it is
+        // generated here or this property replays only unforked trips and
+        // never once checks that replay carries `forkedFrom` through
+        // (M11 link 5).
+        arbLineage,
+        (rawOps, cutSeed, forkedFrom) => {
+          const events = historyFrom(rawOps, forkedFrom);
           const cut = (cutSeed % events.length) + 1; // 1..length
           const current = foldTo(events, events.length);
           const target = foldTo(events, cut);
@@ -37,6 +43,7 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
           let result = current;
           for (const event of diff) result = evolveTrip(result, event);
           w.tick();
+          expect(result.forkedFrom).toEqual(forkedFrom);
           expect(tripStatesEqual(result, target)).toBe(true);
           // conflicts are a pure function of state, so they match too:
           expect(detectConflicts(result)).toEqual(detectConflicts(target));
@@ -115,7 +122,7 @@ describe("diffTripStates day ordering (KI-1 regression)", () => {
         state = evolveTrip(state, event);
       }
     };
-    apply({ type: "CreateTrip", tripId: TRIP, name: "Ordering" });
+    apply({ type: "CreateTrip", tripId: TRIP, name: "Ordering" , forkedFrom: null});
     apply({ type: "AddDay", tripId: TRIP, dayId: DAY_B });
     apply({ type: "AddDay", tripId: TRIP, dayId: DAY_A });
     const targetSeq = events.length; // days are [B, A] here
@@ -157,7 +164,7 @@ describe("diffTripStates day ordering (KI-1 regression)", () => {
 describe("diffTripStates lifecycle reconciliation (M8)", () => {
   const tripId = "11111111-1111-4111-8111-111111111111";
   const base = evolveTrip(null, {
-    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1" },
+    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1", forkedFrom: null },
   });
 
   it("emits a rename when the names differ", () => {

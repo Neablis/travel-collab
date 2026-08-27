@@ -8,7 +8,7 @@ describe("lifecycle commands", () => {
   const active = evolveTrip(null, {
     type: "TripCreated",
     version: 1,
-    payload: { tripId, name: "Japan", createdBy: "u1" },
+    payload: { tripId, name: "Japan", createdBy: "u1", forkedFrom: null },
   });
   const deleted = evolveTrip(active, { type: "TripDeleted", version: 1, payload: { tripId } });
 
@@ -49,7 +49,7 @@ describe("SetTripDates", () => {
   const newIds = ["bbbbbbbb-1111-4111-8111-111111111111", "bbbbbbbb-2222-4111-8111-111111111111"];
 
   function tripWithDays(dayIds: string[]) {
-    let s = evolveTrip(null, { type: "TripCreated", version: 1, payload: { tripId, name: "T", createdBy: "u1" } });
+    let s = evolveTrip(null, { type: "TripCreated", version: 1, payload: { tripId, name: "T", createdBy: "u1", forkedFrom: null } });
     for (const dayId of dayIds) s = evolveTrip(s, { type: "DayAdded", version: 1, payload: { tripId, dayId } });
     return s;
   }

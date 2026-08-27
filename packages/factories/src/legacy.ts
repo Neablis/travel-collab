@@ -16,6 +16,7 @@ export function tripDetailFixture(overrides: Partial<TripDetail> = {}): TripDeta
     currency: "USD",
     budget: null,
     members: [{ userId: "dev-alice", role: "owner" }],
+    forkedFrom: null,
     days: [],
     backlog: [],
     activities: {},

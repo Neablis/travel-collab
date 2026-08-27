@@ -18,7 +18,7 @@ function run(state: TripState | null, command: TripCommand): Decision {
 }
 
 const base = fold([
-  { type: "TripCreated", version: 1, payload: { tripId: TRIP, name: "Rome 2027", createdBy: "user-1" } },
+  { type: "TripCreated", version: 1, payload: { tripId: TRIP, name: "Rome 2027", createdBy: "user-1", forkedFrom: null } },
   { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY } },
 ]);
 
@@ -35,7 +35,7 @@ describe("decideTripCommand", () => {
   });
 
   it("dispatches CreateTrip to the M0 handler", () => {
-    const decision = run(null, { type: "CreateTrip", tripId: TRIP, name: "Rome 2027" });
+    const decision = run(null, { type: "CreateTrip", tripId: TRIP, name: "Rome 2027" , forkedFrom: null});
     expect(decision.ok).toBe(true);
   });
 

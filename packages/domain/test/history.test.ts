@@ -57,7 +57,7 @@ function run(log: Log, input: unknown): Log {
 }
 
 function freshTrip(): Log {
-  let log = run([], { type: "CreateTrip", tripId: TRIP, name: "Rome" });
+  let log = run([], { type: "CreateTrip", tripId: TRIP, name: "Rome" , forkedFrom: null});
   log = run(log, { type: "AddDay", tripId: TRIP, dayId: DAY });
   log = run(log, { type: "AddActivity", tripId: TRIP, activityId: A1, title: "Colosseum" });
   return log; // 3 batches: create, day, activity (activity in backlog)
@@ -71,7 +71,7 @@ function state(log: Log): TripState {
 
 describe("deriveUndoRedo", () => {
   it("initial batch is never undoable; nothing to redo initially", () => {
-    const log = run([], { type: "CreateTrip", tripId: TRIP, name: "Rome" });
+    const log = run([], { type: "CreateTrip", tripId: TRIP, name: "Rome" , forkedFrom: null});
     const targets = deriveUndoRedo(groupBatches(log));
     expect(targets.undo).toBeNull();
     expect(targets.redo).toBeNull();

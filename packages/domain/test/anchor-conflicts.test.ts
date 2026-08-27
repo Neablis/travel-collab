@@ -9,7 +9,7 @@ const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
 // A one-day trip whose only activity carries `anchors`, pinned to `startDate`.
 function dated(startDate: string | null, anchors: Anchor[], timeWindow: TripState["activities"][string]["timeWindow"] = null): TripState {
   return {
-    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
+    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null,
     startDate, days: [{ dayId: DAY, activityIds: [A1] }], backlog: [],
     activities: { [A1]: { title: "Market", timeWindow, location: null, notes: null, anchors, kind: "planned" as const, tags: [], cost: null } },
     dismissedConflictIds: [],

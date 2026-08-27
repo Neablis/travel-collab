@@ -57,6 +57,11 @@ function daysEqual(a: readonly DayState[], b: readonly DayState[]): boolean {
   );
 }
 
+function lineageEqual(a: TripState["forkedFrom"], b: TripState["forkedFrom"]): boolean {
+  if (a === null || b === null) return a === b;
+  return a.tripId === b.tripId && a.atSeq === b.atSeq && a.name === b.name;
+}
+
 // Structural equality over the whole planning state. Activity record KEY ORDER
 // is deliberately ignored (replay and diff construct it in different orders);
 // every list that carries meaning (days, activityIds, backlog, dismissals) is
@@ -71,6 +76,12 @@ export function tripStatesEqual(a: TripState, b: TripState): boolean {
   ) {
     return false;
   }
+  // Lineage is genesis-only and immutable, so two states of ONE stream can
+  // never differ here — but tripStatesEqual is also what the rebuild golden
+  // test compares stored against replayed, and a field replay dropped would
+  // otherwise pass silently. That is the exact species of hole AGENTS.md's
+  // "if a comment asserts an invariant, a test enforces it" rule is about.
+  if (!lineageEqual(a.forkedFrom, b.forkedFrom)) return false;
   if (!daysEqual(a.days, b.days) || !sameList(a.backlog, b.backlog)) return false;
   if (!sameList(a.dismissedConflictIds, b.dismissedConflictIds)) return false;
   const aIds = Object.keys(a.activities).sort();

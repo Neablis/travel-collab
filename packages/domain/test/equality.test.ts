@@ -5,6 +5,7 @@ const base: TripState = {
   tripId: "7d9a1f8e-0000-4000-8000-00000000000a",
   name: "Rome",
   members: [{ userId: "u1", role: "owner" }],
+  forkedFrom: null,
   startDate: null,
   days: [{ dayId: "7d9a1f8e-0000-4000-8000-00000000000d", activityIds: [] }],
   backlog: ["7d9a1f8e-0000-4000-8000-0000000000a1"],
@@ -61,5 +62,34 @@ describe("tripStatesEqual", () => {
     const a = base;
     const b = { ...a, status: "deleted" as const };
     expect(tripStatesEqual(a, b)).toBe(false);
+  });
+});
+
+// M11 link 5. Lineage is genesis-only and immutable, so two states of ONE
+// stream can never differ here — but tripStatesEqual is also what the rebuild
+// golden test compares stored against replayed, and a field replay dropped
+// would otherwise pass silently.
+describe("tripStatesEqual — lineage", () => {
+  const lineage = { tripId: "7d9a1f8e-0000-4000-8000-00000000000b", atSeq: 4, name: "Kyoto" };
+
+  it("two states differing only by lineage are unequal", () => {
+    expect(tripStatesEqual(base, { ...base, forkedFrom: lineage })).toBe(false);
+  });
+
+  it("two states with the same lineage are equal", () => {
+    expect(
+      tripStatesEqual({ ...base, forkedFrom: lineage }, { ...base, forkedFrom: { ...lineage } }),
+    ).toBe(true);
+  });
+
+  it("notices a different ancestor, history point, or remembered name", () => {
+    const forked = { ...base, forkedFrom: lineage };
+    for (const other of [
+      { ...lineage, tripId: "7d9a1f8e-0000-4000-8000-00000000000c" },
+      { ...lineage, atSeq: 5 },
+      { ...lineage, name: "Osaka" },
+    ]) {
+      expect(tripStatesEqual(forked, { ...base, forkedFrom: other })).toBe(false);
+    }
   });
 });

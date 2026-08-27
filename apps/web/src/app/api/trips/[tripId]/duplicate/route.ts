@@ -1,5 +1,5 @@
 import { auth } from "@/server/auth";
-import { duplicateTrip } from "@/server/duplicateTrip";
+import { duplicateTrip } from "@/server/cloneTrip";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const session = await auth();

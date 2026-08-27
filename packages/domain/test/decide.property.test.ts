@@ -42,7 +42,7 @@ describe("decide — the no-op contract", () => {
     fc.assert(
       fc.property(ops, (rawOps) => {
         let state: TripState | null = null;
-        const create = decideTripCommand(null, { type: "CreateTrip", tripId: TRIP, name: "Prop" }, CTX);
+        const create = decideTripCommand(null, { type: "CreateTrip", tripId: TRIP, name: "Prop" , forkedFrom: null}, CTX);
         if (!create.ok) throw new Error("CreateTrip must succeed");
         for (const event of create.events) state = evolveTrip(state, event);
 
@@ -118,7 +118,7 @@ describe("decide — dismissal validity (KI-14)", () => {
       if (!decision.ok) throw new Error(`setup rejected ${command.type}: ${decision.rejection.code}`);
       for (const event of decision.events) state = evolveTrip(state, event);
     };
-    apply({ type: "CreateTrip", tripId: TRIP, name: "Conflicted" });
+    apply({ type: "CreateTrip", tripId: TRIP, name: "Conflicted" , forkedFrom: null});
     apply({ type: "AddDay", tripId: TRIP, dayId: DAY });
     for (let i = 0; i < n; i++) {
       apply({
@@ -206,7 +206,7 @@ describe("decide — every rejection code is reachable and correct", () => {
 
   it("trip-not-found / trip-already-exists", () => {
     expect(codeOf(null, { type: "AddDay", tripId: TRIP, dayId: "d" })).toBe("trip-not-found");
-    expect(codeOf(seeded(), { type: "CreateTrip", tripId: TRIP, name: "x" })).toBe("trip-already-exists");
+    expect(codeOf(seeded(), { type: "CreateTrip", tripId: TRIP, name: "x" , forkedFrom: null})).toBe("trip-already-exists");
   });
 
   it("history-command — undo/redo/revert must go through decideHistoryCommand", () => {

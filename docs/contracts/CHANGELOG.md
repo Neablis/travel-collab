@@ -13,6 +13,50 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — M11 link 5: the trip lineage pointer
+
+- Added: `TripLineage` (`{ tripId, atSeq, name }`) in
+  `packages/contracts/src/trip.ts`
+- Changed: `CreateTrip.forkedFrom`, `TripCreatedV1.payload.forkedFrom` and
+  `TripDetail.forkedFrom`, all `TripLineage.nullable().default(null)`
+- Why: M11's third user story is cloning a trip someone shared with you, and
+  "with lineage" is the milestone's headline. M8 shipped Duplicate deliberately
+  lineage-free (its decision 4) and this is where that comes due (ADR-028)
+- **This one is a real planning-contract change**, unlike links 3 and 4 — so
+  the hand-enumeration trap was live, and every site was walked:
+  `state.ts` (the field), `evolve.ts` (carried from the genesis event),
+  `detail.ts` and `hydrate.ts` (both directions of the state↔document
+  round trip), `equality.ts` (a new `lineageEqual`), and
+  `test/support/tripGenerator.ts`. `diff.ts` needed no change and has none —
+  lineage is genesis-only, no command changes it, and there is nothing to
+  diff; that is stated in `decide.ts`'s comment rather than left implied
+- **The generator half of the trap, specifically:** `historyFrom` now takes
+  `forkedFrom` as a parameter instead of hardcoding null. No raw op can
+  produce lineage, so a generator that always passed null would let every
+  property built on it pass while never once seeing a forked trip.
+  `diff.property.test.ts`'s round-trip property generates one and asserts
+  replay carries it through; `hydrate.property.test.ts`'s arbitrary generates
+  one directly, for the same reason it generates non-owner members
+- `.default(null)`, NOT `.optional()`: every `TripCreated` row already in
+  `events` and every `trip_details.doc` already in Postgres omits the key, and
+  a default makes them all parse to one shape — explicit null — rather than
+  two. `hydrate()` additionally coalesces `?? null`, because it is called on a
+  raw `trip_details.doc` that never goes through `TripDetail.parse`.
+  `packages/contracts/test/trip.test.ts` asserts all three defaults against
+  payloads written the old way
+- Deliberately NOT on `TripSummary`: the home grid's card says nothing about
+  provenance, and adding it there would mean a `trip_summaries` column and a
+  migration for a line of text the trip's own settings sheet already carries
+- Consumers updated: `@tc/domain` (the six sites above), `@tc/factories`
+  (`trip.ts`, `legacy.ts`, `conflicts.test.ts`), `@tc/pages` (three fixtures),
+  `apps/web` (`server/cloneTrip.ts` — renamed from `duplicateTrip.ts` —
+  `server/history.ts`'s `getTripHead`, `server/access/shares.ts`'s
+  `readShareForClone`, the new `api/shares/[token]/clone` route,
+  `lib/apiClient.ts`, `SharedTripScreen`, `SettingsSheet`, `TripHeader`)
+- Migration: **none.** The field rides in an existing jsonb payload and an
+  existing jsonb projection document
+- Breaking? no — every change is a nullable field with a default
+
 ## 2026-08-27 — M11 link 4: pinned share links
 
 - Added: `packages/contracts/src/share.ts`, exported from the package index —

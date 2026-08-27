@@ -1,10 +1,16 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SharedTripView } from "@tc/contracts";
 
+const pushMock = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+
 const fetchSharedTripMock = vi.fn();
+const cloneSharedTripMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   fetchSharedTrip: (...args: unknown[]) => fetchSharedTripMock(...args),
+  cloneSharedTrip: (...args: unknown[]) => cloneSharedTripMock(...args),
 }));
 
 import { SharedTripScreen } from "./SharedTripScreen";
@@ -63,7 +69,9 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
 
 afterEach(cleanup);
 beforeEach(() => {
+  pushMock.mockReset();
   fetchSharedTripMock.mockReset().mockResolvedValue({ ok: true, value: view() });
+  cloneSharedTripMock.mockReset().mockResolvedValue({ ok: true, value: { tripId: "cloned-id" } });
 });
 
 describe("SharedTripScreen", () => {
@@ -106,10 +114,43 @@ describe("SharedTripScreen", () => {
 
   // Read-only by construction: there is no TripProvider and no command client
   // in this subtree, so this asserts the outcome rather than the mechanism.
-  it("offers nothing that would change the trip", async () => {
+  // "Make this my trip" is the one button, and it writes to a NEW trip.
+  it("offers nothing that would change the trip it is showing", async () => {
     render(<SharedTripScreen token="tok" />);
     await screen.findByText("Fushimi Inari");
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Make this my trip"]);
+  });
+
+  it("clones the pinned trip and opens the copy", async () => {
+    render(<SharedTripScreen token="tok" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Make this my trip" }));
+    await waitFor(() => expect(cloneSharedTripMock).toHaveBeenCalledWith("tok"));
+    expect(pushMock).toHaveBeenCalledWith("/trips/cloned-id");
+  });
+
+  // Offered to everyone, because hiding it until you sign in makes the one
+  // thing this page is for invisible to exactly the people it is winning over.
+  it("sends a signed-out visitor to sign in, and back to this link", async () => {
+    cloneSharedTripMock.mockResolvedValue({
+      ok: false,
+      error: { status: 401, message: "unauthenticated" },
+    });
+    render(<SharedTripScreen token="tok" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Make this my trip" }));
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith("/signin?callbackUrl=%2Fs%2Ftok"),
+    );
+  });
+
+  it("reports a clone that failed for any other reason", async () => {
+    cloneSharedTripMock.mockResolvedValue({
+      ok: false,
+      error: { status: 410, message: "This link has been turned off." },
+    });
+    render(<SharedTripScreen token="tok" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Make this my trip" }));
+    expect(await screen.findByText("This link has been turned off.")).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("shows a way onward when the link is dead rather than a blank page", async () => {

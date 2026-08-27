@@ -349,3 +349,20 @@ export async function fetchSharedTrip(token: string): Promise<ApiResult<SharedTr
 export function shareLink(token: string): string {
   return apiUrl(`/s/${encodeURIComponent(token)}`);
 }
+
+/**
+ * "Make this my trip" (M11 link 5). Copies the share's PINNED state into a new
+ * trip owned by the caller — what the link showed, not what the source has
+ * become since. 401 when signed out, which the share page turns into a trip to
+ * /signin and back.
+ */
+export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/shares/${encodeURIComponent(token)}/clone`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Money, TripCommand } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,7 @@ export function SettingsSheet({
   currency,
   budget,
   spend,
+  forkedFrom,
   onCommand,
   onDeleted,
 }: {
@@ -103,6 +104,9 @@ export function SettingsSheet({
   currency: string;
   budget: Money | null;
   spend: TripSpend;
+  // Where this trip came from, or null if it started from nothing (M11 link
+  // 5). Genesis-only and immutable, so it is displayed and never edited.
+  forkedFrom: TripDetail["forkedFrom"];
   onCommand: (command: TripCommand) => void;
   // The outcome is forwarded alongside the {tripId, name} summary so the
   // caller (TripHeader) can call TripProvider's applyOutcome with it —
@@ -303,6 +307,23 @@ export function SettingsSheet({
               and Access data — packages/contracts/src/access.ts). */}
           <TravelersPanel tripId={tripId} />
         </div>
+
+        {/* The visible half of clone-with-lineage. The ancestor's name is a
+            snapshot taken at fork time and stored in the genesis event, so it
+            survives the original being renamed, deleted, or never having been
+            readable by whoever holds this copy — which is the normal case when
+            the copy came from a share link (ADR-028). It is deliberately not a
+            link for the same reason: there is no guarantee this person can
+            open the trip it names. */}
+        {forkedFrom !== null && (
+          <div>
+            <SectionHeading>Where this came from</SectionHeading>
+            <Text as="span" className="text-xs text-slate">
+              Copied from &ldquo;{forkedFrom.name}&rdquo;, as it was at change{" "}
+              {forkedFrom.atSeq}.
+            </Text>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
           <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>

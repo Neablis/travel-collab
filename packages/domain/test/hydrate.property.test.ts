@@ -86,6 +86,17 @@ const arbTripState: fc.Arbitrary<TripState> = fc
     tripId: uuid,
     name: fc.string({ minLength: 1, maxLength: 40 }),
     members: arbMembers,
+    // Lineage is genesis-only and never replayed into by a command, so like a
+    // non-owner member it has to be generated directly or the round-trip
+    // property would pass while never seeing one (M11 link 5).
+    forkedFrom: fc.option(
+      fc.record({
+        tripId: uuid,
+        atSeq: fc.integer({ min: 1, max: 500 }),
+        name: fc.string({ minLength: 1, maxLength: 40 }),
+      }),
+      { nil: null },
+    ),
     startDate: fc.option(fc.constant("2027-06-01"), { nil: null }),
     dayIds: fc.uniqueArray(uuid, { maxLength: 4 }),
     activityIds: fc.uniqueArray(uuid, { maxLength: 6 }),
@@ -116,6 +127,7 @@ const arbTripState: fc.Arbitrary<TripState> = fc
           tripId: s.tripId,
           name: s.name,
           members: s.members,
+          forkedFrom: s.forkedFrom,
           startDate: s.startDate,
           days,
           backlog,
