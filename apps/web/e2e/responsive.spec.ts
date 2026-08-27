@@ -153,6 +153,17 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     test(`/welcome does not scroll sideways at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/welcome");
+      // Witnesses before measuring: an empty shell, a redirect to /signin, or a
+      // 500 all have scrollWidth === clientWidth and would sail through the
+      // assertion below (CodeRabbit, PR #58). The h1 proves this is the landing
+      // page rather than somewhere auth sent us; the feature-card h3 proves the
+      // widest content on it actually rendered, which is what can overflow.
+      await expect(
+        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Four people, one schedule" }),
+      ).toBeVisible();
       const { scrollWidth, clientWidth, widest } = await page.evaluate(() => {
         const doc = document.documentElement;
         // Name the worst offender in the failure message — "the page is 40px
