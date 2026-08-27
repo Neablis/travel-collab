@@ -148,15 +148,29 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               <Text as="span" className="text-xs text-slate">
                 {statusLabel(invite)}
               </Text>
+              {/* The visible label flips to "Copied", but the accessible
+                  name does not: creating an invite copies it immediately, so
+                  a name derived from the label would mean the freshly minted
+                  row is addressable as "Copied" and every older row as "Copy
+                  link" — a locator that depends on which row you are looking
+                  at. `title` carries the URL itself, which is also what makes
+                  a denied clipboard permission a non-event. */}
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Copy invite link"
                 title={inviteLink(invite.token)}
                 onClick={() => void copy(invite)}
               >
                 {copied === invite.inviteId ? "Copied" : "Copy link"}
               </Button>
-              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void handleRevoke(invite)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Revoke invite"
+                disabled={busy}
+                onClick={() => void handleRevoke(invite)}
+              >
                 Revoke
               </Button>
             </div>

@@ -111,16 +111,22 @@ describe("TravelersPanel", () => {
     );
   });
 
+  // The accessible name is stable while the visible label flips, because
+  // creating an invite copies it immediately — see the comment on the button.
   it("copies an outstanding invite's link and says so", async () => {
     render(<TravelersPanel tripId={tripId} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Copy link" }));
+    const copy = await screen.findByRole("button", { name: "Copy invite link" });
+    expect(copy.textContent).toBe("Copy link");
+    await userEvent.click(copy);
     expect(writeText).toHaveBeenCalledWith("http://test/invite/tok-123");
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copy invite link" }).textContent).toBe("Copied"),
+    );
   });
 
   it("revokes an invite and re-reads the list", async () => {
     render(<TravelersPanel tripId={tripId} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Revoke" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
     await waitFor(() => expect(revokeTripInviteMock).toHaveBeenCalledWith(tripId, invite.inviteId));
     expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
   });
@@ -154,8 +160,9 @@ describe("TravelersPanel", () => {
   it("does not report an error when the clipboard is denied", async () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
     render(<TravelersPanel tripId={tripId} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Copy link" }));
+    const copy = await screen.findByRole("button", { name: "Copy invite link" });
+    await userEvent.click(copy);
     expect(screen.queryByText("denied")).toBeNull();
-    expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy invite link" }).textContent).toBe("Copy link");
   });
 });
