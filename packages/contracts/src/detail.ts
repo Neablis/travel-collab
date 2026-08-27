@@ -11,8 +11,22 @@ export const ActivityView = z.object({
   location: Location.nullable(),
   notes: z.string().nullable(),
   anchors: z.array(Anchor),
-  kind: ActivityKind,
-  tags: z.array(ActivityTag),
+  // Defaulted, not required, for the same reason `forkedFrom` below is:
+  // `trip_details.doc` is stored jsonb that `getTripDetail` returns RAW, and
+  // the read route parses it. Every document written before M18 added these
+  // two fields therefore has neither key, and a row is only rewritten when
+  // its trip next changes — so a required `kind` 500s the board for any trip
+  // nobody has touched since, which is exactly what it did on the #71 preview
+  // (GET /api/trips/… → ZodError, `kind` Required).
+  //
+  // These are the same zero values the rest of the stack already agrees on:
+  // `AddActivity.kind` is optional and documented "omitted = planned",
+  // `ActivityAddedV1.payload` and `ActivityUpdatedV1.payload` both carry
+  // `.default("planned")` and `.default([])`, and `state.ts` calls "planned"
+  // the zero value outright. The read model was the one place that did not
+  // apply them.
+  kind: ActivityKind.default("planned"),
+  tags: z.array(ActivityTag).default([]),
   cost: Money.nullable(),
 });
 export type ActivityView = z.infer<typeof ActivityView>;

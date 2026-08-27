@@ -30,8 +30,13 @@ export function hydrate(detail: TripDetail): TripState {
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
-          kind: a.kind,
-          tags: a.tags,
+          // Same unparsed-document reasoning as `forkedFrom` above, for the
+          // two fields M18 added: a doc written before it has neither key, and
+          // `state.ts` calls "planned" the zero value that is never null. A
+          // clone or an AI batch built from such a trip would otherwise carry
+          // `undefined` into TripState — where the type says it cannot be.
+          kind: a.kind ?? "planned",
+          tags: a.tags ?? [],
           cost: a.cost,
         },
       ]),

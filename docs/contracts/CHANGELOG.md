@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — `ActivityView.kind` and `.tags` read a pre-M18 document
+
+- Changed: `ActivityView.kind` is now `ActivityKind.default("planned")` and
+  `ActivityView.tags` is `z.array(ActivityTag).default([])`, where M18 (#63)
+  made both required. `hydrate()` gained the matching `?? "planned"` / `?? []`
+- Why: this was a live 500, found by Mitchell walking the #71 preview.
+  `getTripDetail` returns `trip_details.doc` as RAW jsonb — no parse — and the
+  read route then runs `TripDetail.parse` on it. A document written before M18
+  carries neither key, and a projection row is only rewritten when its trip
+  next changes, so `GET /api/trips/:id` threw `ZodError: kind Required` for
+  every trip nobody had touched since M18. `main` has this too; it is not
+  specific to M11 and it is not a missing migration
+- Not a widening of the contract: `AddActivity.kind` is already optional and
+  documented "omitted = planned", `ActivityAddedV1` and `ActivityUpdatedV1`
+  already carry `.default("planned")` / `.default([])`, and `state.ts` calls
+  "planned" the zero value that is never null. The read model was the only
+  place that did not apply the zero values the rest of the stack agrees on
+- Chosen over rebuilding the projections: a rebuild is an ops step that fixes
+  today's rows and nothing about the next stale one, and it would have to be
+  run against every environment. A default is additive and needs no migration
+- Consumers updated: `packages/contracts`, `packages/domain` (`hydrate.ts`)
+- Breaking? no — additive. An activity that DOES store a kind or tags keeps
+  them, pinned by a test
+
 ## 2026-08-27 — M11 link 6: saved days
 
 - Added: `packages/contracts/src/saved.ts`, exported from the package index —
