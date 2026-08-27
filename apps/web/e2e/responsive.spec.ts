@@ -17,9 +17,10 @@ test.describe("responsive (narrow viewport)", () => {
     }
     await page.goto(`/trips/${tripId}`);
 
-    // useAssistantVisibility defaults open, then syncs to the media query on
-    // mount — at <1180px that closes it almost immediately, so open it
-    // explicitly rather than racing that effect.
+    // The rail is closed until asked for, at every width, so open it before
+    // asserting anything about it. (It used to default open and then race a
+    // media-query effect closed at this width; the explicit click was needed
+    // then too, for a different reason.)
     await page.getByRole("button", { name: "Assistant" }).click();
     const rail = page.getByRole("complementary", { name: "Assistant" });
     await expect(rail).toBeVisible();
@@ -53,8 +54,8 @@ test.describe("responsive (narrow viewport)", () => {
     // Below 1180px the rail is a full-page-scrim overlay by design — while
     // it's open, the scrim intentionally blocks interaction with the rest
     // of the page (that's the point of the KI-16 fix, not a new bug). The
-    // rail defaults closed at this width (useAssistantVisibility syncs to
-    // the media query on mount), so it's already out of the way here; this
+    // rail is closed until asked for, at every width, so it's already out of
+    // the way here without this test doing anything; this
     // asserts the *other* stacking claim, KI-17 — that a sheet's Close
     // button is a real, reachable control rather than sitting under some
     // other fixed-position layer — still holds at a narrow viewport.
