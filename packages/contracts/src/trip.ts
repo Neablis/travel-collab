@@ -229,9 +229,20 @@ export const BatchableCommand = z.discriminatedUnion("type", [
 ]);
 export type BatchableCommand = z.infer<typeof BatchableCommand>;
 
+// Ordered least- to most-privileged; `AccessPolicy` (apps/web/src/server) is
+// the only thing that interprets the ranking, and the planning domain never
+// reads a role at all (AGENTS.md invariant 6c). `owner` is still the only role
+// anything MINTS — TripCreated makes its creator the owner and no command adds
+// a member — so editor/viewer are unreachable at runtime until invites (M11
+// link 3). Widening a literal to an enum that contains it is backwards
+// compatible: every `members` row already persisted in `trip_summaries` /
+// `trip_details` jsonb still parses.
+export const TripRole = z.enum(["viewer", "editor", "owner"]);
+export type TripRole = z.infer<typeof TripRole>;
+
 export const TripMember = z.object({
   userId: z.string().min(1),
-  role: z.literal("owner"),
+  role: TripRole,
 });
 export type TripMember = z.infer<typeof TripMember>;
 

@@ -44,13 +44,12 @@ export async function POST(_request: Request) {
   // deletePriorSeedTrips: a soft delete (M8's RestoreTrip can recover it),
   // never a hard row delete, and scoped to trips this user is a member of —
   // never another user's, never every trip in the table.
-  // "Own" means "member of", matching accessPolicy.ts's soleMemberPolicy —
-  // correct today because projections.ts only sets `members` at TripCreated
-  // and no command mutates it since. Once invites exist (M13 Collaboration)
-  // this membership check stops meaning "created by me" and this route
-  // silently becomes "delete every trip I've been invited to."
+  // "Own" means "owner of", not merely "member of": once invites exist (M11
+  // link 3) a membership filter would make this route "delete every trip I've
+  // been invited to", and DeleteTrip is owner-only (accessPolicy.ts), so each
+  // such trip would also fail the pipeline and 400 the whole reset.
   const rows = await listTripSummaries();
-  const ownTrips = rows.filter((r) => r.members.some((m) => m.userId === userId));
+  const ownTrips = rows.filter((r) => r.members.some((m) => m.userId === userId && m.role === "owner"));
   for (const trip of ownTrips) {
     const result = await executeTripCommand({ type: "DeleteTrip", tripId: trip.tripId }, userId);
     if (!result.ok) {

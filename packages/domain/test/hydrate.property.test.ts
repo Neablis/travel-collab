@@ -1,6 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { witness } from "./support/witness";
+import type { TripMember, TripRole } from "@tc/contracts";
 import { hydrate, tripDetailFromState, tripStatesEqual, type TripState, type ActivityState } from "../src";
 
 // RISK GATE: validates the plan's central assumption that TripDetail is a
@@ -66,12 +67,25 @@ const activity: fc.Arbitrary<ActivityState> = fc.record({
   cost: fc.option(money, { nil: null }),
 });
 
+// A non-owner member is unreachable by replay — no command adds a member, so
+// only a TripCreated `owner` is ever minted (M11 link 2). It is generated here
+// directly, because hydrate/tripDetailFromState must already be lossless for
+// one by the time invites (link 3) start producing them; the first member is
+// always the owner, which is the one thing replay does guarantee.
+const arbMembers: fc.Arbitrary<TripMember[]> = fc
+  .uniqueArray(fc.tuple(uuid, fc.constantFrom<TripRole>("owner", "editor", "viewer")), {
+    minLength: 1,
+    maxLength: 3,
+    selector: ([userId]) => userId,
+  })
+  .map((rows) => rows.map(([userId, role], i) => ({ userId, role: i === 0 ? ("owner" as const) : role })));
+
 // Structurally valid TripState: activity ids partitioned across days + backlog.
 const arbTripState: fc.Arbitrary<TripState> = fc
   .record({
     tripId: uuid,
     name: fc.string({ minLength: 1, maxLength: 40 }),
-    createdBy: uuid,
+    members: arbMembers,
     startDate: fc.option(fc.constant("2027-06-01"), { nil: null }),
     dayIds: fc.uniqueArray(uuid, { maxLength: 4 }),
     activityIds: fc.uniqueArray(uuid, { maxLength: 6 }),
@@ -101,7 +115,7 @@ const arbTripState: fc.Arbitrary<TripState> = fc
         return {
           tripId: s.tripId,
           name: s.name,
-          members: [{ userId: s.createdBy, role: "owner" }],
+          members: s.members,
           startDate: s.startDate,
           days,
           backlog,
@@ -120,26 +134,33 @@ const arbTripState: fc.Arbitrary<TripState> = fc
 // ~0, so half is plenty of signal with room for fast-check's variance.
 const FLOOR_KIND = 90;
 const FLOOR_TAGS = 80;
+// Roles measured the same way over five runs: 45/47/51/42/48, so half of the
+// observed minimum (42) is the floor.
+const FLOOR_ROLE = 20;
 
 describe("hydrate", () => {
   it("is the inverse of tripDetailFromState (round-trip)", () => {
-    // Two witnesses on the M18 fields specifically. The round-trip assertion
-    // alone would still pass if `activity` only ever generated `planned` /
-    // `[]` — the fields would be carried, but never actually varied, and the
-    // property would say nothing about them. See support/witness.ts.
+    // Witnesses on the fields whose generators could quietly stop varying:
+    // the round-trip assertion alone would still pass if `activity` only ever
+    // produced `planned`/`[]`, or if every member were an owner — the fields
+    // would be carried, but never actually varied, and the property would say
+    // nothing about them. See support/witness.ts.
     const kinds = witness("hydrate round-trip: non-planned kind");
     const tags = witness("hydrate round-trip: non-empty tags");
+    const roles = witness("hydrate round-trip: a non-owner member");
     fc.assert(
       fc.property(arbTripState, (state) => {
         for (const a of Object.values(state.activities)) {
           if (a.kind !== "planned") kinds.tick();
           if (a.tags.length > 0) tags.tick();
         }
+        if (state.members.some((m) => m.role !== "owner")) roles.tick();
         const roundTripped = hydrate(tripDetailFromState(state, "2027-01-01T00:00:00.000Z"));
         expect(tripStatesEqual(roundTripped, state)).toBe(true);
       }),
     );
     kinds.atLeast(FLOOR_KIND);
     tags.atLeast(FLOOR_TAGS);
+    roles.atLeast(FLOOR_ROLE);
   });
 });

@@ -93,6 +93,23 @@ describe("executeTripCommand", () => {
     });
   });
 
+  // `owner` is the only role anything mints (TripCreated), so the owner-only
+  // commands have to stay reachable for the creator — and the role has to
+  // survive the trip_summaries/trip_details jsonb round trip, since the next
+  // command's authorization reads it back out of the folded stream.
+  it("mints the creator as owner and keeps owner-only commands reachable", async () => {
+    const { tripId } = await seedBoard();
+    expect((await getTripDetail(tripId))?.members).toEqual([{ userId: "user-1", role: "owner" }]);
+    const summary = await db.select().from(tripSummaries);
+    expect(summary.find((r) => r.tripId === tripId)?.members).toEqual([
+      { userId: "user-1", role: "owner" },
+    ]);
+    expect((await exec({ type: "DeleteTrip", tripId })).ok).toBe(true);
+    expect((await exec({ type: "RestoreTrip", tripId })).ok).toBe(true);
+    await rebuildProjections();
+    expect((await getTripDetail(tripId))?.members).toEqual([{ userId: "user-1", role: "owner" }]);
+  });
+
   it("runs the board flow; conflicts are data and never block the write", async () => {
     const { tripId, dayA, dayB, colosseum, vatican } = await seedBoard();
 

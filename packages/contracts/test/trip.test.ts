@@ -8,6 +8,8 @@ import {
   SetTripName,
   TripCommand,
   TripEvent,
+  TripMember,
+  TripRole,
   TripSummary,
 } from "../src";
 
@@ -50,6 +52,24 @@ describe("trip contracts", () => {
         payload: { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f", name: "x" },
       }),
     ).toThrow();
+  });
+
+  it("accepts the three roles and nothing else", () => {
+    expect(TripRole.options).toEqual(["viewer", "editor", "owner"]);
+    expect(TripMember.safeParse({ userId: "u1", role: "editor" }).success).toBe(true);
+    expect(TripMember.safeParse({ userId: "u1", role: "viewer" }).success).toBe(true);
+    expect(TripMember.safeParse({ userId: "u1", role: "admin" }).success).toBe(false);
+  });
+
+  // Every `members` value already persisted in the trip_summaries /
+  // trip_details jsonb was written under `z.literal("owner")`. Widening to an
+  // enum that contains it has to stay backwards compatible or the projection
+  // rebuild stops parsing eight milestones of rows.
+  it("still parses a member persisted before roles existed", () => {
+    expect(TripMember.parse({ userId: "dev-alice", role: "owner" })).toEqual({
+      userId: "dev-alice",
+      role: "owner",
+    });
   });
 
   it("requires at least one member on TripSummary", () => {

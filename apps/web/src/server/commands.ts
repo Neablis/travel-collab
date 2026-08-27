@@ -22,7 +22,7 @@ import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
 import { appendToStream, readStream } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
-import { soleMemberPolicy } from "./accessPolicy";
+import { memberRolePolicy } from "./accessPolicy";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
@@ -70,7 +70,7 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
     const state = foldEnvelopes(history);
 
     // 3. authorize via the AccessPolicy seam
-    if (!soleMemberPolicy.canExecute(actorId, command.type, state?.members ?? null)) {
+    if (!memberRolePolicy.canExecute(actorId, command.type, state?.members ?? null)) {
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
     }
 
@@ -151,8 +151,11 @@ export async function executeTripCommandBatch(input: unknown, actorId: string): 
     const history = await readStream(tx, tripId);
     let state = foldEnvelopes(history);
 
-    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand)
-    if (!soleMemberPolicy.canExecute(actorId, commands[0]!.type, state?.members ?? null)) {
+    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand),
+    //    for EVERY sub-command: roles are per-command (accessPolicy.ts), so
+    //    checking only the first would let a batch smuggle in a command the
+    //    actor's role does not permit.
+    if (commands.some((c) => !memberRolePolicy.canExecute(actorId, c.type, state?.members ?? null))) {
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
     }
 

@@ -302,9 +302,11 @@ export function SettingsSheet({
                 </Text>
               ))}
             </div>
-            {/* Unbacked (M13 — TripMember.role is literal "owner", and there
-                is no invite flow yet): the roles column and the "Invite
-                someone" action are both mocked/disabled together. */}
+            {/* The role badge is real (TripMember.role, enforced by
+                AccessPolicy) but every member is still an owner, because
+                nothing creates a non-owner one until invites land (M11 link
+                3) — so this stays a Preview alongside the mocked "Invite
+                someone" action. */}
             <Preview id="trip-invites" size="container" className="flex items-center gap-3">
               <div className="flex flex-col gap-1.5">
                 {members.map((member) => (

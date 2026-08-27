@@ -41,8 +41,9 @@ const DEFAULT_CURRENCY = "USD";
 // design's own destChips fixture.
 const DESTINATION_CHIP_SHAPE = ["Lisbon", "Mexico City", "Seoul", "Copenhagen", "Big Sur", "Back to Kyoto"] as const;
 
-// Illustrative only (Preview id="wizard-invite-list", M13 — TripMember.role
-// is the literal string "owner", so there is no one else to list yet).
+// Illustrative only (Preview id="wizard-invite-list", M11 link 3 — roles
+// exist on TripMember, but nothing creates a non-owner member yet, so there is
+// no one else to list).
 const INVITE_SHAPE = [{ name: "You", role: "Owner" }] as const;
 
 // Illustrative only (Preview id="wizard-pace-tags", M9 — pace and tags exist
