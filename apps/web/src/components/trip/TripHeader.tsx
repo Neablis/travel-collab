@@ -150,7 +150,11 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
             <Badge variant="neutral">{statusLabel}</Badge>
             {/* M11 link 3: a viewer's trip is theirs to read, not to change.
                 The server refuses their writes either way (accessPolicy.ts);
-                this is what stops them finding that out by dragging a card. */}
+                the badge plus the gates below are what stop them finding that
+                out by clicking. The badge ALONE was the whole of it until
+                CodeRabbit read PR #71 — Share, Add stop, undo/redo and Revert
+                were all still live for a viewer, so this comment was making a
+                promise the header did not keep. */}
             {readOnly && <Badge variant="info">View only</Badge>}
           </div>
         </div>
@@ -186,8 +190,8 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   copies and turns off pinned share links. It needs the tripId
                   it is sharing; everything else about this call site is
                   unchanged. */}
-              <ShareButton tripId={tripId} />
-              <Button variant="primary" onClick={() => openCreate()}>
+              {!readOnly && <ShareButton tripId={tripId} />}
+              <Button variant="primary" disabled={readOnly} onClick={() => openCreate()}>
                 Add stop
               </Button>
             </div>
@@ -226,7 +230,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                     shortcut does NOT live with them (see
                     useUndoRedoShortcuts, called above) — popover content
                     unmounts when closed, and undo must keep working. */}
-                {preview.seq === null && (
+                {preview.seq === null && !readOnly && (
                   <div className="mb-2 flex justify-end border-b border-hairline pb-2">
                     <UndoRedoControls
                       canUndo={history?.canUndo ?? false}
@@ -240,6 +244,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                 <HistoryPanel
                   history={history}
                   previewSeq={preview.seq}
+                  readOnly={readOnly}
                   onPreview={(seq) => void preview.enter(seq)}
                   onExitPreview={preview.exit}
                   onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}

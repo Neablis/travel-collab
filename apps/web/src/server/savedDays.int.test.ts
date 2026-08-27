@@ -76,6 +76,28 @@ describe("saving a day", () => {
     expect(JSON.stringify(result.value.stops)).not.toContain("2027-06");
   });
 
+  // `SavedDay.name` requires a character. The route's Zod parse sees "   " as
+  // length 3 and lets it through, and the trim then happened while BUILDING
+  // the row — so the stored name violated the contract it was validated
+  // against, and the next read of that row would throw (CodeRabbit, PR #71).
+  it("refuses a name that is only whitespace, rather than storing an empty one", async () => {
+    const { tripId, dayId } = await seedDay();
+    const result = await saveDay({ name: "   ", dayId }, await detailFor(tripId), OWNER);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid");
+    // …and nothing landed, so the library is not carrying an unparseable row.
+    expect(await listSavedDays(OWNER)).toEqual([]);
+  });
+
+  it("still trims a name that has something in it", async () => {
+    const { tripId, dayId } = await seedDay();
+    const result = await saveDay({ name: "  Day one  ", dayId }, await detailFor(tripId), OWNER);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.name).toBe("Day one");
+  });
+
   it("remembers which trip it came from, and what that trip was called", async () => {
     const { tripId, dayId } = await seedDay("Kyoto");
     const result = await saveDay({ name: "Day one", dayId }, await detailFor(tripId), OWNER);

@@ -19,12 +19,20 @@ async function seedTrip(name = "Kyoto"): Promise<string> {
 }
 
 /**
- * Resolves once some backend in this database is parked on a lock — which, in
- * the one test that calls it, can only be the accept blocked on the membership
- * primary key. Polled rather than slept: a fixed sleep either flakes on a slow
- * machine or wastes the time on a fast one, and neither proves the block
- * happened. Throwing here is a real failure, not a flake: it means the accept
- * reached a decision without ever contending for the row.
+ * Resolves once a backend in this database is parked on a lock WHILE RUNNING A
+ * STATEMENT AGAINST `trip_memberships` — i.e. the accept blocked on the
+ * membership primary key.
+ *
+ * The `query` filter is what makes that specific. Without it this counted every
+ * lock waiter in the database, and integration tests share `DATABASE_URL` with
+ * local development, so an unrelated waiter could release the barrier before
+ * the accept reached the primary key — leaving the test passing through the
+ * guard path it exists to bypass (CodeRabbit, PR #71).
+ *
+ * Polled rather than slept: a fixed sleep either flakes on a slow machine or
+ * wastes the time on a fast one, and neither proves the block happened.
+ * Throwing here is a real failure, not a flake: it means the accept reached a
+ * decision without ever contending for the row.
  */
 async function waitForABlockedBackend(timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -34,6 +42,7 @@ async function waitForABlockedBackend(timeoutMs = 5_000): Promise<void> {
        where datname = current_database()
          and state = 'active'
          and wait_event_type = 'Lock'
+         and query ilike '%trip_memberships%'
     `);
     if (Number(blocked.rows[0]?.n ?? 0) > 0) return;
     if (Date.now() > deadline) {

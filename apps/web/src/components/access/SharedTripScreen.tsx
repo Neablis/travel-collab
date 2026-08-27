@@ -52,7 +52,11 @@ export function SharedTripScreen({ token }: { token: string }) {
     setCloning(true);
     setCloneError(null);
     const result = await cloneSharedTrip(token);
-    setCloning(false);
+    // Released only on the paths that STAY on this page. `router.push` does
+    // not unmount synchronously, so clearing it before navigating re-enables
+    // the button while the shared page is still on screen — and a second
+    // click there is a second trip in the visitor's list, not a no-op
+    // (CodeRabbit, PR #71).
     if (result.ok) {
       router.push(`/trips/${result.value.tripId}`);
       return;
@@ -61,6 +65,7 @@ export function SharedTripScreen({ token }: { token: string }) {
       router.push(`/signin?callbackUrl=${encodeURIComponent(`/s/${token}`)}`);
       return;
     }
+    setCloning(false);
     setCloneError(result.error.message);
   }
 

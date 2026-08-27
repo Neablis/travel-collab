@@ -64,8 +64,11 @@ describe("TravelersPanel", () => {
     // Identity's name wins; an email stands in when there is no name.
     expect(await screen.findByText("Alice")).toBeTruthy();
     expect(screen.getByText("bob@example.com")).toBeTruthy();
-    expect(screen.getByText("owner")).toBeTruthy();
-    expect(screen.getByText("editor")).toBeTruthy();
+    // Through the row testids, not as bare strings: "owner" and "editor"
+    // appear in the invite rows too, so the loose assertions passed without
+    // any traveller carrying either role (CodeRabbit, PR #71).
+    expect(screen.getByTestId("traveller-dev-alice").textContent).toContain("owner");
+    expect(screen.getByTestId("traveller-dev-bob").textContent).toContain("editor");
     // …and the outstanding invite is listed by the address it was sent to.
     expect(screen.getByText("cara@example.com")).toBeTruthy();
   });

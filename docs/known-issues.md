@@ -279,6 +279,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change.
 
 
+### KI-53 — Access-module timestamps come back in two different formats depending on whether you just wrote the row
+- **Severity:** correctness-latent (no current consumer breaks, but the same field has two shapes across the API surface)
+- **Area:** `apps/web/src/server/db/schema.ts` (`trip_invites`, `trip_shares`, `saved_days`), `apps/web/src/server/access/shares.ts`, `apps/web/src/server/access/invites.ts`, `apps/web/src/server/savedDays.ts`
+- **Symptom:** these columns are `timestamp(..., { withTimezone: true, mode: "string" })`. On the WRITE path the service returns the row object it just built, so the caller gets back exactly the ISO-8601 string it passed in — `2026-01-01T00:00:00.000Z`. On the READ path Drizzle hands back Postgres's own rendering of the same value — `2026-01-01 00:00:00+00`. So `createdAt` / `revokedAt` / `acceptedAt` are ISO from `createShare`, `createInvite`, `saveDay`, and Postgres-format from `listShares`, `listInvites`, `listSavedDays`, `getSavedDay`.
+- **How it surfaced:** tightening `shares.int.test.ts`'s "revoking twice is a no-op" to assert the timestamp does not MOVE (CodeRabbit's suggestion on PR #71) failed with `expected '2026-01-01 00:00:00+00' to be '2026-01-01T00:00:00.000Z'` — the first revoke returned its own input, the second returned the stored row. The finding was about a missing assertion; the format split is what the assertion then found.
+- **Why nothing is broken today:** the contracts type these as `z.string()`, not `z.string().datetime()`, so neither shape fails validation. `new Date()` parses both in V8. The list sorts compare strings, but every row in a given list comes from the same read path, so they are internally consistent.
+- **Where it could bite:** a client that string-compares a just-created DTO against a listed one (they will never be equal even for the same row); anything that tightens these fields to `.datetime()` (the Postgres form fails it); and any future dedupe or cache keyed on the timestamp.
+- **Fix path:** either normalise in each `toDto` (`new Date(row.createdAt).toISOString()`), or switch the columns to `mode: "date"` and serialise once at the boundary. The second is the real fix and touches three tables and their DTOs, which is why it is filed rather than done inside a review-response commit.
+- **Worked around meanwhile:** the revoke test reads the stored value back and compares against that, so it proves the timestamp does not move without asserting either format.
+- **First noted:** 2026-08-27 (M11 link 4/6, CodeRabbit review of PR #71).
+
 ### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
 - **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
 - **Area:** `packages/contracts/src/trip.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/components/home/NextTripHero.tsx`, `apps/web/src/components/home/TripCard.tsx`

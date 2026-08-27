@@ -90,3 +90,23 @@ describe("devLoginIdentity", () => {
     expect(devLoginIdentity("a".repeat(32))).not.toBeNull();
   });
 });
+
+// `id` is what `actor_id` and every membership row carry, so casing that
+// survives into it mints two people out of one. `normalizeIdentity` lowercases
+// the EMAIL, which is why this looked handled and was not (CodeRabbit, #71).
+describe("dev login is case-insensitive in the identity, not just the address", () => {
+  it("converges every spelling of a username on one id", () => {
+    const spellings = ["alice", "Alice", "ALICE", "AlIcE", "  Alice  "];
+    const ids = new Set(spellings.map((s) => devLoginIdentity(s)!.id));
+    expect([...ids]).toEqual(["dev-alice"]);
+  });
+
+  it("carries that same canonical form into the name and the address", () => {
+    const identity = devLoginIdentity("Alice")!;
+    expect(identity).toEqual({
+      id: "dev-alice",
+      name: "alice",
+      email: "neablis121+alice@gmail.com",
+    });
+  });
+});

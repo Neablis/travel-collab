@@ -48,10 +48,18 @@ export async function saveDay(
   if (stops.length === 0) {
     return { ok: false, error: { code: "invalid", message: "This day has no stops to save." } };
   }
+  // Trimmed BEFORE the emptiness check, not after: `SavedDay.name` requires
+  // at least one character, and "   " passes the route's Zod parse on length
+  // 3 and then trims to "" — a row that violates its own contract and throws
+  // on the next read (CodeRabbit, PR #71).
+  const name = input.name.trim();
+  if (name === "") {
+    return { ok: false, error: { code: "invalid", message: "Give this day a name." } };
+  }
   const row: SavedDayRow = {
     id: randomUUID(),
     ownerId,
-    name: input.name.trim(),
+    name,
     stops,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,

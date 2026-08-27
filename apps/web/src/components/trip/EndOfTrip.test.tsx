@@ -42,8 +42,12 @@ describe("EndOfTrip", () => {
     expect(region).not.toBeNull();
     const button = screen.getByRole("button", { name: "Add a saved day" });
     expect(region.contains(button)).toBe(false);
-    // …and it is genuinely clickable, unlike everything inside that region.
-    await expect(userEvent.click(button)).resolves.not.toThrow();
+    // No click assertion here: this file mocks AddSavedDayButton, so a
+    // resolved `userEvent.click` would prove only that clicking a button with
+    // no handler does not throw — true of any button anywhere (CodeRabbit,
+    // PR #71). What the click was meant to show, that the shield does not
+    // swallow it, is exactly what `region.contains` already establishes; the
+    // real button's behaviour is covered in AddSavedDayButton.test.tsx.
   });
 
   it("shows at most three Playbook shortcuts, from the existing preview fixture", () => {

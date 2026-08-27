@@ -105,3 +105,28 @@ describe("SavedDaysDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
+
+// The same defect TravelersPanel and ShareButton were fixed for in an earlier
+// round. Link 6 was not part of PR #70, so this dialog never got it: the
+// dialog is reopened rather than remounted, so a failed load left its message
+// sitting above the fresh list (CodeRabbit, PR #71).
+describe("SavedDaysDialog error handling", () => {
+  it("clears a failed load's message once a later load succeeds", async () => {
+    fetchSavedDaysMock.mockReset().mockResolvedValueOnce({
+      ok: false,
+      error: { status: 500, message: "Could not load your saved days." },
+    });
+    renderDialog();
+    expect(await screen.findByText("Could not load your saved days.")).toBeTruthy();
+
+    // Reopening runs `load` again — this time it works.
+    cleanup();
+    fetchSavedDaysMock.mockResolvedValue({ ok: true, value: [saved] });
+    renderDialog();
+
+    expect(await screen.findByText("A day in Nakameguro")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.queryByText("Could not load your saved days.")).toBeNull(),
+    );
+  });
+});

@@ -51,8 +51,14 @@ export function SavedDaysDialog({
 
   const load = useCallback(async () => {
     const result = await fetchSavedDays();
-    if (result.ok) setSavedDays(result.value);
-    else setError(result.error.message);
+    // Clearing on success matters because this dialog is reopened: without it
+    // a failed load leaves its message sitting above the fresh list forever.
+    // Same fix TravelersPanel and ShareButton took in an earlier round; link 6
+    // was not in PR #70, so it never received it (CodeRabbit, PR #71).
+    if (result.ok) {
+      setSavedDays(result.value);
+      setError(null);
+    } else setError(result.error.message);
   }, []);
 
   useEffect(() => {

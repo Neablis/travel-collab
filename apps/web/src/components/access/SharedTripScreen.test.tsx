@@ -164,3 +164,42 @@ describe("SharedTripScreen", () => {
     expect(screen.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
   });
 });
+
+// `router.push` does not unmount synchronously, so releasing the busy flag
+// before navigating left the button live on a page that is still on screen.
+// The cost of that window is not a wasted request — it is a second trip in
+// the visitor's list (CodeRabbit, PR #71).
+describe("SharedTripScreen clone is single-shot", () => {
+  it("does not clone twice when the button is clicked again mid-navigation", async () => {
+    fetchSharedTripMock.mockResolvedValue({ ok: true, value: view() });
+    cloneSharedTripMock.mockResolvedValue({ ok: true, value: { tripId: "new-trip" } });
+    render(<SharedTripScreen token="tok" />);
+
+    const button = await screen.findByRole("button", { name: "Make this my trip" });
+    await userEvent.click(button);
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+
+    // Still mounted, still on the shared page — and the button must not have
+    // come back to life.
+    expect(button.hasAttribute("disabled")).toBe(true);
+    await userEvent.click(button).catch(() => undefined);
+    expect(cloneSharedTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The mirror: a FAILED clone must release the button, or the visitor is
+  // stuck looking at an error with no way to retry.
+  it("releases the button when the clone fails", async () => {
+    fetchSharedTripMock.mockResolvedValue({ ok: true, value: view() });
+    cloneSharedTripMock.mockResolvedValue({
+      ok: false,
+      error: { status: 500, message: "Could not copy this trip." },
+    });
+    render(<SharedTripScreen token="tok" />);
+
+    const button = await screen.findByRole("button", { name: "Make this my trip" });
+    await userEvent.click(button);
+
+    expect(await screen.findByText("Could not copy this trip.")).toBeTruthy();
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
+});

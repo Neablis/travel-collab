@@ -13,6 +13,10 @@ vi.mock("next/navigation", () => ({
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
+// Settable so the viewer-gating tests can drive the role the header sees.
+// Defaults to owner in `beforeEach`, which is what every pre-existing test
+// here assumes.
+let myRole: "viewer" | "editor" | "owner" | null = "owner";
 
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
@@ -26,10 +30,10 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // Without this the spread above supplies the real `fetchTripAccess`, whose
     // fetch has no handler here — it resolves `ok:false`, `myRole` stays null,
     // and Delete is (correctly) not rendered at all.
-    fetchTripAccess: vi.fn().mockResolvedValue({
-      ok: true,
-      value: { tripId: "x", myRole: "owner", members: [], invites: [] },
-    }),
+    fetchTripAccess: vi.fn(async () => ({
+      ok: true as const,
+      value: { tripId: "x", myRole, members: [], invites: [] },
+    })),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
@@ -64,6 +68,7 @@ beforeEach(() => {
   pushMock.mockReset();
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
+  myRole = "owner";
   sendTripCommandMock.mockResolvedValue({
     ok: true,
     value: { detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }), history: historyFixture("x") },
@@ -259,5 +264,43 @@ describe("TripHeader restyle (Task 9)", () => {
     const header = screen.getByRole("banner", { name: "Trip" });
     expect(header.contains(screen.getByRole("tablist", { name: "Trip view" }))).toBe(true);
     expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true);
+  });
+});
+
+// The "View only" badge was, until CodeRabbit read PR #71, the entire viewer
+// treatment in this header — its own comment claimed the UI was what stopped
+// a viewer clicking into a write, and Share, Add stop, undo/redo and Revert
+// were all still live. The server refused them, so nothing was writable; what
+// a viewer got instead was silence, which is the papercut the badge exists to
+// prevent. Each control is asserted with its owner mirror so these stay
+// statements about the ROLE and not about a control that never worked.
+describe("TripHeader viewer gating", () => {
+  it("shows the badge and withholds every write from a viewer", async () => {
+    myRole = "viewer";
+    await renderHeader();
+
+    expect(await screen.findByText("View only")).toBeTruthy();
+    // Sharing is an editor capability (ADR-027), so it is absent rather than
+    // disabled — the way Delete is absent for a non-owner in the settings
+    // sheet. A disabled Share still reads as an offer.
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(true);
+
+    // Undo/redo and Revert live inside the History popover.
+    await userEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redo" })).toBeNull();
+  });
+
+  it("leaves all of them live for an owner", async () => {
+    await renderHeader();
+
+    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
   });
 });

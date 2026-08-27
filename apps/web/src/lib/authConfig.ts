@@ -55,7 +55,12 @@ const DEV_USERNAME = /^[A-Za-z0-9_-]{1,32}$/;
 export function devLoginIdentity(
   raw: unknown,
 ): { id: string; name: string; email: string } | null {
-  const username = typeof raw === "string" ? raw.trim() : "";
+  // Lowercased BEFORE anything derives from it. `normalizeIdentity` lowercases
+  // the email, but `id` is what `actor_id` and every membership row carry, so
+  // casing alone used to mint two people: "Alice" got `dev-Alice` and "alice"
+  // got `dev-alice`, and the second one did not inherit the first one's trips
+  // (CodeRabbit, PR #71).
+  const username = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   if (!DEV_USERNAME.test(username)) return null;
   // Exactly one `@`, with non-empty whitespace-free parts either side.
   // `lastIndexOf` accepted `ops@` (empty domain) and
@@ -70,8 +75,8 @@ export function devLoginIdentity(
   return {
     id: `dev-${username}`,
     name: username,
-    // Lowercased downstream by `normalizeIdentity` (ADR-025), so "Alice" and
-    // "alice" converge on one address the way two spellings of a real one do.
+    // Already canonical above, so "Alice" and "alice" converge on one
+    // identity — id, name and address alike.
     email: `${local}+${username}@${domain}`,
   };
 }

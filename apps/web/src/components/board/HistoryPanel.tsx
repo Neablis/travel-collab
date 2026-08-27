@@ -23,12 +23,18 @@ const PAGE_SIZE = 20;
 export function HistoryPanel({
   history,
   previewSeq,
+  readOnly = false,
   onPreview,
   onExitPreview,
   onRevert,
 }: {
   history: TripHistory | null;
   previewSeq: number | null;
+  // Viewing a past version is a read and stays open to everyone who can open
+  // the trip. Reverting to one is a write, so a viewer is not offered it
+  // (M11 link 3, found on PR #71). Defaulted so existing call sites are
+  // unchanged.
+  readOnly?: boolean;
   onPreview: (seq: number) => void;
   onExitPreview: () => void;
   onRevert: (toSeq: number) => void;
@@ -75,7 +81,9 @@ export function HistoryPanel({
           <div className="flex flex-col gap-1.5">
             <Text as="span">Viewing version {previewSeq} (read-only)</Text>
             <div className="flex flex-wrap gap-1.5">
-              <Button variant="secondary" size="sm" onClick={() => onRevert(previewSeq)}>Revert to here</Button>
+              {!readOnly && (
+                <Button variant="secondary" size="sm" onClick={() => onRevert(previewSeq)}>Revert to here</Button>
+              )}
               <Button variant="ghost" size="sm" onClick={onExitPreview}>Dismiss</Button>
             </div>
           </div>

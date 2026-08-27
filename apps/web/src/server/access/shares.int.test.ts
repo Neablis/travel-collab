@@ -134,8 +134,24 @@ describe("share lifecycle", () => {
     const share = await createShare(tripId, OWNER);
     expect(share.ok).toBe(true);
     if (!share.ok) return;
-    await revokeShare(tripId, share.value.shareId);
-    expect((await revokeShare(tripId, share.value.shareId)).ok).toBe(true);
+    // Explicit, DIFFERENT timestamps: with `now` defaulted, removing the
+    // `revokedAt !== null` early return would let the second call rewrite the
+    // timestamp and this test would still pass (CodeRabbit, PR #71). The
+    // invariant is that an already-revoked link comes back unchanged.
+    await revokeShare(tripId, share.value.shareId, "2026-01-01T00:00:00.000Z");
+    // Read back rather than compared to the literal: `revokedAt` is a
+    // `timestamp(mode: "string")`, which echoes whatever ISO string the write
+    // passed in but renders Postgres's own format ("2026-01-01 00:00:00+00")
+    // on the way out. Asserting the literal here would be asserting that
+    // storage detail rather than the behaviour — see docs/known-issues.md KI-53.
+    const stored = (await listShares(tripId))[0]!.revokedAt;
+    expect(stored).not.toBeNull();
+
+    const second = await revokeShare(tripId, share.value.shareId, "2026-02-01T00:00:00.000Z");
+    expect(second.ok).toBe(true);
+    // The moment the link was turned off does not move.
+    expect(second.ok && second.value.revokedAt).toBe(stored);
+    expect((await listShares(tripId))[0]!.revokedAt).toBe(stored);
   });
 
   it("scopes revoke to the trip in the URL", async () => {
