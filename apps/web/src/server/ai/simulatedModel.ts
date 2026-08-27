@@ -70,6 +70,24 @@ function pageCalls(): ToolCall[] {
   ];
 }
 
+// What one message from a model on this surface would contain — mirroring the
+// tool sets handleAiRequest actually exposes there (KI-23). `combined` gets the
+// planning tools AND the page tools, so simulating it as a board request made
+// the switched-off deployment look less capable than the live one: a combined
+// ask only ever moved the board. Plan first, then the page, because that is the
+// order a model asked for both would sensibly work in — and because everything
+// in one message is applied as one batch anyway.
+function callsFor(surface: AiSurface): ToolCall[] {
+  switch (surface) {
+    case "page":
+      return pageCalls();
+    case "board":
+      return planCalls();
+    case "combined":
+      return [...planCalls(), ...pageCalls()];
+  }
+}
+
 export function simulatedModel(surface: AiSurface): LanguageModel {
   // One step's worth of calls, then silence. The AI SDK loops doGenerate until
   // `stopWhen` fires (32 steps for board/combined), and re-emitting on every
@@ -88,7 +106,7 @@ export function simulatedModel(surface: AiSurface): LanguageModel {
       }
       spent = true;
       return {
-        content: surface === "page" ? pageCalls() : planCalls(),
+        content: callsFor(surface),
         finishReason: { unified: "tool-calls", raw: undefined },
         usage: NO_USAGE,
         warnings: [],

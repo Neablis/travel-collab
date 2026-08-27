@@ -55,6 +55,32 @@ describe("simulatedModel", () => {
     expect(input.blocks.length).toBeGreaterThan(0);
   });
 
+  // KI-23: `combined` exposes BOTH tool sets in handleAiRequest (the planning
+  // tools merged with buildPageTools()'s), so a simulation that only ever
+  // emits the plan under-represents the surface. Both halves in ONE step — the
+  // simulated model gets exactly one message, and every call in it is applied
+  // together.
+  it("emits both the plan and a composed page for the combined surface", async () => {
+    const calls = callsOf(await probe("combined").doGenerate({}));
+    expect(calls.map((c) => c.toolName)).toEqual([
+      "AddDay",
+      "AddDay",
+      "AddActivity",
+      "AddActivity",
+      "AddActivity",
+      "compose_page",
+    ]);
+  });
+
+  // Guards against `combined` drifting into a third, separately-maintained
+  // script: it is exactly the board plan followed by the page.
+  it("reuses the board plan and the page content verbatim for combined", async () => {
+    const combined = callsOf(await probe("combined").doGenerate({})).map((c) => c.input);
+    const board = callsOf(await probe("board").doGenerate({})).map((c) => c.input);
+    const page = callsOf(await probe("page").doGenerate({})).map((c) => c.input);
+    expect(combined).toEqual([...board, ...page]);
+  });
+
   // The 32-step budget makes this the difference between one batch and 32.
   it("stops after the first step instead of re-emitting forever", async () => {
     const model = probe("board");

@@ -239,20 +239,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   contract to change. Fixing it means schematizing the whole envelope and
   routing both AI client functions through it.
 
-### KI-23 — The simulated model's `combined` surface never composes a page
-- **Severity:** cleanup (product fidelity, not correctness)
-- **Area:** `apps/web/src/server/ai/simulatedModel.ts`
-- `doGenerate` maps `surface === "page"` to `pageCalls()` and everything else
-  (`"board"` and `"combined"`) to `planCalls()`. A real, live `combined`
-  request composes both a page and board activities (`handleAiRequest.ts`
-  exposes both tool sets for that surface). So with the `ai-live` flag off, a
-  `combined`-surface ask only ever produces board changes — the simulation
-  under-represents what live `combined` mode can actually do. Not a
-  correctness bug (the response is still marked `simulated: true` and the
-  board changes it does make are real), just a demo-fidelity gap. Fixing it
-  means having `combined` emit both `planCalls()` and `pageCalls()` and
-  updating `simulatedModel.test.ts`'s expectations accordingly.
-
 ### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented
 - **Severity:** cleanup (defense-in-depth, not a live bypass)
 - **Area:** `apps/web/src/server/ai/modelSelection.ts`
@@ -660,6 +646,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-23 — The simulated model's `combined` surface never composes a page — RESOLVED
+- **Severity:** cleanup (product fidelity, not correctness)
+- **Area:** `apps/web/src/server/ai/simulatedModel.ts`, `apps/web/src/server/ai/simulatedModel.test.ts`
+- **Symptom (as filed):** `doGenerate` mapped `surface === "page"` to `pageCalls()` and everything else (`"board"` **and** `"combined"`) to `planCalls()`, so with the `ai-live` flag off a `combined`-surface ask only ever produced board changes, even though `handleAiRequest.ts` exposes both tool sets on that surface (`surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools`).
+- **Reproduced before fixing** with the two new cases in `simulatedModel.test.ts`, against the unmodified model: `expected [ 'AddDay', 'AddDay', …(3) ] to deeply equal [ 'AddDay', 'AddDay', …(4) ]`, the diff missing exactly `- "compose_page"`; and the companion case showing `combined`'s calls were byte-identical to `board`'s with the whole `Sample page` `compose_page` input absent.
+- **Fix (2026-08-26):** the ternary becomes an exhaustive `callsFor(surface)` switch — `page` → `pageCalls()`, `board` → `planCalls()`, `combined` → `[...planCalls(), ...pageCalls()]`, all in the one message the simulated model gets. Exhaustive on the `AiSurface` union on purpose: a fourth surface now fails typecheck here instead of silently inheriting the plan-only default, which is the shape of the original bug.
+- **Proven by:** the same two cases now passing (`Tests 9 passed (9)` in `simulatedModel.test.ts`), and they stay as the regression test — one pinning the exact six-call tool sequence, one pinning that `combined` is the `board` calls followed by the `page` calls verbatim rather than a third hand-maintained script. Check subset: `pnpm --filter web typecheck`, `pnpm --filter web lint`, `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/server/ai/simulatedModel.test.ts src/server/ai/modelSelection.test.ts` (`17 passed`). No integration/e2e run: `route.int.test.ts` injects `simulatedModel("board")`/`("page")` only, and `e2e/m10-simulated-ai.spec.ts` drives the UI, which posts the `apiClient` default surface `"board"` — nothing outside this file exercises the branch that changed.
+- **Found while fixing, deliberately left alone (not part of this entry):** the `combined` branch of `handleAiRequest.ts` never reads the `compose_page` tool *result*. Only the `page` branch does (`result.toolResults.find((r) => r.toolName === "compose_page")`); the `board | combined` path resolves `planning.getCollected()` and returns `{ detail, history, message, … }` with no page content, and `ComposePanel`'s `board`/`combined` props have no `onApply`. So a page composed on the `combined` surface is discarded — for a **live** model exactly as much as for this simulated one, which is why the simulation is now faithful rather than newly wrong. Also noted: no caller in the app currently passes `surface: "combined"` at all (`composeAiPlan` defaults to `"board"`); it is API-reachable only. Worth its own entry if `combined` is ever put in front of a user.
+- **First noted:** 2026-08-22 (commit `6073689`, the feature-flags / AI kill-switch branch's close-out). **Fixed:** 2026-08-26 (KI sweep).
 
 ### KI-32 — The container image's Playwright browsers are a different build from the pinned @playwright/test — RESOLVED, repaired on session start
 - **Severity:** reliability (local e2e could not run without a manual workaround; CI unaffected)
