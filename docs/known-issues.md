@@ -418,29 +418,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   is why it was collapsed rather than removed.
 - **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2).
 
-### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere
-
-- **Severity:** cosmetic (every notebook page renders with no typography)
-- **Area:** `apps/web/src/components/pages/editor/PageEditor.tsx:41`
-- **Symptom:** `<EditorContent editor={editor} className="tc-page-editor" />`
-  is the only occurrence of that class name in the repository — there is no
-  matching rule in `globals.css` or anywhere else (`grep -rn tc-page-editor
-  apps/web/src` returns exactly one hit, the usage). With Tailwind's preflight
-  reset in force and nothing restoring it, `heading`, `paragraph` and list
-  nodes all render at the same size and weight. On the seeded "Trip Overview"
-  page, the `<h2>` "Overview" is visually identical to the sentence beneath it.
-- **Why it went unnoticed:** the class *looks* intentional at the call site, and
-  no test asserts rendered type scale. `PageEditor.test.tsx` covers behaviour,
-  not appearance.
-- **Fix path:** define the rule (heading/paragraph/list scale off the same
-  tokens `Heading`/`Text` use, `max-w-measure` for the column), or drop the
-  class and compose from the design-system components. This is the cheapest
-  item on the 2026-08-26 audit and it is the whole visual difference on the
-  Notebook surface today.
-- **Cross-reference:** the broader Notebook gap is C1 in the audit; this is the
-  one piece of it that is a plain bug rather than unbuilt design.
-- **First noted:** 2026-08-26 (design-sync UI audit, A3).
-
 ### KI-45 — `Preview size="container"`'s chip covers host content whenever the host's top-right corner is occupied
 
 - **Severity:** cosmetic (hides real numbers, including a currency amount)
@@ -656,6 +633,66 @@ needs action — skip this section when triaging.
 - **Proven by:** the same two cases now passing (`Tests 9 passed (9)` in `simulatedModel.test.ts`), and they stay as the regression test — one pinning the exact six-call tool sequence, one pinning that `combined` is the `board` calls followed by the `page` calls verbatim rather than a third hand-maintained script. Check subset: `pnpm --filter web typecheck`, `pnpm --filter web lint`, `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/server/ai/simulatedModel.test.ts src/server/ai/modelSelection.test.ts` (`17 passed`). No integration/e2e run: `route.int.test.ts` injects `simulatedModel("board")`/`("page")` only, and `e2e/m10-simulated-ai.spec.ts` drives the UI, which posts the `apiClient` default surface `"board"` — nothing outside this file exercises the branch that changed.
 - **Found while fixing, deliberately left alone (not part of this entry):** the `combined` branch of `handleAiRequest.ts` never reads the `compose_page` tool *result*. Only the `page` branch does (`result.toolResults.find((r) => r.toolName === "compose_page")`); the `board | combined` path resolves `planning.getCollected()` and returns `{ detail, history, message, … }` with no page content, and `ComposePanel`'s `board`/`combined` props have no `onApply`. So a page composed on the `combined` surface is discarded — for a **live** model exactly as much as for this simulated one, which is why the simulation is now faithful rather than newly wrong. Also noted: no caller in the app currently passes `surface: "combined"` at all (`composeAiPlan` defaults to `"board"`); it is API-reachable only. Worth its own entry if `combined` is ever put in front of a user.
 - **First noted:** 2026-08-22 (commit `6073689`, the feature-flags / AI kill-switch branch's close-out). **Fixed:** 2026-08-26 (KI sweep).
+
+### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere — RESOLVED
+
+- **Severity:** cosmetic (every notebook page renders with no typography)
+- **Area:** `apps/web/src/components/pages/editor/PageEditor.tsx:41`,
+  `apps/web/src/app/globals.css`
+- **Symptom (as filed):** `<EditorContent editor={editor}
+  className="tc-page-editor" />` was the only occurrence of that class name in
+  `apps/web/src` — there was no matching rule in `globals.css` or anywhere
+  else. With Tailwind's preflight reset in force and nothing restoring it,
+  `heading`, `paragraph` and list nodes all rendered at the same size and
+  weight. On the seeded "Trip Overview" page, the `<h2>` "Overview" was
+  visually identical to the sentence beneath it.
+- **Why it went unnoticed:** the class *looks* intentional at the call site, and
+  no test asserted rendered type scale. `PageEditor.test.tsx` covered behaviour,
+  not appearance.
+- **Reproduction (2026-08-26):** compiled the real `globals.css` with the real
+  Tailwind 4.3.2 compiler and asked which declarations reached the editor's
+  nodes. The compiled sheet contained **no `.tc-page-editor` rule at all**, and
+  the only rule matching the editor's `<h2>` was preflight's
+  `h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit }` —
+  nothing matched its `<p>` at all, and `ol, ul, menu { list-style: none }`
+  removed list markers too. Rendering `PageEditor` with the seeded
+  `trip-overview` template confirmed the DOM side: TipTap emits bare elements
+  with no class attribute —
+  `<div class="tc-page-editor"><div class="tiptap ProseMirror"><h2>Overview</h2><p>What's this trip about? …</p>…`
+  — so both nodes inherited body's 14px/400 and were pixel-identical.
+- **Fix (2026-08-26):** defined the rule in `globals.css`'s `@layer components`.
+  `h1`–`h6`, `p`, `ul`/`ol`/`li` are `@apply`ed from the *same* utilities
+  `Heading` (`components/ui/heading.tsx`) and `Text` (`components/ui/text.tsx`)
+  use — `font-display text-2xl/xl/lg/md`, `text-base text-ink` — so the editor
+  and the rest of the app share one type scale and cannot drift; h4–h6 collapse
+  onto `Heading level={4}` rather than inventing a fifth step. The column gets
+  `max-w-measure` (design-system.md's prose tier), left-aligned so it stays
+  flush with the page title, because `PageScreen` mounts the editor in a
+  default 1120px `PageContainer`. Spacing is Tailwind's own 4px grid and
+  nothing else. This is deliberately *only* the missing type — the Notebook
+  redesign is audit finding C1, routed to a later milestone by
+  `docs/plans/M10-delta/phase-9-gate.md`.
+- **Proof:** the same compile now emits eleven `.tc-page-editor` rules;
+  `h2` resolves to `font-size: var(--text-xl)` (24px) `font-weight:
+  var(--font-weight-semibold)` against `p`'s `var(--text-base)` (14px), and
+  `ul` to `list-style-type: disc`. Two regression tests were added to
+  `PageEditor.test.tsx` (`PageEditor typography (KI-44)`): they render the
+  editor, compile the real `globals.css`, and use `Element.matches()` against
+  the real emitted DOM to assert every node type the editor produces is matched
+  by a rule and that the heading's and paragraph's font sizes differ. Confirmed
+  failing on the pre-fix `globals.css` (`expected 0 to be greater than 0`;
+  `expected '' to contain 'list-style-type: disc'`) and passing after —
+  `PageEditor.test.tsx` 4/4, `src/components/pages` 19/19, `tsc --noEmit`
+  clean, `eslint` clean, color wall OK.
+- **What a browser would still have to confirm:** jsdom applies no stylesheets
+  and does no custom-property substitution, so no unit test can assert computed
+  pixels here. The evidence is CSS-level (the rules exist and resolve to
+  distinct tokens) plus DOM-level (the selectors match the nodes TipTap emits).
+  The final visual read of the Notebook surface belongs to a real browser.
+- **Cross-reference:** the broader Notebook gap is C1 in the audit; this was the
+  one piece of it that was a plain bug rather than unbuilt design.
+- **First noted:** 2026-08-26 (design-sync UI audit, A3). **Fixed:** 2026-08-26.
+
 
 ### KI-32 — The container image's Playwright browsers are a different build from the pinned @playwright/test — RESOLVED, repaired on session start
 - **Severity:** reliability (local e2e could not run without a manual workaround; CI unaffected)

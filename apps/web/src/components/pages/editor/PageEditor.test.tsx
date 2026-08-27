@@ -1,8 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageContent } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { PageEditor } from "./PageEditor";
 
 afterEach(cleanup);
@@ -55,5 +60,110 @@ describe("PageEditor", () => {
     const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1]![0];
     expect(JSON.stringify(lastCall)).toContain('"macro"');
     expect(JSON.stringify(lastCall)).toContain("cost.trip");
+  });
+});
+
+// KI-44 regression. `.tc-page-editor` was applied at the call site and defined
+// nowhere for the whole life of the Notebook surface, and nothing caught it
+// because no test tied the class on the element to a rule in the stylesheet.
+// jsdom has no cascade worth trusting (no custom-property substitution, no
+// real layout), so this does NOT assert computed pixels — it compiles the
+// REAL globals.css with the REAL Tailwind compiler, then asks the REAL DOM the
+// editor emits which of the resulting selectors match it. That is the exact
+// join the bug fell through: an unmatched class name.
+async function compileGlobalsCss(): Promise<string> {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const cssPath = path.resolve(here, "../../../app/globals.css");
+  const require = createRequire(cssPath);
+  const { compile } = require("tailwindcss") as typeof import("tailwindcss");
+  const compiler = await compile(readFileSync(cssPath, "utf8"), {
+    base: path.dirname(cssPath),
+    loadStylesheet: async (id: string, base: string) => {
+      const resolved = require.resolve(id === "tailwindcss" ? "tailwindcss/index.css" : id, { paths: [base] });
+      return { path: resolved, base: path.dirname(resolved), content: readFileSync(resolved, "utf8") };
+    },
+    loadModule: async () => {
+      throw new Error("globals.css loads no JS plugins");
+    },
+  });
+  // The editor subtree's only class names; the rest of the app's utilities are
+  // irrelevant to whether the page-editor rules exist.
+  return compiler.build(["tc-page-editor", "tiptap", "ProseMirror"]);
+}
+
+// Selector -> declaration text, for every top-level rule in the compiled sheet
+// whose selector mentions `.tc-page-editor`.
+function pageEditorRules(css: string): { selector: string; body: string }[] {
+  return css
+    .split("}")
+    .map((block) => ({ selector: (block.split("{")[0] ?? "").trim(), body: (block.split("{")[1] ?? "").trim() }))
+    .filter((r) => r.selector.includes(".tc-page-editor") && r.body.length > 0);
+}
+
+describe("PageEditor typography (KI-44)", () => {
+  it("defines .tc-page-editor rules that match the nodes the editor actually emits", async () => {
+    const detail = tripDetailFixture();
+    const overview = DEFAULT_TEMPLATES.find((t) => t.key === "trip-overview");
+    expect(overview).toBeDefined();
+    const { container } = render(
+      <PageEditor
+        detail={detail}
+        context={{ tripId: detail.tripId }}
+        value={overview!.content as PageContent}
+        onChange={() => {}}
+      />,
+    );
+
+    const heading = container.querySelector("h2");
+    const paragraph = container.querySelector("p");
+    // The seeded Trip Overview page is the one the KI names by hand. If TipTap
+    // ever stops emitting bare elements, the premise of the CSS below changed
+    // and this test should fail loudly rather than pass vacuously.
+    expect(heading?.textContent).toBe("Overview");
+    expect(heading?.getAttribute("class")).toBeNull();
+    expect(paragraph?.getAttribute("class")).toBeNull();
+
+    const rules = pageEditorRules(await compileGlobalsCss());
+    expect(rules.length).toBeGreaterThan(0);
+
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((s) => el.matches(s.trim())))
+        .map((r) => r.body)
+        .join(" ");
+
+    const headingCss = declarationsFor(heading!);
+    const paragraphCss = declarationsFor(paragraph!);
+    // Both must be styled at all — an unmatched class is the bug.
+    expect(headingCss).toContain("font-size:");
+    expect(paragraphCss).toContain("font-size:");
+    // ...and styled DIFFERENTLY, which is the symptom the KI describes: the
+    // `<h2>` "Overview" rendering identically to the sentence beneath it.
+    const fontSize = (css: string) => /font-size:\s*([^;]+)/.exec(css)?.[1]?.trim();
+    expect(fontSize(headingCss)).toBeDefined();
+    expect(fontSize(headingCss)).not.toBe(fontSize(paragraphCss));
+    expect(headingCss).toContain("font-weight:");
+  });
+
+  it("restores list markers preflight strips", async () => {
+    const detail = tripDetailFixture();
+    const content: PageContent = {
+      type: "doc",
+      content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [] }] }] }],
+    };
+    const { container } = render(
+      <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={content} onChange={() => {}} />,
+    );
+    const list = container.querySelector("ul");
+    expect(list).not.toBeNull();
+
+    const rules = pageEditorRules(await compileGlobalsCss());
+    const listCss = rules
+      .filter((r) => r.selector.split(",").some((s) => list!.matches(s.trim())))
+      .map((r) => r.body)
+      .join(" ");
+    // Preflight sets `ol, ul, menu { list-style: none }`, so a bullet list with
+    // no rule of its own renders with no bullets.
+    expect(listCss).toContain("list-style-type: disc");
   });
 });
