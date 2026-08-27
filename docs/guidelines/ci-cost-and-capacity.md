@@ -52,19 +52,33 @@ sampled 30 days.
 | Lever | Est. saving / 30d | What it costs |
 |---|---|---|
 | Draft-gate PR runs (`types: [… ready_for_review]` + `draft == false`) | 500–750 | Agents must open PRs as drafts — now a rule in `AGENTS.md` |
+| Stop running CI on pushes to `main` | 456 | A stale-merge test failure waits for the next PR |
 | Merge `static-checks` + `unit-tests` → `static-and-unit` | 186 | +~43s wall clock |
 | `paths-ignore` prose trees | ~80 | See the `.design-sync` trap below |
-| `concurrency` with PR-only `cancel-in-progress` | ~82 | None |
+| `concurrency` with `cancel-in-progress` | ~82 | None |
 
-Together: **1,956 → roughly 560–700/month** at the sampled mix, or **~1,500** if
-the Aug 22–27 tempo holds. Both fit under 2,000.
+Modelled against the real job data — keep only the last two runs per PR branch,
+merge the two cheap jobs, drop `push` runs entirely:
+
+| | before | after |
+|---|---|---|
+| 30-day sample | 1,956/month | **~428/month** |
+| At the Aug 22–27 tempo | ~8,430/month | **~1,975/month** |
+
+Read the second row carefully. Sustaining that six-day sprint tempo for a whole
+month still lands *at* the cap, with nothing spare. The cuts buy headroom for
+normal weeks, not for an indefinite sprint — if that tempo becomes the norm, the
+contingency ladder at the bottom of this file is the next move, not another
+round of tuning. There is very little tuning left.
 
 Three details that are easy to get wrong and were got wrong once:
 
-- **Cancellation is PR-only.** `cancel-in-progress: ${{ github.event_name ==
-  'pull_request' }}`. The generic advice is to cancel everything; on `main` that
-  would mean cancelling `migrate-production` mid-apply. With it false, main
-  pushes queue instead — which also serializes migrations, which is what we want.
+- **`ci.yml` cancels unconditionally; `migrate-production.yml` never does.**
+  `ci.yml` only runs on pull requests now, and nothing there touches production,
+  so superseding an in-flight run is always safe. The production migration
+  workflow sets `cancel-in-progress: false` and a `concurrency` group of its own
+  for exactly the opposite reason: cancelling a migration mid-apply is
+  unrecoverable, and two overlapping ones are worse.
 - **`paths-ignore` lists `*.md`, not `**/*.md`.** `**/*.md` would also match
   `.design-sync/**`, and that tree is a **real build input**:
   `api/dev/reset-demo-data/route.ts` imports
@@ -115,16 +129,52 @@ next quarter:
   means rebuilding that job around `docker-compose.yml`. Separately, `claude/*`
   branches push at 00:59–04:54 UTC, so a laptop runner queues while asleep.
 
-## Still open — Mitchell's calls
+## The last gate: migrations are now explicit
 
-1. **Drop `main` pushes to `migrate-production` only.** Worth **456 min/30d
-   (23%)**, the second-largest number available, and not taken. It removes the
-   last gate between a merge and a production migration. Not a minutes decision.
-2. **Make the repo public.** Public repos get unlimited GitHub-hosted standard-
-   runner minutes; it moots this entire document. A disclosure decision, not an
-   engineering one.
+Mitchell's call, 2026-08-27. `main` no longer runs CI at all, and
+`migrate-production` moved out of `ci.yml` into its own
+`workflow_dispatch`-only workflow.
 
-If the cuts above stop being enough, the contingency ladder in order of cost:
+The old shape ran three test jobs on every push to `main` for the sole purpose
+of gating an automatic production migration — **456 min/month, 23% of the
+total**, to re-test a tree the pull-request run had already tested against
+`refs/pull/N/merge` (the same merge result that lands). The objection to
+dropping it was that it removed the last gate before a production migration.
+Making the migration explicit answers that objection rather than accepting it:
+nothing migrates production unless a human dispatches it.
+
+`.github/workflows/migrate-production.yml` therefore carries two rails, since a
+manual trigger has failure modes an automatic one doesn't — the wrong branch
+selected in the "Run workflow" dropdown, and a stray click. It refuses any ref
+that isn't `refs/heads/main`, and requires the word `migrate` typed into a
+confirm field. The input is read through `env:` rather than interpolated into
+the script, so it can't inject shell.
+
+Both standing rules survive intact:
+
+- ADR-004 — *"migrations run via drizzle-kit as an explicit CI/deploy step,
+  never implicitly at cold start"*. A dispatch is **more** explicit than a
+  post-merge job, not less.
+- The environments guideline — *migrations are applied by automation only, never
+  `drizzle-kit migrate` run by hand against a remote database*. The trigger is
+  manual; the execution is not. `PRODUCTION_DATABASE_URL` stays a repo secret
+  and never reaches a shell that also has a `.env.local` in scope, which is the
+  actual hazard that rule exists to prevent.
+
+**What this genuinely gives up**, stated plainly so nobody rediscovers it the
+expensive way: a merged migration now sits pending until someone dispatches it,
+and a test failure introduced by merging a stale branch is not caught until the
+next pull request. Vercel still builds `main` on every push, so a broken *build*
+surfaces immediately — a broken *test* does not.
+
+## Still open — Mitchell's call
+
+**Make the repo public.** Public repos get unlimited GitHub-hosted standard-
+runner minutes; it moots this entire document. A disclosure decision, not an
+engineering one.
+
+If the cuts above stop being enough — and the tempo row in the table says that
+is a live possibility — the contingency ladder in order of cost:
 a **self-hosted Linux runner** (spare box or an Oracle Always Free ARM instance —
 not the Mac, see above), or simply **paying**: after these cuts the worst case is
 ~3,000 overage minutes at $0.008/min ≈ **$24/month**, which is cheaper than

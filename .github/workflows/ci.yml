@@ -9,19 +9,16 @@ name: ci
 # the reasoning behind each lever here; change these blocks against that
 # document rather than against intuition about what "looks wasteful".
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '.agents/**'
-      - '.claude/**'
-      # Root-level prose only (README, AGENTS, CLAUDE, TODO). Deliberately NOT
-      # `**/*.md`: that would also match `.design-sync/**`, which is a real
-      # build input — `api/dev/reset-demo-data/route.ts` imports
-      # `.design-sync/handoff/data/japan-trip-seed.json` and
-      # `japanTripImporter.test.ts` reads it — so that tree must keep
-      # triggering CI even when only its prose moves.
-      - '*.md'
+  # Pull requests only. A push to `main` used to re-run all of this to gate an
+  # automatic production migration; that migration is now dispatched
+  # explicitly (`.github/workflows/migrate-production.yml`), so re-testing the
+  # merge result bought nothing the pull-request run — which runs against
+  # `refs/pull/N/merge`, i.e. the same tree that lands — had not already
+  # proven. It cost ~456 billed minutes a month, 23% of the total.
+  #
+  # What this gives up: a test failure introduced by merging a stale branch is
+  # not caught until the next pull request. Vercel still builds `main` on every
+  # push, so a broken *build* surfaces immediately; a broken *test* does not.
   pull_request:
     # `ready_for_review` is added to the default set so a draft PR gets its
     # first full run at the moment it stops being a draft. The `if:` guard on
@@ -29,9 +26,6 @@ on:
     # pays for CI once when it's ready, not once per intermediate commit.
     # Measured: PR #55 spent 31 runs / 315 minutes across 37 commits.
     types: [opened, synchronize, reopened, ready_for_review]
-    # Repeated verbatim rather than shared via a YAML anchor: GitHub
-    # Actions' workflow parser does not support anchors or aliases, so
-    # `&prose`/`*prose` would fail to parse. Keep the two lists in step.
     paths-ignore:
       - 'docs/**'
       - '.agents/**'
@@ -44,21 +38,19 @@ on:
       # triggering CI even when only its prose moves.
       - '*.md'
 
-# Supersede an in-flight PR run when a newer commit lands on the same PR.
-# Deliberately NOT enabled for pushes to main: that ref's run ends in
-# `migrate-production`, and cancelling a migration mid-apply is exactly the
-# failure this repo cannot afford. With `cancel-in-progress` false those runs
-# queue instead, which also serializes migrations — the behavior we want.
+# Supersede an in-flight run when a newer commit lands on the same PR. Safe to
+# make unconditional now that this workflow only ever runs on pull requests —
+# nothing here touches production. The one job that does
+# (`migrate-production.yml`) sets `cancel-in-progress: false` for exactly the
+# reason this sets it true: cancelling a migration mid-apply is unrecoverable.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 # Least privilege for every job. Each one only checks out the repo and runs
 # checks against it; none writes back to the repository, opens issues, or
 # publishes anything. Without this block all jobs inherit the repository
-# default, which is wider than any of them needs — including
-# migrate-production, whose extra access is a DATABASE_URL secret rather than
-# a GITHUB_TOKEN scope.
+# default, which is wider than either of them needs.
 permissions:
   contents: read
 
@@ -92,7 +84,7 @@ jobs:
   static-and-unit:
     # A draft PR is an agent mid-flight. Skip it here rather than at the `on:`
     # level so the check still appears (skipped, not missing) on the PR.
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -112,7 +104,7 @@ jobs:
   # integration tests, and e2e. This is the long pole, so it runs in parallel
   # with the lane above rather than after it.
   integration-e2e:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -168,19 +160,3 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  migrate-production:
-    needs: [static-and-unit, integration-e2e]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web db:migrate
-        env:
-          # Overrides the workflow-level localhost value with the real target.
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}

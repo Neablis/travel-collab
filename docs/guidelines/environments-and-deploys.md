@@ -45,10 +45,19 @@ Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
 - Migrations are applied by automation only (see below), never `drizzle-kit migrate`
   run by hand against a remote database.
-- Production migrations: the `migrate-production` job in `.github/workflows/ci.yml`
-  runs on `push: main` after the `checks` job passes, using the
-  `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct connection string —
-  DDL should not run through PgBouncer).
+- Production migrations: **explicitly dispatched**, never automatic. Run the
+  `migrate-production` workflow (`.github/workflows/migrate-production.yml`)
+  from `main` — Actions → migrate-production → Run workflow, or
+  `gh workflow run migrate-production.yml -f confirm=migrate`. It refuses any
+  ref other than `refs/heads/main` and requires `migrate` typed into the confirm
+  field. It uses the `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct
+  connection string — DDL should not run through PgBouncer).
+  **A merged migration stays pending until someone dispatches this.** It used to
+  ride along on a push to `main`; that gating cost 23% of the repo's monthly CI
+  minutes, so it was traded for an explicit step (2026-08-27 — see
+  `ci-cost-and-capacity.md`). The rule above still holds: the *trigger* is
+  manual, the *execution* is still automation, and the connection string never
+  reaches a laptop shell.
 - Preview migrations: `apps/web/scripts/vercel-build-migrate.mjs` runs
   `drizzle-kit migrate` during the Vercel build only when `VERCEL_ENV=preview`,
   against the preview branch. Safe because previews are disposable (Task 0c).

@@ -6,8 +6,10 @@ description: Fetch and triage failing GitHub Actions checks for travel-collab us
 # CI triage
 
 `.github/workflows/ci.yml` runs two parallel jobs — `static-and-unit` and
-`integration-e2e` — plus `migrate-production`, which only runs on a push to
-`main`. Triage the one that failed; don't fetch both.
+`integration-e2e`. It runs on pull requests only — pushes to `main` no longer
+trigger CI, and production migrations are a separate, manually dispatched
+workflow (`migrate-production.yml`). Triage the one job that failed; don't
+fetch both.
 
 **Before triaging, check the PR isn't a draft.** Both jobs are gated on
 `draft == false`, so on a draft PR they report *skipped*, not failed. A skipped

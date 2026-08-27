@@ -211,6 +211,12 @@ carries the full accounting.
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible
   decisions, changelog for contracts).
+- **If the change adds a Drizzle migration, say so in the PR body.** Merging no
+  longer applies it: production migrations are dispatched explicitly via the
+  `migrate-production` workflow (`gh workflow run migrate-production.yml -f
+  confirm=migrate`, from `main`). A merged-but-undispatched migration is a
+  production schema drift waiting to happen, and the PR body is the only place
+  anyone will look for it. See `docs/guidelines/environments-and-deploys.md`.
 - The PR uses `.github/PULL_REQUEST_TEMPLATE.md` and its **Verification
   actually performed** section is filled in honestly. A step you did not run
   is recorded on the "Not run, and why" line. Four consecutive M10 phases
