@@ -495,6 +495,30 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
+  // The empty state promises "a name is enough to start", so it has to offer
+  // somewhere to start. Before this, the only way forward was the page-head
+  // "New trip" button — identical in label and position to what a user with
+  // twelve trips sees, i.e. no first-run affordance at all. This asserts the
+  // CTA is *in the empty state* (scoped to it, so the page-head button can't
+  // satisfy the test by accident) and that it opens the same NewTripWizard
+  // rather than introducing a second create path (M15 decision 3).
+  it("offers a way to start from inside the first-run empty state", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const emptyState = (await screen.findByText("Plan your first trip")).closest("div");
+    if (emptyState === null) throw new Error("empty state container not found");
+    const start = within(emptyState).getByRole("button", { name: "Name your trip" });
+
+    await userEvent.click(start);
+
+    // Step 1 of the existing wizard — the same surface the page-head "New
+    // trip" button opens, not a parallel one-field screen.
+    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+  });
+
   // This is the evidence for a milestone exit-gate requirement (M15 decision
   // 3: "Create empty" from NewTripWizard's step 1 replaces the designed
   // one-field first-run screen — see the EmptyState comment above), so it
