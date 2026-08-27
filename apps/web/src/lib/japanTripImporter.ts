@@ -162,6 +162,12 @@ export function parseTripSeed(json: unknown): TripSeedV1 {
 // dropped rather than stretched into a field that doesn't mean them. Kept
 // as a const (not just a comment) so the drift test can assert this list
 // stays intentional rather than silently growing.
+// `stops[].status` and `unscheduled[].status` were on this list until M18 —
+// "no AddActivity field models a workflow status" was true then and is not now.
+// They map to AddActivity.kind. `tags` is deliberately NOT synthesised from
+// title text: the export carries no tags at all (its `enums` block lists only
+// stopStatus), and inferring them would make a display concern depend on prose
+// — see docs/milestones/M18-stop-kind.md, "Why not parse it out of the note".
 export const DROPPED_SEED_FIELDS = [
   "trip.state", // display workflow label ("Planning"); TripStatus is active|deleted, a different axis
   "trip.datesLabel", // derived display string of startDate/endDate
@@ -192,13 +198,11 @@ export const DROPPED_SEED_FIELDS = [
   // precomputed copy would risk it silently disagreeing with what the engine finds.
   "stops[].area", // no Location sub-field for it; folded into `place` in the AddActivity location.name instead
   "stops[].who", // Access & Membership's territory, not an activity field
-  "stops[].status", // no AddActivity field models a workflow status
   "stops[].durationMinutes", // redundant with start/end, which TimeWindow already carries
   "stops[].cost.estimated", // Money is {amountMinor, currency} only — no provenance sub-field
   "stops[].cost.source", // same
   "unscheduled[].area", // see stops[].area
   "unscheduled[].who", // see stops[].who
-  "unscheduled[].status", // see stops[].status
   "unscheduled[].source", // attribution ("Priya added it"), not a Money source — no field for it
 ] as const;
 
@@ -253,6 +257,7 @@ function stopToAddActivity(
     title: stop.title,
     timeWindow: { start: stop.start, end: stop.end },
     location: { name: locationName(stop.place, stop.area, city), city, ...coordsFor(stop.id) },
+    kind: stop.status,
     ...(stop.note ? { notes: stop.note } : {}),
     ...(cost ? { cost } : {}),
   };
@@ -269,6 +274,7 @@ function unscheduledToAddActivity(tripId: string, item: TripSeedV1["unscheduled"
     activityId: randomUUID(),
     title: item.title,
     location: { name: unscheduledLocationName(item.place, item.area), ...coordsFor(item.id) },
+    kind: item.status,
     ...(item.note ? { notes: item.note } : {}),
   };
 }
