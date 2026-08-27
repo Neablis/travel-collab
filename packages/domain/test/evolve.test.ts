@@ -32,6 +32,8 @@ const addActivity: TripEvent = {
     location: null,
     notes: null,
     anchors: [],
+    kind: "planned" as const,
+    tags: [],
     cost: null,
   },
 };
@@ -72,6 +74,8 @@ describe("evolveTrip (M1 events)", () => {
       location: null,
       notes: null,
       anchors: [],
+      kind: "planned" as const,
+      tags: [],
       cost: null,
     });
   });
@@ -93,7 +97,7 @@ describe("evolveTrip (M1 events)", () => {
       {
         type: "ActivityUpdated",
         version: 1,
-        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead", anchors: [], cost: null },
+        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead", anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     ]);
     expect(state.activities[ACT]).toEqual({
@@ -102,6 +106,8 @@ describe("evolveTrip (M1 events)", () => {
       location: null,
       notes: "book ahead",
       anchors: [],
+      kind: "planned" as const,
+      tags: [],
       cost: null,
     });
   });
@@ -163,6 +169,8 @@ describe("evolveTrip totality — activity events naming an unknown day", () => 
           location: null,
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: null,
         },
       }),

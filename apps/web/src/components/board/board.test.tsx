@@ -14,8 +14,8 @@ function fixture() {
   return tripDetailFixture({
     days: [{ dayId: DAY, activityIds: [A1, A2], date: null, costSubtotal: 0 }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], cost: null },
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
     },
     conflicts: [
       {
@@ -60,9 +60,9 @@ function threeWayOverlapFixture() {
   return tripDetailFixture({
     days: [{ dayId: DAY, activityIds: [A1, A2, A3], date: null, costSubtotal: 0 }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "12:00" }, location: null, notes: null, anchors: [], cost: null },
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
-      [A3]: { activityId: A3, title: "Trastevere walk", timeWindow: { start: "11:00", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      [A3]: { activityId: A3, title: "Trastevere walk", timeWindow: { start: "11:00", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
     },
     conflicts: [
       conflict(A1, A2, "Colosseum", "Vatican Museums"),
@@ -407,7 +407,7 @@ describe("Board", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
           ]),
         ),
       }),

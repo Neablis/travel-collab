@@ -1,4 +1,4 @@
-import type { Anchor, Money } from "@tc/contracts";
+import type { ActivityTag, Anchor, Money } from "@tc/contracts";
 import type { ActivityState, DayState, TripState } from "./state";
 
 export function moneyEqual(a: Money | null, b: Money | null): boolean {
@@ -27,6 +27,13 @@ function sameAnchors(a: readonly Anchor[], b: readonly Anchor[]): boolean {
   return a.length === b.length && a.every((x, i) => anchorKey(x) === anchorKey(b[i]!));
 }
 
+// Tag LIST order is significant for the same reason anchor order is: the update
+// snapshot preserves whatever order the command supplied, and diff compares the
+// two states positionally.
+function sameTags(a: readonly ActivityTag[], b: readonly ActivityTag[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
 export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean {
   return (
     a.title === b.title &&
@@ -37,6 +44,8 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     (a.location === null ||
       (a.location.name === b.location!.name && a.location.lat === b.location!.lat && a.location.lng === b.location!.lng)) &&
     sameAnchors(a.anchors, b.anchors) &&
+    a.kind === b.kind &&
+    sameTags(a.tags, b.tags) &&
     moneyEqual(a.cost, b.cost)
   );
 }

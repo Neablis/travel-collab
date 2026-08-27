@@ -15,6 +15,8 @@ function stop(
     location: city === null ? null : { name: city, city, lat: 0, lng: 0 },
     notes: null,
     anchors: [],
+    kind: "planned" as const,
+    tags: [],
     cost: costMinor === undefined ? null : { amountMinor: costMinor, currency: "USD" },
   };
 }

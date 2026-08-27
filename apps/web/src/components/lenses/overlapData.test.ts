@@ -12,8 +12,8 @@ const detail = (over: Partial<TripDetail> = {}): TripDetail =>
   tripDetailFixture({
     days: [{ dayId: "d1", date: null, activityIds: ["a", "b"], costSubtotal: 0 }],
     activities: {
-      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
-      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
     },
     conflicts: [
       {
@@ -101,8 +101,8 @@ describe("overlapsForDay", () => {
   it("offers no end when the duration-preserving move would run past midnight", () => {
     const d = detail({
       activities: {
-        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
-        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
     const [o] = overlapsForDay(d, "d1");
@@ -116,8 +116,8 @@ describe("overlapsForDay", () => {
   it("still offers a move that lands exactly on the day's last minute", () => {
     const d = detail({
       activities: {
-        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:00" }, location: null, notes: null, anchors: [], cost: null },
-        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "22:30", end: "23:29" }, location: null, notes: null, anchors: [], cost: null },
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "22:30", end: "23:29" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
     expect(overlapsForDay(d, "d1")[0]?.suggestedEnd).toBe("23:59");
@@ -126,8 +126,8 @@ describe("overlapsForDay", () => {
   it("breaks a same-start tie on the later end, so the pair still resolves deterministically", () => {
     const d = detail({
       activities: {
-        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
-        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "10:30", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "10:30", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
     const [o] = overlapsForDay(d, "d1");

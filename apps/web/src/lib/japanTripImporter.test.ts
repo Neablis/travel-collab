@@ -93,6 +93,32 @@ describe("japanTripImporter", () => {
     expect(DROPPED_SEED_FIELDS.length).toBeGreaterThanOrEqual(25);
   });
 
+  it("maps a stop's typed status onto the activity's kind", () => {
+    const adds = importJapanTripSeed(loadRealSeed(), randomUUID()).filter((c) => c.type === "AddActivity");
+
+    // Every stop and unscheduled item in the export carries a status from
+    // enums.stopStatus, so every AddActivity should carry a kind. This is a
+    // typed field-to-field map, not a parse of note prose.
+    expect(adds.length).toBeGreaterThan(0);
+    expect(adds.every((c) => c.kind !== undefined)).toBe(true);
+
+    const landing = adds.find((c) => c.title === "Land at Haneda");
+    expect(landing?.kind).toBe("transit");
+
+    const parked = adds.find((c) => c.title === "Kiyomizu-dera at golden hour");
+    expect(parked?.kind).toBe("idea");
+  });
+
+  it("does not invent tags — the export carries none, and inferring them from title text is the parse M18 disqualifies", () => {
+    const adds = importJapanTripSeed(loadRealSeed(), randomUUID()).filter((c) => c.type === "AddActivity");
+    expect(adds.every((c) => c.tags === undefined)).toBe(true);
+  });
+
+  it("no longer lists stop status as a dropped field", () => {
+    expect(DROPPED_SEED_FIELDS).not.toContain("stops[].status");
+    expect(DROPPED_SEED_FIELDS).not.toContain("unscheduled[].status");
+  });
+
   // witness: a real run of scripts/geocode-japan-seed.mts (2026-08-25)
   // resolved 54/72 stops (75%) against a live LocationIQ lookup — 18 stayed
   // coordinate-less: 9 transit stops whose day is labeled with the

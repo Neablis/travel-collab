@@ -49,6 +49,8 @@ export const activityFactory = Factory.define<ActivityView>(({ sequence }) => ({
   location: null,
   notes: null,
   anchors: [],
+  kind: "planned" as const,
+  tags: [],
   cost: null,
 }));
 

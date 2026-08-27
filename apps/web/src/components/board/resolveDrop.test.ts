@@ -19,6 +19,8 @@ function fixture() {
     location: null,
     notes: null,
     anchors: [],
+    kind: "planned" as const,
+    tags: [],
     cost: null,
   });
   return tripDetailFixture({

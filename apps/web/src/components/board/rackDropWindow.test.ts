@@ -11,7 +11,7 @@ const UNTIMED = "55555555-5555-4555-8555-555555555555";
 const PARKED_WITH_TIME = "66666666-6666-4666-8666-666666666666";
 
 function activity(activityId: string, timeWindow: { start: string; end: string } | null): ActivityView {
-  return { activityId, title: activityId, timeWindow, location: null, notes: null, anchors: [], cost: null };
+  return { activityId, title: activityId, timeWindow, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null };
 }
 
 /** A day holding `dayActivityIds`, with `backlogIds` parked off the schedule. */

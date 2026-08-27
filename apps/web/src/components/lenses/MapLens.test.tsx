@@ -121,6 +121,8 @@ function detailFixture() {
         location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       unlocated1: {
@@ -130,6 +132,8 @@ function detailFixture() {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       unlocated2: {
@@ -139,6 +143,8 @@ function detailFixture() {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },
@@ -153,6 +159,8 @@ function locatedActivity(id: string, lat: number, lng: number) {
     location: { name: id, lat, lng },
     notes: null,
     anchors: [],
+    kind: "planned" as const,
+    tags: [],
     cost: null,
   };
 }

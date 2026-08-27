@@ -30,6 +30,11 @@ const ANCHORS: (Anchor[] | undefined)[] = [
   [],
 ];
 const COSTS = [undefined, null, { amountMinor: 1000, currency: "USD" }, { amountMinor: 250_00, currency: "USD" }] as const;
+// kind/tags must appear in the generated input space, or every property test
+// that folds these commands passes while never once producing either field —
+// green and vacuous. See support/witness.ts for why that is called out.
+const KINDS = [undefined, "planned", "booked", "hold", "idea", "transit"] as const;
+const TAGS = [undefined, [], ["meal"], ["lodging", "ticketed"], ["outdoors"]] as const;
 const CURRENCIES = ["USD", "EUR", "GBP"] as const;
 const BUDGETS = [undefined, null, { amountMinor: 100_00, currency: "USD" }, { amountMinor: 500_00, currency: "USD" }] as const;
 const TRIP_NAMES = ["Renamed A", "Renamed B"] as const;
@@ -64,6 +69,8 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
         timeWindow: WINDOWS[raw.b % WINDOWS.length] ?? undefined,
         location: LOCATIONS[raw.c % LOCATIONS.length] ?? undefined,
         anchors: ANCHORS[raw.c % ANCHORS.length],
+        kind: KINDS[raw.b % KINDS.length],
+        tags: TAGS[raw.c % TAGS.length]?.slice(),
         cost: COSTS[raw.c % COSTS.length] ?? undefined,
       };
     case 4:
@@ -75,6 +82,8 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
             title: `Renamed ${raw.b}`,
             timeWindow: WINDOWS[raw.c % WINDOWS.length],
             anchors: ANCHORS[raw.b % ANCHORS.length],
+            kind: KINDS[raw.c % KINDS.length],
+            tags: TAGS[raw.a % TAGS.length]?.slice(),
             cost: COSTS[raw.b % COSTS.length],
           }
         : null;

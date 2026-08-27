@@ -12,8 +12,8 @@ const detail: TripDetail = {
   days: [{ dayId: DAY, activityIds: [A1], date: null, costSubtotal: 0 }], backlog: [A2],
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: {
-    [A1]: { activityId: A1, title: "Colosseum", timeWindow: null, location: { name: "Colosseum", lat: 41.89, lng: 12.49 }, notes: null, anchors: [], cost: null },
-    [A2]: { activityId: A2, title: "Idea", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+    [A1]: { activityId: A1, title: "Colosseum", timeWindow: null, location: { name: "Colosseum", lat: 41.89, lng: 12.49 }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+    [A2]: { activityId: A2, title: "Idea", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
   },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
   status: "active",
@@ -33,7 +33,7 @@ describe("map data", () => {
       days: [{ dayId: DAY, activityIds: [A1, A3], date: null, costSubtotal: 0 }],
       activities: {
         ...detail.activities,
-        [A3]: { activityId: A3, title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+        [A3]: { activityId: A3, title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     };
     expect(unlocatedActivities(withDayAttached).map((a) => a.activityId)).toEqual([A3]);

@@ -60,6 +60,8 @@ function detailFixture() {
         location: { name: "Rome" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       [forum]: {
@@ -69,6 +71,8 @@ function detailFixture() {
         location: { name: "Rome" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       [flight]: {
@@ -78,6 +82,8 @@ function detailFixture() {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },
@@ -152,7 +158,7 @@ describe("CalendarLens", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome" }, notes: null, anchors: [], cost: null },
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
           ]),
         ),
       }),
@@ -179,6 +185,8 @@ describe("CalendarLens", () => {
           location: { name: "Rome" },
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: null,
         },
         [forum]: {
@@ -188,6 +196,8 @@ describe("CalendarLens", () => {
           location: { name: "Rome" },
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: null,
         },
       },
@@ -210,6 +220,8 @@ describe("CalendarLens", () => {
           location: { name: "Rome" },
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: null,
         },
       },

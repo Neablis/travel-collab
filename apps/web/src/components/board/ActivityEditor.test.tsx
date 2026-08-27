@@ -25,6 +25,8 @@ describe("ActivityEditor", () => {
       location: null,
       notes: null,
       anchors,
+      kind: "planned" as const,
+      tags: [],
       cost: null,
     };
     const onSave = vi.fn();

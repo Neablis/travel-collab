@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — M18: activity kind & tags
+- Added: `ActivityKind` (`booked|hold|idea|transit|planned`) and `ActivityTag`
+  (`meal|lodging|ticketed|outdoors`) enums
+- Added: `kind`/`tags` on `AddActivity` and `UpdateActivity` (both `.optional()`,
+  neither nullable — a kind is cleared by setting `planned`, tags by `[]`;
+  `tags` replaces the whole array, matching `anchors`)
+- Added: `kind: ActivityKind.default("planned")` and
+  `tags: z.array(ActivityTag).default([])` on the `ActivityAddedV1` and
+  `ActivityUpdatedV1` payloads — still **version 1**, no V2 event
+- Added: `ActivityView.kind`, `.tags` (both required — the projection always
+  produces them, so no consumer has to ask what absence means)
+- Why: M18 — a stop had no kind, so the Calendar's travel-day split, `N to book`,
+  the home hero's "not booked" tile and `act.badge` were all blocked, and the
+  seed encoded the kind as `(transit)` prose inside a note a user can edit (KI-47)
+- Note: the design handoff lists SIX tags; `considering` and `travel` are
+  deliberately omitted because `ActivityKind` already carries `idea` and
+  `transit`. Two fields that can disagree about one fact is a bug generator — a
+  stop tagged `considering` while its kind says `booked` would render dashed
+  under a "Booked" badge with its cost outside the committed total, and no
+  surface would own the contradiction. Mitchell's call, 2026-08-27
+- Consumers updated: `@tc/domain` (state/evolve/decide/equality/diff/hydrate/
+  detail), `@tc/pages`, `@tc/factories`, `apps/web` (MSW handlers,
+  duplicateTrip, japanTripImporter, db-seed, test fixtures) — same PR.
+  `equality.ts` mattered most: without it `okUnlessNoOp` rejects a kind-only
+  `UpdateActivity` as a no-op. The shared property generator
+  (`packages/domain/test/support/tripGenerator.ts`) gained both fields too, or
+  `diff.property.test.ts` would keep passing while never generating either
+- Breaking? no — event payload additions default (`kind` → `"planned"`,
+  `tags` → `[]`), so `TripEvent.parse` accepts all previously stored events
+  unchanged. **There is no migration and no event rewrite.** DTO additions are
+  new required fields produced only by the updated projection
+
 ## 2026-07-28 — M8: trip lifecycle
 - Added commands: `SetTripName`, `SetTripDates`, `DeleteTrip`, `RestoreTrip`
 - Added events: `TripNameSetV1`, `TripDeletedV1`, `TripRestoredV1`

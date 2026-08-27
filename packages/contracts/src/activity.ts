@@ -50,6 +50,28 @@ export const Location = z
   });
 export type Location = z.infer<typeof Location>;
 
+// Where a stop sits in the booking/travel workflow. Exactly one per activity,
+// and never absent: "planned" is the zero value, which is why the field
+// defaults rather than being nullable — db-seed.ts and the design handoff's
+// export (`enums.stopStatus`) both already treat it that way. Calendar reads
+// `transit` to split a travel day; `N to book` counts everything that is
+// neither `booked` nor `transit` (M18).
+export const ActivityKind = z.enum(["booked", "hold", "idea", "transit", "planned"]);
+export type ActivityKind = z.infer<typeof ActivityKind>;
+
+// What sort of thing a stop IS — orthogonal to where it is in the workflow.
+// A closed vocabulary, never freeform: the design attaches behaviour to each
+// tag ("power"), and a free string can't carry one.
+//
+// The handoff lists six; `considering` and `travel` are deliberately absent
+// because ActivityKind already answers those (`idea` and `transit`). Two
+// fields that can disagree about one fact is a bug generator: a stop tagged
+// `considering` while its kind says `booked` would render dashed under a
+// "Booked" badge with its cost outside the committed total, and no surface
+// would own the contradiction. See docs/milestones/M18-stop-kind.md.
+export const ActivityTag = z.enum(["meal", "lodging", "ticketed", "outdoors"]);
+export type ActivityTag = z.infer<typeof ActivityTag>;
+
 // ---- Commands ----
 
 export const AddActivity = z.object({
@@ -62,6 +84,8 @@ export const AddActivity = z.object({
   location: Location.optional(),
   notes: z.string().max(2000).optional(),
   anchors: z.array(Anchor).optional(),
+  kind: ActivityKind.optional(),         // omitted = "planned"
+  tags: z.array(ActivityTag).optional(), // omitted = none
   cost: Money.optional(), // omitted = no cost
 });
 export type AddActivity = z.infer<typeof AddActivity>;
@@ -76,6 +100,8 @@ export const UpdateActivity = z.object({
   location: Location.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   anchors: z.array(Anchor).optional(),
+  kind: ActivityKind.optional(),         // omitted = unchanged; no null (set "planned" to clear)
+  tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
   cost: Money.nullable().optional(), // omitted = unchanged, null = cleared
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
@@ -110,6 +136,8 @@ export const ActivityAddedV1 = z.object({
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
     anchors: z.array(Anchor).default([]),
+    kind: ActivityKind.default("planned"),
+    tags: z.array(ActivityTag).default([]),
     cost: Money.nullable().default(null),
   }),
 });
@@ -127,6 +155,8 @@ export const ActivityUpdatedV1 = z.object({
     location: Location.nullable(),
     notes: z.string().max(2000).nullable(),
     anchors: z.array(Anchor).default([]),
+    kind: ActivityKind.default("planned"),
+    tags: z.array(ActivityTag).default([]),
     cost: Money.nullable().default(null),
   }),
 });

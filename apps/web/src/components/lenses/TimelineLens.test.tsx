@@ -32,6 +32,8 @@ function detailFixture() {
         location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },
@@ -83,8 +85,8 @@ function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
   const detail = tripDetailFixture({
     days: [{ dayId: "d1", activityIds: ["a", "b"], date: "2027-06-01", costSubtotal: 0 }],
     activities: {
-      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
-      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], cost: null },
+      a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
     },
     conflicts: [
       {
@@ -111,7 +113,7 @@ function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
 // M10 Phase 6 fixtures. `timed` is what nextSlot and the add-row copy key
 // off, so these are all shaped around one day's last end time.
 function timedActivity(id: string, title: string, start: string, end: string) {
-  return { activityId: id, title, timeWindow: { start, end }, location: null, notes: null, anchors: [], cost: null };
+  return { activityId: id, title, timeWindow: { start, end }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null };
 }
 
 function detailWithDayEndingAt(end: string, start = "20:00") {
@@ -226,6 +228,8 @@ function detailWithGap(gapMinutes: number): TripDetail {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       a2: {
@@ -235,6 +239,8 @@ function detailWithGap(gapMinutes: number): TripDetail {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },
@@ -254,6 +260,8 @@ const detailWithCoordinatesOnBothStops = tripDetailFixture({
       location: { name: "Colosseum", lat: 41.8902, lng: 12.4922 },
       notes: null,
       anchors: [],
+      kind: "planned" as const,
+      tags: [],
       cost: null,
     },
     a2: {
@@ -263,6 +271,8 @@ const detailWithCoordinatesOnBothStops = tripDetailFixture({
       location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
       notes: null,
       anchors: [],
+      kind: "planned" as const,
+      tags: [],
       cost: null,
     },
   },
@@ -388,7 +398,7 @@ describe("TimelineLens", () => {
     const detail = tripDetailFixture({
       days: [{ dayId: "d1", activityIds: ["u1"], date: "2027-06-01", costSubtotal: 0 }],
       activities: {
-        u1: { activityId: "u1", title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+        u1: { activityId: "u1", title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
     renderLens(detail, onSelectActivity);
@@ -417,6 +427,8 @@ describe("TimelineLens", () => {
           location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: { amountMinor: 4200, currency: "USD" },
         },
       },
@@ -452,6 +464,8 @@ describe("TimelineLens", () => {
           location: null,
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: { amountMinor: 3000, currency: "USD" },
         },
         a2: {
@@ -461,6 +475,8 @@ describe("TimelineLens", () => {
           location: null,
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: { amountMinor: 3700, currency: "USD" },
         },
       },
@@ -495,8 +511,8 @@ describe("TimelineLens", () => {
   it("offers no fix when the move would push the later stop past midnight", async () => {
     const dispatch = renderTimelineWithOverlap({
       activities: {
-        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], cost: null },
-        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], cost: null },
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "20:00", end: "23:45" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        b: { activityId: "b", title: "Lunch at Kagari", timeWindow: { start: "23:30", end: "23:59" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
 
@@ -540,7 +556,7 @@ describe("TimelineLens", () => {
     const detail = tripDetailFixture({
       days: [{ dayId: "d1", activityIds: ["a"], date: "2027-06-01", costSubtotal: 0 }],
       activities: {
-        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], cost: null },
+        a: { activityId: "a", title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
       conflicts: [
         { id: "anchor-broken:a", kind: "anchor-broken", severity: "warn", subjects: ["a"], description: "", resolutions: [] },

@@ -12,7 +12,7 @@ function stateOf(costs: number[], onDay: boolean[]): TripState {
   const backlog: string[] = [];
   costs.forEach((c, i) => {
     const id = `a${i}`;
-    activities[id] = { title: `A${i}`, timeWindow: null, location: null, notes: null, anchors: [], cost: c === 0 ? null : { amountMinor: c, currency: "USD" } };
+    activities[id] = { title: `A${i}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: c === 0 ? null : { amountMinor: c, currency: "USD" } };
     (onDay[i] ? day.activityIds : backlog).push(id);
   });
   return { tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], startDate: null, days: [day], backlog, activities, currency: "USD", budget: null, dismissedConflictIds: [], status: "active" };

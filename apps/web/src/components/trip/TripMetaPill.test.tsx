@@ -25,6 +25,8 @@ function fixture(): TripDetail {
         location: { name: "Colosseum, Rome", lat: 41.89, lng: 12.49, city: "Rome" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       [a2]: {
@@ -34,6 +36,8 @@ function fixture(): TripDetail {
         location: { name: "Trevi Fountain, Rome", lat: 41.9, lng: 12.48, city: "Naples" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },
