@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type {
   CreateInviteInput,
+  TripDetail,
   InvitePreview,
   InviteRole,
   InviteStatus,
@@ -10,7 +11,14 @@ import type {
 import { db } from "../db/client";
 import { tripInvites, users } from "../db/schema";
 import { getTripDetail } from "../projections";
-import { effectiveMembers, grantMembership, grantedMembers, revokeMembership } from "./members";
+import { grantMembership, grantedMembers, mergeMembers, revokeMembership } from "./members";
+
+/**
+ * Thrown inside `acceptInvite`'s transaction when a concurrent accept won the
+ * race for the membership row. Rolls the transaction back — including the
+ * token claim — and is converted to an ordinary refusal by the caller.
+ */
+class AlreadyAMemberError extends Error {}
 
 export type AccessError = { code: "not-found" | "forbidden" | "invalid" | "gone"; message: string };
 export type AccessResult<T> = { ok: true; value: T } | { ok: false; error: AccessError };
@@ -177,24 +185,40 @@ export async function acceptInvite(
   if (existing.status === "accepted" && existing.acceptedBy === userId) {
     return { ok: true, value: { tripId: existing.tripId, role: existing.role as InviteRole } };
   }
-  // The EFFECTIVE member list, not `detail.members` (the projection, which
-  // carries only the owner). Reading the projection here let an existing
-  // member accept a second outstanding invite and have `grantMembership`'s
-  // upsert rewrite their role — so the role they ended up with was whichever
-  // link they chose to click last. That put role selection in the recipient's
-  // hands: an owner who sent `editor` by mistake and then sent `viewer` to
-  // correct it did not correct anything, because the first link still worked.
-  //
-  // Changing someone's role is the owner's operation: revoke and re-invite.
-  const members = await effectiveMembers(db, existing.tripId, detail.members);
-  if (members.some((m) => m.userId === userId)) {
-    return {
-      ok: false,
-      error: { code: "invalid", message: "You are already on this trip." },
-    };
+  try {
+    return await acceptInviteTransaction(token, userId, now, detail);
+  } catch (error) {
+    if (error instanceof AlreadyAMemberError) {
+      return { ok: false, error: { code: "invalid", message: "You are already on this trip." } };
+    }
+    throw error;
   }
+}
 
+function acceptInviteTransaction(
+  token: string,
+  userId: string,
+  now: string,
+  detail: TripDetail,
+): Promise<AccessResult<{ tripId: string; role: InviteRole }>> {
   return db.transaction(async (tx): Promise<AccessResult<{ tripId: string; role: InviteRole }>> => {
+    // The EFFECTIVE member list, not `detail.members` (the projection, which
+    // carries only the owner). Reading the projection let an existing member
+    // accept a second outstanding invite and rewrite their own role, so the
+    // role that stuck was whichever link the RECIPIENT clicked last.
+    //
+    // Inside the transaction, but that alone does not make it safe: under READ
+    // COMMITTED two simultaneous accepts of two different tokens both see no
+    // membership here. `grantMembership` is where the race is actually
+    // decided — see the check on its return value below.
+    const members = mergeMembers(detail.members, await grantedMembers(tx, detail.tripId));
+    if (members.some((m) => m.userId === userId)) {
+      return {
+        ok: false,
+        error: { code: "invalid", message: "You are already on this trip." },
+      };
+    }
+
     const claimed = await tx
       .update(tripInvites)
       .set({ status: "accepted", acceptedBy: userId, acceptedAt: now })
@@ -221,13 +245,20 @@ export async function acceptInvite(
         },
       };
     }
-    await grantMembership(tx, {
+    const granted = await grantMembership(tx, {
       tripId: row.tripId,
       userId,
       role: row.role as InviteRole,
       invitedBy: row.invitedBy,
       now,
     });
+    if (!granted) {
+      // A concurrent accept established the membership first. Throwing rolls
+      // this transaction back, which un-claims the token we just marked
+      // accepted — otherwise a link would be spent for a grant that never
+      // happened, and the caller would be told a role they do not hold.
+      throw new AlreadyAMemberError();
+    }
     return { ok: true, value: { tripId: row.tripId, role: row.role as InviteRole } };
   });
 }

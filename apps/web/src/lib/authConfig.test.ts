@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { devLoginIdentity } from "./authConfig";
 
 // Dev login exists to resemble a real Google sign-in closely enough that
@@ -42,6 +42,39 @@ describe("devLoginIdentity", () => {
       "a".repeat(33),
     ]) {
       expect(devLoginIdentity(bad), `expected ${JSON.stringify(bad)} to be rejected`).toBeNull();
+    }
+  });
+
+  // A misconfigured AUTH_DEV_EMAIL_BASE must fail the sign-in rather than
+  // mint a malformed address. Exercised through the module's own parsing by
+  // re-importing with the env var set, since the base is read at module load.
+  it("refuses to build an identity from a malformed email base", async () => {
+    const original = process.env.AUTH_DEV_EMAIL_BASE;
+    try {
+      for (const bad of ["ops@", "@example.com", "ops@internal@example.com", "noatsign", "op s@x.com"]) {
+        process.env.AUTH_DEV_EMAIL_BASE = bad;
+        vi.resetModules();
+        const { devLoginIdentity: fresh } = await import("./authConfig");
+        expect(fresh("alice"), `expected base ${JSON.stringify(bad)} to be refused`).toBeNull();
+      }
+    } finally {
+      if (original === undefined) delete process.env.AUTH_DEV_EMAIL_BASE;
+      else process.env.AUTH_DEV_EMAIL_BASE = original;
+      vi.resetModules();
+    }
+  });
+
+  it("honours a well-formed override", async () => {
+    const original = process.env.AUTH_DEV_EMAIL_BASE;
+    try {
+      process.env.AUTH_DEV_EMAIL_BASE = "team@example.com";
+      vi.resetModules();
+      const { devLoginIdentity: fresh } = await import("./authConfig");
+      expect(fresh("alice")!.email).toBe("team+alice@example.com");
+    } finally {
+      if (original === undefined) delete process.env.AUTH_DEV_EMAIL_BASE;
+      else process.env.AUTH_DEV_EMAIL_BASE = original;
+      vi.resetModules();
     }
   });
 

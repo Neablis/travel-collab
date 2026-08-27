@@ -57,10 +57,16 @@ export function devLoginIdentity(
 ): { id: string; name: string; email: string } | null {
   const username = typeof raw === "string" ? raw.trim() : "";
   if (!DEV_USERNAME.test(username)) return null;
-  const at = DEV_EMAIL_BASE.lastIndexOf("@");
-  if (at <= 0) return null;
-  const local = DEV_EMAIL_BASE.slice(0, at);
-  const domain = DEV_EMAIL_BASE.slice(at + 1);
+  // Exactly one `@`, with non-empty whitespace-free parts either side.
+  // `lastIndexOf` accepted `ops@` (empty domain) and
+  // `ops@internal@example.com` (two `@`), either of which builds a string that
+  // is not an address and would then be stored against a durable user row
+  // (CodeRabbit, PR #70). A misconfigured base fails the sign-in rather than
+  // minting a malformed identity.
+  const parts = DEV_EMAIL_BASE.split("@");
+  if (parts.length !== 2) return null;
+  const [local, domain] = parts as [string, string];
+  if (local === "" || domain === "" || /\s/.test(DEV_EMAIL_BASE)) return null;
   return {
     id: `dev-${username}`,
     name: username,
