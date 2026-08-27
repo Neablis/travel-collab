@@ -64,7 +64,9 @@ designed. Three things are not close, and only one of them touches M10:
 2. **Notebook / Pages** was designed in this handoff (SPEC §7) and the build has
    not moved. Its cheapest piece is a plain bug: `.tc-page-editor` is applied to
    every page and **defined nowhere in the repo**, so page prose renders with no
-   typography at all (**KI-44**).
+   typography at all (**KI-44** — *fixed 2026-08-26 by the KI sweep; the rule is
+   now defined in `globals.css`. The rest of item 2, the unbuilt SPEC §7
+   redesign, still stands*).
 3. **Mobile** is the desktop layout at 402px; the handoff's mobile file is a
    different product (SPEC §10). **KI-46.** At 1100px the app is fine — the gap
    is entirely between those widths.
@@ -84,6 +86,15 @@ KI-45 (`Preview size="container"` covers host content — including a currency
 amount in Trip settings), KI-46 (small screens), KI-47 (no `tags` field, which
 blocks five separate designed surfaces), KI-48 (six one-file cosmetics,
 including `1 travellers`).
+
+**KI-44 and KI-45 of those six are now closed** (2026-08-26 KI sweep, together
+with KI-23 and KI-41 from elsewhere in the backlog). KI-43 is half-closed — the
+summary collapse landed in PR #55, the in-card half is still open. KI-46 and
+KI-47 are untouched by the sweep on purpose: KI-46's own entry says building the
+designed mobile companion is a milestone rather than a fix, and KI-47 is carried
+by `docs/milestones/M18-stop-kind.md`. **The sweep did not drive a browser**, so
+the visual read of the Notebook surface and of the 18 `size="container"` Preview
+hosts still belongs to Phase 9's manual walk.
 
 **Two decisions the audit surfaced that are not code:**
 - **SPEC §7 contradicts `packages/pages/src/templates.ts:15-18`.** The spec's
