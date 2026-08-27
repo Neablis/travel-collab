@@ -50,12 +50,12 @@ async function seedOwnedTrip(userId: string, name: string): Promise<string> {
   const tripId = randomUUID();
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, userId);
   if (!created.ok) throw new Error("failed to seed trip");
-  // "unscheduledHeavy" (not "threeDayTrip"): activitiesPerDay 1, not 2 —
-  // avoids a real bug in commandsFor's per-scenario AddActivity time window
-  // for the second activity on a day (`0${9 + i}:00` produces "010:00" for
-  // i=1, which fails TimeWindow's HHMM regex). Out of scope here
-  // (packages/factories, and this task's file scope excludes packages/) —
-  // filed as docs/known-issues.md KI-37.
+  // "unscheduledHeavy" is now an ordinary choice: these tests only need an
+  // owned trip that carries *some* content, and this scenario is the cheapest
+  // one that has both scheduled and backlog activities. It was originally
+  // picked to dodge KI-37 (commandsFor emitted an invalid "010:00" for a day's
+  // second activity); that is fixed, and since KI-41 `commandsFor` takes
+  // overrides, so any scenario here could state its own windows.
   for (const command of commandsFor("unscheduledHeavy", tripId)) {
     const result = await executeTripCommand(command, userId);
     if (!result.ok) throw new Error(`failed to seed trip content: ${result.error.message}`);

@@ -239,20 +239,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   contract to change. Fixing it means schematizing the whole envelope and
   routing both AI client functions through it.
 
-### KI-23 — The simulated model's `combined` surface never composes a page
-- **Severity:** cleanup (product fidelity, not correctness)
-- **Area:** `apps/web/src/server/ai/simulatedModel.ts`
-- `doGenerate` maps `surface === "page"` to `pageCalls()` and everything else
-  (`"board"` and `"combined"`) to `planCalls()`. A real, live `combined`
-  request composes both a page and board activities (`handleAiRequest.ts`
-  exposes both tool sets for that surface). So with the `ai-live` flag off, a
-  `combined`-surface ask only ever produces board changes — the simulation
-  under-represents what live `combined` mode can actually do. Not a
-  correctness bug (the response is still marked `simulated: true` and the
-  board changes it does make are real), just a demo-fidelity gap. Fixing it
-  means having `combined` emit both `planCalls()` and `pageCalls()` and
-  updating `simulatedModel.test.ts`'s expectations accordingly.
-
 ### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented
 - **Severity:** cleanup (defense-in-depth, not a live bypass)
 - **Area:** `apps/web/src/server/ai/modelSelection.ts`
@@ -323,20 +309,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** stagger `activityFactory`'s `timeWindow` by index the way `commandsFor` now does, run the full `apps/web` unit suite, and repair whatever depended on the shared window. Then decide separately whether `tripDetailFactory` should compute `conflicts` via the real engine instead of hardcoding `[]` — that is a design question about what the factory is for (an inert skeleton vs. a self-consistent projection), and it is Mitchell's, not a mechanical fix.
 - **Cross-reference:** KI-37 (the command-side window bug, resolved 2026-08-25) — same family, opposite twin.
 - **First noted:** 2026-08-25 (KI sweep, found while making `commandsFor("overlappingDay")` actually overlap).
-
-### KI-41 — `commandsFor` is a scenario generator with no override surface, so it must invent data it has no business inventing
-- **Severity:** cleanup (no user impact — `@tc/factories` is test-fixture-only and never reaches the app bundle; this is the root cause behind KI-37 and two follow-on patches)
-- **Area:** `packages/factories/src/commands.ts` (`commandsFor`, `CommandsForOptions`)
-- **Symptom:** `commandsFor`'s entire override surface is `{ dayCount?: number }`, and its own comment concedes that is "only meaningful for `mappedTrip`". Everything else is a hardcoded switch on the scenario name: `dayCounts`, `activitiesPerDay`, `located`, `costed`, `unscheduledCount`, a three-element `realLocations` array cycled by index, a cost of `2500 + i * 1100`, and a time window synthesized from the loop index. It is not a factory — a factory returns a default-shaped model the caller overrides per test. Its own sibling in the same package, `tripDetailFactory`/`activityFactory` (`trip.ts`), *is* a Fishery factory with full `Partial<T>` overrides and seeded faker; `scenarios.threeDayTrip(overrides)` takes `Partial<TripDetail>` while its command-side twin takes essentially nothing. Same conceptual fixture, two different contracts.
-- **Why this matters — it is the root cause behind three separate patches:** because no caller can say what a window should be, the generator has to invent one from `i`, and every downstream problem follows from that single fact:
-  1. Inventing it as `` `0${9 + i}:00` `` produced `"010:00"` — **KI-37** (resolved 2026-08-25).
-  2. An invented value can run past midnight, so KI-37's fix added a `Math.min(..., 22:00)` clamp — which silently emits duplicate `22:00-23:00` windows from the 14th activity on a day rather than failing loudly, the very shape of defect KI-38 was about. Unreachable today (`activitiesPerDay` maxes at 2 and is not caller-settable), and now guarded by `conflicts.test.ts`'s zero-overlap assertions, but it is defensive code for a situation the caller cannot even create.
-  3. `overlappingDay` needed a *different* invention rule, so a scenario-name special case (`staggerMinutes`) was bolted into the helper — the factory manufacturing an overlap by matching on a string, instead of a test simply passing two overlapping windows.
-- **Deliberate decision (Mitchell, 2026-08-25):** the clamp in (2) is **left as-is rather than converted to a throw**, on the explicit premise that this entry's refactor deletes it. If this entry is closed as won't-fix instead, revisit the clamp — that premise is the only reason it was left.
-- **Fix path:** give `commandsFor` the override surface its projection twin already has — named scenarios keep supplying defaults, callers override what their test actually cares about — then delete `timeWindowFor`, the clamp and the `staggerMinutes` special case outright. What justifies `commandsFor` existing at all is unaffected and should be preserved: per its header and ADR-020, integration/e2e/seed paths need an ordered `TripCommand[]` replayed through the real write path, because directly inserting projection rows would silently diverge from replay. That argues for a command-emitting fixture; it does not argue for one without overrides.
-- **Blast radius (small — measured 2026-08-25):** only four real consumers. `apps/web/e2e/responsive.spec.ts` (three call sites, `threeDayTrip`) and `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts` (`unscheduledHeavy`). `apps/web/e2e/helpers.ts` uses `mappedTrip`, which early-returns before any of this code. `scripts/db-seed.ts` imports the package but does not call `commandsFor`.
-- **Cross-reference:** KI-37 (the symptom, resolved), KI-40 (the projection-side twin's shared-window problem — same package, different half).
-- **First noted:** 2026-08-25 (KI sweep — Mitchell, reviewing why a factory was synthesizing time windows from a loop index at all).
 
 ### KI-42 — `confirmHead` silently drops queued units on a *successful* send when they no longer predict cleanly
 - **Severity:** correctness (silent loss of confirmed-to-the-user work — the **same class as KI-5 and KI-36**, on the one trigger neither of them covers)
@@ -431,48 +403,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   overlaps only — so this list remains the only place that copy exists, which
   is why it was collapsed rather than removed.
 - **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2).
-
-### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere
-
-- **Severity:** cosmetic (every notebook page renders with no typography)
-- **Area:** `apps/web/src/components/pages/editor/PageEditor.tsx:41`
-- **Symptom:** `<EditorContent editor={editor} className="tc-page-editor" />`
-  is the only occurrence of that class name in the repository — there is no
-  matching rule in `globals.css` or anywhere else (`grep -rn tc-page-editor
-  apps/web/src` returns exactly one hit, the usage). With Tailwind's preflight
-  reset in force and nothing restoring it, `heading`, `paragraph` and list
-  nodes all render at the same size and weight. On the seeded "Trip Overview"
-  page, the `<h2>` "Overview" is visually identical to the sentence beneath it.
-- **Why it went unnoticed:** the class *looks* intentional at the call site, and
-  no test asserts rendered type scale. `PageEditor.test.tsx` covers behaviour,
-  not appearance.
-- **Fix path:** define the rule (heading/paragraph/list scale off the same
-  tokens `Heading`/`Text` use, `max-w-measure` for the column), or drop the
-  class and compose from the design-system components. This is the cheapest
-  item on the 2026-08-26 audit and it is the whole visual difference on the
-  Notebook surface today.
-- **Cross-reference:** the broader Notebook gap is C1 in the audit; this is the
-  one piece of it that is a plain bug rather than unbuilt design.
-- **First noted:** 2026-08-26 (design-sync UI audit, A3).
-
-### KI-45 — `Preview size="container"`'s chip covers host content whenever the host's top-right corner is occupied
-
-- **Severity:** cosmetic (hides real numbers, including a currency amount)
-- **Area:** `apps/web/src/components/ui/preview.tsx:94-100`
-- **Symptom:** `size="compact"` reserves a `pr-6` gutter and is fine.
-  `size="container"` deliberately reserves nothing — its own comment
-  (`preview.tsx:79-85`) reasons that the chip "insets to the border ... landing
-  on the dotted border itself rather than on whatever content sits beneath".
-  That holds only while the host's own top-right corner is empty. Observed
-  covering content in five places: Trip settings' budget breakdown (the chip
-  sits on Booked's `$4,088.25`), Who-is-invited (over the "Invite someone"
-  button), the New-trip wizard's destination chips (over "Back to Kyoto"),
-  the Unscheduled rack's provenance line, and the home Playbooks strip at
-  402px (over the "NEW ORLEANS" city chip).
-- **Fix path:** give `container` the same treatment `compact` already has —
-  reserve space rather than trusting the corner to be free. A `pt-6` on the
-  wrapper, or a first-child offset, costs one line and removes the whole class.
-- **First noted:** 2026-08-26 (design-sync UI audit, A5).
 
 ### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion
 
@@ -660,6 +590,110 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-23 — The simulated model's `combined` surface never composes a page — RESOLVED
+- **Severity:** cleanup (product fidelity, not correctness)
+- **Area:** `apps/web/src/server/ai/simulatedModel.ts`, `apps/web/src/server/ai/simulatedModel.test.ts`
+- **Symptom (as filed):** `doGenerate` mapped `surface === "page"` to `pageCalls()` and everything else (`"board"` **and** `"combined"`) to `planCalls()`, so with the `ai-live` flag off a `combined`-surface ask only ever produced board changes, even though `handleAiRequest.ts` exposes both tool sets on that surface (`surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools`).
+- **Reproduced before fixing** with the two new cases in `simulatedModel.test.ts`, against the unmodified model: `expected [ 'AddDay', 'AddDay', …(3) ] to deeply equal [ 'AddDay', 'AddDay', …(4) ]`, the diff missing exactly `- "compose_page"`; and the companion case showing `combined`'s calls were byte-identical to `board`'s with the whole `Sample page` `compose_page` input absent.
+- **Fix (2026-08-26):** the ternary becomes an exhaustive `callsFor(surface)` switch — `page` → `pageCalls()`, `board` → `planCalls()`, `combined` → `[...planCalls(), ...pageCalls()]`, all in the one message the simulated model gets. Exhaustive on the `AiSurface` union on purpose: a fourth surface now fails typecheck here instead of silently inheriting the plan-only default, which is the shape of the original bug.
+- **Proven by:** the same two cases now passing (`Tests 9 passed (9)` in `simulatedModel.test.ts`), and they stay as the regression test — one pinning the exact six-call tool sequence, one pinning that `combined` is the `board` calls followed by the `page` calls verbatim rather than a third hand-maintained script. Check subset: `pnpm --filter web typecheck`, `pnpm --filter web lint`, `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/server/ai/simulatedModel.test.ts src/server/ai/modelSelection.test.ts` (`17 passed`). No integration/e2e run: `route.int.test.ts` injects `simulatedModel("board")`/`("page")` only, and `e2e/m10-simulated-ai.spec.ts` drives the UI, which posts the `apiClient` default surface `"board"` — nothing outside this file exercises the branch that changed.
+- **Found while fixing, deliberately left alone (not part of this entry):** the `combined` branch of `handleAiRequest.ts` never reads the `compose_page` tool *result*. Only the `page` branch does (`result.toolResults.find((r) => r.toolName === "compose_page")`); the `board | combined` path resolves `planning.getCollected()` and returns `{ detail, history, message, … }` with no page content, and `ComposePanel`'s `board`/`combined` props have no `onApply`. So a page composed on the `combined` surface is discarded — for a **live** model exactly as much as for this simulated one, which is why the simulation is now faithful rather than newly wrong. Also noted: no caller in the app currently passes `surface: "combined"` at all (`composeAiPlan` defaults to `"board"`); it is API-reachable only. Worth its own entry if `combined` is ever put in front of a user.
+- **First noted:** 2026-08-22 (commit `6073689`, the feature-flags / AI kill-switch branch's close-out). **Fixed:** 2026-08-26 (KI sweep).
+
+### KI-44 — `.tc-page-editor` is applied to every notebook page and defined nowhere — RESOLVED
+
+- **Severity:** cosmetic (every notebook page renders with no typography)
+- **Area:** `apps/web/src/components/pages/editor/PageEditor.tsx:41`,
+  `apps/web/src/app/globals.css`
+- **Symptom (as filed):** `<EditorContent editor={editor}
+  className="tc-page-editor" />` was the only occurrence of that class name in
+  `apps/web/src` — there was no matching rule in `globals.css` or anywhere
+  else. With Tailwind's preflight reset in force and nothing restoring it,
+  `heading`, `paragraph` and list nodes all rendered at the same size and
+  weight. On the seeded "Trip Overview" page, the `<h2>` "Overview" was
+  visually identical to the sentence beneath it.
+- **Why it went unnoticed:** the class *looks* intentional at the call site, and
+  no test asserted rendered type scale. `PageEditor.test.tsx` covered behaviour,
+  not appearance.
+- **Reproduction (2026-08-26):** compiled the real `globals.css` with the real
+  Tailwind 4.3.2 compiler and asked which declarations reached the editor's
+  nodes. The compiled sheet contained **no `.tc-page-editor` rule at all**, and
+  the only rule matching the editor's `<h2>` was preflight's
+  `h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit }` —
+  nothing matched its `<p>` at all, and `ol, ul, menu { list-style: none }`
+  removed list markers too. Rendering `PageEditor` with the seeded
+  `trip-overview` template confirmed the DOM side: TipTap emits bare elements
+  with no class attribute —
+  `<div class="tc-page-editor"><div class="tiptap ProseMirror"><h2>Overview</h2><p>What's this trip about? …</p>…`
+  — so both nodes inherited body's 14px/400 and were pixel-identical.
+- **Fix (2026-08-26):** defined the rule in `globals.css`'s `@layer components`.
+  `h1`–`h6`, `p`, `ul`/`ol`/`li` are `@apply`ed from the *same* utilities
+  `Heading` (`components/ui/heading.tsx`) and `Text` (`components/ui/text.tsx`)
+  use — `font-display text-2xl/xl/lg/md`, `text-base text-ink` — so the editor
+  and the rest of the app share one type scale and cannot drift; h4–h6 collapse
+  onto `Heading level={4}` rather than inventing a fifth step. The column gets
+  `max-w-measure` (design-system.md's prose tier), left-aligned so it stays
+  flush with the page title, because `PageScreen` mounts the editor in a
+  default 1120px `PageContainer`. Spacing is Tailwind's own 4px grid and
+  nothing else. This is deliberately *only* the missing type — the Notebook
+  redesign is audit finding C1, routed to a later milestone by
+  `docs/plans/M10-delta/phase-9-gate.md`.
+- **Proof:** the same compile now emits eleven `.tc-page-editor` rules;
+  `h2` resolves to `font-size: var(--text-xl)` (24px) `font-weight:
+  var(--font-weight-semibold)` against `p`'s `var(--text-base)` (14px), and
+  `ul` to `list-style-type: disc`. Two regression tests were added to
+  `PageEditor.test.tsx` (`PageEditor typography (KI-44)`): they render the
+  editor, compile the real `globals.css`, and use `Element.matches()` against
+  the real emitted DOM to assert every node type the editor produces is matched
+  by a rule and that the heading's and paragraph's font sizes differ. Confirmed
+  failing on the pre-fix `globals.css` (`expected 0 to be greater than 0`;
+  `expected '' to contain 'list-style-type: disc'`) and passing after —
+  `PageEditor.test.tsx` 4/4, `src/components/pages` 19/19, `tsc --noEmit`
+  clean, `eslint` clean, color wall OK.
+- **What a browser would still have to confirm:** jsdom applies no stylesheets
+  and does no custom-property substitution, so no unit test can assert computed
+  pixels here. The evidence is CSS-level (the rules exist and resolve to
+  distinct tokens) plus DOM-level (the selectors match the nodes TipTap emits).
+  The final visual read of the Notebook surface belongs to a real browser.
+- **Cross-reference:** the broader Notebook gap is C1 in the audit; this was the
+  one piece of it that was a plain bug rather than unbuilt design.
+- **First noted:** 2026-08-26 (design-sync UI audit, A3). **Fixed:** 2026-08-26.
+
+### KI-45 — `Preview size="container"`'s chip covers host content whenever the host's top-right corner is occupied — RESOLVED
+
+- **Severity (as filed):** cosmetic (hides real numbers, including a currency amount)
+- **Area:** `apps/web/src/components/ui/preview.tsx`
+- **Symptom (as filed):** `size="compact"` reserves a `pr-6` gutter and is fine. `size="container"` deliberately reserved nothing — its own comment reasoned that the chip "insets to the border ... landing on the dotted border itself rather than on whatever content sits beneath". That holds only while the host's own top-right corner is empty. Observed covering content in five places: Trip settings' budget breakdown (the chip sits on Booked's `$4,088.25`), Who-is-invited (over the "Invite someone" button), the New-trip wizard's destination chips (over "Back to Kyoto"), the Unscheduled rack's provenance line, and the home Playbooks strip at 402px (over the "NEW ORLEANS" city chip).
+- **Reproduced before fixing, in a real browser with real geometry.** jsdom has no layout, so the repro rendered the real `Preview` with markup copied verbatim from `SettingsSheet.tsx:256-283`/`:308-319` and `NewTripWizard.tsx:249-258`, dumped the HTML, compiled `globals.css` through `@tailwindcss/postcss`, and measured `getBoundingClientRect` in headless Chromium inside a 640px (`max-w-measure`) settings-sheet column. Overlap, chip vs. host content: budget breakdown **58.36 × 12.19px** over Booked's `$4,088.25`; who-is-invited **92.92 × 4.31px** over the "Invite someone" button; wizard destination chips **9.80 × 18.50px** over "Back to Kyoto". `document.elementFromPoint` at each chip's own centre returned the chip, not the content beneath — i.e. the chip paints over it, it is not merely a bounding-box brush. A full-page screenshot showed `$4,088.25` rendered as a bare "…5".
+- **Cause:** the `container` branch of the wrapper's className added only `border border-dotted border-border-strong rounded-lg` — no reserved space in either axis — while the chip is `absolute right-1.5 top-1.5`, i.e. inside the box. Whether it covered anything was purely a question of whether the host happened to put content in its own top-right corner.
+- **Fix (2026-08-26):** `container` now reserves a top strip the same way `compact` reserves a right one — `pt-7` on the wrapper (one class). The number is measured, not guessed: the chip sits at `top-1.5` (6px) and measures 18.5px tall, so it needs 24.5px; `pt-6` (24px) would have left half a pixel of overlap, `pt-7` (28px) clears it with 3.5px to spare. The stale comment that asserted `container` needed no gutter is rewritten in place with the measurements above and the reason the old reasoning only ever held for an empty corner.
+- **Cascade check (the one non-obvious risk):** four container hosts pass their own `p-*` (e.g. `NewTripWizard`'s `p-1.5`, `p-3.5`), and `Preview` concatenates raw class strings rather than using `tailwind-merge`, so the winner is decided by the compiled stylesheet's order — the same fact the `relative`/`fixed` note at the top of this file rests on. Tailwind emits `padding-top` utilities after the `padding` shorthand, so `pt-7` wins the top edge and the caller keeps the other three. Verified, not assumed: `getComputedStyle(wrapper).paddingTop` on the wizard host is **6px before, 28px after**.
+- **Proof:** the same three measurements re-run against the fix report **`overlap: null`** on all three hosts (chip bottom 45.5px, first content top 49px on the budget breakdown — the designed 3.5px clearance), and the screenshot shows `$4,088.25`, `owner`, `Invite someone` and `Back to Kyoto` all fully visible.
+- **Regression test:** `preview.test.tsx` gains "reserves space for the container chip instead of overlapping the host", mirroring the existing `pr-6` test for `compact`. jsdom cannot measure pixels, so it asserts both halves of the pairing the browser pinned down — the wrapper's `pt-7` **and** the chip's `top-1.5` — because changing either alone re-opens the overlap. Confirmed non-vacuous: reverted against the pre-fix `preview.tsx` it fails with `Received: "relative border border-dotted border-border-strong rounded-lg "`.
+- **Check subset** (per `minimal-check-subset`; one component file plus its test): `vitest run -c vitest.unit.config.ts` over the **21 test files that touch `Preview`** — **209 tests, all passing**; `pnpm --filter web typecheck` clean; `eslint` on both touched files clean. Not run, deliberately (three sibling KI agents were running concurrently and the full suite starves `waitFor` budgets — KI-13): full `pnpm check`, `test:int`, e2e. **No real-browser pass over the five named host screens was performed** — the browser evidence above is the real components' markup and the real compiled CSS, rendered standalone, not the running app.
+- **Blast radius, stated plainly:** `Preview` is shared, so every one of the **18 `size="container"` call sites** now has 28px of top padding inside its dotted box and is that much taller. None of them position the wrapper (`fixed`/`absolute`/`sticky`), so nothing is height-constrained by the shift, and no container host renders absolutely-positioned children that would escape the padding. `size="compact"` is untouched.
+- **One thing the entry listed that this does not close:** the Unscheduled rack's provenance line is `<Preview id="rack-provenance" size="compact">` (`UnscheduledRack.tsx:225`), not a `container` host, so whatever was seen there is either a misattribution in the audit or a separate compact-side problem. Left alone rather than folded in.
+- **First noted:** 2026-08-26 (design-sync UI audit, A5). **Resolved:** 2026-08-26 (KI sweep).
+
+### KI-41 — `commandsFor` is a scenario generator with no override surface, so it must invent data it has no business inventing — RESOLVED
+- **Severity (as filed):** cleanup (no user impact — `@tc/factories` is test-fixture-only and never reaches the app bundle; this was the root cause behind KI-37 and two follow-on patches)
+- **Area:** `packages/factories/src/commands.ts` (`commandsFor`, `CommandsForOptions`)
+- **Symptom (as filed):** `commandsFor`'s entire override surface was `{ dayCount?: number }`, and its own comment conceded that was "only meaningful for `mappedTrip`". Everything else was a hardcoded switch on the scenario name: `dayCounts`, `activitiesPerDay`, `located`, `costed`, `unscheduledCount`, a three-element `realLocations` array cycled by index, a cost of `2500 + i * 1100`, and a time window synthesized from the loop index. Its own sibling in the same package, `tripDetailFactory`/`activityFactory` (`trip.ts`), *is* a Fishery factory with full `Partial<T>` overrides; `scenarios.threeDayTrip(overrides)` took `Partial<TripDetail>` while its command-side twin took essentially nothing.
+- **Reproduced before fixing**, with a throwaway `src/ki41-repro.test.ts` (deleted after) whose four claims all held:
+  - **The surface is absent.** A caller asking for its own window — `commandsFor("threeDayTrip", tripId, { timeWindow: { start: "14:00", end: "15:00" } })` — does not compile, and the emitted windows are still the invented `[{"start":"09:00","end":"10:00"},{"start":"10:00","end":"11:00"}]`. `@ts-expect-error` on that call plus `activitiesPerDay`, `unscheduledCount` and `cost` were **all four necessary** — `tsc --noEmit` was clean with them, and flipping one to the real `dayCount` option immediately produced `src/ki41-repro.test.ts(29,5): error TS2578: Unused '@ts-expect-error' directive.`, so the probe was non-vacuous rather than merely green.
+  - **The invented values are what the entry claims.** `costs: [2500,3600,2500,3600,2500,3600]`, `locations: ["Rome","Kyoto","Barcelona","Rome","Kyoto","Barcelona"]`, `titles: ["Stop 1.1","Stop 1.2",…]` — none settable.
+  - **The clamp does silently duplicate.** The shipped arithmetic at `i = 12..16` gives `[21:00-22:00, 22:00-23:00, 22:00-23:00, 22:00-23:00, 22:00-23:00]` — a plausible wrong answer from the 14th activity on, the KI-38 species.
+  - **The projection twin does take overrides** (`scenarios.threeDayTrip({ name: "my own name" }).name === "my own name"`), confirming the asymmetry between the two halves of the same fixture.
+  Baseline before any change: `pnpm --filter @tc/factories test` → **329 passed across 5 files**.
+- **Fix (2026-08-26).** `commandsFor(scenario, tripId, overrides)` now resolves a `ScenarioSpec` — `dayCount`, `activitiesPerDay`, `unscheduledCount`, `startDate`, `budget`, `timeWindows`, `costs`, `locations`, `title`, `unscheduledTitle` — from the named scenario's defaults merged with `Partial<ScenarioSpec>` overrides, exactly the contract its projection twin has always had. Both types are exported from the package index. All three targets named in the entry's fix path are **deleted outright**: `timeWindowFor`, the `Math.min(…, 22:00)` clamp, and the `scenario === "overlappingDay" ? 30 : 60` `staggerMinutes` special case (`grep` for any of them in `commands.ts` now returns nothing). Windows are literal arrays indexed by an activity's position within its day — `HOURLY_WINDOWS` for the ordinary scenarios and `OVERLAPPING_WINDOWS` (`09:00-10:00` / `09:30-10:30`) stated outright for `overlappingDay`, so the overlap is declared rather than manufactured by matching a string. What justifies the helper existing (ADR-020: integration/e2e/seed need an ordered `TripCommand[]` replayed through the real write path) is untouched.
+  - **The clamp's replacement is a throw, and it is reachable.** Mitchell's 2026-08-25 decision left the clamp in place on the premise that this refactor would delete it; it is gone. Because `activitiesPerDay` is now caller-settable, the over-ask it was defending against is finally *creatable*, so it is a loud `RangeError` naming the mismatch instead of a duplicate window: `commandsFor("threeDayTrip", id, { activitiesPerDay: 3 })` throws ``commandsFor("threeDayTrip"): activitiesPerDay is 3 but only 2 timeWindow(s) were supplied.`` That is caller-input validation, not defensive code for an unreachable state.
+  - **`mappedTrip`'s early-return branch is folded into the same path.** It was the last place an override could be silently ignored. Its literal shape — title `Stop on day N`, a fixed `09:00-10:00` window, one distinct lat/lng per day — is now expressed as *defaults* (including a `title` override and a `dayCount`-length `locations` array), and is byte-identical to before, which matters because `e2e/m10-unscheduled-rack.spec.ts` asserts on it literally.
+  - **One incidental correctness improvement:** the derived `endDate` is now computed with `Date.UTC` from the `yyyy-mm-dd` `startDate` instead of local-time `setDate`, so it cannot drift across a DST boundary.
+- **Proof.** The reproduction's compile failures are gone: the same overrides now typecheck and are honored. `pnpm --filter @tc/factories test` → **346 passed across 5 files** (329 before + 17 new), with `conflicts.test.ts`'s zero-overlap assertions and its byte-identical-hourly-window differential — the guards on the clamp's removal — green unchanged. `pnpm --filter @tc/factories typecheck` and `pnpm --filter web typecheck` both clean; `scripts/check-lint-wall.mjs` and `scripts/check-case-collisions.mjs` (the only repo-wide parts of `pnpm lint`) pass.
+- **Regression tests** (17, in `packages/factories/src/commands.test.ts`): a **differential against a verbatim inline copy of the pre-KI-41 implementation** asserting that all seven scenarios' command streams are unchanged (ids tokenized positionally, which also proves `MoveActivity.toDayId` still points at the right day), plus `mappedTrip` at `dayCount` 1/5/12; and coverage of every override — `timeWindows`, `dayCount`/`activitiesPerDay`/`unscheduledCount`, `startDate`→derived `endDate`, `budget`/`costs`/`locations`, `title`/`unscheduledTitle`, explicit-`undefined` not clobbering a default, contract validity under overrides, and the `RangeError`. **Confirmed non-vacuous by mutation**: shifting one default window from `10:00-11:00` to `10:30-11:30` turns **4 of the 25** tests in the file red (the differential for `threeDayTrip`, `overBudgetTrip`, `ungeocodedTrip`, and KI-37's own guard); the file also carries an explicit "is not a tautology" case.
+- **Consumers:** all four measured consumers still compile untouched by behavior. `apps/web/e2e/responsive.spec.ts` (three `threeDayTrip` call sites) and `apps/web/e2e/helpers.ts` (`mappedTrip` with `{ dayCount }`) needed **no change** — the differential is what licenses that. `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts` kept `unscheduledHeavy`; only its comment changed, which was citing the now-resolved KI-37 as a live reason. `apps/web/scripts/db-seed.ts` does not call `commandsFor` and is unchanged. **Not run:** the e2e suite (`pnpm --filter web test:e2e:ci-like`) and the Postgres-backed `route.int.test.ts`, deliberately — three sibling KI agents were running concurrently and a parallel e2e run is exactly the load KI-13/KI-27 document. No e2e spec changed; both must be run in the main session before the sweep branch lands.
+- **First noted:** 2026-08-25 (KI sweep — Mitchell, reviewing why a factory was synthesizing time windows from a loop index at all). **Resolved:** 2026-08-26 (KI sweep).
 
 ### KI-32 — The container image's Playwright browsers are a different build from the pinned @playwright/test — RESOLVED, repaired on session start
 - **Severity:** reliability (local e2e could not run without a manual workaround; CI unaffected)

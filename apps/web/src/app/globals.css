@@ -352,4 +352,75 @@
       transparent 74%
     );
   }
+
+  /* Notebook page prose (KI-44 / design-sync audit A3). `.tc-page-editor`
+     wraps TipTap's contenteditable, and ProseMirror renders its schema as
+     BARE elements — the seeded Trip Overview page emits literally
+     `<h2>Overview</h2><p>What's this trip about? …</p>`, no class attribute
+     on any node (PageEditor.test.tsx asserts that shape). There is nothing
+     to hang a utility class on and no seam to compose `Heading`/`Text` into,
+     so the type scale has to be a real descendant rule. Until this block
+     existed there was none: the class was applied at the call site and
+     defined nowhere, leaving preflight's `h1–h6 { font-size: inherit;
+     font-weight: inherit }`, its blanket margin reset, and its
+     `ol, ul { list-style: none }` as the only declarations reaching a page —
+     so "Overview" rendered identically to the sentence beneath it and lists
+     had no bullets.
+
+     Every value is `@apply`ed from the same utilities `Heading`
+     (components/ui/heading.tsx) and `Text` (components/ui/text.tsx) use, so
+     the editor shares one scale with the rest of the app and can't drift
+     from it. h4–h6 collapse onto `Heading level={4}`; the scale has four
+     steps and inventing a fifth here is exactly the drift this avoids.
+     `max-w-measure` is the prose tier from design-system.md — PageScreen
+     mounts the editor in a default `PageContainer` (1120px "content"), which
+     is a page width, not a reading width. Left-aligned, not centered, so the
+     column stays flush with the page title above it.
+
+     Spacing uses Tailwind's own 4px grid and nothing else. The Notebook
+     redesign is C1 in the audit and routed to a later milestone
+     (docs/plans/M10-delta/phase-9-gate.md) — this block restores missing
+     type, it is not that pass. */
+  .tc-page-editor {
+    @apply max-w-measure;
+  }
+  .tc-page-editor h1 {
+    @apply font-display text-2xl font-semibold text-ink mt-6 mb-2;
+  }
+  .tc-page-editor h2 {
+    @apply font-display text-xl font-semibold text-ink mt-6 mb-2;
+  }
+  .tc-page-editor h3 {
+    @apply font-display text-lg font-semibold text-ink mt-5 mb-2;
+  }
+  .tc-page-editor h4,
+  .tc-page-editor h5,
+  .tc-page-editor h6 {
+    @apply font-display text-md font-medium text-ink mt-4 mb-1;
+  }
+  .tc-page-editor p {
+    @apply text-base text-ink my-3;
+  }
+  .tc-page-editor ul {
+    @apply text-base text-ink my-3 pl-5 list-disc;
+  }
+  .tc-page-editor ol {
+    @apply text-base text-ink my-3 pl-5 list-decimal;
+  }
+  .tc-page-editor li {
+    @apply my-1;
+  }
+  /* A list item's paragraph is a wrapper, not a block of its own prose — its
+     own `my-3` would double the gap the `li` already sets. Same for a nested
+     list, which is inside its parent item's rhythm already. */
+  .tc-page-editor li > p,
+  .tc-page-editor li > ul,
+  .tc-page-editor li > ol {
+    @apply my-0;
+  }
+  /* The first node on a page sits directly under the day-binding controls;
+     its leading margin would read as a gap the author didn't type. */
+  .tc-page-editor .ProseMirror > :first-child {
+    @apply mt-0;
+  }
 }

@@ -47,6 +47,25 @@ describe("Preview", () => {
     );
     expect(screen.getByRole("group").className).toMatch(/\bpr-6\b/);
   });
+  it("reserves space for the container chip instead of overlapping the host", () => {
+    render(
+      <Preview id="budget-breakdown" size="container">
+        <span>$4,088.25</span>
+      </Preview>,
+    );
+    // KI-45: `container` used to reserve nothing, on the theory that a chip
+    // inset to the border lands on the dotted border rather than on content.
+    // Measured in Chromium against the real SettingsSheet markup, it landed
+    // on Booked's $4,088.25 (58.36x12.19px of overlap), the "Invite someone"
+    // button (92.92x4.31px) and the wizard's "Back to Kyoto" chip
+    // (9.80x18.50px). jsdom has no layout, so this asserts the two halves of
+    // the pairing the browser measurement pinned down instead of the pixels:
+    // the chip's own inset (`top-1.5` = 6px) and a gutter big enough to clear
+    // it (`pt-7` = 28px >= 6px + the chip's measured 18.5px height). Changing
+    // either one alone re-opens the overlap, so both are asserted here.
+    expect(screen.getByRole("group").className).toMatch(/\bpt-7\b/);
+    expect(screen.getByText(/Preview · M11/).className).toMatch(/\btop-1\.5\b/);
+  });
   it("does not force position:relative when the caller positions itself", () => {
     render(
       <Preview id="assistant-quick-asks" size="container" className="fixed inset-0">
