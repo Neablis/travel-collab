@@ -38,11 +38,23 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("editor");
   const [copied, setCopied] = useState<string | null>(null);
+  // The link, shown as selectable text, when the clipboard refused it. A
+  // `title` tooltip is not a delivery mechanism — it is unreachable by
+  // keyboard and on touch — so a denied clipboard permission would otherwise
+  // leave the owner with no way to actually send the invite (CodeRabbit,
+  // PR #70).
+  const [revealed, setRevealed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const result = await fetchTripAccess(tripId);
-    if (result.ok) setAccess(result.value);
-    else setError(result.error.message);
+    if (result.ok) {
+      setAccess(result.value);
+      // Cleared on success: a retry that worked must not leave the previous
+      // failure sitting next to fresh, correct data.
+      setError(null);
+    } else {
+      setError(result.error.message);
+    }
   }, [tripId]);
 
   useEffect(() => {
@@ -54,21 +66,28 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
     setBusy(true);
     setError(null);
     const trimmed = email.trim();
-    const result = await createTripInvite(tripId, {
-      email: trimmed === "" ? null : trimmed,
-      role,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
+    // `busy` is released in `finally`, AFTER the copy and the reload — not
+    // the moment the POST returns. Clearing it early left a window in which a
+    // second click minted a second invite while the first refresh was still
+    // in flight (CodeRabbit, PR #70).
+    try {
+      const result = await createTripInvite(tripId, {
+        email: trimmed === "" ? null : trimmed,
+        role,
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setEmail("");
+      // Copying is what actually delivers the invite — nothing sends email —
+      // so the freshly minted link goes straight onto the clipboard rather
+      // than making the owner hunt for it in the list about to re-render.
+      await copy(result.value);
+      await load();
+    } finally {
+      setBusy(false);
     }
-    setEmail("");
-    // Copying is what actually delivers the invite — nothing sends email — so
-    // the freshly minted link goes straight onto the clipboard rather than
-    // making the owner hunt for it in the list that is about to re-render.
-    await copy(result.value);
-    await load();
   }
 
   async function copy(invite: TripInvite) {
@@ -76,19 +95,29 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
     try {
       await navigator.clipboard.writeText(link);
       setCopied(invite.inviteId);
+      setRevealed(null);
     } catch {
-      // A denied clipboard permission is not an error worth a red banner: the
-      // link is still on screen (title attribute) and still works.
+      // A denied clipboard permission is not an error worth a red banner —
+      // but it does need a way out, so the link is shown as selectable text
+      // instead of only living in a tooltip.
       setCopied(null);
+      setRevealed(link);
     }
   }
 
   async function handleRevoke(invite: TripInvite) {
     setBusy(true);
-    const result = await revokeTripInvite(tripId, invite.inviteId);
-    setBusy(false);
-    if (!result.ok) setError(result.error.message);
-    await load();
+    try {
+      const result = await revokeTripInvite(tripId, invite.inviteId);
+      // Reload FIRST, then report this action's own failure. `load()` clears
+      // the error on success, so setting it before the reload would have this
+      // handler wipe its own message — a revoke that failed would look like
+      // one that worked.
+      await load();
+      if (!result.ok) setError(result.error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const canInvite = access?.myRole === "owner";
@@ -184,6 +213,15 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               </Button>
             </div>
           ))}
+        </div>
+      )}
+
+      {revealed !== null && (
+        <div className="flex flex-col gap-1">
+          <Text as="span" className="text-xs text-slate">
+            Couldn&apos;t reach your clipboard — copy this instead:
+          </Text>
+          <Input readOnly aria-label="Invite link" value={revealed} onFocus={(e) => e.target.select()} />
         </div>
       )}
 
