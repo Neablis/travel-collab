@@ -8,7 +8,7 @@ const A1 = "11111111-1111-4111-8111-111111111111";
 const A2 = "22222222-2222-4222-8222-222222222222";
 
 function activity(id: string, title: string): ActivityView {
-  return { activityId: id, title, timeWindow: null, location: null, notes: null, anchors: [], cost: null };
+  return { activityId: id, title, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null };
 }
 
 function overlapConflict(): Conflict {

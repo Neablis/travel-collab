@@ -60,6 +60,8 @@ function fixture() {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
@@ -69,6 +71,8 @@ function fixture() {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: null,
       },
     },

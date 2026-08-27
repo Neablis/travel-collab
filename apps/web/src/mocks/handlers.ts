@@ -74,6 +74,8 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         location: command.location ?? null,
         notes: command.notes ?? null,
         anchors: command.anchors ?? [],
+        kind: command.kind ?? "planned",
+        tags: command.tags ?? [],
         cost: command.cost ?? null,
       };
       if (command.dayId !== undefined) {
@@ -102,6 +104,8 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.location !== undefined) activity.location = command.location;
         if (command.notes !== undefined) activity.notes = command.notes;
         if (command.anchors !== undefined) activity.anchors = command.anchors;
+        if (command.kind !== undefined) activity.kind = command.kind;
+        if (command.tags !== undefined) activity.tags = command.tags;
         if (command.cost !== undefined) activity.cost = command.cost;
       }
       rerollup(next);

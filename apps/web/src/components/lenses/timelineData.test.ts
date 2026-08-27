@@ -12,8 +12,8 @@ const detail: TripDetail = {
   days: [{ dayId: DAY, activityIds: [A1, A2], date: "2026-10-12", costSubtotal: 0 }], backlog: [],
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: {
-    [A1]: { activityId: A1, title: "Museum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], cost: null },
-    [A2]: { activityId: A2, title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+    [A1]: { activityId: A1, title: "Museum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+    [A2]: { activityId: A2, title: "Wander", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
   },
   conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-09T00:00:00.000Z",
   status: "active",

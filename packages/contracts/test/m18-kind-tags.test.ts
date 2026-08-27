@@ -39,7 +39,7 @@ describe("M18 kind & tags contracts", () => {
 
   it("UpdateActivity carries kind and tags; neither is nullable (clear a kind by setting planned, tags by [])", () => {
     const set = TripCommand.parse({
-      type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "planned", tags: [],
+      type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "planned" as const, tags: [],
     });
     if (set.type !== "UpdateActivity") throw new Error("wrong type");
     expect(set.kind).toBe("planned");

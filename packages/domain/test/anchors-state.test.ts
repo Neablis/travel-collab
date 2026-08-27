@@ -11,7 +11,7 @@ function withActivity(anchors: Anchor[]): TripState {
   return {
     tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
     startDate: null, days: [], backlog: [A1],
-    activities: { [A1]: { title: "Market", timeWindow: null, location: null, notes: null, anchors, kind: "planned", tags: [], cost: null } },
+    activities: { [A1]: { title: "Market", timeWindow: null, location: null, notes: null, anchors, kind: "planned" as const, tags: [], cost: null } },
     dismissedConflictIds: [],
     currency: "USD", budget: null,
     status: "active",

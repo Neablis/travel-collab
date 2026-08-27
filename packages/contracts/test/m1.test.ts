@@ -93,6 +93,8 @@ describe("M1 contracts", () => {
           location: { name: "Rome", lat: 41.9, lng: 12.5 },
           notes: null,
           anchors: [],
+          kind: "planned",
+          tags: [],
           cost: null,
         },
       },

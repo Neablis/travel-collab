@@ -44,6 +44,8 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: null,
           anchors: [],
+          kind: "planned" as const,
+          tags: [],
           cost: null,
         }
       : null;

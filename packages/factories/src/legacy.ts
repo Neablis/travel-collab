@@ -62,6 +62,8 @@ export function costedTripDetailFixture(): TripDetail {
         location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: colosseumCost,
       },
       [forumId]: {
@@ -71,6 +73,8 @@ export function costedTripDetailFixture(): TripDetail {
         location: { name: "Roman Forum, Rome, Italy", lat: 41.8925, lng: 12.4853, countryCode: "IT" },
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: forumCost,
       },
       [flightId]: {
@@ -80,6 +84,8 @@ export function costedTripDetailFixture(): TripDetail {
         location: null,
         notes: null,
         anchors: [],
+        kind: "planned" as const,
+        tags: [],
         cost: flightCost,
       },
     },

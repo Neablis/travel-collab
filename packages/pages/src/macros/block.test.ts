@@ -8,7 +8,7 @@ const detail: TripDetail = {
   members: [{ userId: "u1", role: "owner" }],
   days: [{ dayId: "d0", activityIds: ["a1"], date: "2026-08-01", costSubtotal: 5000 }],
   backlog: [], conflicts: [], dismissedConflictIds: [],
-  activities: { a1: { activityId: "a1", title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], cost: { amountMinor: 5000, currency: "USD" } } },
+  activities: { a1: { activityId: "a1", title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: { amountMinor: 5000, currency: "USD" } } },
   createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 5000, budgetRemaining: null,
 };
 

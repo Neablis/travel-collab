@@ -8,7 +8,7 @@ function stateWith(budgetMinor: number | null, costMinor: number): TripState {
   return {
     tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
     startDate: null, days: [{ dayId: "d1", activityIds: [A1] }], backlog: [],
-    activities: { [A1]: { title: "Hotel", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned", tags: [], cost: { amountMinor: costMinor, currency: "USD" } } },
+    activities: { [A1]: { title: "Hotel", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: { amountMinor: costMinor, currency: "USD" } } },
     currency: "USD", budget: budgetMinor === null ? null : { amountMinor: budgetMinor, currency: "USD" },
     dismissedConflictIds: [],
     status: "active",

@@ -47,7 +47,7 @@ describe("M4 money contracts", () => {
       days: [{ dayId: DAY, activityIds: [A1], date: "2026-10-12", costSubtotal: 4200 }],
       backlog: [], unscheduledCostSubtotal: 0, tripCostTotal: 4200, budgetRemaining: null,
       conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-10T00:00:00.000Z",
-      activities: { [A1]: { activityId: A1, title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], cost: { amountMinor: 4200, currency: "USD" } } },
+      activities: { [A1]: { activityId: A1, title: "Museum", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned", tags: [], cost: { amountMinor: 4200, currency: "USD" } } },
     };
     expect(TripDetail.parse(detail).tripCostTotal).toBe(4200);
   });

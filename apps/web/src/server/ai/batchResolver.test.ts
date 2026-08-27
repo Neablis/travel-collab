@@ -40,7 +40,7 @@ function derivedDetail(detail: TripDetail): TripDetail {
 }
 
 function activity(activityId: string, title: string, timeWindow: { start: string; end: string } | null) {
-  return { activityId, title, timeWindow, location: null, notes: null, anchors: [], cost: null };
+  return { activityId, title, timeWindow, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null };
 }
 
 // Two days, each holding a genuine time-overlap pair → exactly two conflicts,
@@ -172,8 +172,8 @@ describe("resolveBatch — errors are per-command, not fatal to the batch", () =
     const detail = tripDetailFixture({
       days: [{ dayId: D1, activityIds: [a, b], date: null, costSubtotal: 0 }],
       activities: {
-        [a]: { activityId: a, title: "Park", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
-        [b]: { activityId: b, title: "Park", timeWindow: null, location: null, notes: null, anchors: [], cost: null },
+        [a]: { activityId: a, title: "Park", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        [b]: { activityId: b, title: "Park", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
       },
     });
 
