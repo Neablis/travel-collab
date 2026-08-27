@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripCommand, TripRole } from "@tc/contracts";
+import type { Money, TripCommand, TripRole } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -53,6 +53,10 @@ function renderSheet(
   overrides: {
     spend?: TripSpend;
     myRole?: TripRole | null;
+    // Defaults to null. The money controls that only exist once a trip HAS a
+    // budget — the clear-X, and a currency select worth changing — cannot be
+    // exercised without this.
+    budget?: Money | null;
     onCommand?: (command: TripCommand) => void;
   } = {},
 ) {
@@ -67,7 +71,7 @@ function renderSheet(
       endDate={null}
       dayCount={0}
       currency="USD"
-      budget={null}
+      budget={overrides.budget ?? null}
       spend={overrides.spend ?? defaultSpend}
       {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
@@ -343,6 +347,47 @@ describe("SettingsSheet role gating", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));
     expect(await screen.findByLabelText("Trip start date")).toBeTruthy();
+  });
+
+  // The two tests above render with no budget, which is the default. That
+  // leaves the money half proven only structurally — `fieldset.disabled` is
+  // asserted, but nothing behavioural is, and the clear-X does not exist to
+  // be asserted about at all: it renders only when `budget !== null`, behind
+  // its own `&& !disabled` guard. So the guard, and the fieldset's actual
+  // hold on the currency select, were both untested (CodeRabbit, PR #70).
+  const withBudget: Money = { amountMinor: 500_000, currency: "USD" };
+
+  it("offers a viewer with a budget no way to clear or change it", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "viewer", budget: withBudget, onCommand });
+
+    // Not merely disabled — not rendered. A disabled clear-X beside a figure
+    // still reads as an offer.
+    expect(screen.queryByRole("button", { name: "Clear budget" })).toBeNull();
+
+    // …and neither of the controls that DO render dispatches. `.catch` on
+    // both because user-event refuses to drive a disabled control, which is
+    // the outcome under test rather than a failure of it.
+    await userEvent
+      .selectOptions(screen.getByLabelText("Currency"), "EUR")
+      .catch(() => undefined);
+    await userEvent.type(screen.getByLabelText("Total for the trip"), "42{Enter}").catch(() => undefined);
+    await userEvent.tab().catch(() => undefined);
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  // The mirror image, so the assertions above are known to be about the role
+  // and not about a control that never worked for anyone.
+  it("lets an editor clear and re-currency that same budget", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "editor", budget: withBudget, onCommand });
+
+    await userEvent.selectOptions(screen.getByLabelText("Currency"), "EUR");
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripCurrency", tripId, currency: "EUR" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear budget" }));
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripBudget", tripId, budget: null });
   });
 
   // Null while the role read is still in flight or failed. The client is not
