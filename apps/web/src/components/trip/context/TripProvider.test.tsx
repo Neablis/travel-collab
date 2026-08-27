@@ -5,6 +5,9 @@ import { tripDetailFixture, historyFixture } from "@tc/factories";
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
 const fetchTripAccessMock = vi.fn();
+// Settable, like the others: one test needs a trip whose own state refuses
+// every command, to prove a predicted rejection is reported rather than eaten.
+const fetchTripDetailMock = vi.fn();
 
 function oneDayTripDetailFixture() {
   return tripDetailFixture({
@@ -16,7 +19,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
-    fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() }),
+    fetchTripDetail: (...args: unknown[]) => fetchTripDetailMock(...args),
     fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture("x") }),
     fetchTripDetailAt: vi.fn(),
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
@@ -38,6 +41,7 @@ beforeEach(() => {
   // Owner by default: every pre-existing test in this file was written
   // against a board its user can fully edit.
   fetchTripAccessMock.mockReset().mockResolvedValue(accessAs("owner"));
+  fetchTripDetailMock.mockReset().mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
 });
 
 function Probe() {
@@ -404,5 +408,62 @@ describe("TripProvider — a viewer's board is read-only", () => {
     fireEvent.click(screen.getByText("dispatch"));
 
     await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+  });
+});
+
+// The bug this pins: `runDispatch` used to assign its rejection message inside
+// a `setOptimistic` updater and read it on the very next line. React runs
+// updaters in the render phase, not synchronously, so that read always saw
+// `null` — every CLIENT-PREDICTED rejection was silent. No request, no
+// message, a button that did nothing.
+//
+// Mitchell hit it walking the #71 preview and could only tell me "I don't
+// think it's even sending the api request". He was right, and the product had
+// no way to say why.
+//
+// A deleted trip is the sharpest fixture for it: `decideCommand` refuses every
+// command on one wholesale, so the rejection is total and deterministic rather
+// than depending on the particular command.
+describe("TripProvider — a client-predicted rejection says so", () => {
+  it("surfaces the reason and sends nothing", async () => {
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: { ...oneDayTripDetailFixture(), status: "deleted" },
+    });
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    fireEvent.click(screen.getByText("dispatch"));
+
+    // The message decide() actually gave, not silence.
+    await waitFor(() =>
+      expect(screen.getByTestId("error").textContent).toBe("This trip has been deleted."),
+    );
+    // …and it never reached the network, which is correct — the point is that
+    // the user is TOLD, not that the request goes out.
+    expect(sendTripCommandMock).not.toHaveBeenCalled();
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet for a command that predicts cleanly", async () => {
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    fireEvent.click(screen.getByText("dispatch"));
+
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalled());
+    expect(screen.getByTestId("error").textContent).toBe("none");
   });
 });

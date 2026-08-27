@@ -83,6 +83,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
+  // Mirrors `optimistic` so `runDispatch` can predict against the CURRENT queue
+  // without taking it as a dependency. Two things depend on that: the callback
+  // keeps a stable identity (a drag captures it once and must not see it swap
+  // mid-gesture), and a second dispatch in the same tick chains off the first
+  // instead of re-reading a render-old value. Both broke the unscheduled-rack
+  // drag when this was written as a plain dependency.
+  const optimisticRef = useRef<OptimisticState | null>(null);
 
   const load = useCallback(async () => {
     const [detailResult, historyResult, accessResult] = await Promise.all([
@@ -201,18 +208,34 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setError("You have view-only access to this trip.");
       return;
     }
-    // `rejectionMessage` is populated (deterministically, from `prev`) inside
-    // the updater below, but setError itself is only ever invoked once, here,
-    // after setOptimistic returns — keeps the updater free of side effects.
-    let rejectionMessage: string | null = null;
-    setOptimistic((prev) => {
-      if (!prev) return prev;
-      const r = enqueue(prev, `c${++seq.current}`, commands);
-      if (r.ok) return r.state;
-      if (r.code !== "no-op") rejectionMessage = r.message; // predicted rejection — no send
-      return prev;
-    });
-    setError(rejectionMessage);
+    // Predicted OUTSIDE the updater, against `optimistic` from this render.
+    //
+    // It used to be computed inside `setOptimistic`, assigning to a `let` that
+    // the line after the call then read. React does not run an updater
+    // synchronously — updaters run in the render phase — so that read always
+    // saw `null` and EVERY predicted rejection was silent: no send, no
+    // message, a click that did nothing. Mitchell hit this walking the #71
+    // preview: a trip whose state rejects every command (a deleted one, say,
+    // which `decideCommand` refuses wholesale) looked simply inert.
+    //
+    // The send effect above already computes its failure in the outer scope
+    // for exactly this reason and says so — "updater functions must stay pure,
+    // since React may invoke them more than once". This is that rule applied
+    // to the path that was still breaking it.
+    const base = optimisticRef.current;
+    if (!base) return;
+    const result = enqueue(base, `c${++seq.current}`, commands);
+    if (!result.ok) {
+      // A no-op changed nothing, which is not worth alarming anyone about —
+      // the same judgement the send effect makes on the server's own no-op.
+      setError(result.code === "no-op" ? null : result.message);
+      return;
+    }
+    // Advanced before `setOptimistic` so anything dispatched later in this same
+    // tick predicts against this result rather than the pre-dispatch queue.
+    optimisticRef.current = result.state;
+    setError(null);
+    setOptimistic(result.state);
   }, [readOnly]);
 
   const dispatch = useCallback(
@@ -260,6 +283,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     setOptimistic((prev) => (prev ? { confirmed: outcome, pending: [] } : prev));
     setError(null);
   }, []);
+
+  // Kept in step with the state on every render, so a change made anywhere
+  // else — the initial load, the sender confirming a head, applyOutcome,
+  // retry — is what the next dispatch predicts against.
+  optimisticRef.current = optimistic;
 
   const confirmedDetail = optimistic ? activeDetail(optimistic) : null;
   const history: TripHistory | null = optimistic ? activeHistory(optimistic) : null;
