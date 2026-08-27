@@ -303,7 +303,7 @@ export default function Home() {
           }}
         />
 
-        {nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton variant="secondary" />} />}
+        {nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />}
 
         <div>
           {trips !== null && visibleTrips.length === 0 ? (

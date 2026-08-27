@@ -13,6 +13,42 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — M11 link 4: pinned share links
+
+- Added: `packages/contracts/src/share.ts`, exported from the package index —
+  `TripShare` (the sharer's view, including the token to re-copy) and
+  `SharedTripView` (what a stranger holding the link is served)
+- Why: M11's second user story is a link pinned to the history point it was
+  created at, so the share has to carry a `seq` and the read has to replay to
+  it. `trip_details` is the trip as it is NOW, so serving that projection
+  would make every link track the live trip (ADR-027)
+- **`SharedTripView` is an explicit field list, not a `TripDetail` derivative.**
+  A public read is the one place a field leaks to people the trip's owner never
+  chose, so a new `TripDetail` field must be opted IN rather than arriving by
+  spread. It drops `members` (actor ids are real people — `travellerCount`
+  replaces them), `conflicts`/`dismissedConflictIds` (planning advice for
+  whoever is editing) and `status` (a deleted trip's link is refused outright).
+  `packages/contracts/test/share.test.ts` asserts all four absences, asserts
+  that supplying them strips them, and pins every remaining field name against
+  `TripDetail.shape` so the two cannot drift into meaning different things
+- **`TripDetail`, `TripSummary`, `TripMember` and `TripRole` are again
+  unchanged**, so the hand-enumeration trap (`equality.ts`, `diff.ts`,
+  `hydrate.ts`, `detail.ts`, `tripGenerator.ts`) had nothing to catch here
+  either
+- Consumers updated: `apps/web` only — `server/access/shares.ts` (new),
+  `server/history.ts` (`getTripDetailAtWithHead`, so the pinned read answers
+  "what did it look like" and "has it moved on" from one stream read),
+  the `shares` routes, the public `api/shares/[token]` and
+  `api/shares/featured` routes, `lib/apiClient.ts`,
+  `components/trip/ShareButton.tsx` (was an inert Preview shell),
+  `components/access/SharedTripScreen.tsx` (new),
+  `app/(front)/s/[token]/page.tsx` (new), `LandingScreen`, `TripHeader`,
+  `app/(app)/page.tsx`, `preview-registry.ts`.
+  `@tc/domain`, `@tc/factories`, `@tc/pages` and `@tc/predict` needed no change
+- Migration: `apps/web/drizzle/0008_glamorous_giant_girl.sql` — creates
+  `trip_shares`. Additive; nothing existing is altered
+- Breaking? no — every schema here is new, and no existing schema changed
+
 ## 2026-08-27 — M11 link 3: the Access & Membership contract
 
 - Added: `packages/contracts/src/access.ts`, exported from the package index —

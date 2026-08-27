@@ -57,6 +57,13 @@
       "when": 1787820960308,
       "tag": "0007_silly_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787823116571,
+      "tag": "0008_glamorous_giant_girl",
+      "breakpoints": true
     }
   ]
 }

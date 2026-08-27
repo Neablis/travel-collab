@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
-import { Preview } from "@/components/ui/preview";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingHeroArt } from "@/components/front/LandingHeroArt";
 import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
@@ -100,15 +99,21 @@ export function LandingScreen() {
                 <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
                   Continue with Google
                 </Link>
-                {/* M11 owns unauthenticated read of a real trip (share links).
-                    Shipping the button as a Preview shell keeps the design's
-                    shape and is honest about it — M15's gate requires exactly
-                    this, and forbids building a bespoke public-read path. */}
-                <Preview id="landing-peek-trip" size="compact">
-                  <Button type="button" variant="secondary">
-                    Look around a real trip
-                  </Button>
-                </Preview>
+                {/* Real as of M11 link 4, and still a plain link: SPEC §14
+                    says this page runs on nothing — no session, no fetch, no
+                    backend — so the CTA does not go looking for a trip to
+                    peek at. `/s/featured` is an ordinary share page reading
+                    an ordinary share, whose token is deployment
+                    configuration (ADR-027); where none is configured it says
+                    so, in its own designed empty state. That keeps a
+                    data-model change unable to break the front door, which
+                    is the rule this shell was parked behind. */}
+                <Link
+                  href="/s/featured"
+                  className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}
+                >
+                  Look around a real trip
+                </Link>
               </div>
 
               <Text as="p" variant="muted">
@@ -141,15 +146,17 @@ export function LandingScreen() {
               <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
                 Start a trip
               </Link>
-              {/* Its own id, not a second `landing-peek-trip`: Preview writes
-                  the id to `data-preview-id` and the e2e spec locates by it,
-                  so a reused id would match two nodes and trip Playwright's
-                  strict mode (preview-registry.ts says the same). */}
-              <Preview id="landing-see-finished" size="compact">
-                <Button type="button" variant="ghost">
-                  See a finished one
-                </Button>
-              </Preview>
+              {/* The closing CTA band asks the same thing the hero does
+                  (`dc.html:1880`, `:2211`), so it now goes to the same place.
+                  The two ids this replaced existed only because `Preview`
+                  writes its id to `data-preview-id` and two shells could not
+                  share one; two links to one href have no such problem. */}
+              <Link
+                href="/s/featured"
+                className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
+              >
+                See a finished one
+              </Link>
             </div>
           </div>
         </div>

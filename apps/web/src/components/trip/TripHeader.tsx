@@ -181,11 +181,12 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
           <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
             <div className="flex flex-wrap items-center gap-2">
               {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
-                  Share is self-wrapped in its own <Preview> internally
-                  (ShareButton.tsx, Task 18), so this header just mounts it like
-                  any other control — no local Preview wrap or onClick needed
-                  here. */}
-              <ShareButton />
+                  Real as of M11 link 4 — ShareButton was an inert
+                  <Preview id="share-button"> and is now a popover that mints,
+                  copies and turns off pinned share links. It needs the tripId
+                  it is sharing; everything else about this call site is
+                  unchanged. */}
+              <ShareButton tripId={tripId} />
               <Button variant="primary" onClick={() => openCreate()}>
                 Add stop
               </Button>

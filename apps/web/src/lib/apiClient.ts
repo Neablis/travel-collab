@@ -1,10 +1,12 @@
 import {
   InvitePreview,
   PageContent,
+  SharedTripView,
   TripAccess,
   TripDetail,
   TripHistory,
   TripInvite,
+  TripShare,
   type BatchableCommand,
   type CreateInviteInput,
   type PageContext,
@@ -296,4 +298,54 @@ export async function acceptInvite(token: string): Promise<ApiResult<{ tripId: s
 /** The link an owner hands out. Absolute, because it is meant to be pasted. */
 export function inviteLink(token: string): string {
   return apiUrl(`/invite/${encodeURIComponent(token)}`);
+}
+
+// ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
+
+export async function fetchTripShares(tripId: string): Promise<ApiResult<TripShare[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares`));
+    return await readJson(res, (data) =>
+      ((data as { shares: unknown[] }).shares ?? []).map((s) => TripShare.parse(s)),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createTripShare(tripId: string): Promise<ApiResult<TripShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares`), { method: "POST" });
+    return await readJson(res, (data) => TripShare.parse((data as { share: unknown }).share));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function revokeTripShare(tripId: string, shareId: string): Promise<ApiResult<TripShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares/${shareId}`), { method: "DELETE" });
+    return await readJson(res, (data) => TripShare.parse((data as { share: unknown }).share));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * The public read. `token` may be the reserved `"featured"`, which the API
+ * routes to the deployment's configured demo share — same response shape, so
+ * `/s/featured` is served by exactly the same page as any other share link.
+ */
+export async function fetchSharedTrip(token: string): Promise<ApiResult<SharedTripView>> {
+  try {
+    const res = await fetch(apiUrl(`/api/shares/${encodeURIComponent(token)}`));
+    return await readJson(res, (data) => SharedTripView.parse((data as { trip: unknown }).trip));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The link a sharer hands out. Absolute, because it is meant to be pasted. */
+export function shareLink(token: string): string {
+  return apiUrl(`/s/${encodeURIComponent(token)}`);
 }

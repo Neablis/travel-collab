@@ -7,3 +7,4 @@ export * from "./history";
 export * from "./money";
 export * from "./pages";
 export * from "./access";
+export * from "./share";

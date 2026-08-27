@@ -225,11 +225,15 @@ describe("TripHeader restyle (Task 9)", () => {
   // day moved out of the header entirely (Task 1.4, M10 Wave 2 — the design
   // moved it into the plan flow; Phase 6 rebuilds it there), so it's no
   // longer part of this component to assert on.
-  it("Share is genuinely inert: pointer-events shielded, never fires", async () => {
+  // M11 link 4 made Share real. What this header is still responsible for is
+  // mounting it for THIS trip and not letting it touch the board — the panel's
+  // own behaviour is ShareButton.test.tsx's territory.
+  it("Share opens its own panel and changes nothing about the trip", async () => {
     const { getEditorState } = await renderHeader();
 
-    await expect(userEvent.click(screen.getByRole("button", { name: "Share" }))).rejects.toThrow();
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
+    expect(await screen.findByTestId("share-panel")).toBeTruthy();
     expect(sendTripCommandMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
     expect(getEditorState()).toEqual({ mode: null });

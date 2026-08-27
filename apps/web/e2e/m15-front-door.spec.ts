@@ -20,10 +20,10 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await expect(page.getByText(/Early access/)).toBeVisible();
   await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
-  // M11 owns the real thing; here it must be present but inert.
-  const peek = page.locator('[data-preview-id="landing-peek-trip"]');
-  await expect(peek).toBeVisible();
-  await expect(peek).toContainText("Look around a real trip");
+  // M11 link 4 built the real thing, so this is a link now, not a Preview
+  // shell. Where it goes, and what it shows when no demo share is configured,
+  // is m11-share.spec.ts's territory — here it only has to be on the page.
+  await expect(page.getByRole("link", { name: "Look around a real trip" })).toBeVisible();
 
   // Our screen, not Auth.js's default page.
   await page.getByRole("link", { name: "Sign in" }).click();

@@ -150,3 +150,23 @@ export const tripInvites = pgTable(
     index("trip_invites_trip").on(t.tripId),
   ],
 );
+
+// Pinned read-only shares (M11 link 4, ADR-027). `seq` is the pin: the read
+// replays the trip's first `seq` events instead of serving the materialized
+// `trip_details` projection, which is what makes a link keep showing the trip
+// as it was when it was created. Immutable once written — re-pinning is a new
+// row, so a link already handed out can never change under the person holding
+// it.
+export const tripShares = pgTable(
+  "trip_shares",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    token: text("token").notNull(),
+    seq: integer("seq").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
+  },
+  (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
+);
