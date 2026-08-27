@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Money, TripCommand, TripDetail } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ export function SettingsSheet({
   budget,
   spend,
   forkedFrom,
+  myRole,
   onCommand,
   onDeleted,
 }: {
@@ -107,6 +108,13 @@ export function SettingsSheet({
   // Where this trip came from, or null if it started from nothing (M11 link
   // 5). Genesis-only and immutable, so it is displayed and never edited.
   forkedFrom: TripDetail["forkedFrom"];
+  // The signed-in user's role on this trip, or null while it is still loading
+  // or the read failed (M11 link 3). ADVISORY: the server refuses every write
+  // a role does not permit regardless. It is here so this sheet does not OFFER
+  // an action it knows will be refused — `handleDelete` and `handleDuplicate`
+  // call the API directly rather than through TripProvider's queue (see A15
+  // below), so TripProvider's read-only gate never sees them and cannot help.
+  myRole: TripRole | null;
   onCommand: (command: TripCommand) => void;
   // The outcome is forwarded alongside the {tripId, name} summary so the
   // caller (TripHeader) can call TripProvider's applyOutcome with it —
@@ -116,6 +124,14 @@ export function SettingsSheet({
   onDeleted: (trip: { tripId: string; name: string }, outcome: CommandOutcome) => void;
 }) {
   const router = useRouter();
+  // `DeleteTrip` is owner-only in accessPolicy.ts's MINIMUM_ROLE table, so an
+  // editor clicking Delete got the same silent nothing a viewer did —
+  // `handleDelete` only acts `if (result.ok)`. Gate on the rank the server
+  // actually enforces rather than merely hiding it from viewers.
+  const canDelete = myRole === "owner";
+  // A viewer holds read access and executes no planning command at all, so the
+  // rename field would dispatch something guaranteed to be refused.
+  const readOnly = myRole === "viewer";
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
@@ -161,6 +177,7 @@ export function SettingsSheet({
           <Input
             id="trip-name-setting"
             defaultValue={tripName}
+            disabled={readOnly}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
               // Escape restores the last committed name and drops focus, so
@@ -329,9 +346,11 @@ export function SettingsSheet({
           <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>
             Duplicate trip
           </Button>
-          <Button variant="destructive" disabled={busy} onClick={() => setConfirmOpen(true)}>
-            Delete trip
-          </Button>
+          {canDelete && (
+            <Button variant="destructive" disabled={busy} onClick={() => setConfirmOpen(true)}>
+              Delete trip
+            </Button>
+          )}
         </div>
       </div>
 

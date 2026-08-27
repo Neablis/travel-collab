@@ -221,3 +221,103 @@ describe("cloning a share link", () => {
     expect(result.ok === false && result.error.code).toBe("share-unavailable");
   });
 });
+
+// Mitchell asked for this explicitly: confirm remapping every id does not
+// break referential integrity on the clone.
+//
+// Worth being precise about what "integrity" means here. There is no SQL
+// foreign key to break — days and activities are not rows, they live inside
+// the `trip_details` jsonb document and inside event payloads. The integrity
+// that exists is INTRA-DOCUMENT: every activityId a day lists, and every id in
+// the backlog, must be a key in `activities`; and no id may be shared with the
+// trip it was copied from (the KI-1 hazard). That is what these pin.
+describe("clone id remapping — referential integrity", () => {
+  async function seedRichTrip(): Promise<{ tripId: string; dayIds: string[]; activityIds: string[] }> {
+    const tripId = randomUUID();
+    const dayIds = [randomUUID(), randomUUID()];
+    const activityIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Rich" }, actor);
+    for (const dayId of dayIds) await executeTripCommand({ type: "AddDay", tripId, dayId }, actor);
+    // Two on day one, one on day two, one left in the backlog — so the clone
+    // has to remap across all three containers, not just the easy one.
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: activityIds[0]!, dayId: dayIds[0], title: "A",
+        timeWindow: { start: "09:00", end: "10:00" }, cost: { amountMinor: 500, currency: "USD" } },
+      actor,
+    );
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: activityIds[1]!, dayId: dayIds[0], title: "B" },
+      actor,
+    );
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: activityIds[2]!, dayId: dayIds[1], title: "C" },
+      actor,
+    );
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: activityIds[3]!, title: "D (parked)" },
+      actor,
+    );
+    return { tripId, dayIds, activityIds };
+  }
+
+  it("every id a clone references resolves inside the clone", async () => {
+    const source = await seedRichTrip();
+    const result = await duplicateTrip(source.tripId, actor);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const keys = new Set(Object.keys(result.detail.activities));
+    const referenced = [
+      ...result.detail.days.flatMap((d) => d.activityIds),
+      ...result.detail.backlog,
+    ];
+    // No dangling reference…
+    for (const id of referenced) expect(keys.has(id), `${id} is referenced but absent`).toBe(true);
+    // …and no orphan the other way: every activity is placed exactly once.
+    expect([...referenced].sort()).toEqual([...keys].sort());
+    expect(referenced.length).toBe(new Set(referenced).size);
+  });
+
+  it("shares no day or activity id with the trip it was copied from", async () => {
+    const source = await seedRichTrip();
+    const result = await duplicateTrip(source.tripId, actor);
+    if (!result.ok) return;
+
+    const sourceIds = new Set([...source.dayIds, ...source.activityIds]);
+    const cloneIds = [
+      ...result.detail.days.map((d) => d.dayId),
+      ...Object.keys(result.detail.activities),
+    ];
+    for (const id of cloneIds) expect(sourceIds.has(id), `${id} leaked from the source`).toBe(false);
+    // The shape is preserved even though every id changed.
+    expect(result.detail.days).toHaveLength(2);
+    expect(result.detail.days[0]!.activityIds).toHaveLength(2);
+    expect(result.detail.days[1]!.activityIds).toHaveLength(1);
+    expect(result.detail.backlog).toHaveLength(1);
+  });
+
+  it("carries each stop's content across unchanged, in order", async () => {
+    const source = await seedRichTrip();
+    const result = await duplicateTrip(source.tripId, actor);
+    if (!result.ok) return;
+
+    const titleAt = (dayIndex: number, slot: number) =>
+      result.detail.activities[result.detail.days[dayIndex]!.activityIds[slot]!]!.title;
+    expect([titleAt(0, 0), titleAt(0, 1), titleAt(1, 0)]).toEqual(["A", "B", "C"]);
+    expect(result.detail.activities[result.detail.backlog[0]!]!.title).toBe("D (parked)");
+    // Content that is NOT an id rides along untouched.
+    const first = result.detail.activities[result.detail.days[0]!.activityIds[0]!]!;
+    expect(first.timeWindow).toEqual({ start: "09:00", end: "10:00" });
+    expect(first.cost).toEqual({ amountMinor: 500, currency: "USD" });
+  });
+
+  // The source is the other half of "does not break integrity".
+  it("leaves the source's own ids exactly as they were", async () => {
+    const source = await seedRichTrip();
+    await duplicateTrip(source.tripId, actor);
+
+    const after = (await getTripDetail(source.tripId))!;
+    expect(after.days.map((d) => d.dayId)).toEqual(source.dayIds);
+    expect(Object.keys(after.activities).sort()).toEqual([...source.activityIds].sort());
+  });
+});

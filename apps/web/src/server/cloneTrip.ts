@@ -82,7 +82,33 @@ async function cloneFrom(
   const commands = diffTripStates(empty, target).map((e) => eventToCommand(e, tripId));
   if (commands.length === 0) return created;
 
-  return executeTripCommandBatch(commands, actorId);
+  // `CreateTrip` above committed in its OWN transaction — the command pipeline
+  // opens one per execution — so by the time the batch runs, the copy already
+  // exists. Without compensation a failed batch strands a bare, named
+  // "<name> (copy)" trip in the cloner's list with none of the plan in it, and
+  // reports an error at the same time (CodeRabbit, PR #70).
+  //
+  // A compensating DeleteTrip rather than one transaction spanning both: the
+  // atomic version means threading an outer transaction through
+  // executeTripCommand/executeTripCommandBatch, which is a change to the
+  // command pipeline itself (AGENTS.md invariant 1's machinery) and much
+  // larger than the defect. This is a soft delete, so the stream survives and
+  // the husk is filtered out of every summary read — visible only to a
+  // rebuild, which is the correct trace of an attempt that happened.
+  //
+  // The throw path matters too: `eventToCommand` is total over what an
+  // empty→target diff can emit, but it throws by construction if that ever
+  // stops being true, and an exception would strand the trip just as a
+  // rejection does.
+  let batched: CommandResult;
+  try {
+    batched = await executeTripCommandBatch(commands, actorId);
+  } catch (error) {
+    await executeTripCommand({ type: "DeleteTrip", tripId }, actorId);
+    throw error;
+  }
+  if (!batched.ok) await executeTripCommand({ type: "DeleteTrip", tripId }, actorId);
+  return batched;
 }
 
 /**
