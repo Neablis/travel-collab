@@ -83,8 +83,11 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
 
-  // Before any invite, the owner is the only traveller.
-  await expect(page.getByText("owner")).toBeVisible();
+  // Before any invite, the owner is the only traveller. Scoped to her own
+  // row — asserting on the bare text "owner" would also match a pending
+  // invite's role badge, so it could pass with no traveller listed at all.
+  await expect(page.getByTestId("traveller-dev-alice")).toContainText("owner");
+  await expect(page.getByTestId(/^traveller-/)).toHaveCount(1);
 
   const link = await inviteLinkFor(page, "Can edit");
 
@@ -119,10 +122,14 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
     await bob.context().close();
   }
 
-  // Back on alice's side: bob is a listed traveller with the role she gave him.
+  // Back on alice's side: bob is a listed traveller with the role she gave
+  // him — identity and role together, in his own row, so a regression in
+  // membership listing fails here rather than being masked by the invite row.
   await page.reload();
   await openTripSettings(page, tripName);
-  await expect(page.getByText("editor")).toBeVisible();
+  await expect(page.getByTestId("traveller-dev-bob")).toContainText("editor");
+  await expect(page.getByTestId("traveller-dev-alice")).toContainText("owner");
+  await expect(page.getByTestId(/^traveller-/)).toHaveCount(2);
 });
 
 test("an invited viewer can read the trip but is told, and shown, that it is read-only", async ({
