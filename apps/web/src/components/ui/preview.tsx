@@ -35,7 +35,7 @@ export function Preview({
       aria-disabled="true"
       data-preview-id={id}
       title={note ?? `Coming in ${milestone}`}
-      className={`${callerSetsPosition ? "" : "relative "}${size === "container" ? "border border-dotted border-border-strong rounded-lg " : "pr-6 "}${className ?? ""}`}
+      className={`${callerSetsPosition ? "" : "relative "}${size === "container" ? "border border-dotted border-border-strong rounded-lg pt-7 " : "pr-6 "}${className ?? ""}`}
     >
       {/* Shield: renders above children, swallows pointer events so no control
           inside a Preview ever fires. children keep their real markup/prop API.
@@ -77,12 +77,31 @@ export function Preview({
           wrapper so a gutter is set aside up front (the host's own content
           never renders into it), and the badge is pinned INSIDE that
           gutter (`right-1 top-1`, sized to fit within it) rather than
-          hanging outside the box. `size="container"` doesn't reserve a
-          padding gutter — its host is a full block, not inline content
-          hugging the box — so instead the chip insets to the border
-          (`right-1.5 top-1.5`, positive/inward) rather than hanging past
-          it, landing on the dotted border itself rather than on whatever
-          content sits beneath.
+          hanging outside the box. `size="container"` reserves the same way,
+          in the other axis: `pt-7` on the wrapper (28px) sets aside a top
+          strip the host's content never renders into, and the chip insets
+          into it (`right-1.5 top-1.5`, positive/inward) rather than hanging
+          past the box.
+
+          This comment used to claim `container` needed no reserved gutter,
+          because insetting to the border meant the chip landed "on the
+          dotted border itself rather than on whatever content sits
+          beneath". That only ever held while the host's own top-right
+          corner happened to be empty (KI-45): measured in Chromium against
+          the real SettingsSheet markup, the M11 chip overlapped Booked's
+          `$4,088.25` by 58.36x12.19px (`elementFromPoint` at the chip's
+          centre returned the chip, not the number) and the M13 chip
+          overlapped the "Invite someone" button by 92.92x4.31px; the
+          wizard's own "Back to Kyoto" chip was covered by 9.80x18.50px.
+          The audit saw the same thing on further hosts. The gutter is
+          sized off the chip,
+          not guessed: `top-1.5` (6px) + the chip's measured 18.5px height =
+          24.5px, so 28px clears it with 3.5px to spare — `pt-6` (24px)
+          would still have left a half-pixel of overlap. `pt-*` is emitted
+          after the `p-*` shorthand in Tailwind's compiled stylesheet, so it
+          wins over a caller's own padding (e.g. NewTripWizard's `p-1.5`)
+          for the top edge only — the same cascade-order fact the `relative`
+          note at the top of this file rests on.
 
           `max-w-full truncate` covers the remaining case: a host narrower
           than the badge's own natural text width (e.g. a bare "Share"
