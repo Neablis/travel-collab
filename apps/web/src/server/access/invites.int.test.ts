@@ -103,6 +103,50 @@ describe("invites — create, accept, revoke", () => {
     });
   });
 
+  // CodeRabbit, PR #70, confirmed against the code: the already-a-member guard
+  // read `detail.members` — the PROJECTION, which carries only the owner — so
+  // an existing member could accept a second outstanding invite and have
+  // `grantMembership`'s upsert rewrite their role. The role they ended up with
+  // was whichever link they chose to click last, which put role selection in
+  // the recipient's hands rather than the owner's.
+  it("refuses a second outstanding invite to someone already on the trip", async () => {
+    const tripId = await seedTrip();
+    const asEditor = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const asViewer = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+
+    expect((await acceptInvite(asEditor.token, GUEST)).ok).toBe(true);
+
+    const second = await acceptInvite(asViewer.token, GUEST);
+    expect(second).toEqual({
+      ok: false,
+      error: { code: "invalid", message: "You are already on this trip." },
+    });
+
+    // …and the role the OWNER granted is the role that stuck.
+    const detail = (await getTripDetail(tripId))!;
+    expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
+      { userId: OWNER, role: "owner" },
+      { userId: GUEST, role: "editor" },
+    ]);
+  });
+
+  // The mirror image: the recipient cannot demote-then-promote themselves
+  // either, whichever order the links are clicked in.
+  it("does not let acceptance order decide the role", async () => {
+    const tripId = await seedTrip();
+    const asViewer = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const asEditor = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+
+    expect((await acceptInvite(asViewer.token, GUEST)).ok).toBe(true);
+    expect((await acceptInvite(asEditor.token, GUEST)).ok).toBe(false);
+
+    // Still a viewer: the first grant stands, and an editor's commands are
+    // still refused.
+    expect(
+      (await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, GUEST)).ok,
+    ).toBe(false);
+  });
+
   it("refuses the owner their own link, rather than silently doing nothing", async () => {
     const tripId = await seedTrip();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
