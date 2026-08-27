@@ -56,7 +56,48 @@ for copy. A unit test asserts `$550` explicitly with this reasoning inline, so n
 
 **$596 appears nowhere except SPEC §14.** Please fix the SPEC.
 
-## 3. Not a divergence, just a heads-up: the feature grid is `lg:`, not `md:`.
+## 3. The hero art drops its map labels below `lg` — the phone treatment is build-side
+
+The design file is desktop-only, so this is invented rather than transcribed, and it
+should be either blessed or replaced when a phone landing design exists.
+
+**The problem is arithmetic, not a positioning slip.** Each map pin group is centred on
+its coordinate (`-translate-x-1/2`). With its label attached the group is ~161px wide,
+so the first pin — anchored at `left: 14%` — only clears the left edge once the art box
+exceeds ~575px. Measured clipping of that pin, at the widths `STATUS.md`'s audit walks
+and below:
+
+| viewport | pin 1 left edge |
+|---|---|
+| 1280px / 1024px | +656 / +520 (clean) |
+| 402px | −4px |
+| 375px | −8px |
+| 360px | −10px |
+| 320px | −15px |
+
+Re-anchoring does not fix it, it relocates it: drop the centring and pin 3 (at 70%) goes
+off the right edge instead. Three labelled pins spread across 14–70% of a ~300px box do
+not fit at any anchoring.
+
+**Chosen (Mitchell, 2026-08-27): labels render from `lg` up only.** Below that the map
+keeps its route line, its three numbered pins, the comment thread and the presence pill —
+a 28px circle fits comfortably (pin 1 at 28.6px, pin 3 at 227px at 320px wide). What a
+phone loses is the place names.
+
+Rejected, and why, so the design side has the tradeoffs rather than just the outcome:
+hiding the art entirely below `lg` was the smallest change but costs the whole rotating
+showcase on every phone; scaling the illustration preserves the composition exactly but
+pushes its 11px labels under 6px, well through the 12px legibility floor
+`design-system.md` sets; accepting the clip was defensible on the letter of
+"below 1024px is best-effort" but leaves a sliced pin on the product's front door.
+
+`responsive.spec.ts` holds both halves: nothing in the art is clipped at 402/375/320, and
+the labels are still present at 1280 — the second matters because a `hidden lg:inline`
+that never turned back on would satisfy the first perfectly by showing nothing anywhere.
+
+**If the phone landing gets a real design, this is the first thing to replace.**
+
+## 4. Not a divergence, just a heads-up: the feature grid is `lg:`, not `md:`.
 
 The design file is a desktop-only mock, so the responsive behaviour is the build's
 invention and not something you specified. Recording the constraint in case a future

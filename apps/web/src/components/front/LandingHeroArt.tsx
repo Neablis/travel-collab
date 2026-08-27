@@ -227,9 +227,25 @@ function MapView(): React.ReactElement {
           >
             {pin.num}
           </span>
+          {/* Labels only from `lg` up. The pin group is centred on its
+              coordinate (`-translate-x-1/2`), so with a ~161px label attached
+              the first pin — anchored at 14% — only clears the left edge once
+              the art box exceeds ~575px. Below that it clips, measured at -4px
+              at 402 and -15px at 320 (CodeRabbit, PR #58). This is arithmetic,
+              not a positioning slip: re-anchoring only moves the clipping to
+              pin 3 at 70% on the right, because three labelled pins spread
+              across 14-70% of a ~300px box do not fit at all. Dropping the
+              labels leaves a 28px circle that does fit (pin 1 at 28.6px, pin 3
+              at 227px at 320px wide), which keeps the map, the route, the
+              comment thread and the presence pill on a phone rather than
+              hiding the showcase outright. Mitchell chose this over hiding the
+              art, scaling it, or accepting the clip (2026-08-27). The place
+              names are what a phone loses; the design file specifies no phone
+              landing treatment, so this is build-side and recorded in
+              docs/design-feedback/2026-08-27-landing-hero-rotation.md. */}
           <span
             className={cn(
-              "rounded-md border bg-surface px-2 py-1 text-xs whitespace-nowrap",
+              "hidden rounded-md border bg-surface px-2 py-1 text-xs whitespace-nowrap lg:inline",
               pin.confirmed
                 ? "border-hairline font-semibold text-ink shadow-float"
                 : "border-dashed border-border-strong text-slate",

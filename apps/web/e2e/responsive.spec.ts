@@ -145,6 +145,71 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     expect(rowX).toEqual([...rowX].sort((a, b) => a - b));
   });
 
+  // Every visible piece of the hero art must sit inside the viewport at phone
+  // widths. This is deliberately NOT covered by the sideways-scroll test below:
+  // the art's fragments are absolutely positioned and centred on their
+  // coordinates, so they clip on the LEFT, and left overflow is clipped rather
+  // than scrolled — `scrollWidth` never notices (CodeRabbit, PR #58).
+  for (const width of [402, 375, 320]) {
+    test(`the hero art stays inside the viewport at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/welcome");
+      await expect(
+        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      ).toBeVisible();
+
+      const offenders = await page.evaluate(() => {
+        const art = document.querySelector("div.h-107\\.5");
+        if (!art) throw new Error("hero art container not found");
+        const bad: { text: string; left: number; right: number }[] = [];
+        for (const el of Array.from(art.querySelectorAll("*"))) {
+          // SVG internals report user-space boxes that extend past the <svg>,
+          // which clips its own content — they cannot affect what is visible.
+          if (el.closest("svg")) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          if (r.left < -0.5 || r.right > window.innerWidth + 0.5) {
+            bad.push({
+              text: (el.textContent ?? "").trim().slice(0, 40),
+              left: Math.round(r.left),
+              right: Math.round(r.right),
+            });
+          }
+        }
+        return bad;
+      });
+
+      expect(offenders, `clipped at ${width}px: ${JSON.stringify(offenders)}`).toEqual([]);
+    });
+  }
+
+  // The other half of the label gating: `hidden lg:inline` that never turned
+  // back on would satisfy the three clipping tests above perfectly, by showing
+  // nothing anywhere. This is what stops the phone fix from quietly costing the
+  // desktop composition its place names.
+  test("the hero art keeps its map labels at desktop width", async ({ page }) => {
+    // Scoped to the art: the Together feature block's timeline names the same
+    // two stops ("Fushimi Inari, early", "Nishiki Market"), so an unscoped
+    // getByText matches twice and trips Playwright's strict mode.
+    const art = page.locator("div.h-107\\.5");
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/welcome");
+    await expect(art.getByText("Fushimi Inari")).toBeVisible();
+    await expect(art.getByText("Nishiki Market")).toBeVisible();
+    await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
+
+    // ...and drops them on a phone, which is the fix itself.
+    await page.setViewportSize({ width: 375, height: 900 });
+    await expect(art.getByText("Fushimi Inari")).toBeHidden();
+    await expect(art.getByText("Nishiki Market")).toBeHidden();
+    await expect(art.getByText("Ryokan · unconfirmed")).toBeHidden();
+
+    // The numbered pins it hangs off stay — the map is still a map.
+    await expect(art.getByText("1", { exact: true })).toBeVisible();
+    await expect(art.getByText("3", { exact: true })).toBeVisible();
+  });
+
   // The front door is the one surface a phone actually reaches signed out, and
   // the hero art is a stack of absolutely-positioned fragments at percentage
   // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
