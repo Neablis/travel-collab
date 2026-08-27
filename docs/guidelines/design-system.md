@@ -28,6 +28,8 @@ weights, or `font-style: italic` display usage.
 
 | Token | Size / line-height | Use |
 |---|---|---|
+| `text-3xs` | 9.5px / 1.3 | **Front door only** — crew initials, ledger column heads |
+| `text-2xs` | 11px / 1.3 | **Front door only** — micro mono labels in marketing illustrations |
 | `text-xs` | 12px / 1.35 | Badges, timestamps, table footnotes |
 | `text-sm` | 13px / 1.4 | Secondary text, hints, dense table cells |
 | `text-base` | 14px / 1.45 | Default UI text, inputs, buttons, table cells |
@@ -35,6 +37,20 @@ weights, or `font-style: italic` display usage.
 | `text-lg` | 19px / 1.3 | `Heading` h3 / card titles |
 | `text-xl` | 24px / 1.2 | `Heading` h2 / panel titles |
 | `text-2xl` | 30px / 1.15 | `Heading` h1 / page title (one per page) |
+| `text-3xl` | clamp(24, 2.3vw, 31) | **Front door only** — landing section headings |
+| `text-4xl` | clamp(38, 4.6vw, 58) | **Front door only** — the landing headline |
+
+**"Front door only" is a real constraint, not a hint.** `text-3xs` / `text-2xs`
+exist because the landing page's illustrations carry glanced-at micro-labels
+(the design gives them at 9.5-11.5px) and because the codebase was already
+reaching those sizes ad hoc — `Preview`'s 10px chip, `AccountMenu`'s 11.5px
+email — each an inline style with its own `eslint-disable`. **12px stays the
+floor for anything a user reads rather than glances at.** `text-3xl` /
+`text-4xl` are fluid because a marketing headline is the whole first screen;
+an app page title sits in a toolbar and stays at `text-2xl`. They are t-shirt
+sizes rather than semantic names (`text-hero`) because `cn`'s tailwind-merge
+classifies an unknown `text-*` as a *colour*, so `Heading`'s own `text-2xl`
+would survive alongside it and the override would silently not apply.
 
 `DataText` pairs one notch down from its surrounding sans size (mono runs
 optically larger).
@@ -48,10 +64,17 @@ optically larger).
   8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels) · `rounded-xl`
   14px (day headers, stat tiles) · `rounded-2xl` 16px (day columns) · `rounded-full`
   999px (pills, avatars).
-- **Shadows:** two levels only. `shadow-raised` (`0 1px 2px rgb(21 29 46 /
+- **Shadows:** two levels in the app. `shadow-raised` (`0 1px 2px rgb(21 29 46 /
   0.06)`) for cards that must lift off a tinted background; `shadow-overlay`
   (`0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08)`) for
   dialogs/popovers. Everything else separates with borders, not depth.
+  Two more exist **for the front door only** — `shadow-float`
+  (`0 4px 12px rgb(21 29 46 / 0.08)`) and `shadow-lifted`
+  (`0 16px 38px rgb(21 29 46 / 0.15)`). The landing hero is a stack of
+  floating fragments whose whole job is to read as depth, and the design
+  gives them nine distinct shadows between 0.07 and 0.25 alpha; these two
+  tiers snap all nine so the page needs no raw shadow literal. The
+  borders-not-depth rule is unchanged everywhere else.
 
 ### Breakpoints & containers
 

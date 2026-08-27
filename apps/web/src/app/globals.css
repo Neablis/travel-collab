@@ -35,6 +35,19 @@
   --color-info-tint: #e1ebf7;
   --color-info-ink: #1f5187;
 
+  /* Two notches below `text-xs` exist for the front door only: the landing
+     page's dense illustrations (crew initials, ledger column heads, playbook
+     day cards) carry micro-labels the app's chrome never needs, and the
+     design gives them at 9.5-11.5px. Before these tokens the codebase reached
+     the same sizes ad hoc — `Preview`'s 10px chip, `AccountMenu`'s 11.5px
+     email, `LandingScreen`'s 9.5px initials — each an inline style with its
+     own eslint-disable. Naming them collapses ~40 such escapes on the new
+     landing page into two utilities. They are NOT for app surfaces: 12px is
+     still the floor for anything a user reads rather than glances at. */
+  --text-3xs: 9.5px;
+  --text-3xs--line-height: 1.3;
+  --text-2xs: 11px;
+  --text-2xs--line-height: 1.3;
   --text-xs: 12px;
   --text-xs--line-height: 1.35;
   --text-sm: 13px;
@@ -50,6 +63,22 @@
   --text-2xl: 30px;
   --text-2xl--line-height: 1.15;
 
+  /* The front door's display register, above the app's page-title size. The
+     app tops out at `text-2xl` because a trip page's title sits in a toolbar;
+     a marketing headline is the whole first screen and the design fluid-sizes
+     it (`dc.html:1877`, `:2012`). Tailwind v4 carries the paired line-height
+     and letter-spacing with the size token, so `Heading` needs no new prop —
+     `cn`'s tailwind-merge resolves `text-4xl` against the level's own
+     `text-2xl`, which is why these are t-shirt sizes and not a bespoke name
+     like `text-hero` (tailwind-merge classifies an unknown `text-*` as a
+     COLOR and would emit both). Landing page only. */
+  --text-3xl: clamp(24px, 2.3vw, 31px);
+  --text-3xl--line-height: 1.12;
+  --text-3xl--letter-spacing: -0.018em;
+  --text-4xl: clamp(38px, 4.6vw, 58px);
+  --text-4xl--line-height: 1.03;
+  --text-4xl--letter-spacing: -0.022em;
+
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -59,6 +88,15 @@
 
   --shadow-raised: 0 1px 2px rgb(21 29 46 / 0.06);
   --shadow-overlay: 0 8px 24px rgb(21 29 46 / 0.12), 0 2px 6px rgb(21 29 46 / 0.08);
+  /* "Everything else separates with borders, not depth" is the app's rule and
+     still is. The landing page is the deliberate exception: its hero art is a
+     stack of floating fragments (map pins, a comment card, a presence pill, a
+     lifted panel) whose whole job is to read as depth, and the design gives
+     them nine distinct shadows between 0.07 and 0.25 alpha. These two tiers
+     snap all nine — small lift, and the big panel/card lift — so the front
+     door never needs a raw shadow literal. Not for app surfaces. */
+  --shadow-float: 0 4px 12px rgb(21 29 46 / 0.08);
+  --shadow-lifted: 0 16px 38px rgb(21 29 46 / 0.15);
 
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
@@ -295,5 +333,23 @@
     .save-light-breathing {
       animation: none;
     }
+  }
+
+  /* Landing hero veil (`dc.html:1871`): a 97deg wash that fades the paper
+     background out across the decorative map so the headline column keeps
+     full contrast while the art dissolves toward the right edge. Five colour
+     stops, two of them `color-mix()` — no utility class can express that, and
+     the colour wall bans the bracket value that could. Same named-class
+     escape hatch `.hero-grid` and `.unscheduled-rack` use. Sits in the
+     components layer because nothing overrides it with a utility. */
+  .landing-hero-veil {
+    background: linear-gradient(
+      97deg,
+      var(--color-paper) 0%,
+      var(--color-paper) 30%,
+      color-mix(in srgb, var(--color-paper) 74%, transparent) 44%,
+      color-mix(in srgb, var(--color-paper) 20%, transparent) 60%,
+      transparent 74%
+    );
   }
 }

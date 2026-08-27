@@ -87,3 +87,174 @@ test.describe("responsive (narrow viewport)", () => {
     expect(columns).toBe(1);
   });
 });
+
+// The landing page is the one surface a signed-out phone actually reaches, and
+// its feature grid is breakpoint-gated — the class of thing KI-19 says the
+// 1280px default viewport will not exercise. Own describe, because the front
+// door needs the signed-out state and the narrow project supplies alice's.
+test.describe("responsive (narrow viewport, signed out)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the landing feature cards stack below 1024px and sit in a row above it", async ({ page }) => {
+    // Measures the CARD ROOTS, not the eyebrow text inside them, and throws
+    // rather than substituting a sentinel when a box is missing. The first
+    // version of this mapped a missing box to -1, which made the 900px
+    // assertion (`new Set(xs).size === 1`) pass on [-1, -1, -1] — green whether
+    // or not the cards rendered at all (CodeRabbit, PR #58). Both axes are
+    // asserted too: three cards drawn on top of each other share an x and would
+    // otherwise satisfy the row check.
+    const cardBoxes = async () => {
+      const boxes = await page.evaluate(() => {
+        return ["Together", "Notebook", "Playbooks"].map((eyebrow) => {
+          const span = Array.from(document.querySelectorAll("span")).find(
+            (el) => el.textContent?.trim() === eyebrow,
+          );
+          // `.min-h-107\\.5` is the card root's own height floor — a real class
+          // it renders with, not a hook added for this test.
+          const card = span?.closest("div.min-h-107\\.5");
+          if (!card) return null;
+          const r = card.getBoundingClientRect();
+          return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
+        });
+      });
+      const found = boxes.filter((b) => b !== null);
+      if (found.length !== 3) {
+        throw new Error(`expected 3 landing feature cards, measured ${found.length}`);
+      }
+      return found as { x: number; y: number; width: number }[];
+    };
+
+    // 900px: one column — same x, strictly increasing y, and each card wider
+    // than a single column of the three-up layout would be.
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.goto("/welcome");
+    const stacked = await cardBoxes();
+    expect(new Set(stacked.map((b) => b.x)).size).toBe(1);
+    const stackedY = stacked.map((b) => b.y);
+    expect(stackedY).toEqual([...stackedY].sort((a, b) => a - b));
+    expect(new Set(stackedY).size).toBe(3);
+
+    // 1280px: three columns — shared y, strictly increasing x. Below the lg
+    // breakpoint the borrowed Day 2 card is ~51px wide and its stop rows cannot
+    // render, which is why this grid is lg: and not md: (CodeRabbit, #58).
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const row = await cardBoxes();
+
+    // The 900px comment above claims each card is "wider than a single column
+    // of the three-up layout would be" — this is the line that makes that true
+    // rather than aspirational. Without it the helper returned `width` and
+    // nothing read it, so a width regression passed (CodeRabbit, PR #58).
+    // Narrowest stacked card vs widest three-up card: ~844 vs ~368.
+    expect(Math.min(...stacked.map((b) => b.width))).toBeGreaterThan(
+      Math.max(...row.map((b) => b.width)),
+    );
+
+    expect(new Set(row.map((b) => b.y)).size).toBe(1);
+    const rowX = row.map((b) => b.x);
+    expect(new Set(rowX).size).toBe(3);
+    expect(rowX).toEqual([...rowX].sort((a, b) => a - b));
+  });
+
+  // Every visible piece of the hero art must sit inside the viewport at phone
+  // widths. This is deliberately NOT covered by the sideways-scroll test below:
+  // the art's fragments are absolutely positioned and centred on their
+  // coordinates, so they clip on the LEFT, and left overflow is clipped rather
+  // than scrolled — `scrollWidth` never notices (CodeRabbit, PR #58).
+  for (const width of [402, 375, 320]) {
+    test(`the hero art stays inside the viewport at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/welcome");
+      await expect(
+        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      ).toBeVisible();
+
+      const offenders = await page.evaluate(() => {
+        const art = document.querySelector("div.h-107\\.5");
+        if (!art) throw new Error("hero art container not found");
+        const bad: { text: string; left: number; right: number }[] = [];
+        for (const el of Array.from(art.querySelectorAll("*"))) {
+          // SVG internals report user-space boxes that extend past the <svg>,
+          // which clips its own content — they cannot affect what is visible.
+          if (el.closest("svg")) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          if (r.left < -0.5 || r.right > window.innerWidth + 0.5) {
+            bad.push({
+              text: (el.textContent ?? "").trim().slice(0, 40),
+              left: Math.round(r.left),
+              right: Math.round(r.right),
+            });
+          }
+        }
+        return bad;
+      });
+
+      expect(offenders, `clipped at ${width}px: ${JSON.stringify(offenders)}`).toEqual([]);
+    });
+  }
+
+  // The other half of the label gating: `hidden lg:inline` that never turned
+  // back on would satisfy the three clipping tests above perfectly, by showing
+  // nothing anywhere. This is what stops the phone fix from quietly costing the
+  // desktop composition its place names.
+  test("the hero art keeps its map labels at desktop width", async ({ page }) => {
+    // Scoped to the art: the Together feature block's timeline names the same
+    // two stops ("Fushimi Inari, early", "Nishiki Market"), so an unscoped
+    // getByText matches twice and trips Playwright's strict mode.
+    const art = page.locator("div.h-107\\.5");
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/welcome");
+    await expect(art.getByText("Fushimi Inari")).toBeVisible();
+    await expect(art.getByText("Nishiki Market")).toBeVisible();
+    await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
+
+    // ...and drops them on a phone, which is the fix itself.
+    await page.setViewportSize({ width: 375, height: 900 });
+    await expect(art.getByText("Fushimi Inari")).toBeHidden();
+    await expect(art.getByText("Nishiki Market")).toBeHidden();
+    await expect(art.getByText("Ryokan · unconfirmed")).toBeHidden();
+
+    // The numbered pins it hangs off stay — the map is still a map.
+    await expect(art.getByText("1", { exact: true })).toBeVisible();
+    await expect(art.getByText("3", { exact: true })).toBeVisible();
+  });
+
+  // The front door is the one surface a phone actually reaches signed out, and
+  // the hero art is a stack of absolutely-positioned fragments at percentage
+  // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
+  // page sideways. 402px is the width docs/STATUS.md's design audit walks.
+  for (const width of [402, 360]) {
+    test(`/welcome does not scroll sideways at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/welcome");
+      // Witnesses before measuring: an empty shell, a redirect to /signin, or a
+      // 500 all have scrollWidth === clientWidth and would sail through the
+      // assertion below (CodeRabbit, PR #58). The h1 proves this is the landing
+      // page rather than somewhere auth sent us; the feature-card h3 proves the
+      // widest content on it actually rendered, which is what can overflow.
+      await expect(
+        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Four people, one schedule" }),
+      ).toBeVisible();
+      const { scrollWidth, clientWidth, widest } = await page.evaluate(() => {
+        const doc = document.documentElement;
+        // Name the worst offender in the failure message — "the page is 40px
+        // too wide" on its own costs an afternoon of bisecting by hand.
+        let widest = "";
+        let worst = 0;
+        for (const el of Array.from(document.body.querySelectorAll("*"))) {
+          const right = el.getBoundingClientRect().right;
+          if (right > worst) {
+            worst = right;
+            widest = `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} → right=${Math.round(right)}`;
+          }
+        }
+        return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, widest };
+      });
+      expect(scrollWidth, `widest element: ${widest}`).toBeLessThanOrEqual(clientWidth);
+    });
+  }
+});

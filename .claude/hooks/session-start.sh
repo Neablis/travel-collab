@@ -129,16 +129,57 @@ start_postgres() {
 link_playwright_shell() {
   browsers="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
   [ -d "$browsers" ] || return 0
+  command -v node >/dev/null 2>&1 || return 0
 
+  # Playwright's EXECUTABLE_PATHS table is ARCHITECTURE-SPECIFIC, and getting
+  # this wrong produces a link Playwright never looks at — which fails silently,
+  # because the headless shell (what the e2e suite actually launches) and headed
+  # chromium have different layouts. From playwright-core@1.61.1's own table:
+  #
+  #   chromium               linux-x64  -> chrome-linux64/chrome
+  #                          linux-arm64-> chrome-linux/chrome
+  #   chromium-headless-shell linux-x64 -> chrome-headless-shell-linux64/chrome-headless-shell
+  #                          linux-arm64-> chrome-linux/headless_shell
+  #
+  # The first version of this function linked headed chromium at the *arm64*
+  # path on an x64 container. The suite still went green — it only ever launches
+  # the headless shell, whose path was right — so the dead link went unnoticed
+  # (CodeRabbit, PR #58). Derive both from `uname -m` instead of hardcoding.
+  #
+  # `source_rels` matters as much as the destinations. `chrome-linux64` is
+  # Chrome-for-Testing's **x64** directory name, so a binary found there on an
+  # arm64 host is the wrong architecture — and `[ -x ]` checks the executable
+  # bit, not the ELF machine type, so it would be linked happily and then fail
+  # to launch with an exec-format error. x64 searches both layouts because the
+  # rename is recent and this image's own chromium-1194 predates it; arm64
+  # searches only `chrome-linux` (CodeRabbit, PR #58).
+  case "$(uname -m)" in
+    x86_64 | amd64)
+      chrome_rel="chrome-linux64/chrome"
+      shell_rel="chrome-headless-shell-linux64/chrome-headless-shell"
+      source_rels="chrome-linux64/chrome chrome-linux/chrome"
+      ;;
+    aarch64 | arm64)
+      chrome_rel="chrome-linux/chrome"
+      shell_rel="chrome-linux/headless_shell"
+      source_rels="chrome-linux/chrome"
+      ;;
+    *) return 0 ;;
+  esac
+
+  # A real chrome binary to point at, searched only in layouts valid for this
+  # architecture (see source_rels above).
   fallback=""
-  for candidate in "$browsers"/chromium-*/chrome-linux/chrome; do
-    if [ -x "$candidate" ]; then fallback="$candidate"; break; fi
+  for rel in $source_rels; do
+    for candidate in "$browsers"/chromium-*/$rel; do
+      if [ -x "$candidate" ]; then fallback="$candidate"; break 2; fi
+    done
   done
   [ -n "$fallback" ] || return 0
 
   for shellroot in "$browsers"/chromium_headless_shell-*; do
     [ -d "$shellroot" ] || continue
-    target="$shellroot/chrome-headless-shell-linux64/chrome-headless-shell"
+    target="$shellroot/$shell_rel"
     # -e follows the link, so an existing GOOD link is skipped and a dangling
     # one is repaired rather than left to fail at test time.
     [ -e "$target" ] && continue
@@ -146,6 +187,82 @@ link_playwright_shell() {
     if ln -sfn "$fallback" "$target" 2>/dev/null; then
       echo "session-start: linked $(basename "$shellroot")'s missing headless shell -> $fallback"
     fi
+  done
+
+  # The loop above only repairs revision dirs that ALREADY EXIST — it matches
+  # on an empty shell dir. That is not enough, and KI-32 was closed believing
+  # it was: its verification deleted the *link* and left the directory, so 1228
+  # looked repaired. On a fresh container the image ships only
+  # chromium_headless_shell-1194 and the 1228 directory does not exist at all,
+  # so the glob never yields it, nothing is linked, and the whole e2e suite
+  # dies at auth.setup.ts on "Executable doesn't exist" — exactly the silent
+  # reintroduction the entry claimed to have prevented (seen 2026-08-27).
+  #
+  # So ask Playwright which revision it actually wants rather than inferring it
+  # from what happens to be on disk, and resolve the manifest through
+  # apps/web's OWN @playwright/test rather than globbing .pnpm and taking the
+  # first hit — two Playwright versions in the store would otherwise make the
+  # choice arbitrary and link revisions the e2e suite does not use (CodeRabbit,
+  # PR #58). browsers.json is not in playwright-core's `exports`, hence
+  # resolving the package main and walking up to the package root.
+  #
+  # The chain is @playwright/test -> playwright -> playwright-core, and each
+  # link is a DECLARED dependency. Resolving playwright-core straight from
+  # @playwright/test only appears to work: that package's own node_modules
+  # holds `@playwright` and `playwright` and NOT `playwright-core`, so the
+  # lookup succeeds by falling through to pnpm's hoist directory
+  # (node_modules/.pnpm/node_modules), which is a configurable implementation
+  # detail — under `hoist=false` or a different node-linker it throws
+  # (CodeRabbit, PR #58). Going through `playwright` never depends on hoisting.
+  #
+  # A failure here is also LOUD now. It used to be swallowed by a bare catch,
+  # which meant a resolution failure printed nothing, left `revs` empty, linked
+  # nothing, and handed the next session KI-32's original "Executable doesn'"'"'t
+  # exist" with no clue why — the third silent recurrence in a row. If this
+  # cannot resolve Playwright, say so.
+  revs=$(node -e '
+    const fs = require("node:fs");
+    const path = require("node:path");
+    try {
+      const testMain = require.resolve("@playwright/test", { paths: [process.argv[1]] });
+      const playwrightMain = require.resolve("playwright", { paths: [path.dirname(testMain)] });
+      const coreMain = require.resolve("playwright-core", { paths: [path.dirname(playwrightMain)] });
+      let dir = path.dirname(coreMain);
+      let manifest = null;
+      for (let i = 0; i < 6 && !manifest; i++) {
+        const candidate = path.join(dir, "browsers.json");
+        if (fs.existsSync(candidate)) manifest = candidate;
+        const up = path.dirname(dir);
+        if (up === dir) break;
+        dir = up;
+      }
+      if (!manifest) process.exit(0);
+      const browsers = JSON.parse(fs.readFileSync(manifest, "utf8")).browsers || [];
+      const revisions = new Set(
+        browsers
+          .filter((b) => b.name === "chromium" || b.name === "chromium-headless-shell")
+          .map((b) => b.revision),
+      );
+      process.stdout.write([...revisions].join(" "));
+    } catch (error) {
+      process.stderr.write("cannot resolve Playwright from apps/web: " + error.code + "\n");
+      process.exit(1);
+    }
+  ' "$PWD/apps/web") || {
+    echo "session-start: could not read Playwright's browser manifest — e2e may fail on a missing executable (KI-32)" >&2
+    return 0
+  }
+
+  for rev in $revs; do
+    for target in \
+      "$browsers/chromium_headless_shell-$rev/$shell_rel" \
+      "$browsers/chromium-$rev/$chrome_rel"; do
+      [ -e "$target" ] && continue
+      mkdir -p "$(dirname "$target")" 2>/dev/null || continue
+      if ln -sfn "$fallback" "$target" 2>/dev/null; then
+        echo "session-start: created and linked Playwright's expected $(basename "$(dirname "$(dirname "$target")")")/$(basename "$(dirname "$target")") -> $fallback"
+      fi
+    done
   done
 }
 
