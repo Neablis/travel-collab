@@ -1,11 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { TripCommand } from "@tc/contracts";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { commandsFor } from "./commands";
 import { scenarios } from "./scenarios";
 
 type ScenarioName = keyof typeof scenarios;
 const scenarioNames = Object.keys(scenarios) as ScenarioName[];
+
+// `commandsFor`'s default startDate is `new Date() + 10 days` (commands.ts),
+// and every differential below generates two streams from two independent
+// clock reads. If the UTC date rolls over between those two calls the streams
+// differ in `SetTripDates.startDate` alone and the comparison fails — a real
+// once-a-day flake, not a hypothetical, and exactly the "fails in a different
+// place between runs" signature AGENTS.md says not to retry through. Pinning
+// the clock removes the window without weakening the differential, which is
+// about the *defaults* and so cannot just pass an explicit startDate:
+// `commandsForPreKi41` is a verbatim copy of the pre-refactor generator and
+// takes no startDate option to pass.
+beforeAll(() => {
+  vi.useFakeTimers({ now: new Date("2026-06-15T12:00:00.000Z") });
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 // Regression guard for KI-37: `commandsFor` built each activity's time window
 // with `0${9 + i}:00`, which only zero-pads correctly for the day's first
