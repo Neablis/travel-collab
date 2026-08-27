@@ -692,9 +692,37 @@ needs action — skip this section when triaging.
   alone, and it recreated and linked both (`Chromium 141.0.7390.37` responds).
   The full `test:e2e:ci-like` suite then ran 23 passed / 1 flaky (the flake is
   KI-28, unrelated).
+- **Third fix (2026-08-27, PR #58 review) — the second fix was itself wrong on
+  one of its two paths.** It hardcoded the destination layout, and Playwright's
+  `EXECUTABLE_PATHS` is architecture-specific. From
+  `playwright-core@1.61.1`'s own table:
+
+  | browser | linux-x64 | linux-arm64 |
+  |---|---|---|
+  | `chromium` | `chrome-linux64/chrome` | `chrome-linux/chrome` |
+  | `chromium-headless-shell` | `chrome-headless-shell-linux64/chrome-headless-shell` | `chrome-linux/headless_shell` |
+
+  The headless-shell link was right for x64, which is the only reason the suite
+  went green — that is what the e2e projects launch. Headed chromium was linked
+  at the **arm64** path on an x64 container, so Playwright would never have
+  found it. A dead link that costs nothing until something launches headed
+  chromium, and nothing in the suite does. **This is the failure mode to
+  remember: a green suite proved one of the two paths, and it was read as
+  proving both.** Now derived from `uname -m`, and confirmed against
+  Playwright's own resolver rather than a reading of the table —
+  `chromium.executablePath()` returns
+  `/opt/pw-browsers/chromium-1228/chrome-linux64/chrome`, which the hook now
+  creates and previously did not.
+- **Also third fix:** the manifest is resolved through `apps/web`'s own
+  `@playwright/test` instead of `find node_modules/.pnpm … | head -1`. Only one
+  `playwright-core` is in the store today, so this was latent, but two would
+  have made the choice arbitrary and could link revisions the e2e suite does not
+  use. `browsers.json` is not in playwright-core's `exports`, so the resolution
+  walks up from the package main to the package root.
 - **Lesson for the next "resolved" claim here:** verify an environment repair
   from the state a *new container* is in, not from the state you reached by
-  partially undoing your own fix.
+  partially undoing your own fix — and when a repair writes more than one path,
+  a green test run only vouches for the paths that run actually exercised.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 6). **Fixed:** 2026-08-26 (PR #55, design-sync audit branch); **gap found and closed** 2026-08-27 (landing-page design pass).
 
 

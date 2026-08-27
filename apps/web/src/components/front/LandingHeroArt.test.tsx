@@ -56,22 +56,50 @@ describe("LandingHeroArt", () => {
     expect(screen.getByText(NOTEBOOK)).toBeDefined();
   });
 
-  // SPEC §14: a click "restarts the timer". The design file's own comment says
-  // the click stops rotation for good; that comment is stale and contradicts
-  // its `d.pick` handler, which calls `heroStart()`.
-  it("restarts the 10s timer on a pill click rather than inheriting what was left", () => {
+  // Picking a day ends the rotation permanently (Mitchell, 2026-08-27) — the
+  // pills are the WCAG 2.2.2 stop mechanism. This deliberately contradicts
+  // SPEC §14's "restarts the timer" and matches the design file's own
+  // `heroStart()` comment instead; SPEC §14 is stale here.
+  //
+  // `getTimerCount()` is asserted alongside the rendered view, not instead of
+  // it: a bare "still on the notebook" check passes vacuously at any multiple
+  // of 3 × 10s, because an un-stopped rotation wraps back to where it started.
+  // The same trap already ate the reduced-motion test below once.
+  it("stops rotating for good once a day is picked", () => {
     vi.useFakeTimers();
     render(<LandingHeroArt />);
 
     act(() => void vi.advanceTimersByTime(9_000));
     fireEvent.click(pill("Day 5"));
+    expect(screen.getByText(NOTEBOOK)).toBeDefined();
+    expect(vi.getTimerCount()).toBe(0);
 
-    // 9s more: past the original deadline, short of the restarted one.
-    act(() => void vi.advanceTimersByTime(9_000));
+    // Past the original deadline, and past a full cycle: neither moves it.
+    act(() => void vi.advanceTimersByTime(1_000));
+    expect(screen.getByText(NOTEBOOK)).toBeDefined();
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(screen.getByText(NOTEBOOK)).toBeDefined();
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByText(NOTEBOOK)).toBeDefined();
+  });
+
+  it("still lets a reader switch views after rotation has stopped", () => {
+    vi.useFakeTimers();
+    render(<LandingHeroArt />);
+
+    fireEvent.click(pill("Day 5"));
     expect(screen.getByText(NOTEBOOK)).toBeDefined();
 
-    act(() => void vi.advanceTimersByTime(1_000));
-    expect(screen.getByText(MAP)).toBeDefined();
+    fireEvent.click(pill("Day 7"));
+    expect(screen.getByText(TIMELINE)).toBeDefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("names the pill group so the stop behaviour is discoverable", () => {
+    render(<LandingHeroArt />);
+    expect(
+      screen.getByRole("group", { name: /stops the preview rotating/i }),
+    ).toBeDefined();
   });
 
   // Not in the design, which rotates unconditionally — so this is the only

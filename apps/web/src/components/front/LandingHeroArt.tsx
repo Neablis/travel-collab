@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -112,28 +112,33 @@ function prefersReducedMotion(): boolean {
 
 export function LandingHeroArt(): React.ReactElement {
   const [view, setView] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Mirrors the design's `heroStart()`: clear, then start. A day-pill click
-  // calls it again so the reader gets a full 10s on the view they chose
-  // (SPEC §14 — the design file's "stops the rotation for good" comment
-  // contradicts its own `d.pick` handler and is stale).
-  const startRotation = useCallback(() => {
-    if (timer.current !== null) clearInterval(timer.current);
-    if (prefersReducedMotion()) return;
-    timer.current = setInterval(() => setView((i) => (i + 1) % VIEW_COUNT), ROTATE_MS);
-  }, []);
+  // Picking a day ends the rotation for the rest of the visit — it does not
+  // restart the timer, and nothing resumes it.
+  //
+  // This is a deliberate divergence from SPEC §14, which says a click
+  // "restarts the timer", and it lands back on what the design file's own
+  // `heroStart()` comment always said: "A click on a day stops the rotation
+  // for good — once you have chosen, it should stay put." The design file's
+  // `d.pick` handler disagrees with that comment; the comment is the one worth
+  // keeping. WCAG 2.2.2 wants a mechanism to stop content that moves on its
+  // own, and a restart-on-click carousel never gives the reader one — the view
+  // they deliberately chose is taken away from them ten seconds later. The day
+  // pills are that mechanism (Mitchell, 2026-08-27; CodeRabbit flagged the same
+  // gap on PR #58). **SPEC §14 is now stale on this point and should be
+  // updated design-side.**
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
-    startRotation();
-    return () => {
-      if (timer.current !== null) clearInterval(timer.current);
-    };
-  }, [startRotation]);
+    if (stopped || prefersReducedMotion()) return;
+    const id = setInterval(() => setView((i) => (i + 1) % VIEW_COUNT), ROTATE_MS);
+    // Re-running on `stopped` tears this down, so the stop needs no ref of its
+    // own — the cleanup that already exists is the whole implementation.
+    return () => clearInterval(id);
+  }, [stopped]);
 
   const pick = (next: number) => {
     setView(next);
-    startRotation();
+    setStopped(true);
   };
 
   return (
@@ -141,7 +146,14 @@ export function LandingHeroArt(): React.ReactElement {
       {/* Above the art, or the decorative layers below swallow the clicks
           meant for these pills (DRIFT §2 names this trap by name). */}
       <div className="absolute top-0 left-0 z-10 flex items-center gap-2">
-        <div className="flex gap-1 rounded-full border border-hairline bg-surface p-1 shadow-float">
+        {/* Named as a group so the stop behaviour is discoverable: tabbing to a
+            bare "Day 5" button gives a reader no way to know it is also what
+            halts the rotation. */}
+        <div
+          role="group"
+          aria-label="Preview day — choosing one stops the preview rotating"
+          className="flex gap-1 rounded-full border border-hairline bg-surface p-1 shadow-float"
+        >
           {HERO_DAYS.map((day) => (
             <Button
               key={day.label}

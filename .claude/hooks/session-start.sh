@@ -129,16 +129,46 @@ start_postgres() {
 link_playwright_shell() {
   browsers="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
   [ -d "$browsers" ] || return 0
+  command -v node >/dev/null 2>&1 || return 0
 
+  # Playwright's EXECUTABLE_PATHS table is ARCHITECTURE-SPECIFIC, and getting
+  # this wrong produces a link Playwright never looks at — which fails silently,
+  # because the headless shell (what the e2e suite actually launches) and headed
+  # chromium have different layouts. From playwright-core@1.61.1's own table:
+  #
+  #   chromium               linux-x64  -> chrome-linux64/chrome
+  #                          linux-arm64-> chrome-linux/chrome
+  #   chromium-headless-shell linux-x64 -> chrome-headless-shell-linux64/chrome-headless-shell
+  #                          linux-arm64-> chrome-linux/headless_shell
+  #
+  # The first version of this function linked headed chromium at the *arm64*
+  # path on an x64 container. The suite still went green — it only ever launches
+  # the headless shell, whose path was right — so the dead link went unnoticed
+  # (CodeRabbit, PR #58). Derive both from `uname -m` instead of hardcoding.
+  case "$(uname -m)" in
+    x86_64 | amd64)
+      chrome_rel="chrome-linux64/chrome"
+      shell_rel="chrome-headless-shell-linux64/chrome-headless-shell"
+      ;;
+    aarch64 | arm64)
+      chrome_rel="chrome-linux/chrome"
+      shell_rel="chrome-linux/headless_shell"
+      ;;
+    *) return 0 ;;
+  esac
+
+  # A real chrome binary to point at. Both layouts are searched because the
+  # image's own build may predate the Chrome-for-Testing rename (it does: the
+  # container ships chromium-1194 at the old chrome-linux path).
   fallback=""
-  for candidate in "$browsers"/chromium-*/chrome-linux/chrome; do
+  for candidate in "$browsers"/chromium-*/chrome-linux64/chrome "$browsers"/chromium-*/chrome-linux/chrome; do
     if [ -x "$candidate" ]; then fallback="$candidate"; break; fi
   done
   [ -n "$fallback" ] || return 0
 
   for shellroot in "$browsers"/chromium_headless_shell-*; do
     [ -d "$shellroot" ] || continue
-    target="$shellroot/chrome-headless-shell-linux64/chrome-headless-shell"
+    target="$shellroot/$shell_rel"
     # -e follows the link, so an existing GOOD link is skipped and a dangling
     # one is repaired rather than left to fail at test time.
     [ -e "$target" ] && continue
@@ -158,30 +188,48 @@ link_playwright_shell() {
   # reintroduction the entry claimed to have prevented (seen 2026-08-27).
   #
   # So ask Playwright which revision it actually wants rather than inferring it
-  # from what happens to be on disk. browsers.json is playwright-core's own
-  # manifest, so this keeps tracking a version bump instead of pinning 1228.
-  pwcore=$(find "$PWD/node_modules/.pnpm" -maxdepth 4 -path '*/playwright-core/browsers.json' 2>/dev/null | head -1)
-  [ -n "$pwcore" ] || return 0
-  command -v node >/dev/null 2>&1 || return 0
-
-  for rev in $(node -e '
+  # from what happens to be on disk, and resolve the manifest through
+  # apps/web's OWN @playwright/test rather than globbing .pnpm and taking the
+  # first hit — two Playwright versions in the store would otherwise make the
+  # choice arbitrary and link revisions the e2e suite does not use (CodeRabbit,
+  # PR #58). browsers.json is not in playwright-core's `exports`, hence
+  # resolving the package main and walking up to the package root.
+  revs=$(node -e '
+    const fs = require("node:fs");
+    const path = require("node:path");
     try {
-      const m = require(process.argv[1]);
-      const revs = new Set(
-        (m.browsers || [])
+      const testMain = require.resolve("@playwright/test", { paths: [process.argv[1]] });
+      const coreMain = require.resolve("playwright-core", { paths: [path.dirname(testMain)] });
+      let dir = path.dirname(coreMain);
+      let manifest = null;
+      for (let i = 0; i < 6 && !manifest; i++) {
+        const candidate = path.join(dir, "browsers.json");
+        if (fs.existsSync(candidate)) manifest = candidate;
+        const up = path.dirname(dir);
+        if (up === dir) break;
+        dir = up;
+      }
+      if (!manifest) process.exit(0);
+      const browsers = JSON.parse(fs.readFileSync(manifest, "utf8")).browsers || [];
+      const revisions = new Set(
+        browsers
           .filter((b) => b.name === "chromium" || b.name === "chromium-headless-shell")
           .map((b) => b.revision),
       );
-      process.stdout.write([...revs].join(" "));
-    } catch { /* no manifest, nothing to reconcile */ }
-  ' "$pwcore" 2>/dev/null); do
+      process.stdout.write([...revisions].join(" "));
+    } catch {
+      /* no resolvable Playwright, nothing to reconcile */
+    }
+  ' "$PWD/apps/web" 2>/dev/null) || return 0
+
+  for rev in $revs; do
     for target in \
-      "$browsers/chromium_headless_shell-$rev/chrome-headless-shell-linux64/chrome-headless-shell" \
-      "$browsers/chromium-$rev/chrome-linux/chrome"; do
+      "$browsers/chromium_headless_shell-$rev/$shell_rel" \
+      "$browsers/chromium-$rev/$chrome_rel"; do
       [ -e "$target" ] && continue
       mkdir -p "$(dirname "$target")" 2>/dev/null || continue
       if ln -sfn "$fallback" "$target" 2>/dev/null; then
-        echo "session-start: created and linked Playwright's expected $(basename "$(dirname "$(dirname "$target")")") -> $fallback"
+        echo "session-start: created and linked Playwright's expected $(basename "$(dirname "$(dirname "$target")")")/$(basename "$(dirname "$target")") -> $fallback"
       fi
     done
   done

@@ -87,3 +87,39 @@ test.describe("responsive (narrow viewport)", () => {
     expect(columns).toBe(1);
   });
 });
+
+// The landing page is the one surface a signed-out phone actually reaches, and
+// its feature grid is breakpoint-gated — the class of thing KI-19 says the
+// 1280px default viewport will not exercise. Own describe, because the front
+// door needs the signed-out state and the narrow project supplies alice's.
+test.describe("responsive (narrow viewport, signed out)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the landing feature cards stack below 1024px and sit in a row above it", async ({ page }) => {
+    const cardX = async () => {
+      const boxes = await Promise.all(
+        ["Together", "Notebook", "Playbooks"].map((eyebrow) =>
+          page.getByText(eyebrow, { exact: true }).boundingBox(),
+        ),
+      );
+      return boxes.map((b) => Math.round(b?.x ?? -1));
+    };
+
+    // 900px: one column. Asserted on the cards' own geometry rather than a
+    // class name, so it fails on the thing a reader would actually see.
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.goto("/welcome");
+    const stacked = await cardX();
+    expect(new Set(stacked).size).toBe(1);
+
+    // 1280px: three columns, each starting further right than the last. Below
+    // the lg breakpoint the borrowed Day 2 card is ~51px wide and its stop rows
+    // cannot render, which is why this grid is lg: and not md: (CodeRabbit, #58).
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const row = await cardX();
+    // Strictly left-to-right, asserted without indexing (the repo builds with
+    // noUncheckedIndexedAccess, so row[0] is number | undefined).
+    expect(new Set(row).size).toBe(3);
+    expect(row).toEqual([...row].sort((a, b) => a - b));
+  });
+});

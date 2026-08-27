@@ -112,7 +112,13 @@ function JungleDay({ day, title, bars }: { day: string; title: string; bars: rea
 
 export function LandingFeatureBlocks(): React.ReactElement {
   return (
-    <div className="grid gap-4.5 md:grid-cols-3">
+    // `lg:`, not `md:`. At the md breakpoint each card is 225px, and after the
+    // two fixed 62px jungle days and their gaps the borrowed Day 2 card is left
+    // 51px wide — about 17px of usable text width once its padding is taken,
+    // so "6:40a Sunrise, Freedom Beach" cannot render at all. lg gives it 137px
+    // (CodeRabbit, PR #58 — its arithmetic checked out exactly). One column
+    // below that, which is the readable answer on a phone anyway.
+    <div className="grid gap-4.5 lg:grid-cols-3">
       {/* Together — `dc.html:2018-2093` */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
         <BlockHead eyebrow="Together" title="Four people, one schedule">

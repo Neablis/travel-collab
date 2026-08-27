@@ -31,10 +31,16 @@ describe("LandingScreen", () => {
     const { container } = render(<LandingScreen />);
     // Two shells with distinct ids, not one id used twice: the e2e spec locates
     // by `data-preview-id` and Playwright's strict mode fails on two matches.
-    const peek = container.querySelector('[data-preview-id="landing-peek-trip"]');
-    const finished = container.querySelector('[data-preview-id="landing-see-finished"]');
-    expect(peek?.textContent).toContain("Look around a real trip");
-    expect(finished?.textContent).toContain("See a finished one");
+    // querySelectorAll + a length assertion, not querySelector: the whole
+    // reason these are two distinct ids is that a duplicate breaks Playwright's
+    // strict mode in the e2e spec, and a first-match lookup would pass happily
+    // against exactly the duplicate this is meant to catch (CodeRabbit, PR #58).
+    const peek = container.querySelectorAll('[data-preview-id="landing-peek-trip"]');
+    const finished = container.querySelectorAll('[data-preview-id="landing-see-finished"]');
+    expect(peek).toHaveLength(1);
+    expect(finished).toHaveLength(1);
+    expect(peek[0]?.textContent).toContain("Look around a real trip");
+    expect(finished[0]?.textContent).toContain("See a finished one");
   });
 
   it("carries the Early access footnote", () => {
