@@ -334,6 +334,42 @@ describe("SettingsSheet role gating", () => {
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 
+  // The sheet's comment claims a viewer executes no planning command from
+  // here. The rename field alone did not enforce that — Dates and the money
+  // controls were still live (CodeRabbit, PR #70). Every mutating control is
+  // covered, and dispatch is severed at the source so a control added later
+  // is covered too.
+  it("offers a viewer no live mutating control at all", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "viewer", onCommand });
+
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(true);
+    // The money controls are disabled by their enclosing <fieldset>, which
+    // disables descendants without stamping the attribute on each one — so
+    // the fieldset is what carries it.
+    expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(true);
+    expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(true);
+
+    // And the behavioural claim, which is the one that actually matters:
+    // nothing reachable from this sheet dispatches for a viewer.
+    await userEvent.click(screen.getByRole("button", { name: "Dates" })).catch(() => undefined);
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("leaves every one of those live for an editor", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "editor", onCommand });
+
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(false);
+    expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+    expect(await screen.findByLabelText("Trip start date")).toBeTruthy();
+  });
+
   // Null while the role read is still in flight or failed. The client is not
   // the security boundary, so an unknown role must not lock the board — but it
   // must not offer a destructive action it cannot vouch for either.

@@ -147,6 +147,44 @@ describe("invites — create, accept, revoke", () => {
     ).toBe(false);
   });
 
+  // The race CodeRabbit found in the first fix: the membership guard cannot be
+  // serialized by moving it inside the transaction, because under READ
+  // COMMITTED two simultaneous accepts of two DIFFERENT tokens both see no
+  // membership. The primary key on (tripId, userId) is the real serialization
+  // point, so `grantMembership` decides — first grant wins, the loser rolls
+  // back including its token claim.
+  it("survives two invites accepted at the same instant", async () => {
+    const tripId = await seedTrip();
+    const asEditor = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const asViewer = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+
+    const [a, b] = await Promise.all([
+      acceptInvite(asEditor.token, GUEST),
+      acceptInvite(asViewer.token, GUEST),
+    ]);
+
+    // Exactly one wins; the other is refused rather than silently overwriting.
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+
+    // Exactly one membership row, carrying the role of whichever accept won —
+    // never a blend, and never the loser's role.
+    const detail = (await getTripDetail(tripId))!;
+    const members = await effectiveMembers(db, tripId, detail.members);
+    const guest = members.filter((m) => m.userId === GUEST);
+    expect(guest).toHaveLength(1);
+    // Narrowed explicitly rather than via a ternary: `a.ok ? a : b` widens
+    // back to the union, and the winner's role is the whole point here.
+    const winner = a.ok ? a : b;
+    if (!winner.ok) throw new Error("expected exactly one accept to succeed");
+    expect(guest[0]!.role).toBe(winner.value.role);
+
+    // …and the loser's token was NOT spent: rolling the transaction back
+    // un-claims it, so the owner has not silently lost an invite to a grant
+    // that never happened.
+    const spent = (await listInvites(tripId)).filter((i) => i.status === "accepted");
+    expect(spent).toHaveLength(1);
+  });
+
   it("refuses the owner their own link, rather than silently doing nothing", async () => {
     const tripId = await seedTrip();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
