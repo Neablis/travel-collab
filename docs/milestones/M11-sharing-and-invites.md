@@ -42,7 +42,14 @@ with no adapter, and `actorId` is a bare `text` column. Inviting someone
 requires durable identity *before* they accept. Proposed: keep JWT sessions, add
 a `users` table populated on sign-in, and make `actorId` its foreign key —
 cheaper than moving Auth.js to database sessions, which would touch every auth
-path M15 shipped. **ADR due.**
+path M15 shipped. **Decided in link 1:
+`docs/architecture/ADR-025-users-table-under-jwt-sessions.md`** (Proposed, open
+to reversal). One narrowing against the proposal above: `actorId` refers to
+`users.id` but has **no database foreign key** — the log carries the non-person
+`'system'` actor and eight milestones of rows that predate the table, and a FK
+would put an Identity write on the planning-command path (the ADR-003 boundary
+smell). The reference is upheld at the sign-in seam and tested end to end
+instead; ADR-025 has the full argument.
 
 **Pinned share reads.** `events` carries `(streamId, seq)` under a unique index
 and M2 already built replay. Proposed: a share token stores the trip's `seq` at
@@ -79,7 +86,7 @@ surface most likely to be redesigned.
 
 ## Exit gate
 
-- [ ] A user is a durable row, and `actorId` refers to it.
+- [x] A user is a durable row, and `actorId` refers to it. *(link 1)*
 - [ ] A trip has non-owner members with a role that `AccessPolicy` enforces.
 - [ ] An invited person can open the trip and modify it.
 - [ ] A share link renders the trip **as of the seq it was created at**, proven
