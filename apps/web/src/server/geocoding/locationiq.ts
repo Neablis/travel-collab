@@ -22,6 +22,19 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
       url.searchParams.set("q", query);
       url.searchParams.set("format", "json");
       url.searchParams.set("addressdetails", "1");
+      // Romanised names, not the local script (Mitchell, walking the #71
+      // preview: searching Tokyo returned 千代田区 for Tokyo Station while his
+      // trip data says "Tokyo"). LocationIQ is Nominatim-derived — the address
+      // breakdown above follows Nominatim's own city/town/village order — and
+      // takes Nominatim's `accept-language`.
+      //
+      // A fixed "en" rather than the request's Accept-Language: what this
+      // decides is how a place is SPELLED IN STORAGE, not how one reader sees
+      // it. `canonicalName` and `city` are persisted on the Location and then
+      // shown to everyone the trip is shared with, so letting the geocoding
+      // browser's locale choose would mean the same stop reads differently
+      // depending on who happened to add it.
+      url.searchParams.set("accept-language", "en");
       url.searchParams.set("limit", String(opts?.limit ?? 5));
       // LocationIQ orders viewbox as west,south,east,north. No `bounded=1`:
       // this biases ranking rather than filtering the result set (KI-15).
