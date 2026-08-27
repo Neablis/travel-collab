@@ -12,8 +12,13 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome$/);
   await expect(
-    page.getByRole("heading", { name: "Plan the trip together, not in twelve group chats." }),
+    page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
   ).toBeVisible();
+
+  // SPEC §14's copy rules: "Early access" is the only footnote, and the old
+  // free/open-source line is gone for good.
+  await expect(page.getByText(/Early access/)).toBeVisible();
+  await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
   // M11 owns the real thing; here it must be present but inert.
   const peek = page.locator('[data-preview-id="landing-peek-trip"]');

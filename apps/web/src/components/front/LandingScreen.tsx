@@ -1,34 +1,45 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Preview } from "@/components/ui/preview";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { LandingHeroArt } from "@/components/front/LandingHeroArt";
+import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
 import { cn } from "@/lib/cn";
 
 // Every string here is transcribed from the design source
-// `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1486-1541` and
-// `:3412-3419`. The hero's second sentence sells fork/remix (M11) and
-// community (M12), neither of which is built: Mitchell approved shipping it
-// as aspiration on 2026-08-26 (docs/milestones/M15-front-door.md, open
-// question 2). Do not trim it back without a new decision recorded there.
-const STOPS = [
-  { time: "9:40 am", title: "Fushimi Inari, early", meta: "Priya · before the crowds", badge: null },
-  { time: "1:15 pm", title: "Lunch at Nishiki Market", meta: "Everyone · 45 min walk after", badge: { label: "Idea", variant: "neutral" } },
-  { time: "4:00 pm", title: "Ryokan check-in, Higashiyama", meta: "Everyone · $340", badge: { label: "Booked", variant: "success" } },
+// `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1840-2214`.
+//
+// SPEC §14's copy rules are load-bearing, not stylistic: no "free", no "open
+// source", no "no credit card" — Caesura is a product for groups, not a tool —
+// and the only footnote is "Early access". The previous build shipped all
+// three of those words plus a "twelve group chats" hero; they were removed
+// deliberately on this pass. `LandingScreen.test.tsx` guards the rule so they
+// cannot creep back. Reopen it in SPEC §14 first, not here.
+//
+// The page runs on nothing (SPEC §14): no session, no fetch, no backend, every
+// value a fixture in this file. A data-model change must never be able to break
+// the front door.
+
+// `dc.html:1861-1866` — the hero's decorative contour grid. Kept as data
+// because six near-identical <path> elements read as noise inline.
+const HERO_GRID_LINES = [
+  "M-6 30 L 166 24",
+  "M-6 58 L 166 54",
+  "M-6 84 L 166 79",
+  "M64 -6 L 70 106",
+  "M124 -6 L 130 106",
+  "M148 -6 L 152 106",
 ] as const;
 
-const PROOF_CHIPS = ["Four people, one plan", "Costs as you go", "Remix anyone's itinerary"] as const;
-
-const CREW = ["PS", "SK", "MJ", "AL"] as const;
-
-// Handoff `…dc.html:1541`: the itinerary row's 74px time column has no
-// equivalent on the 4px spacing grid (74 / 4 = 18.5) — same
-// computed-geometry escape hatch as AccountMenu's AVATAR_SIZE.
-const STOP_GRID = { gridTemplateColumns: "74px 1fr" };
+// `dc.html:1867-1869` — translucent plots scattered over the grid.
+const HERO_PLOTS = [
+  { x: 70, y: 24, width: 18, height: 14, opacity: 0.5 },
+  { x: 132, y: 54, width: 16, height: 25, opacity: 0.4 },
+  { x: 106, y: 79, width: 22, height: 18, opacity: 0.45 },
+] as const;
 
 export function LandingScreen() {
   return (
@@ -46,102 +57,99 @@ export function LandingScreen() {
         }
       />
 
-      <main className="grid flex-1 place-items-center px-7 pt-6 pb-18">
-        <div className="grid w-full max-w-285 items-center gap-15 lg:grid-cols-2">
-          <div className="flex flex-col gap-5.5">
-            <DataText size="xs" className="tracking-widest uppercase">The open-source itinerary</DataText>
+      <main className="flex flex-1 flex-col items-center">
+        <section className="relative w-full overflow-hidden border-b border-hairline bg-moss">
+          {/* Decorative only, and `pointer-events-none` on every layer is what
+              keeps the day pills inside LandingHeroArt clickable (DRIFT §2). */}
+          <svg
+            viewBox="0 0 160 100"
+            preserveAspectRatio="xMidYMid slice"
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full"
+          >
+            <path
+              d="M96 -6 C 92 22, 104 40, 99 62 S 108 88, 104 106"
+              strokeWidth="4.4"
+              className="fill-none stroke-info-tint"
+            />
+            {HERO_GRID_LINES.map((d) => (
+              <path key={d} d={d} strokeWidth="0.55" className="fill-none stroke-hairline" />
+            ))}
+            {HERO_PLOTS.map((plot) => (
+              <rect key={`${plot.x}-${plot.y}`} {...plot} className="fill-surface" />
+            ))}
+          </svg>
+          <div className="landing-hero-veil pointer-events-none absolute inset-0" />
 
-            <Heading level={1} className="text-pretty">
-              Plan the trip together, not in twelve group chats.
-            </Heading>
+          <div className="relative mx-auto grid w-full max-w-285 items-center gap-12 px-7 pt-13.5 pb-17 lg:grid-cols-2">
+            <div className="flex flex-col gap-5.5">
+              <DataText size="xs" className="text-2xs tracking-widest uppercase">
+                Trips, planned together
+              </DataText>
 
-            <Text as="p" variant="secondary" className="max-w-98 text-pretty">
-              Everyone on the trip can edit the same plan — days, times, costs, who&apos;s in. Save the
-              highlights when you get back, share them with the world, and let other travelers remix the
-              best parts into their own adventures.
-            </Text>
+              <Heading level={1} className="text-4xl text-pretty">
+                The trip everyone actually helped plan.
+              </Heading>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
-              <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                Continue with Google
-              </Link>
-              {/* M11 owns unauthenticated read of a real trip (share links).
-                  Shipping the button as a Preview shell keeps the design's
-                  shape and is honest about it — M15's gate requires exactly
-                  this, and forbids building a bespoke public-read path. */}
-              <Preview id="landing-peek-trip" size="compact">
-                <Button type="button" variant="secondary">
-                  Look around a real trip
-                </Button>
-              </Preview>
+              <Text as="p" variant="secondary" className="max-w-115 text-md text-pretty">
+                One shared plan your whole group can move around — days, times, costs, who&rsquo;s in. The
+                good days get saved, and they drop straight into the next trip.
+              </Text>
+
+              <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                  Continue with Google
+                </Link>
+                {/* M11 owns unauthenticated read of a real trip (share links).
+                    Shipping the button as a Preview shell keeps the design's
+                    shape and is honest about it — M15's gate requires exactly
+                    this, and forbids building a bespoke public-read path. */}
+                <Preview id="landing-peek-trip" size="compact">
+                  <Button type="button" variant="secondary">
+                    Look around a real trip
+                  </Button>
+                </Preview>
+              </div>
+
+              <Text as="p" variant="muted">
+                Early access — invite the group by link, nothing to install.
+              </Text>
             </div>
 
-            <Text as="p" variant="secondary" className="text-xs">
-              Free and open source · No credit card · Your itineraries export as plain files
-            </Text>
+            <LandingHeroArt />
           </div>
+        </section>
 
-          <div className="flex flex-col gap-3">
-            <Card raised className="overflow-hidden p-0">
-              <div className="flex items-center gap-2.5 border-b border-hairline bg-moss px-4 py-3">
-                <DataText
-                  size="xs"
-                  className="uppercase"
-                  // eslint-disable-next-line no-restricted-syntax -- 0.08em tracking sits between Tailwind's tracking-wider (0.05em) and tracking-widest (0.1em), same convention as UnscheduledRack.tsx's 0.04em label
-                  style={{ letterSpacing: "0.08em" }}
-                >
-                  Day 6 · Kyoto
-                </DataText>
-                <div className="ml-auto flex">
-                  {CREW.map((initials) => (
-                    <span
-                      key={initials}
-                      className="-ml-1.5 grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed"
-                      // eslint-disable-next-line no-restricted-syntax -- 9.5px crew-initials text (handoff `…dc.html:1531`) is below Tailwind's text-xs (12px) floor, same convention as AccountMenu's 11.5px email text
-                      style={{ fontSize: "9.5px" }}
-                    >
-                      {initials}
-                    </span>
-                  ))}
-                </div>
-              </div>
+        <div className="mx-auto flex w-full max-w-285 flex-col gap-7.5 px-7 pt-13.5 pb-2.5">
+          <Heading level={2} className="max-w-155 text-3xl text-pretty">
+            Planning is the trip, three times over.
+          </Heading>
+          <LandingFeatureBlocks />
+        </div>
 
-              <div className="px-4 pt-1.5 pb-3.5">
-                {STOPS.map((stop) => (
-                  <div
-                    key={stop.title}
-                    className="grid gap-3.5 border-b border-hairline py-2.5"
-                    // eslint-disable-next-line no-restricted-syntax -- see STOP_GRID above
-                    style={STOP_GRID}
-                  >
-                    <DataText size="xs" className="pt-0.5">{stop.time}</DataText>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Text as="span" className="font-semibold">{stop.title}</Text>
-                        {stop.badge ? <Badge variant={stop.badge.variant}>{stop.badge.label}</Badge> : null}
-                      </div>
-                      <Text as="span" variant="muted">{stop.meta}</Text>
-                    </div>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2 pt-3">
-                  <span aria-hidden className="size-1.5 rounded-full bg-brand" />
-                  <Text variant="secondary" className="text-xs">
-                    Priya is moving the ryokan check-in right now
-                  </Text>
-                </div>
-              </div>
-            </Card>
-
-            <div className="flex flex-wrap gap-2">
-              {PROOF_CHIPS.map((label) => (
-                <span
-                  key={label}
-                  className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-slate"
-                >
-                  {label}
-                </span>
-              ))}
+        <div className="mx-auto w-full max-w-285 px-7 pt-14 pb-19.5">
+          <div className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-hairline bg-moss p-7.5">
+            <div className="flex flex-col gap-1.5">
+              <Text as="span" className="font-display text-xl font-semibold tracking-tight">
+                Start the plan, then send the link.
+              </Text>
+              <Text as="span" variant="secondary" className="text-base text-pretty">
+                A trip takes about a minute to set up. Everything after that is easier with company.
+              </Text>
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                Start a trip
+              </Link>
+              {/* Its own id, not a second `landing-peek-trip`: Preview writes
+                  the id to `data-preview-id` and the e2e spec locates by it,
+                  so a reused id would match two nodes and trip Playwright's
+                  strict mode (preview-registry.ts says the same). */}
+              <Preview id="landing-see-finished" size="compact">
+                <Button type="button" variant="ghost">
+                  See a finished one
+                </Button>
+              </Preview>
             </div>
           </div>
         </div>

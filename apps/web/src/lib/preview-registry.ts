@@ -34,6 +34,12 @@ export const PREVIEW_REGISTRY = {
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
   "landing-peek-trip": { milestone: "M11", wiredUpBy: "M11 share links — unauthenticated read of a real trip" },
+  // The landing page asks twice — once in the hero, once in the closing CTA
+  // band (`dc.html:1880`, `:2211`) — and both call the design's same
+  // `peekTrip`. They are two shells, not one, because `Preview` writes its id
+  // to `data-preview-id` and the e2e spec locates by it: reusing one id would
+  // match two nodes and trip Playwright's strict mode.
+  "landing-see-finished": { milestone: "M11", wiredUpBy: "M11 share links — the same unauthenticated read, asked again in the closing CTA" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;
