@@ -127,7 +127,7 @@ describe("CalendarLens", () => {
     expect(cell.textContent).toContain("3 stops");
     // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest
     // end, through lib/time's toClockRange like every other time surface.
-    expect(cell.textContent).toContain("9 am–5:30 pm");
+    expect(cell.textContent).toContain("9 am – 5:30 pm");
   });
 
   // SPEC §12 replaced the per-stop chips with a per-city summary: "Calendar no
@@ -204,7 +204,7 @@ describe("CalendarLens", () => {
     });
     renderLens(detail);
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    expect(cell.textContent).toContain("9 am–5 pm");
+    expect(cell.textContent).toContain("9 am – 5 pm");
     expect(cell.textContent).not.toContain("11 am");
   });
 

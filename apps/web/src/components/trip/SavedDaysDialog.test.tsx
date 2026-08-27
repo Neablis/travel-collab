@@ -70,7 +70,7 @@ describe("SavedDaysDialog", () => {
   it("lists each saved day with what is in it and where it came from", async () => {
     renderDialog();
     expect(await screen.findByText("A day in Nakameguro")).toBeTruthy();
-    expect(screen.getByText("2 stops · 9 am–9 pm")).toBeTruthy();
+    expect(screen.getByText("2 stops · 9 am – 9 pm")).toBeTruthy();
     expect(screen.getByText("From Kyoto")).toBeTruthy();
   });
 

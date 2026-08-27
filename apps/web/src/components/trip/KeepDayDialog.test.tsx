@@ -65,7 +65,7 @@ describe("KeepDayDialog", () => {
   // question. It is a read-only summary of the real day now.
   it("describes what is actually included, and is not a field", () => {
     renderDialog();
-    expect(screen.getByText("2 stops, 9 am–2:30 pm. Order and gaps kept, no dates.")).toBeTruthy();
+    expect(screen.getByText("2 stops, 9 am – 2:30 pm. Order and gaps kept, no dates.")).toBeTruthy();
     expect(screen.queryByPlaceholderText(/Stops, order, gaps/)).toBeNull();
   });
 

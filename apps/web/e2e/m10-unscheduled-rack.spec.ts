@@ -81,7 +81,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   const undo = page.getByRole("button", { name: /undo/i });
   await undo.click();
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
-  await expect(page.getByTestId("rack-card").first()).toContainText("9 am–10 am");
+  await expect(page.getByTestId("rack-card").first()).toContainText("9 am – 10 am");
 
   await undo.click();
   // Assert the stop actually landed back on its original day, not just that
@@ -123,5 +123,5 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   // check — including the 09:00-10:00 one that would mean it had overlapped.
   const landed = page.getByTestId("day-column").first().getByText("Stop on day 2", { exact: false });
   await expect(landed).toBeVisible();
-  await expect(page.getByTestId("day-column").first()).toContainText("10:30 am–11:30 am");
+  await expect(page.getByTestId("day-column").first()).toContainText("10:30 am – 11:30 am");
 });
