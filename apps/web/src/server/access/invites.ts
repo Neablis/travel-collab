@@ -10,7 +10,7 @@ import type {
 import { db } from "../db/client";
 import { tripInvites, users } from "../db/schema";
 import { getTripDetail } from "../projections";
-import { grantMembership, grantedMembers, revokeMembership } from "./members";
+import { effectiveMembers, grantMembership, grantedMembers, revokeMembership } from "./members";
 
 export type AccessError = { code: "not-found" | "forbidden" | "invalid" | "gone"; message: string };
 export type AccessResult<T> = { ok: true; value: T } | { ok: false; error: AccessError };
@@ -171,7 +171,23 @@ export async function acceptInvite(
   if (detail === null || detail.status === "deleted") {
     return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
   }
-  if (detail.members.some((m) => m.userId === userId)) {
+  // Re-visiting a link you already spent is a success, not an error — checked
+  // BEFORE the membership guard below, which would otherwise turn a
+  // double-click into "You are already on this trip."
+  if (existing.status === "accepted" && existing.acceptedBy === userId) {
+    return { ok: true, value: { tripId: existing.tripId, role: existing.role as InviteRole } };
+  }
+  // The EFFECTIVE member list, not `detail.members` (the projection, which
+  // carries only the owner). Reading the projection here let an existing
+  // member accept a second outstanding invite and have `grantMembership`'s
+  // upsert rewrite their role — so the role they ended up with was whichever
+  // link they chose to click last. That put role selection in the recipient's
+  // hands: an owner who sent `editor` by mistake and then sent `viewer` to
+  // correct it did not correct anything, because the first link still worked.
+  //
+  // Changing someone's role is the owner's operation: revoke and re-invite.
+  const members = await effectiveMembers(db, existing.tripId, detail.members);
+  if (members.some((m) => m.userId === userId)) {
     return {
       ok: false,
       error: { code: "invalid", message: "You are already on this trip." },

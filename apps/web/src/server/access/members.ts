@@ -86,8 +86,11 @@ export async function grantMembership(
       invitedBy: input.invitedBy,
       createdAt: input.now,
     })
-    // Accepting a second invite to a trip you are already on updates the role
-    // rather than failing: the owner who sent it clearly meant the newer one.
+    // A safety net, not a role-change mechanism. `acceptInvite` refuses
+    // outright for anyone already on the trip, precisely so that the role a
+    // member ends up with is the one the OWNER granted rather than whichever
+    // outstanding link the recipient chose to click last. Kept as an upsert so
+    // a retried grant is idempotent rather than a primary-key error.
     .onConflictDoUpdate({
       target: [tripMemberships.tripId, tripMemberships.userId],
       set: { role: input.role, invitedBy: input.invitedBy },

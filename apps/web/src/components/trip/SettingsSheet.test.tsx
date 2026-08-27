@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripCommand } from "@tc/contracts";
+import type { TripCommand, TripRole } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -50,7 +50,11 @@ const defaultSpend: TripSpend = {
 // capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
   onDeleted = vi.fn(),
-  overrides: { spend?: TripSpend; onCommand?: (command: TripCommand) => void } = {},
+  overrides: {
+    spend?: TripSpend;
+    myRole?: TripRole | null;
+    onCommand?: (command: TripCommand) => void;
+  } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
   render(
@@ -65,6 +69,7 @@ function renderSheet(
       currency="USD"
       budget={null}
       spend={overrides.spend ?? defaultSpend}
+      {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
       onDeleted={onDeleted}
     />,
@@ -263,5 +268,53 @@ describe("SettingsSheet delete/duplicate (A15)", () => {
 
     await waitFor(() => expect(duplicateTripMock).toHaveBeenCalledWith(tripId));
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+  });
+});
+
+
+// M11 link 3, found by CodeRabbit on PR #70 and confirmed against the code:
+// `handleDelete`/`handleDuplicate` call the API directly rather than through
+// TripProvider's optimistic queue (the A15 decision), so TripProvider's
+// read-only gate never sees them. A viewer could open this sheet, click
+// Delete, confirm, and get silence — the server refused it and `handleDelete`
+// only acts `if (result.ok)`.
+describe("SettingsSheet role gating", () => {
+  it("offers Delete to an owner", () => {
+    renderSheet();
+    expect(screen.getByRole("button", { name: "Delete trip" })).toBeTruthy();
+  });
+
+  // Gated on `owner`, the rank accessPolicy.ts actually enforces for
+  // DeleteTrip — an editor clicking it got the same silent nothing.
+  it("does not offer Delete to an editor or a viewer", () => {
+    for (const myRole of ["editor", "viewer"] as const) {
+      cleanup();
+      renderSheet(vi.fn(), { myRole });
+      expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
+    }
+  });
+
+  // A viewer may still clone: a copy takes nothing from the source and grants
+  // nothing on it (ADR-028).
+  it("still offers Duplicate to a viewer", () => {
+    renderSheet(vi.fn(), { myRole: "viewer" });
+    expect(screen.getByRole("button", { name: "Duplicate trip" })).toBeTruthy();
+  });
+
+  it("disables the rename field for a viewer, and leaves it live for an editor", () => {
+    renderSheet(vi.fn(), { myRole: "viewer" });
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
+    cleanup();
+    renderSheet(vi.fn(), { myRole: "editor" });
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
+  });
+
+  // Null while the role read is still in flight or failed. The client is not
+  // the security boundary, so an unknown role must not lock the board — but it
+  // must not offer a destructive action it cannot vouch for either.
+  it("withholds Delete while the role is unknown", () => {
+    renderSheet(vi.fn(), { myRole: null });
+    expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 });

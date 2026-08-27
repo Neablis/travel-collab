@@ -21,6 +21,15 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: tripDetailFixture({ tripId: "x", name: "Japan" }) }),
     fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture("x") }),
     fetchTripDetailAt: vi.fn(),
+    // M11 link 3: SettingsSheet withholds Delete unless the caller is the
+    // OWNER, so the delete/undo tests below need a role read that says so.
+    // Without this the spread above supplies the real `fetchTripAccess`, whose
+    // fetch has no handler here — it resolves `ok:false`, `myRole` stays null,
+    // and Delete is (correctly) not rendered at all.
+    fetchTripAccess: vi.fn().mockResolvedValue({
+      ok: true,
+      value: { tripId: "x", myRole: "owner", members: [], invites: [] },
+    }),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
