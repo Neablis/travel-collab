@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { witness } from "./support/witness";
 import { hydrate, tripDetailFromState, tripStatesEqual, type TripState, type ActivityState } from "../src";
 
 // RISK GATE: validates the plan's central assumption that TripDetail is a
@@ -113,13 +114,32 @@ const arbTripState: fc.Arbitrary<TripState> = fc
       }),
   );
 
+// Floors MEASURED, not guessed, per support/witness.ts: five runs observed
+// kinds 204/213/180/224/229 and tags 173/205/167/209/202, so the floors sit
+// near half of each observed minimum (180 and 167). Vacuity collapses these to
+// ~0, so half is plenty of signal with room for fast-check's variance.
+const FLOOR_KIND = 90;
+const FLOOR_TAGS = 80;
+
 describe("hydrate", () => {
   it("is the inverse of tripDetailFromState (round-trip)", () => {
+    // Two witnesses on the M18 fields specifically. The round-trip assertion
+    // alone would still pass if `activity` only ever generated `planned` /
+    // `[]` — the fields would be carried, but never actually varied, and the
+    // property would say nothing about them. See support/witness.ts.
+    const kinds = witness("hydrate round-trip: non-planned kind");
+    const tags = witness("hydrate round-trip: non-empty tags");
     fc.assert(
       fc.property(arbTripState, (state) => {
+        for (const a of Object.values(state.activities)) {
+          if (a.kind !== "planned") kinds.tick();
+          if (a.tags.length > 0) tags.tick();
+        }
         const roundTripped = hydrate(tripDetailFromState(state, "2027-01-01T00:00:00.000Z"));
         expect(tripStatesEqual(roundTripped, state)).toBe(true);
       }),
     );
+    kinds.atLeast(FLOOR_KIND);
+    tags.atLeast(FLOOR_TAGS);
   });
 });
