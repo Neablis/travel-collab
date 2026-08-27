@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
 import type { TripShare } from "@tc/contracts";
 import { Button, type buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import {
@@ -40,11 +41,20 @@ export function ShareButton({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  // Same reasoning as TravelersPanel's: a `title` tooltip is not a delivery
+  // mechanism, and copying IS how a share link is sent (CodeRabbit, PR #70).
+  const [revealed, setRevealed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const result = await fetchTripShares(tripId);
-    if (result.ok) setShares(result.value);
-    else setError(result.error.message);
+    if (result.ok) {
+      setShares(result.value);
+      // A retry that worked must not leave the previous failure on screen
+      // beside fresh, correct data.
+      setError(null);
+    } else {
+      setError(result.error.message);
+    }
   }, [tripId]);
 
   // Only once the popover is opened: the home grid mounts this next to a trip
@@ -55,35 +65,50 @@ export function ShareButton({
   }, [open, load]);
 
   async function copy(share: TripShare) {
+    const link = shareLink(share.token);
     try {
-      await navigator.clipboard.writeText(shareLink(share.token));
+      await navigator.clipboard.writeText(link);
       setCopied(share.shareId);
+      setRevealed(null);
     } catch {
-      // A denied clipboard permission is not worth an error: the link is on
-      // the button's `title` and still works.
+      // Not worth a red banner, but it does need a way out — so the link is
+      // shown as selectable text rather than only living in a tooltip.
       setCopied(null);
+      setRevealed(link);
     }
   }
 
   async function handleCreate() {
     setBusy(true);
     setError(null);
-    const result = await createTripShare(tripId);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
+    // Released in `finally`, AFTER the copy and the reload. Clearing it when
+    // the POST returned left a window in which a second click minted a second
+    // link while the first refresh was still in flight.
+    try {
+      const result = await createTripShare(tripId);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      await copy(result.value);
+      await load();
+    } finally {
+      setBusy(false);
     }
-    await copy(result.value);
-    await load();
   }
 
   async function handleRevoke(share: TripShare) {
     setBusy(true);
-    const result = await revokeTripShare(tripId, share.shareId);
-    setBusy(false);
-    if (!result.ok) setError(result.error.message);
-    await load();
+    try {
+      const result = await revokeTripShare(tripId, share.shareId);
+      // Reload FIRST, then report this action's own failure — `load()` clears
+      // the error on success, so setting it beforehand would have this handler
+      // wipe its own message and a failed revoke would look like a success.
+      await load();
+      if (!result.ok) setError(result.error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const live = (shares ?? []).filter((s) => s.revokedAt === null);
@@ -150,6 +175,15 @@ export function ShareButton({
           <Text as="span" className="text-xs text-slate">
             No share links yet.
           </Text>
+        )}
+
+        {revealed !== null && (
+          <div className="flex flex-col gap-1">
+            <Text as="span" className="text-xs text-slate">
+              Couldn&apos;t reach your clipboard — copy this instead:
+            </Text>
+            <Input readOnly aria-label="Share link" value={revealed} onFocus={(e) => e.target.select()} />
+          </div>
         )}
 
         {error !== null && (
