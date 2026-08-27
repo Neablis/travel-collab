@@ -58,22 +58,45 @@ export default [
     // and `src/middleware.ts` can build their own instance from it (the
     // split-config pattern) without middleware reaching into server
     // internals. That makes it importable by genuine UI too — closed here.
-    // Only `src/server/auth.ts` and `src/middleware.ts` may import it; both
-    // are naturally outside this block's `files` glob (server/** is a
-    // separate tree, middleware.ts isn't under components/ or app/), so no
-    // extra ignore is needed for them.
+    // Only `src/server/auth.ts` and `src/middleware.ts` may import it.
     //
-    // This block's `files` glob overlaps the wall above's, and ESLint flat
-    // config fully replaces a rule's config with the last matching block's
-    // value rather than merging arrays — so this repeats
+    // `files` is `src/**/*.{ts,tsx}` — the whole tree, mirroring the wall
+    // above — because a narrower glob (previously just `components/**` and
+    // `app/**`) left `src/lib`, `src/mocks` and `src/test-support`
+    // uncovered: a module there could import `@/lib/authConfig` and a
+    // component could import that module, reaching the client bundle
+    // transitively with the rule never firing. `ignores` explicitly exempts
+    // the two allowed importers (`src/server/**` covers `auth.ts`;
+    // `src/middleware.ts` by name) plus `src/lib/authConfig.ts` itself.
+    //
+    // This block's `files` glob now fully overlaps the wall above's, and
+    // ESLint flat config fully replaces a rule's config with the last
+    // matching block's value rather than merging arrays — so this repeats
     // `domainAndServerWallPatterns` (from the shared constant, to avoid the
     // two copies drifting) alongside the new pattern, rather than appending
     // to the previous block's rule. Its `ignores` mirrors the wall above's
-    // exempt shell for the same reason: without repeating
-    // `src/app/.well-known/**/route.ts` here too, this block would silently
-    // re-impose the domain/server-internal restriction on that exempt file.
-    files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/**", "src/app/.well-known/**/route.ts"],
+    // exempt shell (`src/server/**`, `src/app/api/**`,
+    // `src/app/.well-known/**/route.ts`) for the same reason: dropping any
+    // of those here would silently re-impose the domain/server-internal
+    // restriction on files the wall above deliberately exempts. Because
+    // every file this block newly reaches (`lib/`, `mocks/`,
+    // `test-support/`) was already covered by the wall above with the
+    // identical `domainAndServerWallPatterns`, and `src/middleware.ts` /
+    // `src/lib/authConfig.ts` are excluded from *this* block only (so the
+    // wall above, which does not ignore them, still applies
+    // `domainAndServerWallPatterns` to both — middleware is held to the same
+    // standard as any other UI file per ADR-024, and authConfig.ts gets the
+    // same baseline check) — this widening changes only which files get the
+    // new `@/lib/authConfig` restriction, not which files
+    // `domainAndServerWallPatterns` applies to.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/server/**",
+      "src/middleware.ts",
+      "src/lib/authConfig.ts",
+      "src/app/api/**",
+      "src/app/.well-known/**/route.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
