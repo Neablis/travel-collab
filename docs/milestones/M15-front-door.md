@@ -92,6 +92,16 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
    already satisfied: `NewTripWizard.tsx:431` renders a "Create empty" button
    on every step, gated only by `trimmedName !== ""` (`:215`).
    `app/(app)/page.test.tsx` now covers it.
+
+   **Amended 2026-08-26 (post-gate).** Signing into a brand-new account on
+   production showed what this decision left behind: the empty state said "a
+   name is enough to start" and then offered nothing to start with, because
+   the only create affordance was the page-head "New trip" button — identical
+   in label and position to what a user with twelve trips sees. Home's
+   `EmptyState` now passes a "Name your trip" action that opens *this same
+   wizard*. Decision 3 stands unchanged: it settled where the only create path
+   lives, not whether the first-run screen may point at it. There is still no
+   second create path and still no separate first-run screen.
 4. **A signed-in user with no trips sees Home's empty state**, not a separate
    screen. "Brand new account" is inferred from zero trips; there is no user
    table to record it in. Someone who deletes every trip sees it again, which
