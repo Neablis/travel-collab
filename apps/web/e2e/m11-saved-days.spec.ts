@@ -80,6 +80,16 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
   // where a day count is easiest to assert (m10-growth does the same).
   await page.getByRole("tab", { name: "Day columns" }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(2);
+  // The day count alone passes if the insert creates an EMPTY day, which is
+  // most of what could go wrong here (CodeRabbit, PR #71). The saved stop is
+  // the payload, so assert it landed in the day that just arrived.
+  //
+  // "Stop on day 1" is `mappedTrip`'s title for the FIRST day (the one that
+  // was kept), and it is showing up here in the target trip's SECOND column —
+  // which is what makes this evidence of travel rather than of the target's
+  // own day 1 being re-counted.
+  const inserted = page.getByTestId("day-column").nth(1);
+  await expect(inserted.getByText("Stop on day 1")).toBeVisible();
 
   // One batch = one history entry = one undo. Undoing takes the whole
   // inserted day away, not one stop of it.

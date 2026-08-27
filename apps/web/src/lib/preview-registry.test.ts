@@ -99,9 +99,16 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
+// Split from `previewIdsIn` so the id-extraction half can be driven with
+// synthetic source. The regression test below used to assert only
+// `reachableFrom`, which made it a statement about graph reachability rather
+// than about Preview ids at all (CodeRabbit, PR #71).
+function previewIdsInSource(src: string): string[] {
+  return [...stripComments(src).matchAll(/<Preview[^>]*\bid=["']([\w-]+)["']/g)].map((m) => m[1]!);
+}
+
 function previewIdsIn(file: string): string[] {
-  const src = stripComments(readFileSync(file, "utf8"));
-  return [...src.matchAll(/<Preview[^>]*\bid=["']([\w-]+)["']/g)].map((m) => m[1]!);
+  return previewIdsInSource(readFileSync(file, "utf8"));
 }
 
 // Skip the Preview component itself and *.test.tsx fixtures: this sync test
@@ -191,10 +198,26 @@ describe("the orphan scanner itself", () => {
       ["components/Shelved.tsx", []],
     ]);
     const reached = reachableFrom(["app/page.tsx"], edges);
-    // `usedByRenderedCode` is built by filtering the file list through exactly
-    // this predicate, so a file the router cannot reach contributes no ids.
     expect(reached.has("components/Shelved.tsx")).toBe(false);
     expect(reached.has("components/Live.tsx")).toBe(true);
+
+    // …and the ids that fall out of that, computed the way
+    // `usedByRenderedCode` computes them: scan only what is reachable. Both
+    // files below DO contain a `<Preview id>`, so this fails if the filter is
+    // dropped — which the reachability assertions alone did not (CodeRabbit,
+    // PR #71).
+    const source = new Map<string, string>([
+      ["app/page.tsx", "<main><Live /></main>"],
+      ["components/Live.tsx", '<Preview id="live-shell">x</Preview>'],
+      ["components/Shelved.tsx", '<Preview id="shelved-shell">x</Preview>'],
+    ]);
+    const used = new Set(
+      [...source.keys()].filter((f) => reached.has(f)).flatMap((f) => previewIdsInSource(source.get(f)!)),
+    );
+    expect([...used]).toEqual(["live-shell"]);
+    // The scanner does see the shelved id — it is the reachability filter, not
+    // a blind spot in the regex, that keeps it out.
+    expect(previewIdsInSource(source.get("components/Shelved.tsx")!)).toEqual(["shelved-shell"]);
   });
 
   it("still counts a <Preview id> in a component the app imports", () => {

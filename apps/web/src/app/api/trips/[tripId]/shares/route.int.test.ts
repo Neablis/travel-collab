@@ -93,8 +93,15 @@ describe("POST /api/trips/:id/shares", () => {
 describe("GET / DELETE /api/trips/:id/shares", () => {
   it("lists the trip's links for a participant and 403s a viewer", async () => {
     const tripId = await seedTrip();
-    await createShare(tripId, OWNER);
-    expect((await GET(req(), params(tripId))).status).toBe(200);
+    const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
+    if (!share.ok) throw new Error("could not create the share this test lists");
+    const res = await GET(req(), params(tripId));
+    expect(res.status).toBe(200);
+    // The status alone passed for a handler that returned no shares at all
+    // (CodeRabbit, PR #71) — "lists the trip's links" is the claim.
+    const body = (await res.json()) as { shares: { shareId: string }[] };
+    expect(body.shares.map((s) => s.shareId)).toEqual([share.value.shareId]);
 
     await join(tripId, "viewer", VIEWER);
     currentUserId = VIEWER;

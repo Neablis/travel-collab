@@ -101,6 +101,7 @@ describe("saving a day", () => {
   it("remembers which trip it came from, and what that trip was called", async () => {
     const { tripId, dayId } = await seedDay("Kyoto");
     const result = await saveDay({ name: "Day one", dayId }, await detailFor(tripId), OWNER);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sourceTripId).toBe(tripId);
     expect(result.value.sourceTripName).toBe("Kyoto");
@@ -145,6 +146,7 @@ describe("the library is per-person", () => {
   it("hides, and refuses to delete, someone else's saved day", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
     expect(await getSavedDay(saved.value.savedDayId, OTHER)).toBeNull();
@@ -160,6 +162,7 @@ describe("inserting a saved day", () => {
   it("appends a day with its stops, in order, as ONE history entry", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay({ name: "Reusable", dayId }, await detailFor(tripId), OWNER);
+    expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
     const targetId = randomUUID();
@@ -187,6 +190,7 @@ describe("inserting a saved day", () => {
   it("mints fresh ids every time, so the same day can go into two trips", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay({ name: "Twice", dayId }, await detailFor(tripId), OWNER);
+    expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
     const a = insertCommands(saved.value, randomUUID());
@@ -203,6 +207,7 @@ describe("inserting a saved day", () => {
   it("refuses someone else's saved day", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
     const targetId = randomUUID();
@@ -216,6 +221,7 @@ describe("inserting a saved day", () => {
   it("is refused for a viewer, because the batch it raises is", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
     const targetId = randomUUID();
