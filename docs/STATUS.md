@@ -5,13 +5,57 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-## M15 Front door's gate closed 2026-08-26, PR #56 — M10's Phase 9 gate is next
+## M10's Wave-2 gate closed 2026-08-27 — M18 is the current milestone
+
+**M10 "Visual craft pass" is done.** Phase 9, its exit gate, ran on
+2026-08-27 and passed. What was actually run, on the gate branch cut from
+`main`:
+
+- `pnpm typecheck` green across all 6 packages.
+- **Root** `pnpm lint` green — ESLint plus the lint wall, the colour wall
+  (313 files, 0 pending re-skin) and the case-collision check (695 paths).
+  Root, not `pnpm --filter web lint`: the filtered script is ESLint only and
+  has let real violations through before.
+- `pnpm --filter web test` — **890 passed, 1 skipped**, 111 files.
+- `pnpm --filter web test:int` — **85 passed**, 13 files, against the native
+  Postgres cluster on :5433 (`docs/guidelines/cloud-agent-sessions.md`).
+- `pnpm --filter web test:e2e:ci-like` — **31/31, twice**, identical both
+  runs, against a production build. **`test:e2e:ci-like`, not `test:e2e`** —
+  the plan file said the latter and `CLAUDE.md` rule 1 overrides it (KI-27).
+- A manual browser walk of Home, Playbooks, Notebook and all four trip
+  lenses at **1280 / 1100 / 820px**, with the assistant rail shown and
+  hidden — 33 captures, plus programmatic overflow / coverage / inertness
+  checks at each.
+
+**The walk found one real defect, and it is fixed in the gate commit.** The
+assistant launcher never cleared the unscheduled rack: `TripBoardScreen`
+measures the rack with a `ResizeObserver`, but the effect that installed it
+ran once against a null ref (the rack's wrapper mounts below the
+`status === "loading"` early return) and, keyed on `[lens]`, never re-ran.
+`rackHeight` stayed 0 at every width, so the launcher overlapped the rack by
+15px collapsed and 212px open. Now a callback ref, with a regression spec
+verified to fail on the unfixed component. **Nothing automated could have
+caught it** — the launcher is `z-40` over the rack's `z-20`, so it never
+stopped being clickable; it was only ever wrong to look at. The full
+reasoning is in `M10-visual-craft.md`'s Wave-2 retro.
+
+**Current milestone is now M18 — "A stop knows what kind of thing it is"**
+(`docs/milestones/M18-stop-kind.md`), not started. M18 was approved and
+scheduled ahead of M16 on 2026-08-26, after ADR-022 had placed M16 first;
+that later decision governs. Order from here: **M18 → M16 → M11 → M12 → M13
+→ M14 → M9**.
+
+**The M10-delta plan files are deleted** in the gate-close commit, per
+`docs/plans/README.md`. They are in git history; the retro carries the one
+rule that lived nowhere else (currency is trip-level, never per-event).
+
+## M15 Front door's gate closed 2026-08-26, PR #56
 
 **M15 ran ahead of M10's Phase 9 gate and ahead of M16, and its own gate
 closed while M10's stayed open.** This supersedes ADR-021/ADR-022's stated
 execution order; `docs/milestones/README.md`'s roadmap table, its reorder
-notes, and its Current milestone line are all reconciled to this in the same
-commit that closed the gate — see that file's 2026-08-26 reorder note and
+notes, and its Current milestone line are all reconciled to this — see that
+file's 2026-08-26 reorder note and
 `docs/milestones/M15-front-door.md`'s decision 1 and retro for the full
 record. `TODO.md` has M15 ticked.
 
@@ -34,15 +78,7 @@ preview). CI evidence: GitHub Actions run `33023719009` on PR #56 —
 `test:e2e` with no `--project` filter, so `setup`, `desktop` and `narrow` all
 ran against a production build.
 
-**M10's Phase 9 gate — the visual-craft milestone's own exit gate — remains
-open and is the next work.** Phases 5-8b are merged; Phase 1b was cancelled
-unbuilt (2026-08-26, see below); Phase 9 (`docs/plans/M10-delta/phase-9-
-gate.md`) is what's left. This was already true before M15's gate closed —
-M15 simply finished first, on its own branch, without M10's gate being a
-dependency of it. Nothing else starts until M10's Phase 9 gate passes;
-after it, the order is M16 → M11 → M12 → M13 → M14 → M9 (ADR-022).
-
-## Design ↔ build UI audit, 2026-08-26 — read before Phase 9's browser walk
+## Design ↔ build UI audit, 2026-08-26 — the walk it fed happened 2026-08-27
 
 The 2026-08-24 design handoff (`.design-sync/handoff/`, commit `9b8681a`) has
 been compared against the running app, screen by screen, at 1440 / 1100 / 402
@@ -93,8 +129,12 @@ summary collapse landed in PR #55, the in-card half is still open. KI-46 and
 KI-47 are untouched by the sweep on purpose: KI-46's own entry says building the
 designed mobile companion is a milestone rather than a fix, and KI-47 is carried
 by `docs/milestones/M18-stop-kind.md`. **The sweep did not drive a browser**, so
-the visual read of the Notebook surface and of the 18 `size="container"` Preview
-hosts still belongs to Phase 9's manual walk.
+the visual read of the Notebook surface and of the `size="container"` Preview
+hosts was left to Phase 9's manual walk. **That walk ran 2026-08-27** and
+covered both: the Notebook list and a page render correctly at 1280 / 1100 /
+820px (`.tc-page-editor` now resolves — 14px/20.3px body, 24px headings, KI-44's
+fix confirmed live), and no Preview chip covers host content at any of the three
+widths (KI-45's fix confirmed). See the gate section at the top of this file.
 
 **Two decisions the audit surfaced that are not code:**
 - **SPEC §7 contradicts `packages/pages/src/templates.ts:15-18`.** The spec's
@@ -112,7 +152,9 @@ hosts still belongs to Phase 9's manual walk.
   agrees with the JSON. `db-seed.ts` uses `isoDateInDays(10)`, so locally it
   straddles a boundary only by luck. Send back to design (audit §E).
 
-Nothing in the audit is a reason to hold M10's gate. `DRIFT.md` §3's "extra
+Nothing in the audit was a reason to hold M10's gate, and it did not — the gate
+closed 2026-08-27 with the audit's three open items (KI-43's in-card half,
+KI-46, KI-47) deliberately carried, not fixed. `DRIFT.md` §3's "extra
 lenses" bullet is stale and can be struck: those three lenses no longer exist.
 
 ## Phase 1b is cancelled, 2026-08-26 — M10's gate narrows, Phase 9 is next
@@ -409,15 +451,18 @@ were filed from that PR's review rather than absorbed — KI-29 and KI-30. See
 
 ## Where we are
 
-**M0–M8 are complete and merged. M10 is in flight, not done.** M8 ("Make it
-real") closed its gate 2026-08-08. M10 ("Visual craft pass", brought forward
+**M0–M8, M10 and M15 are complete. M18 is the current milestone, not started.**
+M10's Wave-2 gate closed 2026-08-27 — see this file's top section for what was
+run and what the gate walk found. M8 ("Make it real") closed its gate
+2026-08-08. M10 ("Visual craft pass", brought forward
 ahead of M9 per ADR-018) closed a **Wave-1** gate 2026-08-10 on branch
 `claude/m10-trip-planner-visual-7bbacf` (PR #23). **PR #23 merged to `main`
 2026-08-17**, carrying Wave 1 plus Wave-2 Phases 0-2 (blockers, structure,
 map) — the PR had grown to 79 commits / 161 files and was split rather than
 held open until the full Wave-2 gate closed; see the milestone file's "PR #23
-merged as a partial delta" section for why, and note that **this does not
-close M10's gate** (below). Wave-2 Phases 3-9 continue on a follow-up branch.
+merged as a partial delta" section for why, and note that **that merge did not
+close M10's gate** — Phase 9 did, on 2026-08-27. Wave-2 Phases 3-9 landed on
+follow-up branches.
 
 **M10's gate was reopened 2026-08-14** after an external design review Mitchell
 requested. Two findings, neither of which the Wave-1 gate could have caught:
@@ -438,18 +483,18 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 
 **The Phase 1 gate review with Mitchell is done (2026-08-08).**
 
-**Current milestone is M10, Wave 2 (Phase 9, its exit gate).** Nothing else
-starts until it passes. Order (amended 2026-08-25 by ADR-022, which inserts
-M16 ahead of M15 and moves M9 to last; ADR-021 had inserted M15 before M9 on
-2026-08-23): `M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M16 → M15 →
-M11 → M12 → M13 → M14 → M9`.
+**Current milestone is M18 — "A stop knows what kind of thing it is."**
+Nothing has started on it. Order from here: `M18 (now) → M16 → M11 → M12 →
+M13 → M14 → M9`.
 
-**Superseded 2026-08-26 — see this file's top section.** M15 in fact closed
-its own gate (PR #56) ahead of both M10's Phase 9 gate and M16, while M10
-remained open; `docs/milestones/README.md`'s reorder notes and Current
-milestone line are reconciled to this. M10's Phase 9 gate is still the
-current milestone and still the next work — only M15's position in the order
-changed, not M10's status.
+**How the order got here**, since three decisions moved it and only the last
+of each pair governs: ADR-021 (2026-08-23) inserted M15 after M10; ADR-022
+(2026-08-25) added M16 and put it ahead of M15, moving M9 to last; M15 then
+closed its own gate first, on 2026-08-26, while M10's was still open; and on
+that same day M18 was approved and scheduled **between M10's gate and M16**.
+M10's gate closed 2026-08-27. So M18 is next, then M16.
+`docs/milestones/README.md`'s roadmap table, reorder notes and Current
+milestone line are all reconciled to this.
 
 **2026-08-19: feature flagging and an AI kill switch landed as a deliberate
 off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
@@ -586,6 +631,14 @@ Three things a fresh session needs from it:
    wizard, and whether the landing copy may sell M11/M12 before they exist.
 
 ## In flight
+
+**Nothing is in flight.** M10's Wave-2 gate closed 2026-08-27 and M18 has not
+started. Everything below this line is the **historical record of M10 Wave 2's
+phases** — kept because it carries per-phase detail (what each shipped, what it
+deliberately did not, and the landing gaps that cost time) that the retro
+summarises rather than repeats. Read it as history, not as current work.
+
+---
 
 **M10 Wave 2 — Phases 0, 1, 2, 3, 4 and 5 all merged to `main`** (Phase 5 via
 PR #29, 2026-08-23; its branch is deleted). Phase 3
@@ -1432,26 +1485,33 @@ which existed only on a branch.
 
 ## Next action
 
-**Run Phase 9 — M10's Wave-2 exit gate**
-(`docs/plans/M10-delta/phase-9-gate.md`). Phases 5, 6, 7, 8 and 8b are all
-merged and **Phase 1b is cancelled** (see this file's 2026-08-26 header entry),
-so the gate is the only thing left between here and M10 closing. Its checklist
-covers Phase 8b; it does **not** cover Phase 1b.
+**Start M18 — "A stop knows what kind of thing it is"**
+(`docs/milestones/M18-stop-kind.md`). It is unblocked: M10's Wave-2 gate closed
+2026-08-27 (top of this file), and M18 was scheduled ahead of M16 on 2026-08-26.
+Nothing has been built on it.
 
-`main` is at **`44bebae`** (merge of PR #53). CI on that SHA: `static-checks`,
-`unit-tests` and `integration-e2e` all green in run `32921598736`;
-`migrate-production` was still running when this was written and was not
-re-checked. The only open PR is **#51**, a dependabot `npm_and_yarn` bump,
-unrelated to this work.
+Per `TODO.md`'s standing preflight, M10's gate-close checklist was run in one
+commit — `TODO.md`, `docs/milestones/M10-visual-craft.md`,
+`docs/milestones/README.md`, this file and `docs/known-issues.md` all flipped
+together, with the `docs/plans/M10-delta/` phase plans deleted in the same
+commit per `docs/plans/README.md`. There is no unflipped flag to catch.
 
-**Two things the gate must decide rather than inherit:**
-1. **Whether "presentational only" still holds.** PR #46 shipped a soft-delete
-   route, an env gate and a JSON importer alongside the phase tasks — the
-   scope note in this file's 2026-08-25 header entry has the reviewer's
-   verbatim objection. Decide it consciously.
-2. **The manual browser walk.** Phase 5's Step 4, Phase 6's Step 4 and Phase
-   8's exit checklist were each never walked by hand. Phase 9's gate makes it
-   blocking, so it stops here.
+**Two things the gate decided rather than inherited**, recorded so M18 does not
+re-litigate them:
+1. **"Presentational only" held.** `git diff --stat origin/main -- packages
+   apps/web/src/server` was empty at gate close. PR #46's soft-delete route, env
+   gate and JSON importer were reviewed as landed and not reopened; M18, by
+   contrast, is explicitly a contract change and says so.
+2. **The manual browser walk happened.** Phase 5's Step 4, Phase 6's Step 4 and
+   Phase 8's exit checklist had each gone unwalked. Phase 9 made it blocking and
+   it ran: Home, Playbooks, Notebook and all four lenses at 1280 / 1100 / 820px,
+   rail shown and hidden. It paid for itself — it found the assistant-launcher
+   defect that no automated check in this repo can see.
+
+**Known limits of that walk, stated rather than papered over:** the Map lens's
+tiles could not render (**KI-49**, the egress proxy blocks the tile host), so its
+map is unverified though its chrome is not; and 402px and below was out of scope
+by decision (**KI-46**).
 
 **Historical note:** this section previously read "Review and merge PR #46" with
 `main` at `c630152`. PR #46 merged 2026-08-25; PRs #52 and #53 landed after it.

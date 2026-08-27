@@ -48,7 +48,7 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
-| M10 | Visual craft pass | **In flight — Wave 2.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces |
+| M10 | Visual craft pass | **Done, Wave-2 gate closed 2026-08-27.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). Wave 2 closed the delta across Phases 0-8 plus 8b; Phase 1b was cancelled unbuilt. The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces. Retro and gate evidence: `M10-visual-craft.md` |
 | M16 | The assistant answers questions | **Approved 2026-08-25 — ADR-022.** Originally placed right after M10's gate and before M15; **M15 in fact closed its own gate first (2026-08-26), ahead of both M10's Phase 9 gate and M16** — see the 2026-08-26 reorder note below. M16 still runs before M11-M14. The sidebar styled to `SPEC.md` §9's *docked* presentation (a flex sibling, not a scrim overlay; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on its own endpoint — one question, one answer, scoped to the selected day or the trip — then analytics on which tools get called and how many calls an answer costs. The command path is untouched. Exists because the AI endpoint today is a *command* endpoint and structurally cannot answer a question: `M16-assistant-read-agent.md` |
 | M17 | Account customization | **Approved 2026-08-26.** Opened by Mitchell reviewing SPEC §12: *"Skip on C5/C6/C7 and make a future milestone, account customization. We will need a new DB table, but i also think we are getting close to just wanting a user table rather than relying on the google auth jwt."* Account settings Sheet (name, email, home airport), distance units at **account** scope through one `kmLabel`, and home-time-on-hover. All three land on the same absence: the schema is `events`/`trip_summaries`/`trip_details`/`pages` — there is no user row. The real question is whether the product should own its identity rather than lean on the provider token: `M17-account-customization.md` |
 | M18 | A stop knows what kind of thing it is | **Approved 2026-08-26; scheduled 2026-08-26** — after M10's Wave-2 gate, before M16. **Widened to carry `tags` (KI-47) as well as `kind`**, on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put it in a soon milestone"* — because the two are one contract change, one migration and one backfill decision. A stop has no `kind` — `booked`/`hold`/`idea`/`transit` lives in **note text** (`db-seed.ts` folds it there and says so). Began as one cosmetic tile; SPEC §12 made it load-bearing, since the new Calendar splits a travel day at the last `transit` stop and flags `N to book` from stops that are neither booked nor transit. M10 ships the city cards without those two rules by Mitchell's call — *"lets just ship what we can for now"* — grouping on `location.city` instead: `M18-stop-kind.md` |
@@ -120,8 +120,12 @@ for collaboration later landing on a product people already want to join.
   what was planned: `M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, Phase 9
   gate open) → M15 ✓ → M16 → M11 → M12 → M13 → M14 → M9`. Milestone *numbers*
   are unchanged — the same placement-not-renumbering shape as ADR-018,
-  ADR-021 and ADR-022. **M10's Phase 9 gate is the next work** — see Current
-  milestone below.
+  ADR-021 and ADR-022.
+
+  **Superseded twice since, both on 2026-08-26:** M18 was approved and
+  scheduled between M10's gate and M16 (see M18's row above), and M10's own
+  Phase 9 gate then closed on 2026-08-27. Current order is `M18 → M16 → M11 →
+  M12 → M13 → M14 → M9` — see Current milestone below.
 
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
@@ -178,19 +182,24 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M10 — Visual craft pass, Wave 2, Phase 9 (the exit gate)**
-(see `M10-visual-craft.md`'s "Gate reopened" section and its 2026-08-26
-"Phase 1b is cancelled" amendment). M8's gate closed 2026-08-08 and the Phase 1
-gate review with Mitchell completed the same day. M10's Wave-2 gate covers
-**Phase 8b** (2026-08-23 gate-scope amendment); **Phase 1b was cancelled
-unbuilt** (2026-08-26) so it no longer sits on the path to the gate. Phase
-order to the gate is 5, 6, 7, 8, 8b, 9 — Phases 5-8b are merged, and
-**Phase 9 — M10's exit gate — is the next work.**
+Current milestone: **M18 — A stop knows what kind of thing it is**
+(`M18-stop-kind.md`). Not started.
 
-**M15 Front door's gate closed 2026-08-26 (PR #56), ahead of both M10's Phase 9
-gate and M16** — see the 2026-08-26 reorder note above, which supersedes
-ADR-021/ADR-022's stated ordering. M10 remains open in the meantime; that is
-an accepted, explicit overlap (`M15-front-door.md` decision 1), not drift.
-After M10's Phase 9 gate closes, the order is **M16 — the assistant answers
-questions — then M11 → M12 → M13 → M14 → M9** (ADR-022, which moves **M9 to
-last, after M14**).
+**M10's Wave-2 gate closed 2026-08-27** — the full Definition of Done green, the
+e2e suite 31/31 twice against a production build, and every surface walked at
+1280 / 1100 / 820px with the assistant rail shown and hidden. Phase order to
+that gate was 5, 6, 7, 8, 8b, 9; **Phase 1b was cancelled unbuilt** (2026-08-26).
+The walk found and fixed one defect the automated suites are structurally blind
+to — see `M10-visual-craft.md`'s Wave-2 retro, which also carries the gate
+evidence and the rules promoted out of the deleted phase plans. M8's gate closed
+2026-08-08 and the Phase 1 gate review with Mitchell completed the same day.
+**M15 Front door's gate closed 2026-08-26 (PR #56), ahead of M10's own** — an
+accepted, explicit overlap (`M15-front-door.md` decision 1), not drift.
+
+**Why M18 and not M16.** ADR-022 (2026-08-25) placed M16 immediately after
+M10's gate. **M18 was then approved and scheduled ahead of it on 2026-08-26**,
+on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put
+it in a soon milestone"* — because `kind` and `tags` are one contract change and
+between them gate five designed surfaces. That later decision governs; M16 keeps
+its place immediately after M18. Order from here: **M18 → M16 → M11 → M12 →
+M13 → M14 → M9** (ADR-022 moves **M9 to last, after M14**; M15 is done).

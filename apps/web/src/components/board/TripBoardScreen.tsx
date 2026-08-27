@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
@@ -94,25 +94,40 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // rendered height and clearing it is the only offset that survives both
   // the open/collapsed toggle and the item count changing.
   //
-  // `rackWrapperRef.current?.firstElementChild`, not the wrapper div itself:
-  // the rack's own root is `position: fixed` (UnscheduledRack/globals.css),
-  // so it never contributes to its static-positioned wrapper's flow height —
-  // that wrapper would always measure 0. The wrapper ref is only a DOM
-  // foothold to reach the fixed child's own real box (getBoundingClientRect
-  // reports a fixed element's true viewport rect regardless of its
-  // ancestors' layout), without UnscheduledRack needing to forward a ref.
-  const rackWrapperRef = useRef<HTMLDivElement>(null);
+  // `node.firstElementChild`, not the wrapper div itself: the rack's own root
+  // is `position: fixed` (UnscheduledRack/globals.css), so it never
+  // contributes to its static-positioned wrapper's flow height — that wrapper
+  // would always measure 0. The wrapper ref is only a DOM foothold to reach
+  // the fixed child's own real box (getBoundingClientRect reports a fixed
+  // element's true viewport rect regardless of its ancestors' layout),
+  // without UnscheduledRack needing to forward a ref.
+  //
+  // A **callback ref**, not useEffect+useRef, and this is the whole point
+  // (Phase 9 gate walk): the wrapper is mounted by the JSX *below* the
+  // `status === "loading"` early return, so on the first commit it does not
+  // exist. An effect keyed on `[lens]` therefore ran once against a null ref,
+  // set the height to 0, registered no observer — and never re-ran, because
+  // the lens had not changed. The measured height stayed 0 for the life of
+  // the page, `bottom` stayed at the bare 24px, and the launcher sat over the
+  // rack it is supposed to clear: 15px of it collapsed, 212px once open. A
+  // callback ref fires when the node actually appears, whatever gated it.
+  const rackObserverRef = useRef<ResizeObserver | null>(null);
   const [rackHeight, setRackHeight] = useState(0);
-  useEffect(() => {
-    const el = rackWrapperRef.current?.firstElementChild ?? null;
+  const rackWrapperRef = useCallback((node: HTMLDivElement | null) => {
+    rackObserverRef.current?.disconnect();
+    rackObserverRef.current = null;
+    // React attaches refs bottom-up, so the rack's own <section> is already in
+    // the DOM by the time this runs for its wrapper.
+    const el = node?.firstElementChild ?? null;
     if (!el) {
       setRackHeight(0);
       return;
     }
     const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [lens]);
+    rackObserverRef.current = observer;
+  }, []);
+  useEffect(() => () => rackObserverRef.current?.disconnect(), []);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
