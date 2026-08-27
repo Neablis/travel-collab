@@ -349,10 +349,19 @@ function WizardBody({
             // eslint-disable-next-line no-restricted-syntax -- same 1fr/130px budget-input split as TripMoneySettings, no token equivalent
             style={{ gridTemplateColumns: "1fr 130px" }}
           >
+            {/* `hint` (renders below the input), not `description` (renders
+                between the label and the input) — the Currency field beside
+                this one has no description, so a description here pushed this
+                row's input down out of alignment with Currency's select
+                (Mitchell, preview comment on PR #60). This is the identical
+                defect, with the identical fix, that TripMoneySettings already
+                carries for the same two fields — see the matching comment
+                there. Both fields' Label→input distance is now the same; the
+                helper copy just moves to below the input. */}
             <FormField
               id="wizard-budget"
               label="Total for the trip"
-              description="Used for the over-budget warning across lenses."
+              hint="Used for the over-budget warning across lenses."
             >
               <MoneyInput id="wizard-budget" value={budget} currency={currency} onChange={setBudget} />
             </FormField>

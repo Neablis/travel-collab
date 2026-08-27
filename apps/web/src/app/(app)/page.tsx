@@ -307,17 +307,28 @@ export default function Home() {
 
         <div>
           {trips !== null && visibleTrips.length === 0 ? (
-            <>
-              {/* This is M15's first-run moment. The design's separate one-field
-                  "What are you planning?" screen was dropped on 2026-08-26 (decision 3
-                  in docs/milestones/M15-front-door.md) because NewTripWizard's "Create
-                  empty" already creates a trip from a name alone on step 1 — a second
-                  create path would have been a divergence with nothing to buy it. */}
-              <EmptyState
-                title="Plan your first trip"
-                body="A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in."
-              />
-            </>
+            /* This is M15's first-run moment. The design's separate one-field
+               "What are you planning?" screen was dropped on 2026-08-26 (decision 3
+               in docs/milestones/M15-front-door.md) because NewTripWizard's "Create
+               empty" already creates a trip from a name alone on step 1 — a second
+               create path would have been a divergence with nothing to buy it.
+
+               The action below opens that same wizard. Decision 3 settled *where* the
+               only create path lives, not whether this screen may point at it. Until
+               it did, the sole way forward from here was the page-head "New trip"
+               button — which sits in the identical spot, with the identical label, for
+               someone who already has twelve trips. The one moment we can actually
+               identify as a first run was saying "a name is enough to start" and then
+               offering nothing to start with. */
+            <EmptyState
+              title="Plan your first trip"
+              body="A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in."
+              action={
+                <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
+                  Name your trip
+                </Button>
+              }
+            />
           ) : (
             <>
               {visibleTrips.length > 0 && (
