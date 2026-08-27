@@ -139,6 +139,16 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // render, which is why this grid is lg: and not md: (CodeRabbit, #58).
     await page.setViewportSize({ width: 1280, height: 900 });
     const row = await cardBoxes();
+
+    // The 900px comment above claims each card is "wider than a single column
+    // of the three-up layout would be" — this is the line that makes that true
+    // rather than aspirational. Without it the helper returned `width` and
+    // nothing read it, so a width regression passed (CodeRabbit, PR #58).
+    // Narrowest stacked card vs widest three-up card: ~844 vs ~368.
+    expect(Math.min(...stacked.map((b) => b.width))).toBeGreaterThan(
+      Math.max(...row.map((b) => b.width)),
+    );
+
     expect(new Set(row.map((b) => b.y)).size).toBe(1);
     const rowX = row.map((b) => b.x);
     expect(new Set(rowX).size).toBe(3);

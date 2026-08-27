@@ -145,24 +145,35 @@ link_playwright_shell() {
   # path on an x64 container. The suite still went green — it only ever launches
   # the headless shell, whose path was right — so the dead link went unnoticed
   # (CodeRabbit, PR #58). Derive both from `uname -m` instead of hardcoding.
+  #
+  # `source_rels` matters as much as the destinations. `chrome-linux64` is
+  # Chrome-for-Testing's **x64** directory name, so a binary found there on an
+  # arm64 host is the wrong architecture — and `[ -x ]` checks the executable
+  # bit, not the ELF machine type, so it would be linked happily and then fail
+  # to launch with an exec-format error. x64 searches both layouts because the
+  # rename is recent and this image's own chromium-1194 predates it; arm64
+  # searches only `chrome-linux` (CodeRabbit, PR #58).
   case "$(uname -m)" in
     x86_64 | amd64)
       chrome_rel="chrome-linux64/chrome"
       shell_rel="chrome-headless-shell-linux64/chrome-headless-shell"
+      source_rels="chrome-linux64/chrome chrome-linux/chrome"
       ;;
     aarch64 | arm64)
       chrome_rel="chrome-linux/chrome"
       shell_rel="chrome-linux/headless_shell"
+      source_rels="chrome-linux/chrome"
       ;;
     *) return 0 ;;
   esac
 
-  # A real chrome binary to point at. Both layouts are searched because the
-  # image's own build may predate the Chrome-for-Testing rename (it does: the
-  # container ships chromium-1194 at the old chrome-linux path).
+  # A real chrome binary to point at, searched only in layouts valid for this
+  # architecture (see source_rels above).
   fallback=""
-  for candidate in "$browsers"/chromium-*/chrome-linux64/chrome "$browsers"/chromium-*/chrome-linux/chrome; do
-    if [ -x "$candidate" ]; then fallback="$candidate"; break; fi
+  for rel in $source_rels; do
+    for candidate in "$browsers"/chromium-*/$rel; do
+      if [ -x "$candidate" ]; then fallback="$candidate"; break 2; fi
+    done
   done
   [ -n "$fallback" ] || return 0
 
