@@ -205,7 +205,7 @@ Rules that matter for the build:
 
 ## 10. Mobile is a companion, not a second planner
 
-`design/Trip Planner Mobile.dc.html` is deliberately narrower in scope than the desktop
+The phone surface (design file `surface: phone`) is deliberately narrower in scope than the desktop
 design: **retrieval and small edits while you are on the trip**, not trip planning.
 
 - Two views, not four. Day columns and Calendar exist to show *density*, which a phone
@@ -488,3 +488,50 @@ proposed for them. The two layouts are picked explicitly, not by media query: mo
 - **Notebook on the phone** reads the focused day only. The full macro document (templates,
   inline + block macros) has no phone treatment yet.
   Desktop reuses `ConflictBanner`; mobile needs the equivalent decided.
+
+
+---
+
+## 14. The landing page — 2026-08-26
+
+Reached by the design file's `startScreen: landing`. It is the unauthenticated front
+door and replaces the bare heading `app/page.tsx` renders today (DRIFT D2/D8).
+
+### It runs on nothing
+
+**No session, no fetch, no backend.** Every value on the page is a hardcoded marketing
+fixture that lives in the marketing route itself — *not* imported from
+`japan-trip-seed.json` or the seed importer. It looks like the product; it is not
+connected to it. A data-model change must never be able to break the front door, and the
+page must render identically to a signed-out visitor with the API down. It therefore has
+no empty, offline or conflict state, and project rule 6 is satisfied trivially.
+
+### Structure
+
+1. **Rotating hero** — three views of a Japan trip (Day 5 Notebook, Day 6 Map, Day 7
+   Timeline) on a 10s cycle. Full-bleed map with plan details to the right. Day pills
+   read only "Day 5", no view labels; clicking one jumps to it and restarts the timer.
+   Decorative SVG layers are `pointer-events: none` so the pills stay clickable — the
+   same trap exists in any real implementation.
+2. **Three equal-height blocks, flush to the card bottoms** —
+   *Together*: a live timeline with Priya's lifted stop, Dana's comment thread, travel
+   gaps. *Notebook*: prose with an inline, borderless, doc-style cost table
+   (activity / who / cost; Day 6 total $596) — a table, not a card, because the point is
+   that the notebook and the plan are one surface. *Playbooks*: a borrowed Phuket beach
+   day, 4.8★, "Shared 214 times", dropping in as Day 2 of a calendar strip between
+   jungle days.
+
+### Copy rules
+
+- **No "free", no "open source", no "no credit card".** Caesura is a product for groups,
+  not a tool. The only footnote is **Early access**.
+- No trailing explanatory captions on the example blocks ("was Day 2", "the trek
+  slides…"). The examples carry themselves.
+
+### Advertising ahead of the build is intended
+
+The Notebook and Playbooks blocks show functionality the build has not finished — macro
+values (§7, contradicted by `templates.ts`) and playbook sharing (three Preview shells).
+**This is deliberate and is not drift.** A landing page states direction. Do not gate it
+on those, and do not reduce it to what ships today. The line it must not cross is a claim
+the product will never honour; the copy makes none.

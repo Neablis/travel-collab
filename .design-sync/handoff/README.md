@@ -4,13 +4,20 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-08-26
+Last substantive pass: 2026-08-26 (landing page)
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
 bundle. It supersedes the 2026-08-25 bundle.
 
 What is new since the last bundle:
 
+- **The landing page is designed** — the unauthenticated front door, replacing the bare
+  heading `app/page.tsx` renders today. Rotating hero plus three feature blocks. It runs
+  on **hardcoded fixture data with no session, fetch or backend**; see `SPEC.md` §14.
+  It deliberately shows functionality that is not finished — that is intent, not drift.
+- **`DRIFT.md` is rewritten as a current-state document**, not the append-only log it had
+  become. Closed items are one line each in §5; §6 is a build-check list of the seven
+  bugs the design already hit.
 - **Calendar became a city view.** Cells carry one card per city the day touches, with a
   7am–11pm span bar, stop count, cost and an unbooked flag — no activity lists. It no
   longer overlaps Day columns, which closes the open question about retiring it.
@@ -33,8 +40,8 @@ what may exist on a page — read `RULES.md` first.
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§12 is this pass**; §11 is the rules pass |
-| `DRIFT.md` | Design ↔ build reconciliation. **§ "Calendar / account settings pass — 2026-08-26" is this pass** |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§14 (landing) is this pass**; §12 Calendar, §11 rules |
+| `DRIFT.md` | Design ↔ build reconciliation. **Rewritten this pass as current state** — §1 open drift, §2 the landing page, §5 closed items, §6 build checks, §7 their KIs |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 
