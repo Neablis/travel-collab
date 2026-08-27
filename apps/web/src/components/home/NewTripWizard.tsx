@@ -85,17 +85,18 @@ export type NewTripWizardProps = {
   // against the trip page's own first load.
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
   // Called once the trip exists AND every dispatched command it needed has
-  // confirmed. `navigate` is true only for the full wizard's "Create trip"
-  // (step 4) — the phase doc's own sequence is "create... apply dates and
-  // budget... then navigate." "Create empty" is explicitly the old
-  // single-field dialog's escape hatch, and that dialog never navigated —
-  // it closed and left the user on the trip list to open the new (still
-  // otherwise-identical) card themselves. Every pre-Phase-7 e2e spec is
-  // built on that: they all click Create-empty-or-equivalent, then click
-  // the trip's own list link to navigate — a version of this that always
-  // navigated broke every one of them (CI, PR #32) by leaving the home
-  // page (and that link) before the click ever ran.
-  onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
+  // confirmed. BOTH buttons navigate to the new trip now (Mitchell, walking
+  // the #71 preview: "When creating a new trip, go to the trips page on
+  // creating it").
+  //
+  // "Create empty" used to close and leave you on the list, inherited from the
+  // old single-field dialog it replaced. That is why this used to carry a
+  // `navigate` flag, and why PR #32's CI went red when an earlier version
+  // dropped it: the specs clicked Create-empty and then clicked the new trip's
+  // own list link, which is gone the moment the page navigates. Two of them
+  // (`smoke`, `m15-front-door`) are genuinely ABOUT the home page and now go
+  // back to it explicitly; the rest only ever wanted the trip.
+  onCreated?: (tripId: string) => void;
 };
 
 export function NewTripWizard({ open, onOpenChange, createTrip, dispatch, onCreated }: NewTripWizardProps) {
@@ -109,9 +110,9 @@ export function NewTripWizard({ open, onOpenChange, createTrip, dispatch, onCrea
         <WizardBody
           createTrip={createTrip}
           dispatch={dispatch}
-          onDone={(tripId, navigate) => {
+          onDone={(tripId) => {
             onOpenChange(false);
-            if (tripId !== null) onCreated?.(tripId, { navigate });
+            if (tripId !== null) onCreated?.(tripId);
           }}
         />
       )}
@@ -126,7 +127,7 @@ function WizardBody({
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
-  onDone: (tripId: string | null, navigate: boolean) => void;
+  onDone: (tripId: string | null) => void;
 }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -204,7 +205,7 @@ function WizardBody({
       }
     }
     setSubmitting(false);
-    onDone(tripId, applyDatesAndBudget);
+    onDone(tripId);
   }
 
   const nextDisabled = step === 1 && trimmedName === "";

@@ -8,7 +8,6 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
-  await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading —
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see
   // m2/m3/m4/smoke's fix commit); this spec hadn't hit it until now.
