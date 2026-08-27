@@ -13,11 +13,15 @@ export function TripMoneySettings({
   tripId,
   currency,
   budget,
+  disabled = false,
   onCommand,
 }: {
   tripId: string;
   currency: string;
   budget: Money | null;
+  // A viewer executes no planning command, so their copy of these controls is
+  // inert rather than merely refused at the server (M11 link 3).
+  disabled?: boolean;
   onCommand: (command: TripCommand) => void;
 }) {
   return (
@@ -25,8 +29,13 @@ export function TripMoneySettings({
     // first (1fr) then Currency select second (130px) — the reverse of this
     // component's old plain flex-column order. Dispatch logic below is
     // untouched, byte-identical to before this task.
-    <div
-      className="grid gap-2.5"
+    // A `fieldset` rather than a `disabled` prop threaded to each control:
+    // it natively disables every form element beneath it, including the
+    // currency <select> and MoneyInput (which has no `disabled` prop of its
+    // own), and it keeps covering anything added here later.
+    <fieldset
+      disabled={disabled}
+      className="grid gap-2.5 border-0 p-0"
       // eslint-disable-next-line no-restricted-syntax -- the redesign's 1fr/130px budget-input split has no token equivalent, matching BudgetChip's computed-geometry pattern
       style={{ gridTemplateColumns: "1fr 130px" }}
     >
@@ -52,7 +61,7 @@ export function TripMoneySettings({
               second clear-button style — just laid trailing-inside the input
               instead of beside it, since a budget figure and its clear-X
               read as one control the way the date's don't. */}
-          {budget !== null && (
+          {budget !== null && !disabled && (
             <Button
               type="button"
               variant="ghost"
@@ -80,6 +89,6 @@ export function TripMoneySettings({
           ))}
         </NativeSelect>
       </FormField>
-    </div>
+    </fieldset>
   );
 }
