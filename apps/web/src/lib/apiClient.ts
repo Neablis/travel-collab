@@ -1,8 +1,12 @@
 import {
+  InvitePreview,
   PageContent,
+  TripAccess,
   TripDetail,
   TripHistory,
+  TripInvite,
   type BatchableCommand,
+  type CreateInviteInput,
   type PageContext,
   type TripCommand,
 } from "@tc/contracts";
@@ -217,4 +221,79 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
   }
   const data = (await res.json()) as { tripId: string };
   return { ok: true, value: data };
+}
+
+// ── Access & Membership (M11 link 3) ─────────────────────────────────────────
+
+async function readJson<T>(res: Response, parse: (data: unknown) => T): Promise<ApiResult<T>> {
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    return {
+      ok: false,
+      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+    };
+  }
+  return { ok: true, value: parse(await res.json()) };
+}
+
+export async function fetchTripAccess(tripId: string): Promise<ApiResult<TripAccess>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`));
+    return await readJson(res, (data) => TripAccess.parse((data as { access: unknown }).access));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createTripInvite(
+  tripId: string,
+  input: CreateInviteInput,
+): Promise<ApiResult<TripInvite>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/invites`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function revokeTripInvite(
+  tripId: string,
+  inviteId: string,
+): Promise<ApiResult<TripInvite>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/invites/${inviteId}`), { method: "DELETE" });
+    return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function fetchInvitePreview(token: string): Promise<ApiResult<InvitePreview>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}`));
+    return await readJson(res, (data) => InvitePreview.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function acceptInvite(token: string): Promise<ApiResult<{ tripId: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}/accept`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The link an owner hands out. Absolute, because it is meant to be pasted. */
+export function inviteLink(token: string): string {
+  return apiUrl(`/invite/${encodeURIComponent(token)}`);
 }

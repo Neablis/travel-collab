@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Money, TripCommand, TripMember } from "@tc/contracts";
+import type { Money, TripCommand } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
-import { Badge } from "@/components/ui/badge";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
 import { Popover } from "@/components/ui/popover";
+import { TravelersPanel } from "@/components/trip/TravelersPanel";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatTripDate } from "@/lib/formatDate";
@@ -90,7 +90,6 @@ export function SettingsSheet({
   currency,
   budget,
   spend,
-  members,
   onCommand,
   onDeleted,
 }: {
@@ -104,7 +103,6 @@ export function SettingsSheet({
   currency: string;
   budget: Money | null;
   spend: TripSpend;
-  members: TripMember[];
   onCommand: (command: TripCommand) => void;
   // The outcome is forwarded alongside the {tripId, name} summary so the
   // caller (TripHeader) can call TripProvider's applyOutcome with it —
@@ -292,34 +290,18 @@ export function SettingsSheet({
           <div className="flex items-center justify-between">
             <SectionHeading>Who is invited</SectionHeading>
           </div>
-          <div className="flex items-start justify-between gap-3">
-            {/* Real: every member's actual userId, listed outside the
-                Preview below. */}
-            <div className="flex flex-col gap-1.5">
-              {members.map((member) => (
-                <Text key={member.userId} as="span" className="text-xs text-ink">
-                  {member.userId}
-                </Text>
-              ))}
-            </div>
-            {/* The role badge is real (TripMember.role, enforced by
-                AccessPolicy) but every member is still an owner, because
-                nothing creates a non-owner one until invites land (M11 link
-                3) — so this stays a Preview alongside the mocked "Invite
-                someone" action. */}
-            <Preview id="trip-invites" size="container" className="flex items-center gap-3">
-              <div className="flex flex-col gap-1.5">
-                {members.map((member) => (
-                  <Badge key={member.userId} variant="neutral">
-                    {member.role}
-                  </Badge>
-                ))}
-              </div>
-              <Button variant="secondary" size="sm">
-                Invite someone
-              </Button>
-            </Preview>
-          </div>
+          {/* Real as of M11 link 3: TravelersPanel lists the effective members
+              (the log's owner plus everyone who accepted an invite), and — for
+              the owner — creates, copies and revokes invite links. The
+              <Preview id="trip-invites"> shell it replaces, and the mocked
+              "Invite someone" button inside it, are gone.
+
+              The `members` prop this sheet used to take went with it: the
+              panel does its own /api/trips/:id/access read, because that read
+              also carries names, emails and the invite list — none of which
+              live on TripDetail, and none of which should (they are Identity
+              and Access data — packages/contracts/src/access.ts). */}
+          <TravelersPanel tripId={tripId} />
         </div>
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">

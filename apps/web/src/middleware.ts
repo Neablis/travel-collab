@@ -67,4 +67,10 @@ export default auth((req) => {
 //     prefix matches too, not just children)
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
 //     routes under `/trips/:tripId/pages/...` for the same zero-or-more reason
-export const config = { matcher: ["/", "/playbooks/:path*", "/trips/:path*"] };
+//   - `/invite/:path*`   — the M11 link 3 accept screen. Matched for exactly
+//     the reason the others are: an invite link handed to someone who is not
+//     signed in should land them on /signin and then bring them back to the
+//     invite, which `callbackUrl` already does.
+export const config = {
+  matcher: ["/", "/playbooks/:path*", "/trips/:path*", "/invite/:path*"],
+};

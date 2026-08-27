@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -93,5 +94,59 @@ export const pages = pgTable(
     uniqueIndex("pages_system_seed_unique")
       .on(t.tripId, t.title)
       .where(sql`${t.actorId} = 'system'`),
+  ],
+);
+
+// ── Access & Membership (M11 link 3) ─────────────────────────────────────────
+//
+// Ordinary CRUD with audit fields, exactly as the AGENTS.md module map says:
+// this module owns invites, roles and revocation and knows nothing about what a
+// trip contains. It is NOT event-sourced — ADR-003 scopes the log to planning,
+// and the mirror-image of that boundary is what keeps these two tables out of
+// the event store rather than inventing `MemberAdded` planning events.
+//
+// The OWNER is deliberately not a row here. It is derived from the log's
+// `TripCreated.createdBy` (`TripState.members`), which is what already makes
+// every trip written in the eight milestones before this table existed work
+// unchanged, with no backfill. `server/access/members.ts` merges the two.
+export const tripMemberships = pgTable(
+  "trip_memberships",
+  {
+    tripId: uuid("trip_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
+    // (ADR-025): the reference is upheld at the sign-in seam, and accepting an
+    // invite requires a session, so every row here has a user row behind it.
+    userId: text("user_id").notNull(),
+    role: text("role").notNull(),
+    invitedBy: text("invited_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tripId, t.userId] }),
+    index("trip_memberships_user").on(t.userId),
+  ],
+);
+
+export const tripInvites = pgTable(
+  "trip_invites",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    email: text("email"),
+    role: text("role").notNull(),
+    // The bearer credential (ADR-026). Stored as issued, not hashed, because
+    // the owner's invite list has to be able to re-show a link they already
+    // handed out; the only route that returns it requires `owner`.
+    token: text("token").notNull(),
+    status: text("status").notNull().default("pending"),
+    invitedBy: text("invited_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+    acceptedBy: text("accepted_by"),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "string" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
+  },
+  (t) => [
+    uniqueIndex("trip_invites_token").on(t.token),
+    index("trip_invites_trip").on(t.tripId),
   ],
 );

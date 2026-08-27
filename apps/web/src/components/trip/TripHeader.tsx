@@ -39,7 +39,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview, readOnly } = useTrip();
   const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -148,6 +148,10 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               </Button>
             </Heading>
             <Badge variant="neutral">{statusLabel}</Badge>
+            {/* M11 link 3: a viewer's trip is theirs to read, not to change.
+                The server refuses their writes either way (accessPolicy.ts);
+                this is what stops them finding that out by dragging a card. */}
+            {readOnly && <Badge variant="info">View only</Badge>}
           </div>
         </div>
 
@@ -276,7 +280,6 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
         currency={activeTrip.currency}
         budget={activeTrip.budget}
         spend={tripSpend(activeTrip)}
-        members={activeTrip.members}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

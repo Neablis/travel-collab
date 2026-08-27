@@ -4,6 +4,7 @@ import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
+const fetchTripAccessMock = vi.fn();
 
 function oneDayTripDetailFixture() {
   return tripDetailFixture({
@@ -18,6 +19,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() }),
     fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture("x") }),
     fetchTripDetailAt: vi.fn(),
+    fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
@@ -25,9 +27,17 @@ vi.mock("@/lib/apiClient", async (orig) => {
 
 import { TripProvider, useTrip } from "./TripProvider";
 
+const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
+  ok: true as const,
+  value: { tripId: "x", myRole, members: [], invites: [] },
+});
+
 beforeEach(() => {
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
+  // Owner by default: every pre-existing test in this file was written
+  // against a board its user can fully edit.
+  fetchTripAccessMock.mockReset().mockResolvedValue(accessAs("owner"));
 });
 
 function Probe() {
@@ -330,5 +340,69 @@ describe("TripProvider applyOutcome (AI plan reconciliation)", () => {
     // ...and nothing was sent to the command endpoints (no optimistic round-trip).
     expect(sendTripCommandMock).not.toHaveBeenCalled();
     expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+  });
+});
+
+
+// M11 link 3. The server refuses a viewer's writes regardless
+// (accessPolicy.ts + access/invites.int.test.ts); this stops the optimistic
+// queue predicting a change that is about to be refused, which is what would
+// otherwise make a card visibly move and then jump back.
+describe("TripProvider — a viewer's board is read-only", () => {
+  it("sends nothing and explains why", async () => {
+    fetchTripAccessMock.mockResolvedValue(accessAs("viewer"));
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    fireEvent.click(screen.getByText("dispatch"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("error").textContent).toBe("You have view-only access to this trip."),
+    );
+    expect(sendTripCommandMock).not.toHaveBeenCalled();
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+  });
+
+  it("lets an editor through", async () => {
+    fetchTripAccessMock.mockResolvedValue(accessAs("editor"));
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    fireEvent.click(screen.getByText("dispatch"));
+
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+  });
+
+  // The client is not the security boundary: if the role read fails, the
+  // board behaves exactly as it did before roles existed and the server
+  // still decides.
+  it("does not lock the board when the role read fails", async () => {
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    fireEvent.click(screen.getByText("dispatch"));
+
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
   });
 });

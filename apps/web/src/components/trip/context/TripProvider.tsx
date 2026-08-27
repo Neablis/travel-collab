@@ -1,8 +1,9 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { BatchableCommand, TripDetail, TripHistory } from "@tc/contracts";
+import type { BatchableCommand, TripDetail, TripHistory, TripRole } from "@tc/contracts";
 import { usePublishSaveState } from "@/components/SaveLight";
 import {
+  fetchTripAccess,
   fetchTripDetail,
   fetchTripDetailAt,
   fetchTripHistory,
@@ -40,6 +41,13 @@ type TripCtx = {
   // from it (no refetch round-trip) — same shape as how undo/redo/revert
   // reconcile from their command response below.
   applyOutcome: (outcome: CommandOutcome) => void;
+  // The signed-in user's role on this trip (M11 link 3), or null while it is
+  // still loading or the read failed. ADVISORY ONLY: the server refuses every
+  // write from a viewer regardless (accessPolicy.ts + pages-guard.ts), and
+  // this exists so the board can say "View only" instead of letting someone
+  // drag a card and watch it snap back with a 403.
+  myRole: TripRole | null;
+  readOnly: boolean;
   // KI-36: the send queue's honest failure surface. `unsent` is the live count
   // of queued units the server has NOT accepted (retained, not discarded);
   // `failure` carries when the send failed and what the server said; `retry`
@@ -66,15 +74,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [optimistic, setOptimistic] = useState<OptimisticState | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
-    const [detailResult, historyResult] = await Promise.all([
+    const [detailResult, historyResult, accessResult] = await Promise.all([
       fetchTripDetail(tripId),
       fetchTripHistory(tripId),
+      // Failure here is deliberately non-fatal: `myRole` stays null and the
+      // board behaves exactly as it did before roles existed. The server is
+      // the boundary; this read only decides what the UI *offers*.
+      fetchTripAccess(tripId),
     ]);
+    setMyRole(accessResult.ok ? accessResult.value.myRole : null);
     if (!detailResult.ok) {
       setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
       setError(detailResult.error.message);
@@ -170,7 +184,18 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     })();
   }, [optimistic, tripId]);
 
+  // A viewer holds read access and executes no planning command at all
+  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry). Stopping
+  // here rather than at the network means the optimistic queue never predicts
+  // a change that is going to be refused — which is what would otherwise make
+  // a card visibly move and then jump back.
+  const readOnly = myRole === "viewer";
+
   const runDispatch = useCallback((commands: BatchableCommand[]) => {
+    if (readOnly) {
+      setError("You have view-only access to this trip.");
+      return;
+    }
     // `rejectionMessage` is populated (deterministically, from `prev`) inside
     // the updater below, but setError itself is only ever invoked once, here,
     // after setOptimistic returns — keeps the updater free of side effects.
@@ -183,10 +208,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       return prev;
     });
     setError(rejectionMessage);
-  }, []);
+  }, [readOnly]);
 
   const dispatch = useCallback(
     async (command: BoardCommand) => {
+      if (readOnly) {
+        setError("You have view-only access to this trip.");
+        return;
+      }
       if (HISTORY_TYPES.has(command.type)) {
         if (pending) return;
         setError(null);
@@ -201,7 +230,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       }
       runDispatch([command as BatchableCommand]);
     },
-    [runDispatch, pending, exit],
+    [runDispatch, pending, exit, readOnly],
   );
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the
@@ -251,6 +280,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         dispatch,
         dispatchBatch,
         applyOutcome,
+        myRole,
+        readOnly,
         sync,
         preview: { seq: previewSeq, enter, exit },
       }}

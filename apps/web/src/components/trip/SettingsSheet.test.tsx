@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripCommand, TripMember } from "@tc/contracts";
+import type { TripCommand } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -14,6 +14,13 @@ const duplicateTripMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
   duplicateTrip: (...args: unknown[]) => duplicateTripMock(...args),
+}));
+
+// The Travelers section is TravelersPanel's own surface (and its own test
+// file) as of M11 link 3; it fetches /api/trips/:id/access on mount, which
+// this file's tests neither stub nor care about.
+vi.mock("@/components/trip/TravelersPanel", () => ({
+  TravelersPanel: ({ tripId }: { tripId: string }) => <div data-testid="travelers-panel">{tripId}</div>,
 }));
 
 import { SettingsSheet } from "./SettingsSheet";
@@ -36,8 +43,6 @@ const defaultSpend: TripSpend = {
   over: false,
 };
 
-const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
-
 // Existing A15 helper, extended (not replaced) with the two new required
 // props (#5, controller ruling) — every existing call site below keeps
 // working unchanged since both take defaults. Further extended (this task)
@@ -45,7 +50,7 @@ const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
 // capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
   onDeleted = vi.fn(),
-  overrides: { spend?: TripSpend; members?: TripMember[]; onCommand?: (command: TripCommand) => void } = {},
+  overrides: { spend?: TripSpend; onCommand?: (command: TripCommand) => void } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
   render(
@@ -60,7 +65,6 @@ function renderSheet(
       currency="USD"
       budget={null}
       spend={overrides.spend ?? defaultSpend}
-      members={overrides.members ?? defaultMembers}
       onCommand={onCommand}
       onDeleted={onDeleted}
     />,
@@ -72,7 +76,7 @@ function renderSheet(
 // thin wrapper around renderSheet that makes the budget-remaining override
 // (the thing every new test below actually varies) a one-liner.
 function renderSettings(
-  opts: { open?: boolean; budgetRemaining?: number | null; members?: TripMember[] } = {},
+  opts: { open?: boolean; budgetRemaining?: number | null } = {},
 ) {
   const remaining = "budgetRemaining" in opts ? opts.budgetRemaining! : defaultSpend.remaining;
   const spend: TripSpend = {
@@ -80,7 +84,7 @@ function renderSettings(
     remaining,
     over: remaining !== null && remaining < 0,
   };
-  renderSheet(vi.fn(), { spend, members: opts.members });
+  renderSheet(vi.fn(), { spend });
 }
 
 // Renaming lives here now: PR #55's preview feedback removed the header's
@@ -178,9 +182,11 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
     expect(screen.getByText("No budget set")).toBeTruthy();
   });
 
-  it("lists real members", () => {
+  // M11 link 3 moved the member list into TravelersPanel (mocked above), so
+  // what this sheet is still responsible for is mounting it for THIS trip.
+  it("mounts the Travelers panel for this trip", () => {
     renderSettings({ open: true });
-    expect(screen.getByText("dev-alice")).toBeTruthy();
+    expect(screen.getByTestId("travelers-panel").textContent).toBe(tripId);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TripCommand, type TripMember, type TripRole } from "@tc/contracts";
-import { memberRolePolicy } from "./accessPolicy";
+import { hasAtLeast, memberRole, memberRolePolicy } from "./accessPolicy";
 
 const ALL_COMMAND_TYPES = TripCommand.options.map((o) => o.shape.type.value);
 const NON_CREATE = ALL_COMMAND_TYPES.filter((t) => t !== "CreateTrip");
@@ -63,5 +63,62 @@ describe("memberRolePolicy", () => {
     ];
     expect(memberRolePolicy.canExecute("viewer-1", "AddDay", members)).toBe(false);
     expect(memberRolePolicy.canExecute("owner-1", "AddDay", members)).toBe(true);
+  });
+});
+
+// The read/CRUD half of the seam (M11 link 3). `canExecute` answers for
+// planning commands; everything else — reading a trip, writing a Notebook
+// page, driving the assistant, managing invites — asks `hasAtLeast`.
+describe("hasAtLeast", () => {
+  it("is false for a non-member at every minimum", () => {
+    for (const minimum of ["viewer", "editor", "owner"] as const) {
+      expect(hasAtLeast("stranger", as("owner"), minimum)).toBe(false);
+      expect(hasAtLeast("stranger", null, minimum)).toBe(false);
+      expect(hasAtLeast("stranger", [], minimum)).toBe(false);
+    }
+  });
+
+  it("ranks viewer < editor < owner", () => {
+    expect(hasAtLeast("u1", as("viewer"), "viewer")).toBe(true);
+    expect(hasAtLeast("u1", as("viewer"), "editor")).toBe(false);
+    expect(hasAtLeast("u1", as("viewer"), "owner")).toBe(false);
+
+    expect(hasAtLeast("u1", as("editor"), "viewer")).toBe(true);
+    expect(hasAtLeast("u1", as("editor"), "editor")).toBe(true);
+    expect(hasAtLeast("u1", as("editor"), "owner")).toBe(false);
+
+    for (const minimum of ["viewer", "editor", "owner"] as const) {
+      expect(hasAtLeast("u1", as("owner"), minimum)).toBe(true);
+    }
+  });
+
+  // The specific hole M11 link 3 was told to close before issuing any viewer
+  // invite: pages-guard's `guard()` checked membership with NO role and fronts
+  // both the page-write routes and the AI handler.
+  it("refuses a viewer the editor rank the page writes and the assistant need", () => {
+    expect(hasAtLeast("u1", as("viewer"), "editor")).toBe(false);
+  });
+
+  // canExecute is now literally `hasAtLeast(actor, members, MINIMUM_ROLE[t])`,
+  // so this pins the two to the same ranking from the outside: the stream-level
+  // commands need `owner`, everything else needs `editor`, and nothing needs
+  // only `viewer`.
+  it("agrees with canExecute on every command, for every role", () => {
+    const OWNER_ONLY = new Set(["DeleteTrip", "RestoreTrip"]);
+    for (const role of ["viewer", "editor", "owner"] as const) {
+      for (const type of NON_CREATE) {
+        expect(memberRolePolicy.canExecute("u1", type, as(role))).toBe(
+          hasAtLeast("u1", as(role), OWNER_ONLY.has(type) ? "owner" : "editor"),
+        );
+      }
+    }
+  });
+});
+
+describe("memberRole", () => {
+  it("returns the role, or null for a non-member", () => {
+    expect(memberRole("u1", as("editor"))).toBe("editor");
+    expect(memberRole("stranger", as("editor"))).toBeNull();
+    expect(memberRole("u1", null)).toBeNull();
   });
 });

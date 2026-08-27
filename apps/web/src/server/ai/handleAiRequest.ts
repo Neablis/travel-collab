@@ -165,7 +165,11 @@ export async function handleAiRequest(
   model?: LanguageModel,
   geocoder?: Geocoder,
 ): Promise<Response> {
-  const g = await guard(tripId);
+  // `editor`, not membership: every surface this handler serves WRITES — the
+  // board/combined surfaces execute planning commands as an atomic batch, and
+  // the page surface authors Notebook content. A viewer driving the assistant
+  // would be a viewer editing the trip through a second door (M11 link 3).
+  const g = await guard(tripId, "editor");
   if ("error" in g) return g.error;
   const { userId, detail } = g;
 

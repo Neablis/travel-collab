@@ -37,6 +37,13 @@ vi.mock("@/lib/apiClient", () => ({
   fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: italyTripDetail }),
   fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: { tripId: "italy-trip", entries: [], canUndo: false, canRedo: false } }),
   fetchTripDetailAt: vi.fn(),
+  // M11 link 3: TripProvider reads the caller's role alongside detail and
+  // history. `owner` keeps this file's board fully editable, which is what
+  // every assertion below was written against.
+  fetchTripAccess: vi.fn().mockResolvedValue({
+    ok: true,
+    value: { tripId: "italy-trip", myRole: "owner", members: [], invites: [] },
+  }),
   sendTripCommand: (...a: unknown[]) => dispatchSpy(...a),
   sendTripCommandBatch: vi.fn(),
 }));

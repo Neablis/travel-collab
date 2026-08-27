@@ -50,6 +50,13 @@
       "when": 1787818638233,
       "tag": "0006_shocking_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787820960308,
+      "tag": "0007_silly_quasimodo",
+      "breakpoints": true
     }
   ]
 }

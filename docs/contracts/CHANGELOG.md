@@ -13,6 +13,41 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — M11 link 3: the Access & Membership contract
+
+- Added: `packages/contracts/src/access.ts`, exported from the package index —
+  `InviteRole` (`viewer|editor`), `InviteStatus` (`pending|accepted|revoked`),
+  `TripInvite`, `CreateInviteInput`, `TripMemberProfile`, `TripAccess`,
+  `InvitePreview`
+- Why: link 3 creates non-owner members, and none of what that needs — an
+  invite, its status, who accepted it, a member's display name — belongs on
+  `TripDetail`. The Access & Membership module owns invites/roles/revocation
+  (AGENTS.md module map) and Identity owns names; putting either on a planning
+  read model would be the ADR-003 boundary smell in the other direction
+- `InviteRole` is deliberately NOT `TripRole`: an invite hands out
+  participation, never ownership. Transferring a trip is a different operation
+  (the owner is the only role that can delete one) and no milestone has asked
+  for it
+- **`TripDetail`, `TripSummary`, `TripMember` and `TripRole` are unchanged.**
+  That is the point of the split: the planning contracts did not move, so the
+  hand-enumeration trap (`equality.ts`, `diff.ts`, `hydrate.ts`, `detail.ts`
+  and `tripGenerator.ts` each enumerating fields by hand) had nothing to catch
+  this time. `members` is passed through whole on every one of those paths and
+  no new field was added to it
+- Consumers updated: `apps/web` only — `server/access/*` (new module),
+  `server/accessPolicy.ts` (`memberRole`/`hasAtLeast` added; `canExecute` now
+  delegates to `hasAtLeast` so one ranking serves both), `server/commands.ts`
+  (authorizes against the effective member list), `server/pages-guard.ts`
+  (required minimum-role parameter), `server/ai/handleAiRequest.ts` (`editor`),
+  the trip read/list/history routes, `lib/apiClient.ts`, `mocks/handlers.ts`,
+  `components/trip/TravelersPanel.tsx` (new), `components/access/
+  InviteAcceptScreen.tsx` (new), `SettingsSheet`, `TripHeader`, `TripProvider`,
+  `NewTripWizard`, `middleware.ts`, `preview-registry.ts`.
+  `@tc/domain`, `@tc/factories`, `@tc/pages` and `@tc/predict` needed no change
+- Migration: `apps/web/drizzle/0007_silly_quasimodo.sql` — creates
+  `trip_invites` and `trip_memberships`. Additive; nothing existing is altered
+- Breaking? no — every schema here is new, and no existing schema changed
+
 ## 2026-08-27 — M11: TripMember roles
 - Added: `TripRole` (`viewer|editor|owner`, ordered least- to most-privileged)
 - Changed: `TripMember.role` from `z.literal("owner")` to `TripRole`
