@@ -107,6 +107,48 @@ describe("ShareButton", () => {
     expect(await screen.findByText("No share links yet.")).toBeTruthy();
   });
 
+  // A `title` tooltip is not a delivery mechanism, and copying IS how a share
+  // link is sent (CodeRabbit, PR #70).
+  it("reveals the link as selectable text when the clipboard is denied", async () => {
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    render(<ShareButton tripId={tripId} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Copy share link" }));
+
+    const fallback = await screen.findByLabelText("Share link");
+    expect((fallback as HTMLInputElement).value).toBe("http://test/s/share-tok");
+    expect(fallback.hasAttribute("readonly")).toBe(true);
+    expect(screen.queryByText("denied")).toBeNull();
+  });
+
+  it("clears a previous error once a reload succeeds", async () => {
+    fetchTripSharesMock
+      .mockResolvedValueOnce({ ok: true, value: [share] })
+      .mockResolvedValueOnce({ ok: false, error: { status: 500, message: "boom" } })
+      .mockResolvedValue({ ok: true, value: [share] });
+
+    render(<ShareButton tripId={tripId} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off share link" }));
+    expect(await screen.findByText("boom")).toBeTruthy();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off share link" }));
+    await waitFor(() => expect(screen.queryByText("boom")).toBeNull());
+  });
+
+  // The reverse: `load()` clearing the error means a handler that set its own
+  // error first would wipe its own message.
+  it("still reports a failed revoke, even though the reload after it succeeds", async () => {
+    revokeTripShareMock.mockResolvedValue({
+      ok: false,
+      error: { status: 500, message: "could not turn it off" },
+    });
+    render(<ShareButton tripId={tripId} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off share link" }));
+    expect(await screen.findByText("could not turn it off")).toBeTruthy();
+  });
+
   it("surfaces a refused create rather than looking like it worked", async () => {
     createTripShareMock.mockResolvedValue({ ok: false, error: { status: 403, message: "forbidden" } });
     render(<ShareButton tripId={tripId} />);
