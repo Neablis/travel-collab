@@ -38,13 +38,12 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 ## Phase 2 — A product worth using
 
-- [ ] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
+- [x] **M10 Visual craft pass** → `docs/milestones/M10-visual-craft.md`
       *(Brought forward ahead of M9, 2026-08-08 — see ADR-018. Wave 1's gate
       closed 2026-08-10 on PR #23, then **reopened 2026-08-14** by an external
       design review: the handoff had moved two generations since Wave 1 was
       built, and Wave 1's own assistant rail introduced three blocking defects.
-      Wave 2 closes the delta — plan at
-      `docs/plans/2026-08-14-M10-redesign-delta.md`, findings at
+      Wave 2 closed the delta, findings at
       `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
       **Gate widened on 2026-08-23** by the design sync, recorded in the
       milestone file: **Phase 8b** (Caesura rename, working sign out,
@@ -53,13 +52,21 @@ Where the work actually stands right now: `docs/STATUS.md`.
       header adopts the focus-scope model, an explicit revisit of the merged
       Phase 1). **Phase 1b was CANCELLED 2026-08-26, unbuilt** — `SPEC.md` §1's
       focus-scope model is rejected; the global bar carries nothing trip-scoped.
-      Phase order to the gate is now: 5, 6, 7, 8, 8b, 9, and **Phase 9 is the
-      next work**.)*
-- [ ] **M18 A stop knows what kind of thing it is** →
-      `docs/milestones/M18-stop-kind.md`
+      Phase order to the gate was: 5, 6, 7, 8, 8b, 9.
+      **Wave-2 gate closed 2026-08-27** — full DoD green, e2e 31/31 twice
+      against a production build, every surface walked at 1280/1100/820px with
+      the assistant rail shown and hidden. The walk found and fixed one real
+      defect the automated suites are structurally blind to (the assistant
+      launcher never cleared the unscheduled rack — it overlapped without ever
+      blocking a click). Retro, evidence and the promoted rules are in the
+      milestone file; the phase plans were deleted in the gate-close commit per
+      `docs/plans/README.md`.)*
+- [ ] **M18 A stop knows what kind of thing it is** ← **current milestone**
+      → `docs/milestones/M18-stop-kind.md`
       *(Approved 2026-08-26, **scheduled 2026-08-26** — Mitchell: *"i dont want
       to do KIND and TAGS right now, but we can put it in a soon milestone."*
-      Runs after M10's Wave-2 gate and **before M16**. Widened on the same call
+      **Unblocked 2026-08-27** when M10's Wave-2 gate closed; runs **before
+      M16**. Widened on the same call
       to carry **both** missing activity fields — `kind` and `tags` (KI-47) —
       because they are one contract change, one migration decision and one
       backfill question, and splitting them would pay that cost twice. This is
@@ -70,8 +77,10 @@ Where the work actually stands right now: `docs/STATUS.md`.
       accident.)*
 - [ ] **M16 The assistant answers questions** →
       `docs/milestones/M16-assistant-read-agent.md`
-      *(Approved 2026-08-25, **ADR-022**. Runs right after M10's Wave-2 gate,
-      ahead of M15. Three waves: the sidebar styled to `SPEC.md` §9's docked
+      *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
+      and ahead of M15 — but M15 in fact closed its own gate first (2026-08-26),
+      and M18 was then scheduled ahead of M16 (2026-08-26). So M16 now runs
+      **after M18**. Three waves: the sidebar styled to `SPEC.md` §9's docked
       presentation with both `<Preview>` blocks deleted; a **read-only
       tool-using agent** on a new `/ask` endpoint — one question, one answer,
       scoped to the selected day or the whole trip; then analytics on which
@@ -101,8 +110,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       designed one-field first-run screen was dropped, decision 3), and the
       header account menu (already shipped in M10 Phase 8b). Both open
       questions resolved: no separate first-run screen, and the landing copy
-      ships verbatim selling M11/M12. M10's Phase 9 gate remains open and is
-      the next work.)*
+      ships verbatim selling M11/M12. M10's Phase 9 gate closed after this, on
+      2026-08-27; **M18** is the next work.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
       *(**Moved to last, after M14 — ADR-022, 2026-08-25.** Mitchell's call: the
       data layer beneath a planning partner should exist first, and UI polish and

@@ -1,15 +1,23 @@
 # M10 — Visual craft pass
 
-**Status:** **Gate reopened 2026-08-14 — a second wave is in flight.** The first
-wave's gate closed 2026-08-10 and its record below stands as written; it was true
-against the handoff generation available at the time. An external review on
-2026-08-14 found that generation had since been superseded twice, and that the
-wave introduced three blocking defects its own gate could not see. See
-**"Gate reopened"** at the end of this file. Brought forward ahead of M9
-(2026-08-08) — see
+**Status:** **DONE — the Wave-2 gate closed 2026-08-27.** This milestone had two
+gates. The first wave's closed 2026-08-10 and its record below stands as written;
+it was true against the handoff generation available at the time. An external
+review on 2026-08-14 found that generation had since been superseded twice, and
+that the wave introduced three blocking defects its own gate could not see —
+**"Gate reopened"**, further down. Wave 2 closed that delta across Phases 0-8 and
+8b (Phase 1b was cancelled unbuilt); its exit gate and **Wave 2 retro** are below.
+Brought forward ahead of M9 (2026-08-08) — see
 `docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md` and
 the design record, `docs/specs/2026-08-08-M10-redesign-incorporation-design.md`.
-Order: `M8 ✓ → [Phase 1 gate review ✓] → M10 (this, Wave 2 in flight) → M9 → M11 → …`.
+
+**Read this file in halves.** Everything from "Scope" to "Retro" is **Wave 1**,
+closed 2026-08-10. Everything from "Why the first wave's gate passed anyway"
+onward is **Wave 2**, closed 2026-08-27. Where the two disagree, Wave 2 is
+current.
+
+Order as executed: `M8 ✓ → [Phase 1 gate review ✓] → M10 ✓ → M15 ✓ → M18 (next)
+→ M16 → M11 → M12 → M13 → M14 → M9`.
 
 ## Why this moved ahead of M9
 
@@ -317,8 +325,17 @@ Governed by Mitchell's scoping rule, 2026-08-14: *"build upon what exists in the
 data model, and implement the UI only for things we can't build today and wrap in
 the under construction UI."*
 
-The plan is `docs/plans/2026-08-14-M10-redesign-delta.md` (an index) plus one
-file per phase in `docs/plans/M10-delta/`. Ten phases, 28 tasks.
+The plan was `docs/plans/2026-08-14-M10-redesign-delta.md` (an index) plus one
+file per phase in `docs/plans/M10-delta/`. Ten phases, 28 tasks. **All of it was
+deleted at this milestone's gate close (2026-08-27)** per `docs/plans/README.md`'s
+staging-area rule; its durable content was promoted first — into the Wave-2 retro
+below (including the one rule that lived nowhere else, currency being
+trip-level), into `AGENTS.md`, `docs/guidelines/design-system.md`, and
+`docs/design-feedback/2026-08-23-design-sync-review.md`. The files are still in
+git history; that README says how to read one without checking it out. Every
+`docs/plans/M10-delta/…` path named anywhere in the repo's docs refers to one of
+them and should be read that way. Re-plan from the reasoning here rather than
+assuming an old task's steps still fit today's code.
 
 **Ships real**, because the data model already supports it — a finding that
 materially shrank this wave:
@@ -352,23 +369,52 @@ transport data. Map routes are straight lines.
 
 ## Wave 2 exit gate
 
-- [ ] Phase 0's three defects fixed, each verified at 1100px in a real browser,
-      not only in unit tests.
-- [ ] **`playwright.config.ts` gains a narrow-viewport project** (or at least one
+**Closed 2026-08-27.** Every box below is ticked against a run recorded in the
+retro that follows, not from memory. The gate walk found and fixed one real
+defect (the assistant launcher never cleared the unscheduled rack); that is in
+the retro too.
+
+- [x] Phase 0's three defects fixed, each verified at 1100px in a real browser,
+      not only in unit tests. — Re-verified 2026-08-27 in the gate walk below,
+      at 1280 / 1100 / 820px against a production build: the rail is an overlay
+      below 1180px whose scrim dismisses it (KI-16), a sheet's Close button is
+      reachable above it (KI-17), and `dayAccents` gives six seeded cities six
+      families (KI-18). All three also have standing specs — `responsive.spec.ts`
+      in the `narrow` project, and `dayAccent.test.ts`.
+- [x] **`playwright.config.ts` gains a narrow-viewport project** (or at least one
       spec that drives the trip page below 1180px), so the gap that let Wave 1
-      pass cannot recur. This is the gate condition, not a nice-to-have.
-- [ ] Every surface in `design_handoff_update/current/` is either built or behind
-      a registered `<Preview>` — no third state.
-- [ ] `dayAccents` gives Tokyo / Kyoto / Osaka three distinct families, and a day
+      pass cannot recur. This is the gate condition, not a nice-to-have. —
+      `apps/web/playwright.config.ts:64-78` defines `setup` / `desktop`
+      (1280×900) / `narrow` (1100×800); `narrow` runs `e2e/responsive.spec.ts`,
+      11 specs covering both sides of the 1180px breakpoint plus the landing
+      page at 900 / 402 / 375 / 360 / 320px. **KI-19 is Resolved.**
+- [x] Every surface in `design_handoff_update/current/` is either built or behind
+      a registered `<Preview>` — no third state. — 24 registry entries in
+      `apps/web/src/lib/preview-registry.ts`, each naming the milestone that
+      retires it; `preview-registry.test.ts` enforces both directions, so a
+      third state cannot compile. The surfaces the 2026-08-23 sync added on top
+      of that generation (landing, auth, Notebook redesign) are routed to M15
+      (shipped), M14 and M11 — deliberately not this gate's scope.
+- [x] `dayAccents` gives Tokyo / Kyoto / Osaka three distinct families, and a day
       with no known city renders an explicit neutral rather than a hashed family.
-- [ ] No new `packages/` or `apps/web/src/server` diff beyond Wave 1's
-      already-approved `conflicts.ts` exception.
-- [ ] The registry↔usage sync test stays green with every new `<Preview>`
-      registered.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm --filter web test`,
+      — `dayAccent.test.ts` asserts exactly this, including that the unknown-city
+      case does not spend a colour bucket. Confirmed by eye on the Japan seed:
+      Tokyo green, Nikkō teal, Hakone amber, Kyoto red, Osaka pink, Naoshima blue.
+- [x] No new `packages/` or `apps/web/src/server` diff beyond Wave 1's
+      already-approved `conflicts.ts` exception. — `git diff --stat origin/main
+      -- packages apps/web/src/server` is empty at gate close. The one code
+      change this gate made is `apps/web/src/components/board/`.
+- [x] The registry↔usage sync test stays green with every new `<Preview>`
+      registered. — green in the 111-file unit run below.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm --filter web test`,
       `pnpm --filter web test:int`, and the full e2e suite green against a
-      production build, twice.
-- [ ] Wave 2 retro appended here; `README.md`, `TODO.md` and `docs/STATUS.md`
+      production build, twice. — 2026-08-27, on the gate branch with the
+      launcher fix in: typecheck green across all 6 packages; **root** `pnpm
+      lint` green (ESLint + lint wall + colour wall, 313 files / 0 pending +
+      case collisions, 695 paths); unit **890 passed, 1 skipped** across 111
+      files; int **85 passed** across 13 files against real Postgres;
+      `pnpm --filter web test:e2e:ci-like` **31/31 twice**, identical both runs.
+- [x] Wave 2 retro appended here; `README.md`, `TODO.md` and `docs/STATUS.md`
       flipped in the same gate-close commit; the phase plans deleted per
       `docs/plans/README.md`.
 
@@ -385,6 +431,163 @@ and neither is an app defect; both are listed here so a gate run in a
 container is not mistaken for a red suite. Verified 2026-08-22: unit
 501/501 and int 72/72 green on `main`; e2e not established in this
 environment.
+
+## Wave 2 retro, 2026-08-27
+
+### What shipped
+
+Phases 0-8 plus 8b, across PRs #23 (Wave 1 + Phases 0-2), #26, #28, #30, #32,
+#33, #35, #46 and #55. The trip surface is now the design's: a sticky header
+carrying the four view tabs and the day-chip rail, a Timeline with real free-time
+gaps, Day columns with per-card conflicts, a month-blocked Calendar, a Map lens
+with a day rail and focus card, an unscheduled rack that accepts drops, per-stop
+costs rolling up to a trip budget bar, overlap and over-budget warnings as
+dismissable data, add-a-day and empty states, rebuilt add-stop and new-trip
+forms, and the Caesura rename with a working sign out and a three-state save
+indicator.
+
+**Phase 1b was cancelled unbuilt** (2026-08-26) — `SPEC.md` §1's focus-scope
+model was rejected outright; see the amendment above.
+
+**What stayed behind a `<Preview>`, and why.** 24 registered ids, every one of
+them blocked on a *field that does not exist*, not on effort: confirmed-vs-
+estimate cost state, "was on day N" provenance, the Booked/Holds/Travel budget
+categories, invite roles and display names, the map legend's on-foot-vs-transit
+split, add-stop's "who is in" and suggested places, the wizard's destination
+chips / pace / tags / assistant-draft, and M11's Playbooks and share surfaces.
+The registry is the record and `preview-registry.test.ts` enforces it in both
+directions, so "built", "previewed" and "missing" cannot drift apart — there is
+no third state to hide in.
+
+### How much of the design turned out to be already modelled
+
+**This is the finding worth carrying forward.** The wave was scoped from a
+design and estimated as if the data behind it were the expensive part. It was
+not. Reading the contracts first turned most of the estimate into presentation:
+
+| the design needed | already there |
+|---|---|
+| cost per stop | `ActivityView.cost: Money` |
+| budget and currency per trip | `trip.budget`, `trip.currency` |
+| a trip total and remaining | `TripDetail.tripCostTotal`, `.budgetRemaining`, summed server-side |
+| unscheduled / parked stops | `trip.backlog` + `MoveActivity(toDayId: null)` |
+| overlaps, and dismissing one | the `time-overlap` rule + `DismissConflict` |
+| over-budget state | the `over-budget` rule |
+| coordinates for map routes | `Location.lat/lng`, already populated by LocationIQ |
+
+Seven of the design's headline capabilities cost **zero** contract work. The
+genuinely absent ones were absent for a reason that a glance at the design could
+not have supplied either — `kind` and `tags` (now M18), a `TripSummary` start
+date (KI-34), an `area` field (KI-35).
+
+**The habit to keep: read the contracts before estimating a design's data cost.**
+The `packages/` diff for this entire wave is empty. A "visual pass" that looked
+like it needed a schema change needed none.
+
+### The viewport gap (KI-19), and what `narrow` now guards
+
+Wave 1's gate passed **11/11 against a production build** while the trip page
+was completely inert below 1180px. The suite could not see it:
+`playwright.config.ts` set no `viewport`, so every spec ran at Playwright's
+1280×720 default — above the breakpoint where the rail's scrim turns on. The
+gate was not weak; it was blind, and a blind gate reports green with total
+confidence.
+
+`narrow` (1100×800) now runs `e2e/responsive.spec.ts`: the rail is an overlay
+whose scrim dismisses it (KI-16), a sheet's Close button is reachable above it
+(KI-17), a view-tab click still changes the lens, the Playbooks strip reflows to
+two columns, the hero collapses to one below 1024px, and the landing page holds
+together at 900 / 402 / 375 / 360 / 320px. The `desktop` project's viewport is
+now explicit too, so neither side of the breakpoint is an accident of a default.
+
+The generalisable lesson: **a test suite's fixed parameters are part of its
+coverage.** One unstated default hid a whole class of defect from eleven specs.
+
+### Did Task 1.3's header change fix the drag-and-drop root cause?
+
+`Board.tsx:182-202` blames the Task-11-era drag regression on the cumulative
+height above the day-columns row pushing columns past the viewport fold, where
+pragmatic-drag-and-drop's hit-testing finds nothing.
+
+**No — and it moved the wrong way.** Measured at gate close on the Japan seed,
+production build, 1280px wide: `header[aria-label="Trip"]` is **310px** tall,
+against the **147px** the plan recorded before Task 1.3. Task 1.3 pinned the
+tabs *and* the day chips inside the sticky header, so the region got taller, not
+shorter. The columns row starts at y=470 and each column runs to y=1342 — 442px
+past a 900px-tall fold, 622px past a 720px one; the page overflows by 470px and
+650px respectively.
+
+So `autoScrollWindowForElements()` is **still earning its place**, and by a wider
+margin than when it was added. Removing it would reintroduce exactly the failure
+it was added for. Recorded here rather than left as an open question, because the
+next person to read that comment will otherwise re-derive this measurement.
+
+### Found late, that per-task review could not see
+
+**The assistant launcher never cleared the unscheduled rack.** Found in this
+gate's own browser walk; fixed in the gate commit.
+
+`TripBoardScreen` measures the rack with a `ResizeObserver` and offsets the
+launcher by `rackHeight + 24`. The arithmetic was right and the measurement never
+happened: the rack's wrapper is mounted by JSX *below* the `status === "loading"`
+early return, so on the first commit it did not exist. The effect keyed on
+`[lens]` ran once against a null ref, took the `if (!el) { setRackHeight(0) }`
+branch, registered no observer — and never re-ran, because the lens had not
+changed. `rackHeight` stayed 0 for the life of the page.
+
+Live consequence at every width, 1280 / 1100 / 820 alike: the launcher sat at a
+bare `bottom: 24px`, overlapping the rack by 15px collapsed and **212px** once
+open. Fixed by making the ref a **callback ref**, which fires when the node
+actually appears whatever gated it, rather than an effect guessing which state
+that was. Guarded by a new spec in `TripBoardScreen.test.tsx`, verified to fail
+on the unfixed component (`24px` where `80px` is expected).
+
+**Why nothing caught it earlier.** Three reviewers looked at this code and all
+three read the arithmetic, which was correct. The unit suite never rendered the
+launcher and the rack together with a measurable height; the e2e suite asserts
+that controls are *clickable*, and the launcher was clickable throughout — it is
+`z-40` over the rack's `z-20`, so it stayed the topmost element at its own
+centre. It was only ever wrong to look at. **An overlap defect that never breaks
+a click is invisible to every check this repo runs**, which is precisely the
+category the gate's manual walk exists for. Worth keeping the walk blocking for.
+
+**A second, smaller lesson from the same walk:** the first three attempts to
+drive it failed because the harness fought the *designed* behaviour — below
+1180px an open rail is a full-page scrim, so the tab strip is legitimately
+unreachable while it is open. Picking the lens before setting the rail state is
+the correct walk order, and reaching for "the page is inert" would have been
+wrong both times.
+
+### Not verified here, and honestly so
+
+**The Map lens's tiles.** `tiles.openfreemap.org` is blocked by this container's
+egress proxy (**KI-49**), so the map rail, focus card and legend were walked
+against a blank canvas. Their geometry, overflow and stacking are verified; the
+map *itself* is not, and a local "looks fine" is not evidence about it. Map
+rendering was last confirmed on a Vercel preview.
+
+**402px and below.** Out of this gate's scope by decision — the walk is 1280 /
+1100 / 820. The app below ~1100px is the desktop layout, not the designed mobile
+companion; that is **KI-46**, a milestone of its own, not a gate item.
+
+### Rules promoted out of the plan before it was deleted
+
+The plan files go in this commit per `docs/plans/README.md`. One rule in the
+index was recorded nowhere else and is preserved here:
+
+**Currency is a trip-level property, never per-event** (Mitchell, 2026-08-14).
+`Money` is `{ amountMinor, currency }`, but within one trip every amount shares
+`trip.currency` — so every rollup sums `amountMinor` directly and formats once.
+Do **not** write per-amount currency branching, conversion, or a mixed-currency
+fallback: that is dead code guarding a state the product does not produce. Note
+the contract asymmetry it has to live with — `cost` is `Money.optional()` on
+`ActivityView` but `Money.nullable().optional()` on the write side.
+
+Everything else durable in the plan already lives in `AGENTS.md` (the invariants,
+the no-`@tc/domain`-in-UI rule), `docs/guidelines/design-system.md` (the colour
+wall, named classes over arbitrary values), `preview-registry.ts` (the Preview
+seam), and `docs/design-feedback/2026-08-23-design-sync-review.md` (the routing
+of everything the sync brought that M10 does not own).
 
 ## PR #23 merged as a partial delta, 2026-08-17
 

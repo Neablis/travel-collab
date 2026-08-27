@@ -12,7 +12,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
-import { setViewportMatches } from "../../../vitest.setup";
+import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // The Assistant rail's real Ask box calls composeAiPlan directly (M10
 // redesign-feedback follow-up) — mocked the same way ComposePanel.test.tsx
@@ -548,6 +548,36 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // Phase 9's gate walk found this in a real browser: the launcher's `bottom`
+  // was stuck at the bare 24px at every width, so it sat over the unscheduled
+  // rack it is measured to clear — 15px of it with the rack collapsed, 212px
+  // with it open. The cause was not the arithmetic but the measurement never
+  // happening: the rack's wrapper mounts *below* the `status === "loading"`
+  // early return, so an effect keyed on `[lens]` ran once against a null ref
+  // and registered no ResizeObserver, then never re-ran.
+  //
+  // This asserts the observer exists rather than the number: `triggerResize`
+  // (vitest.setup.ts) is a no-op when nothing is observed, which is exactly
+  // the broken state, and it hands the component no geometry — the component
+  // reads the height installed below itself, the way a real one does.
+  it("the assistant launcher clears the unscheduled rack it is measured against", async () => {
+    setViewportMatches({ "(min-width: 1180px)": false });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const launcher = screen.getByRole("button", { name: "Assistant" });
+    // Nothing has been measured yet, so the launcher sits at its bare offset.
+    expect(launcher.style.bottom).toBe("24px");
+
+    const rack = screen.getByTestId("unscheduled-rack");
+    vi.spyOn(rack, "getBoundingClientRect").mockReturnValue({ height: 56 } as DOMRect);
+    triggerResize();
+
+    await waitFor(() => expect(launcher.style.bottom).toBe("80px"));
   });
 });
 
