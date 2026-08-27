@@ -129,9 +129,17 @@ export function SettingsSheet({
   // `handleDelete` only acts `if (result.ok)`. Gate on the rank the server
   // actually enforces rather than merely hiding it from viewers.
   const canDelete = myRole === "owner";
-  // A viewer holds read access and executes no planning command at all, so the
-  // rename field would dispatch something guaranteed to be refused.
+  // A viewer holds read access and executes no planning command at all —
+  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry.
   const readOnly = myRole === "viewer";
+  // Dispatch is severed at the SOURCE, not at each control. The individual
+  // controls are disabled below so a viewer is not offered something that
+  // silently does nothing — but a future control added to this sheet would
+  // otherwise leak a command past that per-control gating, and this is the
+  // one line that cannot be forgotten (CodeRabbit, PR #70, on the same class
+  // as the delete handler). The server refuses these regardless; this is
+  // about not offering them.
+  const dispatch = readOnly ? () => undefined : onCommand;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
@@ -204,7 +212,7 @@ export function SettingsSheet({
               // PR #55). The guard above already does this for the two no-op
               // cases; this is the third.
               e.currentTarget.value = name;
-              onCommand({ type: "SetTripName", tripId, name });
+              dispatch({ type: "SetTripName", tripId, name });
             }}
           />
         </FormField>
@@ -224,6 +232,7 @@ export function SettingsSheet({
             <Button
               variant="ghost"
               aria-label="Dates"
+              disabled={readOnly}
               className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
             >
               <Text as="span" className="text-xs text-slate">
@@ -241,7 +250,7 @@ export function SettingsSheet({
             endDate={endDate}
             dayCount={dayCount}
             onCommand={(command) => {
-              onCommand(command);
+              dispatch(command);
               setDatesOpen(false);
             }}
             onClose={() => setDatesOpen(false)}
@@ -250,7 +259,13 @@ export function SettingsSheet({
 
         <div>
           <SectionHeading>Budget</SectionHeading>
-          <TripMoneySettings tripId={tripId} currency={currency} budget={budget} onCommand={onCommand} />
+          <TripMoneySettings
+            tripId={tripId}
+            currency={currency}
+            budget={budget}
+            disabled={readOnly}
+            onCommand={dispatch}
+          />
 
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center gap-3">

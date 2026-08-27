@@ -73,11 +73,28 @@ export async function sharedTripIds(userId: string): Promise<string[]> {
   return rows.map((r) => r.tripId);
 }
 
+/**
+ * Establish a membership. Returns false when one already existed.
+ *
+ * `onConflictDoNothing`, NOT `onConflictDoUpdate`, and that is the whole
+ * safety property. `acceptInvite`'s guard reads the member list and refuses
+ * anyone already on the trip — but that read cannot be serialized against a
+ * concurrent one by moving it inside a transaction: under READ COMMITTED two
+ * simultaneous accepts of two DIFFERENT tokens both see no membership, both
+ * claim their own token (no row conflict), and both arrive here. An upsert let
+ * the loser of that race overwrite the winner's role, which put role selection
+ * back in the recipient's hands by another door (CodeRabbit, PR #70).
+ *
+ * The primary key on (tripId, userId) is the only real serialization point, so
+ * the decision is made HERE: first grant wins, later ones report that they
+ * changed nothing, and the caller rolls its transaction back. Changing a role
+ * stays the owner's operation — revoke and re-invite.
+ */
 export async function grantMembership(
   tx: Queryable,
   input: { tripId: string; userId: string; role: TripRole; invitedBy: string; now: string },
-): Promise<void> {
-  await tx
+): Promise<boolean> {
+  const inserted = await tx
     .insert(tripMemberships)
     .values({
       tripId: input.tripId,
@@ -86,15 +103,9 @@ export async function grantMembership(
       invitedBy: input.invitedBy,
       createdAt: input.now,
     })
-    // A safety net, not a role-change mechanism. `acceptInvite` refuses
-    // outright for anyone already on the trip, precisely so that the role a
-    // member ends up with is the one the OWNER granted rather than whichever
-    // outstanding link the recipient chose to click last. Kept as an upsert so
-    // a retried grant is idempotent rather than a primary-key error.
-    .onConflictDoUpdate({
-      target: [tripMemberships.tripId, tripMemberships.userId],
-      set: { role: input.role, invitedBy: input.invitedBy },
-    });
+    .onConflictDoNothing({ target: [tripMemberships.tripId, tripMemberships.userId] })
+    .returning();
+  return inserted.length > 0;
 }
 
 /**
