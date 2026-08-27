@@ -164,22 +164,12 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
 export async function readShareForClone(
   token: string,
 ): Promise<AccessResult<{ detail: TripDetail; tripId: string; atSeq: number; name: string }>> {
-  const rows = await db.select().from(tripShares).where(eq(tripShares.token, token));
-  const share = rows[0];
-  if (share === undefined) {
-    return { ok: false, error: { code: "not-found", message: "This link is not valid." } };
-  }
-  if (share.revokedAt !== null) {
-    return { ok: false, error: { code: "gone", message: "This link has been turned off." } };
-  }
-  const current = await getTripDetail(share.tripId);
-  if (current === null || current.status === "deleted") {
-    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
-  }
-  const replayed = await getTripDetailAtWithHead(share.tripId, share.seq);
-  if (replayed === null) {
-    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
-  }
+  // Through the same gate as the public read (`resolveShare`), deliberately:
+  // the clone path must refuse exactly what the read path refuses, and the
+  // clone is the more dangerous of the two to get wrong.
+  const resolved = await resolveShare(token);
+  if (!resolved.ok) return resolved;
+  const { share, replayed } = resolved.value;
   return {
     ok: true,
     value: {

@@ -105,6 +105,7 @@ describe("clone-with-lineage", () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     const result = await duplicateTrip(tripId, actor);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     await executeTripCommand({ type: "SetTripName", tripId, name: "Osaka, actually" }, actor);
@@ -117,8 +118,10 @@ describe("clone-with-lineage", () => {
     const rootId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId: rootId, name: "Root" }, actor);
     const first = await duplicateTrip(rootId, actor);
+    expect(first.ok).toBe(true);
     if (!first.ok) return;
     const second = await duplicateTrip(first.tripId, actor);
+    expect(second.ok).toBe(true);
     if (!second.ok) return;
 
     expect(second.detail.forkedFrom!.tripId).toBe(first.tripId);
@@ -131,6 +134,7 @@ describe("clone-with-lineage", () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     const result = await duplicateTrip(tripId, actor);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     await rebuildProjections();
@@ -173,6 +177,7 @@ describe("cloning a share link", () => {
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, actor);
     const share = await createShare(tripId, actor);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
 
     // The source moves on after the link is handed out.
@@ -193,9 +198,11 @@ describe("cloning a share link", () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     const share = await createShare(tripId, actor);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
 
     const result = await cloneSharedTrip(share.value.token, stranger);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     expect(result.detail.members).toEqual([{ userId: stranger, role: "owner" }]);
@@ -214,6 +221,7 @@ describe("cloning a share link", () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     const share = await createShare(tripId, actor);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     await revokeShare(tripId, share.value.shareId);
 
@@ -281,6 +289,7 @@ describe("clone id remapping — referential integrity", () => {
   it("shares no day or activity id with the trip it was copied from", async () => {
     const source = await seedRichTrip();
     const result = await duplicateTrip(source.tripId, actor);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const sourceIds = new Set([...source.dayIds, ...source.activityIds]);
@@ -299,6 +308,7 @@ describe("clone id remapping — referential integrity", () => {
   it("carries each stop's content across unchanged, in order", async () => {
     const source = await seedRichTrip();
     const result = await duplicateTrip(source.tripId, actor);
+    expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const titleAt = (dayIndex: number, slot: number) =>
