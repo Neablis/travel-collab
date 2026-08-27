@@ -1,0 +1,77 @@
+name: migrate-production
+
+# Production migrations are applied by explicitly dispatching this workflow —
+# never automatically on a push to `main`, and never by hand from a laptop.
+#
+# ADR-004's rule is that migrations run "via drizzle-kit as an explicit
+# CI/deploy step — never implicitly at cold start". That still holds: this is
+# more explicit than the old post-merge job, not less. The environments
+# guideline's other rule — migrations are applied by *automation*, never by
+# `drizzle-kit migrate` run by hand against a remote database — also still
+# holds, because the trigger is manual but the execution is not: the connection
+# string stays a repo secret and never lands in a shell that also has a
+# `.env.local` in scope. Manual trigger, automated execution.
+#
+# Why it moved out of `ci.yml`: gating this job on a full CI re-run of `main`
+# cost ~456 billed minutes a month (23% of the total) to re-test a tree the
+# pull-request run had already tested. Mitchell's call, 2026-08-27 — see
+# `docs/guidelines/ci-cost-and-capacity.md`. The trade is that nothing now
+# applies a migration for you; a merged migration sits pending until someone
+# dispatches this.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "migrate" to confirm applying pending migrations to production'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never let two production migrations overlap, and never cancel one mid-apply.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      # Two rails against the two ways a dispatch goes wrong: the wrong branch
+      # picked in the "Run workflow" dropdown, and a stray click. `confirm` is
+      # read through the environment rather than interpolated into the script,
+      # so the input can't inject shell.
+      - name: Guard the dispatch
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Refusing to migrate production from ${{ github.ref }} — dispatch this from main."
+            exit 1
+          fi
+          if [ "$CONFIRM" != "migrate" ]; then
+            echo '::error::Type "migrate" in the confirm field to proceed.'
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Context for the run log, not a dry run: drizzle-kit has no reliable
+      # "what would you apply" mode, so this records what the repo carried at
+      # dispatch time and drizzle-kit's own output below records what it
+      # actually applied. Together they make the log answer "what changed?".
+      - name: Migrations present in this tree
+        run: ls -1 apps/web/drizzle/*.sql
+
+      - run: pnpm --filter web db:migrate
+        env:
+          # The UNPOOLED/direct connection string — DDL should not run through
+          # PgBouncer (see docs/guidelines/environments-and-deploys.md).
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}

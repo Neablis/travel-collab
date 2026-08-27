@@ -1,15 +1,56 @@
 name: ci
+
+# Path filters, draft gating and the concurrency block below exist because CI
+# minutes are a real budget, not a free resource: this repo is private on a
+# GitHub Free plan, so it gets 2,000 Linux minutes/month and nothing more. A
+# measured 30-day sample (2026-07-28 → 2026-08-27) burned 1,956 of them, and
+# the last six days of that window ran at ~281 min/day — a ~8,400 min/month
+# pace. `docs/guidelines/ci-cost-and-capacity.md` has the full accounting and
+# the reasoning behind each lever here; change these blocks against that
+# document rather than against intuition about what "looks wasteful".
 on:
-  push:
-    branches: [main]
+  # Pull requests only. A push to `main` used to re-run all of this to gate an
+  # automatic production migration; that migration is now dispatched
+  # explicitly (`.github/workflows/migrate-production.yml`), so re-testing the
+  # merge result bought nothing the pull-request run — which runs against
+  # `refs/pull/N/merge`, i.e. the same tree that lands — had not already
+  # proven. It cost ~456 billed minutes a month, 23% of the total.
+  #
+  # What this gives up: a test failure introduced by merging a stale branch is
+  # not caught until the next pull request. Vercel still builds `main` on every
+  # push, so a broken *build* surfaces immediately; a broken *test* does not.
   pull_request:
+    # `ready_for_review` is added to the default set so a draft PR gets its
+    # first full run at the moment it stops being a draft. The `if:` guard on
+    # each job below is the other half: together they mean an agent branch
+    # pays for CI once when it's ready, not once per intermediate commit.
+    # Measured: PR #55 spent 31 runs / 315 minutes across 37 commits.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '.agents/**'
+      - '.claude/**'
+      # Root-level prose only (README, AGENTS, CLAUDE, TODO). Deliberately NOT
+      # `**/*.md`: that would also match `.design-sync/**`, which is a real
+      # build input — `api/dev/reset-demo-data/route.ts` imports
+      # `.design-sync/handoff/data/japan-trip-seed.json` and
+      # `japanTripImporter.test.ts` reads it — so that tree must keep
+      # triggering CI even when only its prose moves.
+      - '*.md'
+
+# Supersede an in-flight run when a newer commit lands on the same PR. Safe to
+# make unconditional now that this workflow only ever runs on pull requests —
+# nothing here touches production. The one job that does
+# (`migrate-production.yml`) sets `cancel-in-progress: false` for exactly the
+# reason this sets it true: cancelling a migration mid-apply is unrecoverable.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least privilege for every job. Each one only checks out the repo and runs
 # checks against it; none writes back to the repository, opens issues, or
 # publishes anything. Without this block all jobs inherit the repository
-# default, which is wider than any of them needs — including
-# migrate-production, whose extra access is a DATABASE_URL secret rather than
-# a GITHUB_TOKEN scope.
+# default, which is wider than either of them needs.
 permissions:
   contents: read
 
@@ -30,9 +71,20 @@ env:
   AI_LIVE: "false"
 
 jobs:
-  # No Postgres, no build — pure static analysis, so it's the fastest lane
-  # and runs in parallel with the other two instead of gating them.
-  static-checks:
+  # Static analysis and unit tests share a job because neither needs Postgres,
+  # a build, or a browser, and both were paying ~20s of checkout/pnpm/node
+  # setup plus a whole rounded-up billed minute to run apart. Merged, they cost
+  # one setup and one rounding instead of two: ~186 min/month at the sampled
+  # volume, for ~43s of extra wall clock.
+  #
+  # The `!cancelled()` guards keep what the split used to buy. Running these
+  # serially would otherwise mean a `tsc` failure masks lint and test results
+  # until the next push; with the guards every step still runs and still fails
+  # the job, so one run reports every failure — same signal, one job.
+  static-and-unit:
+    # A draft PR is an agent mid-flight. Skip it here rather than at the `on:`
+    # level so the check still appears (skipped, not missing) on the PR.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -43,26 +95,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm lint
-
-  # Unit tests (vitest.unit.config.ts) don't touch Postgres either, so they
-  # run in their own parallel lane rather than serialized after static-checks.
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - if: '!cancelled()'
+        run: pnpm lint
+      - if: '!cancelled()'
+        run: pnpm test
 
   # Everything that needs Postgres, a real build, and a browser: migrations,
-  # integration tests, and e2e. This is the long pole, so it also runs in
-  # parallel with the two lanes above rather than after them.
+  # integration tests, and e2e. This is the long pole, so it runs in parallel
+  # with the lane above rather than after it.
   integration-e2e:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -118,19 +160,3 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  migrate-production:
-    needs: [static-checks, unit-tests, integration-e2e]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web db:migrate
-        env:
-          # Overrides the workflow-level localhost value with the real target.
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}

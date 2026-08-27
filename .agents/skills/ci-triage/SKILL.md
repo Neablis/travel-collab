@@ -5,8 +5,17 @@ description: Fetch and triage failing GitHub Actions checks for travel-collab us
 
 # CI triage
 
-`.github/workflows/ci.yml` runs three independent parallel jobs: `static-checks`,
-`unit-tests`, `integration-e2e`. Triage the one that failed — don't fetch all three.
+`.github/workflows/ci.yml` runs two parallel jobs — `static-and-unit` and
+`integration-e2e`. It runs on pull requests only — pushes to `main` no longer
+trigger CI, and production migrations are a separate, manually dispatched
+workflow (`migrate-production.yml`). Triage the one job that failed; don't
+fetch both.
+
+**Before triaging, check the PR isn't a draft.** Both jobs are gated on
+`draft == false`, so on a draft PR they report *skipped*, not failed. A skipped
+check is the workflow working as intended (see
+`docs/guidelines/ci-cost-and-capacity.md`) — mark the PR ready for review to
+get a real run rather than hunting for a broken workflow.
 
 ## 1. Identify the failing run and job
 
@@ -27,14 +36,18 @@ gh run view <run-id> --job <job-id> --log-failed
 ```
 
 **Do not use `gh run view <run-id> --log`** (no suffix) for triage — it dumps the
-full output of all three jobs and wastes context on two jobs that passed.
+full output of every job and wastes context on the ones that passed.
 
 ## 3. Per-job triage tips
 
-- **static-checks**: log is a `tsc` or `eslint` error list — usually
-  self-explanatory from `--log-failed` alone, no further fetching needed.
-- **unit-tests**: Vitest runs with the `dot` reporter (compact). Grep the log
-  for `FAIL` to jump straight to failing test names before reading stack traces.
+- **static-and-unit**: three steps in one job — `pnpm typecheck`, `pnpm lint`,
+  `pnpm test` — and the last two carry `if: !cancelled()`, so **all three run
+  even after an earlier one fails**. That means `--log-failed` here can contain
+  more than one failed step, and the first error you read may not be the only
+  one. Scan for every failed step before you start fixing.
+  - `tsc`/`eslint` output is usually self-explanatory from `--log-failed` alone.
+  - Vitest runs with the `dot` reporter (compact). Grep the log for `FAIL` to
+    jump straight to failing test names before reading stack traces.
 - **integration-e2e**: Playwright runs with the `line` reporter (compact). Grep
   for `✘` (or `failed`) to find failing test titles. If you need a trace or
   screenshot to debug further, download the artifact instead of reading raw
@@ -45,7 +58,8 @@ full output of all three jobs and wastes context on two jobs that passed.
 
 Don't re-run full CI to reproduce — use the smallest matching local command:
 
-- static-checks: `pnpm --filter web typecheck` / `pnpm --filter web lint`
+- static-and-unit: `pnpm typecheck` / `pnpm lint` / `pnpm test` (or the
+  narrowest of the three — see the `minimal-check-subset` skill)
 - one unit test file: `pnpm --filter web test -- --run <file>`
 - integration: `pnpm --filter web test:int` (needs real Postgres — see
   `docker-compose.yml`)

@@ -188,6 +188,19 @@ branch -a`, `git ls-remote --heads origin`) — a finished-but-unmerged one need
 a PR opened (or an explicit, recorded reason it's being left) before you add
 more parallel work on top of it.
 
+Rule: **open that PR as a draft, and mark it ready only when you believe it is
+green.** The rule above wants the PR open early for visibility; CI wants it to
+stop paying for every intermediate commit. Draft status gives both — the PR is
+visible, `gh pr list` sees it, GitHub detects conflicts against it, and
+`.github/workflows/ci.yml` skips its jobs until you mark it ready. This is not
+a style preference: this repo is private on a GitHub Free plan (2,000 Linux
+minutes/month) and a measured 30-day sample burned 1,956 of them, 71% on
+pull-request runs. PR #55 alone spent **31 runs and 315 minutes** across 37
+commits, nearly all of them on work-in-progress an agent already knew was
+unfinished. Open a draft, push freely, then `gh pr ready <n>` and watch with
+`gh pr checks <n> --watch --fail-fast`. `docs/guidelines/ci-cost-and-capacity.md`
+carries the full accounting.
+
 ## Definition of Done (every change)
 
 - Typecheck, lint, and all tests pass locally (`pnpm check` once M0 lands).
@@ -198,6 +211,12 @@ more parallel work on top of it.
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible
   decisions, changelog for contracts).
+- **If the change adds a Drizzle migration, say so in the PR body.** Merging no
+  longer applies it: production migrations are dispatched explicitly via the
+  `migrate-production` workflow (`gh workflow run migrate-production.yml -f
+  confirm=migrate`, from `main`). A merged-but-undispatched migration is a
+  production schema drift waiting to happen, and the PR body is the only place
+  anyone will look for it. See `docs/guidelines/environments-and-deploys.md`.
 - The PR uses `.github/PULL_REQUEST_TEMPLATE.md` and its **Verification
   actually performed** section is filled in honestly. A step you did not run
   is recorded on the "Not run, and why" line. Four consecutive M10 phases
