@@ -147,6 +147,44 @@ link_playwright_shell() {
       echo "session-start: linked $(basename "$shellroot")'s missing headless shell -> $fallback"
     fi
   done
+
+  # The loop above only repairs revision dirs that ALREADY EXIST — it matches
+  # on an empty shell dir. That is not enough, and KI-32 was closed believing
+  # it was: its verification deleted the *link* and left the directory, so 1228
+  # looked repaired. On a fresh container the image ships only
+  # chromium_headless_shell-1194 and the 1228 directory does not exist at all,
+  # so the glob never yields it, nothing is linked, and the whole e2e suite
+  # dies at auth.setup.ts on "Executable doesn't exist" — exactly the silent
+  # reintroduction the entry claimed to have prevented (seen 2026-08-27).
+  #
+  # So ask Playwright which revision it actually wants rather than inferring it
+  # from what happens to be on disk. browsers.json is playwright-core's own
+  # manifest, so this keeps tracking a version bump instead of pinning 1228.
+  pwcore=$(find "$PWD/node_modules/.pnpm" -maxdepth 4 -path '*/playwright-core/browsers.json' 2>/dev/null | head -1)
+  [ -n "$pwcore" ] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+
+  for rev in $(node -e '
+    try {
+      const m = require(process.argv[1]);
+      const revs = new Set(
+        (m.browsers || [])
+          .filter((b) => b.name === "chromium" || b.name === "chromium-headless-shell")
+          .map((b) => b.revision),
+      );
+      process.stdout.write([...revs].join(" "));
+    } catch { /* no manifest, nothing to reconcile */ }
+  ' "$pwcore" 2>/dev/null); do
+    for target in \
+      "$browsers/chromium_headless_shell-$rev/chrome-headless-shell-linux64/chrome-headless-shell" \
+      "$browsers/chromium-$rev/chrome-linux/chrome"; do
+      [ -e "$target" ] && continue
+      mkdir -p "$(dirname "$target")" 2>/dev/null || continue
+      if ln -sfn "$fallback" "$target" 2>/dev/null; then
+        echo "session-start: created and linked Playwright's expected $(basename "$(dirname "$(dirname "$target")")") -> $fallback"
+      fi
+    done
+  done
 }
 
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then

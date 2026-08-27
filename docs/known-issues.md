@@ -627,6 +627,35 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   touches production auth configuration — not something to change while a
   milestone gate is mid-verification. Mitchell's call, 2026-08-26.
 
+### KI-51 — The colour wall is blind to untracked files, so a new file is unguarded until it is staged
+- **Severity:** cleanup (no user impact; a hole in a CI gate, not a defect in shipped code)
+- **Area:** `scripts/check-color-wall.mjs`.
+- **Symptom (2026-08-27, landing-page design pass):** the script enumerates the
+  files it scans with `git ls-files`, so a brand-new file that has never been
+  staged is not in the list. It is not skipped with a warning — it is invisible,
+  and the script prints `color wall OK` with a file count that silently excludes
+  it. Reproduced directly: with the two new landing components untracked the run
+  reported `309 files scanned`; `git add`ing them took the same run to
+  `313 files scanned`.
+- **Why it matters more than the file count suggests:** the wall is blind to
+  exactly the files most likely to violate it. A raw hex or a `[13px]` bracket
+  value is far likelier in freshly written UI than in a file that has already
+  been through review, and an agent or contributor who runs the gate before
+  staging gets a clean pass that means nothing. Three separate agents on this
+  pass each hit it and each hand-checked their own files with the script's own
+  regexes to compensate.
+- **Not what it looks like:** this is not the pre-M5 `design-wall-pending.json`
+  exemption list, which is a deliberate, shrinking allowlist. This is an
+  unintended gap in enumeration.
+- **Candidate fixes (not chosen yet):** scan the working tree rather than the
+  index; or add untracked-but-not-ignored files via
+  `git ls-files --others --exclude-standard` alongside the tracked list. The
+  second keeps `.gitignore` honoured, which walking the tree naively would not.
+- **Workaround in use:** `git add -A` before running the wall, and read the file
+  count — if it did not go up after adding new files, the run did not see them.
+- **Same class:** `check-lint-wall.mjs` and `check-case-collisions.mjs` should be
+  checked for the identical `git ls-files` assumption before this is called fixed.
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
@@ -641,7 +670,32 @@ needs action — skip this section when triaging.
 - **Caveat this leaves on any local e2e result:** the suite ran on a Chromium build the pinned Playwright does not target. Nothing observed suggested a behavioral difference, but a green local run is corroboration, not a substitute for CI's.
 - **Why it was thought unfixable, and why that was wrong:** the original entry read *"it is an image-level mismatch, not a repo one — nothing in `travel-collab` produced it and no repo change fixes it."* The premise is right and the conclusion does not follow. `.claude/hooks/session-start.sh` **is** repo-owned and **does** run inside the container, which is exactly the seam where an image-level problem can be repaired from this repo. Pinning `@playwright/test` down to the 1194-era version would still be the tail wagging the dog; that was never the only option.
 - **Fix (2026-08-26, PR #55):** `link_playwright_shell` in `.claude/hooks/session-start.sh` links any `chromium_headless_shell-*` build missing its binary at the first full `chromium-*/chrome-linux/chrome` in the image, on every remote session start. Deliberately generic — it matches on *an empty shell dir*, not on 1228 — so a Playwright bump does not silently reintroduce it. Verified by deleting the link and re-running the function: it repaired both 1194 and 1228, and `smoke` passed after. This also retires the entry's own caveat about local runs happening on an untargeted Chromium build, since the link is now applied deterministically rather than by hand.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 6). **Fixed:** 2026-08-26 (PR #55, design-sync audit branch).
+- **Recurrence (2026-08-27, landing-page design pass) — the 2026-08-26 fix was
+  not as generic as this entry claimed.** `test:e2e:ci-like` died at
+  `auth.setup.ts` on the original symptom verbatim: `Executable doesn't exist at
+  /opt/pw-browsers/chromium_headless_shell-1228/...`. The session-start hook had
+  run and reported linking **1194**, not 1228. Cause: the loop globs
+  `"$browsers"/chromium_headless_shell-*` and matches *an empty shell dir* — but
+  a fresh container ships only `chromium_headless_shell-1194`, so the 1228
+  directory does not exist at all, the glob never yields it, and nothing is
+  linked. **The 2026-08-26 verification could not have caught this**: it deleted
+  the *link* and left the directory in place, which is a different starting
+  state from the one every new container actually has. "Matches on an empty
+  shell dir, not on 1228" was true and was still insufficient.
+- **Second fix (2026-08-27):** `link_playwright_shell` now also reads the
+  required revisions from playwright-core's own `browsers.json` and creates the
+  directory when it is missing, rather than only repairing directories that
+  already exist. Still not pinned to 1228 — it tracks whatever the installed
+  Playwright asks for, so a version bump is followed rather than silently
+  reintroducing this. Verified from the real fresh-container state: deleted both
+  `chromium-1228` and `chromium_headless_shell-1228` outright, ran the function
+  alone, and it recreated and linked both (`Chromium 141.0.7390.37` responds).
+  The full `test:e2e:ci-like` suite then ran 23 passed / 1 flaky (the flake is
+  KI-28, unrelated).
+- **Lesson for the next "resolved" claim here:** verify an environment repair
+  from the state a *new container* is in, not from the state you reached by
+  partially undoing your own fix.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 6). **Fixed:** 2026-08-26 (PR #55, design-sync audit branch); **gap found and closed** 2026-08-27 (landing-page design pass).
 
 
 ### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed — RESOLVED
