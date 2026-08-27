@@ -5,6 +5,43 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## M15 Front door's gate closed 2026-08-26, PR #56 — M10's Phase 9 gate is next
+
+**M15 ran ahead of M10's Phase 9 gate and ahead of M16, and its own gate
+closed while M10's stayed open.** This supersedes ADR-021/ADR-022's stated
+execution order; `docs/milestones/README.md`'s roadmap table, its reorder
+notes, and its Current milestone line are all reconciled to this in the same
+commit that closed the gate — see that file's 2026-08-26 reorder note and
+`docs/milestones/M15-front-door.md`'s decision 1 and retro for the full
+record. `TODO.md` has M15 ticked.
+
+What M15 shipped: the landing page at `/welcome` (with `/` redirecting to it
+server-side via `apps/web/src/middleware.ts`'s own Auth.js instance,
+ADR-024), custom sign-in/sign-up screens replacing NextAuth's default,
+designed states for sign-in failure/a denied Google grant/a network failure
+during trip creation, and Home's empty-state first-run moment via the
+existing `NewTripWizard`'s "Create empty" (the designed one-field first-run
+screen was dropped — it duplicated a capability that already existed). The
+last outstanding gate item — a real Google sign-in verified end to end — was
+done manually by Mitchell on 2026-08-26 against PR #56's Vercel preview, from
+both `/signin` and `/signup` and the dev-login path. An earlier attempt on
+that same preview had failed; the cause was a missing redeploy after the
+Google OAuth env vars were added to Vercel's Preview environment, not a code
+defect — see `docs/known-issues.md` KI-50 for the durable follow-up
+(`AUTH_REDIRECT_PROXY_URL`, so one registered redirect URI covers every
+preview). CI evidence: GitHub Actions run `33023719009` on PR #56 —
+`unit-tests`, `static-checks` and `integration-e2e` all green, `build` then
+`test:e2e` with no `--project` filter, so `setup`, `desktop` and `narrow` all
+ran against a production build.
+
+**M10's Phase 9 gate — the visual-craft milestone's own exit gate — remains
+open and is the next work.** Phases 5-8b are merged; Phase 1b was cancelled
+unbuilt (2026-08-26, see below); Phase 9 (`docs/plans/M10-delta/phase-9-
+gate.md`) is what's left. This was already true before M15's gate closed —
+M15 simply finished first, on its own branch, without M10's gate being a
+dependency of it. Nothing else starts until M10's Phase 9 gate passes;
+after it, the order is M16 → M11 → M12 → M13 → M14 → M9 (ADR-022).
+
 ## Design ↔ build UI audit, 2026-08-26 — read before Phase 9's browser walk
 
 The 2026-08-24 design handoff (`.design-sync/handoff/`, commit `9b8681a`) has
@@ -390,11 +427,18 @@ requested. Two findings, neither of which the Wave-1 gate could have caught:
 
 **The Phase 1 gate review with Mitchell is done (2026-08-08).**
 
-**Current milestone is M10, Wave 2.** Nothing else starts until it passes.
-Order (amended 2026-08-25 by ADR-022, which inserts M16 ahead of M15 and moves
-M9 to last; ADR-021 had inserted M15 before M9 on 2026-08-23):
-`M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M16 → M15 → M11 → M12 →
-M13 → M14 → M9`.
+**Current milestone is M10, Wave 2 (Phase 9, its exit gate).** Nothing else
+starts until it passes. Order (amended 2026-08-25 by ADR-022, which inserts
+M16 ahead of M15 and moves M9 to last; ADR-021 had inserted M15 before M9 on
+2026-08-23): `M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, now) → M16 → M15 →
+M11 → M12 → M13 → M14 → M9`.
+
+**Superseded 2026-08-26 — see this file's top section.** M15 in fact closed
+its own gate (PR #56) ahead of both M10's Phase 9 gate and M16, while M10
+remained open; `docs/milestones/README.md`'s reorder notes and Current
+milestone line are reconciled to this. M10's Phase 9 gate is still the
+current milestone and still the next work — only M15's position in the order
+changed, not M10's status.
 
 **2026-08-19: feature flagging and an AI kill switch landed as a deliberate
 off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
@@ -1437,9 +1481,11 @@ every one of those is merged. Phase 9's gate (`docs/plans/M10-delta/phase-9-gate
 before/after screenshots, KI-2/3/4 closed or re-deferred, presentational-only
 diff verified, all tests incl. e2e green, retro appended — **plus, per the
 2026-08-24 amendment above, routing Task 8b.4's banner (blocked on KI-36) to
-a milestone.** **M16 comes next once M10's gate closes, then M15 Front door**
-(ADR-022, 2026-08-25 — it also moves M9 to last, after M14) — none may start
-early.
+a milestone.** **M16 comes next once M10's gate closes** (ADR-022, 2026-08-25
+— it also moves M9 to last, after M14) — none may start early. **M15 Front
+door closed its own gate 2026-08-26, ahead of M10's Phase 9 gate and M16**;
+see this file's top section and `docs/milestones/README.md`'s 2026-08-26
+reorder note.
 
 **The debt that keeps rolling forward: the manual browser walk.** Phase 5's
 Step 4, Phase 6's Step 4, and Phase 8's exit checklist were each never walked

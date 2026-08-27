@@ -196,7 +196,12 @@ describe("the orphan scanner itself", () => {
   });
 
   it("treats a Next.js entry point as rendered even though nothing imports it", () => {
-    const page = files.find((f) => f.endsWith(join("app", "page.tsx")));
+    // M15 put the authenticated home route inside a route group
+    // (`app/(app)/page.tsx`), so the match can't require "page.tsx" to sit
+    // directly under "app/" — it walks through any number of `(group)/`
+    // segments, which route groups are (they don't affect the URL or change
+    // that Next.js renders the file as an entry point).
+    const page = files.find((f) => /(?:\/|^)app\/(?:\([^/]+\)\/)*page\.tsx$/.test(f));
     expect(page, "expected an app-router page.tsx in src/app").toBeDefined();
     expect([...importsFrom.values()].flat()).not.toContain(page!);
     expect(isRendered(page!)).toBe(true);

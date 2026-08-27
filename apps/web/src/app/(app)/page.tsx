@@ -6,26 +6,26 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
-import { Heading } from "../components/ui/heading";
-import { Text } from "../components/ui/text";
-import { DataText } from "../components/ui/data-text";
-import { Button, buttonVariants } from "../components/ui/button";
-import { EmptyState } from "../components/ui/empty-state";
-import { Popover } from "../components/ui/popover";
-import { Dialog, DialogFooter } from "../components/ui/dialog";
-import { Toast } from "../components/ui/toast";
-import { PageContainer } from "../components/ui/page-container";
-import { formatTripDateLong } from "../lib/formatDate";
-import { NextTripHero } from "../components/home/NextTripHero";
-import { TripCard } from "../components/home/TripCard";
-import { NewTripWizard } from "../components/home/NewTripWizard";
-import { PlaybooksStrip } from "../components/home/PlaybooksStrip";
-import { PREVIEW_PLAYBOOKS } from "../components/home/preview-fixtures";
-import { Preview } from "../components/ui/preview";
-import { ShareButton } from "../components/trip/ShareButton";
-import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "../lib/apiClient";
-import { tripSpend, plannedOfBudgetLine } from "../lib/cost";
-import { cn } from "../lib/cn";
+import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
+import { DataText } from "@/components/ui/data-text";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Popover } from "@/components/ui/popover";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { Toast } from "@/components/ui/toast";
+import { PageContainer } from "@/components/ui/page-container";
+import { formatTripDateLong } from "@/lib/formatDate";
+import { NextTripHero } from "@/components/home/NextTripHero";
+import { TripCard } from "@/components/home/TripCard";
+import { NewTripWizard } from "@/components/home/NewTripWizard";
+import { PlaybooksStrip } from "@/components/home/PlaybooksStrip";
+import { PREVIEW_PLAYBOOKS } from "@/components/home/preview-fixtures";
+import { Preview } from "@/components/ui/preview";
+import { ShareButton } from "@/components/trip/ShareButton";
+import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
+import { cn } from "@/lib/cn";
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
 // (which expects a calendar date, not an instant — see lib/formatDate.ts)
@@ -214,19 +214,22 @@ export default function Home() {
     };
   }, [visibleTripIds]);
 
-  if (unauthenticated) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <Heading level={1}>Caesura</Heading>
-        <Link
-          href="/api/auth/signin?callbackUrl=/"
-          className={cn(buttonVariants({ variant: "secondary" }), "mt-4")}
-        >
-          Sign in
-        </Link>
-      </main>
-    );
-  }
+  // M15 (ADR-023): `src/middleware.ts` now handles *arrival* — a signed-out
+  // visitor hitting `/` is redirected to `/welcome` before this page ever
+  // renders, so this branch no longer fires on first load. What it still
+  // covers is *expiry-in-place*: a session that lapses while this page is
+  // already open produces a 401 the next time `load()` fetches /api/trips
+  // (a manual refresh, a background poll, etc.), and that visitor should
+  // still be sent to the front door rather than left looking at a stuck or
+  // broken authenticated view. The landing page lives at /welcome, outside
+  // this route group's AppHeader shell. `replace`, not `push`, so the back
+  // button doesn't bounce them straight back into a page that will only
+  // redirect them again.
+  useEffect(() => {
+    if (unauthenticated) router.replace("/welcome");
+  }, [unauthenticated, router]);
+
+  if (unauthenticated) return null;
 
   const tripCountLabel = `${visibleTrips.length} trip${visibleTrips.length === 1 ? "" : "s"}`;
 
@@ -304,7 +307,17 @@ export default function Home() {
 
         <div>
           {trips !== null && visibleTrips.length === 0 ? (
-            <EmptyState title="Start your first trip" body="No trips yet — create one." />
+            <>
+              {/* This is M15's first-run moment. The design's separate one-field
+                  "What are you planning?" screen was dropped on 2026-08-26 (decision 3
+                  in docs/milestones/M15-front-door.md) because NewTripWizard's "Create
+                  empty" already creates a trip from a name alone on step 1 — a second
+                  create path would have been a divergence with nothing to buy it. */}
+              <EmptyState
+                title="Plan your first trip"
+                body="A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in."
+              />
+            </>
           ) : (
             <>
               {visibleTrips.length > 0 && (
