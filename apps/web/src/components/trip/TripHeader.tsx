@@ -70,8 +70,15 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // closed. Gated on `preview.seq === null` so ⌘Z is inert while previewing a
   // past version, exactly as it was when the buttons carried the binding.
   useUndoRedoShortcuts({
-    canUndo: preview.seq === null && (history?.canUndo ?? false),
-    canRedo: preview.seq === null && (history?.canRedo ?? false),
+    // `!readOnly` here as well as on the buttons: TripProvider's `dispatch`
+    // already refuses a viewer's write, so pressing ⌘Z could not mutate the
+    // trip — but it DID surface "You have view-only access to this trip." for
+    // a shortcut whose controls a viewer cannot even see. Gated at the same
+    // layer as the buttons so the header is consistent about it, and so a
+    // future dispatch that does not go through the provider inherits the gate
+    // (CodeRabbit, PR #71).
+    canUndo: !readOnly && preview.seq === null && (history?.canUndo ?? false),
+    canRedo: !readOnly && preview.seq === null && (history?.canRedo ?? false),
     onUndo: () => void dispatch({ type: "UndoLastChange", tripId }),
     onRedo: () => void dispatch({ type: "RedoChange", tripId }),
     isBusy: pending,

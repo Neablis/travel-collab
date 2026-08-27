@@ -116,13 +116,23 @@ describe("SavedDaysDialog error handling", () => {
       ok: false,
       error: { status: 500, message: "Could not load your saved days." },
     });
-    renderDialog();
+    const { rerender } = render(
+      <SavedDaysDialog open onOpenChange={vi.fn()} tripId={tripId} onInserted={vi.fn()} />,
+    );
     expect(await screen.findByText("Could not load your saved days.")).toBeTruthy();
 
-    // Reopening runs `load` again — this time it works.
-    cleanup();
+    // Reopening runs `load` again — this time it works. `rerender` on the SAME
+    // instance, not cleanup + a fresh render: a new instance initialises
+    // `error` to null, so the assertion below would have passed whether or not
+    // `load` clears it. My own vacuous witness, caught by CodeRabbit on #71 —
+    // the very defect class this test exists to guard.
     fetchSavedDaysMock.mockResolvedValue({ ok: true, value: [saved] });
-    renderDialog();
+    rerender(
+      <SavedDaysDialog open={false} onOpenChange={vi.fn()} tripId={tripId} onInserted={vi.fn()} />,
+    );
+    rerender(
+      <SavedDaysDialog open onOpenChange={vi.fn()} tripId={tripId} onInserted={vi.fn()} />,
+    );
 
     expect(await screen.findByText("A day in Nakameguro")).toBeTruthy();
     await waitFor(() =>

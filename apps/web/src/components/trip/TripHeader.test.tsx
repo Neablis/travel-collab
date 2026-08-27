@@ -286,8 +286,12 @@ describe("TripHeader viewer gating", () => {
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(true);
 
-    // Undo/redo and Revert live inside the History popover.
+    // Undo/redo and Revert live inside the History popover. Assert the panel
+    // actually OPENED first: `queryByRole` returns null for a popover that
+    // never rendered, so without this the two absences below passed on a
+    // closed popover — my own vacuous witness, caught by CodeRabbit on #71.
     await userEvent.click(screen.getByRole("button", { name: "History" }));
+    expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Redo" })).toBeNull();
   });
@@ -300,6 +304,7 @@ describe("TripHeader viewer gating", () => {
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: "History" }));
+    expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
   });
