@@ -56,6 +56,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
 @media (max-width: 960px) {
   [data-r="lhero"] { grid-template-columns: 1fr !important; gap: 34px !important; }
+  [data-r="lhowgrid"] { grid-template-columns: 1fr !important; }
+  [data-r="lart"] { height: 380px !important; }
 }
 @media (max-width: 820px) {
   [data-r="grid3"], [data-r="grid4"] { grid-template-columns: 1fr !important; }
@@ -98,6 +100,271 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </header>
 
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; z-index: 400; background: var(--color-moss); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 22px 0 30px; overflow-y: auto;">
+      <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px;">
+        <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">Phone surface · one state</span>
+        <button onClick="{{ toDesktop }}" style="min-height: 30px; padding: 0 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; font-family: inherit; font-size: 12.5px; color: var(--color-ink); cursor: pointer;">Back to desktop</button>
+      </div>
+
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px" width="{{ 402 }}" height="{{ 874 }}" style="flex: 0 0 auto;">
+        <div style="height: 100%; position: relative; display: flex; flex-direction: column; background: var(--color-paper); font-family: var(--font-next-sans);">
+
+          <sc-if value="{{ phoneTrips }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 58px 16px 110px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 9px;">
+                  <span style="width: 26px; height: 26px; border-radius: 8px; background: var(--color-brand); display: grid; place-items: center; color: var(--color-surface); font-size: 12px;">◎</span>
+                  <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Caesura</span>
+                </div>
+                <span style="width: 30px; height: 30px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+              </div>
+              <div style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding: 22px 0 6px;">{{ todayLabel }}</div>
+              <div style="font-family: var(--font-next-display); font-size: 28px; font-weight: 600; color: var(--color-ink);">Your trips</div>
+              <div style="display: flex; flex-direction: column; gap: 9px; padding-top: 16px;">
+                <sc-for list="{{ tripCards }}" as="t" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,76px" className="rounded-lg p-0 shrink-0 cursor-pointer" onClick="{{ t.open }}">
+                    <span style="display: flex; align-items: center; gap: 12px; padding: 14px;">
+                      <span style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ t.solid }};"></span>
+                      <span style="flex: 1; min-width: 0;">
+                        <span style="display: block; font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ t.name }}</span>
+                        <span style="display: block; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 2px;">{{ t.dates }}</span>
+                      </span>
+                      <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ t.stateVariant }}">{{ t.state }}</x-import>
+                    </span>
+                  </x-import>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneNb }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 0 0 auto; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 34px;">
+                <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">Notebook</span>
+                <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Following {{ phoneDayLabel }}</span>
+              </div>
+            </div>
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 20px 110px; background: var(--color-surface);">
+              <div style="font-family: var(--font-next-display); font-size: 26px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">{{ phoneDayCity }}</div>
+              <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding: 6px 0 18px;">{{ phoneDayDate }} · {{ phoneDayLabel }}</div>
+              <div style="border-left: 2px dashed {{ phoneDaySolid }}; padding-left: 14px; display: flex; flex-direction: column; gap: 12px;">
+                <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Repeats for every stop shown · {{ phoneNbCount }}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                  <sc-for list="{{ phoneTagChips }}" as="tc" hint-placeholder-count="4">
+                    <button onClick="{{ tc.act }}" style="display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; font-family: inherit; font-size: 12.5px; font-weight: {{ tc.weight }}; color: {{ tc.ink }}; background: {{ tc.bg }}; border: 1px solid {{ tc.edge }}; border-radius: 999px; padding: 0 14px; cursor: pointer;">{{ tc.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <sc-for list="{{ phoneNbRows }}" as="r" hint-placeholder-count="3">
+                    <div>
+                      <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ r.time }}</div>
+                      <div style="font-size: 15.5px; line-height: 1.6; color: var(--color-ink); text-wrap: pretty;">{{ r.line }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneMapTab }}" hint-placeholder-val="{{ false }}">
+            <div id="phonemap" style="position: absolute; inset: 0; background: var(--color-moss);"></div>
+          </sc-if>
+          <sc-if value="{{ phoneMapOffline }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; inset: 0; z-index: 2; background: var(--color-moss); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 0 34px; text-align: center;">
+              <span style="width: 42px; height: 42px; border-radius: 999px; background: var(--color-surface); display: grid; place-items: center; font-size: 17px; color: var(--color-slate);">◍</span>
+              <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Map tiles didn't load</span>
+              <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">The day's stops are still here — open Plan to read them. The map needs a connection.</span>
+              <span style="display: flex; gap: 8px; padding-top: 2px;">
+                <button onClick="{{ phoneRetryMap }}" style="min-height: 44px; padding: 0 16px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Try again</button>
+                <button onClick="{{ phoneGoPlan }}" style="min-height: 44px; padding: 0 16px; background: var(--color-brand); border: 0; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-surface); cursor: pointer;">Open Plan</button>
+              </span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phonePlan }}" hint-placeholder-val="{{ true }}">
+            <div style="flex: 0 0 auto; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline); padding: 58px 16px 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 38px;">
+                <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span role="status" aria-label="{{ syncLabel }}" style="width: 8px; height: 8px; border-radius: 999px; background: {{ logoBg }};"></span>
+                  <span style="width: 28px; height: 28px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+                </div>
+              </div>
+              <button onClick="{{ openSettings }}" title="Open trip settings" style="display: block; width: 100%; text-align: left; background: none; border: 0; font-family: inherit; cursor: pointer; padding: 2px 0 8px;">
+                <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">{{ phoneTitleShort }}</div>
+                <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 4px;">{{ trip.dates }} · {{ trip.stops }} · {{ tripCities }}</div>
+              </button>
+              <div data-phone-rail="plan" style="display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 10px; scrollbar-width: none;">
+                <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+                  <button onClick="{{ c.jump }}" data-rail-sel="{{ c.selFlag }}" style="flex: 0 0 auto; width: 62px; padding: 7px 9px; border-radius: 11px; background: {{ c.tint }}; box-shadow: {{ c.ring }}; border: 0; font-family: inherit; text-align: left; cursor: pointer;">
+                    <span style="display: block; font-size: 10.5px; color: {{ c.ink }};">{{ c.dow }}</span>
+                    <span style="display: block; font-family: var(--font-next-mono); font-size: 15px; color: {{ c.ink }};">{{ c.num }}</span>
+                    <sc-if value="{{ c.dest }}" hint-placeholder-val="{{ false }}">
+                      <span title="Moves to {{ c.dest }}" style="display: block; margin-top: 3px; height: 3px; border-radius: 999px; background: {{ c.destSolid }};"></span>
+                    </sc-if>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;">
+                <span style="flex: 0 0 auto; font-size: 11.5px; color: var(--color-slate); padding-right: 2px;">Show</span>
+                <sc-for list="{{ phoneTagChips }}" as="tc" hint-placeholder-count="5">
+                  <button onClick="{{ tc.act }}" style="flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; font-family: inherit; font-size: 13px; font-weight: {{ tc.weight }}; color: {{ tc.ink }}; background: {{ tc.bg }}; border: 1px solid {{ tc.edge }}; border-radius: 999px; padding: 0 14px; cursor: pointer;">{{ tc.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 110px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; flex-direction: column; gap: 6px; background: {{ phoneDayTint }}; border-radius: 13px; padding: 11px 13px;">
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: {{ phoneDayInk }};">{{ phoneDayLabel }}</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ phoneDayInk }};">{{ phoneDayDate }}</span>
+                  <span style="flex: 1;"></span>
+                  <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ phoneDayInk }};">{{ phoneDayCost }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: {{ phoneDayInk }};">
+                  <span>{{ phoneDayCity }}</span><span>·</span><span>{{ phoneDaySummary }}</span>
+                </div>
+              </div>
+
+              <sc-for list="{{ phoneStops }}" as="act" hint-placeholder-count="4">
+                <div data-pstop="{{ act.key }}" onPointerDown="{{ act.holdDown }}" onPointerMove="{{ act.holdMove }}" onPointerUp="{{ act.holdEnd }}" onPointerLeave="{{ act.holdEnd }}" onPointerCancel="{{ act.holdEnd }}" style="opacity: {{ act.dimOp }}; transition: opacity 140ms ease; touch-action: pan-y;">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,96px" className="flex gap-0 rounded-lg p-0 shrink-0 cursor-pointer" onClick="{{ act.tap }}">
+                    <div style="width: 3px; flex: 0 0 3px; align-self: stretch; border-radius: 8px 0 0 8px; background: {{ act.railBg }};"></div>
+                    <div style="flex: 1; min-width: 0; padding: 15px 15px 15px 12px;">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                        <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ act.range }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: {{ act.costInk }};">{{ act.cost }}</span>
+                      </div>
+                      <div style="font-size: 15px; font-weight: 600; color: var(--color-ink); padding-top: 3px; line-height: 1.3;">{{ act.title }}</div>
+                      <div style="font-size: 12.5px; color: var(--color-slate); padding-top: 2px;">{{ act.place }} · {{ act.area }}</div>
+                      <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
+                        <div style="display: flex; flex-wrap: wrap; gap: 5px; padding-top: 8px;">
+                          <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
+                            <span style="font-size: 10.5px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 5px; padding: 2px 7px;">{{ tg.label }}</span>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </x-import>
+                </div>
+              </sc-for>
+
+              <sc-if value="{{ phoneEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 14px; border: 1px dashed var(--color-hairline); border-radius: 12px;">
+                  <span style="font-size: 12.5px; color: var(--color-slate);">Nothing planned yet.</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ phoneHidden }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px dashed var(--color-hairline); border-radius: 12px;">
+                  <span style="font-size: 12.5px; color: var(--color-slate);">{{ phoneHidden }}</span>
+                </div>
+              </sc-if>
+              <button onClick="{{ phoneAddAtEnd }}" style="display: flex; align-items: center; gap: 9px; width: 100%; min-height: 52px; background: none; border: 1px dashed var(--color-border-strong); border-radius: 12px; padding: 10px 14px; margin-top: 2px; font-family: inherit; text-align: left; cursor: pointer;">
+                <span style="width: 24px; height: 24px; flex: 0 0 24px; border-radius: 999px; background: var(--color-brand-tint); color: var(--color-brand-pressed); display: grid; place-items: center; font-size: 15px; line-height: 1;">＋</span>
+                <span style="flex: 1; font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ phoneAddLabel }}</span>
+              </button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneMapTab }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; left: 0; right: 0; top: 0; z-index: 3; background: var(--color-surface); padding: 58px 16px 12px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 34px;">
+                <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
+                <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ phoneDayCity }}</span>
+                <span style="width: 28px; height: 28px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+              </div>
+              <div data-phone-rail="map" style="display: flex; gap: 6px; overflow-x: auto; padding-top: 10px; scrollbar-width: none;">
+                <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+                  <button onClick="{{ c.jump }}" data-rail-sel="{{ c.selFlag }}" style="flex: 0 0 auto; width: 62px; padding: 7px 9px; border-radius: 11px; background: {{ c.tint }}; box-shadow: {{ c.ring }}; border: 0; font-family: inherit; text-align: left; cursor: pointer;">
+                    <span style="display: block; font-size: 10.5px; color: {{ c.ink }};">{{ c.dow }}</span>
+                    <span style="display: block; font-family: var(--font-next-mono); font-size: 15px; color: {{ c.ink }};">{{ c.num }}</span>
+                    <sc-if value="{{ c.dest }}" hint-placeholder-val="{{ false }}">
+                      <span title="Moves to {{ c.dest }}" style="display: block; margin-top: 3px; height: 3px; border-radius: 999px; background: {{ c.destSolid }};"></span>
+                    </sc-if>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--color-surface); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 26px rgba(0,0,0,.14); padding: 9px 16px 96px;">
+              <div style="display: grid; place-items: center; padding-bottom: 8px;"><span style="width: 38px; height: 4px; border-radius: 999px; background: var(--color-hairline);"></span></div>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">{{ phoneDayLabel }} · {{ phoneDayCity }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ phoneDayDate }}</span>
+              </div>
+              <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding-top: 4px;">{{ phoneDaySummary }} · {{ phoneDayCost }}</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneSheet }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; inset: 0; background: color-mix(in srgb, var(--color-ink) 34%, transparent); z-index: 5;"></div>
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 640px; z-index: 6; background: var(--color-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 34px rgba(0,0,0,.18); display: flex; flex-direction: column;">
+              <div style="display: grid; place-items: center; padding: 9px 0 2px;"><span style="width: 38px; height: 4px; border-radius: 999px; background: var(--color-hairline);"></span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 12px; border-bottom: 1px solid var(--color-hairline);">
+                <button onClick="{{ closePhoneSheet }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Cancel</button>
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ phoneSheetTitle }}</span>
+                <button onClick="{{ phoneSave }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-brand); cursor: pointer;">Save</button>
+              </div>
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                <sc-if value="{{ phoneSheetEdit }}" hint-placeholder-val="{{ true }}">
+                  <sc-if value="{{ phoneSheetHint }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 12px; color: var(--color-slate);">{{ phoneSheetHint }}</span>
+                  </sc-if>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p1" label="Start">
+                      <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" type="time" value="{{ addStart }}" onChange="{{ setAddStart }}"></x-import>
+                    </x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p2" label="How long">
+                      <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,44px" className="w-full" value="{{ addDur }}" onChange="{{ setAddDur }}">
+                        <option>30 min</option>
+                        <option>1 hour</option>
+                        <option>2 hours</option>
+                        <option>3 hours</option>
+                        <option>Half a day</option>
+                      </x-import>
+                    </x-import>
+                  </div>
+                  <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p3" label="What or where">
+                    <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" value="{{ addTitle }}" onChange="{{ setAddTitle }}"></x-import>
+                  </x-import>
+                  <div style="display: flex; flex-direction: column; gap: 9px;">
+                    <span style="font-size: 12px; color: var(--color-slate);">Tags</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                      <sc-for list="{{ addTagChips }}" as="tc" hint-placeholder-count="5">
+                        <button onClick="{{ tc.act }}" style="display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; font-family: inherit; font-size: 14px; color: {{ tc.ink }}; background: {{ tc.bg }}; border: 1px solid var(--color-hairline); border-radius: 999px; padding: 0 16px; cursor: pointer;">{{ tc.label }}</button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ phoneSheetSettings }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p4" label="Trip name">
+                    <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" value="{{ tripName }}" onChange="{{ setTripName }}"></x-import>
+                  </x-import>
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 12px; color: var(--color-slate);">Dates</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 14px; color: var(--color-ink);">{{ trip.dates }}</span>
+                  </div>
+                  <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p5" label="Budget">
+                    <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" value="{{ budgetInput }}" onChange="{{ setBudget }}"></x-import>
+                  </x-import>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; background: var(--color-surface); border-top: 1px solid var(--color-hairline); padding: 8px 0 30px;">
+            <sc-for list="{{ phoneTabs }}" as="tb" hint-placeholder-count="4">
+              <button onClick="{{ tb.go }}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 44px; background: none; border: 0; font-family: inherit; color: {{ tb.ink }}; cursor: pointer;">
+                <span style="font-size: 16px;">{{ tb.glyph }}</span>
+                <span style="font-size: 10.5px; font-weight: {{ tb.weight }};">{{ tb.label }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </x-import>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ syncFail }}" hint-placeholder-val="{{ false }}">
     <div style="flex: 0 0 auto; padding: 12px 24px 0;">
       <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="danger" actions="{{ syncActions }}">
@@ -115,7 +382,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
             <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px;">
               <div>
-                <div style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">Tuesday, August 4</div>
+                <div style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">{{ todayLabel }}</div>
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Your trips</x-import>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
@@ -129,7 +396,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <div style="padding: 30px 32px; display: flex; flex-direction: column; gap: 20px; border-right: 1px solid var(--color-hairline);">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="brand">Next trip</x-import>
-                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">in 60 days</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ nextTripIn }}</span>
                   </div>
                   <div>
                     <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">Japan: Tokyo → Kyoto → Osaka</x-import>
@@ -1169,7 +1436,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
-  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ setOpen }}" onOpenChange="{{ setSetOpen }}" title="Trip settings">
+  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ setOpenDesktop }}" onOpenChange="{{ setSetOpen }}" title="Trip settings">
     <div style="display: flex; flex-direction: column; gap: 18px; padding: 4px 4px 2px;">
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="s1" label="Trip name">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="s1" value="{{ tripName }}" onChange="{{ setTripName }}"></x-import>
@@ -1396,7 +1663,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
-  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ addOpen }}" onOpenChange="{{ setAddOpen }}" title="Add a stop">
+  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ addOpenDesktop }}" onOpenChange="{{ setAddOpen }}" title="Add a stop">
     <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 2px;">
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="a1" label="What or where" description="Type a place and we fill in the address, hours and travel time.">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="a1" placeholder="e.g. Dinner at Kikunoi Roan" value="{{ addTitle }}" onChange="{{ setAddTitle }}"></x-import>
@@ -1584,61 +1851,367 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       </div>
     </header>
 
-    <main style="flex: 1; display: grid; place-items: center; padding: 24px 28px 72px;">
-      <div data-r="lhero" style="width: 100%; max-width: 1140px; display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 60px; align-items: center;">
+    <main style="flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0;">
+      <section style="position: relative; width: 100%; overflow: hidden; background: var(--color-moss); border-bottom: 1px solid var(--color-hairline);">
 
-        <div style="display: flex; flex-direction: column; gap: 22px;">
-          <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">The open-source itinerary</span>
-          <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(38px, 4.6vw, 58px); line-height: 1.03; letter-spacing: -0.022em; text-wrap: pretty;">Plan the trip together, not in twelve group chats.</h1>
-          <p style="margin: 0; max-width: 30em; font-size: 17px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Everyone on the trip can edit the same plan — days, times, costs, who's in. Save the highlights when you get back, share them with the world, and let other travelers remix the best parts into their own adventures.</p>
-          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 2px;">
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="primary" onClick="{{ goSignup }}">Continue with Google</x-import>
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="secondary" onClick="{{ peekTrip }}">Look around a real trip</x-import>
-          </div>
-          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 12.5px; color: var(--color-slate);">
-            <span>Free and open source</span><span aria-hidden="true">·</span><span>No credit card</span><span aria-hidden="true">·</span><span>Your itineraries export as plain files</span>
-          </div>
-        </div>
+        <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+          <path d="M96 -6 C 92 22, 104 40, 99 62 S 108 88, 104 106" fill="none" stroke="var(--color-info-tint)" stroke-width="4.4"></path>
+          <path d="M-6 30 L 166 24" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <path d="M-6 58 L 166 54" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <path d="M-6 84 L 166 79" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <path d="M64 -6 L 70 106" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <path d="M124 -6 L 130 106" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <path d="M148 -6 L 152 106" stroke="var(--color-hairline)" stroke-width="0.55"></path>
+          <rect x="70" y="24" width="18" height="14" fill="var(--color-surface)" opacity="0.5"></rect>
+          <rect x="132" y="54" width="16" height="25" fill="var(--color-surface)" opacity="0.4"></rect>
+          <rect x="106" y="79" width="22" height="18" fill="var(--color-surface)" opacity="0.45"></rect>
+        </svg>
 
-        <div data-r="lart" style="display: flex; flex-direction: column; gap: 12px;">
-          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,320px" raised="{{ true }}" className="p-0 overflow-hidden">
-            <div style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--color-moss); border-bottom: 1px solid var(--color-hairline);">
-              <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Day 6 · Kyoto</span>
-              <div style="flex: 1;"></div>
-              <div style="display: flex;">
+        <div style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(97deg, var(--color-paper) 0%, var(--color-paper) 30%, color-mix(in srgb, var(--color-paper) 74%, transparent) 44%, color-mix(in srgb, var(--color-paper) 20%, transparent) 60%, transparent 74%);"></div>
+
+        <div data-r="lhero" style="position: relative; width: 100%; max-width: 1140px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; padding: 54px 28px 68px;">
+
+          <div style="display: flex; flex-direction: column; gap: 22px;">
+            <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">Trips, planned together</span>
+            <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(38px, 4.6vw, 58px); line-height: 1.03; letter-spacing: -0.022em; text-wrap: pretty;">The trip everyone actually helped plan.</h1>
+            <p style="margin: 0; max-width: 27em; font-size: 17px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">One shared plan your whole group can move around — days, times, costs, who's in. The good days get saved, and they drop straight into the next trip.</p>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 2px;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="primary" onClick="{{ goSignup }}">Continue with Google</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="secondary" onClick="{{ peekTrip }}">Look around a real trip</x-import>
+            </div>
+            <div style="font-size: 12.5px; color: var(--color-slate);">Early access — invite the group by link, nothing to install.</div>
+          </div>
+
+          <div data-r="lart" style="position: relative; height: 430px;">
+
+            <div style="position: absolute; z-index: 6; left: 0; top: 0; display: flex; align-items: center; gap: 8px;">
+              <div style="display: flex; gap: 4px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 4px; box-shadow: 0 4px 12px rgba(20,28,24,0.08);">
+                <sc-for list="{{ heroDays }}" as="d" hint-placeholder-count="3">
+                  <button onClick="{{ d.pick }}" style="font-family: var(--font-next-mono); font-size: 11px; color: {{ d.ink }}; background: {{ d.bg }}; border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; white-space: nowrap; transition: background 220ms ease, color 220ms ease;">{{ d.label }}</button>
+                </sc-for>
+              </div>
+              <div style="display: flex; padding-left: 4px;">
                 <sc-for list="{{ crew }}" as="p" hint-placeholder-count="4">
-                  <span style="width: 24px; height: 24px; border-radius: 999px; background: var(--color-brand-tint); border: 2px solid var(--color-surface); margin-left: -7px; display: grid; place-items: center; font-size: 9.5px; font-weight: 600; color: var(--color-brand-pressed);">{{ p.initials }}</span>
+                  <span style="width: 26px; height: 26px; border-radius: 999px; background: var(--color-brand-tint); border: 2px solid var(--color-paper); margin-left: -7px; display: grid; place-items: center; font-size: 9.5px; font-weight: 600; color: var(--color-brand-pressed);">{{ p.initials }}</span>
                 </sc-for>
               </div>
             </div>
-            <div style="padding: 6px 16px 14px;">
-              <sc-for list="{{ landingStops }}" as="s" hint-placeholder-count="3">
-                <div style="display: grid; grid-template-columns: 74px 1fr; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--color-hairline);">
-                  <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 2px;">{{ s.time }}</span>
-                  <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                      <span style="font-size: 14px; font-weight: 600;">{{ s.title }}</span>
-                      <sc-if value="{{ s.badge }}" hint-placeholder-val="{{ false }}">
-                        <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ s.badgeVariant }}">{{ s.badge }}</x-import>
-                      </sc-if>
+
+            <sc-if value="{{ heroMap }}" hint-placeholder-val="{{ true }}">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+              <path d="M14 22 C 26 34, 22 48, 34 55 S 62 60, 70 78" fill="none" stroke="var(--color-brand)" stroke-width="1.4" stroke-dasharray="4 3" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+            </svg>
+
+            <div style="position: absolute; left: 14%; top: 22%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px;">
+              <span style="width: 27px; height: 27px; flex: none; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; box-shadow: 0 3px 8px rgba(20,28,24,0.25);">1</span>
+              <span style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 4px 9px; font-size: 12px; font-weight: 600; color: var(--color-ink); white-space: nowrap; box-shadow: 0 3px 10px rgba(20,28,24,0.07);">Fushimi Inari <span style="font-family: var(--font-next-mono); font-weight: 400; color: var(--color-slate);">9:40</span></span>
+            </div>
+
+            <div style="position: absolute; left: 34%; top: 55%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px;">
+              <span style="width: 27px; height: 27px; flex: none; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; box-shadow: 0 3px 8px rgba(20,28,24,0.25);">2</span>
+              <span style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 4px 9px; font-size: 12px; font-weight: 600; color: var(--color-ink); white-space: nowrap; box-shadow: 0 3px 10px rgba(20,28,24,0.07);">Nishiki Market <span style="font-family: var(--font-next-mono); font-weight: 400; color: var(--color-slate);">1:15</span></span>
+            </div>
+
+            <div style="position: absolute; left: 70%; top: 78%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px;">
+              <span style="width: 27px; height: 27px; flex: none; border-radius: 999px; background: var(--color-surface); color: var(--color-brand-pressed); border: 2px dashed var(--color-brand); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; font-weight: 600;">3</span>
+              <span style="background: var(--color-surface); border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 4px 9px; font-size: 12px; color: var(--color-slate); white-space: nowrap;">Ryokan · unconfirmed</span>
+            </div>
+
+            <div style="position: absolute; left: 26%; right: 2%; top: 30%; display: flex; align-items: flex-start; gap: 9px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; border-bottom-left-radius: 4px; box-shadow: 0 12px 30px rgba(20,28,24,0.14); padding: 11px 13px;">
+              <span style="width: 22px; height: 22px; flex: none; border-radius: 999px; background: var(--color-warning-tint); display: grid; place-items: center; font-size: 9.5px; font-weight: 600; color: var(--color-warning-ink);">DK</span>
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-ink); text-wrap: pretty;">“Market before the shrine and we're walking back on ourselves.”</span>
+                <span style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Dana · on stop 2 · 2 replies</span>
+              </div>
+            </div>
+
+            <div style="position: absolute; left: 46%; top: 62%; display: flex; align-items: center; gap: 7px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; box-shadow: 0 6px 16px rgba(20,28,24,0.1); padding: 5px 11px 5px 6px;">
+              <span style="width: 20px; height: 20px; border-radius: 999px; background: var(--color-brand-tint); display: grid; place-items: center; font-size: 9px; font-weight: 600; color: var(--color-brand-pressed);">PR</span>
+              <span style="font-size: 11.5px; color: var(--color-slate);">Priya is moving stop 3</span>
+            </div>
+
+            <div style="position: absolute; left: 0; bottom: 0; display: flex; align-items: center; gap: 10px; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); background: color-mix(in srgb, var(--color-paper) 80%, transparent); border-radius: 999px; padding: 4px 10px;">
+              <span>Day 6 · 3 stops · 4.2 km on foot · 5 hr gap</span>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ heroTimeline }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 0; right: 0; top: 58px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 14px; box-shadow: 0 16px 38px rgba(20,28,24,0.15); overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--color-hairline);">
+                  <span style="font-family: var(--font-next-display); font-size: 14px; font-weight: 600; color: var(--color-ink);">Day 7 · Kyoto → Osaka</span>
+                  <div style="flex: 1;"></div>
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Timeline</span>
+                </div>
+                <div style="padding: 6px 14px 12px;">
+                  <div style="display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-hairline);">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">8:20 am</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Shinkansen to Osaka</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="success">Booked</x-import>
                     </div>
-                    <span style="font-size: 12.5px; color: var(--color-slate);">{{ s.meta }}</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-hairline); background: var(--color-brand-tint); border-radius: 8px; margin: 4px -6px; padding-left: 6px; padding-right: 6px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-brand-pressed);">11:00 am</span>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Osaka Castle</span>
+                      <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-surface); background: var(--color-brand); border-radius: 999px; padding: 2px 7px;">Marcus is dragging this</span>
+                    </div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-hairline);">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">1:30 pm</span>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Kuromon Market, lunch</span>
+                        <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="neutral">2 replies</x-import>
+                      </div>
+                      <span style="font-size: 12px; color: var(--color-slate);">Sam: “Cash only — I'll pull ¥10,000 at the station.”</span>
+                    </div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 10px 0;">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">7:00 pm</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 13px; color: var(--color-slate);">Dinner — nobody has claimed this</span>
+                    </div>
                   </div>
                 </div>
-              </sc-for>
-              <div style="display: flex; align-items: center; gap: 8px; padding-top: 12px;">
-                <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--color-brand);"></span>
-                <span style="font-size: 12.5px; color: var(--color-slate);">Priya is moving the ryokan check-in right now</span>
+              </div>
+              <div style="position: absolute; left: 4%; bottom: 0; display: flex; align-items: center; gap: 8px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; box-shadow: 0 8px 20px rgba(20,28,24,0.12); padding: 5px 12px 5px 6px;">
+                <span style="width: 20px; height: 20px; border-radius: 999px; background: var(--color-warning-tint); display: grid; place-items: center; font-size: 9px; font-weight: 600; color: var(--color-warning-ink);">DK</span>
+                <span style="font-size: 11.5px; color: var(--color-slate);">Dana is reading Day 7</span>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ heroNotebook }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 0; right: 0; top: 58px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 14px; box-shadow: 0 16px 38px rgba(20,28,24,0.15); overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--color-hairline);">
+                  <span style="font-family: var(--font-next-display); font-size: 14px; font-weight: 600; color: var(--color-ink);">Getting to Kurama — Day 5</span>
+                  <div style="flex: 1;"></div>
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Notebook</span>
+                </div>
+                <div style="padding: 14px; font-size: 13.5px; line-height: 1.75; color: var(--color-ink); text-wrap: pretty;">
+                  We leave Kyoto station at <span style="background: var(--color-brand-tint); color: var(--color-brand-pressed); border-radius: 4px; padding: 1px 5px; font-family: var(--font-next-mono); font-size: 12px;">7:45 am</span> — early, but the onsen is the whole point. Two trains, one change at Demachiyanagi, <span style="background: var(--color-brand-tint); color: var(--color-brand-pressed); border-radius: 4px; padding: 1px 5px; font-family: var(--font-next-mono); font-size: 12px;">¥1,340</span> each. <span style="background: var(--color-warning-tint); border-bottom: 2px solid var(--color-warning); padding: 1px 2px;">Bring a towel — they don't rent them.</span> Home by <span style="background: var(--color-brand-tint); color: var(--color-brand-pressed); border-radius: 4px; padding: 1px 5px; font-family: var(--font-next-mono); font-size: 12px;">4:10 pm</span>, which leaves the evening open.
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 9px; margin: 0 14px 14px; background: var(--color-moss); border-radius: 10px; padding: 10px 12px;">
+                  <span style="width: 22px; height: 22px; flex: none; border-radius: 999px; background: var(--color-brand-tint); display: grid; place-items: center; font-size: 9.5px; font-weight: 600; color: var(--color-brand-pressed);">PR</span>
+                  <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-ink);">“I added the towel bit — learned that the hard way in Hakone.”</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Priya · on this page · just now</span>
+                  </div>
+                </div>
+              </div>
+              <div style="position: absolute; left: 4%; bottom: 0; display: flex; align-items: center; gap: 8px; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); background: color-mix(in srgb, var(--color-paper) 80%, transparent); border-radius: 999px; padding: 4px 10px;">
+                <span>Times come from the plan — move the day and they follow</span>
+              </div>
+            </sc-if>
+          </div>
+
+        </div>
+      </section>
+
+      <div data-r="lhow" style="width: 100%; max-width: 1140px; padding: 54px 28px 10px; display: flex; flex-direction: column; gap: 30px;">
+        <div style="max-width: 40ch;">
+          <h2 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(24px, 2.3vw, 31px); line-height: 1.12; letter-spacing: -0.018em; text-wrap: pretty;">Planning is the trip, three times over.</h2>
+        </div>
+
+        <div data-r="lhowgrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+
+          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,430px" className="flex flex-col rounded-lg p-0 overflow-hidden h-full">
+            <div style="padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 7px;">
+              <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-brand-pressed);">Together</span>
+              <span style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink);">Four people, one schedule</span>
+              <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">The timeline is live: drag a stop and everyone sees it land, argue in place, and leave the maybes as ideas until the group decides.</span>
+            </div>
+            <div style="flex: 1; min-height: 0; padding: 0 18px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex;">
+                  <sc-for list="{{ crew }}" as="p" hint-placeholder-count="4">
+                    <span style="width: 21px; height: 21px; border-radius: 999px; background: var(--color-brand-tint); border: 2px solid var(--color-surface); margin-left: -6px; display: grid; place-items: center; font-size: 8.5px; font-weight: 600; color: var(--color-brand-pressed);">{{ p.initials }}</span>
+                  </sc-for>
+                </div>
+                <span style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">4 here now</span>
+              </div>
+
+              <div style="position: relative; display: flex; flex-direction: column;">
+                <span style="position: absolute; left: 55px; top: 10px; bottom: 10px; width: 1px; background: var(--color-hairline);"></span>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; align-items: center; gap: 0 6px; padding: 6px 0;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); text-align: right;">9:40 am</span>
+                  <span style="justify-self: center; width: 7px; height: 7px; border-radius: 999px; background: var(--color-brand); box-shadow: 0 0 0 3px var(--color-surface);"></span>
+                  <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                    <span style="font-size: 12.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Fushimi Inari, early</span>
+                    <span style="flex: none; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-brand-pressed); background: var(--color-brand-tint); border-radius: 999px; padding: 2px 6px;">Sam</span>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; gap: 0 6px; padding: 2px 0;">
+                  <span></span><span></span>
+                  <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">Train + 20 min walk</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; align-items: center; gap: 0 6px; padding: 6px 0;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); text-align: right;">1:15 pm</span>
+                  <span style="justify-self: center; width: 7px; height: 7px; border-radius: 999px; background: var(--color-brand); box-shadow: 0 0 0 3px var(--color-surface);"></span>
+                  <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                    <span style="font-size: 12.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Nishiki Market</span>
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="success">Booked</x-import>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; gap: 0 6px; padding: 2px 0;">
+                  <span></span><span></span>
+                  <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">45 min on foot</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; align-items: center; gap: 0 6px; padding: 6px 0;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-brand-pressed); text-align: right;">4:00 pm</span>
+                  <span style="justify-self: center; width: 9px; height: 9px; border-radius: 999px; background: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-tint);"></span>
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0; background: var(--color-surface); border: 1px solid var(--color-brand); border-radius: 8px; padding: 7px 9px; box-shadow: 0 6px 14px rgba(20,28,24,0.09);">
+                    <span style="font-size: 12.5px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Ryokan check-in</span>
+                    <div style="flex: 1;"></div>
+                    <span style="flex: none; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-surface); background: var(--color-brand); border-radius: 999px; padding: 2px 6px;">Priya</span>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 40px 18px 1fr; align-items: center; gap: 0 6px; padding: 6px 0;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); text-align: right;">5:30 pm</span>
+                  <span style="justify-self: center; width: 7px; height: 7px; border-radius: 999px; background: var(--color-surface); border: 1.5px dashed var(--color-brand);"></span>
+                  <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                    <span style="font-size: 12.5px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Pontocho, maybe</span>
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="neutral">Idea</x-import>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: flex-start; gap: 8px; background: var(--color-moss); border-radius: 9px; padding: 9px 11px;">
+                <span style="width: 20px; height: 20px; flex: none; border-radius: 999px; background: var(--color-warning-tint); display: grid; place-items: center; font-size: 8.5px; font-weight: 600; color: var(--color-warning-ink);">DK</span>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="font-size: 12px; line-height: 1.4; color: var(--color-ink);">“Keep Pontocho — we can decide on the night.”</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Dana · 2 replies</span>
+                </div>
               </div>
             </div>
           </x-import>
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <sc-for list="{{ landingProof }}" as="c" hint-placeholder-count="3">
-              <span style="font-size: 12px; color: var(--color-slate); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 12px;">{{ c.label }}</span>
-            </sc-for>
+
+          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,430px" className="flex flex-col rounded-lg p-0 overflow-hidden h-full">
+            <div style="padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 7px;">
+              <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-brand-pressed);">Notebook</span>
+              <span style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink);">Write it like a letter</span>
+              <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Pages that read as prose but pull their times and costs from the plan. Move a day and the writing keeps up.</span>
+            </div>
+            <div style="flex: 1; min-height: 0; padding: 0 18px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px; padding-bottom: 3px;">
+                <span style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Arriving in Kyoto · Day 6</span>
+                <div style="flex: 1;"></div>
+                <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">Sam typing…</span>
+              </div>
+              <div style="flex: 1; min-height: 0; background: var(--color-paper); border: 1px solid var(--color-hairline); border-radius: 9px; padding: 14px 15px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-size: 13px; line-height: 1.7; color: var(--color-ink); text-wrap: pretty;">
+                  We land at <span style="background: var(--color-brand-tint); color: var(--color-brand-pressed); border-radius: 4px; padding: 1px 5px; font-family: var(--font-next-mono); font-size: 11.5px;">11:20 am</span> and head up to Higashiyama — bags at the ryokan by <span style="background: var(--color-brand-tint); color: var(--color-brand-pressed); border-radius: 4px; padding: 1px 5px; font-family: var(--font-next-mono); font-size: 11.5px;">4:00 pm</span>. <span style="background: var(--color-warning-tint); border-bottom: 2px solid var(--color-warning); padding: 1px 2px;">Cash for the market — no cards.</span> Here is where the money goes:
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                  <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding-bottom: 5px; border-bottom: 1px solid var(--color-border-strong); font-family: var(--font-next-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">
+                    <span>Day 6</span><span>Who</span><span style="text-align: right;">Cost</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--color-hairline); font-size: 12px; color: var(--color-ink); align-items: center;">
+                    <span>Ryokan, Higashiyama</span><span style="font-size: 10.5px; color: var(--color-slate);">Priya</span><span style="font-family: var(--font-next-mono); font-size: 11px; text-align: right;">$340</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--color-hairline); font-size: 12px; color: var(--color-ink); align-items: center;">
+                    <span>Kikunoi Roan dinner</span><span style="font-size: 10.5px; color: var(--color-slate);">All 4</span><span style="font-family: var(--font-next-mono); font-size: 11px; text-align: right;">$210</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding-top: 6px; font-size: 12px; font-weight: 600; color: var(--color-ink); align-items: center;">
+                    <span>Day total</span><span></span><span style="font-family: var(--font-next-mono); font-size: 11px; text-align: right;">$550</span>
+                  </div>
+                </div>
+                <div style="font-size: 13px; line-height: 1.7; color: var(--color-ink); text-wrap: pretty;">Trains are on Sam, and we settle up in Osaka.</div>
+              </div>
+            </div>
+          </x-import>
+
+          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,430px" className="flex flex-col rounded-lg p-0 overflow-hidden h-full">
+            <div style="padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 7px;">
+              <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-brand-pressed);">Playbooks</span>
+              <span style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink);">Borrow a day from anyone</span>
+              <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Share the days that worked, take the ones that worked for someone else. Drop a stranger's beach day between your jungle days and the trip makes room for it.</span>
+            </div>
+            <div style="flex: 1; min-height: 0; padding: 0 18px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 9px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 9px 10px;">
+                <span style="width: 30px; height: 30px; flex: none; border-radius: 999px; background: var(--color-warning-tint); display: grid; place-items: center; font-size: 10px; font-weight: 600; color: var(--color-warning-ink);">ML</span>
+                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                  <span style="font-size: 12.5px; font-weight: 600; color: var(--color-ink);">A perfect Phuket beach day</span>
+                  <div style="display: flex; align-items: center; gap: 7px;">
+                    <span style="display: flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--color-ink);"><span style="color: var(--color-warning-ink);">★</span>4.8</span>
+                    <span style="width: 3px; height: 3px; border-radius: 999px; background: var(--color-border-strong);"></span>
+                    <span style="font-size: 11px; color: var(--color-slate);">Shared 214 times</span>
+                  </div>
+                </div>
+                <div style="flex: 1;"></div>
+                <span style="flex: none; font-size: 11px; color: var(--color-slate);">Malee</span>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 62px 1fr 62px; gap: 7px; align-items: stretch;">
+                <div style="display: flex; flex-direction: column; gap: 5px; background: var(--color-paper); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 8px 7px; opacity: 0.75;">
+                  <span style="font-family: var(--font-next-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Day 1</span>
+                  <span style="font-size: 10.5px; line-height: 1.3; color: var(--color-ink);">Khao Sok jungle</span>
+                  <span style="height: 4px; border-radius: 999px; background: var(--color-success-tint);"></span>
+                  <span style="height: 4px; border-radius: 999px; background: var(--color-success-tint); width: 70%;"></span>
+                  <span style="height: 4px; border-radius: 999px; background: var(--color-success-tint); width: 85%;"></span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 5px; background: var(--color-brand-tint); border: 1.5px dashed var(--color-brand); border-radius: 8px; padding: 8px 9px; transform: rotate(-1.2deg); box-shadow: 0 12px 26px rgba(20,28,24,0.16);">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-brand-pressed);">Day 2</span>
+                    <div style="flex: 1;"></div>
+                    <span style="font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-surface); background: var(--color-brand); border-radius: 999px; padding: 2px 6px;">Phuket</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 4px; background: var(--color-surface); border-radius: 6px; padding: 7px 8px;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate);">6:40a</span>
+                      <span style="font-size: 11px; color: var(--color-ink);">Sunrise, Freedom Beach</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate);">11:00a</span>
+                      <span style="font-size: 11px; color: var(--color-ink);">Longtail to Ko Racha</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate);">3:30p</span>
+                      <span style="font-size: 11px; color: var(--color-ink);">Mango sticky rice, shade</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate);">6:15p</span>
+                      <span style="font-size: 11px; color: var(--color-ink);">Grilled snapper, Rawai</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 9.5px; color: var(--color-slate);">8:00p</span>
+                      <span style="font-size: 11px; color: var(--color-ink);">Night swim, Kata</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 5px; background: var(--color-paper); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 8px 7px; opacity: 0.75;">
+                  <span style="font-family: var(--font-next-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Day 3</span>
+                  <span style="font-size: 10.5px; line-height: 1.3; color: var(--color-ink);">Jungle trek</span>
+                  <span style="height: 4px; border-radius: 999px; background: var(--color-success-tint);"></span>
+                  <span style="height: 4px; border-radius: 999px; background: var(--color-success-tint); width: 60%;"></span>
+                </div>
+              </div>
+
+            </div>
+          </x-import>
+
+        </div>
+      </div>
+
+      <div style="width: 100%; max-width: 1140px; padding: 56px 28px 78px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; background: var(--color-moss); border: 1px solid var(--color-hairline); border-radius: 16px; padding: 30px 32px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-family: var(--font-next-display); font-size: clamp(20px, 2vw, 26px); font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink);">Start the plan, then send the link.</span>
+            <span style="font-size: 14px; color: var(--color-slate); text-wrap: pretty;">A trip takes about a minute to set up. Everything after that is easier with company.</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="primary" onClick="{{ goSignup }}">Start a trip</x-import>
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="ghost" onClick="{{ peekTrip }}">See a finished one</x-import>
           </div>
         </div>
-
       </div>
     </main>
   </div>
@@ -1733,7 +2306,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -1754,6 +2327,7 @@ class Component extends DCLogic {
     acctOpen: false, acctSheet: false, acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
     histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
+    surfaceOv: null, phoneTab: 'plan', mapOffline: false,
     docId: 'overview', docMode: 'read', docDay: 6, docFollowed: false, insertOpen: false,
     boundDocs: [], insScope: 'trip', insKind: 'all', insQ: '', blankMade: false,
     setOpen: false, datesEdit: false, currency: 'USD', costs: {}, okConf: [], addCost: '',
@@ -1771,6 +2345,13 @@ class Component extends DCLogic {
     { name: 'Sam K', initials: 'SK' }, { name: 'Priya R', initials: 'PR' },
     { name: 'Jonah M', initials: 'JM' }, { name: 'Mei T', initials: 'MT' }
   ];
+
+  // The home screen's "today" and the trip's real start. Both the dateline and the
+  // countdown derive from these — they were hardcoded strings that contradicted each
+  // other and the dates printed beside them.
+  TODAY = new Date(2026, 7, 4);
+  NEXT_TRIP_START = new Date(2026, 8, 20);
+  daysUntil(from, to) { return Math.round((to - from) / 86400000); }
 
   TRIPS = {
     japan: {
@@ -1894,10 +2475,11 @@ class Component extends DCLogic {
     const ap = hh < 12 ? 'am' : 'pm', h12 = hh % 12 === 0 ? 12 : hh % 12;
     return h12 + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + ap;
   }
-  // Ten buckets, so a 6-city trip never repeats. Hues are the design system's own
-  // (brand 170, success 150, info 250, warning 80, danger 30) plus harmonious in-betweens,
-  // all held at the tint/ink lightness the DS tokens already use.
-  ACCENTS = [30, 60, 80, 115, 150, 170, 200, 250, 295, 335].map(hue => ({
+  // Ten buckets, so a 6-city trip never repeats. Hues sit at least 35° apart, because two
+  // cities 20° apart were indistinguishable as adjacent tint chips in the day rail — the
+  // scale exists to identify a place, so near-neighbours defeat it. Lightness and chroma
+  // still match the DS tint/ink tokens, and 165 lands on the brand hue by design.
+  ACCENTS = [25, 60, 95, 130, 165, 200, 240, 280, 315, 350].map(hue => ({
     tint: 'oklch(0.945 0.042 ' + hue + ')',
     ink: 'oklch(0.44 0.115 ' + hue + ')',
     solid: 'oklch(0.50 0.125 ' + hue + ')'
@@ -1992,6 +2574,8 @@ class Component extends DCLogic {
   flash(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2400); }
   trip() { return this.TRIPS[this.state.tripId]; }
   componentDidMount() {
+    this.syncPhoneRail();
+    if (this.surface() === 'phone' && this.state.phoneTab === 'map') setTimeout(() => this._phoneMap(), 0);
     this._watchScroll();
     this._rz = () => {
       // The assistant floats now, so a narrow window no longer has to evict it —
@@ -2002,12 +2586,23 @@ class Component extends DCLogic {
     this._rz();
     this.syncMap(null);
     this.dragBind();
+    this.heroStart();
   }
-  componentWillUnmount() { window.removeEventListener('resize', this._rz); document.removeEventListener('scroll', this._sc, true); }
+  componentWillUnmount() { window.removeEventListener('resize', this._rz); document.removeEventListener('scroll', this._sc, true); clearInterval(this._hero); }
+  // The landing hero cycles three real views of the same trip. A click on a day
+  // stops the rotation for good — once you have chosen, it should stay put.
+  heroStart() {
+    clearInterval(this._hero);
+    this._hero = setInterval(() => {
+      if (this.state.screen !== 'landing') return;
+      this.setState(s => ({ heroI: ((s.heroI || 0) + 1) % 3 }));
+    }, 10000);
+  }
   // Which day is most central to the screen — vertical in Timeline, horizontal in
   // Day columns. This drives the chip indicator only: it tells you where you are,
   // while day SCOPE stays an explicit selection.
   _central() {
+    if (this.surface() === 'phone') return;
     if (this._cRAF) return;
     this._cRAF = requestAnimationFrame(() => {
       this._cRAF = null;
@@ -2036,6 +2631,7 @@ class Component extends DCLogic {
   // day scope clears itself rather than needing a dismiss.
   _watchScroll() {
     this._sc = e => {
+      if (this.surface() === 'phone') return;
       const t = e.target;
       if (t && t.id === 'maprail') return;
       if (this._jumpLock) return;
@@ -2230,6 +2826,12 @@ class Component extends DCLogic {
       this.setState({ asst: this.props.assistantDefault !== 'bubble' && window.innerWidth > 1180, asstPos: null });
     }
     if (ps && (ps.view !== this.state.view || ps.route !== this.state.route || ps.tripId !== this.state.tripId)) this.stopRail();
+    if (this.surface() === 'phone') this.syncPhoneRail();
+    if (this.surface() === 'phone' && this.state.phoneTab === 'map' && this.state.route === 'trip') setTimeout(() => this._phoneMap(), 0);
+    else if (this._pmap && (this.surface() !== 'phone' || this.state.phoneTab !== 'map')) {
+      try { this._pmap.remove(); } catch (e) {}
+      this._pmap = null; this._pmapReady = false; this._pmarks = [];
+    }
   }
 
   MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
@@ -3331,6 +3933,146 @@ class Component extends DCLogic {
     e.preventDefault();
   }
 
+  surface() { return this.state.surfaceOv || this.props.surface || 'desktop'; }
+
+  // Long-press to reschedule. The phone has no drag target big enough for a 15-minute
+  // snap grid, so a held card opens the sheet with the time field as the subject — the
+  // gesture the mobile "What gets cut" note promised. Handlers sit on the card itself:
+  // a capture-phase document listener would eat pointer events the host page needs.
+  holdDown(di, si, e) {
+    this._holdFrom = { x: e.clientX, y: e.clientY };
+    clearTimeout(this._holdT);
+    this._holdT = setTimeout(() => {
+      this._holdT = null;
+      const raw = this.trip().days[di] && this.trip().days[di][4][si];
+      if (!raw) return;
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) {} }
+      this.setState({
+        addOpen: true, addKey: raw[2], addTitle: raw[2], addStart: raw[0],
+        addDayV: String(di + 1), addTags: this.tagsOf(raw).slice(), addTimeFirst: true
+      });
+    }, 460);
+  }
+  holdMove(e) {
+    const f0 = this._holdFrom;
+    if (this._holdT && f0 && (Math.abs(e.clientX - f0.x) > 11 || Math.abs(e.clientY - f0.y) > 11)) this.holdEnd();
+  }
+  holdEnd() { clearTimeout(this._holdT); this._holdT = null; this._holdFrom = null; }
+
+  syncPhoneRail() {
+    document.querySelectorAll('[data-phone-rail]').forEach(rail => {
+      const chip = rail.querySelector('[data-rail-sel="1"]');
+      if (chip) rail.scrollLeft = Math.max(0, chip.offsetLeft - 16);
+    });
+  }
+
+  saveStopEdit() {
+    const s = this.state, key = s.addKey;
+    const di = Math.max(0, (+s.addDayV || 1) - 1);
+    let moved = '';
+    if (key) {
+      const day = this.trip().days[di];
+      const si = day ? day[4].map(a => a[2]).indexOf(key) : -1;
+      if (si >= 0) {
+        const raw = day[4][si];
+        const dur = Math.max(15, this.toMin(raw[1]) - this.toMin(raw[0]));
+        const start = this.snapMin(this.toMin(s.addStart));
+        if (start !== this.toMin(raw[0])) {
+          moved = this.fmt(this.hhmm(start));
+          this.commit(days => {
+            const r = days[di][4][si];
+            r[0] = this.hhmm(start);
+            r[1] = this.hhmm(Math.min(23 * 60 + 55, start + dur));
+            this.sortDay(days[di]);
+          });
+        }
+      }
+    }
+    this.setState(st => {
+      const ov = Object.assign({}, st.tagOv);
+      const k = key || st.addTitle;
+      if (k) ov[k] = st.addTags.slice();
+      return { addOpen: false, addTimeFirst: false, tagOv: ov };
+    });
+    if (!key) this.flash('Added to Day ' + s.addDayV);
+    else if (moved) this.flash(key + ' moved to ' + moved);
+    else this.flash(key + ' — ' + (s.addTags.length ? s.addTags.map(x => this.TAG(x).label.toLowerCase()).join(', ') : 'no tags'));
+  }
+  // The phone's map is a second canvas beside the desktop one, so it gets its own
+  // container and its own instance — but it reads the same mapTrip() geometry and the
+  // same focused day, which is why picking a day in the rail moves it.
+  _phoneMap() {
+    clearTimeout(this._pmapWatch);
+    this._pmapWatch = setTimeout(() => {
+      if (this.surface() === 'phone' && this.state.phoneTab === 'map' && !this._pmapReady) this.setState({ mapOffline: true });
+    }, 2600);
+    const el = document.getElementById('phonemap');
+    if (!el || !window.maplibregl) return;
+    // sc-if remounts this div, so an existing instance can be bound to a detached node —
+    // its style load aborts and the pane stays blank. Rebuild when the container changed,
+    // exactly as initMap() does for the desktop map.
+    if (this._pmap && this._pmap.getContainer() !== el) {
+      try { this._pmap.remove(); } catch (e) {}
+      this._pmap = null; this._pmapReady = false; this._pmarks = [];
+    }
+    if (!this._pmap) {
+      this._pmap = new maplibregl.Map({
+        container: el, style: this.MAP_STYLE,
+        center: [139.041, 35.231], zoom: 11.5, attributionControl: false
+      });
+      this._pmap.on('error', ev => console.warn('phone map', ev && ev.error && ev.error.message));
+      this._pmap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+      this._pmap.on('load', () => { this._pmapReady = true; if (this.state.mapOffline) this.setState({ mapOffline: false }); this._drawPhoneMap(true); });
+      return;
+    }
+    this._pmap.resize();
+    if (this._pmapReady) this._drawPhoneMap(false);
+  }
+  _drawPhoneMap(jump) {
+    const map = this._pmap;
+    if (!map) return;
+    const md = this.mapTrip()[Math.min(this.state.focus, this.trip().days.length - 1)];
+    if (!md || !md.pts.length) return;
+    (this._pmarks || []).forEach(m => m.remove());
+    this._pmarks = md.pts.map(p => {
+      const n = document.createElement('div');
+      n.style.cssText = 'width:24px;height:24px;border-radius:50%;background:' + this.rgbOf(md.ac.solid) +
+        ';color:var(--color-surface);font:600 11px/24px var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.28);opacity:' + (p.off ? 0.45 : 1) + ';';
+      n.textContent = p.n;
+      return new maplibregl.Marker({ element: n }).setLngLat(p.c).addTo(map);
+    });
+    const line = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: md.pts.map(p => p.c) } };
+    const data = { type: 'FeatureCollection', features: [line] };
+    if (map.getSource('p-route')) map.getSource('p-route').setData(data);
+    else {
+      map.addSource('p-route', { type: 'geojson', data });
+      map.addLayer({ id: 'p-line', type: 'line', source: 'p-route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': this.rgbOf(md.ac.solid), 'line-width': 3 } });
+    }
+    if (map.getLayer('p-line')) map.setPaintProperty('p-line', 'line-color', this.rgbOf(md.ac.solid));
+    const b = new maplibregl.LngLatBounds();
+    md.pts.forEach(p => b.extend(p.c));
+    if (md.pts.length === 1) map[jump ? 'jumpTo' : 'easeTo']({ center: md.pts[0].c, zoom: 13.4, duration: jump ? 0 : 500 });
+    else map.fitBounds(b, { padding: { top: 190, bottom: 300, left: 50, right: 50 }, maxZoom: 14, duration: jump ? 0 : 520 });
+  }
+  // The accent ramp is oklch; MapLibre parses CSS Color 3 only and silently falls back to
+  // black. Neither canvas fillStyle nor getComputedStyle downconverts modern colour
+  // syntax, so the conversion has to be arithmetic. Owed to the DS — DS-UPSTREAM U2.
+  rgbOf(c) {
+    const m = /oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(String(c));
+    if (!m) return c;
+    const L = +m[1], C = +m[2], h = +m[3] * Math.PI / 180;
+    const a = C * Math.cos(h), bb = C * Math.sin(h);
+    const l = (L + 0.3963377774 * a + 0.2158037573 * bb) ** 3;
+    const mm = (L - 0.1055613458 * a - 0.0638541728 * bb) ** 3;
+    const ss = (L - 0.0894841775 * a - 1.2914855480 * bb) ** 3;
+    return 'rgb(' + [
+       4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * ss,
+      -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * ss,
+      -0.0041960863 * l - 0.7034186147 * mm + 1.7076147010 * ss
+    ].map(v => { const g = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(Math.max(v, 0), 1 / 2.4) - 0.055;
+      return Math.max(0, Math.min(255, Math.round(g * 255))); }).join(', ') + ')';
+  }
+
   renderVals() {
     const s = this.state, route = s.route, trip = this.trip();
     // Focus scope: account (many trips) → trip (one trip, whole) → day (one day).
@@ -3549,6 +4291,17 @@ class Component extends DCLogic {
         this.flash(n ? '“' + n + '” created — add your first day' : 'Trip created — give it a name when you know it');
       },
       firstRunPlaybooks: () => this.setState({ screen: 'app', route: 'playbooks' }),
+      heroMap: (s.heroI || 0) === 0,
+      heroTimeline: (s.heroI || 0) === 1,
+      heroNotebook: (s.heroI || 0) === 2,
+      heroDays: [
+        { label: 'Day 5', i: 2 }, { label: 'Day 6', i: 0 }, { label: 'Day 7', i: 1 }
+      ].map(d => ({
+        label: d.label,
+        bg: (s.heroI || 0) === d.i ? 'var(--color-brand)' : 'transparent',
+        ink: (s.heroI || 0) === d.i ? 'var(--color-surface)' : 'var(--color-slate)',
+        pick: () => { this.setState({ heroI: d.i }); this.heroStart(); }
+      })),
       landingStops: [
         { time: '9:40 am', title: 'Fushimi Inari, early', meta: 'Priya · before the crowds', badge: '', badgeVariant: 'neutral' },
         { time: '1:15 pm', title: 'Lunch at Nishiki Market', meta: 'Everyone · 45 min walk after', badge: 'Idea', badgeVariant: 'neutral' },
@@ -3572,6 +4325,8 @@ class Component extends DCLogic {
       crew: this.CREW,
       segments: [{ label: 'Tokyo · 5 nights' }, { label: 'Nikkō day trip' }, { label: 'Hakone · 1' }, { label: 'Kyoto · 4' }, { label: 'Osaka · 2' }, { label: 'Naoshima day trip' }],
       spark: this.TRIPS.japan.days.map((d, i) => ({ num: this.dayStamp(i, 'japan').num, dots: d[4].map((_, k) => k), solid: this.accent(d[3] || d[0]).solid, open: () => { this.setState({ route: 'trip', tripId: 'japan', view: 'timeline' }); this.jump(i); } })),
+      todayLabel: this.TODAY.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+      nextTripIn: 'in ' + this.daysUntil(this.TODAY, this.NEXT_TRIP_START) + ' days',
       tripCards: [
         { name: 'Japan', dates: 'Sep 20 – Oct 3, 2026', state: 'Planning', stateVariant: 'brand', summary: '14 days across 6 cities. Seven stops unbooked and two dates to lock.', people: ['SK', 'PR', 'JM', 'MT'], progress: '68 stops', budgetLine: this.money(this.spend('japan').total) + ' planned of ' + this.money(this.spend('japan').budget), solid: 'var(--color-brand)', open: () => this.setState({ route: 'trip', tripId: 'japan', focus: 0 }) },
         { name: 'New Orleans', dates: 'Sep 4 – 7, 2026', state: 'Booked', stateVariant: 'success', summary: 'Long weekend, four days, everything but one dinner confirmed.', people: ['SK', 'DR'], progress: '16 stops', budgetLine: this.money(this.spend('nola').total) + ' planned of ' + this.money(this.spend('nola').budget), solid: 'var(--color-success-ink)', open: () => this.setState({ route: 'trip', tripId: 'nola', focus: 0 }) },
@@ -3624,6 +4379,7 @@ class Component extends DCLogic {
       setBudget: e => { const v = +String(e.target.value).replace(/[^0-9.]/g, '') || 0; this.setState(st => ({ budgets: Object.assign({}, st.budgets, { [st.tripId]: v }) })); },
       setCurrency: e => this.setState({ currency: e.target.value }),
       setOpen: s.setOpen, setSetOpen: v => this.setState({ setOpen: v }),
+      setOpenDesktop: s.setOpen && this.surface() !== 'phone',
       openSettings: () => this.setState({ setOpen: true }),
       closeSettings: () => this.setState({ setOpen: false }),
       tripName: trip.name,
@@ -3756,13 +4512,84 @@ class Component extends DCLogic {
       mapFocusNote: mapFocus ? (!mapFocus.pts.length ? 'Nothing on this day yet. Add a stop and it draws itself here.' : mapFocus.longest
         ? 'Longest hop: ' + mapFocus.longest.a.title + ' → ' + mapFocus.longest.b.title + ', ' + this.kmLabel(mapFocus.longest.km) + ' and ' + this.minLabel(mapFocus.longest.mins) + (mapFocus.longest.ride ? ' by train or taxi.' : ' on foot.')
         : 'A single anchor. Nothing to travel between.') : '',
+      // ---- phone surface ----------------------------------------------------------
+      // Every value here is the desktop's own: the same buildDays() items, the same
+      // focus, the same tagFilter, the same settings and edit-sheet state. The phone is
+      // a different layout over one state, which is why nothing can drift between them.
+      isPhone: this.surface() === 'phone',
+      isDesktopSurface: this.surface() !== 'phone',
+      toDesktop: () => this.setState({ surfaceOv: 'desktop' }),
+      // The tab bar and the route were independent, so Plan could render outside a trip
+      // with no focused day and therefore no stops. The tab IS the route now.
+      phonePlan: route === 'trip' && s.phoneTab === 'plan',
+      phoneMapTab: route === 'trip' && s.phoneTab === 'map',
+      phoneMapOffline: route === 'trip' && s.phoneTab === 'map' && s.mapOffline,
+      phoneGoPlan: () => this.setState({ phoneTab: 'plan' }),
+      phoneRetryMap: () => { this.setState({ mapOffline: false }); if (this._pmap) { try { this._pmap.remove(); } catch (e) {} this._pmap = null; this._pmapReady = false; this._pmarks = []; } setTimeout(() => this._phoneMap(), 0); },
+      phoneNb: route === 'trip' && s.phoneTab === 'notebook',
+      phoneTrips: route !== 'trip',
+      phoneTabs: [
+        { id: 'plan', glyph: '▤', label: 'Plan' },
+        { id: 'map', glyph: '◎', label: 'Map' },
+        { id: 'notebook', glyph: '✎', label: 'Notebook' },
+        { id: 'trips', glyph: '☰', label: 'Trips' }
+      ].map(t => ({
+        glyph: t.glyph, label: t.label,
+        ink: (t.id === 'trips' ? route !== 'trip' : route === 'trip' && s.phoneTab === t.id) ? 'var(--color-brand)' : 'var(--color-slate)',
+        weight: (t.id === 'trips' ? route !== 'trip' : route === 'trip' && s.phoneTab === t.id) ? '600' : '400',
+        go: () => t.id === 'trips'
+          ? this.setState({ route: 'home' })
+          : this.setState({ phoneTab: t.id, route: 'trip' })
+      })),
+      phoneDayLabel: focusDay ? focusDay.label : '',
+      phoneDayDate: focusDay ? focusDay.dateLabel : '',
+      phoneDayCost: focusDay ? focusDay.costLabel : '',
+      phoneDaySummary: focusDay ? focusDay.summary : '',
+      phoneDayCity: focusDay ? (focusDay.split ? focusDay.fromCity + ' → ' + focusDay.city : focusDay.city) : '',
+      phoneDayTint: focusDay ? focusDay.tint : 'var(--color-moss)',
+      phoneDayInk: focusDay ? focusDay.ink : 'var(--color-slate)',
+      phoneDaySolid: focusDay ? focusDay.solid : 'var(--color-brand)',
+      phoneStops: focusDay ? focusDay.items.map((a, j) => Object.assign({}, a, {
+        holdDown: e => this.holdDown(s.focus, j, e),
+        holdMove: e => this.holdMove(e),
+        holdEnd: () => this.holdEnd(),
+        tap: () => { if (this._holdT === null && this._holdFrom) { this._holdFrom = null; return; } this.holdEnd(); a.edit(); }
+      })) : [],
+      phoneEmpty: !focusDay || !focusDay.items.length,
+      phoneAddAtEnd: focusDay ? focusDay.addAtEnd : () => {},
+      phoneAddLabel: focusDay && focusDay.items.length
+        ? 'Add a stop after ' + focusDay.items[focusDay.items.length - 1].end
+        : 'Add the first stop',
+      phoneHidden: (() => {
+        if (!focusDay || !s.tagFilter.length) return '';
+        const n = focusDay.items.filter(a => a.dimOp !== '1').length;
+        return n ? n + (n === 1 ? ' stop dimmed by ' : ' stops dimmed by ') + this.TAG(s.tagFilter[0]).label.toLowerCase() : '';
+      })(),
+      phoneTagChips: this.TAGS.map(t => {
+        const on = s.tagFilter.length === 1 && s.tagFilter[0] === t.id;
+        return {
+          label: t.label,
+          bg: on ? t.bg : 'var(--color-surface)',
+          ink: on ? t.ink : 'var(--color-slate)',
+          edge: on ? 'transparent' : 'var(--color-hairline)',
+          weight: on ? '600' : '400',
+          act: () => this.setState(st => ({ tagFilter: (st.tagFilter || []).length === 1 && st.tagFilter[0] === t.id ? [] : [t.id] }))
+        };
+      }),
+      phoneNbRows: focusDay ? focusDay.items.filter(a => a.dimOp === '1').map(a => ({
+        time: a.start, line: 'We were at ' + a.title + ' in ' + a.area + '.', cost: a.cost
+      })) : [],
+      phoneNbCount: focusDay ? focusDay.items.filter(a => a.dimOp === '1').length + (focusDay.items.filter(a => a.dimOp === '1').length === 1 ? ' stop' : ' stops') : '0 stops',
+      phoneTitleShort: trip.days.length ? trip.name.replace(/^Japan: /, '') : trip.name,
+
       days,
       chips: days.map(d => ({
+        selFlag: d.i === s.focus ? '1' : '0',
         dow: d.dow, num: d.num, mon: d.mon, monthEdge: d.monthEdge, city: d.fromCity, dest: d.split ? d.city : '',
         dots: d.dots.slice(0, 6), tint: d.tint, ink: d.ink, solid: d.solid,
         destSolid: d.split ? d.toInk : '',
         ring: d.i === s.focus ? 'inset 0 0 0 2px ' + d.solid : 'none',
-        jump: () => { if (s.view === 'map') this.railTo(d.i); else this.jump(d.i); }
+        jump: () => { if (s.view === 'map') this.railTo(d.i); else this.jump(d.i); this.syncPhoneRail(); }
       })),
       dowHeads: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], cells, calMonths,
       openInsertFromTrip: () => this.setState({ insOpen: true }),
@@ -3847,6 +4674,14 @@ class Component extends DCLogic {
       addTagPower: s.addTags.length ? this.TAG(s.addTags[s.addTags.length - 1]).power : 'Tags are a known list, so each one can do something. Pick as many as fit.',
 
       addOpen: s.addOpen, setAddOpen: v => this.setState({ addOpen: v }),
+      addOpenDesktop: s.addOpen && this.surface() !== 'phone',
+      phoneSheet: this.surface() === 'phone' && (s.addOpen || s.setOpen),
+      phoneSheetTitle: s.addOpen ? (s.addKey ? 'Edit stop' : 'Add a stop') : 'Trip settings',
+      phoneSheetEdit: !!s.addOpen, phoneSheetSettings: !s.addOpen && !!s.setOpen,
+      phoneTimeFirst: !!s.addTimeFirst,
+      phoneSheetHint: s.addTimeFirst ? 'Held to reschedule — the time is the subject.' : '',
+      closePhoneSheet: () => this.setState({ addOpen: false, setOpen: false, addTimeFirst: false }),
+      phoneSave: () => { if (s.addOpen) this.saveStopEdit(); else { this.setState({ setOpen: false }); this.flash('Trip settings saved'); } },
       openAdd: () => this.setState({ addOpen: true }), closeAdd: () => this.setState({ addOpen: false }),
       addTitle: s.addTitle, setAddTitle: e => this.setState({ addTitle: e.target.value }),
       addMatch: s.addTitle.length > 2,
@@ -3862,15 +4697,7 @@ class Component extends DCLogic {
       crewChips: this.CREW.map(c => ({ name: c.name, initials: c.initials, act: () => this.flash(c.name + ' toggled') })),
       addNote: s.addNote, setAddNote: e => this.setState({ addNote: e.target.value }),
       addCost: s.addCost, setAddCost: e => this.setState({ addCost: e.target.value }),
-      saveAdd: () => {
-        const key = s.addKey || s.addTitle;
-        this.setState(st => {
-          const ov = Object.assign({}, st.tagOv);
-          if (key) ov[key] = st.addTags.slice();
-          return { addOpen: false, tagOv: ov };
-        });
-        this.flash(s.addKey ? (s.addKey + ' — ' + (s.addTags.length ? s.addTags.map(x => this.TAG(x).label.toLowerCase()).join(', ') : 'no tags')) : 'Added to Day ' + s.addDayV);
-      },
+      saveAdd: () => this.saveStopEdit(),
 
       pbOpen: s.pbOpen, setPbOpen: v => this.setState({ pbOpen: v }), closePb: () => this.setState({ pbOpen: false }),
       pbDayLabel: 'Day ' + (s.pbDay + 1) + ' of ' + trip.name.split(':')[0],

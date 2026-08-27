@@ -132,7 +132,7 @@ invent product copy (`.design-sync/handoff/README.md` says the same).
       provider, since a real Google grant is not something an agent session
       can perform. An earlier attempt against the same preview had failed;
       that turned out to be a missing redeploy after the Google env vars
-      were added to the Preview environment, not a code defect — see KI-49
+      were added to the Preview environment, not a code defect — see KI-50
       for the durable follow-up (`AUTH_REDIRECT_PROXY_URL`).
 - [x] A signed-in user with no trips sees Home's empty state (decision 4)
       and can create a trip from a name alone via the wizard's "Create empty"
@@ -280,7 +280,7 @@ architecture split) is often not obvious from the workaround itself.
 first attempt at a real Google sign-in against PR #56's preview failed; the
 cause was that the Google OAuth env vars had been added to Vercel's Preview
 environment without a subsequent redeploy picking them up, not anything wrong
-in `authConfig.ts` or the callback wiring. `docs/known-issues.md` KI-49
+in `authConfig.ts` or the callback wiring. `docs/known-issues.md` KI-50
 records the durable follow-up: `AUTH_REDIRECT_PROXY_URL` so one registered
 Google redirect URI covers every preview deployment, instead of hand-registering
 each branch's alias.

@@ -27,7 +27,7 @@ done manually by Mitchell on 2026-08-26 against PR #56's Vercel preview, from
 both `/signin` and `/signup` and the dev-login path. An earlier attempt on
 that same preview had failed; the cause was a missing redeploy after the
 Google OAuth env vars were added to Vercel's Preview environment, not a code
-defect — see `docs/known-issues.md` KI-49 for the durable follow-up
+defect — see `docs/known-issues.md` KI-50 for the durable follow-up
 (`AUTH_REDIRECT_PROXY_URL`, so one registered redirect URI covers every
 preview). CI evidence: GitHub Actions run `33023719009` on PR #56 —
 `unit-tests`, `static-checks` and `integration-e2e` all green, `build` then

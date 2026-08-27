@@ -1,189 +1,181 @@
 # Design ↔ build drift — Caesura / travel-collab
 
-Source: `Neablis/travel-collab@main` (tree `44dda6f5b911`), read 2026-08-23.
-Design: `Trip Planner Redesign.dc.html`.
+Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
+Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
 
-The repo already answers the "what isn't built" question itself:
-`apps/web/src/lib/preview-registry.ts` is a single registry of 18 not-yet-functional
-surfaces, each with a milestone, and a sync test keeps it honest against actual
-`<Preview id>` usage. **Treat that registry as the authoritative unbuilt list** — I've
-used it as the spine of this report rather than guessing.
-
-`<Preview>` itself (`components/ui/preview.tsx`) wraps real markup with real fixture
-data, shields pointer events, and stamps a `Preview · M9` badge. So Preview-wrapped UI
-is *designed and shelled, not wired* — not a design gap.
+This is a **current-state** document. It replaces the append-only log that ran
+2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
+in full. Two files are authoritative on the build side and are not restated here:
+`apps/web/src/lib/preview-registry.ts` (18 shelled-but-unwired surfaces, each with a
+milestone) and `docs/known-issues.md` (KI-nn). Preview-wrapped UI is *designed and
+shelled, not missing* — it is not a design gap.
 
 ---
 
-## 1. Drifted — code and design disagree, you pick
+## 1. Open drift — code and design disagree
 
-| # | Thing | Code | Design | My call |
+| # | Thing | Code | Design | Call |
 |---|---|---|---|---|
-| D1 | Product name | `AppHeader` says **Trip Planner**; `metadata.title` is `travel-collab` | **Caesura** | Design wins — you gave me the name this turn. Change both in code. |
-| D2 | Unauthenticated home | Bare `<Heading>travel-collab</Heading>` + a `Sign in` link to NextAuth's default page | Full landing hero + custom sign-in/sign-up screens | Design wins — this is the new work from this turn. |
-| D3 | Global header contents | Logo, `Trips`, `Playbooks`. No account control. "Quick add" deliberately omitted (needs a trip) | Logo, nav, **avatar that signs out** | Design wins on the avatar (you can't sign out anywhere today). Code is right to omit Quick add. |
-| D4 | New-trip flow | A `Dialog` with **one field: name**. `CreateTrip` in `packages/contracts/src/trip.ts` carries *only* a name | My new first-run screen adds **"Roughly when?" chips** | **Code wins** — my chips have no contract field. Either drop them or treat as a contract change. Flagged as my error. |
-| D5 | Trip header actions | Also has inline rename, status `Badge`, `SyncIndicator`, Undo/Redo, **History popover w/ version preview + revert**, `Notebook` link | Undo/redo now live in History; Notebooks is a menu; save state moved to the logo; **inline rename is gone** | ~~Code wins~~ **Superseded by the rules pass (see R4, R6, R7 below).** Only the status `Badge` is still code-wins. |
-| D6 | Home "next trip" | `TripSummary` has **no start date**, so "next trip" is just `visibleTrips[0]` | Design implies real upcoming-by-date | Code wins for now; needs a server field to do it honestly. |
-| D7 | Sync failure | `SyncIndicator` (pending dot) + `board/ConflictBanner` | My new **persistent sync-failure banner** | Design wins per your "banner" answer — but it should reuse `ConflictBanner`'s vocabulary, not a second pattern. |
+| **D1** | Product name | `AppHeader` says **Trip Planner**; `metadata.title` is `travel-collab` | **Caesura** | Design wins. Still unchanged in code — the oldest open item on this list. |
+| **D2** | Unauthenticated home | `app/page.tsx` renders a bare heading + a link to NextAuth's default page | Full marketing landing page, custom sign-in / sign-up | Design wins. **Rewritten this turn — see §2.** |
+| **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins; design should add it back or the build should drop it. Only survivor of the old D5 list. |
+| **D4** | New-trip "roughly when?" chips | `CreateTrip` (`contracts/src/trip.ts`) carries **name only** | First-run screen offers date-range chips | Shipped as a Preview-wrapped shell with a dashed border reading "needs a `CreateTrip` field". Contract change, or delete. |
+| **D6** | "Next trip" | `TripSummary` has no dates, so `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown derived from `TODAY` / `NEXT_TRIP_START` | **= their KI-34, still open**, and worse than first written: with nothing to sort by, the hero can surface the *wrong trip*, not just the wrong date. Countdown is honest in design and unbuildable until the field lands. |
+| **D8** | Landing page has no route | nothing — the unauthenticated branch is four lines | A full screen with a rotating hero and three feature blocks | New with §2. Needs a real marketing route, not a conditional inside `page.tsx`. |
 
-## 2. Unbuilt — designed, shelled in code behind `<Preview>`
+D5 and D7 are closed (§5).
 
-Straight from the registry. Everything I designed in the last several turns lands here,
-which is the honest answer to why the rack "hint" copy had nowhere to come from:
+## 2. New this turn — the landing page
 
-**Blocked on a missing data field** (the registry says so explicitly):
-- `rack-provenance` (M11) — who parked a stop and which day it came from. My "Was on Day X" tag has **no field behind it**.
-- `cost-estimate-state` (M11) — confirmed-vs-estimate per cost. My "est" treatment has **no field**.
-- `budget-breakdown` (M11) — Booked/Holds/Travel/Other. My settings breakdown has **no field classifying a cost**.
-- `trip-invites` (M13) — `TripMember.role` is the literal string `"owner"`. My invite list with roles is **entirely ahead of the model**.
-- `map-legend-modes` (M9) — transport mode per leg, no field.
+`startScreen: landing` is a complete surface with **no counterpart in code at all**.
+What a build would have to carry:
+
+- **Rotating hero.** Three views of a Japan trip — Day 5 Notebook, Day 6 Map, Day 7
+  Timeline — on a 10s cycle. Clicking a day pill jumps and restarts the timer.
+  **The content is hardcoded marketing fixture data, not a live trip.** The page is
+  unauthenticated and must render with no session, no fetch and no backend — it looks
+  like the product, it is not connected to it. Keep the fixture in the marketing route,
+  not imported from the seed importer, so a data-model change can never break the
+  front door.
+- **Three feature blocks, equal height:** *Together* (live timeline: a lifted stop,
+  a comment thread, travel gaps), *Notebook* (prose with an inline, borderless cost
+  table — activity / who / cost, Day 6 total $596), *Playbooks* (a borrowed Phuket
+  beach day, 4.8★, "Shared 214 times", dropping in as Day 2).
+- **Positioning constraints, deliberate:** no "free", no "open source", no "no credit
+  card". The only footnote is **Early access**. If marketing copy re-enters, it should
+  not re-enter through these claims.
+
+**It is buildable today** — static fixture, no dependency on anything in §3 or §4, and
+**deliberately ahead of the build**. Two blocks show functionality that does not fully
+exist yet: the Notebook block shows prose with live macro values (SPEC §7, which
+`packages/pages/src/templates.ts` contradicts) and the Playbooks block shows a shareable,
+rateable day (`playbooks-route`, `insert-playbook`, `add-saved-day` are Preview shells).
+
+**That is the intent, not drift.** A landing page states where the product is going; it
+does not wait for the last shell to be wired. Do not file these as blockers and do not
+water the page down to what ships today. The one thing that would be a real problem is a
+*claim* the product will never honour — the copy makes none, and "Early access" is the
+footnote that covers the rest.
+
+Design-file note: decorative SVG layers in the hero are `pointer-events: none` so the
+day pills stay clickable. Same trap will exist in any real implementation.
+
+## 3. Designed, shelled in code behind `<Preview>`
+
+From the registry, unchanged this sync. **Blocked on a missing field:**
+`rack-provenance` (who parked a stop, which day it came from), `cost-estimate-state`
+(confirmed vs estimate), `budget-breakdown` (Booked/Holds/Travel/Other),
+`trip-invites` (`TripMember.role` is the literal `"owner"`), `map-legend-modes`
+(transport mode per leg).
 
 **Blocked on a feature, not a field:** `home-worth-attention`, `home-decisions`,
 `home-playbooks-strip`, `assistant-suggestions`, `assistant-quick-asks`,
 `timeline-ghost`, `keep-day-flag`, `keep-day-dialog`, `playbooks-route`,
 `insert-playbook`, `share-button`, `add-saved-day`.
 
-Nothing to do in design for these — they're built as shells against the designs already.
+Add to that list, from KI-47: **there is no `tags` field**, which blocks the tag chips
+and dim-in-place filtering on five designed surfaces — including the phone's filter
+chips.
 
-## 3. Undesigned — real in code, absent from the designs
+## 4. Real in code, absent from design
 
-This is the biggest surprise and where I'd spend the next pass:
-
-- **Notebook / Pages — an entire feature.** `packages/pages` (macro registry, templates,
-  inline + block macros), `NotebookScreen`, `PageScreen`, `PageEditor` (TipTap),
-  `MacroNodeView`, `ComposePanel`, and blocks (`ItineraryDayBlock`, `ItineraryTripBlock`,
-  `CostsTableBlock`), routed at `/trips/[tripId]/pages`. Zero design coverage.
-- **History & time travel.** `HistoryPanel` + `UndoRedoControls`, with *preview a past
-  version* (read-only banner) and *revert to state*. Real, shipped, undesigned.
-- **Extra lenses.** Code has `ItineraryLens`, `ScheduleLens`, `DailyOverviewLens`,
-  `FullTripOverviewLens` beyond the four views the DC shows, plus a substantial
-  `MapRail` (19KB, with focus + tuning modules).
+- **Notebook / Pages — an entire feature.** `packages/pages` (macro registry,
+  templates, inline + block macros), `NotebookScreen`, `PageScreen`, `PageEditor`
+  (TipTap), `MacroNodeView`, `ComposePanel`, `ItineraryDayBlock`, `ItineraryTripBlock`,
+  `CostsTableBlock`, routed at `/trips/[tripId]/pages`. **Blocked, not queued:** SPEC §7
+  says prose with live macro chips; the build removed macro authoring in M8 and seeds
+  templates with no macro nodes. Nobody should design or build to §7 until that is
+  settled. It is also why the phone Notebook stays unstarted.
 - **Trip lifecycle.** Delete → undo toast → `RestoreTrip`, and `duplicateTrip`. The
-  optimistic delete pattern (drop the row on confirm, re-add on failure) is a real
-  interaction with no designed counterpart.
-- **Dev login.** A `dev-login` credentials provider behind `AUTH_DEV_LOGIN`. Probably
-  intentionally undesigned, but it's the only non-Google way in.
+  optimistic pattern (drop the row on confirm, re-add on failure) has no design.
+- **Dev login.** `dev-login` credentials provider behind `AUTH_DEV_LOGIN` — the only
+  non-Google way in. Probably intentionally undesigned.
 
----
+History & time travel came off this list on 2026-08-25 (designed). The "extra lenses"
+bullet is struck permanently — `ItineraryLens`, `DailyOverviewLens` and
+`FullTripOverviewLens` no longer exist.
 
-## Decisions (2026-08-22)
+## 5. Closed — kept as one line each
 
-| # | Call | Status in design |
-|---|---|---|
-| D1 | **Caesura everywhere** — code should change | Done in the DC |
-| D2 | **Build** landing + custom sign-in/sign-up | Designed |
-| D3 | Avatar with a menu — **Your account + Sign out** only | Designed |
-| D4 | Keep the when-chips as a **Preview-wrapped shell** | Done — own treatment, dashed border + "needs a CreateTrip field" |
-| D5 | **All of them** — match the code exactly | Done: Notebook link, inline rename, status badge, sync label, undo/redo, History popover |
-| D6 | Keep upcoming framing — **add a start date to TripSummary** | Contract change for code |
-| D7 | **Reuse ConflictBanner** — one banner pattern | Done — sync failure now uses `Banner variant="danger"` |
+- **D5 / R6 rename.** No pencil, no ⚙, no inline rename on either surface; the trip
+  title *is* the settings button and renaming happens only in Trip settings. Build
+  still owes the `TripHeader.tsx` deletion and the two test updates.
+- **D7 sync failure.** One banner pattern — reuses `ConflictBanner`'s vocabulary.
+- **Rules pass (2026-08-25).** Header is account scope only; drawer renders only where
+  things can be dragged; save state lives on the logo; filter row removed; undo/redo
+  folded into History; Notebooks is a menu; Map keeps its day rail and hides the header
+  chips.
+- **Calendar (2026-08-26, SPEC §12).** Cells are city rollups, not activities; day
+  selection is persistent and does not navigate; stop-level drag removed. Calendar's
+  retirement question is answered — it is the city/shape view.
+- **Two files became one.** `Trip Planner Mobile.dc.html` is deleted; the phone is a
+  `surface` prop on the desktop file, sharing trips, accent hash, focus, tag filter and
+  the edit sheet. Every mobile defect that pass fixed — stale October dates, blue
+  Hakone, the leftover ⚙, a 25-vs-60-day countdown — was a copy drifting, not a design
+  decision. Answers **KI-46** from the design side.
+- **Seed data dated once.** Sep 20 – Oct 3, 2026, all 14 days with real weekdays.
+  `japan-trip-seed.json` previously said Oct 3 – 16 — entirely inside October — so the
+  preview's demo reset could never produce the two-month calendar SPEC §4 protects.
+- **One handoff folder** (`design-sync/handoff/`); dated snapshots deleted.
+- **DS findings moved out** to `design-sync/handoff/DS-UPSTREAM.md` (U1–U6). They belong
+  to the design-system package, not this app.
 
-## Review pass — comment resolutions
+## 6. Build-check list — things a build engineer should verify
 
-- **Day rail in Map: removed.** Earlier call kept it in all four views for header
-  stability. Map already carries a full-size day rail down its side, so the header
-  strip was a second selector for the same job; Map now gets that height back.
-  Timeline / Day columns / Calendar keep the strip unchanged.
-- **Rail bars: no grey.** Ride legs were tinted, which read as "disabled" next to
-  solid stop legs. Ride legs are now the same city colour at 3px instead of 6px —
-  travel reads as thinner, not weaker. Day totals inherit the day's ink.
-- **Budget meter moved into its own header row**, so a long city list and the meter
-  can't collide in the same grid cell.
-- **Mobile cards: colour spine is now flush.** The city stripe was an inset rounded
-  bar inside padded cards; it now runs edge to edge as a real spine (card padding
-  moved inward), matching the desktop timeline.
-- **Trip-list rows** rebuilt on the same flush-card structure for consistency.
-- **Mobile day-header gradient** now holds solid surface until the last 34px, so
-  scrolled content doesn't ghost through the title.
+Carried forward because each one is a bug the design already hit:
 
-Next: Notebook / Pages — a **trip journal** (written during and after), with **live** macro blocks that always reflect the plan.
+1. **Day labels derive month from start date + day index**, never from the trip start.
+   Check `CalendarLens`, `MapRail`, every day chip.
+2. **Accents are `oklch` and most non-CSS consumers cannot read them.** MapLibre parses
+   CSS Color 3 only and silently falls back to black; canvas `fillStyle` and
+   `getComputedStyle` both *preserve* `oklch()` verbatim, so they look like a fix and
+   are not. Convert arithmetically wherever an accent reaches a map paint property, a
+   chart library or an SVG attribute. Hue ramp has a 35° minimum gap.
+3. **One `focus` per trip, but derivation is per surface.** The phone must not run the
+   timeline's scroll-spy — a capture-phase `document` scroll listener will otherwise
+   overwrite the phone's day selection from a still-mounted desktop timeline.
+4. **The tab is the route.** The phone client must not hold tab state independent of
+   the router; "am I in a trip" belongs to the route alone.
+5. **Maps inside conditional markup need a container-identity guard** — remount leaves
+   the instance bound to a detached node and the style load aborts silently.
+6. **Gesture handlers go on the element, not `document` with `capture: true`.**
+7. **Saving a stop must actually move it** (keep duration, snap to 15 min, re-sort the
+   day). This was a live desktop bug found only via the phone.
+
+## 7. Their open items that touch design
+
+| KI | Meaning for us |
+|---|---|
+| **KI-34** | = D6. Blocks the countdown and correct next-trip selection. |
+| **KI-43** | `Board.tsx` stacks one full-width `Banner` per conflict — 12 on the Japan seed, board below the fold. Design puts conflicts inside the card, which `Column.tsx` already does. Design is right; the fix is theirs. |
+| **KI-44** | `.tc-page-editor` is applied to every page and defined nowhere, so Notebook prose has no typography. Cheapest real fix in their audit. |
+| **KI-45** | `Preview size="container"` covers host content, including a currency amount in Trip settings. |
+| **KI-47** | No `tags` field. Blocks five designed surfaces. Don't design more tag UI until it lands. |
+| **KI-48** | Six one-file cosmetics, including `1 travellers`. Our copy says "4 travelers". |
+
+## 8. Still open, on our side
+
+- **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
+  after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project
+  rule 6 requires all three of every screen.
+- **The landing page needs no empty / offline / conflict state.** Rule 6 is satisfied
+  trivially: static fixture data, no session, no network — there is no state where it
+  can fail to render. Noted so it is not re-raised.
+- **Day 6's phone Plan cards** still carry times and an ordering that predate the seed,
+  and one uses an estimate treatment for a stop the desktop has as `booked`. Content
+  pass, not a token pass.
+- **Whether a day column sorts by start time** the way the design does (their audit D3).
+  Their `db-seed.ts` reverse-order bug is fixed and never reached the preview, but the
+  product question is unanswered.
 
 ## Suggested order
 
-1. You settle D1–D7 (only D4 is a real correction to my work).
-2. I design §3 — Notebook first, since it's a whole feature; then History, then the
-   extra lenses.
-3. I refresh the handoff so `AGENT-PROMPT.md` points at the registry instead of
-   restating unbuilt features as if they were pending design.
+1. Settle **D1** (rename to Caesura in code) — it is trivial and a year stale.
+2. Settle **SPEC §7 vs `templates.ts`**. It blocks Notebook on both surfaces *and* the
+   landing page's second feature block.
+3. Land **KI-34** so the home hero can be honest.
+4. Design the phone **conflict** state; that is the last of rule 6.
+5. Then §4's undesigned lifecycle work.
 
-## Design pass — 2026-08-24
-
-- **Assistant re-presented as a floating bubble** that drags anywhere and expands into a
-  floating panel, with the old side rail kept as an explicit **dock** mode (SPEC §9). The
-  rail is no longer the only way to have the assistant, and it is no longer evicted on
-  narrow windows.
-- **Seed trip moved to Sep 20 – Oct 3, 2026** so the multi-month calendar is the default
-  view, not an edge case. This surfaced a real bug worth flagging to the build: date labels
-  took their month from the *trip*, so October days rendered as September. Fixed in the
-  design by deriving every label from start date + day index — **check the build for the
-  same assumption** (`CalendarLens`, `MapRail`, any day-chip label).
-- **Mobile scope stated out loud** (SPEC §10): retrieval and small edits on the trip, not
-  planning. Recorded so future mobile screens don't drift back toward a second planner.
-
-## Rules pass — 2026-08-25
-
-Six project rules were adopted (`RULES.md`, SPEC §11) and the desktop design was
-reconciled against them. Build-side consequences:
-
-| # | Change in design | Build check |
-|---|---|---|
-| R1 | `Share` / `Quick add` / `New trip` removed from the header | `components/AppHeader.tsx` — header should hold account scope only; Share moves to `trip/TripHeader.tsx` |
-| R2 | Drawer renders in Day columns only | `trip/rackDisclosure.ts` — gate on the columns lens, not `timeline || columns` |
-| R4 | Trip-header save dot removed; logo carries save state | `trip/SyncIndicator.tsx` moves to the header logo; remove the in-trip instance |
-| R4 | `Travel` chip suppressed on transit stops | wherever stop tags render — transit already shows a badge |
-| R5 | Filter row removed; tag chips are the control, dim not hide | `lenses/CalendarLens.tsx` must stop filtering cells; needs an opacity pass keyed on the focused tag |
-| R7 | Undo/redo relocated into History | `board/UndoRedoControls.tsx` + `board/HistoryPanel.tsx` — both were on the *undesigned* list and now have a design |
-| R7 | Notebooks menu at the far right of the view row | `components/pages/NotebookScreen.tsx` entry point; new menu is not in code |
-| R2 | Map day rail restored, clicking jumps | `lenses/MapLens.tsx` + `lenses/MapRail.tsx` — reverses the 2026-08-23 removal |
-| R6 | Trip title *is* the settings button; **pencil icon and ⚙ removed, inline rename removed** | `trip/TripHeader.tsx` — delete the `Pencil` import, the `renaming` state, and the `Rename trip` icon button; the `<h2>` becomes the button that opens `SettingsSheet`. `trip/SettingsSheet.tsx` — the trip-name row stops being read-only and becomes the one place renaming happens (its comment on L152 is now stale). Update `TripHeader.test.tsx` (`describe("TripHeader rename")`) and `e2e/m8-make-it-real.spec.ts` (`getByRole("button", { name: /rename trip/i })`) to drive rename through settings. **Supersedes D5's "code wins".** |
-
-Carried forward from 2026-08-24 and still true: **day labels must derive their month from
-start date + day index**, not from the trip start — check `CalendarLens`, `MapRail`, and
-every day chip.
-
-Design-system note for implementers: arbitrary Tailwind utilities (`max-h-[min(420px,80vh)]`)
-are inert against the precompiled bundle used by the design file. In the real app the JIT
-will compile them, so this is a design-file constraint, not a product one — but any value
-copied *out of* the design file may be an inline style for that reason.
-
-Removed this pass: the Trips page's **"Worth your attention"** panel (nudge rows). There
-was no code counterpart; it is now gone from the design too.
-
-## Calendar / account settings pass — 2026-08-26
-
-Build-side consequences of SPEC §12.
-
-| # | Change in design | Build check |
-|---|---|---|
-| C1 | Calendar cells render **city cards**, not activities | `lenses/CalendarLens.tsx` — cell content is now a per-city rollup (name, 7am–11pm span bar, stop count + cost, window, unbooked flag). Needs a day→cities split helper keyed on the LAST `transit` stop |
-| C2 | Stop-level drag removed from Calendar | drop handling for calendar cells keeps day reorder only; the stop-drag source is gone |
-| C3 | Calendar day selection is persistent, not a pulse | remove the flash-on-jump animation; selected cell holds `inset 0 0 0 2px <accent>`. Calendar keeps day focus across view switches (Map still clears it) |
-| C4 | Clicking a calendar day no longer navigates to Timeline | it selects in place |
-| C5 | **Account settings** Sheet is real | new surface off the avatar menu: name, email (read-only), home airport, Display section. `Your account` currently has no destination in code |
-| C6 | Distance units are account scope | one formatter owns every distance; do not add a per-trip unit field |
-| C7 | Home time on hover, default off | needs `trip.tz` and a tz for the account's home airport. Do **not** implement as a global display mode — see §12 |
-| C8 | Map hides the header day chips | `lenses/MapLens.tsx` — supersedes the R4 tension logged 2026-08-25 |
-| C9 | Budget: "left" is the emphasised value | `trip/TripHeader.tsx` — Badge (`success`/`warning`) for what's left, slate mono for spend-of-total |
-
-### Design-system bug — belongs upstream, not in consumers
-
-`Sheet`'s body is `<div className="flex-1 overflow-y-auto">`. `overflow-y: auto` forces
-`overflow-x: auto`, making it a scroll box that clips paint outside its padding edge.
-`Input`'s `outline-2 outline-offset-1` draws 3px outside its border box, so **every
-full-width input in every Sheet loses its left and right focus ring.** The design works
-around it per-Sheet; the real fix is horizontal padding on `Sheet`'s scroll div in the
-design-system package. Same class of bug in any Dialog scroller with one-sided padding.
-
-### Resolved since 2026-08-25
-
-- **D5 / R6 (trip rename).** Confirmed: no pencil, no inline rename anywhere in the design.
-  The dead `startRename`/`commitRename` handlers that made this ambiguous have been
-  deleted from the design file. Renaming happens only in Trip settings.
-- **Calendar's future** (§11 "Still open"). Resolved by C1 — Calendar earns its place as
-  the city/shape view. No retirement path needed.
-- Dead values removed from the design file with no template reference: `dragHint`,
-  `mapIntro`, `sugHeading`, `suggestions`, `sugCount`, `blHint`, `fabBottom`.
-  The per-tab drag hints and the "What I noticed" feed are gone from the UI.
-- The Unscheduled drawer no longer force-opens mid-drag, which was shifting the whole
-  bottom of the page (and the assistant with it). It stays where the user left it.
+Build status, for planning: M10 Wave 2 Phases 5–8b are merged; **Phase 9 is M10's exit
+gate and is the next work**. Nothing in this document holds it.

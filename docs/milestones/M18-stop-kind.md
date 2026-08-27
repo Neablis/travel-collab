@@ -1,8 +1,28 @@
 # M18 — A stop knows what kind of thing it is
 
-**Status:** Approved 2026-08-26, not started. Phase 2.
+**Status:** Approved 2026-08-26, **scheduled 2026-08-26**, not started. Phase 2,
+after M10's Wave-2 gate and **before M16**.
 **Opened by:** Mitchell, reviewing SPEC §12 — *"Keep Stop Kind as a future
 milestone, lets just ship what we can for now."*
+**Scheduled and widened by:** Mitchell, PR #55 retrospective — *"i dont want to
+do KIND and TAGS right now, but we can put it in a soon milestone."*
+
+## Two fields, one milestone
+
+This milestone carries **both** of the activity fields the design assumes and
+the contract lacks: **`kind`** (below) and **`tags`** (KI-47). They were filed
+separately and are deliberately merged here, because they are the same piece of
+work: one change to `ActivityView`, one set of commands and events, one
+projection change, one migration-and-backfill decision, and one contracts
+changelog entry. Doing them in two passes pays that cost twice and puts two
+migrations through the event store where one would do.
+
+Between them they are the largest single unblocker on the board — the two
+fields gate the Calendar's travel-day split and `N to book`, the home hero's
+"not booked" tile, `act.badge`, and design rules R4 and R5. **Everything below
+about `kind` applies to `tags` in the same shape**; KI-47 holds the detail on
+which five surfaces want tags and why a filter control cannot be built without
+them.
 
 ## Why this exists
 
@@ -61,6 +81,8 @@ Two reasons, both fatal:
 ## Exit gate
 
 - [ ] A stop's kind is a real field, set by a command, visible in the projection.
+- [ ] A stop's **tags** are a real field on the same terms (KI-47), landing in
+      the same contract change rather than a second one.
 - [ ] Calendar splits a travel day at the last `transit` stop, with the
       departing city as a strip carrying that stop's **start** time.
 - [ ] `N to book` counts stops whose kind is neither `booked` nor `transit`, and
