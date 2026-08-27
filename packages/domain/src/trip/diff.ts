@@ -117,6 +117,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          kind: a.kind,
+          tags: a.tags,
           cost: a.cost,
         },
       });
@@ -138,6 +140,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          kind: a.kind,
+          tags: a.tags,
           cost: a.cost,
         },
       });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict";
 import { TripMember, TripStatus } from "./trip";
-import { Anchor, Location, TimeWindow } from "./activity";
+import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity";
 import { Money } from "./money";
 
 export const ActivityView = z.object({
@@ -11,6 +11,8 @@ export const ActivityView = z.object({
   location: Location.nullable(),
   notes: z.string().nullable(),
   anchors: z.array(Anchor),
+  kind: ActivityKind,
+  tags: z.array(ActivityTag),
   cost: Money.nullable(),
 });
 export type ActivityView = z.infer<typeof ActivityView>;

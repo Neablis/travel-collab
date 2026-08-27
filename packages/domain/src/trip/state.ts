@@ -1,4 +1,4 @@
-import type { Anchor, Location, Money, TimeWindow, TripMember, TripStatus } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, Anchor, Location, Money, TimeWindow, TripMember, TripStatus } from "@tc/contracts";
 
 export type ActivityState = {
   title: string;
@@ -6,6 +6,8 @@ export type ActivityState = {
   location: Location | null;
   notes: string | null;
   anchors: Anchor[];
+  kind: ActivityKind;   // never null — "planned" is the zero value
+  tags: ActivityTag[];  // never null — [] is the zero value
   cost: Money | null;
 };
 

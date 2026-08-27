@@ -24,6 +24,8 @@ export function hydrate(detail: TripDetail): TripState {
           location: a.location,
           notes: a.notes,
           anchors: a.anchors,
+          kind: a.kind,
+          tags: a.tags,
           cost: a.cost,
         },
       ]),

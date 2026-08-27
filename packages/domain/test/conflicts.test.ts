@@ -34,6 +34,8 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           location: a.point ? { name: a.point.name, lat: a.point.lat, lng: a.point.lng } : null,
           notes: null,
           anchors: [],
+          kind: "planned",
+          tags: [],
           cost: null,
         },
       ]),

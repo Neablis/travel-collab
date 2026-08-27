@@ -60,6 +60,8 @@ const activity: fc.Arbitrary<ActivityState> = fc.record({
   location: fc.option(location, { nil: null }),
   notes: fc.option(fc.string(), { nil: null }),
   anchors: fc.array(anchor, { maxLength: 3 }),
+  kind: fc.constantFrom("planned", "booked", "hold", "idea", "transit"),
+  tags: fc.uniqueArray(fc.constantFrom("meal", "lodging", "ticketed", "outdoors"), { maxLength: 3 }),
   cost: fc.option(money, { nil: null }),
 });
 
