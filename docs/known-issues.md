@@ -428,50 +428,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   project exists to cover — it runs at 1100px, above this).
 - **First noted:** 2026-08-26 (design-sync UI audit, C2).
 
-### KI-47 — No `tags` field on an activity, and five designed surfaces depend on one
-
-- **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
-  which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
-  now, but we can put it in a soon milestone"* — to land **both** missing
-  activity fields in one contract change. `kind` and `tags` are the same piece
-  of work (one `ActivityView` change, one command/event set, one projection, one
-  migration-and-backfill decision, one changelog entry), and splitting them
-  would pay that cost twice. This entry stays open as the detail on *tags*
-  specifically; the schedule lives in the milestone.
-- **Severity:** cleanup (a contract gap, not a defect — recorded so it stops
-  being re-derived per surface)
-- **Area:** `packages/contracts/src/activity.ts`
-- **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
-  builds five things on top of tags: chips on every stop card, the tag filter
-  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
-  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
-  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
-  SPEC §10's statement that on a 402px column the filter row is *the only way*
-  to thin a day.
-- **Why it belongs in the registry rather than here, eventually:** this is the
-  same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
-  in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but
-  unlike those, nothing in the build points at it, so it has no entry and no
-  milestone. Give it one.
-- **Adjacent, same shape:** the seed encodes per-stop `status`
-  (`booked`/`hold`/`idea`/`transit`) and `who` **into the note text**
-  (`db-seed.ts`), which is why cards read `(transit)` and
-  `(idea) (Sam K + Jonah M)`. The design's `act.badge` (Booked/Hold/Idea) has
-  no field behind it either, and the home hero's designed "7 not booked" tile
-  is blocked on the same absence (see `NextTripHero.tsx:188-191`).
-- **Escalated 2026-08-26 by design sync `fd2edd6` (SPEC §12).** The missing
-  stop `kind` stopped being one cosmetic tile and became the mechanic of a
-  whole lens: the new Calendar splits a travel day **at the last `transit`
-  stop** (departing city gets a one-line strip, arriving city the full card)
-  and flags `N to book` from "every stop whose kind is neither `booked` nor
-  `transit`". Neither is computable while the kind lives inside note prose a
-  user can edit — and parsing it back out would make a display concern depend
-  on free text. The Japan seed has five travel days, so a Calendar built
-  without it mis-renders a third of the trip rather than degrading quietly.
-  **This wants a contract decision before any of SPEC §12's Calendar work is
-  scheduled** — see `docs/design-feedback/2026-08-26-spec-12-calendar-city-view-review.md`.
-- **First noted:** 2026-08-26 (design-sync UI audit, C4).
-
 ### KI-48 — Small design-audit cosmetics (2026-08-26)
 
 - **Severity:** cosmetic
@@ -586,10 +542,104 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Same class:** `check-lint-wall.mjs` and `check-case-collisions.mjs` should be
   checked for the identical `git ls-files` assumption before this is called fixed.
 
+### KI-52 — The tag chip row ships four tags where the handoff designs six
+
+- **Severity:** cleanup (a recorded design delta, not a defect)
+- **Area:** `packages/contracts/src/activity.ts` (`ActivityTag`),
+  `.design-sync/handoff/design/Trip Planner Redesign.dc.html` (its `TAGS` array)
+- **What differs:** the handoff defines six tags — `considering`, `meal`,
+  `lodging`, `travel`, `ticketed`, `outdoors` — each with a "power" (a
+  behaviour the tag unlocks). M18 shipped `ActivityTag` with **four**:
+  `meal | lodging | ticketed | outdoors`.
+- **Why:** `considering` and `travel` restate `ActivityKind`'s `idea` and
+  `transit`. Making both settable and independent lets a stop be
+  `kind: "booked"` **and** tagged `considering`, which the design says should
+  render dashed with its cost outside the committed total — under a "Booked"
+  badge. No surface owns that contradiction, and nothing in the build wants it.
+  The handoff's own prototype never stores those two either: it *derives* them
+  (`if (a[6] === 'idea') out.push('considering')`), which is the same
+  observation arriving from the other direction. Mitchell's call, 2026-08-27.
+- **What this costs:** the designed chip row and the Add/Edit tag picker show
+  six chips; the build will show four. Any surface that wants "is this a maybe?"
+  or "is this travel?" reads `kind`, not `tags`. Recorded here so the next
+  design sync scores it as a settled delta rather than re-raising it as drift.
+- **Not scheduled:** reopening it would mean either accepting the contradiction
+  or deriving two read-only pseudo-tags in the projection. Neither is worth
+  doing before the tag surfaces exist.
+- **Cross-reference:** KI-47 (resolved — the `tags` field itself);
+  the 2026-08-27 contracts changelog entry.
+- **First noted:** 2026-08-27 (M18 contract PR).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-47 — No `tags` field on an activity, and five designed surfaces depend on one — RESOLVED
+- **Resolved (2026-08-27)** by M18's contract PR. `ActivityTag`
+  (`meal|lodging|ticketed|outdoors`) is a real field on `AddActivity`,
+  `UpdateActivity`, both V1 event payloads and `ActivityView`, landing in the
+  same contract change as `kind` exactly as the milestone intended — one
+  `ActivityView` change, one command/event set, one projection, one changelog
+  entry, and (as it turned out) **no migration at all**: the payload additions
+  default, so every stored event replays as `planned` / `[]`.
+- **Four values, not the handoff's six.** `considering` and `travel` are
+  deliberately absent — `ActivityKind` already carries `idea` and `transit`,
+  and two settable fields that can disagree about one fact is a bug generator.
+  See the 2026-08-27 contracts changelog entry, and KI-50 for the design delta
+  this creates in the chip row.
+- **Where the tag data comes from:** the handoff export carries no tags on any
+  of its 68 stops (its `enums` block lists only `stopStatus`), so the importer
+  deliberately synthesises none — inferring them from title text is the prose
+  parse the milestone disqualifies. `db-seed.ts` instead carries hand-authored
+  tags on all 68 stops: 33 `meal`, 11 `outdoors`, 8 `ticketed`, 4 `lodging`,
+  18 untagged.
+- **Still not built (PR 2+):** the five surfaces this entry lists — chips on
+  stop cards, the tag filter row, the Add/Edit tag picker, the Notebook
+  repeater's filter, and SPEC §10's mobile column. They are unblocked, not
+  done.
+
+- **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
+  which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
+  now, but we can put it in a soon milestone"* — to land **both** missing
+  activity fields in one contract change. `kind` and `tags` are the same piece
+  of work (one `ActivityView` change, one command/event set, one projection, one
+  migration-and-backfill decision, one changelog entry), and splitting them
+  would pay that cost twice. This entry stays open as the detail on *tags*
+  specifically; the schedule lives in the milestone.
+- **Severity:** cleanup (a contract gap, not a defect — recorded so it stops
+  being re-derived per surface)
+- **Area:** `packages/contracts/src/activity.ts`
+- **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
+  builds five things on top of tags: chips on every stop card, the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
+  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
+  SPEC §10's statement that on a 402px column the filter row is *the only way*
+  to thin a day.
+- **Why it belongs in the registry rather than here, eventually:** this is the
+  same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
+  in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but
+  unlike those, nothing in the build points at it, so it has no entry and no
+  milestone. Give it one.
+- **Adjacent, same shape:** the seed encodes per-stop `status`
+  (`booked`/`hold`/`idea`/`transit`) and `who` **into the note text**
+  (`db-seed.ts`), which is why cards read `(transit)` and
+  `(idea) (Sam K + Jonah M)`. The design's `act.badge` (Booked/Hold/Idea) has
+  no field behind it either, and the home hero's designed "7 not booked" tile
+  is blocked on the same absence (see `NextTripHero.tsx:188-191`).
+- **Escalated 2026-08-26 by design sync `fd2edd6` (SPEC §12).** The missing
+  stop `kind` stopped being one cosmetic tile and became the mechanic of a
+  whole lens: the new Calendar splits a travel day **at the last `transit`
+  stop** (departing city gets a one-line strip, arriving city the full card)
+  and flags `N to book` from "every stop whose kind is neither `booked` nor
+  `transit`". Neither is computable while the kind lives inside note prose a
+  user can edit — and parsing it back out would make a display concern depend
+  on free text. The Japan seed has five travel days, so a Calendar built
+  without it mis-renders a third of the trip rather than degrading quietly.
+  **This wants a contract decision before any of SPEC §12's Calendar work is
+  scheduled** — see `docs/design-feedback/2026-08-26-spec-12-calendar-city-view-review.md`.
+- **First noted:** 2026-08-26 (design-sync UI audit, C4).
 
 ### KI-23 — The simulated model's `combined` surface never composes a page — RESOLVED
 - **Severity:** cleanup (product fidelity, not correctness)

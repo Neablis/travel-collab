@@ -5,6 +5,68 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## M18 PR 1 (the contract change) is done, 2026-08-27 — PR 2+ carries the surfaces
+
+**A stop now knows what kind of thing it is.** `ActivityKind`
+(`booked|hold|idea|transit|planned`) and `ActivityTag`
+(`meal|lodging|ticketed|outdoors`) are real fields on `AddActivity`,
+`UpdateActivity`, both V1 event payloads and `ActivityView`. Nothing changes on
+screen — that is deliberate. `AGENTS.md:161` makes a contract change its own
+reviewed step, so the dependent surfaces (Calendar transit split, `N to book`,
+the home-hero tile, `act.badge`, tag chips and the filter row) are PR 2+.
+
+Three decisions, Mitchell's calls on 2026-08-27:
+
+1. **`kind` is non-nullable, default `"planned"`** — already the zero value in
+   `db-seed.ts` and `japanTripImporter.ts`'s `StopStatus`.
+2. **Four tags, not the handoff's six.** `considering` and `travel` restate
+   `kind: idea`/`transit`; two settable fields that can disagree about one fact
+   is a bug generator. Design delta recorded as **KI-52**.
+3. **Tags are hand-authored in `db-seed.ts`** — the export carries none, and
+   inferring them from title text is the prose parse M18 disqualifies.
+
+**Two things the milestone anticipated that turned out not to exist:**
+
+- **No migration.** Both fields went onto the **existing V1** payloads with Zod
+  `.default()` — the M3 `anchors` / M4 `cost` mechanism — so every stored event
+  replays as `planned` / `[]`. No V2 event, no rewrite, no backfill.
+- **No note-text parse anywhere.** `db-seed.ts` carried `status` as a typed
+  field all along and merely folded it into notes on the way out; the handoff
+  export has a typed `status` on every stop that the importer was explicitly
+  dropping. Both are field-to-field maps.
+
+**The one real trap, and it is worth remembering.** `equality.ts`, `diff.ts`,
+`hydrate.ts` and `detail.ts` each *hand-enumerate* activity fields. Adding a
+contract field without touching all four compiles cleanly and is wrong at
+runtime — and because `decide.ts` gates `UpdateActivity` on `okUnlessNoOp`,
+which calls `activityStatesEqual`, a kind-only update was **rejected as a
+no-op** until equality learned the field. The shared property generator
+(`packages/domain/test/support/tripGenerator.ts`) needed both fields too, or
+`diff.property.test.ts` would have kept passing while never generating either.
+Verified non-vacuous by removing the diff change and watching the M2 round-trip
+property fail, then restoring it.
+
+**What was actually run on this branch:**
+
+- `pnpm typecheck` — green across all 6 packages.
+- **Root** `pnpm lint` — green (ESLint, lint wall, colour wall 313 files /
+  0 pending re-skin, case collisions).
+- `pnpm test` — contracts 49, pages 32, domain 136, factories 346,
+  **web 890 passed / 1 skipped (111 files)** — the web number matches the M10
+  gate baseline exactly, so no fixture edit changed behaviour.
+- `pnpm --filter web test:int` — **85 passed, 13 files**, against Postgres on
+  :5433. This is the exit gate's projection-rebuild check; `pnpm check` does
+  **not** run it.
+- A live `db:reseed` plus an API read of the projection: 72 activities, kinds
+  booked 13 / planned 39 / transit 9 / idea 6 / hold 5; tags meal 33 /
+  outdoors 11 / ticketed 8 / lodging 4, 18 untagged; and **zero notes still
+  carrying a `(status)`**, with `who` still folded as intended. Browser walk of
+  the Japan trip: cards render clean, no console errors.
+- E2E was **not** run — no UI behaviour changed in this PR.
+
+**Next:** PR 2 — Calendar's transit split and `N to book`, then the home-hero
+tile, `act.badge`, and the tag chips/filter row.
+
 ## M10's Wave-2 gate closed 2026-08-27 — M18 is the current milestone
 
 **M10 "Visual craft pass" is done.** Phase 9, its exit gate, ran on
