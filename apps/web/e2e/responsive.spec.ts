@@ -122,4 +122,31 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     expect(new Set(row).size).toBe(3);
     expect(row).toEqual([...row].sort((a, b) => a - b));
   });
+
+  // The front door is the one surface a phone actually reaches signed out, and
+  // the hero art is a stack of absolutely-positioned fragments at percentage
+  // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
+  // page sideways. 402px is the width docs/STATUS.md's design audit walks.
+  for (const width of [402, 360]) {
+    test(`/welcome does not scroll sideways at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/welcome");
+      const { scrollWidth, clientWidth, widest } = await page.evaluate(() => {
+        const doc = document.documentElement;
+        // Name the worst offender in the failure message — "the page is 40px
+        // too wide" on its own costs an afternoon of bisecting by hand.
+        let widest = "";
+        let worst = 0;
+        for (const el of Array.from(document.body.querySelectorAll("*"))) {
+          const right = el.getBoundingClientRect().right;
+          if (right > worst) {
+            worst = right;
+            widest = `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} → right=${Math.round(right)}`;
+          }
+        }
+        return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, widest };
+      });
+      expect(scrollWidth, `widest element: ${widest}`).toBeLessThanOrEqual(clientWidth);
+    });
+  }
 });
