@@ -55,6 +55,19 @@ Where the work actually stands right now: `docs/STATUS.md`.
       focus-scope model is rejected; the global bar carries nothing trip-scoped.
       Phase order to the gate is now: 5, 6, 7, 8, 8b, 9, and **Phase 9 is the
       next work**.)*
+- [ ] **M18 A stop knows what kind of thing it is** →
+      `docs/milestones/M18-stop-kind.md`
+      *(Approved 2026-08-26, **scheduled 2026-08-26** — Mitchell: *"i dont want
+      to do KIND and TAGS right now, but we can put it in a soon milestone."*
+      Runs after M10's Wave-2 gate and **before M16**. Widened on the same call
+      to carry **both** missing activity fields — `kind` and `tags` (KI-47) —
+      because they are one contract change, one migration decision and one
+      backfill question, and splitting them would pay that cost twice. This is
+      the single largest unblocker on the board: between them the two fields
+      gate the Calendar's travel-day split and its `N to book` flag, the home
+      hero's "not booked" tile, `act.badge`, and design rules R4 and R5. Until
+      it lands, surfaces that need either field ship partial by design, not by
+      accident.)*
 - [ ] **M16 The assistant answers questions** →
       `docs/milestones/M16-assistant-read-agent.md`
       *(Approved 2026-08-25, **ADR-022**. Runs right after M10's Wave-2 gate,
