@@ -93,7 +93,10 @@ export function ShareButton({
       open={open}
       onOpenChange={setOpen}
       align="end"
-      contentClassName="w-96"
+      // 24rem, but never wider than the viewport allows. The e2e `narrow`
+      // project runs at 1100px and the responsive spec goes down to 320px,
+      // where a fixed 384px overlay would clip its own controls off-screen.
+      contentClassName="w-96 max-w-[calc(100vw-2rem)]"
       trigger={
         <Button type="button" variant={variant}>
           Share

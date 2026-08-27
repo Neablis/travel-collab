@@ -90,6 +90,7 @@ describe("a pinned share is pinned", () => {
     const tripId = await seedTrip();
     await addDay(tripId);
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
 
     // Corrupt the projection with a plausible-but-wrong day count. A read
@@ -117,6 +118,7 @@ describe("share lifecycle", () => {
   it("turning a link off stops it working", async () => {
     const tripId = await seedTrip();
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     expect((await readShare(share.value.token)).ok).toBe(true);
 
@@ -130,6 +132,7 @@ describe("share lifecycle", () => {
   it("revoking twice is a no-op, not an error", async () => {
     const tripId = await seedTrip();
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     await revokeShare(tripId, share.value.shareId);
     expect((await revokeShare(tripId, share.value.shareId)).ok).toBe(true);
@@ -139,6 +142,7 @@ describe("share lifecycle", () => {
     const a = await seedTrip("A");
     const b = await seedTrip("B");
     const share = await createShare(a, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     const result = await revokeShare(b, share.value.shareId);
     expect(result.ok).toBe(false);
@@ -149,6 +153,7 @@ describe("share lifecycle", () => {
   it("refuses a deleted trip's link, even though replay could still serve it", async () => {
     const tripId = await seedTrip();
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER);
 
@@ -160,6 +165,7 @@ describe("share lifecycle", () => {
   it("comes back to life if the trip is restored", async () => {
     const tripId = await seedTrip();
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER);
     await executeTripCommand({ type: "RestoreTrip", tripId }, OWNER);
@@ -175,6 +181,7 @@ describe("share lifecycle", () => {
     const tripId = await seedTrip();
     const first = await createShare(tripId, OWNER, "2026-01-01T00:00:00.000Z");
     const second = await createShare(tripId, OWNER, "2026-02-01T00:00:00.000Z");
+    expect(first.ok && second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
     expect((await listShares(tripId)).map((s) => s.shareId)).toEqual([
       second.value.shareId,
@@ -192,6 +199,7 @@ describe("what a stranger is served", () => {
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     await acceptInvite(invite.token, "share-bob");
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
 
     const view = await readShare(share.value.token);
@@ -222,6 +230,7 @@ describe("the featured share", () => {
   it("serves the configured share when one is named", async () => {
     const tripId = await seedTrip("Featured");
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     process.env.DEMO_SHARE_TOKEN = share.value.token;
     const result = await readFeaturedShare();
@@ -231,6 +240,7 @@ describe("the featured share", () => {
   it("falls back to nothing if the configured share was turned off", async () => {
     const tripId = await seedTrip();
     const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
     if (!share.ok) return;
     await revokeShare(tripId, share.value.shareId);
     process.env.DEMO_SHARE_TOKEN = share.value.token;
