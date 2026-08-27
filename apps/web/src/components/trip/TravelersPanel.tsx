@@ -98,7 +98,16 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
     <div className="flex flex-col gap-3" data-testid="travelers-panel">
       <div className="flex flex-col gap-1.5">
         {(access?.members ?? []).map((member) => (
-          <div key={member.userId} className="flex items-center justify-between gap-3">
+          // The testid carries the userId so a test can assert identity AND
+          // role together. Without it the only handle is the role text, which
+          // the pending-invite rows below also render — an assertion on
+          // "editor" alone passes from an invite row with no traveller entry
+          // at all (CodeRabbit, PR #70).
+          <div
+            key={member.userId}
+            data-testid={`traveller-${member.userId}`}
+            className="flex items-center justify-between gap-3"
+          >
             <Text as="span" className="text-xs text-ink">
               {displayName(member)}
             </Text>

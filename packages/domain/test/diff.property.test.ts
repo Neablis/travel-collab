@@ -25,6 +25,14 @@ import {
 describe("diffTripStates round-trip (THE M2 invariant)", () => {
   it("applying the diff to current reproduces the target exactly, for any history and any cut point", () => {
     const w = witness("M2 round-trip");
+    // A SECOND witness, for lineage specifically. `arbLineage` generates null
+    // and populated records, but the round-trip assertion holds trivially for
+    // null — so without counting the non-null cases, a regression that always
+    // dropped `forkedFrom` to null would keep this property green while never
+    // exercising the thing it was added to cover (CodeRabbit, PR #70; the same
+    // rule AGENTS.md states as "a property that skips every generated case
+    // still reports ✓").
+    let forked = 0;
     fc.assert(
       fc.property(
         fc.array(rawOp, { minLength: 1, maxLength: 40 }),
@@ -43,6 +51,7 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
           let result = current;
           for (const event of diff) result = evolveTrip(result, event);
           w.tick();
+          if (forkedFrom !== null) forked += 1;
           expect(result.forkedFrom).toEqual(forkedFrom);
           expect(tripStatesEqual(result, target)).toBe(true);
           // conflicts are a pure function of state, so they match too:
@@ -52,6 +61,11 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
       { numRuns: 300 },
     );
     w.atLeast(300);
+    // Measured, not guessed: `fc.option` defaults to roughly a 1-in-5 nil
+    // rate, so ~240 of 300 runs carry lineage. Floored at 60 — a quarter of
+    // the expected count — which cannot flap but still fails outright if
+    // lineage stops being generated.
+    expect(forked, "no forked-trip case was generated").toBeGreaterThanOrEqual(60);
   });
 
   // Guards the generator itself, not the domain. See the `generator` counters.

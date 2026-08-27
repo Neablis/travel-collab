@@ -149,6 +149,14 @@ const FLOOR_TAGS = 80;
 // Roles measured the same way over five runs: 45/47/51/42/48, so half of the
 // observed minimum (42) is the floor.
 const FLOOR_ROLE = 20;
+// Lineage is genesis-only, so like a non-owner member it is generated
+// directly — and the round-trip assertion holds TRIVIALLY when `forkedFrom`
+// is null, so without a floor a regression that always dropped it would keep
+// this property green while never exercising a forked trip at all
+// (CodeRabbit, PR #70). Measured, not guessed: 12 runs of this exact
+// arbitrary observed 77-88 non-null cases per 100; floored near half the
+// observed minimum.
+const FLOOR_LINEAGE = 38;
 
 describe("hydrate", () => {
   it("is the inverse of tripDetailFromState (round-trip)", () => {
@@ -160,6 +168,7 @@ describe("hydrate", () => {
     const kinds = witness("hydrate round-trip: non-planned kind");
     const tags = witness("hydrate round-trip: non-empty tags");
     const roles = witness("hydrate round-trip: a non-owner member");
+    const lineage = witness("hydrate round-trip: a forked trip");
     fc.assert(
       fc.property(arbTripState, (state) => {
         for (const a of Object.values(state.activities)) {
@@ -167,6 +176,7 @@ describe("hydrate", () => {
           if (a.tags.length > 0) tags.tick();
         }
         if (state.members.some((m) => m.role !== "owner")) roles.tick();
+        if (state.forkedFrom !== null) lineage.tick();
         const roundTripped = hydrate(tripDetailFromState(state, "2027-01-01T00:00:00.000Z"));
         expect(tripStatesEqual(roundTripped, state)).toBe(true);
       }),
@@ -174,5 +184,6 @@ describe("hydrate", () => {
     kinds.atLeast(FLOOR_KIND);
     tags.atLeast(FLOOR_TAGS);
     roles.atLeast(FLOOR_ROLE);
+    lineage.atLeast(FLOOR_LINEAGE);
   });
 });

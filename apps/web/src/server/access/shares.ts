@@ -104,7 +104,21 @@ export async function revokeShare(
  * and the feature would not exist. The cost is a stream read per view, which
  * is the same read the history preview has always done.
  */
-export async function readShare(token: string): Promise<AccessResult<SharedTripView>> {
+/**
+ * Token -> the validated share, the trip's current projection, and the replay
+ * at the pinned seq. The single gate every share read passes through.
+ *
+ * Extracted so that every consumer refuses EXACTLY the same things: an
+ * unknown token, a link that has been turned off, a trip that is gone or
+ * deleted, and a replay that cannot be produced. With those checks written
+ * out per call site, a rule added to only one of them would leave a link that
+ * the public read refuses still readable by another path — and link 5 adds a
+ * second consumer, the clone path, which is the more dangerous of the two to
+ * get wrong (CodeRabbit, PR #70).
+ */
+async function resolveShare(token: string): Promise<
+  AccessResult<{ share: ShareRow; current: TripDetail; replayed: { detail: TripDetail; headSeq: number } }>
+> {
   const rows = await db.select().from(tripShares).where(eq(tripShares.token, token));
   const share = rows[0];
   if (share === undefined) {
@@ -124,6 +138,13 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
   if (replayed === null) {
     return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
   }
+  return { ok: true, value: { share, current, replayed } };
+}
+
+export async function readShare(token: string): Promise<AccessResult<SharedTripView>> {
+  const resolved = await resolveShare(token);
+  if (!resolved.ok) return resolved;
+  const { share, current, replayed } = resolved.value;
   const members = await effectiveMembers(db, share.tripId, current.members);
   return {
     ok: true,
@@ -143,22 +164,12 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
 export async function readShareForClone(
   token: string,
 ): Promise<AccessResult<{ detail: TripDetail; tripId: string; atSeq: number; name: string }>> {
-  const rows = await db.select().from(tripShares).where(eq(tripShares.token, token));
-  const share = rows[0];
-  if (share === undefined) {
-    return { ok: false, error: { code: "not-found", message: "This link is not valid." } };
-  }
-  if (share.revokedAt !== null) {
-    return { ok: false, error: { code: "gone", message: "This link has been turned off." } };
-  }
-  const current = await getTripDetail(share.tripId);
-  if (current === null || current.status === "deleted") {
-    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
-  }
-  const replayed = await getTripDetailAtWithHead(share.tripId, share.seq);
-  if (replayed === null) {
-    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
-  }
+  // Through the same gate as the public read (`resolveShare`), deliberately:
+  // the clone path must refuse exactly what the read path refuses, and the
+  // clone is the more dangerous of the two to get wrong.
+  const resolved = await resolveShare(token);
+  if (!resolved.ok) return resolved;
+  const { share, replayed } = resolved.value;
   return {
     ok: true,
     value: {
