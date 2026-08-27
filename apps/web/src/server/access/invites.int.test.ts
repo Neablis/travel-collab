@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/client";
 import { events, tripDetails, tripInvites, tripMemberships, tripSummaries, users } from "../db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { getTripDetail } from "../projections";
 import { acceptInvite, createInvite, listInvites, previewInvite, revokeInvite } from "./invites";
-import { effectiveMembers, sharedTripIds, withProfiles } from "./members";
+import { effectiveMembers, grantMembership, sharedTripIds, withProfiles } from "./members";
 
 const OWNER = "dev-alice";
 const GUEST = "dev-bob";
@@ -15,6 +16,31 @@ async function seedTrip(name = "Kyoto"): Promise<string> {
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, OWNER);
   expect(created.ok).toBe(true);
   return tripId;
+}
+
+/**
+ * Resolves once some backend in this database is parked on a lock — which, in
+ * the one test that calls it, can only be the accept blocked on the membership
+ * primary key. Polled rather than slept: a fixed sleep either flakes on a slow
+ * machine or wastes the time on a fast one, and neither proves the block
+ * happened. Throwing here is a real failure, not a flake: it means the accept
+ * reached a decision without ever contending for the row.
+ */
+async function waitForABlockedBackend(timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const blocked = await db.execute<{ n: number }>(sql`
+      select count(*)::int as n from pg_stat_activity
+       where datname = current_database()
+         and state = 'active'
+         and wait_event_type = 'Lock'
+    `);
+    if (Number(blocked.rows[0]?.n ?? 0) > 0) return;
+    if (Date.now() > deadline) {
+      throw new Error("no backend ever blocked on the membership primary key");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 }
 
 beforeEach(async () => {
@@ -153,6 +179,15 @@ describe("invites — create, accept, revoke", () => {
   // membership. The primary key on (tripId, userId) is the real serialization
   // point, so `grantMembership` decides — first grant wins, the loser rolls
   // back including its token claim.
+  //
+  // What THIS test proves is the outcome under whatever interleaving the two
+  // promises happen to get: exactly one accept wins and the result is never a
+  // blend. It does NOT prove the primary-key branch, and its earlier comment
+  // wrongly said it did (CodeRabbit, PR #70): `Promise.all` is free to let the
+  // first accept commit before the second reads, in which case the second is
+  // turned away by the in-transaction guard and `grantMembership` is never
+  // reached — every assertion below still passes. The test after this one pins
+  // that branch down deterministically; keep both, they cover different things.
   it("survives two invites accepted at the same instant", async () => {
     const tripId = await seedTrip();
     const asEditor = await createInvite(tripId, OWNER, { email: null, role: "editor" });
@@ -183,6 +218,68 @@ describe("invites — create, accept, revoke", () => {
     // that never happened.
     const spent = (await listInvites(tripId)).filter((i) => i.status === "accepted");
     expect(spent).toHaveLength(1);
+  });
+
+  // The branch the test above cannot pin: the accept gets PAST the guard and
+  // loses at the primary key. Forced deterministically by holding a membership
+  // row for the same user open and UNCOMMITTED in a second transaction —
+  // under READ COMMITTED the guard cannot see it, so the accept claims the
+  // token and then blocks inside `grantMembership`. Committing the holder at
+  // that point is what makes `onConflictDoNothing` return nothing.
+  it("rolls the token claim back when the membership is lost at the primary key", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+
+    let signalInserted!: () => void;
+    let releaseHolder!: () => void;
+    const holderInserted = new Promise<void>((resolve) => {
+      signalInserted = resolve;
+    });
+    const holderMayCommit = new Promise<void>((resolve) => {
+      releaseHolder = resolve;
+    });
+    const holder = db.transaction(async (tx) => {
+      const won = await grantMembership(tx, {
+        tripId,
+        userId: GUEST,
+        role: "viewer",
+        invitedBy: OWNER,
+        now: new Date().toISOString(),
+      });
+      if (!won) throw new Error("the holder should have taken the row uncontested");
+      signalInserted();
+      await holderMayCommit;
+    });
+
+    let accepting: ReturnType<typeof acceptInvite>;
+    try {
+      await holderInserted;
+      accepting = acceptInvite(invite.token, GUEST);
+      await waitForABlockedBackend();
+    } finally {
+      // Always, or a thrown barrier leaves the holder's transaction open and
+      // the pool one connection short for the rest of the file.
+      releaseHolder();
+    }
+    await holder;
+
+    const result = await accepting;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid");
+
+    // The claim was rolled back with the grant: the link is still spendable,
+    // which is the whole point of throwing rather than returning.
+    const [after] = await listInvites(tripId);
+    expect(after?.status).toBe("pending");
+    expect(after?.acceptedBy).toBeNull();
+
+    // And the role that stands is the holder's, not the one the losing accept
+    // told nobody about.
+    const detail = (await getTripDetail(tripId))!;
+    expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
+      { userId: OWNER, role: "owner" },
+      { userId: GUEST, role: "viewer" },
+    ]);
   });
 
   it("refuses the owner their own link, rather than silently doing nothing", async () => {
