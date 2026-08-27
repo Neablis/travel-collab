@@ -76,9 +76,13 @@ test("a share link keeps showing the trip as it was when it was shared", async (
 
     // Now alice keeps planning.
     await addDay(page, tripId);
-    await page.request.post(`/api/trips/${tripId}/commands`, {
+    // Checked, not fired-and-forgotten: if this rename were rejected the
+    // source name would still equal the pinned name, and the assertion below
+    // would pass while proving nothing about name pinning (CodeRabbit, PR #70).
+    const renamed = await page.request.post(`/api/trips/${tripId}/commands`, {
       data: { type: "SetTripName", tripId, name: `${tripName} (renamed)` },
     });
+    expect(renamed.ok()).toBe(true);
 
     // The link is unchanged — same two days, same name — and now says the
     // trip has moved on.
