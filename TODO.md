@@ -78,14 +78,18 @@ Where the work actually stands right now: `docs/STATUS.md`.
       macro with an author-supplied row template is the one genuinely new
       engineering decision that sync created, and every macro today is
       `NoParams`.)*
-- [ ] **M15 Front door** → `docs/milestones/M15-front-door.md`
-      *(Approved 2026-08-23. **Executes after M16**, which ADR-022 placed ahead
-      of it on 2026-08-25 — ADR-021, on ADR-018's precedent: numbers unchanged,
-      execution order placed. Landing page, custom sign-in/sign-up, first-run screen, header
-      account menu; designed in full by the design sync, deliberately not
-      absorbed into M10's visual-craft gate. Two open questions ride with it —
-      first-run vs. the four-step wizard, and whether the landing copy may sell
-      M11/M12 — recorded in the milestone file.)*
+- [x] **M15 Front door** → `docs/milestones/M15-front-door.md`
+      *(Gate closed 2026-08-26, PR #56. **Ran ahead of M10's Phase 9 gate and
+      M16**, superseding ADR-021/ADR-022's stated ordering — decision 1 in the
+      milestone file, reconciled into `docs/milestones/README.md`'s roadmap
+      table and Current milestone in this same gate-close commit. Landing
+      page, custom sign-in/sign-up (Google + dev-login), Home's empty-state
+      first-run moment via the existing `NewTripWizard`'s "Create empty" (the
+      designed one-field first-run screen was dropped, decision 3), and the
+      header account menu (already shipped in M10 Phase 8b). Both open
+      questions resolved: no separate first-run screen, and the landing copy
+      ships verbatim selling M11/M12. M10's Phase 9 gate remains open and is
+      the next work.)*
 - [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
       *(**Moved to last, after M14 — ADR-022, 2026-08-25.** Mitchell's call: the
       data layer beneath a planning partner should exist first, and UI polish and
