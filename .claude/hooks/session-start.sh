@@ -194,12 +194,28 @@ link_playwright_shell() {
   # choice arbitrary and link revisions the e2e suite does not use (CodeRabbit,
   # PR #58). browsers.json is not in playwright-core's `exports`, hence
   # resolving the package main and walking up to the package root.
+  #
+  # The chain is @playwright/test -> playwright -> playwright-core, and each
+  # link is a DECLARED dependency. Resolving playwright-core straight from
+  # @playwright/test only appears to work: that package's own node_modules
+  # holds `@playwright` and `playwright` and NOT `playwright-core`, so the
+  # lookup succeeds by falling through to pnpm's hoist directory
+  # (node_modules/.pnpm/node_modules), which is a configurable implementation
+  # detail — under `hoist=false` or a different node-linker it throws
+  # (CodeRabbit, PR #58). Going through `playwright` never depends on hoisting.
+  #
+  # A failure here is also LOUD now. It used to be swallowed by a bare catch,
+  # which meant a resolution failure printed nothing, left `revs` empty, linked
+  # nothing, and handed the next session KI-32's original "Executable doesn'"'"'t
+  # exist" with no clue why — the third silent recurrence in a row. If this
+  # cannot resolve Playwright, say so.
   revs=$(node -e '
     const fs = require("node:fs");
     const path = require("node:path");
     try {
       const testMain = require.resolve("@playwright/test", { paths: [process.argv[1]] });
-      const coreMain = require.resolve("playwright-core", { paths: [path.dirname(testMain)] });
+      const playwrightMain = require.resolve("playwright", { paths: [path.dirname(testMain)] });
+      const coreMain = require.resolve("playwright-core", { paths: [path.dirname(playwrightMain)] });
       let dir = path.dirname(coreMain);
       let manifest = null;
       for (let i = 0; i < 6 && !manifest; i++) {
@@ -217,10 +233,14 @@ link_playwright_shell() {
           .map((b) => b.revision),
       );
       process.stdout.write([...revisions].join(" "));
-    } catch {
-      /* no resolvable Playwright, nothing to reconcile */
+    } catch (error) {
+      process.stderr.write("cannot resolve Playwright from apps/web: " + error.code + "\n");
+      process.exit(1);
     }
-  ' "$PWD/apps/web" 2>/dev/null) || return 0
+  ' "$PWD/apps/web") || {
+    echo "session-start: could not read Playwright's browser manifest — e2e may fail on a missing executable (KI-32)" >&2
+    return 0
+  }
 
   for rev in $revs; do
     for target in \

@@ -96,31 +96,53 @@ test.describe("responsive (narrow viewport, signed out)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("the landing feature cards stack below 1024px and sit in a row above it", async ({ page }) => {
-    const cardX = async () => {
-      const boxes = await Promise.all(
-        ["Together", "Notebook", "Playbooks"].map((eyebrow) =>
-          page.getByText(eyebrow, { exact: true }).boundingBox(),
-        ),
-      );
-      return boxes.map((b) => Math.round(b?.x ?? -1));
+    // Measures the CARD ROOTS, not the eyebrow text inside them, and throws
+    // rather than substituting a sentinel when a box is missing. The first
+    // version of this mapped a missing box to -1, which made the 900px
+    // assertion (`new Set(xs).size === 1`) pass on [-1, -1, -1] — green whether
+    // or not the cards rendered at all (CodeRabbit, PR #58). Both axes are
+    // asserted too: three cards drawn on top of each other share an x and would
+    // otherwise satisfy the row check.
+    const cardBoxes = async () => {
+      const boxes = await page.evaluate(() => {
+        return ["Together", "Notebook", "Playbooks"].map((eyebrow) => {
+          const span = Array.from(document.querySelectorAll("span")).find(
+            (el) => el.textContent?.trim() === eyebrow,
+          );
+          // `.min-h-107\\.5` is the card root's own height floor — a real class
+          // it renders with, not a hook added for this test.
+          const card = span?.closest("div.min-h-107\\.5");
+          if (!card) return null;
+          const r = card.getBoundingClientRect();
+          return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
+        });
+      });
+      const found = boxes.filter((b) => b !== null);
+      if (found.length !== 3) {
+        throw new Error(`expected 3 landing feature cards, measured ${found.length}`);
+      }
+      return found as { x: number; y: number; width: number }[];
     };
 
-    // 900px: one column. Asserted on the cards' own geometry rather than a
-    // class name, so it fails on the thing a reader would actually see.
+    // 900px: one column — same x, strictly increasing y, and each card wider
+    // than a single column of the three-up layout would be.
     await page.setViewportSize({ width: 900, height: 900 });
     await page.goto("/welcome");
-    const stacked = await cardX();
-    expect(new Set(stacked).size).toBe(1);
+    const stacked = await cardBoxes();
+    expect(new Set(stacked.map((b) => b.x)).size).toBe(1);
+    const stackedY = stacked.map((b) => b.y);
+    expect(stackedY).toEqual([...stackedY].sort((a, b) => a - b));
+    expect(new Set(stackedY).size).toBe(3);
 
-    // 1280px: three columns, each starting further right than the last. Below
-    // the lg breakpoint the borrowed Day 2 card is ~51px wide and its stop rows
-    // cannot render, which is why this grid is lg: and not md: (CodeRabbit, #58).
+    // 1280px: three columns — shared y, strictly increasing x. Below the lg
+    // breakpoint the borrowed Day 2 card is ~51px wide and its stop rows cannot
+    // render, which is why this grid is lg: and not md: (CodeRabbit, #58).
     await page.setViewportSize({ width: 1280, height: 900 });
-    const row = await cardX();
-    // Strictly left-to-right, asserted without indexing (the repo builds with
-    // noUncheckedIndexedAccess, so row[0] is number | undefined).
-    expect(new Set(row).size).toBe(3);
-    expect(row).toEqual([...row].sort((a, b) => a - b));
+    const row = await cardBoxes();
+    expect(new Set(row.map((b) => b.y)).size).toBe(1);
+    const rowX = row.map((b) => b.x);
+    expect(new Set(rowX).size).toBe(3);
+    expect(rowX).toEqual([...rowX].sort((a, b) => a - b));
   });
 
   // The front door is the one surface a phone actually reaches signed out, and
