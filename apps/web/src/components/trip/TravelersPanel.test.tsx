@@ -155,14 +155,60 @@ describe("TravelersPanel", () => {
     expect(await screen.findByText("forbidden")).toBeTruthy();
   });
 
-  // A blocked clipboard permission is not worth a red banner: the link is
-  // still on screen (title attribute) and still works.
-  it("does not report an error when the clipboard is denied", async () => {
+  // A blocked clipboard permission is not worth a red banner — but it does
+  // need a way out. A `title` tooltip is not one: unreachable by keyboard and
+  // on touch, which would leave the owner unable to send the invite at all
+  // (CodeRabbit, PR #70).
+  it("reveals the link as selectable text when the clipboard is denied", async () => {
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    render(<TravelersPanel tripId={tripId} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Copy invite link" }));
+
+    expect(screen.queryByText("denied")).toBeNull();
+    const fallback = await screen.findByLabelText("Invite link");
+    expect((fallback as HTMLInputElement).value).toBe("http://test/invite/tok-123");
+    expect(fallback.hasAttribute("readonly")).toBe(true);
+    expect(screen.getByRole("button", { name: "Copy invite link" }).textContent).toBe("Copy link");
+  });
+
+  it("hides the fallback again once a copy succeeds", async () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
     render(<TravelersPanel tripId={tripId} />);
     const copy = await screen.findByRole("button", { name: "Copy invite link" });
     await userEvent.click(copy);
-    expect(screen.queryByText("denied")).toBeNull();
-    expect(screen.getByRole("button", { name: "Copy invite link" }).textContent).toBe("Copy link");
+    expect(await screen.findByLabelText("Invite link")).toBeTruthy();
+
+    await userEvent.click(copy);
+    await waitFor(() => expect(screen.queryByLabelText("Invite link")).toBeNull());
+  });
+
+  // A retry that worked must not leave the previous failure sitting next to
+  // fresh, correct data. Reached through two revokes, because a panel whose
+  // FIRST read failed renders nothing to act on — see the note below.
+  it("clears a previous error once a reload succeeds", async () => {
+    fetchTripAccessMock
+      .mockResolvedValueOnce({ ok: true, value: access() })
+      .mockResolvedValueOnce({ ok: false, error: { status: 500, message: "boom" } })
+      .mockResolvedValue({ ok: true, value: access() });
+
+    render(<TravelersPanel tripId={tripId} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
+    expect(await screen.findByText("boom")).toBeTruthy();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
+    await waitFor(() => expect(screen.queryByText("boom")).toBeNull());
+  });
+
+  // The reverse, which the fix above could easily have broken: `load()` clears
+  // the error on success, so a handler that set its own error BEFORE reloading
+  // would wipe its own message and a failed revoke would look like a success.
+  it("still reports a failed revoke, even though the reload after it succeeds", async () => {
+    revokeTripInviteMock.mockResolvedValue({
+      ok: false,
+      error: { status: 500, message: "could not revoke" },
+    });
+    render(<TravelersPanel tripId={tripId} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
+    expect(await screen.findByText("could not revoke")).toBeTruthy();
   });
 });
