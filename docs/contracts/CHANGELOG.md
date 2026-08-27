@@ -13,6 +13,40 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-27 — M11 link 6: saved days
+
+- Added: `packages/contracts/src/saved.ts`, exported from the package index —
+  `SavedStop`, `SavedDay`, `CreateSavedDayInput`
+- Why: M11's fourth user story, "select parts of my trip and save them for
+  reuse". A saved day is a personal, reusable fragment — it belongs to a
+  person, not to a trip — so it is CRUD in its own module, not planning state
+  (ADR-029)
+- `SavedStop` is `ActivityView` minus `activityId`, and a contract test pins
+  exactly that against `ActivityView.shape` so the two cannot drift. The id is
+  dropped on purpose: it would tie the fragment to the activity it came from,
+  and inserting one saved day into two trips would put one id in two streams —
+  the KI-1 hazard, and the same reason `cloneTrip` remaps ids
+- `CreateSavedDayInput` is `{ name, tripId, dayId }` and deliberately NOT
+  `{ name, stops }`: letting a client post plan content would make this an
+  unvalidated write path into a person's library, and the server has to read
+  the trip to authorize the save anyway
+- **`TripDetail`, `TripSummary`, `TripMember`, `TripRole` and every planning
+  command are unchanged.** Like links 3 and 4 this adds a module rather than
+  touching the planning contracts, so the hand-enumeration trap
+  (`equality.ts`, `diff.ts`, `hydrate.ts`, `detail.ts`, `tripGenerator.ts`)
+  had nothing to catch
+- Consumers updated: `apps/web` only — `server/savedDays.ts` (new),
+  `lib/savedStops.ts` (new, shared with the UI because the lint wall forbids
+  UI importing `@/server/*` and two copies of "what is included" would be two
+  chances to disagree), the `saved-days` routes, `lib/apiClient.ts`,
+  `KeepDayFlag`, `KeepDayDialog`, `SavedDaysDialog` (new),
+  `AddSavedDayButton`, `EndOfTrip`, `TimelineLens`, `TripProvider`
+  (exposes `tripId`), `preview-registry.ts`.
+  `@tc/domain`, `@tc/factories`, `@tc/pages` and `@tc/predict` needed no change
+- Migration: `apps/web/drizzle/0009_numerous_red_skull.sql` — creates
+  `saved_days`. Additive; nothing existing is altered
+- Breaking? no — every schema here is new, and no existing schema changed
+
 ## 2026-08-27 — M11 link 5: the trip lineage pointer
 
 - Added: `TripLineage` (`{ tripId, atSeq, name }`) in

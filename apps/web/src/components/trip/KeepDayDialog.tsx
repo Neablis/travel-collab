@@ -1,76 +1,138 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import type { SavedStop } from "@tc/contracts";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
-import { Preview } from "@/components/ui/preview";
+import { Text } from "@/components/ui/text";
+import { createSavedDay } from "@/lib/apiClient";
+import { toClockRange } from "@/lib/time";
 
-// Handoff README §"Keep this day": clicking the pennant flag opens this
-// dialog (name, what's included, visibility). Confirming it is where the
-// celebrate() choreography lives in the prototype — spring animation, ring
-// burst, sparks, the "Kept" pill reveal, and a "Kept in your Playbooks ·
-// link copied" toast — all of which is explicitly M11's job, not this
-// task's. This shell only builds the fields; no onSave/submit prop, no
-// state change, no toast, no save/share.
+// Handoff README §"Keep this day": the pennant flag opens this dialog. Real as
+// of M11 link 6 — it was `<Preview id="keep-day-dialog">`, three inert fields
+// and a Confirm with no onClick.
 //
-// The Preview wrap lives INSIDE this component (around the fields +
-// footer), not around the whole `<KeepDayDialog>` call site the way
-// GhostProposal/AssistantRail are wrapped by their callers. Dialog renders
-// its content through a Radix Portal straight to `document.body`, so a
-// Preview wrapped around the outside of `<Dialog>` would never actually
-// contain the portalled content in the DOM — its pointer-events shield and
-// "Preview · M11" chip would sit in a sibling subtree the real dialog markup
-// never enters. Wrapping the content here, before it crosses the Portal
-// boundary, keeps the shield and the shielded markup in the same rendered
-// subtree wherever React ultimately mounts it.
+// Two deliberate departures from the shell, both because the shell described a
+// feature this milestone does not have:
+//
+// 1. "What's included" was a text INPUT with the placeholder "Stops, order,
+//    gaps and notes — no dates". It is a statement about what gets saved, not
+//    a question — so it is a read-only summary of the actual day now. A field
+//    that looked editable but changed nothing would be the same species of
+//    dishonesty the Preview seam exists to avoid.
+// 2. "Visibility" (Only me / Trip collaborators / Anyone with the link) is
+//    gone, replaced by one line saying saved days are private. Two of those
+//    three options are surfaces this milestone does not build — a link-shared
+//    fragment is a second public-read path, and M12 Community, which owns
+//    discovery and everything that quarantines, is explicitly out of scope
+//    (ADR-029). A select with one real option is worse than a sentence.
+//
+// The prototype's celebrate() choreography — spring, ring burst, sparks, the
+// "Kept" pill — is not built. The save is real; the confetti is not.
+
+function includedSummary(stops: SavedStop[]): string {
+  if (stops.length === 0) return "Nothing yet — this day has no stops.";
+  const count = `${stops.length} stop${stops.length === 1 ? "" : "s"}`;
+  const windows = stops.map((s) => s.timeWindow).filter((w) => w !== null);
+  const first = windows[0];
+  const last = windows[windows.length - 1];
+  if (first === undefined || last === undefined) return `${count}, in order. No dates.`;
+  return `${count}, ${toClockRange(first.start, last.end)}. Order and gaps kept, no dates.`;
+}
+
 export function KeepDayDialog({
   open,
   onOpenChange,
+  tripId,
+  dayId,
+  dayIndex,
+  tripName,
+  stops,
+  onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  tripId: string;
+  dayId: string;
+  dayIndex: number;
+  tripName: string;
+  stops: SavedStop[];
+  onSaved?: (name: string) => void;
 }) {
   const nameId = useId();
   const includedId = useId();
-  const visibilityId = useId();
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A default worth keeping is one you can accept without thinking: the day
+  // and the trip it came from. Reset on every open so a dialog reopened for a
+  // different day does not offer the previous day's name.
+  useEffect(() => {
+    if (open) {
+      setName(`Day ${dayIndex + 1} of ${tripName}`);
+      setError(null);
+    }
+  }, [open, dayIndex, tripName]);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (trimmed === "") {
+      setError("Give it a name you'll recognise later.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const result = await createSavedDay({ name: trimmed, tripId, dayId });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    onOpenChange(false);
+    onSaved?.(result.value.name);
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Keep this day">
-      <Preview id="keep-day-dialog" size="container">
-        <div className="flex flex-col gap-3">
-          <FormField id={nameId} label="Name">
-            <Input id={nameId} placeholder="e.g. A day in Nakameguro" />
-          </FormField>
-          <FormField id={includedId} label="What's included">
-            <Input id={includedId} placeholder="Stops, order, gaps and notes — no dates" />
-          </FormField>
-          <FormField id={visibilityId} label="Visibility">
-            <NativeSelect id={visibilityId} defaultValue="private">
-              <option value="private">Only me</option>
-              <option value="trip">Trip collaborators</option>
-              <option value="link">Anyone with the link</option>
-            </NativeSelect>
-          </FormField>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost">
-            Cancel
-          </Button>
-          {/* Deliberately no onClick: Confirm is a shell for the M11
-              celebrate() sequence (save + toast), which is explicitly out of
-              scope here. Cancel is inert too — it's wrapped by the same
-              Preview shield, and even the real "close the dialog" behavior
-              belongs to the eventual M11 wiring, not this shell. Use the
-              Dialog's built-in title-row X (outside this Preview) to close
-              it in the interim. */}
-          <Button type="button" variant="primary">
-            Confirm
-          </Button>
-        </DialogFooter>
-      </Preview>
+      <div className="flex flex-col gap-3">
+        <FormField id={nameId} label="Name">
+          <Input
+            id={nameId}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. A day in Nakameguro"
+          />
+        </FormField>
+        <FormField id={includedId} label="What's included">
+          <Text as="span" id={includedId} className="text-sm text-ink">
+            {includedSummary(stops)}
+          </Text>
+        </FormField>
+        <Text as="span" className="text-xs text-slate">
+          Saved days are private to you. Add one to any trip you can edit.
+        </Text>
+        {error !== null && (
+          <Text as="span" className="text-xs text-danger-ink">
+            {error}
+          </Text>
+        )}
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          disabled={busy || stops.length === 0}
+          onClick={() => void save()}
+        >
+          Save
+        </Button>
+      </DialogFooter>
     </Dialog>
   );
 }

@@ -9,6 +9,11 @@
 // M11 link 4 removed "share-button" (now a real popover that mints, copies and
 // turns off pinned links) and both landing shells, "landing-peek-trip" and
 // "landing-see-finished" (now two ordinary links to `/s/featured`).
+//
+// M11 link 6 removed "keep-day-flag" and "keep-day-dialog" (the pennant now
+// saves a real day into a real library) and "add-saved-day" — which also
+// empties `preview-registry.test.ts`'s PARKED escape hatch, since the file
+// that parked it is rendered now.
 export const PREVIEW_REGISTRY = {
   "home-playbooks-strip": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   // The rail's chrome (header/Hide) and ask box are real as of the M10
@@ -22,11 +27,8 @@ export const PREVIEW_REGISTRY = {
   // to wire up in M9 because there is nothing there to wire.
   "assistant-quick-asks": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
   "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
-  "keep-day-flag": { milestone: "M11", wiredUpBy: "M11 keep-a-day" },
-  "keep-day-dialog": { milestone: "M11", wiredUpBy: "M11 keep-a-day" },
   "playbooks-route": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   "insert-playbook": { milestone: "M11", wiredUpBy: "M11 insert-a-Playbook" },
-  "add-saved-day": { milestone: "M11", wiredUpBy: "M11 add-a-saved-day" },
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
   "rack-provenance": { milestone: "M11", wiredUpBy: "Who parked a stop, and which day it came from — no field models either" },
   "cost-estimate-state": { milestone: "M11", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },

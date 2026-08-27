@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Flag } from "lucide-react";
+import type { SavedStop } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { Toast } from "@/components/ui/toast";
 import { KeepDayDialog } from "@/components/trip/KeepDayDialog";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
@@ -21,22 +23,42 @@ const INK_TEXT: Record<AccentFamily, string> = {
 };
 
 // Handoff README "Keep this day": an icon-only pennant, 30px circle,
-// `--color-surface` background, glyph tinted in the day's ink color. The
-// caller (TimelineLens) always renders this inside <Preview id="keep-day-flag">
-// (Task 3's seam), which shields pointer events and stamps the
-// "Preview · M11" chip — so the onClick wired below is still inert overall
-// in production. Wiring it for real (rather than leaving it unwired) makes
-// this a genuine, testable component with its eventual behavior, matching
-// every other shell in the M10 plan; it just never fires through the outer
-// Preview shield until M11 removes that wrap. Task 17 adds the dialog this
-// opens (KeepDayDialog), which is itself inert — see that file's comment.
-export function KeepDayFlag({ dayIndex, accent }: { dayIndex: number; accent: AccentFamily }) {
+// `--color-surface` background, glyph tinted in the day's ink color.
+//
+// Real as of M11 link 6 — the caller used to wrap this in
+// <Preview id="keep-day-flag">, which shielded the click and stamped a chip.
+// The onClick was already wired against the day this would eventually save;
+// what the shell was missing was somewhere to save it to.
+//
+// Disabled on an empty day rather than hidden: the pennant is part of the
+// day's row furniture and a row that loses a control as its last stop is
+// removed is worse than one whose control greys out. `title` says why.
+export function KeepDayFlag({
+  dayIndex,
+  accent,
+  tripId,
+  dayId,
+  tripName,
+  stops,
+}: {
+  dayIndex: number;
+  accent: AccentFamily;
+  tripId: string;
+  dayId: string;
+  tripName: string;
+  stops: SavedStop[];
+}) {
   const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const empty = stops.length === 0;
+
   return (
     <>
       <Button
         variant="secondary"
         aria-label={`Keep day ${dayIndex + 1}`}
+        disabled={empty}
+        title={empty ? "Add a stop to this day first" : "Keep this day"}
         onClick={() => setOpen(true)}
         className={cn(
           "shrink-0 rounded-full border-transparent bg-surface p-0 hover:bg-surface",
@@ -47,7 +69,19 @@ export function KeepDayFlag({ dayIndex, accent }: { dayIndex: number; accent: Ac
       >
         <Flag className="h-4 w-4" aria-hidden />
       </Button>
-      <KeepDayDialog open={open} onOpenChange={setOpen} />
+      <KeepDayDialog
+        open={open}
+        onOpenChange={setOpen}
+        tripId={tripId}
+        dayId={dayId}
+        dayIndex={dayIndex}
+        tripName={tripName}
+        stops={stops}
+        onSaved={setSaved}
+      />
+      {saved !== null && (
+        <Toast message={`Kept "${saved}"`} onDismiss={() => setSaved(null)} />
+      )}
     </>
   );
 }

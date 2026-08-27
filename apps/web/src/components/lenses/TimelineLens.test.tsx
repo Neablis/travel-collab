@@ -6,6 +6,17 @@ import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { toMinutes, toTimeString } from "@/lib/time";
+// M11 link 6 made "Add a saved day" real, and EndOfTrip (rendered at the
+// bottom of this lens) mounts it. It reads TripProvider, which these tests
+// deliberately do not stand up — they render the lens bare against a fixture.
+// Stubbed here rather than restructuring the component tree for a test: the
+// button's own behaviour is AddSavedDayButton.test.tsx's subject, and nothing
+// in this file is about it. Same treatment SettingsSheet.test.tsx gives
+// TravelersPanel.
+vi.mock("@/components/trip/AddSavedDayButton", () => ({
+  AddSavedDayButton: () => null,
+}));
+
 import { TimelineLens, nextSlot } from "./TimelineLens";
 import type { TimelineRow } from "./timelineData";
 
@@ -327,11 +338,14 @@ describe("TimelineLens", () => {
     await expect(userEvent.click(screen.getByTestId("timeline-add-d1"))).resolves.not.toThrow();
   });
 
-  it("renders the keep-day flag inert, inside the keep-day-flag Preview region", () => {
+  // M11 link 6 retired <Preview id="keep-day-flag">. What this lens is still
+  // responsible for is putting the pennant on each day's header row, wired to
+  // that day — its dialog and save are KeepDayFlag.test.tsx's subject.
+  it("puts a live keep-day pennant on the day header", () => {
     renderLens();
-    const region = document.querySelector('[data-preview-id="keep-day-flag"]');
-    expect(region).not.toBeNull();
-    expect(within(region as HTMLElement).getByRole("button", { name: "Keep day 1" })).not.toBeNull();
+    expect(document.querySelector('[data-preview-id="keep-day-flag"]')).toBeNull();
+    const flag = screen.getByRole("button", { name: "Keep day 1" });
+    expect(flag.hasAttribute("disabled")).toBe(false);
   });
 
   it("renders the ghost Ask affordance inert, inside the timeline-ghost Preview region", () => {

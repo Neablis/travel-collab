@@ -26,6 +26,11 @@ import {
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
+  // The trip this provider is for. Exposed because several controls need it
+  // to talk to an endpoint rather than to read state — `trip` is null while
+  // loading and during an error, and those controls still know which trip
+  // they belong to (M11 link 6's AddSavedDayButton is the first).
+  tripId: string;
   trip: TripDetail | null;
   history: TripHistory | null;
   activeTrip: TripDetail | null;
@@ -271,6 +276,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   return (
     <Ctx.Provider
       value={{
+        tripId,
         trip,
         history,
         activeTrip,

@@ -1,6 +1,7 @@
 import {
   InvitePreview,
   PageContent,
+  SavedDay,
   SharedTripView,
   TripAccess,
   TripDetail,
@@ -9,6 +10,7 @@ import {
   TripShare,
   type BatchableCommand,
   type CreateInviteInput,
+  type CreateSavedDayInput,
   type PageContext,
   type TripCommand,
 } from "@tc/contracts";
@@ -362,6 +364,56 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
       method: "POST",
     });
     return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ── Saved parts (M11 link 6) ─────────────────────────────────────────────────
+
+export async function fetchSavedDays(): Promise<ApiResult<SavedDay[]>> {
+  try {
+    const res = await fetch(apiUrl("/api/saved-days"));
+    return await readJson(res, (data) =>
+      ((data as { savedDays: unknown[] }).savedDays ?? []).map((d) => SavedDay.parse(d)),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createSavedDay(input: CreateSavedDayInput): Promise<ApiResult<SavedDay>> {
+  try {
+    const res = await fetch(apiUrl("/api/saved-days"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SavedDay.parse((data as { savedDay: unknown }).savedDay));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok: true }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`), { method: "DELETE" });
+    return await readJson(res, () => ({ ok: true as const }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Appends the saved day and its stops to `tripId` as ONE undoable batch. */
+export async function insertSavedDay(
+  tripId: string,
+  savedDayId: string,
+): Promise<ApiResult<CommandOutcome>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

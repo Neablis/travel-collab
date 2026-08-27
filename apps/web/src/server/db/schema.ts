@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Origin, TripDetail, TripMember, PageContent, PageContext } from "@tc/contracts";
+import type { Origin, SavedStop, TripDetail, TripMember, PageContent, PageContext } from "@tc/contracts";
 
 // M11 link 1 (ADR-025). Identity is an ordinary CRUD module (AGENTS.md module
 // map), not event-sourced — ADR-003 scopes the log to planning. The only
@@ -169,4 +169,28 @@ export const tripShares = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
   },
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
+);
+
+// Saved parts (M11 link 6, ADR-029). A personal library of reusable day
+// fragments — CRUD, owned by a person rather than by a trip, and not
+// event-sourced (ADR-003 scopes the log to planning).
+//
+// `stops` is a jsonb array rather than a child table: a saved day is a
+// value, copied in and copied out whole, never queried into. `source_trip_name`
+// is a snapshot at save time, on the same terms as a trip's lineage (ADR-028) —
+// the credit has to survive the source being renamed or deleted.
+export const savedDays = pgTable(
+  "saved_days",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
+    // (ADR-025).
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    stops: jsonb("stops").$type<SavedStop[]>().notNull(),
+    sourceTripId: uuid("source_trip_id").notNull(),
+    sourceTripName: text("source_trip_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [index("saved_days_owner").on(t.ownerId)],
 );

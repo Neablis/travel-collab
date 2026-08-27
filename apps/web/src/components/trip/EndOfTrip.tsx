@@ -7,6 +7,7 @@ import { Heading } from "@/components/ui/heading";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
+import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 
 // Phase 6's end-of-trip block: the plan's terminal affordance. "Add a day" is
 // a real command (contracts' AddDay) — the caller raises it — while "Add a
@@ -14,10 +15,12 @@ import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures"
 // flow and stay inside <Preview id="insert-playbook">, which the Wave-1
 // registry already carries.
 //
-// Deliberately NOT reusing trip/AddSavedDayButton.tsx here: that component
-// self-wraps in <Preview id="add-saved-day">, and a Preview inside a Preview
-// would stack two shields and two badges over the same region. It keeps its
-// own registry entry and its own file; this block owns its own button.
+// M11 link 6 made AddSavedDayButton real, so this block mounts it instead of
+// drawing its own inert copy. It sits OUTSIDE the <Preview id="insert-playbook">
+// below on purpose: that shell still carries the Playbook shortcuts, which are
+// M11's separate Playbooks scope and are not built, and a real control inside a
+// Preview would be shielded from every click. Two Previews are no longer a
+// concern — AddSavedDayButton no longer wraps itself in one.
 //
 // Deliberately NOT reusing playbooks/PlaybookCard.tsx either: that card is a
 // full detail surface (72px shape strip, three preview rows, tag pills, a
@@ -41,9 +44,12 @@ export function EndOfTrip({ onAddDay }: { onAddDay: () => void }) {
             Add another day, or drop in a day you have already planned — the times reflow to fit.
           </Text>
         </div>
-        <Button variant="primary" onClick={onAddDay}>
-          Add a day
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AddSavedDayButton />
+          <Button variant="primary" onClick={onAddDay}>
+            Add a day
+          </Button>
+        </div>
       </div>
 
       {/* size="container": a whole region, not a single control — the dotted
@@ -52,7 +58,6 @@ export function EndOfTrip({ onAddDay }: { onAddDay: () => void }) {
           need (or get) an onClick. */}
       <Preview id="insert-playbook" size="container" className="p-4">
         <div className="flex flex-col gap-3">
-          <Button variant="secondary">Add a saved day</Button>
           <div className="grid gap-2 sm:grid-cols-3">
             {PREVIEW_PLAYBOOK_CARDS.slice(0, SHORTCUT_COUNT).map((playbook) => (
               <Card
