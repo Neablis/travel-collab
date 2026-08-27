@@ -293,17 +293,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change.
 
 
-### KI-32 — The container image's Playwright browsers are a different build from the pinned @playwright/test
-- **Severity:** reliability (local e2e cannot run without a manual workaround; CI unaffected)
-- **Area:** the remote container image's `/opt/pw-browsers`, `apps/web/package.json`'s `@playwright/test`
-- **Symptom:** `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` ships Chromium build **1194**. `@playwright/test@^1.61.1` resolves to a version that wants build **1228**, so `pnpm --filter web test:e2e` fails immediately at `auth.setup.ts` with "Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1228/...". The image's own guidance is not to run `playwright install`.
-- **Scope:** local/container only. **CI is not affected** — `.github/workflows/ci.yml:88` runs `playwright install chromium` against its own cache, so CI gets the matching build and remains the authoritative e2e signal.
-- **Workaround used (M10 Wave 2 Phase 6):** symlinked the missing `chromium-1228` / `chromium_headless_shell-1228` directories at the 1194 build. Chromium 141.0.7390.37 then drove the full 22-test suite green against a production build. The symlinks live in `/opt`, not the repo, and do not survive a new container. The sanctioned alternative is a Playwright `executablePath` pointing at `/opt/pw-browsers/chromium`.
-- **Caveat this leaves on any local e2e result:** the suite ran on a Chromium build the pinned Playwright does not target. Nothing observed suggested a behavioral difference, but a green local run is corroboration, not a substitute for CI's.
-- **Why not fixed here:** it is an image-level mismatch, not a repo one — nothing in `travel-collab` produced it and no repo change fixes it. Pinning `@playwright/test` down to the 1194-era version to match the image would be the tail wagging the dog.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 6).
-
-
 ### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
 - **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
 - **Area:** `packages/contracts/src/trip.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/components/home/NextTripHero.tsx`, `apps/web/src/components/home/TripCard.tsx`
@@ -511,6 +500,14 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ### KI-47 — No `tags` field on an activity, and five designed surfaces depend on one
 
+- **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
+  which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
+  now, but we can put it in a soon milestone"* — to land **both** missing
+  activity fields in one contract change. `kind` and `tags` are the same piece
+  of work (one `ActivityView` change, one command/event set, one projection, one
+  migration-and-backfill decision, one changelog entry), and splitting them
+  would pay that cost twice. This entry stays open as the detail on *tags*
+  specifically; the schedule lives in the milestone.
 - **Severity:** cleanup (a contract gap, not a defect — recorded so it stops
   being re-derived per surface)
 - **Area:** `packages/contracts/src/activity.ts`
@@ -580,10 +577,32 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
     carries only the logo and `Sign in` / `Start a trip`.
 - **First noted:** 2026-08-26 (design-sync UI audit, A4/A6/A7/A8/B14/C3).
 
+### KI-49 — The Map lens cannot be visually verified in a cloud session: the egress proxy blocks the tile host
+- **Severity:** process/verification (no user-facing defect; it removes a whole lens from local review)
+- **Area:** `MapLens` / MapLibre's tile fetches to `tiles.openfreemap.org`; the Claude Code remote container's agent proxy.
+- **Symptom:** in a cloud session the Map lens renders its **chrome** — day rail, focus card, legend, leg labels — over a **blank canvas**, because MapLibre's tile requests to `tiles.openfreemap.org` do not survive the container's egress proxy. Nothing errors visibly; the map simply has no basemap under it.
+- **Why it matters more than it looks:** a blank canvas is easy to read as "the map is fine, the tiles are just slow", so a local pass on map work is not evidence and can be reported as one. The 2026-08-26 design audit covered every other route × lens × overlay at three widths and had to record the Map lens as **the one surface it could not look at**.
+- **What this blocks:** any verification of map *rendering* — the day rail's restoration (design rule R2), leg geometry, marker placement, and anything about the basemap itself. Map **logic** is unaffected and stays testable: `mapRailData.ts` and friends are pure and unit-tested, which is where map assertions belong regardless.
+- **Working practice until it changes:** verify map work on the **Vercel preview**, and say so explicitly. A local "looks fine" about the Map lens is not a claim anyone should accept, including from yourself — see `docs/guidelines/cloud-agent-sessions.md`.
+- **Not yet investigated:** whether the tile host can be allowed through the proxy for these sessions, or whether a locally-served offline tile fixture would be worth it for e2e. Neither has been attempted; both are plausible and this entry exists so the choice is made deliberately rather than rediscovered by the next agent to touch the map.
+- **First noted:** 2026-08-26 (design-sync UI audit; recorded after the audit shipped, PR #55 retrospective).
+
 ## Resolved
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
+
+### KI-32 — The container image's Playwright browsers are a different build from the pinned @playwright/test — RESOLVED, repaired on session start
+- **Severity:** reliability (local e2e could not run without a manual workaround; CI unaffected)
+- **Area:** the remote container image's `/opt/pw-browsers`, `apps/web/package.json`'s `@playwright/test`
+- **Symptom:** `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` ships Chromium build **1194**. `@playwright/test@^1.61.1` resolves to a version that wants build **1228**, so `pnpm --filter web test:e2e` fails immediately at `auth.setup.ts` with "Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1228/...". The image's own guidance is not to run `playwright install`.
+- **Scope:** local/container only. **CI is not affected** — `.github/workflows/ci.yml:88` runs `playwright install chromium` against its own cache, so CI gets the matching build and remains the authoritative e2e signal.
+- **Workaround used (M10 Wave 2 Phase 6):** symlinked the missing `chromium-1228` / `chromium_headless_shell-1228` directories at the 1194 build. Chromium 141.0.7390.37 then drove the full 22-test suite green against a production build. The symlinks live in `/opt`, not the repo, and do not survive a new container. The sanctioned alternative is a Playwright `executablePath` pointing at `/opt/pw-browsers/chromium`.
+- **Caveat this leaves on any local e2e result:** the suite ran on a Chromium build the pinned Playwright does not target. Nothing observed suggested a behavioral difference, but a green local run is corroboration, not a substitute for CI's.
+- **Why it was thought unfixable, and why that was wrong:** the original entry read *"it is an image-level mismatch, not a repo one — nothing in `travel-collab` produced it and no repo change fixes it."* The premise is right and the conclusion does not follow. `.claude/hooks/session-start.sh` **is** repo-owned and **does** run inside the container, which is exactly the seam where an image-level problem can be repaired from this repo. Pinning `@playwright/test` down to the 1194-era version would still be the tail wagging the dog; that was never the only option.
+- **Fix (2026-08-26, PR #55):** `link_playwright_shell` in `.claude/hooks/session-start.sh` links any `chromium_headless_shell-*` build missing its binary at the first full `chromium-*/chrome-linux/chrome` in the image, on every remote session start. Deliberately generic — it matches on *an empty shell dir*, not on 1228 — so a Playwright bump does not silently reintroduce it. Verified by deleting the link and re-running the function: it repaired both 1194 and 1228, and `smoke` passed after. This also retires the entry's own caveat about local runs happening on an untargeted Chromium build, since the link is now applied deterministically rather than by hand.
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 6). **Fixed:** 2026-08-26 (PR #55, design-sync audit branch).
+
 
 ### KI-36 — A failed send silently discards the entire pending queue, not just the command that failed — RESOLVED
 - **Severity (as filed):** correctness (silent loss of the *rest of the queue*, not of the alert itself) — the **same bug class as KI-5**: an in-memory optimistic queue that can lose confirmed-to-the-user work without telling the user the true scope of what was lost. KI-5 is triggered by the user navigating away mid-send; this was triggered by the send itself failing.
