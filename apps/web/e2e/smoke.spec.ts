@@ -31,12 +31,5 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
 
-  // Creating lands you on the new trip — both create buttons do now. That is
-  // the first half of this spec's name; assert it rather than stepping over it.
-  await expect(page).toHaveURL(/\/trips\/[0-9a-f-]+$/);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-
-  // …and the second half, "see it in the list", needs the list.
-  await page.goto("/");
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 });

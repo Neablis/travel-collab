@@ -294,8 +294,12 @@ export default function Home() {
           // e2e specs built around it can still find the new trip's own card
           // on this page rather than having already been navigated away from
           // it (CI, PR #32).
-          onCreated={(tripId) => {
-            router.push(`/trips/${tripId}`);
+          onCreated={(tripId, { navigate }) => {
+            if (navigate) {
+              router.push(`/trips/${tripId}`);
+            } else {
+              void load();
+            }
           }}
         />
 

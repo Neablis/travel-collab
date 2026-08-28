@@ -64,9 +64,6 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel(/trip name/i).fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
-  // Creating now lands on the trip itself, and what this spec is about is the
-  // front door — so come back to Home before asserting the trip reached it.
-  await page.goto("/");
   // `.first()`, not a bare `getByText`: a freshly created trip legitimately
   // renders twice on Home — once in NextTripHero and once as its TripCard —
   // so a bare locator matches two elements and Playwright's strict mode

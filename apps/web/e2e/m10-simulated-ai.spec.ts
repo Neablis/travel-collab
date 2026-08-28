@@ -30,6 +30,7 @@ test("a simulated AI answer is badged and still really changes the trip", async 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // The Assistant rail (AssistantRail.tsx) is closed until asked for, at every

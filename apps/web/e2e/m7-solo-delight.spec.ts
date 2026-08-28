@@ -56,6 +56,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // Two days: gives Day Sheet's default day-0 binding somewhere to point,
@@ -108,6 +109,7 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("link", { name: "Notebook" }).click();
@@ -156,6 +158,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
   // Wait for the real SPA navigation, not just a heading with this name
   // becoming visible: since M10's home-page restyle, a brand-new trip's name
   // can transiently render as a heading on the HOME page too (NextTripHero's

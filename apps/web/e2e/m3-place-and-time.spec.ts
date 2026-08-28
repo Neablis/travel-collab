@@ -26,6 +26,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Trip name").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 

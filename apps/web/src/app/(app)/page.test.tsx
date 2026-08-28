@@ -201,12 +201,7 @@ describe("Home trip actions", () => {
   // trip's own card to navigate. "Create empty" is explicitly that dialog's
   // escape hatch (NewTripWizard.tsx), so it keeps that exact behavior; only
   // the full wizard (dates/budget applied, "Create trip") navigates.
-  // Was "stays on the trip list ... without navigating". Both create buttons
-  // navigate now (Mitchell, walking the #71 preview) — "Create empty" used to
-  // close and leave you here, inherited from the single-field dialog it
-  // replaced. What is worth pinning is that the SECONDARY button goes to the
-  // trip too, since that is the half that changed.
-  it("navigates to the new trip after Create empty, like the full wizard does", async () => {
+  it("stays on the trip list and shows the new trip after Create empty, without navigating", async () => {
     const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
     let listCallCount = 0;
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -229,7 +224,8 @@ describe("Home trip actions", () => {
     await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+    expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   // Task 18: the head's "Start from a Playbook" link is a real navigation
@@ -538,12 +534,12 @@ describe("Home first-run experience", () => {
       if (url.endsWith("/api/trips") && init?.method === "POST") return jsonResponse(created, 201);
       if (url.endsWith("/api/trips")) {
         listCallCount += 1;
-        // The single GET (initial load) finds no trips, which is what puts
-        // Home in the first-run empty state this test starts from. There is
-        // no second one any more: `onCreated` navigates instead of reloading
-        // the list, so the list is never re-fetched here. Kept as a counter
-        // rather than a fixed empty response so this reads as "the first
-        // load, and nothing after it".
+        // First GET (initial load) finds no trips, which is what puts Home
+        // in the first-run empty state this test starts from; the reload
+        // that "Create empty" triggers (Home's onCreated -> load(), same
+        // stay-on-list-and-refresh path "stays on the trip list and shows
+        // the new trip after Create empty" above exercises) finds the trip
+        // that was just created.
         const trips = listCallCount === 1 ? [] : [tripSummaryFixture({ tripId, name: "Japan" })];
         return jsonResponse({ trips });
       }
@@ -571,10 +567,13 @@ describe("Home first-run experience", () => {
       ),
     );
 
-    // Post-create: creating from a name alone takes you straight to the trip,
-    // which is the whole point of a first-run path — there is no list worth
-    // returning to when this is your first trip.
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${tripId}`));
+    // Post-create state: the first-run empty state is gone, the new trip's
+    // own card is showing in its place, and "Create empty" never navigates
+    // (only the full wizard's dates/budget path does — see "stays on the
+    // trip list and shows the new trip after Create empty" above).
+    expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
+    expect(screen.queryByText("Plan your first trip")).toBeNull();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });
 
