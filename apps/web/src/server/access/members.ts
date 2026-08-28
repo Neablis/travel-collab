@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Db } from "../db/client";
 import { tripMemberships, users } from "../db/schema";
@@ -45,8 +45,64 @@ function rankOfSource(projected: readonly TripMember[], member: TripMember): num
 
 /** Accepted-invite memberships for one trip, as planning-shaped members. */
 export async function grantedMembers(tx: Queryable, tripId: string): Promise<TripMember[]> {
-  const rows = await tx.select().from(tripMemberships).where(eq(tripMemberships.tripId, tripId));
-  return rows.map((r) => ({ userId: r.userId, role: r.role as TripRole }));
+  return (await grantedMembersByTrip(tx, [tripId])).get(tripId) ?? [];
+}
+
+/**
+ * `grantedMembers` for many trips in ONE round trip.
+ *
+ * The home grid needs the effective member list for every card it renders
+ * (the avatar stack counts travellers), and doing that per trip is an N+1 that
+ * grows with how many trips you are on — measurable enough by M11 that it
+ * widened the e2e flake window (PR #71 review §6). Trips with no accepted
+ * invite are simply absent from the map; callers read `?? []`.
+ *
+ * Ordered, where the unordered per-trip query it replaced was not: a batched
+ * read can interleave trips arbitrarily, and the avatar stack jumping between
+ * refreshes for no reason is a real regression. `createdAt` is invite-accept
+ * order; `userId` only breaks ties within a single transaction.
+ */
+export async function grantedMembersByTrip(
+  tx: Queryable,
+  tripIds: readonly string[],
+): Promise<Map<string, TripMember[]>> {
+  const byTrip = new Map<string, TripMember[]>();
+  if (tripIds.length === 0) return byTrip;
+  const rows = await tx
+    .select()
+    .from(tripMemberships)
+    .where(inArray(tripMemberships.tripId, [...tripIds]))
+    .orderBy(tripMemberships.createdAt, tripMemberships.userId);
+  for (const r of rows) {
+    const list = byTrip.get(r.tripId);
+    const member: TripMember = { userId: r.userId, role: r.role as TripRole };
+    if (list === undefined) byTrip.set(r.tripId, [member]);
+    else list.push(member);
+  }
+  return byTrip;
+}
+
+/**
+ * The Access module's half of "may this user see this trip?", as SQL.
+ *
+ * A predicate rather than a list of ids, so the caller can push it into its
+ * own query instead of loading every row and filtering in JS — one dropped
+ * `.filter()` there is a full cross-tenant dump (project review L3). EXISTS,
+ * not a join: a trip is visible if EITHER source names the user, and an inner
+ * join over `trip_memberships` alone would drop the owner-only trips that
+ * predate this table entirely (see `mergeMembers` above for why the two
+ * sources exist).
+ *
+ * `tripIdColumn` is passed in because Access does not know the shape of the
+ * planning read models it narrows — only its own table.
+ */
+export function hasMembershipRow(tripIdColumn: Column, userId: string): SQL {
+  return exists(
+    db
+      .select({ one: sql<number>`1` })
+      .from(tripMemberships)
+      .where(and(eq(tripMemberships.tripId, tripIdColumn), eq(tripMemberships.userId, userId))),
+  );
 }
 
 /**
