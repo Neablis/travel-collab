@@ -1,4 +1,4 @@
-import type { TripDetail, TripRole } from "@tc/contracts";
+import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
 import { db } from "../db/client";
@@ -16,6 +16,18 @@ import { effectiveMembers } from "./members";
  * rebuild-equals-stored golden test is unaffected (AGENTS.md invariant 2). The
  * overlay lives at the read boundary, which is the only place a person's
  * membership is a fact about the answer rather than a fact about the plan.
+ *
+ * It is also PARSED here, not cast. `getTripDetail` hands back the stored
+ * `trip_details.doc` raw, and a doc is only rewritten when its trip next
+ * changes — so every document written before a field existed is missing that
+ * key entirely, and the contract's `.default()`s (`kind`, `tags`,
+ * `forkedFrom`) only apply when something actually parses. Typing the raw doc
+ * as `TripDetail` made that a silent lie every consumer inherited: the trip
+ * GET route hit it as Mitchell's "500 loading any trip", and `POST
+ * /api/saved-days` hit it again by handing the same doc to `stopsForDay`,
+ * which copied `undefined` into a required `SavedStop.kind` and threw at the
+ * response boundary AFTER the library row had already been inserted (PR #71
+ * review §2). Parsing at the seam makes the type true once, for every caller.
  */
 export type TripAccessResult =
   | { error: Response }
@@ -40,7 +52,8 @@ export async function requireTripAccess(
     // apart from an under-privileged member would confirm the trip exists.
     return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
   }
-  return { userId, role: memberRole(userId, members)!, detail: { ...projected, members } };
+  const detail = TripDetail.parse({ ...projected, members });
+  return { userId, role: memberRole(userId, members)!, detail };
 }
 
 /** The same member overlay, for a detail the caller already holds. */

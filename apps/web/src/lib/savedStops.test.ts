@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
-import type { ActivityView, TripDetail } from "@tc/contracts";
+import { SavedStop, TripDetail } from "@tc/contracts";
+import type { ActivityView } from "@tc/contracts";
 import { stopsForDay } from "./savedStops";
 
 const dayA = "11111111-1111-4111-8111-111111111111";
@@ -71,6 +72,27 @@ describe("stopsForDay", () => {
   // no stops, and both have a caller that cares.
   it("returns null for a day that is not in this trip", () => {
     expect(stopsForDay(detail(), "33333333-3333-4333-8333-333333333333")).toBeNull();
+  });
+
+  // PR #71 review §2. `trip_details.doc` is stored raw and only rewritten when
+  // its trip next changes, so a doc written before M18 carries no `kind` and
+  // no `tags` at all — while `SavedStop` requires both. `stopsForDay` copies
+  // the fields verbatim by design, so the only thing between a pre-M18 trip
+  // and a contract-violating library row is that its caller PARSED the doc
+  // first, which `requireTripAccess` now does. The composition is the claim,
+  // so the test asserts the composition.
+  it("yields contract-valid stops for a doc written before kind and tags existed", () => {
+    type RawDoc = Record<string, unknown> & { activities: Record<string, Record<string, unknown>> };
+    const preM18 = JSON.parse(JSON.stringify(detail())) as RawDoc;
+    for (const raw of Object.values(preM18.activities)) {
+      delete raw.kind;
+      delete raw.tags;
+    }
+
+    const stops = stopsForDay(TripDetail.parse(preM18), dayA)!;
+    expect(stops.map((s) => s.kind)).toEqual(["planned", "planned"]);
+    expect(stops.map((s) => s.tags)).toEqual([[], []]);
+    for (const stop of stops) expect(SavedStop.safeParse(stop).success).toBe(true);
   });
 
   it("skips an activityId with no activity behind it rather than throwing", () => {

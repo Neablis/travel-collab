@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/client";
 import { events, tripDetails, tripInvites, tripMemberships, tripSummaries, users } from "../db/schema";
@@ -20,33 +20,36 @@ async function seedTrip(name = "Kyoto"): Promise<string> {
 
 /**
  * Resolves once a backend in this database is parked on a lock WHILE RUNNING A
- * STATEMENT AGAINST `trip_memberships` — i.e. the accept blocked on the
- * membership primary key.
+ * STATEMENT AGAINST `table` — e.g. the accept blocked on the membership
+ * primary key, or the revoke blocked on the invite row a live accept holds.
  *
  * The `query` filter is what makes that specific. Without it this counted every
  * lock waiter in the database, and integration tests share `DATABASE_URL` with
  * local development, so an unrelated waiter could release the barrier before
  * the accept reached the primary key — leaving the test passing through the
- * guard path it exists to bypass (CodeRabbit, PR #71).
+ * guard path it exists to bypass (CodeRabbit, PR #71). The table is a
+ * parameter rather than a constant for the same reason: a barrier that waits
+ * for "some lock somewhere" is a barrier for nothing in particular.
  *
  * Polled rather than slept: a fixed sleep either flakes on a slow machine or
  * wastes the time on a fast one, and neither proves the block happened.
- * Throwing here is a real failure, not a flake: it means the accept reached a
- * decision without ever contending for the row.
+ * Throwing here is a real failure, not a flake: it means the statement reached
+ * a decision without ever contending for the row.
  */
-async function waitForABlockedBackend(timeoutMs = 5_000): Promise<void> {
+async function waitForABlockedBackend(table: string, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  const pattern = `%${table}%`;
   for (;;) {
     const blocked = await db.execute<{ n: number }>(sql`
       select count(*)::int as n from pg_stat_activity
        where datname = current_database()
          and state = 'active'
          and wait_event_type = 'Lock'
-         and query ilike '%trip_memberships%'
+         and query ilike ${pattern}
     `);
     if (Number(blocked.rows[0]?.n ?? 0) > 0) return;
     if (Date.now() > deadline) {
-      throw new Error("no backend ever blocked on the membership primary key");
+      throw new Error(`no backend ever blocked on a ${table} row`);
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
@@ -264,7 +267,7 @@ describe("invites — create, accept, revoke", () => {
     try {
       await holderInserted;
       accepting = acceptInvite(invite.token, GUEST);
-      await waitForABlockedBackend();
+      await waitForABlockedBackend("trip_memberships");
     } finally {
       // Always, or a thrown barrier leaves the holder's transaction open and
       // the pool one connection short for the rest of the file.
@@ -347,6 +350,108 @@ describe("invites — create, accept, revoke", () => {
     expect((await revokeInvite(tripId, invite.inviteId)).ok).toBe(true);
   });
 
+  // PR #71 review §1, the review's HIGH finding, reproduced deterministically.
+  // Revoke used to SELECT first: under READ COMMITTED that read saw
+  // `pending` / `acceptedBy: null` while an accept was still in flight, so it
+  // skipped the membership delete, and its unguarded UPDATE then wrote
+  // `revoked` straight over the accept's committed row version. The invite
+  // read "Revoked" and the membership lived — permanently, because re-revoking
+  // returned early and no remove-member endpoint exists.
+  //
+  // The accept is impersonated by a held-open transaction rather than run
+  // through `acceptInvite`, because what has to be pinned is the INTERLEAVING:
+  // the invite row claimed and the membership inserted but not yet committed
+  // when revoke arrives. Revoke's guarded UPDATE has to block on that row and
+  // then see the accept's `acceptedBy` through RETURNING.
+  it("leaves no membership when the accept commits mid-revoke", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+
+    let signalClaimed!: () => void;
+    let releaseAccept!: () => void;
+    const accepted = new Promise<void>((resolve) => {
+      signalClaimed = resolve;
+    });
+    const acceptMayCommit = new Promise<void>((resolve) => {
+      releaseAccept = resolve;
+    });
+    const accept = db.transaction(async (tx) => {
+      await tx
+        .update(tripInvites)
+        .set({ status: "accepted", acceptedBy: GUEST, acceptedAt: new Date() })
+        .where(eq(tripInvites.id, invite.inviteId));
+      const won = await grantMembership(tx, {
+        tripId,
+        userId: GUEST,
+        role: "editor",
+        invitedBy: OWNER,
+        now: new Date().toISOString(),
+      });
+      if (!won) throw new Error("the accept should have taken the row uncontested");
+      signalClaimed();
+      await acceptMayCommit;
+    });
+
+    let revoking: ReturnType<typeof revokeInvite>;
+    try {
+      await accepted;
+      revoking = revokeInvite(tripId, invite.inviteId);
+      // Proves the ordering the bug needs: revoke really is contending for the
+      // invite row the in-flight accept holds, not just running after it.
+      await waitForABlockedBackend("trip_invites");
+    } finally {
+      // Always, or a thrown barrier leaves the accept's transaction open and
+      // the pool one connection short for the rest of the file.
+      releaseAccept();
+    }
+    await accept;
+
+    const result = await revoking;
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.status).toBe("revoked");
+
+    // The invariant the module's docstring claims: a revoked invite never
+    // leaves a live membership behind.
+    const detail = (await getTripDetail(tripId))!;
+    expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
+      { userId: OWNER, role: "owner" },
+    ]);
+    expect(
+      (await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, GUEST)).ok,
+    ).toBe(false);
+  });
+
+  // The recovery path, and the reason the already-revoked branch re-asserts
+  // the delete instead of returning early: revoking again is the ONLY way an
+  // owner can clear a membership a lost race left behind. There is no
+  // remove-member endpoint, and `revokeInvite` is `revokeMembership`'s only
+  // caller.
+  it("a second revoke clears a membership that was left behind", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    await acceptInvite(invite.token, GUEST);
+    expect((await revokeInvite(tripId, invite.inviteId)).ok).toBe(true);
+
+    // The leak, as the old race would have left it: invite revoked, membership
+    // alive.
+    await grantMembership(db, {
+      tripId,
+      userId: GUEST,
+      role: "editor",
+      invitedBy: OWNER,
+      now: new Date().toISOString(),
+    });
+
+    const second = await revokeInvite(tripId, invite.inviteId);
+    expect(second.ok).toBe(true);
+    if (second.ok) expect(second.value.status).toBe("revoked");
+
+    const detail = (await getTripDetail(tripId))!;
+    expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
+      { userId: OWNER, role: "owner" },
+    ]);
+  });
+
   it("scopes revoke to the trip in the URL — another trip's invite is not found", async () => {
     const tripA = await seedTrip("A");
     const tripB = await seedTrip("B");
@@ -396,6 +501,54 @@ describe("invite preview", () => {
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     const preview = await previewInvite(invite.token, OWNER);
     expect(preview.ok && preview.value.alreadyMember).toBe(true);
+  });
+
+  // PR #71 review §7. The preview never gated on status, so a revoked link
+  // stopped WORKING but kept answering with the trip name, the role and the
+  // inviter's name to whoever still held the token.
+  it("tells the holder of a revoked token nothing about the trip", async () => {
+    const tripId = await seedTrip("Kyoto");
+    const invite = await createInvite(tripId, OWNER, { email: "bob@example.com", role: "editor" });
+    await revokeInvite(tripId, invite.inviteId);
+
+    const preview = await previewInvite(invite.token, GUEST);
+    expect(preview).toEqual({
+      ok: false,
+      error: { code: "gone", message: "This invite has been revoked." },
+    });
+    // The finding was the metadata, not the refusal: assert none of it travels.
+    expect(JSON.stringify(preview)).not.toContain("Kyoto");
+    expect(JSON.stringify(preview)).not.toContain(tripId);
+  });
+
+  it("tells the holder of a spent token nothing about the trip either", async () => {
+    const tripId = await seedTrip("Kyoto");
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    await acceptInvite(invite.token, GUEST);
+
+    const preview = await previewInvite(invite.token, "dev-cara");
+    expect(preview).toEqual({
+      ok: false,
+      error: { code: "gone", message: "This invite has already been used." },
+    });
+    expect(JSON.stringify(preview)).not.toContain("Kyoto");
+  });
+
+  // The one exception, and why it is not a leak: the person who SPENT the link
+  // is on the trip, so the name and the roles are already theirs to read.
+  // Gating them too would turn "follow your own link twice" — which the accept
+  // screen answers with "Open the trip" — into a dead end.
+  it("still answers the person who spent the link, who is already on the trip", async () => {
+    const tripId = await seedTrip("Kyoto");
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    await acceptInvite(invite.token, GUEST);
+
+    const preview = await previewInvite(invite.token, GUEST);
+    expect(preview.ok && preview.value).toMatchObject({
+      tripName: "Kyoto",
+      status: "accepted",
+      alreadyMember: true,
+    });
   });
 
   it("names the inviter when Identity knows them", async () => {
