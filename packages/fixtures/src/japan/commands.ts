@@ -89,6 +89,19 @@ export function buildNotes(note: string | null, who: "all" | readonly string[]):
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
+/**
+ * One `AddActivity` for one row, scheduled or backlogged.
+ *
+ * Shared by both so a stop and a parked idea cannot drift apart in how they are
+ * built: the only differences are the three arguments a backlog item passes as
+ * absent — no `dayId` (`AddActivity`'s documented "omitted = backlog"), no time
+ * window, and no cost.
+ *
+ * `who` is folded into `notes` here rather than carried as a field, because
+ * Trip Planning does not know who is invited (module map, AGENTS.md), and
+ * `tags`/`cost` are omitted entirely when empty so the emitted command matches
+ * what a real user's action would have produced.
+ */
 function addActivity(
   tripId: string,
   activityId: string,

@@ -68,6 +68,16 @@ export type JapanTripReport = {
 
 const KM_TOLERANCE = 1;
 
+/**
+ * Great-circle distance in kilometres.
+ *
+ * A local copy rather than @tc/domain's: this module's whole job is to check
+ * the fixture from outside, and the only place the distance is used is
+ * comparing a canonical coordinate against the geocode overlay's proposal —
+ * a measurement about the FIXTURE, not about a trip. Importing the domain's
+ * version here would also put @tc/domain on a path the package deliberately
+ * keeps off its public surface (see index.ts).
+ */
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);

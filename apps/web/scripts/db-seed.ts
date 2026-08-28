@@ -220,16 +220,20 @@ type SeedStop = {
   notes?: string;
 };
 
-// The Japan trip's content is NOT here any more: it lives in @tc/fixtures
-// (ADR-030), which is also what the preview branch's reset route and the
-// @tc/factories `japanTrip` scenario use. This file used to carry its own copy
-// of the same 68 stops; the two agreed only by luck, and only the copy here
-// ever had tags or a full set of coordinates.
-//
-// Seeded first and with the soonest start date so it's the trip GET /api/trips
-// returns first — the homepage hero picks trips[0] with no sort of its own
-// (apps/web/src/app/(app)/page.tsx), so insertion order is what decides "next
-// trip" today (KI-34).
+/**
+ * Seeds the Japan demo trip.
+ *
+ * Its content is NOT here any more: it lives in `@tc/fixtures` (ADR-030),
+ * which is also what the preview branch's reset route and the `@tc/factories`
+ * japan scenario use. This file used to carry its own copy of the same 68
+ * stops; the two agreed only by luck, and only the copy here ever had tags or
+ * a full set of coordinates.
+ *
+ * Seeded first and with the soonest start date so it is the trip
+ * `GET /api/trips` returns first — the homepage hero picks `trips[0]` with no
+ * sort of its own (`app/(app)/page.tsx`), so insertion order is what decides
+ * "next trip" today (KI-34).
+ */
 async function seedJapanTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, JAPAN_TRIP_NAME);
   // Group by group, not one flat batch: one batch is one History entry, and the

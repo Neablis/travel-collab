@@ -21,8 +21,14 @@ import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 // growing event stream, so this still gets an explicit ceiling.
 export const maxDuration = 30;
 
-// Local calendar date, N days from today, as YYYY-MM-DD — the same helper
-// scripts/db-seed.ts uses, so both callers date the demo trip identically.
+/**
+ * Local calendar date, N days from today, as `YYYY-MM-DD`.
+ *
+ * Duplicated from scripts/db-seed.ts deliberately: both callers must date the
+ * demo trip identically, and the alternative — exporting it from @tc/fixtures —
+ * would put a wall-clock read inside a package whose determinism is what
+ * `pnpm seed:verify` depends on (ADR-030).
+ */
 function isoDateInDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
