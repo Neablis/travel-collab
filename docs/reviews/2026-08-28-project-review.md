@@ -225,6 +225,14 @@ or add an environment claim to the JWT.
   registry) — but adding `@tiptap/extension-link` later without `isAllowedUri`
   hardening creates a `javascript:` href sink fed by this permissive stored
   content. Cap serialized size; note the hazard in the contract comment.
+- **L7 (severity unassessed — triage needed).** GitHub reports **19 open
+  Dependabot vulnerability alerts (12 high, 7 moderate)** on the default
+  branch (surfaced by the push that published this review:
+  `github.com/Neablis/travel-collab/security/dependabot`). Not triaged here —
+  many npm advisories don't apply to this app's usage — but 12 highs deserve a
+  pass, and `docs/guidelines/ci-cost-and-capacity.md:116` notes there is no
+  `.github/dependabot.yml`, so version bumps arrive ad hoc (the untracked
+  Vitest 2→3 major bump in Testing §2 is what that looks like in practice).
 - **L6.** CSRF posture rests entirely on Auth.js's default `SameSite=Lax`
   cookie. Adequate today; one cookie-config change away from every mutation
   route being CSRF-able. An Origin or `Content-Type: application/json` check
