@@ -25,7 +25,11 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
    320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
   ```
   20px of growth is enough to move an open trip-actions menu off its target — KI-28's measurement showed 24px already lands a click aimed at "Delete" on "Duplicate".
-- **Why it is filed rather than fixed:** the only fix that makes the slot one line *forever* is `truncate` (or `whitespace-nowrap` + ellipsis), which hides digits of a money figure. That is a product-visible choice, not a mechanical one. Reserving two lines below `sm` instead would keep the number whole but leave permanent blank space on small screens. Which is right depends on what the narrow-width card is supposed to be — and per KI-46, below ~1100px there is no designed card yet.
+- **Why it is filed rather than fixed:** every fix is a product-visible choice about a money figure, not a mechanical one. Three options, none obviously right:
+  1. **`truncate`** (or `whitespace-nowrap` + ellipsis) — one line forever, but at 375px it renders `¥1,234,567 planned of ¥5,00…`, so the budget half of "planned *of* budget" becomes unreadable on the screens with least room to recover it.
+  2. **Reserve two lines below `sm`** (`min-h-10 sm:min-h-5`) — keeps the number whole and the height fixed, at the cost of permanent blank space on small screens even when the line is short.
+  3. **Shorten the string at narrow widths** — e.g. `plannedOfBudgetLine` emitting `¥1,234,567 / ¥5,000,000` instead of spelling out `planned of`. Keeps both figures *and* one line; costs a `cost.ts` change and a width-aware caller. Raised on PR #73's review thread and probably the best of the three, which is exactly why it should be chosen rather than defaulted into.
+  Per KI-46, below ~1100px there is no designed card yet for any of these to be measured against, so whatever lands here is likely to be overwritten by that design.
 - **Found by:** CodeRabbit's review of PR #73 flagged "long budget text may expand cards on narrow screens" as a residual risk on KI-28's fix; the measurement above confirms it and bounds it.
 - **Cross-reference:** KI-28 (resolved 2026-08-28 — this is the residue outside its measured bound), KI-46 (below ~1100px is the desktop layout, not the designed mobile companion).
 - **First noted:** 2026-08-28 (KI sweep, PR #73 review).
