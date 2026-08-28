@@ -41,8 +41,15 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     (a.timeWindow === null) === (b.timeWindow === null) &&
     (a.timeWindow === null || (a.timeWindow.start === b.timeWindow!.start && a.timeWindow.end === b.timeWindow!.end)) &&
     (a.location === null) === (b.location === null) &&
+    // Location is compared field by field, so every field the contract grows
+    // has to be added here or diff() silently treats a change to it as a
+    // no-op and revert/undo quietly keeps the old value. `area` is included
+    // for exactly that reason (KI-35).
     (a.location === null ||
-      (a.location.name === b.location!.name && a.location.lat === b.location!.lat && a.location.lng === b.location!.lng)) &&
+      (a.location.name === b.location!.name &&
+        a.location.lat === b.location!.lat &&
+        a.location.lng === b.location!.lng &&
+        a.location.area === b.location!.area)) &&
     sameAnchors(a.anchors, b.anchors) &&
     a.kind === b.kind &&
     sameTags(a.tags, b.tags) &&

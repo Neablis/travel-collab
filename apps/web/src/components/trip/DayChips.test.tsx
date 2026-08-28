@@ -1,8 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ActivityView } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { chipModel, DayChips } from "./DayChips";
+import { chipModel, cityFor, DayChips } from "./DayChips";
 
 afterEach(cleanup);
 
@@ -234,5 +235,48 @@ describe("DayChips", () => {
 
     expect(screen.getByText("5")).toBeTruthy();
     expect(screen.getByText("Rochester")).toBeTruthy();
+  });
+});
+
+// KI-35. cityFor names the DAY — it drives the day accent and the
+// "Tokyo → Nikkō" transition — so `city` stays ahead of `area` here, the
+// opposite order to shortPlace(). `area` only replaces the position `name`
+// used to hold: the fallback for a location with no city, where the venue
+// name was standing in for a locality it isn't.
+describe("cityFor", () => {
+  const activityWith = (location: NonNullable<ActivityView["location"]>): ActivityView => ({
+    activityId: tokyoActivity,
+    title: "Dinner",
+    timeWindow: null,
+    location,
+    notes: null,
+    anchors: [],
+    kind: "planned",
+    tags: [],
+    cost: null,
+  });
+  const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
+
+  it("keeps the city ahead of the area, so a ward never splits a city's own days", () => {
+    const activities = {
+      [tokyoActivity]: activityWith({
+        name: "Gonpachi Nishiazabu, Nishi-Azabu, Tokyo, Japan",
+        city: "Tokyo",
+        area: "Nishi-Azabu",
+      }),
+    };
+    expect(cityFor(oneStopDay, activities)).toBe("Tokyo");
+  });
+
+  it("uses the area, not the venue name, when there is no city", () => {
+    const activities = {
+      [tokyoActivity]: activityWith({ name: "Kiyomizu-dera, Higashiyama, Japan", area: "Higashiyama" }),
+    };
+    expect(cityFor(oneStopDay, activities)).toBe("Higashiyama");
+  });
+
+  it("still falls all the way back to the name when neither structured field is present", () => {
+    const activities = { [tokyoActivity]: activityWith({ name: "Somewhere at sea" }) };
+    expect(cityFor(oneStopDay, activities)).toBe("Somewhere at sea");
   });
 });

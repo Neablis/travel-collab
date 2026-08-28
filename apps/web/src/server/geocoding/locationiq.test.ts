@@ -59,6 +59,62 @@ describe("LocationIQ geocoder adapter", () => {
     expect(results[2]!.city).toBeUndefined();
   });
 
+  // KI-35. `area` is the sub-settlement half of the same address breakdown
+  // `city` is read from, and has its own most-to-least-specific fallback
+  // chain. It must never collapse into `city`: the two answer different
+  // questions and both are read off the same row.
+  it("extracts area from the sub-settlement fields, falling back through suburb/neighbourhood/quarter/city_district", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
+      new Response(
+        JSON.stringify([
+          {
+            lat: "35.6564",
+            lon: "139.7238",
+            display_name: "Gonpachi Nishiazabu, Nishi-Azabu, Minato, Tokyo, Japan",
+            address: { country_code: "jp", city: "Tokyo", suburb: "Nishi-Azabu" },
+          },
+          {
+            lat: "43.1566",
+            lon: "-77.6088",
+            display_name: "Ugly Duck Coffee, Rochester, Monroe County, New York, USA",
+            address: { country_code: "us", city: "Rochester", neighbourhood: "South Wedge" }, // no `suburb` key
+          },
+          {
+            lat: "48.8606",
+            lon: "2.3376",
+            display_name: "Musée du Louvre, Paris, France",
+            address: { country_code: "fr", city: "Paris", quarter: "Quartier Saint-Germain-l’Auxerrois" },
+          },
+          {
+            lat: "52.5163",
+            lon: "13.3777",
+            display_name: "Brandenburger Tor, Berlin, Germany",
+            address: { country_code: "de", city: "Berlin", city_district: "Mitte" },
+          },
+          {
+            lat: "1",
+            lon: "1",
+            display_name: "somewhere with no sub-settlement address component",
+            address: { country_code: "us", city: "Rochester" },
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await createLocationIQGeocoder("KEY123").forward("anything");
+    expect(results.map((r) => r.area)).toEqual([
+      "Nishi-Azabu",
+      "South Wedge",
+      "Quartier Saint-Germain-l’Auxerrois",
+      "Mitte",
+      undefined,
+    ]);
+    // The settlement read is untouched by any of this.
+    expect(results.map((r) => r.city)).toEqual(["Tokyo", "Rochester", "Paris", "Berlin", "Rochester"]);
+  });
+
   it("throws on a non-OK response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 429 })));
     await expect(createLocationIQGeocoder("K").forward("x")).rejects.toThrow(/429/);

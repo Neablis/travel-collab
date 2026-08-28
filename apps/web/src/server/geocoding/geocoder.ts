@@ -21,6 +21,13 @@ export interface GeocodeResult {
   // geocoder's address breakdown has no city-level component for this
   // result.
   city?: string;
+  // The result's sub-settlement locality (neighbourhood/suburb/quarter/city
+  // district) — one level finer than `city`, from the same structured address
+  // breakdown. Undefined when the geocoder's address data has no such
+  // component (a whole-city query, an ocean crossing, a rural address).
+  // Persisted onto Location.area (packages/contracts) and rendered by
+  // shortPlace(); see KI-35.
+  area?: string;
 }
 
 export interface GeocodeOptions {

@@ -18,10 +18,19 @@ export const uuid = (n: number) => `7d9a1f8e-0000-4000-8000-${String(n).padStart
 const DAY_IDS = [1, 2, 3].map((n) => uuid(100 + n));
 const ACTIVITY_IDS = [1, 2, 3, 4, 5].map((n) => uuid(200 + n));
 const WINDOWS = [null, { start: "09:00", end: "11:00" }, { start: "10:00", end: "12:00" }] as const;
+// `area` must appear in the generated input space for the same reason
+// kind/tags do (see the note below): without a location that carries one,
+// every property that folds these commands would pass while never once
+// producing the field — green and vacuous — and equality.ts dropping `area`
+// from its comparison would go unnoticed. Two locations share the same
+// name/lat/lng and differ ONLY by area, which is what makes that omission
+// observable at all.
 const LOCATIONS = [
   null,
   { name: "Rome", lat: 41.9, lng: 12.5 },
   { name: "NYC", lat: 40.7, lng: -74.0 },
+  { name: "Rome", lat: 41.9, lng: 12.5, area: "Trastevere" },
+  { name: "Rome", lat: 41.9, lng: 12.5, area: "Monti" },
 ] as const;
 const ANCHORS: (Anchor[] | undefined)[] = [
   undefined,

@@ -67,17 +67,26 @@ export function parseLocalDate(iso: string): Date {
 
 // The first scheduled activity's location.city (packages/contracts'
 // Location.city — the geocoder's own structured city/town/village, distinct
-// from the full place-name label). Falls back to location.name only for a
-// location that predates that field, or one with no city-level address
-// component at all (e.g. an ocean crossing, or a manually-typed place) — a
-// real but imprecise stand-in, matching the same "don't fabricate a field
-// that isn't there" stance as the TripSummary city comments in
-// NextTripHero.tsx / TripCard.tsx. Falls through subsequent activityIds if
-// the first has no location; null if none of the day's activities have one.
+// from the full place-name label).
+//
+// `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
+// with `area`. This value names the day and drives the day accent and the
+// "Tokyo → Nikkō" transition, so a ward or neighbourhood in this slot would
+// split one city's days apart and invent transitions inside a single city.
+// `area` is the fallback instead of `name`: when there is no city at all, a
+// real locality ("Higashiyama") is a truer stand-in for the day's whereabouts
+// than the venue name ("Kiyomizu-dera") that stood here before — that
+// mismatch was KI-35. `name` remains the last resort for a location carrying
+// neither structured field (an ocean crossing, a manually-typed place),
+// matching the same "don't fabricate a field that isn't there" stance as the
+// TripSummary city comments in NextTripHero.tsx / TripCard.tsx.
+//
+// Falls through subsequent activityIds if the first has no location; null if
+// none of the day's activities have one.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (const activityId of day.activityIds) {
     const location = activities[activityId]?.location;
-    if (location) return location.city ?? location.name;
+    if (location) return location.city ?? location.area ?? location.name;
   }
   return null;
 }
