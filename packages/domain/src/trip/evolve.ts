@@ -37,6 +37,7 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       tripId: event.payload.tripId,
       name: event.payload.name,
       members: [{ userId: event.payload.createdBy, role: "owner" }],
+      forkedFrom: event.payload.forkedFrom,
       startDate: null,
       days: [],
       backlog: [],

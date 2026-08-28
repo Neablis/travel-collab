@@ -15,6 +15,7 @@ import {
   TRIP,
   foldTo,
   generator,
+  arbLineage,
   historyFrom,
   rawOp,
   resetGeneratorCounters,
@@ -24,12 +25,25 @@ import {
 describe("diffTripStates round-trip (THE M2 invariant)", () => {
   it("applying the diff to current reproduces the target exactly, for any history and any cut point", () => {
     const w = witness("M2 round-trip");
+    // A SECOND witness, for lineage specifically. `arbLineage` generates null
+    // and populated records, but the round-trip assertion holds trivially for
+    // null — so without counting the non-null cases, a regression that always
+    // dropped `forkedFrom` to null would keep this property green while never
+    // exercising the thing it was added to cover (CodeRabbit, PR #70; the same
+    // rule AGENTS.md states as "a property that skips every generated case
+    // still reports ✓").
+    let forked = 0;
     fc.assert(
       fc.property(
         fc.array(rawOp, { minLength: 1, maxLength: 40 }),
         fc.nat(),
-        (rawOps, cutSeed) => {
-          const events = historyFrom(rawOps);
+        // Lineage is genesis-only — no raw op can produce one — so it is
+        // generated here or this property replays only unforked trips and
+        // never once checks that replay carries `forkedFrom` through
+        // (M11 link 5).
+        arbLineage,
+        (rawOps, cutSeed, forkedFrom) => {
+          const events = historyFrom(rawOps, forkedFrom);
           const cut = (cutSeed % events.length) + 1; // 1..length
           const current = foldTo(events, events.length);
           const target = foldTo(events, cut);
@@ -37,6 +51,8 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
           let result = current;
           for (const event of diff) result = evolveTrip(result, event);
           w.tick();
+          if (forkedFrom !== null) forked += 1;
+          expect(result.forkedFrom).toEqual(forkedFrom);
           expect(tripStatesEqual(result, target)).toBe(true);
           // conflicts are a pure function of state, so they match too:
           expect(detectConflicts(result)).toEqual(detectConflicts(target));
@@ -45,6 +61,11 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
       { numRuns: 300 },
     );
     w.atLeast(300);
+    // Measured, not guessed: `fc.option` defaults to roughly a 1-in-5 nil
+    // rate, so ~240 of 300 runs carry lineage. Floored at 60 — a quarter of
+    // the expected count — which cannot flap but still fails outright if
+    // lineage stops being generated.
+    expect(forked, "no forked-trip case was generated").toBeGreaterThanOrEqual(60);
   });
 
   // Guards the generator itself, not the domain. See the `generator` counters.
@@ -115,7 +136,7 @@ describe("diffTripStates day ordering (KI-1 regression)", () => {
         state = evolveTrip(state, event);
       }
     };
-    apply({ type: "CreateTrip", tripId: TRIP, name: "Ordering" });
+    apply({ type: "CreateTrip", tripId: TRIP, name: "Ordering" , forkedFrom: null});
     apply({ type: "AddDay", tripId: TRIP, dayId: DAY_B });
     apply({ type: "AddDay", tripId: TRIP, dayId: DAY_A });
     const targetSeq = events.length; // days are [B, A] here
@@ -157,7 +178,7 @@ describe("diffTripStates day ordering (KI-1 regression)", () => {
 describe("diffTripStates lifecycle reconciliation (M8)", () => {
   const tripId = "11111111-1111-4111-8111-111111111111";
   const base = evolveTrip(null, {
-    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1" },
+    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1", forkedFrom: null },
   });
 
   it("emits a rename when the names differ", () => {

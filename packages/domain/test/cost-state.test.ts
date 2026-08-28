@@ -9,7 +9,7 @@ const COST: Money = { amountMinor: 4200, currency: "USD" };
 
 function baseState(): TripState {
   return {
-    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
+    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null,
     startDate: null, days: [], backlog: [], activities: {},
     currency: "USD", budget: null, dismissedConflictIds: [],
     status: "active",

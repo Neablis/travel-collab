@@ -67,18 +67,30 @@ function startsLater(a: Timed, b: Timed): boolean {
 // activity, or a stop whose times are gone) falls through to the triangle for
 // the same reason, rather than being silently invisible.
 //
-// Dismissal is deliberately still not a triangle: a dismissed overlap hides
-// its warning without resurrecting one, matching what the Board lens has
-// always done for other kinds — so it is excluded here even though no lens
-// renders it.
+// Dismissal is deliberately still not a triangle: a dismissed conflict hides
+// its warning without resurrecting one — so it is excluded here even though no
+// lens renders it, for *every* kind and not just overlaps. That last part used
+// to be a bug: the two exclusions were folded into one `kind !== OVERLAP_KIND
+// || !surfaced(c)` test, whose dismissal half was therefore only ever reached
+// for overlaps. Dismissing a distance conflict took its ConflictBanner row
+// away (that list filters dismissed ids) and left the triangle on the card,
+// with nothing on screen to explain it or offer to dismiss it again. The two
+// conditions are independent and are now written that way.
+//
+// What makes dropping the triangle safe rather than lossy: the activity editor
+// lists every conflict naming the stop, dismissed ones included (KI-43). The
+// board is where dismissal buys quiet; the editor is where the full picture
+// always lives.
 export function badgeableConflictSubjects(
   detail: Pick<TripDetail, "conflicts" | "dismissedConflictIds">,
   renderedOverlapIds: ReadonlySet<string>,
 ): Set<string> {
   const dismissed = new Set(detail.dismissedConflictIds);
-  const surfaced = (c: Conflict) => renderedOverlapIds.has(c.id) || dismissed.has(c.id);
+  const renderedInline = (c: Conflict) => c.kind === OVERLAP_KIND && renderedOverlapIds.has(c.id);
   return new Set(
-    detail.conflicts.filter((c) => c.kind !== OVERLAP_KIND || !surfaced(c)).flatMap((c) => c.subjects),
+    detail.conflicts
+      .filter((c) => !dismissed.has(c.id) && !renderedInline(c))
+      .flatMap((c) => c.subjects),
   );
 }
 

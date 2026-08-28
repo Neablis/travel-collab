@@ -1,8 +1,16 @@
 import {
+  InvitePreview,
   PageContent,
+  SavedDay,
+  SharedTripView,
+  TripAccess,
   TripDetail,
   TripHistory,
+  TripInvite,
+  TripShare,
   type BatchableCommand,
+  type CreateInviteInput,
+  type CreateSavedDayInput,
   type PageContext,
   type TripCommand,
 } from "@tc/contracts";
@@ -217,4 +225,196 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
   }
   const data = (await res.json()) as { tripId: string };
   return { ok: true, value: data };
+}
+
+// ── Access & Membership (M11 link 3) ─────────────────────────────────────────
+
+async function readJson<T>(res: Response, parse: (data: unknown) => T): Promise<ApiResult<T>> {
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    return {
+      ok: false,
+      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+    };
+  }
+  return { ok: true, value: parse(await res.json()) };
+}
+
+export async function fetchTripAccess(tripId: string): Promise<ApiResult<TripAccess>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`));
+    return await readJson(res, (data) => TripAccess.parse((data as { access: unknown }).access));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createTripInvite(
+  tripId: string,
+  input: CreateInviteInput,
+): Promise<ApiResult<TripInvite>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/invites`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function revokeTripInvite(
+  tripId: string,
+  inviteId: string,
+): Promise<ApiResult<TripInvite>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/invites/${inviteId}`), { method: "DELETE" });
+    return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function fetchInvitePreview(token: string): Promise<ApiResult<InvitePreview>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}`));
+    return await readJson(res, (data) => InvitePreview.parse((data as { invite: unknown }).invite));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function acceptInvite(token: string): Promise<ApiResult<{ tripId: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}/accept`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The link an owner hands out. Absolute, because it is meant to be pasted. */
+export function inviteLink(token: string): string {
+  return apiUrl(`/invite/${encodeURIComponent(token)}`);
+}
+
+// ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
+
+export async function fetchTripShares(tripId: string): Promise<ApiResult<TripShare[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares`));
+    return await readJson(res, (data) =>
+      ((data as { shares: unknown[] }).shares ?? []).map((s) => TripShare.parse(s)),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createTripShare(tripId: string): Promise<ApiResult<TripShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares`), { method: "POST" });
+    return await readJson(res, (data) => TripShare.parse((data as { share: unknown }).share));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function revokeTripShare(tripId: string, shareId: string): Promise<ApiResult<TripShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares/${shareId}`), { method: "DELETE" });
+    return await readJson(res, (data) => TripShare.parse((data as { share: unknown }).share));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * The public read. `token` may be the reserved `"featured"`, which the API
+ * routes to the deployment's configured demo share — same response shape, so
+ * `/s/featured` is served by exactly the same page as any other share link.
+ */
+export async function fetchSharedTrip(token: string): Promise<ApiResult<SharedTripView>> {
+  try {
+    const res = await fetch(apiUrl(`/api/shares/${encodeURIComponent(token)}`));
+    return await readJson(res, (data) => SharedTripView.parse((data as { trip: unknown }).trip));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The link a sharer hands out. Absolute, because it is meant to be pasted. */
+export function shareLink(token: string): string {
+  return apiUrl(`/s/${encodeURIComponent(token)}`);
+}
+
+/**
+ * "Make this my trip" (M11 link 5). Copies the share's PINNED state into a new
+ * trip owned by the caller — what the link showed, not what the source has
+ * become since. 401 when signed out, which the share page turns into a trip to
+ * /signin and back.
+ */
+export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/shares/${encodeURIComponent(token)}/clone`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ── Saved parts (M11 link 6) ─────────────────────────────────────────────────
+
+export async function fetchSavedDays(): Promise<ApiResult<SavedDay[]>> {
+  try {
+    const res = await fetch(apiUrl("/api/saved-days"));
+    return await readJson(res, (data) =>
+      ((data as { savedDays: unknown[] }).savedDays ?? []).map((d) => SavedDay.parse(d)),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function createSavedDay(input: CreateSavedDayInput): Promise<ApiResult<SavedDay>> {
+  try {
+    const res = await fetch(apiUrl("/api/saved-days"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SavedDay.parse((data as { savedDay: unknown }).savedDay));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok: true }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`), { method: "DELETE" });
+    return await readJson(res, () => ({ ok: true as const }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Appends the saved day and its stops to `tripId` as ONE undoable batch. */
+export async function insertSavedDay(
+  tripId: string,
+  savedDayId: string,
+): Promise<ApiResult<CommandOutcome>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
+      method: "POST",
+    });
+    return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
 }

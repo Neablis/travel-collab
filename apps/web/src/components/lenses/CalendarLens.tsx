@@ -207,8 +207,20 @@ export function CalendarLens({
     // trip's own day at the same ordinal.
     const tripDay = detail.days[ordinal - 1];
     const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities);
-    const arriving = cityCards[cityCards.length - 1];
-    const departing = cityCards.slice(0, -1);
+    // The day ENDS at the last card that names a city. `calendarCityCards`
+    // parks every city-less stop in one untitled bucket at the end, and taking
+    // the last card blindly would hand that bucket the full card and demote a
+    // real city to a one-line strip — the "nameless one wins the day" case the
+    // old grouping avoided by folding city-less stops into whatever group was
+    // in progress. Grouping no longer does that (a name is not a city), so the
+    // guard moves here: an untitled bucket is where we don't know, not where
+    // you finished.
+    const arrivingIndex = cityCards.reduce(
+      (best, card, i) => (card.city !== null ? i : best),
+      cityCards.length - 1,
+    );
+    const arriving = cityCards[arrivingIndex];
+    const departing = cityCards.filter((_, i) => i !== arrivingIndex);
 
     return (
       // Outer surface cell IS the clickable button (dc.html's own click

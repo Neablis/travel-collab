@@ -24,6 +24,7 @@ import { shortPlace } from "@/lib/place";
 import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
+import { stopsForDay } from "@/lib/savedStops";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
@@ -564,9 +565,18 @@ export function TimelineLens({
                 >
                   {formatMoney(dayTotal, detail.currency)}
                 </DataText>
-                <Preview id="keep-day-flag" size="compact">
-                  <KeepDayFlag dayIndex={index} accent={accent.ink} />
-                </Preview>
+                {/* Real as of M11 link 6 — this used to be wrapped in
+                    <Preview id="keep-day-flag">, which shielded its click.
+                    The stops are read from the day's own row, so what gets
+                    kept is exactly what is rendered above it. */}
+                <KeepDayFlag
+                  dayIndex={index}
+                  accent={accent.ink}
+                  tripId={detail.tripId}
+                  dayId={row.dayId}
+                  tripName={detail.name}
+                  stops={stopsForDay(detail, row.dayId) ?? []}
+                />
                 <Button
                   variant="secondary"
                   size="sm"

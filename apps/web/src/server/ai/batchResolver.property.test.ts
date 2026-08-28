@@ -35,7 +35,7 @@ function startingDetail(nDays: number): TripDetail {
     if (!decision.ok) throw new Error(`setup rejected ${command.type}: ${decision.rejection.code}`);
     for (const event of decision.events) state = evolveTrip(state, event);
   };
-  apply({ type: "CreateTrip", tripId: TRIP, name: "Property trip" });
+  apply({ type: "CreateTrip", tripId: TRIP, name: "Property trip" , forkedFrom: null});
   for (let i = 0; i < nDays; i++) apply({ type: "AddDay", tripId: TRIP, dayId: uuid(100 + i) });
   TITLES.forEach((title, i) =>
     apply({

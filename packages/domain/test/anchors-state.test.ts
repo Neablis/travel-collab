@@ -9,7 +9,7 @@ const TOD: Anchor = { kind: "timeOfDay", window: { start: "08:00", end: "13:00" 
 
 function withActivity(anchors: Anchor[]): TripState {
   return {
-    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }],
+    tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null,
     startDate: null, days: [], backlog: [A1],
     activities: { [A1]: { title: "Market", timeWindow: null, location: null, notes: null, anchors, kind: "planned" as const, tags: [], cost: null } },
     dismissedConflictIds: [],
@@ -21,12 +21,12 @@ function withActivity(anchors: Anchor[]): TripState {
 describe("anchors in domain state", () => {
   it("AddActivity carries anchors into state; the detail exposes them", () => {
     const decision = decideTripCommand(
-      { tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], startDate: null, days: [], backlog: [], activities: {}, dismissedConflictIds: [], currency: "USD", budget: null, status: "active" },
+      { tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, startDate: null, days: [], backlog: [], activities: {}, dismissedConflictIds: [], currency: "USD", budget: null, status: "active" },
       { type: "AddActivity", tripId: TRIP, activityId: A1, title: "Market", anchors: [TOD] },
       CTX,
     );
     if (!decision.ok) throw new Error(decision.rejection.code);
-    const state = evolveTrip({ tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], startDate: null, days: [], backlog: [], activities: {}, dismissedConflictIds: [], currency: "USD", budget: null, status: "active" }, decision.events[0]!);
+    const state = evolveTrip({ tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, startDate: null, days: [], backlog: [], activities: {}, dismissedConflictIds: [], currency: "USD", budget: null, status: "active" }, decision.events[0]!);
     expect(state.activities[A1]!.anchors).toEqual([TOD]);
     expect(tripDetailFromState(state, "2026-07-09T00:00:00.000Z").activities[A1]!.anchors).toEqual([TOD]);
   });

@@ -258,8 +258,8 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   decides the escape hatch isn't worth the risk.
 
 ### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport
-- **Severity:** reliability (no product impact observed yet; e2e flake, seen once, passed on retry)
-- **Area:** `apps/web/src/app/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/e2e/m8-make-it-real.spec.ts`
+- **Severity:** reliability (no product impact observed yet; e2e flake, seen twice — see the 2026-08-28 recurrence below, which is what identified the mechanism)
+- **Area:** `apps/web/src/app/(app)/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`, and its per-card `TripDetail` fan-out), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/src/components/home/TripCard.tsx`, `apps/web/e2e/m8-make-it-real.spec.ts`
 - **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
 - **Originally proposed mechanism — MEASURED AND RULED OUT (2026-08-24).** The entry used to read: "the home trip list accumulates one card per e2e spec across a full suite run, so by the time `m8` runs the target card sits far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport." That was flagged at the time as "a plausible read of the symptom, not a diagnosis." It is now falsified. Driving m8's exact `trip actions for … → Delete` sequence against a real server and DB at the suite's own 1280x900 `desktop` viewport, with the menu deliberately opened *before* the per-card "planned of budget" lines land (that fan-out of one `GET /api/trips/:id` per visible card is the home page's only asynchronous layout shift, and it is what a long list makes slow):
 
@@ -274,10 +274,52 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **What *does* produce this exact error, both demonstrated in the same session — match a trace against these two signatures before anything else:**
   1. **The anchor leaves the viewport while the menu is open.** `@radix-ui/react-popper` positions with `strategy: "fixed"` and `shift({ limiter: limitShift() })`, so the content deliberately *follows* its anchor out of view rather than detaching from it. Scrolling the page to the top with the menu open moved the Delete item to `y=1783` in a 900px viewport, where it stayed — visible, attached, and permanently unclickable, failing with exactly `element is outside of the viewport`. Nothing on the home page was found that scrolls the window or moves the anchor that far, so this needs a source of scroll/relayout that this investigation did not find.
   2. **The popper never completes its first `computePosition`.** While `isPositioned` is false, `react-popper` parks the wrapper at `transform: translate(0, -200%)` and — unless `hideWhenDetached` is set, which this app's `Popover` does not set — leaves it fully *visible*. Forcing that state put the Delete item at `y=-123` with `isVisible() === true`, again failing with exactly `element is outside of the viewport`. This is the better fit for a failure that persisted the full 30s rather than resolving: it is a stuck state, not a transient one. It is also directly checkable from a trace — look for `translate(0, -200%)` on `[data-radix-popper-content-wrapper]` in the DOM snapshot at the failing step.
-- **Why still open, and why no fix was attempted:** the symptom is real (it cost a CI retry) but remains unexplained — closing it on a green non-reproduction would be the KI-1 mistake ("probably a flake") in reverse. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
-- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
-- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change.
+- **RECURRENCE, 2026-08-28 (PR #71, `integration-e2e` on `06031d2`) — signature 2 falsified, signature 1 confirmed, and the missing relayout source found.** The 2026-08-24 entry closed by saying signature 1 "needs a source of scroll/relayout that this investigation did not find." This run's call log contains it. The failure went, in order:
 
+  ```
+  - locator resolved to <button role="menuitem" ...>Delete</button>
+  - attempting click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <h3 ...>Oslo 1787874837059</h3> from <main ...> subtree intercepts pointer events
+  - retrying click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - element is outside of the viewport      <- and from here on, every retry
+  ```
+
+  Two things follow, and they are what the previous investigation lacked:
+
+  1. **Signature 2 is ruled out for this occurrence.** A popper parked at `translate(0, -200%)` because `computePosition` never completed is off-screen from its first frame; it can never first resolve to a real on-screen point that *another trip card's `<h3>`* is hit-testing over. The menu here was positioned correctly, then stopped being clickable. The stuck 30s that made signature 2 "the better fit" is explained instead by signature 1's own mechanism: once the anchor has moved, it stays moved.
+  2. **The relayout source is the home page's own per-card `TripDetail` fan-out** — `page.tsx` fires one `GET /api/trips/:id` per visible card to fill each card's "planned of budget" line. The 2026-08-24 measurement already established that this lands ~73px of growth on the target card's *own* row (and correctly ruled out any per-row accumulation, which is why list length was a dead end). What it did not connect is that ~73px of anchor drift is *enough*: `@radix-ui/react-popper` uses `strategy: "fixed"` with `shift({ limiter: limitShift() })`, so an open menu follows its anchor rather than repositioning. The interception is that drift caught mid-flight — the point Playwright hit-tested is now over the neighbouring card — and the subsequent permanent "outside of the viewport" is the same drift after `scrollIntoViewIfNeeded` re-anchored against a row that had already moved.
+
+  **Why it surfaced now:** M11 put `requireTripAccess` in front of `GET /api/trips/:id` (an extra membership/invite round-trip per request). The home page fans that endpoint out once per visible card in a single `Promise.all`, so on the long trip list an e2e suite accumulates, every card's cost line lands measurably later than it did when KI-28 was measured. That does not create the race — it is the same race as 2026-08-23 — but it widens the window in which the menu is opened *before* the anchor has settled. Recorded as a probability change, not a new defect: nothing in M11 touches the menu, the `Popover`, or the delete path.
+- **Fix (2026-08-28):** the spec now waits for the target card's own cost line before opening its menu, so the anchor is settled before the gesture starts:
+
+  ```ts
+  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
+  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
+  ```
+
+  `TripCard`'s root gained `data-testid="trip-card"` to make a card addressable at all (the trigger's `aria-label` gives no handle on the row it belongs to). This is deliberately the KI-21 shape of fix — settle both ends *before* the gesture, rather than widen a timing budget or retry harder — and deliberately **not** a change to `Popover`'s collision/positioning config, which the note below still applies to: whether an anchored menu should follow its card or close when the card moves is a design decision, and the product-side question is filed separately below rather than guessed at here.
+- **Still open (product, not test):** the underlying behaviour is real outside the test. A user who opens a trip's actions menu on a cold home page load, before the cost lines land, can have that menu drift under an adjacent card. It is far less visible at human speed than at Playwright speed (the drift is one row, ~73px, and a real user's next click just re-opens it) which is why this is filed rather than fixed under an M11 PR. The candidate fixes are (a) `onOpenChange(false)` when the anchor moves, (b) reserving the cost line's height so the row never grows, or (c) `hideWhenDetached`. (b) is the one that removes the cause rather than reacting to it.
+- **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
+- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
+- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stays open for the product-side behaviour above, not for the flake.
+
+
+### KI-53 — Access-module timestamps come back in two different formats depending on whether you just wrote the row
+- **Severity:** correctness-latent (no current consumer breaks, but the same field has two shapes across the API surface)
+- **Area:** `apps/web/src/server/db/schema.ts` (`trip_invites`, `trip_shares`, `saved_days`), `apps/web/src/server/access/shares.ts`, `apps/web/src/server/access/invites.ts`, `apps/web/src/server/savedDays.ts`
+- **Symptom:** these columns are `timestamp(..., { withTimezone: true, mode: "string" })`. On the WRITE path the service returns the row object it just built, so the caller gets back exactly the ISO-8601 string it passed in — `2026-01-01T00:00:00.000Z`. On the READ path Drizzle hands back Postgres's own rendering of the same value — `2026-01-01 00:00:00+00`. So `createdAt` / `revokedAt` / `acceptedAt` are ISO from `createShare`, `createInvite`, `saveDay`, and Postgres-format from `listShares`, `listInvites`, `listSavedDays`, `getSavedDay`.
+- **How it surfaced:** tightening `shares.int.test.ts`'s "revoking twice is a no-op" to assert the timestamp does not MOVE (CodeRabbit's suggestion on PR #71) failed with `expected '2026-01-01 00:00:00+00' to be '2026-01-01T00:00:00.000Z'` — the first revoke returned its own input, the second returned the stored row. The finding was about a missing assertion; the format split is what the assertion then found.
+- **Why nothing is broken today:** the contracts type these as `z.string()`, not `z.string().datetime()`, so neither shape fails validation. `new Date()` parses both in V8. The list sorts compare strings, but every row in a given list comes from the same read path, so they are internally consistent.
+- **Where it could bite:** a client that string-compares a just-created DTO against a listed one (they will never be equal even for the same row); anything that tightens these fields to `.datetime()` (the Postgres form fails it); and any future dedupe or cache keyed on the timestamp.
+- **Fix path:** either normalise in each `toDto` (`new Date(row.createdAt).toISOString()`), or switch the columns to `mode: "date"` and serialise once at the boundary. The second is the real fix and touches three tables and their DTOs, which is why it is filed rather than done inside a review-response commit.
+- **Worked around meanwhile:** the revoke test reads the stored value back and compares against that, so it proves the timestamp does not move without asserting either format.
+- **First noted:** 2026-08-27 (M11 link 4/6, CodeRabbit review of PR #71).
 
 ### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
 - **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
@@ -357,42 +399,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   one-off script).
 - **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
   review round).
-
-### KI-43 — The Day-columns lens stacks one full-width Banner per conflict above the board
-
-- **Severity:** cosmetic (no wrong data — but it hides the surface it sits on)
-- **Area:** `apps/web/src/components/board/Board.tsx:201` (`ConflictBanner`)
-- **Symptom:** `ConflictBanner` renders one full-width `Banner variant="warning"`
-  per undismissed conflict, unbounded, between the tab strip and the day
-  columns. The Japan seed carries 12, which is ~700px of stacked warning: at
-  1440×900 the first day column is entirely below the fold, and the lens looks
-  broken on open. Each banner also repeats both stops' full geocoded addresses,
-  so a single line wraps to two.
-- **Why the design disagrees:** the handoff never stacks conflicts. Timeline
-  attaches `act.conf` (a compact tinted strip with Fix/Dismiss) directly under
-  the activity it belongs to; Day columns puts a one-line `act.confShort` chip
-  *inside* the card. `Column.tsx`/`ActivityCard.tsx` **already render that
-  in-card treatment** — it receives `overlap` and `conflictIds` and uses them —
-  so the wall above is redundant with it rather than the only route to the
-  information.
-- **Not just cosmetic in one respect:** Timeline's inline `OverlapWarning`
-  covers *overlaps* only. The seed's conflicts are mostly distance conflicts
-  ("~309 km apart on the same day"), which on Timeline reduce to a bare warning
-  `Badge` with no explanation anywhere. So deleting the wall without moving the
-  copy would lose it. The fix is to move the copy inline, not to drop it.
-- **Fix path:** render the conflict against its subject the way the design does
-  (in-card in Day columns, under-the-row in Timeline), and keep at most a
-  collapsed summary at the top if a whole-trip count is still wanted.
-- **Partly fixed (2026-08-26, PR #55):** the summary half is in. Above two
-  undismissed conflicts the list collapses to one line ("12 things to look at
-  on this trip" + Show), so the first day column now sits at y=420 of a 950px
-  window instead of below the fold. Collapsed, not truncated — expanding still
-  gives every conflict with its own Dismiss and jump.
-- **Still open:** the in-card half. Distance conflicts ("~309 km apart on the
-  same day") still have no inline home — Timeline's `OverlapWarning` covers
-  overlaps only — so this list remains the only place that copy exists, which
-  is why it was collapsed rather than removed.
-- **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2).
 
 ### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion
 
@@ -577,6 +583,65 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
 
+### KI-43 — The Day-columns lens stacks one full-width Banner per conflict above the board — RESOLVED
+
+- **Severity:** cosmetic (no wrong data — but it hides the surface it sits on)
+- **Area:** `apps/web/src/components/board/Board.tsx:201` (`ConflictBanner`)
+- **Symptom:** `ConflictBanner` renders one full-width `Banner variant="warning"`
+  per undismissed conflict, unbounded, between the tab strip and the day
+  columns. The Japan seed carries 12, which is ~700px of stacked warning: at
+  1440×900 the first day column is entirely below the fold, and the lens looks
+  broken on open. Each banner also repeats both stops' full geocoded addresses,
+  so a single line wraps to two.
+- **Why the design disagrees:** the handoff never stacks conflicts. Timeline
+  attaches `act.conf` (a compact tinted strip with Fix/Dismiss) directly under
+  the activity it belongs to; Day columns puts a one-line `act.confShort` chip
+  *inside* the card. `Column.tsx`/`ActivityCard.tsx` **already render that
+  in-card treatment** — it receives `overlap` and `conflictIds` and uses them —
+  so the wall above is redundant with it rather than the only route to the
+  information.
+- **Not just cosmetic in one respect:** Timeline's inline `OverlapWarning`
+  covers *overlaps* only. The seed's conflicts are mostly distance conflicts
+  ("~309 km apart on the same day"), which on Timeline reduce to a bare warning
+  `Badge` with no explanation anywhere. So deleting the wall without moving the
+  copy would lose it. The fix is to move the copy inline, not to drop it.
+- **Fix path:** render the conflict against its subject the way the design does
+  (in-card in Day columns, under-the-row in Timeline), and keep at most a
+  collapsed summary at the top if a whole-trip count is still wanted.
+- **Partly fixed (2026-08-26, PR #55):** the summary half is in. Above two
+  undismissed conflicts the list collapses to one line ("12 things to look at
+  on this trip" + Show), so the first day column now sits at y=420 of a 950px
+  window instead of below the fold. Collapsed, not truncated — expanding still
+  gives every conflict with its own Dismiss and jump.
+- **Resolved (2026-08-28):** the second half is in, at a location Mitchell
+  chose on a Vercel preview thread rather than the one the fix path above
+  guessed: **the activity editor**, not an in-card chip. Opening a stop for
+  editing now lists every conflict naming it
+  (`apps/web/src/components/trip/editor/ActivityConflicts.tsx`, rendered by
+  `ActivityEditorSheet`), in the conflict's own `description` — the same
+  string `ConflictBanner` renders, so there is no second copy to keep in sync.
+  Distance conflicts therefore have somewhere the words exist besides the
+  board list, which is what this entry was actually about.
+- **Deliberate difference from the fix path above:** the copy did not move
+  in-card in Day columns or under-the-row in Timeline, and the collapsed board
+  list stays exactly as PR #55 left it. Both surfaces keep their compact
+  treatment (chip / `OverlapWarning` / triangle); the editor is the place the
+  full text always exists. The handoff's per-lens conflict treatment
+  (`act.conf` under a Timeline row, `act.confShort` inside a Day-columns card)
+  is therefore still unbuilt as drawn — a design question that outlived this
+  entry rather than a defect it is still carrying. If it is picked up, it
+  starts from `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2 and
+  `.design-sync/handoff/DRIFT.md`, not from here.
+- **Dismissed conflicts are shown too, marked rather than hidden**, and that
+  is load-bearing rather than a flourish. It is what made it safe to fix the
+  sibling bug in `overlapData.ts`'s `badgeableConflictSubjects`
+  (2026-08-28): its dismissal exclusion was folded into the overlap branch
+  (`c.kind !== OVERLAP_KIND || !surfaced(c)`), so a dismissed **non**-overlap
+  still badged its card forever — banner gone, triangle stranded, nothing on
+  screen to explain it or dismiss it again. Dismissal now suppresses the badge
+  for every kind, because the editor is the surface that never filters.
+- **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2). **Resolved:** 2026-08-28.
+
 ### KI-35 — No true "area" field; route and place lines are a city-or-first-segment approximation — RESOLVED
 - **Resolved (2026-08-28)** by adding the field the entry's own fix path named.
   `Location.area` (`packages/contracts/src/activity.ts`) is a real optional
@@ -596,10 +661,16 @@ needs action — skip this section when triaging.
   *stop*, and a day inside one city is exactly where the city stops saying
   anything — four Tokyo stops rendered "Tokyo → Tokyo → Tokyo → Tokyo" where
   "Ōta → Shibuya → Nishi-Azabu → Ebisu" is the real shape of the day.
-  `cityFor()` (`DayChips.tsx`) is `city ?? area ?? name`: it names the *day*,
-  drives the day accent and the "Tokyo → Nikkō" transition, so a ward in that
-  slot would split one city's days apart. `area` only takes the position
-  `name` used to hold there. Both orderings are commented at their call sites.
+  `cityFor()` (`DayChips.tsx`) is `city ?? area`, null otherwise: it names the
+  *day*, drives the day accent and the "Tokyo → Nikkō" transition, so a ward in
+  that slot would split one city's days apart. **It has no `name` fallback** —
+  this entry originally shipped `city ?? area ?? name`, written off a `main`
+  that predated Mitchell's instruction on the #71 preview ("Never fall back to
+  name, if you have absolutely no city, then make a new bucket with no city in
+  title"), and the merge into `#71` resolved it to drop `name`. `area` does not
+  violate that rule — a locality is a place — but a venue name does, and was
+  how a restaurant came to label a whole day. Both orderings are commented at
+  their call sites.
 - **Grouping is untouched.** `calendarCityCards.ts` still groups strictly on
   `location.city`; nothing groups, colours, or buckets by `area`. It is
   display-only, as scoped.
@@ -640,13 +711,17 @@ needs action — skip this section when triaging.
   new field and agrees with the timeline. Included because shipping an `area`
   field while a slot named `area` still rendered "Ugly Duck Coffee" would have
   left the entry half-true.
-- **Left alone, reported not fixed:** `equality.ts` still omits `city` and
+- **Found here, fixed here: KI-54.** `equality.ts` also omitted `city` and
   `countryCode` from its field-by-field `Location` comparison — the same
   hand-enumeration hole one field over, and a correctness bug rather than a
-  cosmetic one (a city-only edit is invisible to `diffTripStates`, so
-  revert/undo silently keeps the old value). Filed as **KI-54** rather than
-  widened into here: it changes revert/undo semantics for two fields nobody
-  asked about, which deserves its own diff and its own witness.
+  cosmetic one (a city-only edit was invisible to `diffTripStates`, so
+  revert/undo silently kept the old value). It was first *filed* as KI-54 on
+  the reasoning that widening the comparison changes revert/undo semantics for
+  two fields nobody asked about. CodeRabbit then flagged the same omission on
+  PR #72 and rated it Major, which was the right correction: the list's own
+  comment says every field the contract grows must be added to it, so those two
+  were an omission rather than a decision. Fixed in the same PR — see KI-54,
+  resolved above.
 - **Severity:** cosmetic
 - **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).

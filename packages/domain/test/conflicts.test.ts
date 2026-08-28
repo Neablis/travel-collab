@@ -22,6 +22,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
     tripId: "trip-1",
     name: "Test",
     members: [{ userId: "user-1", role: "owner" }],
+    forkedFrom: null,
     startDate: null,
     days: [{ dayId: "day-1", activityIds: dayActivities.map((a) => a.id) }],
     backlog: backlogActivities.map((a) => a.id),

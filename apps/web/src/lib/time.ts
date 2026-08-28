@@ -71,7 +71,13 @@ export function toClockLabel(time: string): string {
  * the person reading the screen happens to be.
  */
 export function toClockRange(start: string, end: string): string {
-  return `${toClockLabel(start)}–${toClockLabel(end)}`;
+  // Spaces around the en dash (Mitchell, walking the #71 preview): "9 am–5 pm"
+  // ran the meridiem into the dash. Fixed in the one formatter rather than at
+  // the activity card he was looking at, so all eight call sites move together
+  // — the same reasoning `formatDuration` records below for its own spacing.
+  // `OverlapWarning` already hand-wrote the spaced form, so this makes the
+  // codebase agree with itself rather than introducing a new convention.
+  return `${toClockLabel(start)} – ${toClockLabel(end)}`;
 }
 
 // Hoisted verbatim out of components/lenses/TimelineLens.tsx (where it was

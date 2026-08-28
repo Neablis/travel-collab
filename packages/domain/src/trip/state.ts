@@ -1,4 +1,4 @@
-import type { ActivityKind, ActivityTag, Anchor, Location, Money, TimeWindow, TripMember, TripStatus } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, Anchor, Location, Money, TimeWindow, TripLineage, TripMember, TripStatus } from "@tc/contracts";
 
 export type ActivityState = {
   title: string;
@@ -20,6 +20,10 @@ export type TripState = {
   tripId: string;
   name: string;
   members: TripMember[];
+  // Where this trip came from, or null if it started from nothing. Set at
+  // genesis by TripCreated and never touched again — no command changes it,
+  // which is what makes it a fact about the stream rather than a field.
+  forkedFrom: TripLineage | null;
   startDate: string | null; // display-only until M3
   days: DayState[]; // ordinal = position in this array
   backlog: string[]; // ordered activityIds without a day

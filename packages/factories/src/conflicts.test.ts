@@ -16,7 +16,7 @@ const otherScenarioNames = scenarioNames.filter((s) => s !== "overlappingDay");
 // `detectConflicts` proves the scenario means what its name says.
 function stateFromCommands(scenario: ScenarioName, tripId: string): TripState {
   const ctx = { actorId: "dev-alice" };
-  const create: TripCommand = { type: "CreateTrip", tripId, name: `${scenario} fixture` };
+  const create: TripCommand = { type: "CreateTrip", tripId, name: `${scenario} fixture`, forkedFrom: null };
   let state: TripState | null = null;
   for (const command of [create, ...commandsFor(scenario, tripId)]) {
     const decision = decideTripCommand(state, command, ctx);

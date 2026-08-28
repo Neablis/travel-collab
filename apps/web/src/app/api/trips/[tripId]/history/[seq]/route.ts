@@ -1,24 +1,18 @@
 import { TripDetail } from "@tc/contracts";
-import { auth } from "@/server/auth";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { getTripDetailAt } from "@/server/history";
-import { getTripDetail } from "@/server/projections";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tripId: string; seq: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "unauthenticated" }, { status: 401 });
-  }
   const { tripId, seq } = await params;
-  const detail = await getTripDetail(tripId);
-  if (detail === null) return Response.json({ error: "not-found" }, { status: 404 });
-  const userId = session.user.id;
-  if (!detail.members.some((m) => m.userId === userId)) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
+  const access = await requireTripAccess(tripId, "viewer");
+  if ("error" in access) return access.error;
   const at = await getTripDetailAt(tripId, Number(seq));
   if (at === null) return Response.json({ error: "not-found" }, { status: 404 });
-  return Response.json({ trip: TripDetail.parse(at) });
+  // The members overlay applies to a replayed detail too: the point-in-time
+  // read replays the PLAN, not who is on the trip (membership is CRUD and has
+  // no seq to replay to — ADR-026).
+  return Response.json({ trip: TripDetail.parse({ ...at, members: access.detail.members }) });
 }

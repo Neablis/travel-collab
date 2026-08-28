@@ -2,6 +2,13 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
+// M11 link 6 made "Add a saved day" real, and it reads TripProvider. These
+// tests render the block bare; the button's own behaviour is
+// AddSavedDayButton.test.tsx's subject.
+vi.mock("@/components/trip/AddSavedDayButton", () => ({
+  AddSavedDayButton: () => <button type="button">Add a saved day</button>,
+}));
+
 import { EndOfTrip } from "./EndOfTrip";
 
 afterEach(cleanup);
@@ -10,7 +17,7 @@ describe("EndOfTrip", () => {
   // The phase file's own Step 1 test, verbatim in intent: the title, the body
   // (em dash included — this string is copy-table verbatim, never paraphrased)
   // and a real "Add a day" that actually calls back.
-  it("offers a real Add a day and an inert Add a saved day", async () => {
+  it("offers a real Add a day, and a real Add a saved day beside it", async () => {
     const onAddDay = vi.fn();
     render(<EndOfTrip onAddDay={onAddDay} />);
 
@@ -25,24 +32,22 @@ describe("EndOfTrip", () => {
     expect(onAddDay).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps Add a saved day inside the insert-playbook Preview region", () => {
+  // M11 link 6: "Add a saved day" is real, so it must sit OUTSIDE the
+  // <Preview id="insert-playbook"> that still shells the Playbook shortcuts —
+  // the shield swallows every click below it, and a real control inside one
+  // would be dead on arrival.
+  it("mounts the real Add a saved day outside the insert-playbook shell", async () => {
     render(<EndOfTrip onAddDay={vi.fn()} />);
-    const region = document.querySelector('[data-preview-id="insert-playbook"]');
+    const region = document.querySelector('[data-preview-id="insert-playbook"]') as HTMLElement;
     expect(region).not.toBeNull();
-    expect(within(region as HTMLElement).getByRole("button", { name: "Add a saved day" })).toBeTruthy();
-  });
-
-  // The Preview shield swallows pointer events on everything below it, so the
-  // saved-day half of the block cannot fire even though it renders as a real
-  // button — the same guarantee AddSavedDayButton.test.tsx asserts for the
-  // header's copy of this control.
-  it("cannot actually be clicked through the Preview shield", async () => {
-    const onAddDay = vi.fn();
-    render(<EndOfTrip onAddDay={onAddDay} />);
-    await expect(
-      userEvent.click(screen.getByRole("button", { name: "Add a saved day" })),
-    ).rejects.toThrow();
-    expect(onAddDay).not.toHaveBeenCalled();
+    const button = screen.getByRole("button", { name: "Add a saved day" });
+    expect(region.contains(button)).toBe(false);
+    // No click assertion here: this file mocks AddSavedDayButton, so a
+    // resolved `userEvent.click` would prove only that clicking a button with
+    // no handler does not throw — true of any button anywhere (CodeRabbit,
+    // PR #71). What the click was meant to show, that the shield does not
+    // swallow it, is exactly what `region.contains` already establishes; the
+    // real button's behaviour is covered in AddSavedDayButton.test.tsx.
   });
 
   it("shows at most three Playbook shortcuts, from the existing preview fixture", () => {

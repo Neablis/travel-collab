@@ -1,8 +1,9 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { BatchableCommand, TripDetail, TripHistory } from "@tc/contracts";
+import type { BatchableCommand, TripDetail, TripHistory, TripRole } from "@tc/contracts";
 import { usePublishSaveState } from "@/components/SaveLight";
 import {
+  fetchTripAccess,
   fetchTripDetail,
   fetchTripDetailAt,
   fetchTripHistory,
@@ -25,6 +26,11 @@ import {
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
+  // The trip this provider is for. Exposed because several controls need it
+  // to talk to an endpoint rather than to read state — `trip` is null while
+  // loading and during an error, and those controls still know which trip
+  // they belong to (M11 link 6's AddSavedDayButton is the first).
+  tripId: string;
   trip: TripDetail | null;
   history: TripHistory | null;
   activeTrip: TripDetail | null;
@@ -40,6 +46,13 @@ type TripCtx = {
   // from it (no refetch round-trip) — same shape as how undo/redo/revert
   // reconcile from their command response below.
   applyOutcome: (outcome: CommandOutcome) => void;
+  // The signed-in user's role on this trip (M11 link 3), or null while it is
+  // still loading or the read failed. ADVISORY ONLY: the server refuses every
+  // write from a viewer regardless (accessPolicy.ts + pages-guard.ts), and
+  // this exists so the board can say "View only" instead of letting someone
+  // drag a card and watch it snap back with a 403.
+  myRole: TripRole | null;
+  readOnly: boolean;
   // KI-36: the send queue's honest failure surface. `unsent` is the live count
   // of queued units the server has NOT accepted (retained, not discarded);
   // `failure` carries when the send failed and what the server said; `retry`
@@ -66,15 +79,28 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [optimistic, setOptimistic] = useState<OptimisticState | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
+  // Mirrors `optimistic` so `runDispatch` can predict against the CURRENT queue
+  // without taking it as a dependency. Two things depend on that: the callback
+  // keeps a stable identity (a drag captures it once and must not see it swap
+  // mid-gesture), and a second dispatch in the same tick chains off the first
+  // instead of re-reading a render-old value. Both broke the unscheduled-rack
+  // drag when this was written as a plain dependency.
+  const optimisticRef = useRef<OptimisticState | null>(null);
 
   const load = useCallback(async () => {
-    const [detailResult, historyResult] = await Promise.all([
+    const [detailResult, historyResult, accessResult] = await Promise.all([
       fetchTripDetail(tripId),
       fetchTripHistory(tripId),
+      // Failure here is deliberately non-fatal: `myRole` stays null and the
+      // board behaves exactly as it did before roles existed. The server is
+      // the boundary; this read only decides what the UI *offers*.
+      fetchTripAccess(tripId),
     ]);
+    setMyRole(accessResult.ok ? accessResult.value.myRole : null);
     if (!detailResult.ok) {
       setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
       setError(detailResult.error.message);
@@ -170,23 +196,54 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     })();
   }, [optimistic, tripId]);
 
+  // A viewer holds read access and executes no planning command at all
+  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry). Stopping
+  // here rather than at the network means the optimistic queue never predicts
+  // a change that is going to be refused — which is what would otherwise make
+  // a card visibly move and then jump back.
+  const readOnly = myRole === "viewer";
+
   const runDispatch = useCallback((commands: BatchableCommand[]) => {
-    // `rejectionMessage` is populated (deterministically, from `prev`) inside
-    // the updater below, but setError itself is only ever invoked once, here,
-    // after setOptimistic returns — keeps the updater free of side effects.
-    let rejectionMessage: string | null = null;
-    setOptimistic((prev) => {
-      if (!prev) return prev;
-      const r = enqueue(prev, `c${++seq.current}`, commands);
-      if (r.ok) return r.state;
-      if (r.code !== "no-op") rejectionMessage = r.message; // predicted rejection — no send
-      return prev;
-    });
-    setError(rejectionMessage);
-  }, []);
+    if (readOnly) {
+      setError("You have view-only access to this trip.");
+      return;
+    }
+    // Predicted OUTSIDE the updater, against `optimistic` from this render.
+    //
+    // It used to be computed inside `setOptimistic`, assigning to a `let` that
+    // the line after the call then read. React does not run an updater
+    // synchronously — updaters run in the render phase — so that read always
+    // saw `null` and EVERY predicted rejection was silent: no send, no
+    // message, a click that did nothing. Mitchell hit this walking the #71
+    // preview: a trip whose state rejects every command (a deleted one, say,
+    // which `decideCommand` refuses wholesale) looked simply inert.
+    //
+    // The send effect above already computes its failure in the outer scope
+    // for exactly this reason and says so — "updater functions must stay pure,
+    // since React may invoke them more than once". This is that rule applied
+    // to the path that was still breaking it.
+    const base = optimisticRef.current;
+    if (!base) return;
+    const result = enqueue(base, `c${++seq.current}`, commands);
+    if (!result.ok) {
+      // A no-op changed nothing, which is not worth alarming anyone about —
+      // the same judgement the send effect makes on the server's own no-op.
+      setError(result.code === "no-op" ? null : result.message);
+      return;
+    }
+    // Advanced before `setOptimistic` so anything dispatched later in this same
+    // tick predicts against this result rather than the pre-dispatch queue.
+    optimisticRef.current = result.state;
+    setError(null);
+    setOptimistic(result.state);
+  }, [readOnly]);
 
   const dispatch = useCallback(
     async (command: BoardCommand) => {
+      if (readOnly) {
+        setError("You have view-only access to this trip.");
+        return;
+      }
       if (HISTORY_TYPES.has(command.type)) {
         if (pending) return;
         setError(null);
@@ -201,7 +258,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       }
       runDispatch([command as BatchableCommand]);
     },
-    [runDispatch, pending, exit],
+    [runDispatch, pending, exit, readOnly],
   );
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the
@@ -227,6 +284,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     setError(null);
   }, []);
 
+  // Kept in step with the state on every render, so a change made anywhere
+  // else — the initial load, the sender confirming a head, applyOutcome,
+  // retry — is what the next dispatch predicts against.
+  optimisticRef.current = optimistic;
+
   const confirmedDetail = optimistic ? activeDetail(optimistic) : null;
   const history: TripHistory | null = optimistic ? activeHistory(optimistic) : null;
   const trip = optimistic?.confirmed.detail ?? null;
@@ -242,6 +304,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   return (
     <Ctx.Provider
       value={{
+        tripId,
         trip,
         history,
         activeTrip,
@@ -251,6 +314,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         dispatch,
         dispatchBatch,
         applyOutcome,
+        myRole,
+        readOnly,
         sync,
         preview: { seq: previewSeq, enter, exit },
       }}

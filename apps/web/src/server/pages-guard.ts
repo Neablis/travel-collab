@@ -1,6 +1,5 @@
-import { auth } from "@/server/auth";
-import { getTripDetail } from "@/server/projections";
-import type { TripDetail } from "@tc/contracts";
+import type { TripDetail, TripRole } from "@tc/contracts";
+import { requireTripAccess } from "@/server/access/trip-access";
 
 // Explicit return type: without it, TS infers complementary optional keys
 // (`{ error: Response; userId?: undefined; detail?: undefined } | { userId: string; detail: TripDetail; error?: undefined }`)
@@ -10,13 +9,19 @@ import type { TripDetail } from "@tc/contracts";
 // internally to check membership — callers that also need the trip detail
 // (e.g. the AI route) can reuse it instead of re-fetching. Callers that only
 // need `userId` (the pages CRUD routes) simply ignore the extra field.
-type GuardResult = { error: Response } | { userId: string; detail: TripDetail };
+type GuardResult = { error: Response } | { userId: string; role: TripRole; detail: TripDetail };
 
-export async function guard(tripId: string): Promise<GuardResult> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
-  const detail = await getTripDetail(tripId);
-  if (detail === null) return { error: Response.json({ error: "not-found" }, { status: 404 }) };
-  if (!detail.members.some((m) => m.userId === session.user!.id)) return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
-  return { userId: session.user.id, detail };
+/**
+ * `minimum` is REQUIRED, and that is the whole point of this signature.
+ *
+ * Until M11 link 3 this function checked membership with no role at all, and
+ * it fronts both the Notebook page-write routes and the AI handler — so the
+ * first `viewer` the invite flow created would have been able to write pages
+ * and drive the assistant on a trip they may only read. A viewer is read-only
+ * everywhere: reads pass `"viewer"`, every write and the assistant pass
+ * `"editor"`. Making the parameter required means the next route that calls
+ * this cannot inherit the old default by forgetting to think about it.
+ */
+export async function guard(tripId: string, minimum: TripRole): Promise<GuardResult> {
+  return requireTripAccess(tripId, minimum);
 }

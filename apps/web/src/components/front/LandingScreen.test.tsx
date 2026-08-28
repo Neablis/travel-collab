@@ -27,20 +27,18 @@ describe("LandingScreen", () => {
     expect(screen.getByRole("link", { name: "Continue with Google" }).getAttribute("href")).toBe("/signup");
   });
 
-  it("marks both peek-at-a-trip buttons as unbuilt rather than shipping dead buttons", () => {
+  // M11 link 4 retired both shells (`landing-peek-trip`,
+  // `landing-see-finished`). They are now two ordinary links to the same
+  // place — and it stays an ordinary link, not a fetch: SPEC §14 says this
+  // page runs on nothing, so the CTA does not go looking for a trip to peek
+  // at. `/s/featured` decides that, on its own page.
+  it("sends both peek-at-a-trip CTAs to a real, public share page", () => {
     const { container } = render(<LandingScreen />);
-    // Two shells with distinct ids, not one id used twice: the e2e spec locates
-    // by `data-preview-id` and Playwright's strict mode fails on two matches.
-    // querySelectorAll + a length assertion, not querySelector: the whole
-    // reason these are two distinct ids is that a duplicate breaks Playwright's
-    // strict mode in the e2e spec, and a first-match lookup would pass happily
-    // against exactly the duplicate this is meant to catch (CodeRabbit, PR #58).
-    const peek = container.querySelectorAll('[data-preview-id="landing-peek-trip"]');
-    const finished = container.querySelectorAll('[data-preview-id="landing-see-finished"]');
-    expect(peek).toHaveLength(1);
-    expect(finished).toHaveLength(1);
-    expect(peek[0]?.textContent).toContain("Look around a real trip");
-    expect(finished[0]?.textContent).toContain("See a finished one");
+    expect(container.querySelectorAll("[data-preview-id]")).toHaveLength(0);
+    const peek = screen.getByRole("link", { name: "Look around a real trip" });
+    const finished = screen.getByRole("link", { name: "See a finished one" });
+    expect(peek.getAttribute("href")).toBe("/s/featured");
+    expect(finished.getAttribute("href")).toBe("/s/featured");
   });
 
   it("carries the Early access footnote", () => {

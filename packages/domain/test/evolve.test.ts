@@ -10,7 +10,7 @@ const ACT = "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a81";
 const created: TripEvent = {
   type: "TripCreated",
   version: 1,
-  payload: { tripId: TRIP, name: "Rome 2027", createdBy: "user-1" },
+  payload: { tripId: TRIP, name: "Rome 2027", createdBy: "user-1", forkedFrom: null },
 };
 
 function fold(events: TripEvent[]): TripState {
@@ -213,7 +213,7 @@ describe("evolveTrip totality — activity events naming an unknown day", () => 
 describe("lifecycle events", () => {
   const tripId = "11111111-1111-4111-8111-111111111111";
   const created = evolveTrip(null, {
-    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1" },
+    type: "TripCreated", version: 1, payload: { tripId, name: "Japan", createdBy: "u1", forkedFrom: null },
   });
 
   it("starts a trip active", () => {

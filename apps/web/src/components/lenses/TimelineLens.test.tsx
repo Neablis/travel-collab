@@ -6,6 +6,17 @@ import { FocusProvider, useFocus } from "@/components/trip/context/FocusProvider
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { toMinutes, toTimeString } from "@/lib/time";
+// M11 link 6 made "Add a saved day" real, and EndOfTrip (rendered at the
+// bottom of this lens) mounts it. It reads TripProvider, which these tests
+// deliberately do not stand up — they render the lens bare against a fixture.
+// Stubbed here rather than restructuring the component tree for a test: the
+// button's own behaviour is AddSavedDayButton.test.tsx's subject, and nothing
+// in this file is about it. Same treatment SettingsSheet.test.tsx gives
+// TravelersPanel.
+vi.mock("@/components/trip/AddSavedDayButton", () => ({
+  AddSavedDayButton: () => null,
+}));
+
 import { TimelineLens, nextSlot } from "./TimelineLens";
 import type { TimelineRow } from "./timelineData";
 
@@ -29,7 +40,7 @@ function detailFixture() {
         activityId: "timed1",
         title: "Colosseum tour",
         timeWindow: { start: "09:00", end: "11:00" },
-        location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
+        location: { name: "Colosseum, Rome, Italy", city: "Rome", lat: 41.8902, lng: 12.4922 },
         notes: null,
         anchors: [],
         kind: "planned" as const,
@@ -257,7 +268,7 @@ const detailWithCoordinatesOnBothStops = tripDetailFixture({
       activityId: "a1",
       title: "Colosseum tour",
       timeWindow: { start: "09:00", end: "10:00" },
-      location: { name: "Colosseum", lat: 41.8902, lng: 12.4922 },
+      location: { name: "Colosseum", city: "Rome", lat: 41.8902, lng: 12.4922 },
       notes: null,
       anchors: [],
       kind: "planned" as const,
@@ -268,7 +279,7 @@ const detailWithCoordinatesOnBothStops = tripDetailFixture({
       activityId: "a2",
       title: "Roman Forum",
       timeWindow: { start: "11:00", end: "12:00" },
-      location: { name: "Roman Forum", lat: 41.8925, lng: 12.4853 },
+      location: { name: "Roman Forum", city: "Rome", lat: 41.8925, lng: 12.4853 },
       notes: null,
       anchors: [],
       kind: "planned" as const,
@@ -294,11 +305,15 @@ describe("TimelineLens", () => {
   it("renders a day header with the day ordinal, stop count, and derived city (#28)", () => {
     renderLens();
     expect(screen.getByText("Day 1")).not.toBeNull();
-    // "Colosseum, Rome, Italy" legitimately appears twice: once in the day
-    // header's derived-city pill/route summary, once in the activity row's
-    // place line — scope to the header to assert the former specifically.
+    // The header's derived city is the CITY — "Rome" — not the venue. This
+    // asserted "Colosseum, Rome, Italy" until grouping stopped falling back to
+    // `location.name`, which is to say the test was pinning the bug: a day
+    // spent at the Colosseum was labelled "Colosseum, Rome, Italy" rather than
+    // Rome. The venue still appears in the activity row's own place line, so
+    // scoping to the header is what separates the two.
     const header = screen.getByTestId("timeline-dayhead-d1");
-    expect(within(header).getAllByText(/Colosseum, Rome, Italy/).length).toBeGreaterThan(0);
+    expect(within(header).getAllByText(/Rome/).length).toBeGreaterThan(0);
+    expect(within(header).queryByText(/Colosseum/)).toBeNull();
     // Stop-meter: real elapsed duration of the one 09:00–11:00 activity.
     expect(screen.getByText("2 h out")).not.toBeNull();
   });
@@ -327,11 +342,14 @@ describe("TimelineLens", () => {
     await expect(userEvent.click(screen.getByTestId("timeline-add-d1"))).resolves.not.toThrow();
   });
 
-  it("renders the keep-day flag inert, inside the keep-day-flag Preview region", () => {
+  // M11 link 6 retired <Preview id="keep-day-flag">. What this lens is still
+  // responsible for is putting the pennant on each day's header row, wired to
+  // that day — its dialog and save are KeepDayFlag.test.tsx's subject.
+  it("puts a live keep-day pennant on the day header", () => {
     renderLens();
-    const region = document.querySelector('[data-preview-id="keep-day-flag"]');
-    expect(region).not.toBeNull();
-    expect(within(region as HTMLElement).getByRole("button", { name: "Keep day 1" })).not.toBeNull();
+    expect(document.querySelector('[data-preview-id="keep-day-flag"]')).toBeNull();
+    const flag = screen.getByRole("button", { name: "Keep day 1" });
+    expect(flag.hasAttribute("disabled")).toBe(false);
   });
 
   it("renders the ghost Ask affordance inert, inside the timeline-ghost Preview region", () => {
@@ -424,7 +442,7 @@ describe("TimelineLens", () => {
           activityId: "timed1",
           title: "Colosseum tour",
           timeWindow: { start: "09:00", end: "11:00" },
-          location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922 },
+          location: { name: "Colosseum, Rome, Italy", city: "Rome", lat: 41.8902, lng: 12.4922 },
           notes: null,
           anchors: [],
           kind: "planned" as const,

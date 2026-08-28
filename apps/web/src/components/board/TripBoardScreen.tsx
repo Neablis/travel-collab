@@ -30,35 +30,24 @@ import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 
-// Handoff `current/…dc.html:1111-1119`: the rail is an inline column at wide
-// widths and an overlay below 1180px, where it starts hidden so it never covers
-// the plan. A resize moves it back and forth — but only until the user makes
-// their own choice, after which their preference wins at every width.
+// Closed until asked for, at every width (Mitchell, walking the #71 preview:
+// "Can we default the assistant to minimized? Its a better experience").
+//
+// This narrows the handoff (`current/…dc.html:1111-1119`), which had the rail
+// as an inline column at wide widths and an overlay below 1180px that starts
+// hidden. The overlay half is unchanged — that is layout, and it still never
+// covers the plan uninvited. What changed is that a wide viewport no longer
+// opens the rail on the reader's behalf: the plan is what someone came for,
+// and the assistant is one click away rather than already occupying a column.
+//
+// The media query went with it rather than staying as dead weight. Its only
+// job was deciding the default per width, and there is one default now; the
+// overlay-vs-column treatment is CSS keyed off `assistant-hidden`, not this
+// hook, so nothing responsive is lost. `userChose` went for the same reason —
+// with no automatic opening there is no automatic decision left to override.
 function useAssistantVisibility() {
-  const [open, setOpen] = useState(true);
-  const userChose = useRef(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1180px)");
-    const sync = () => {
-      if (!userChose.current) setOpen(mq.matches);
-    };
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  return {
-    open,
-    show: () => {
-      userChose.current = true;
-      setOpen(true);
-    },
-    hide: () => {
-      userChose.current = true;
-      setOpen(false);
-    },
-  };
+  const [open, setOpen] = useState(false);
+  return { open, show: () => setOpen(true), hide: () => setOpen(false) };
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {

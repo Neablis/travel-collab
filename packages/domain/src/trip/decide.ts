@@ -45,6 +45,11 @@ export function decideCreateTrip(
         tripId: command.tripId,
         name: command.name,
         createdBy: ctx.actorId,
+        // Passed through, never derived: the domain is pure and has no way to
+        // know whether the ancestor exists or what it was called. The server's
+        // clone path is the only caller that sets it and the only thing that
+        // can check (server/cloneTrip.ts).
+        forkedFrom: command.forkedFrom,
       },
     },
   ]);

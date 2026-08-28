@@ -179,4 +179,32 @@ describe("badgeableConflictSubjects", () => {
     const d = detail({ dismissedConflictIds: ["time-overlap:d1:a:b"] });
     expect([...badgeableConflictSubjects(d, new Set())]).toEqual([]);
   });
+
+  it("does not badge a dismissed conflict of any other kind either", () => {
+    // The bug this pins: the dismissal and the rendered-overlap exclusions
+    // used to be one `kind !== OVERLAP_KIND || !surfaced(c)` test, so the
+    // dismissal half was unreachable for anything but an overlap. Dismissing
+    // a distance conflict removed its ConflictBanner row and left the
+    // triangle stranded on the card, unexplained and un-dismissable.
+    const d = detail({
+      conflicts: [
+        { id: "impossible-geography:d1:a:b", kind: "impossible-geography", severity: "warn", subjects: ["a", "b"], description: '"Nezu Museum" (Tokyo) and "Lunch at Kagari" (Kanazawa) are ~309 km apart on the same day.', resolutions: [] },
+      ],
+      dismissedConflictIds: ["impossible-geography:d1:a:b"],
+    });
+    expect([...badgeableConflictSubjects(d, new Set())]).toEqual([]);
+  });
+
+  it("still badges an undismissed conflict of another kind when a sibling overlap is dismissed", () => {
+    // The mirror of the case above: dismissal is per conflict id, not a
+    // blanket mute for the stop.
+    const d = detail({
+      conflicts: [
+        overlapConflict("time-overlap:d1:a:b", ["a", "b"]),
+        { id: "impossible-geography:d1:a:b", kind: "impossible-geography", severity: "warn", subjects: ["a", "b"], description: '"Nezu Museum" (Tokyo) and "Lunch at Kagari" (Kanazawa) are ~309 km apart on the same day.', resolutions: [] },
+      ],
+      dismissedConflictIds: ["time-overlap:d1:a:b"],
+    });
+    expect([...badgeableConflictSubjects(d, new Set())].sort()).toEqual(["a", "b"]);
+  });
 });

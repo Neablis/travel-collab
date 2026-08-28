@@ -496,6 +496,9 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.queryAllByTestId("day-column")).toHaveLength(0);
 
+    // The rail is closed until asked for now, so open it before reaching for
+    // anything inside it.
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Add a day" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
@@ -519,6 +522,9 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
+    // The rail is closed until asked for now, so open it before reaching for
+    // anything inside it.
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "First ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
@@ -543,6 +549,9 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    // The rail is closed until asked for now, so open it before reaching for
+    // anything inside it.
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide" }));
@@ -626,36 +635,39 @@ describe("lens bottom-margin exemption for the full-bleed Map lens", () => {
   });
 });
 
+// The rail is now closed until asked for, at EVERY width (Mitchell, walking
+// the #71 preview). These used to assert the old per-width default — one for
+// each side of the 1180px breakpoint, plus a third proving a user's "hide"
+// survived the media query re-opening it. There is no automatic opening left
+// to override, so what is worth pinning now is that width does not decide
+// this and the launcher is always the way in.
 describe("assistant rail visibility", () => {
-  it("starts hidden below the 1180px overlay breakpoint", async () => {
-    setViewportMatches({ "(min-width: 1180px)": false });
+  for (const [label, wide] of [["below", false], ["at or above", true]] as const) {
+    it(`starts hidden ${label} the 1180px breakpoint, with the launcher offering it`, async () => {
+      setViewportMatches({ "(min-width: 1180px)": wide });
+      const fixture = tripDetailFixture();
+      server.use(...makeTripHandlers(fixture));
+      renderScreen(fixture.tripId);
+
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+      expect(screen.getByRole("button", { name: /assistant/i })).toBeTruthy();
+    });
+  }
+
+  // Both directions, so "hidden" is known to be a real default rather than a
+  // rail that never opens at all.
+  it("opens on the launcher and closes again on Hide, at a wide viewport", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
-    expect(screen.getByRole("button", { name: /assistant/i })).toBeTruthy();
-  });
-
-  it("starts shown at or above the breakpoint", async () => {
-    setViewportMatches({ "(min-width: 1180px)": true });
-    const fixture = tripDetailFixture();
-    server.use(...makeTripHandlers(fixture));
-    renderScreen(fixture.tripId);
-
+    await userEvent.click(screen.getByRole("button", { name: /assistant/i }));
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
-  });
 
-  it("keeps the rail hidden after the user hides it, even at a wide viewport", async () => {
-    setViewportMatches({ "(min-width: 1180px)": true });
-    const fixture = tripDetailFixture();
-    server.use(...makeTripHandlers(fixture));
-    renderScreen(fixture.tripId);
-
-    await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
-
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 });

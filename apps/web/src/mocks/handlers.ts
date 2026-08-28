@@ -7,6 +7,7 @@ import {
   type Page,
   type TripDetail,
   type TripHistory,
+  type TripRole,
 } from "@tc/contracts";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string; area?: string };
@@ -144,6 +145,7 @@ export function makeTripHandlers(
     detailAt?: Record<number, TripDetail>;
     onCommand?: (command: TripCommand) => void;
     geocode?: GeocodeResult[];
+    myRole?: TripRole;
   },
 ) {
   let detail = structuredClone(initial);
@@ -192,6 +194,20 @@ export function makeTripHandlers(
         ? HttpResponse.json({ trip: at })
         : HttpResponse.json({ error: "not-found" }, { status: 404 });
     }),
+    // M11 link 3: TripProvider reads the caller's role alongside detail and
+    // history. Mocked as `owner` by default so every existing component test
+    // keeps the full-edit board it was written against; pass
+    // `options.myRole` to exercise the read-only path.
+    http.get("/api/trips/:tripId/access", () =>
+      HttpResponse.json({
+        access: {
+          tripId: detail.tripId,
+          myRole: options?.myRole ?? "owner",
+          members: detail.members.map((m) => ({ ...m, name: null, email: null, image: null })),
+          invites: [],
+        },
+      }),
+    ),
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
       return HttpResponse.json({ results: q ? (options?.geocode ?? []) : [] });

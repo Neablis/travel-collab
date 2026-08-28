@@ -14,6 +14,7 @@ function conflictedState(): TripState {
     tripId: TRIP,
     name: "Rome",
     members: [{ userId: "u1", role: "owner" }],
+    forkedFrom: null,
     startDate: null,
     days: [{ dayId: DAY, activityIds: [A1, A2] }],
     backlog: [],

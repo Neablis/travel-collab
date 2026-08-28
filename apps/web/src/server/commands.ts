@@ -7,6 +7,7 @@ import {
   type TripDetail,
   type TripEvent,
   type TripHistory,
+  type TripMember,
 } from "@tc/contracts";
 import {
   buildHistoryEntries,
@@ -22,7 +23,8 @@ import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
 import { appendToStream, readStream } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
-import { soleMemberPolicy } from "./accessPolicy";
+import { memberRolePolicy } from "./accessPolicy";
+import { effectiveMembers } from "./access/members";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
@@ -69,8 +71,15 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
     const history = await readStream(tx, command.tripId);
     const state = foldEnvelopes(history);
 
-    // 3. authorize via the AccessPolicy seam
-    if (!soleMemberPolicy.canExecute(actorId, command.type, state?.members ?? null)) {
+    // 3. authorize via the AccessPolicy seam.
+    //
+    // The member list is the EFFECTIVE one — the log's owner merged with the
+    // Access module's accepted-invite rows (M11 link 3). The planning domain
+    // still knows nothing about invites: `state.members` is unchanged, and the
+    // merge happens out here, on the way into the seam that was always the
+    // only interpreter of a role (AGENTS.md invariant 6c).
+    const members = state === null ? null : await effectiveMembers(tx, command.tripId, state.members);
+    if (!memberRolePolicy.canExecute(actorId, command.type, members)) {
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
     }
 
@@ -120,8 +129,20 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       command.tripId,
     );
 
-    return { ok: true, tripId: command.tripId, detail, history: historyDto };
+    return { ok: true, tripId: command.tripId, detail: withMembers(detail, members), history: historyDto };
   });
+}
+
+// The stored projection stays exactly what the log produces (invariant 2 —
+// `upsertTripDetail` above already wrote it); only the DTO handed back to the
+// caller carries the effective member list, so a command response and a
+// subsequent GET agree about who is on the trip.
+//
+// `members` is null only for CreateTrip, whose stream did not exist when the
+// merge was attempted; the created trip's own projection already carries its
+// owner and there are no grants to merge yet.
+function withMembers(detail: TripDetail, members: TripMember[] | null): TripDetail {
+  return members === null ? detail : { ...detail, members };
 }
 
 const BatchBody = z.array(BatchableCommand).min(1);
@@ -151,8 +172,12 @@ export async function executeTripCommandBatch(input: unknown, actorId: string): 
     const history = await readStream(tx, tripId);
     let state = foldEnvelopes(history);
 
-    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand)
-    if (!soleMemberPolicy.canExecute(actorId, commands[0]!.type, state?.members ?? null)) {
+    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand),
+    //    for EVERY sub-command: roles are per-command (accessPolicy.ts), so
+    //    checking only the first would let a batch smuggle in a command the
+    //    actor's role does not permit.
+    const members = state === null ? null : await effectiveMembers(tx, tripId, state.members);
+    if (commands.some((c) => !memberRolePolicy.canExecute(actorId, c.type, members))) {
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
     }
 
@@ -202,6 +227,6 @@ export async function executeTripCommandBatch(input: unknown, actorId: string): 
       tripId,
     );
 
-    return { ok: true, tripId, detail, history: historyDto };
+    return { ok: true, tripId, detail: withMembers(detail, members), history: historyDto };
   });
 }

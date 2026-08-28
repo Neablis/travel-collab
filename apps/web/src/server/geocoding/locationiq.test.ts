@@ -23,6 +23,9 @@ describe("LocationIQ geocoder adapter", () => {
     expect(url.searchParams.get("key")).toBe("KEY123");
     expect(url.searchParams.get("q")).toBe("Colosseum");
     expect(url.searchParams.get("limit")).toBe("3");
+    // Romanised, and fixed rather than per-reader: the name this returns is
+    // persisted and then shown to everyone the trip is shared with.
+    expect(url.searchParams.get("accept-language")).toBe("en");
   });
 
   it("extracts city from the address breakdown, falling back through town/village/hamlet", async () => {

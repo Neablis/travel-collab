@@ -41,10 +41,6 @@ const DEFAULT_CURRENCY = "USD";
 // design's own destChips fixture.
 const DESTINATION_CHIP_SHAPE = ["Lisbon", "Mexico City", "Seoul", "Copenhagen", "Big Sur", "Back to Kyoto"] as const;
 
-// Illustrative only (Preview id="wizard-invite-list", M13 — TripMember.role
-// is the literal string "owner", so there is no one else to list yet).
-const INVITE_SHAPE = [{ name: "You", role: "Owner" }] as const;
-
 // Illustrative only (Preview id="wizard-pace-tags", M9 — pace and tags exist
 // only to feed the assistant's draft, which doesn't exist yet).
 const PACE_OPTIONS = [
@@ -328,21 +324,20 @@ function WizardBody({
             <Text variant="muted" className="mb-1.5">
               Who is coming?
             </Text>
-            <Preview id="wizard-invite-list" size="container" className="p-1.5">
-              <div className="flex flex-col gap-1.5">
-                {INVITE_SHAPE.map((member) => (
-                  <div key={member.name} className="flex items-center gap-2.5 px-1.5 py-1">
-                    <span className="size-6 shrink-0 rounded-full bg-moss" aria-hidden />
-                    <Text as="span" className="flex-1 text-sm text-ink">
-                      {member.name}
-                    </Text>
-                    <Text as="span" variant="muted">
-                      {member.role}
-                    </Text>
-                  </div>
-                ))}
-              </div>
-            </Preview>
+            {/* M11 link 3 retired <Preview id="wizard-invite-list"> — the
+                mocked "You / Owner" row it showed. Inviting is real now, but
+                it needs a trip to invite someone TO: an invite is a row
+                against a tripId (packages/contracts/src/access.ts), and this
+                step runs before CreateTrip. Collecting addresses here and
+                replaying them after creation would be a second, hidden invite
+                path with its own failure mode (the trip exists, the invites
+                silently did not), for a wizard step that is one click from the
+                real one. So this says where invites live instead of pretending
+                to be them — honest, and not a shell. */}
+            <Text as="span" className="text-sm text-ink">
+              Just you, for now — invite people from Trip settings once the trip
+              exists.
+            </Text>
           </div>
           <div
             className="grid gap-2.5"

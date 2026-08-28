@@ -6,3 +6,6 @@ export * from "./conflict";
 export * from "./history";
 export * from "./money";
 export * from "./pages";
+export * from "./access";
+export * from "./share";
+export * from "./saved";

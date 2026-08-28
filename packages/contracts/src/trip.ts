@@ -19,10 +19,38 @@ import {
 } from "./history";
 import { Money } from "./money";
 
+// Where a trip came from, when it came from somewhere (M11 link 5, ADR-028).
+//
+// Captured at GENESIS and never mutated: it is a fact about how this stream
+// began, so it lives in `TripCreated`'s payload rather than in a CRUD table —
+// the foundation design has always listed it as part of a Trip ("lineage
+// pointer (`forkedFrom: {tripId, atSeq}`)"), and ADR-001 names fork-with-
+// lineage as one of the things that falls out of the event log for free.
+//
+// `name` is the ancestor's name AT THE MOMENT OF THE FORK, deliberately
+// copied into the payload rather than looked up. A projection must be
+// rebuildable from the log alone (AGENTS.md invariant 2), and a cross-stream
+// read at projection time would break that; it also means the credit survives
+// the ancestor being renamed, or deleted, or becoming unreadable to the person
+// holding the copy — which is the normal case when the copy came from a share
+// link handed to a stranger.
+export const TripLineage = z.object({
+  tripId: z.string().uuid(),
+  // The ancestor's history point this was copied from. 1-based, matching
+  // `events.seq`.
+  atSeq: z.number().int().min(1),
+  name: z.string().min(1).max(200),
+});
+export type TripLineage = z.infer<typeof TripLineage>;
+
 export const CreateTrip = z.object({
   type: z.literal("CreateTrip"),
   tripId: z.string().uuid(),
   name: z.string().min(1).max(200),
+  // Only ever set by the server's clone path (`server/cloneTrip.ts`). No
+  // client can forge it: `POST /api/trips` accepts a name and nothing else,
+  // and `POST /api/trips/:id/commands` refuses `CreateTrip` outright.
+  forkedFrom: TripLineage.nullable().default(null),
 });
 export type CreateTrip = z.infer<typeof CreateTrip>;
 
@@ -33,6 +61,12 @@ export const TripCreatedV1 = z.object({
     tripId: z.string().uuid(),
     name: z.string().min(1).max(200),
     createdBy: z.string().min(1),
+    // `.default(null)` rather than `.optional()`: every TripCreated row
+    // written before M11 link 5 has no such key, and a default makes those
+    // rows parse to an explicit `null` instead of `undefined` — so replay,
+    // rebuild and the golden test all see one shape, not two. Additive and
+    // backwards compatible; no migration, no event version bump.
+    forkedFrom: TripLineage.nullable().default(null),
   }),
 });
 export type TripCreatedV1 = z.infer<typeof TripCreatedV1>;
@@ -229,9 +263,20 @@ export const BatchableCommand = z.discriminatedUnion("type", [
 ]);
 export type BatchableCommand = z.infer<typeof BatchableCommand>;
 
+// Ordered least- to most-privileged; `AccessPolicy` (apps/web/src/server) is
+// the only thing that interprets the ranking, and the planning domain never
+// reads a role at all (AGENTS.md invariant 6c). `owner` is still the only role
+// anything MINTS — TripCreated makes its creator the owner and no command adds
+// a member — so editor/viewer are unreachable at runtime until invites (M11
+// link 3). Widening a literal to an enum that contains it is backwards
+// compatible: every `members` row already persisted in `trip_summaries` /
+// `trip_details` jsonb still parses.
+export const TripRole = z.enum(["viewer", "editor", "owner"]);
+export type TripRole = z.infer<typeof TripRole>;
+
 export const TripMember = z.object({
   userId: z.string().min(1),
-  role: z.literal("owner"),
+  role: TripRole,
 });
 export type TripMember = z.infer<typeof TripMember>;
 

@@ -71,7 +71,12 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
     : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
-    <Card className="flex flex-col gap-3">
+    // data-testid: the card is the anchor for its own actions menu, and the
+    // cost line below lands asynchronously (page.tsx's per-card TripDetail
+    // fan-out). KI-28 needs a way to wait for *this* card to stop growing
+    // before opening that menu, and the trigger's aria-label alone gives no
+    // handle on the row it belongs to.
+    <Card data-testid="trip-card" className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div
           data-testid="accent-bar"

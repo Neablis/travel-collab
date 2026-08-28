@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripCommand, TripMember } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -14,6 +14,13 @@ const duplicateTripMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
   duplicateTrip: (...args: unknown[]) => duplicateTripMock(...args),
+}));
+
+// The Travelers section is TravelersPanel's own surface (and its own test
+// file) as of M11 link 3; it fetches /api/trips/:id/access on mount, which
+// this file's tests neither stub nor care about.
+vi.mock("@/components/trip/TravelersPanel", () => ({
+  TravelersPanel: ({ tripId }: { tripId: string }) => <div data-testid="travelers-panel">{tripId}</div>,
 }));
 
 import { SettingsSheet } from "./SettingsSheet";
@@ -36,8 +43,6 @@ const defaultSpend: TripSpend = {
   over: false,
 };
 
-const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
-
 // Existing A15 helper, extended (not replaced) with the two new required
 // props (#5, controller ruling) — every existing call site below keeps
 // working unchanged since both take defaults. Further extended (this task)
@@ -45,7 +50,16 @@ const defaultMembers: TripMember[] = [{ userId: "dev-alice", role: "owner" }];
 // capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
   onDeleted = vi.fn(),
-  overrides: { spend?: TripSpend; members?: TripMember[]; onCommand?: (command: TripCommand) => void } = {},
+  overrides: {
+    spend?: TripSpend;
+    forkedFrom?: TripDetail["forkedFrom"];
+    myRole?: TripRole | null;
+    // Defaults to null. The money controls that only exist once a trip HAS a
+    // budget — the clear-X, and a currency select worth changing — cannot be
+    // exercised without this.
+    budget?: Money | null;
+    onCommand?: (command: TripCommand) => void;
+  } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
   render(
@@ -58,9 +72,10 @@ function renderSheet(
       endDate={null}
       dayCount={0}
       currency="USD"
-      budget={null}
+      budget={overrides.budget ?? null}
       spend={overrides.spend ?? defaultSpend}
-      members={overrides.members ?? defaultMembers}
+      forkedFrom={overrides.forkedFrom ?? null}
+      {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
       onDeleted={onDeleted}
     />,
@@ -72,7 +87,7 @@ function renderSheet(
 // thin wrapper around renderSheet that makes the budget-remaining override
 // (the thing every new test below actually varies) a one-liner.
 function renderSettings(
-  opts: { open?: boolean; budgetRemaining?: number | null; members?: TripMember[] } = {},
+  opts: { open?: boolean; budgetRemaining?: number | null } = {},
 ) {
   const remaining = "budgetRemaining" in opts ? opts.budgetRemaining! : defaultSpend.remaining;
   const spend: TripSpend = {
@@ -80,7 +95,7 @@ function renderSettings(
     remaining,
     over: remaining !== null && remaining < 0,
   };
-  renderSheet(vi.fn(), { spend, members: opts.members });
+  renderSheet(vi.fn(), { spend });
 }
 
 // Renaming lives here now: PR #55's preview feedback removed the header's
@@ -178,9 +193,11 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
     expect(screen.getByText("No budget set")).toBeTruthy();
   });
 
-  it("lists real members", () => {
+  // M11 link 3 moved the member list into TravelersPanel (mocked above), so
+  // what this sheet is still responsible for is mounting it for THIS trip.
+  it("mounts the Travelers panel for this trip", () => {
     renderSettings({ open: true });
-    expect(screen.getByText("dev-alice")).toBeTruthy();
+    expect(screen.getByTestId("travelers-panel").textContent).toBe(tripId);
   });
 });
 
@@ -257,5 +274,153 @@ describe("SettingsSheet delete/duplicate (A15)", () => {
 
     await waitFor(() => expect(duplicateTripMock).toHaveBeenCalledWith(tripId));
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+  });
+});
+
+
+// M11 link 5 — the visible half of clone-with-lineage.
+describe("SettingsSheet lineage", () => {
+  it("says nothing about provenance for a trip that started from nothing", () => {
+    renderSheet();
+    expect(screen.queryByText("Where this came from")).toBeNull();
+  });
+
+  it("names the ancestor and the history point it was copied from", () => {
+    renderSheet(vi.fn(), {
+      forkedFrom: { tripId, atSeq: 14, name: "Kyoto in spring" },
+    });
+    expect(screen.getByText("Where this came from")).toBeTruthy();
+    // The copy is split across text nodes by the JSX interpolation, so match
+    // on the containing span's own text rather than on a text node.
+    const line = screen
+      .getAllByText(/Copied from/)
+      .map((node) => node.textContent)
+      .join(" ");
+    expect(line).toContain("Kyoto in spring");
+    expect(line).toContain("as it was at change 14");
+  });
+});
+
+// M11 link 3, found by CodeRabbit on PR #70 and confirmed against the code:
+// `handleDelete`/`handleDuplicate` call the API directly rather than through
+// TripProvider's optimistic queue (the A15 decision), so TripProvider's
+// read-only gate never sees them. A viewer could open this sheet, click
+// Delete, confirm, and get silence — the server refused it and `handleDelete`
+// only acts `if (result.ok)`.
+describe("SettingsSheet role gating", () => {
+  it("offers Delete to an owner", () => {
+    renderSheet();
+    expect(screen.getByRole("button", { name: "Delete trip" })).toBeTruthy();
+  });
+
+  // Gated on `owner`, the rank accessPolicy.ts actually enforces for
+  // DeleteTrip — an editor clicking it got the same silent nothing.
+  it("does not offer Delete to an editor or a viewer", () => {
+    for (const myRole of ["editor", "viewer"] as const) {
+      cleanup();
+      renderSheet(vi.fn(), { myRole });
+      expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
+    }
+  });
+
+  // A viewer may still clone: a copy takes nothing from the source and grants
+  // nothing on it (ADR-028).
+  it("still offers Duplicate to a viewer", () => {
+    renderSheet(vi.fn(), { myRole: "viewer" });
+    expect(screen.getByRole("button", { name: "Duplicate trip" })).toBeTruthy();
+  });
+
+  it("disables the rename field for a viewer, and leaves it live for an editor", () => {
+    renderSheet(vi.fn(), { myRole: "viewer" });
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
+    cleanup();
+    renderSheet(vi.fn(), { myRole: "editor" });
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
+  });
+
+  // The sheet's comment claims a viewer executes no planning command from
+  // here. The rename field alone did not enforce that — Dates and the money
+  // controls were still live (CodeRabbit, PR #70). Every mutating control is
+  // covered, and dispatch is severed at the source so a control added later
+  // is covered too.
+  it("offers a viewer no live mutating control at all", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "viewer", onCommand });
+
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(true);
+    // The money controls are disabled by their enclosing <fieldset>, which
+    // disables descendants without stamping the attribute on each one — so
+    // the fieldset is what carries it.
+    expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(true);
+    expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(true);
+
+    // And the behavioural claim, which is the one that actually matters:
+    // nothing reachable from this sheet dispatches for a viewer.
+    await userEvent.click(screen.getByRole("button", { name: "Dates" })).catch(() => undefined);
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("leaves every one of those live for an editor", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "editor", onCommand });
+
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(false);
+    expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+    expect(await screen.findByLabelText("Trip start date")).toBeTruthy();
+  });
+
+  // The two tests above render with no budget, which is the default. That
+  // leaves the money half proven only structurally — `fieldset.disabled` is
+  // asserted, but nothing behavioural is, and the clear-X does not exist to
+  // be asserted about at all: it renders only when `budget !== null`, behind
+  // its own `&& !disabled` guard. So the guard, and the fieldset's actual
+  // hold on the currency select, were both untested (CodeRabbit, PR #70).
+  const withBudget: Money = { amountMinor: 500_000, currency: "USD" };
+
+  it("offers a viewer with a budget no way to clear or change it", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "viewer", budget: withBudget, onCommand });
+
+    // Not merely disabled — not rendered. A disabled clear-X beside a figure
+    // still reads as an offer.
+    expect(screen.queryByRole("button", { name: "Clear budget" })).toBeNull();
+
+    // …and neither of the controls that DO render dispatches. `.catch` on
+    // both because user-event refuses to drive a disabled control, which is
+    // the outcome under test rather than a failure of it.
+    await userEvent
+      .selectOptions(screen.getByLabelText("Currency"), "EUR")
+      .catch(() => undefined);
+    await userEvent.type(screen.getByLabelText("Total for the trip"), "42{Enter}").catch(() => undefined);
+    await userEvent.tab().catch(() => undefined);
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  // The mirror image, so the assertions above are known to be about the role
+  // and not about a control that never worked for anyone.
+  it("lets an editor clear and re-currency that same budget", async () => {
+    const onCommand = vi.fn();
+    renderSheet(vi.fn(), { myRole: "editor", budget: withBudget, onCommand });
+
+    await userEvent.selectOptions(screen.getByLabelText("Currency"), "EUR");
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripCurrency", tripId, currency: "EUR" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear budget" }));
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripBudget", tripId, budget: null });
+  });
+
+  // Null while the role read is still in flight or failed. The client is not
+  // the security boundary, so an unknown role must not lock the board — but it
+  // must not offer a destructive action it cannot vouch for either.
+  it("withholds Delete while the role is unknown", () => {
+    renderSheet(vi.fn(), { myRole: null });
+    expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 });

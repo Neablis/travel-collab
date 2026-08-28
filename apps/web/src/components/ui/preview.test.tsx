@@ -41,7 +41,9 @@ describe("Preview", () => {
   });
   it("reserves space for the compact badge instead of overlapping the host", () => {
     render(
-      <Preview id="share-button" size="compact">
+      // Any compact shell will do; this one is `wizard-longer-chip` because
+      // "share-button" left the registry when M11 link 4 made Share real.
+      <Preview id="wizard-longer-chip" size="compact">
         <button>Share</button>
       </Preview>,
     );

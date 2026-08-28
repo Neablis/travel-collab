@@ -9,6 +9,7 @@ const detail: TripDetail = {
   tripId: "7d9a1f8e-0000-4000-8000-00000000000a", name: "Rome", startDate: null,
   currency: "USD", budget: null,
   members: [{ userId: "u1", role: "owner" }],
+  forkedFrom: null,
   days: [{ dayId: DAY, activityIds: [A1], date: null, costSubtotal: 0 }], backlog: [A2],
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: {

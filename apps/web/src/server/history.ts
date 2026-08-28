@@ -24,12 +24,36 @@ export async function getTripHistory(tripId: string): Promise<TripHistory | null
   };
 }
 
+/** How many events the trip's stream carries, or null if it has none. */
+export async function getTripHead(tripId: string): Promise<number | null> {
+  const envelopes = await readStream(db, tripId);
+  return envelopes.length === 0 ? null : envelopes.length;
+}
+
 export async function getTripDetailAt(tripId: string, seq: number): Promise<TripDetail | null> {
+  return (await getTripDetailAtWithHead(tripId, seq))?.detail ?? null;
+}
+
+/**
+ * The same replay, plus how long the stream is now.
+ *
+ * A pinned share (M11 link 4) needs both from one read: the trip as of the
+ * pinned seq, and whether the trip has moved on since — and reading the
+ * stream twice to answer two questions about the same read would be the
+ * public read path paying double on every view.
+ */
+export async function getTripDetailAtWithHead(
+  tripId: string,
+  seq: number,
+): Promise<{ detail: TripDetail; headSeq: number } | null> {
   const envelopes = await readStream(db, tripId);
   if (envelopes.length === 0 || !Number.isInteger(seq) || seq < 1 || seq > envelopes.length) {
     return null;
   }
   const state = foldEnvelopes(envelopes, seq);
   if (state === null) return null;
-  return tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext());
+  return {
+    detail: tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()),
+    headSeq: envelopes.length,
+  };
 }

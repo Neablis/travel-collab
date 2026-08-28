@@ -33,10 +33,11 @@ test("a simulated AI answer is badged and still really changes the trip", async 
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  // The Assistant rail (AssistantRail.tsx) is mounted open by default at
-  // desktop widths (TripBoardScreen.tsx's useAssistantVisibility) — its ask
-  // box fires the same composeAiPlan(tripId, text, "board") call the old
-  // standalone ComposePanel used to make directly.
+  // The Assistant rail (AssistantRail.tsx) is closed until asked for, at every
+  // width (TripBoardScreen.tsx's useAssistantVisibility), so open it before
+  // reaching for its ask box — which fires the same composeAiPlan(tripId,
+  // text, "board") call the old standalone ComposePanel used to make directly.
+  await page.getByRole("button", { name: "Assistant" }).click();
   await page.getByPlaceholder("Ask about this day…").fill("plan me a couple of days");
   const [response] = await Promise.all([waitForAiResponse(page), page.keyboard.press("Enter")]);
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Money, TripCommand, TripMember } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
-import { Badge } from "@/components/ui/badge";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
 import { Popover } from "@/components/ui/popover";
+import { TravelersPanel } from "@/components/trip/TravelersPanel";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatTripDate } from "@/lib/formatDate";
@@ -90,7 +90,8 @@ export function SettingsSheet({
   currency,
   budget,
   spend,
-  members,
+  forkedFrom,
+  myRole,
   onCommand,
   onDeleted,
 }: {
@@ -104,7 +105,16 @@ export function SettingsSheet({
   currency: string;
   budget: Money | null;
   spend: TripSpend;
-  members: TripMember[];
+  // Where this trip came from, or null if it started from nothing (M11 link
+  // 5). Genesis-only and immutable, so it is displayed and never edited.
+  forkedFrom: TripDetail["forkedFrom"];
+  // The signed-in user's role on this trip, or null while it is still loading
+  // or the read failed (M11 link 3). ADVISORY: the server refuses every write
+  // a role does not permit regardless. It is here so this sheet does not OFFER
+  // an action it knows will be refused — `handleDelete` and `handleDuplicate`
+  // call the API directly rather than through TripProvider's queue (see A15
+  // below), so TripProvider's read-only gate never sees them and cannot help.
+  myRole: TripRole | null;
   onCommand: (command: TripCommand) => void;
   // The outcome is forwarded alongside the {tripId, name} summary so the
   // caller (TripHeader) can call TripProvider's applyOutcome with it —
@@ -114,6 +124,22 @@ export function SettingsSheet({
   onDeleted: (trip: { tripId: string; name: string }, outcome: CommandOutcome) => void;
 }) {
   const router = useRouter();
+  // `DeleteTrip` is owner-only in accessPolicy.ts's MINIMUM_ROLE table, so an
+  // editor clicking Delete got the same silent nothing a viewer did —
+  // `handleDelete` only acts `if (result.ok)`. Gate on the rank the server
+  // actually enforces rather than merely hiding it from viewers.
+  const canDelete = myRole === "owner";
+  // A viewer holds read access and executes no planning command at all —
+  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry.
+  const readOnly = myRole === "viewer";
+  // Dispatch is severed at the SOURCE, not at each control. The individual
+  // controls are disabled below so a viewer is not offered something that
+  // silently does nothing — but a future control added to this sheet would
+  // otherwise leak a command past that per-control gating, and this is the
+  // one line that cannot be forgotten (CodeRabbit, PR #70, on the same class
+  // as the delete handler). The server refuses these regardless; this is
+  // about not offering them.
+  const dispatch = readOnly ? () => undefined : onCommand;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
@@ -159,6 +185,7 @@ export function SettingsSheet({
           <Input
             id="trip-name-setting"
             defaultValue={tripName}
+            disabled={readOnly}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
               // Escape restores the last committed name and drops focus, so
@@ -185,7 +212,7 @@ export function SettingsSheet({
               // PR #55). The guard above already does this for the two no-op
               // cases; this is the third.
               e.currentTarget.value = name;
-              onCommand({ type: "SetTripName", tripId, name });
+              dispatch({ type: "SetTripName", tripId, name });
             }}
           />
         </FormField>
@@ -205,6 +232,7 @@ export function SettingsSheet({
             <Button
               variant="ghost"
               aria-label="Dates"
+              disabled={readOnly}
               className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
             >
               <Text as="span" className="text-xs text-slate">
@@ -222,7 +250,7 @@ export function SettingsSheet({
             endDate={endDate}
             dayCount={dayCount}
             onCommand={(command) => {
-              onCommand(command);
+              dispatch(command);
               setDatesOpen(false);
             }}
             onClose={() => setDatesOpen(false)}
@@ -231,7 +259,13 @@ export function SettingsSheet({
 
         <div>
           <SectionHeading>Budget</SectionHeading>
-          <TripMoneySettings tripId={tripId} currency={currency} budget={budget} onCommand={onCommand} />
+          <TripMoneySettings
+            tripId={tripId}
+            currency={currency}
+            budget={budget}
+            disabled={readOnly}
+            onCommand={dispatch}
+          />
 
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -292,41 +326,46 @@ export function SettingsSheet({
           <div className="flex items-center justify-between">
             <SectionHeading>Who is invited</SectionHeading>
           </div>
-          <div className="flex items-start justify-between gap-3">
-            {/* Real: every member's actual userId, listed outside the
-                Preview below. */}
-            <div className="flex flex-col gap-1.5">
-              {members.map((member) => (
-                <Text key={member.userId} as="span" className="text-xs text-ink">
-                  {member.userId}
-                </Text>
-              ))}
-            </div>
-            {/* Unbacked (M13 — TripMember.role is literal "owner", and there
-                is no invite flow yet): the roles column and the "Invite
-                someone" action are both mocked/disabled together. */}
-            <Preview id="trip-invites" size="container" className="flex items-center gap-3">
-              <div className="flex flex-col gap-1.5">
-                {members.map((member) => (
-                  <Badge key={member.userId} variant="neutral">
-                    {member.role}
-                  </Badge>
-                ))}
-              </div>
-              <Button variant="secondary" size="sm">
-                Invite someone
-              </Button>
-            </Preview>
-          </div>
+          {/* Real as of M11 link 3: TravelersPanel lists the effective members
+              (the log's owner plus everyone who accepted an invite), and — for
+              the owner — creates, copies and revokes invite links. The
+              <Preview id="trip-invites"> shell it replaces, and the mocked
+              "Invite someone" button inside it, are gone.
+
+              The `members` prop this sheet used to take went with it: the
+              panel does its own /api/trips/:id/access read, because that read
+              also carries names, emails and the invite list — none of which
+              live on TripDetail, and none of which should (they are Identity
+              and Access data — packages/contracts/src/access.ts). */}
+          <TravelersPanel tripId={tripId} />
         </div>
+
+        {/* The visible half of clone-with-lineage. The ancestor's name is a
+            snapshot taken at fork time and stored in the genesis event, so it
+            survives the original being renamed, deleted, or never having been
+            readable by whoever holds this copy — which is the normal case when
+            the copy came from a share link (ADR-028). It is deliberately not a
+            link for the same reason: there is no guarantee this person can
+            open the trip it names. */}
+        {forkedFrom !== null && (
+          <div>
+            <SectionHeading>Where this came from</SectionHeading>
+            <Text as="span" className="text-xs text-slate">
+              Copied from &ldquo;{forkedFrom.name}&rdquo;, as it was at change{" "}
+              {forkedFrom.atSeq}.
+            </Text>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
           <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>
             Duplicate trip
           </Button>
-          <Button variant="destructive" disabled={busy} onClick={() => setConfirmOpen(true)}>
-            Delete trip
-          </Button>
+          {canDelete && (
+            <Button variant="destructive" disabled={busy} onClick={() => setConfirmOpen(true)}>
+              Delete trip
+            </Button>
+          )}
         </div>
       </div>
 

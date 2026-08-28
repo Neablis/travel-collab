@@ -120,29 +120,61 @@ describe("calendarCityCards", () => {
     expect(calendarCityCards(day, activities)[0]!.costMinor).toBe(700);
   });
 
-  it("does not let an unlocated stop split the day", () => {
-    // A flight home with no location does not mean the day left the city — it
-    // means nobody geocoded it. Splitting there handed the day's card to a
-    // nameless group and demoted the real city to a strip.
+  // These two have been round the houses, so the reasoning is worth keeping.
+  //
+  // Originally an unlocated stop was folded into whatever group was in
+  // progress, and a day that opened unlocated adopted the first city it later
+  // learned about — a guess, and the one that let a venue NAME become a city
+  // heading. `d2a8627` stopped that: no city means no city, and such stops went
+  // into a `city: null` group of their own.
+  //
+  // That over-corrected. CalendarLens renders every group but the arriving one
+  // as a one-line "<city> <time>" strip, so a nameless group rendered an empty
+  // label and a naked timestamp floating above the card — Mitchell, walking the
+  // #71 preview: "Whats with the time above the card?"
+  //
+  // They now fold into the day's LAST city. The distinction that makes this
+  // right rather than a return to the guess: folding does not *label* the stop
+  // or claim it happened in Rome — nothing renders its location. It only counts
+  // it in the day the user actually put it on, which is true by construction.
+  // The thing `d2a8627` forbade — inventing a place name from a venue — is
+  // still forbidden, and `cityFor`/`shortPlace` still never fall back to name.
+  it("folds an unlocated stop into the day's last city rather than opening a nameless group", () => {
     const { day, activities } = dayOf([
-      stop("a", "Rome", { start: "09:00", end: "11:00" }),
-      stop("b", "Rome", { start: "11:30", end: "12:30" }),
-      stop("c", null, { start: "17:00", end: "17:30" }),
+      stop("a", "Rome", { start: "09:00", end: "11:00" }, 1000),
+      stop("b", "Rome", { start: "11:30", end: "12:30" }, 500),
+      // Priced on purpose: `costMinor` is the third thing folding is supposed
+      // to carry, and asserting only count and window would leave that claim
+      // enforced by a comment alone (CodeRabbit, #71). 1750 vs 1500 is what
+      // separates "folded" from "counted but its money dropped".
+      stop("c", null, { start: "17:00", end: "17:30" }, 250),
     ]);
 
     const cards = calendarCityCards(day, activities);
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ city: "Rome", stops: 3, window: { start: "09:00", end: "17:30" } });
+    // Rome carries all three: the stop happened on this day, so its count, its
+    // cost and its time belong in the day's numbers rather than a ghost group.
+    expect(cards[0]).toMatchObject({
+      city: "Rome",
+      stops: 3,
+      costMinor: 1750,
+      window: { start: "09:00", end: "17:30" },
+    });
   });
 
-  it("adopts the first city it learns about when a day opens unlocated", () => {
+  it("folds unlocated stops on both sides of a city into that city, not into groups of their own", () => {
     const { day, activities } = dayOf([
       stop("a", null, { start: "08:00", end: "09:00" }),
       stop("b", "Kyoto", { start: "10:00", end: "11:00" }),
+      stop("c", null, { start: "12:00", end: "13:00" }),
     ]);
 
-    expect(calendarCityCards(day, activities)).toHaveLength(1);
-    expect(calendarCityCards(day, activities)[0]!.city).toBe("Kyoto");
+    const cards = calendarCityCards(day, activities);
+    // Two unlocated stops on either side of Kyoto: neither opens a group, and
+    // the day does not fragment into anonymous places. Kyoto is the day's only
+    // city, so it is the day, and it counts all three.
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ city: "Kyoto", stops: 3, window: { start: "08:00", end: "13:00" } });
   });
 
   it("groups stops with no location at all under a null city", () => {

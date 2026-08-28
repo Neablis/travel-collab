@@ -3,6 +3,7 @@
 import type { ActivityView } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
+import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { dayLabel } from "@/lib/dates";
@@ -118,6 +119,16 @@ export function ActivityEditorSheet() {
 
   return (
     <Sheet title={title} open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      {open && editingActivityId !== undefined && activeTrip !== null && (
+        // KI-43: every conflict naming this stop, dismissed ones included.
+        // Edit mode only — a stop being created has no id yet, so nothing can
+        // name it, and the domain has not run a rule against it either.
+        <ActivityConflicts
+          conflicts={activeTrip.conflicts}
+          dismissedConflictIds={activeTrip.dismissedConflictIds}
+          activityId={editingActivityId}
+        />
+      )}
       {open && (
         <ActivityEditor
           // Edit mode's key includes whether the real activity has loaded

@@ -11,7 +11,7 @@ function newTrip(): TripState {
   return evolveTrip(null, {
     type: "TripCreated",
     version: 1,
-    payload: { tripId: TRIP, name: "Japan", createdBy: "u1" },
+    payload: { tripId: TRIP, name: "Japan", createdBy: "u1", forkedFrom: null },
   });
 }
 

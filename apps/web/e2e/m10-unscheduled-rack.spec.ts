@@ -81,7 +81,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   const undo = page.getByRole("button", { name: /undo/i });
   await undo.click();
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
-  await expect(page.getByTestId("rack-card").first()).toContainText("9 am–10 am");
+  await expect(page.getByTestId("rack-card").first()).toContainText("9 am – 10 am");
 
   await undo.click();
   // Assert the stop actually landed back on its original day, not just that
@@ -121,7 +121,16 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   // rather than merely "has a time": the point of the fix is that the time is
   // derived from the drop's neighbour, and any window would pass a weaker
   // check — including the 09:00-10:00 one that would mean it had overlapped.
-  const landed = page.getByTestId("day-column").first().getByText("Stop on day 2", { exact: false });
+  // Scoped to the landed CARD, not to the day column (CodeRabbit, PR #71).
+  // The column holds "Stop on day 1" at 09:00-10:00 as well, so a column-wide
+  // toContainText only proves *someone* on day 1 has that window — it would
+  // still pass if fitIntoDay re-timed the wrong stop and left this one bare,
+  // which is precisely the bug this spec exists to catch.
+  const landed = page
+    .getByTestId("day-column")
+    .first()
+    .getByTestId(/activity-card-/)
+    .filter({ hasText: "Stop on day 2" });
   await expect(landed).toBeVisible();
-  await expect(page.getByTestId("day-column").first()).toContainText("10:30 am–11:30 am");
+  await expect(landed).toContainText("10:30 am – 11:30 am");
 });

@@ -39,7 +39,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview, readOnly, myRole } = useTrip();
   const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -70,8 +70,15 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // closed. Gated on `preview.seq === null` so ⌘Z is inert while previewing a
   // past version, exactly as it was when the buttons carried the binding.
   useUndoRedoShortcuts({
-    canUndo: preview.seq === null && (history?.canUndo ?? false),
-    canRedo: preview.seq === null && (history?.canRedo ?? false),
+    // `!readOnly` here as well as on the buttons: TripProvider's `dispatch`
+    // already refuses a viewer's write, so pressing ⌘Z could not mutate the
+    // trip — but it DID surface "You have view-only access to this trip." for
+    // a shortcut whose controls a viewer cannot even see. Gated at the same
+    // layer as the buttons so the header is consistent about it, and so a
+    // future dispatch that does not go through the provider inherits the gate
+    // (CodeRabbit, PR #71).
+    canUndo: !readOnly && preview.seq === null && (history?.canUndo ?? false),
+    canRedo: !readOnly && preview.seq === null && (history?.canRedo ?? false),
     onUndo: () => void dispatch({ type: "UndoLastChange", tripId }),
     onRedo: () => void dispatch({ type: "RedoChange", tripId }),
     isBusy: pending,
@@ -148,6 +155,14 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               </Button>
             </Heading>
             <Badge variant="neutral">{statusLabel}</Badge>
+            {/* M11 link 3: a viewer's trip is theirs to read, not to change.
+                The server refuses their writes either way (accessPolicy.ts);
+                the badge plus the gates below are what stop them finding that
+                out by clicking. The badge ALONE was the whole of it until
+                CodeRabbit read PR #71 — Share, Add stop, undo/redo and Revert
+                were all still live for a viewer, so this comment was making a
+                promise the header did not keep. */}
+            {readOnly && <Badge variant="info">View only</Badge>}
           </div>
         </div>
 
@@ -177,12 +192,13 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
           <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
             <div className="flex flex-wrap items-center gap-2">
               {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
-                  Share is self-wrapped in its own <Preview> internally
-                  (ShareButton.tsx, Task 18), so this header just mounts it like
-                  any other control — no local Preview wrap or onClick needed
-                  here. */}
-              <ShareButton />
-              <Button variant="primary" onClick={() => openCreate()}>
+                  Real as of M11 link 4 — ShareButton was an inert
+                  <Preview id="share-button"> and is now a popover that mints,
+                  copies and turns off pinned share links. It needs the tripId
+                  it is sharing; everything else about this call site is
+                  unchanged. */}
+              {!readOnly && <ShareButton tripId={tripId} />}
+              <Button variant="primary" disabled={readOnly} onClick={() => openCreate()}>
                 Add stop
               </Button>
             </div>
@@ -221,7 +237,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                     shortcut does NOT live with them (see
                     useUndoRedoShortcuts, called above) — popover content
                     unmounts when closed, and undo must keep working. */}
-                {preview.seq === null && (
+                {preview.seq === null && !readOnly && (
                   <div className="mb-2 flex justify-end border-b border-hairline pb-2">
                     <UndoRedoControls
                       canUndo={history?.canUndo ?? false}
@@ -235,6 +251,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                 <HistoryPanel
                   history={history}
                   previewSeq={preview.seq}
+                  readOnly={readOnly}
                   onPreview={(seq) => void preview.enter(seq)}
                   onExitPreview={preview.exit}
                   onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
@@ -276,7 +293,8 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
         currency={activeTrip.currency}
         budget={activeTrip.budget}
         spend={tripSpend(activeTrip)}
-        members={activeTrip.members}
+        forkedFrom={activeTrip.forkedFrom}
+        myRole={myRole}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

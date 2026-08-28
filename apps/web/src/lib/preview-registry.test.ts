@@ -88,18 +88,27 @@ const renderedFiles = reachableFrom(
 const isRendered = (file: string) => renderedFiles.has(file);
 
 // `//` and `/* */` comments, including JSX `{/* */}` blocks. Prose *about* a
-// Preview is not a usage of it: EndOfTrip.tsx explains in a comment why it does
-// not reuse `<Preview id="add-saved-day">`, and an uncommented scan counted
-// that sentence as the id's real usage — the same phantom-usage class as KI-31
-// itself, in a file that is rendered, so file-level reachability alone would
-// not have caught it.
+// Preview is not a usage of it: EndOfTrip.tsx used to explain in a comment why
+// it did not reuse `<Preview id="add-saved-day">`, and an uncommented scan
+// counted that sentence as the id's real usage — the same phantom-usage class
+// as KI-31 itself, in a file that IS rendered, so file-level reachability
+// alone would not have caught it. (M11 link 6 wired that shell up and the
+// comment went with it; several files still name ids in prose, and the
+// stripping is what keeps those from counting.)
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
+// Split from `previewIdsIn` so the id-extraction half can be driven with
+// synthetic source. The regression test below used to assert only
+// `reachableFrom`, which made it a statement about graph reachability rather
+// than about Preview ids at all (CodeRabbit, PR #71).
+function previewIdsInSource(src: string): string[] {
+  return [...stripComments(src).matchAll(/<Preview[^>]*\bid=["']([\w-]+)["']/g)].map((m) => m[1]!);
+}
+
 function previewIdsIn(file: string): string[] {
-  const src = stripComments(readFileSync(file, "utf8"));
-  return [...src.matchAll(/<Preview[^>]*\bid=["']([\w-]+)["']/g)].map((m) => m[1]!);
+  return previewIdsInSource(readFileSync(file, "utf8"));
 }
 
 // Skip the Preview component itself and *.test.tsx fixtures: this sync test
@@ -124,15 +133,13 @@ const usedByRenderedCode = new Set<string>(scanned.filter(isRendered).flatMap(pr
 // *documented* exception to the orphan guard — every other id must have a real,
 // rendered usage — and the test below expires an entry as soon as its reason
 // stops holding.
-const PARKED: Readonly<Record<string, string>> = {
-  // M10 Wave 2 Phase 1 moved this action out of TripHeader and Phase 6 gave the
-  // plan flow its own button under <Preview id="insert-playbook">, so nothing
-  // renders AddSavedDayButton today. phase-6-growth.md Step 3 item 7 says to
-  // keep the component file for M11's insert-a-saved-day trigger, and the id
-  // cannot be dropped while the file still renders <Preview id="add-saved-day">
-  // (Preview's `id` prop is typed `PreviewId`). See KI-31.
-  "add-saved-day": "components/trip/AddSavedDayButton.tsx",
-};
+// EMPTY as of M11 link 6, and that is the intended end state: the escape
+// hatch exists for a shell parked in a component the app does not render, and
+// its only occupant — "add-saved-day" in AddSavedDayButton.tsx — was wired up
+// and mounted (EndOfTrip renders it now). The tests below are written to hold
+// on an empty list rather than being deleted with it: the next milestone to
+// park a shell gets the guard already working.
+const PARKED: Readonly<Record<string, string>> = {};
 
 describe("preview registry ↔ usage", () => {
   it("every used <Preview id> is registered", () => {
@@ -176,16 +183,41 @@ describe("preview registry ↔ usage", () => {
 });
 
 describe("the orphan scanner itself", () => {
-  // KI-31 regression: the guard used to count a `<Preview id>` that only ever
-  // appeared inside a component file nothing imports, so such an id read as
-  // "used" and the orphan test was structurally unable to report it. These
-  // assert the two halves of the fix on real files in the tree rather than on
-  // a synthetic fixture, so they stay true only while the scanner does.
+  // KI-31 regression, restated on a synthetic graph. It used to run against
+  // the real `add-saved-day` shell in AddSavedDayButton.tsx; M11 link 6 wired
+  // that up and emptied PARKED, so there is no unrendered component in the
+  // tree to point at any more — and committing a dead fixture component to
+  // src purely to keep this test literal is exactly what the repo's own
+  // orphan tooling exists to flag. The property being guarded is unchanged:
+  // a `<Preview id>` reachable only from a file the router cannot reach must
+  // not count as used.
   it("does not count a <Preview id> whose only occurrence is in an unimported component", () => {
-    const parkingFile = join(SRC, PARKED["add-saved-day"]!);
-    expect(previewIdsIn(parkingFile)).toContain("add-saved-day");
-    expect(isRendered(parkingFile)).toBe(false);
-    expect(usedByRenderedCode).not.toContain("add-saved-day");
+    const edges = new Map<string, readonly string[]>([
+      ["app/page.tsx", ["components/Live.tsx"]],
+      ["components/Live.tsx", []],
+      ["components/Shelved.tsx", []],
+    ]);
+    const reached = reachableFrom(["app/page.tsx"], edges);
+    expect(reached.has("components/Shelved.tsx")).toBe(false);
+    expect(reached.has("components/Live.tsx")).toBe(true);
+
+    // …and the ids that fall out of that, computed the way
+    // `usedByRenderedCode` computes them: scan only what is reachable. Both
+    // files below DO contain a `<Preview id>`, so this fails if the filter is
+    // dropped — which the reachability assertions alone did not (CodeRabbit,
+    // PR #71).
+    const source = new Map<string, string>([
+      ["app/page.tsx", "<main><Live /></main>"],
+      ["components/Live.tsx", '<Preview id="live-shell">x</Preview>'],
+      ["components/Shelved.tsx", '<Preview id="shelved-shell">x</Preview>'],
+    ]);
+    const used = new Set(
+      [...source.keys()].filter((f) => reached.has(f)).flatMap((f) => previewIdsInSource(source.get(f)!)),
+    );
+    expect([...used]).toEqual(["live-shell"]);
+    // The scanner does see the shelved id — it is the reachability filter, not
+    // a blind spot in the regex, that keeps it out.
+    expect(previewIdsInSource(source.get("components/Shelved.tsx")!)).toEqual(["shelved-shell"]);
   });
 
   it("still counts a <Preview id> in a component the app imports", () => {
@@ -239,7 +271,6 @@ describe("the orphan scanner itself", () => {
     expect(dead.length, `unexpectedly many unimported files: ${dead.join(", ")}`).toBeLessThan(
       source.length / 10,
     );
-    expect(dead).toContain(relative(SRC, join(SRC, PARKED["add-saved-day"]!)));
     for (const f of source.filter((f) => f.startsWith(join(SRC, "app")))) {
       expect(isRendered(f), `${relative(SRC, f)} under src/app read as dead`).toBe(true);
     }

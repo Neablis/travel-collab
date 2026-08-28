@@ -26,7 +26,7 @@ describe("chipModel", () => {
           activityId: tokyoActivity,
           title: "Shibuya crossing",
           timeWindow: null,
-          location: { name: "Tokyo" },
+          location: { name: "Tokyo", city: "Tokyo" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -54,7 +54,7 @@ describe("chipModel", () => {
           activityId: tokyoActivity,
           title: "Shibuya crossing",
           timeWindow: null,
-          location: { name: "Tokyo" },
+          location: { name: "Tokyo", city: "Tokyo" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -65,7 +65,7 @@ describe("chipModel", () => {
           activityId: osakaActivity,
           title: "Osaka castle",
           timeWindow: null,
-          location: { name: "Osaka" },
+          location: { name: "Osaka", city: "Osaka" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -102,7 +102,7 @@ describe("chipModel", () => {
           activityId: tokyoActivity,
           title: "Shibuya crossing",
           timeWindow: null,
-          location: { name: "Tokyo" },
+          location: { name: "Tokyo", city: "Tokyo" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -149,7 +149,7 @@ describe("chipModel", () => {
           activityId: tokyoActivity,
           title: "Shibuya crossing",
           timeWindow: null,
-          location: { name: "Tokyo" },
+          location: { name: "Tokyo", city: "Tokyo" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -275,8 +275,13 @@ describe("cityFor", () => {
     expect(cityFor(oneStopDay, activities)).toBe("Higashiyama");
   });
 
-  it("still falls all the way back to the name when neither structured field is present", () => {
+  // Inverted when #72 merged into the #71 branch. #72 was written off a `main`
+  // that predated Mitchell's rule on the #71 preview — "Never fall back to
+  // name" — and asserted the venue name here. A name is not a place: this is
+  // the exact path by which a restaurant came to label a whole day. No city
+  // and no area means no city, and the chip says so rather than inventing one.
+  it("returns null rather than the venue name when neither structured field is present", () => {
     const activities = { [tokyoActivity]: activityWith({ name: "Somewhere at sea" }) };
-    expect(cityFor(oneStopDay, activities)).toBe("Somewhere at sea");
+    expect(cityFor(oneStopDay, activities)).toBeNull();
   });
 });
