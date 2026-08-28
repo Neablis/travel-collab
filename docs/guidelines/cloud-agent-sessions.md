@@ -61,6 +61,37 @@ linked. `link_playwright_shell` in the session hook now repairs that on every
 start, generically. If e2e dies on a missing executable, read that function
 first.
 
+**There IS a browser here. Do not report otherwise.** Two agents on
+2026-08-28 independently concluded "this container has no browser" and
+skipped a browser verification on that basis — one of them recorded it in
+a known-issues entry as fact. Both checks were wrong in the same way: they
+looked for `chromium`/`chrome` on `PATH` and at `~/.cache/ms-playwright`
+(empty), and took `playwright install` failing as confirmation. It fails
+because the proxy 403s `cdn.playwright.dev` (see below), not because
+nothing is installed. A working Chromium is on disk:
+
+    /opt/pw-browsers/chromium-1194/chrome-linux/chrome    # 141.0.7390.37
+
+`playwright-core` asks for a newer build number than the one present and
+errors with "run npx playwright install" unless you pass `executablePath`
+explicitly. Do that instead of concluding the walk is impossible:
+
+    chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" })
+
+This matters more than it sounds. A CSP, a focus ring and a layout bug are
+all enforced or visible only in a renderer — "no browser available" is the
+one excuse that turns a verifiable claim into an unverified one, and it was
+false both times it was used.
+
+**The Vercel preview is NOT reachable from here.** Deployment Protection
+302s every request to `vercel.com/sso-api`, and no bypass token exists in
+this environment. That 302 carries Vercel's own headers, not the app's — do
+not mistake it for a response from the application. Walk a local production
+build instead (`pnpm --filter web build && next start`), which serves
+byte-identical headers; build from a clean `git archive HEAD` if other
+agents are editing the tree, since `check-lint-wall.mjs` deletes its
+fixture mid-run and will break a concurrent `next build`.
+
 ## Egress goes through a proxy, and some hosts are blocked
 
 Outbound HTTPS uses the agent proxy (CA bundle at `/root/.ccr/ca-bundle.crt`).

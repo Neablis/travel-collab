@@ -115,6 +115,16 @@ const nextConfig: NextConfig = {
       // §7, "accepted-risk notes"). `/invite/**` is the same shape of secret
       // and gets the same treatment; the review only named `/s/**` because
       // that is the page that renders shared content.
+      //
+      // One gap this does NOT close, observed in the 2026-08-28 browser
+      // walk: a signed-out hit on `/invite/<token>` 307s to
+      // `/signin?callbackUrl=%2Finvite%2F<token>`, so the token continues
+      // its life in a query string on a page this rule does not match, under
+      // the global `strict-origin-when-cross-origin`. No leak follows —
+      // that policy never sends the query cross-origin — which is why
+      // `/signin` is deliberately not listed here rather than accidentally
+      // omitted. It is recorded because the reasoning, not the rule, is what
+      // makes it safe.
       source: "/:prefix(s|invite)/:path*",
       headers: [
         ...securityHeaders.filter((h) => h.key !== "Referrer-Policy"),
