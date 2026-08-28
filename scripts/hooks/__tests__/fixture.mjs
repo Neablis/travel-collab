@@ -42,8 +42,15 @@ export function writeAdapter(root, adapter) {
 }
 
 export function runHook(name, payload) {
+  return runHookRaw(name, JSON.stringify(payload));
+}
+
+// For tests that need to send stdin a hook's own `parseStdin` cannot parse.
+// `runHook` always JSON.stringifies its payload, so it can never produce
+// genuinely malformed input — this sends `rawInput` through untouched.
+export function runHookRaw(name, rawInput) {
   const res = spawnSync(process.execPath, [join(HOOKS_DIR, name)], {
-    input: JSON.stringify(payload),
+    input: rawInput,
     encoding: "utf8",
   });
   let json = null;

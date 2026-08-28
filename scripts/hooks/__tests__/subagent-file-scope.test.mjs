@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { decision, makeRepo, makeUnitDir, runHook, writeManifest } from "./fixture.mjs";
+import { decision, makeRepo, makeUnitDir, runHook, runHookRaw, writeManifest } from "./fixture.mjs";
 
 function setup() {
   const root = makeRepo();
@@ -47,6 +47,25 @@ test("an edit outside the worktree entirely asks", () => {
   assert.equal(decision(res), "ask");
 });
 
+test("a dotdot-prefixed directory name inside the worktree is not mistaken for an escape", () => {
+  // relative(root, ".../..hidden/a.ts") is the string "..hidden/a.ts", which
+  // *starts with* ".." without being an actual ".." segment. A boundary
+  // check that does plain startsWith("..") would misfile this as outside
+  // the worktree; it must instead land on the file-scope reason.
+  const { unitDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Edit",
+    tool_input: { file_path: join(unitDir, "..hidden/a.ts") },
+  });
+  assert.equal(decision(res), "ask");
+  assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /declared file scope/);
+  assert.doesNotMatch(
+    res.json.hookSpecificOutput.permissionDecisionReason,
+    /outside its own worktree/,
+  );
+});
+
 test("no manifest means no opinion", () => {
   const root = makeRepo();
   const loose = makeUnitDir(root, "loose");
@@ -59,8 +78,19 @@ test("no manifest means no opinion", () => {
   assert.equal(decision(res), null);
 });
 
-test("malformed stdin fails open", () => {
+test("a non-object payload fails open", () => {
+  // runHook always JSON.stringifies its payload, so this sends the valid
+  // JSON document "not-an-object" (a string), exercising the
+  // `typeof payload !== "object"` guard rather than parseStdin's own catch.
   const res = runHook("subagent-file-scope.mjs", "not-an-object");
+  assert.equal(res.status, 0);
+  assert.equal(decision(res), null);
+});
+
+test("genuinely unparseable stdin fails open", () => {
+  // parseStdin's JSON.parse catch, not the typeof guard above: this is raw
+  // text no JSON parser accepts.
+  const res = runHookRaw("subagent-file-scope.mjs", "{ not json");
   assert.equal(res.status, 0);
   assert.equal(decision(res), null);
 });

@@ -14,7 +14,7 @@ if (!payload || typeof payload !== "object") process.exit(0);
 
 const cwd = payload.cwd ?? process.cwd();
 const target = payload?.tool_input?.file_path;
-if (!target) process.exit(0);
+if (typeof target !== "string" || !target) process.exit(0);
 
 const found = unitForCwd(cwd);
 if (!found) process.exit(0);
@@ -23,7 +23,11 @@ const { unit } = found;
 const root = resolve(unit.worktree);
 const rel = relative(root, resolve(cwd, target));
 
-if (rel === "" || rel.startsWith("..") || rel.startsWith(sep)) {
+// Boundary-safe: `rel.startsWith("..")` alone also matches an in-worktree
+// path like "..hidden/file.ts" (a directory whose name happens to start
+// with two dots), wrongly flagging a file that never left the worktree as
+// outside it. Match run-context.mjs's own `root + sep` convention.
+if (rel === "" || rel === ".." || rel.startsWith(".." + sep) || rel.startsWith(sep)) {
   ask(
     "PreToolUse",
     `Unit "${unit.id}" is writing to "${target}", which is outside its own worktree ` +
