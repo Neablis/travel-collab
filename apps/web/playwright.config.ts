@@ -13,6 +13,13 @@ export default defineConfig({
   // make a real, billable model call, independent of how that server was
   // started. See e2e/global.setup.ts and /api/health/ai-mode.
   globalSetup: "./e2e/global.setup.ts",
+  // The other half of that pair: deletes the `[e2e]`-prefixed trips this run
+  // created, as their owner, while the server is still up. Every spec used to
+  // leave its trips behind forever and the home grid fetches once per card
+  // (KI-28), so the debris made each run slower — and its layout timing
+  // different — than the last. See e2e/global.teardown.ts for the two
+  // conditions that keep it off a real user's data.
+  globalTeardown: "./e2e/global.teardown.ts",
   // CI builds first and serves with `next start`; locally `pnpm dev` compiles
   // each route on demand, and a cold compile can eat a whole test's budget
   // before the test does anything interesting. At Playwright's 30s default

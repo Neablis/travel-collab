@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openHistory } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -50,7 +51,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
-  const tripName = `Faro ${Date.now()}`;
+  const tripName = e2eTripName("Faro");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
@@ -103,7 +104,7 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
 // all — they render plain starter text unconditionally — so this checks
 // that skeleton renders rather than erroring or rendering blank.
 test("fresh trip: Notebook default pages render their starter text", async ({ page }) => {
-  const tripName = `Lagos ${Date.now()}`;
+  const tripName = e2eTripName("Lagos");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
@@ -152,7 +153,7 @@ async function waitForPageSaved(page: Page, action: () => Promise<void>): Promis
 // point of ADR-014 — hand-typed prose survives untouched regardless of what
 // happens to the trip's event-sourced plan state around it.
 test("undo a trip revert: hand-typed prose survives untouched", async ({ page }) => {
-  const tripName = `Sintra ${Date.now()}`;
+  const tripName = e2eTripName("Sintra");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();

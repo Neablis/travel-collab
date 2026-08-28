@@ -1,9 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createMappedTrip } from "./helpers";
+import { e2eTripName } from "./tripNames";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
 import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
 
 const DAY_COUNT = 14;
+
+// The rail's focus log lives on `window` for the duration of the scan below.
+// Type-only: Playwright's transform erases this, it never reaches the browser.
+type RailWindow = Window & typeof globalThis & { __railFocusLog?: number[] };
 
 /** Which day the rail currently marks focused, by its 1-based label. */
 async function focusedDayLabel(page: Page): Promise<string> {
@@ -18,22 +23,39 @@ function dayNumberOf(label: string): number {
   return Number(label.match(/day (\d+)/i)![1]);
 }
 
-async function scrollRailBy(page: Page, delta: number): Promise<void> {
-  await page.evaluate((by) => {
-    document.querySelector('[aria-label="Days"]')!.scrollTop += by;
-  }, delta);
-  // One frame for the scroll handler's leading edge plus its trailing timer.
-  await page.waitForTimeout(120);
+/**
+ * Moves the rail's scroll position and waits two frames — never the clock.
+ *
+ * KI-13/KI-21: every wall-clock sleep this file used to carry (nine of them,
+ * ~24s) was really "wait out `scrollThrottleMs`'s trailing edge", which
+ * couples the spec to a tuning constant it does not own — turning that knob
+ * flaked the spec with no spec change. Two frames is an event, not a guess:
+ * scroll events are dispatched during the frame's own "run the scroll steps",
+ * ahead of requestAnimationFrame callbacks, so the first frame proves the
+ * rail's handler has seen this scroll and the second gives React's re-render a
+ * frame to land. Nothing here waits for the *throttle*: an evaluation deferred
+ * to its trailing edge is still recorded by the MutationObserver below, and
+ * every point assertion is a retrying web-first one.
+ */
+async function scrollRailTo(page: Page, scrollTop: number): Promise<void> {
+  await page.evaluate(async (target) => {
+    const rail = document.querySelector('[aria-label="Days"]')!;
+    rail.scrollTop = target;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  }, scrollTop);
 }
 
 test("map rail: scrolling tracks focus through every day", async ({ page }) => {
-  // A deliberately thorough 200-step full-rail scan (~25s alone) plus fixture
-  // setup through the command API comfortably exceeds Playwright's default
-  // 30s per-test budget; this is a slow-but-worthwhile browser test, not a
-  // hung one.
+  // Fixture setup through the command API plus the full-rail scan exceeds
+  // Playwright's default 30s per-test budget; this is a slow-but-worthwhile
+  // browser test, not a hung one. Deliberately left generous rather than
+  // trimmed to the new (much cheaper) scan: an unhit ceiling costs nothing,
+  // and a tight one buys flakes on a loaded machine.
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
-  const tripName = `MapRail ${Date.now()}`;
+  const tripName = e2eTripName("MapRail");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
@@ -41,6 +63,12 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   const rail = page.locator('[aria-label="Days"]');
   await expect(rail).toBeVisible();
   await expect(rail.getByRole("button")).toHaveCount(DAY_COUNT);
+
+  /** Retrying, web-first: day `n` (1-based) is the one and only focused day. */
+  const expectFocusedDay = async (n: number) => {
+    await expect(rail.locator(`button[data-day-index="${n - 1}"]`)).toHaveAttribute("aria-current", "true");
+    await expect(rail.locator('button[aria-current="true"]')).toHaveCount(1);
+  };
 
   // -- the rail is geared: its scroll range far exceeds its content --
   const { scrollHeight, clientHeight } = await rail.evaluate((el) => ({
@@ -62,71 +90,84 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   // being wired to the wrong rate.
   const { scrollPxPerDay } = readMapRailTuning();
   const expectedTravel = gearedTravel(DAY_COUNT, scrollPxPerDay);
-  const actualTravel = scrollHeight - clientHeight;
-  expect(actualTravel).toBeGreaterThan(expectedTravel - 40);
-  expect(actualTravel).toBeLessThan(expectedTravel + 40);
+  const maxScrollTop = scrollHeight - clientHeight;
+  expect(maxScrollTop).toBeGreaterThan(expectedTravel - 40);
+  expect(maxScrollTop).toBeLessThan(expectedTravel + 40);
 
   // -- scrolling from top to bottom visits every day, in order, none skipped --
   // This is the regression test for the two defects that made this feature
   // fail: focus that stuck on Day 1 mid-scroll, and a fixed focus line that
   // could never reach days near either end.
+  await scrollRailTo(page, 0);
+
+  // Record every focus change the rail *emits*, instead of sampling the DOM
+  // once per scroll step. A MutationObserver cannot miss a day the way a
+  // sampling loop can, which is the only thing the old 200-step scan was
+  // buying — and it was buying it with 200 wall-clock sleeps. 3 samples per
+  // day is then enough resolution for no scroll step to jump a whole day's
+  // band (each band is ~1/DAY_COUNT of the geared range).
+  //
+  // Starts empty rather than seeded: MapRail deliberately never emits focus on
+  // mount (see MapRail.tsx's "measure never emits focus" comment and the
+  // design doc's "no emit on mount" invariant), so nothing carries
+  // `aria-current` until the first real scroll event. Dedupes on the day
+  // number, so an unrelated re-render while focus holds steady can't push a
+  // spurious duplicate.
   await page.evaluate(() => {
-    document.querySelector('[aria-label="Days"]')!.scrollTop = 0;
+    const rail = document.querySelector('[aria-label="Days"]')!;
+    const log: number[] = [];
+    (window as RailWindow).__railFocusLog = log;
+    const record = () => {
+      const active = rail.querySelector<HTMLElement>('button[aria-current="true"]');
+      if (!active) return;
+      // data-day-index is 0-based; the rendered label is 1-based (mapRailData).
+      const day = Number(active.dataset.dayIndex) + 1;
+      if (day !== log[log.length - 1]) log.push(day);
+    };
+    new MutationObserver(record).observe(rail, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-current"],
+    });
+    record();
   });
-  await page.waitForTimeout(120);
 
-  const step = Math.ceil((scrollHeight - clientHeight) / 200);
-  // Starts empty rather than seeded with a pre-loop read: MapRail
-  // deliberately never emits focus on mount (see MapRail.tsx's "measure never
-  // emits focus" comment and the design doc's "no emit on mount" invariant),
-  // so nothing carries `aria-current` until the loop's first real scroll
-  // event fires. `dayNumbers[dayNumbers.length - 1]` already handles an empty
-  // array correctly (reads `undefined`), so the first post-scroll label is
-  // captured the same way every subsequent change is. Dedupes on the parsed
-  // day number rather than the button's full text, so an unrelated re-render
-  // while focus holds steady can't push a spurious duplicate.
-  const dayNumbers: number[] = [];
-  for (let i = 0; i < 200; i++) {
-    await scrollRailBy(page, step);
-    const day = dayNumberOf(await focusedDayLabel(page));
-    if (day !== dayNumbers[dayNumbers.length - 1]) dayNumbers.push(day);
-  }
+  const scanSteps = DAY_COUNT * 3;
+  const step = Math.ceil(maxScrollTop / scanSteps);
+  for (let i = 1; i <= scanSteps; i++) await scrollRailTo(page, Math.min(maxScrollTop, i * step));
 
+  // The `ceil`-ed steps end at or past the bottom, so the last focus change is
+  // to DAY_COUNT — but it can still be sitting on the throttle's trailing
+  // edge. Poll for it rather than sleeping, then read the whole log.
+  await expect
+    .poll(() => page.evaluate(() => (window as RailWindow).__railFocusLog!.at(-1)))
+    .toBe(DAY_COUNT);
+  const dayNumbers = await page.evaluate(() => (window as RailWindow).__railFocusLog!);
   expect(dayNumbers).toEqual(Array.from({ length: DAY_COUNT }, (_, i) => i + 1));
 
   // -- the last day is reached at the bottom boundary --
-  // The scan above already ends at (or past) the bottom via `ceil`-ed steps,
-  // so re-setting scrollTop to the same max value would fire no native
-  // `scroll` event and this would tautologically re-read the scan's own last
-  // result. Dip away from the bottom first so the following jump is a real,
-  // observed scroll.
-  await page.evaluate(() => {
-    const el = document.querySelector('[aria-label="Days"]')!;
-    el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - 500);
-  });
-  await page.waitForTimeout(120);
-  await page.evaluate(() => {
-    const el = document.querySelector('[aria-label="Days"]')!;
-    el.scrollTop = el.scrollHeight;
-  });
-  await page.waitForTimeout(120);
-  expect(dayNumberOf(await focusedDayLabel(page))).toBe(DAY_COUNT);
+  // The scan above already ends at (or past) the bottom, so re-setting
+  // scrollTop to the same max value would fire no native `scroll` event and
+  // this would tautologically re-read the scan's own last result. Dip away
+  // from the bottom first so the following jump is a real, observed scroll.
+  await scrollRailTo(page, Math.max(0, maxScrollTop - 500));
+  await scrollRailTo(page, maxScrollTop);
+  await expectFocusedDay(DAY_COUNT);
 
   // -- and the first day at the top --
-  await page.evaluate(() => {
-    document.querySelector('[aria-label="Days"]')!.scrollTop = 0;
-  });
-  await page.waitForTimeout(120);
-  expect(dayNumberOf(await focusedDayLabel(page))).toBe(1);
+  await scrollRailTo(page, 0);
+  await expectFocusedDay(1);
 
   // -- clicking still focuses directly, unchanged by any of the above --
-  // A settle wait matches every other read in this file: click's own
-  // scrollIntoViewIfNeeded can itself fire the rail's throttled scroll
-  // handler, whose trailing edge (up to scrollThrottleMs later) could
-  // otherwise race the click's direct onFocus call.
+  // No settle wait: click's own scrollIntoViewIfNeeded can itself fire the
+  // rail's throttled scroll handler, whose trailing edge could race the
+  // click's direct onFocus call — which is exactly what a retrying assertion
+  // absorbs and a fixed sleep only gambled on.
   await rail.getByRole("button").nth(6).click();
-  await page.waitForTimeout(120);
-  expect(dayNumberOf(await focusedDayLabel(page))).toBe(7);
+  await expectFocusedDay(7);
+  // ...and the rendered label agrees with the data attribute the assertions
+  // above key off, so a mis-numbered label can't hide behind them.
+  await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(7);
 
   // -- Tab-ing onto an off-screen day button leaves it fully visible --
   // Regression test for a real bug found live during Task 6's tuning pass:
@@ -137,19 +178,24 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   // unhandled, Tab-ing to an off-screen day left it completely clipped out of
   // view while holding keyboard focus (see MapRail.tsx's `focusin` handler
   // and design doc's "Sticky verification" section for the fix).
-  await page.evaluate(() => {
-    document.querySelector('[aria-label="Days"]')!.scrollTop = 0;
-  });
-  await page.waitForTimeout(120);
+  await scrollRailTo(page, 0);
   await rail.getByRole("button").first().focus();
   for (let i = 0; i < 10; i++) await page.keyboard.press("Tab");
-  await page.waitForTimeout(150);
-  const focusVisibility = await rail.evaluate((el) => {
-    const clip = el.querySelector("[data-rail-track]")!.parentElement!;
-    const activeRect = document.activeElement!.getBoundingClientRect();
-    const clipRect = clip.getBoundingClientRect();
-    return { activeTop: activeRect.top, activeBottom: activeRect.bottom, clipTop: clipRect.top, clipBottom: clipRect.bottom };
-  });
-  expect(focusVisibility.activeTop).toBeGreaterThanOrEqual(focusVisibility.clipTop - 1);
-  expect(focusVisibility.activeBottom).toBeLessThanOrEqual(focusVisibility.clipBottom + 1);
+  // The fix runs on a deferred tick and then scrolls the rail, so the reveal
+  // lands some frames after the last Tab. Poll the overflow in pixels — the
+  // failure message then says how far out of the band the button was left,
+  // which the old sleep-then-assert could not. 1px absorbs sub-pixel rounding.
+  await expect
+    .poll(() =>
+      rail.evaluate((el) => {
+        const clip = el.querySelector("[data-rail-track]")!.parentElement!;
+        const active = document.activeElement!.getBoundingClientRect();
+        const band = clip.getBoundingClientRect();
+        return {
+          clippedAbovePx: Math.max(0, Math.round(band.top - active.top - 1)),
+          clippedBelowPx: Math.max(0, Math.round(active.bottom - band.bottom - 1)),
+        };
+      }),
+    )
+    .toEqual({ clippedAbovePx: 0, clippedBelowPx: 0 });
 });

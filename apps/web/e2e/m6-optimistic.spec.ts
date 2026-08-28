@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { e2eTripName } from "./tripNames";
 
 test("optimistic add renders instantly and persists", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
-  const tripName = `Oslo ${Date.now()}`;
+  const tripName = e2eTripName("Oslo");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();
@@ -40,7 +41,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
 });
 
 test("a rejected change stays visible, shows an error, and can be retried", async ({ page }) => {
-  const tripName = `Bergen ${Date.now()}`;
+  const tripName = e2eTripName("Bergen");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();

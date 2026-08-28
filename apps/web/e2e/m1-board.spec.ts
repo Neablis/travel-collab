@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { dragCardTo } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 test("board: days, activities, drag, conflicts as data", async ({ page }) => {
-  const tripName = `Lisbon ${Date.now()}`;
+  const tripName = e2eTripName("Lisbon");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();

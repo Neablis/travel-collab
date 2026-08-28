@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eTripName } from "./tripNames";
 
 // The front door only exists for signed-out visitors, so this spec opts out
 // of the shared storageState the "desktop" project supplies (same override
@@ -6,7 +7,7 @@ import { expect, test } from "@playwright/test";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test("landing → sign in → first trip → sign out", async ({ page }) => {
-  const tripName = `Kyoto ${Date.now()}`;
+  const tripName = e2eTripName("Kyoto");
 
   // `/` bounces a signed-out visitor to the landing page.
   await page.goto("/");

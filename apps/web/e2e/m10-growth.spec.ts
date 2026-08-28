@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createMappedTrip } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // M10 Wave 2 Phase 6's own gate, scripted: "adding a day appends it, scrolls
 // to it, and it renders correctly in Timeline, Day columns, Calendar and Map."
@@ -14,7 +15,7 @@ import { createMappedTrip } from "./helpers";
 
 test("adding a day appends it and every view renders it as an empty day", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
-  const tripName = `Growth ${Date.now()}`;
+  const tripName = e2eTripName("Growth");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}`);

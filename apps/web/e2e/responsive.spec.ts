@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { e2eTripName } from "./tripNames";
 
 // KI-19: the whole suite used to run at exactly one viewport (Playwright's
 // 1280x720 default, above the 1179px breakpoint), so a whole class of real
@@ -11,7 +12,7 @@ import { commandsFor } from "@tc/factories";
 // class of bug.
 test.describe("responsive (narrow viewport)", () => {
   test("the assistant rail is in overlay mode and its scrim dismisses it (KI-16)", async ({ page }) => {
-    const { tripId } = await page.request.post("/api/trips", { data: { name: `Responsive ${Date.now()}` } }).then((r) => r.json());
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
@@ -33,7 +34,7 @@ test.describe("responsive (narrow viewport)", () => {
   });
 
   test("the trip page is interactive: a view tab click changes the lens", async ({ page }) => {
-    const { tripId } = await page.request.post("/api/trips", { data: { name: `Responsive ${Date.now()}` } }).then((r) => r.json());
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
@@ -45,7 +46,7 @@ test.describe("responsive (narrow viewport)", () => {
   });
 
   test("a sheet opens above the rail and its Close button is reachable (KI-17)", async ({ page }) => {
-    const { tripId } = await page.request.post("/api/trips", { data: { name: `Responsive ${Date.now()}` } }).then((r) => r.json());
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }

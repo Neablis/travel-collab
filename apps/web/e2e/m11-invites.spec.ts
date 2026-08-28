@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { createMappedTrip } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // M11 link 3's exit-gate line: "An invited person can open the trip and modify
 // it." Two real browser contexts, because that is the only way to prove it —
@@ -80,7 +81,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   test.slow();
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list (m1/m3/m6's comment).
-  const tripName = `Invites ${Date.now()}`;
+  const tripName = e2eTripName("Invites");
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
 
@@ -138,7 +139,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   browser,
 }) => {
   test.slow();
-  const tripName = `Viewer ${Date.now()}`;
+  const tripName = e2eTripName("Viewer");
   // Seeded with a real day and a real stop, unlike the other tests here: the
   // point of this one is what a viewer can and cannot DO to existing content,
   // and an empty trip has no card to withhold a drag handle from. One day is
@@ -201,7 +202,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
 
 test("a revoked link stops working", async ({ page, browser }) => {
   test.slow();
-  const tripName = `Revoked ${Date.now()}`;
+  const tripName = e2eTripName("Revoked");
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can edit");
