@@ -5,6 +5,7 @@ import { executeTripCommand, executeTripCommandBatch, type CommandResult } from 
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { readShareForClone } from "./access/shares";
+import { demoTrip } from "./demoTrip";
 import { db } from "./db/client";
 import { getTripHead } from "./history";
 import { getTripDetail } from "./projections";
@@ -162,6 +163,31 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
   }
   const { detail, tripId, atSeq, name } = shared.value;
   return cloneFrom(detail, { tripId, atSeq, name }, actorId, `${name} (copy)`);
+}
+
+/**
+ * "Make this my trip" — from the built-in demo trip at `/s/featured`.
+ *
+ * The same `cloneFrom` every other copy goes through, handed a `TripDetail`
+ * that was folded in memory instead of read out of Postgres (ADR-031). The
+ * copy that lands in the visitor's list is an ordinary trip built by the
+ * ordinary command pipeline; nothing about it remembers it came from a
+ * fixture except the lineage pointer.
+ *
+ * That pointer names `DEMO_TRIP_ID`, which is a real UUID naming no row —
+ * see the note on it. `forkedFrom` is display-only text today ("Copied from
+ * ..., as it was at change N"), and this is the trade the demo is worth: the
+ * alternative, `forkedFrom: null`, would tell the person who just cloned the
+ * demo that their trip came from nowhere.
+ */
+export async function cloneDemoTrip(actorId: string): Promise<CommandResult> {
+  const { detail, seq } = demoTrip();
+  return cloneFrom(
+    detail,
+    { tripId: detail.tripId, atSeq: seq, name: detail.name },
+    actorId,
+    `${detail.name} (copy)`,
+  );
 }
 
 // The diff emits the same event set the batchable commands produce, so the

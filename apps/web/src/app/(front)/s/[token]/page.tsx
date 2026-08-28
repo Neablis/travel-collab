@@ -10,9 +10,11 @@ export const metadata = { title: "A shared trip — Caesura" };
 // avoid.
 //
 // `/s/featured` reaches this same component: `featured` is a reserved token
-// the API maps to the deployment's configured demo share (ADR-027), so the
-// landing page's "Look around a real trip" is an ordinary link to an ordinary
-// share rather than a bespoke public-read path.
+// the API maps to the built-in demo trip (ADR-031 — the Japan fixture folded
+// in memory, no database), so the landing page's "Look around a real trip" is
+// an ordinary link to an ordinary share page rather than a bespoke public-read
+// path. It used to name whichever share `DEMO_SHARE_TOKEN` pointed at, which
+// meant it pointed at nothing almost everywhere (KI-61).
 export default async function SharedTripPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   return <SharedTripScreen token={token} />;

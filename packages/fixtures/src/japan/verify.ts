@@ -24,7 +24,7 @@ import {
   rollupCosts,
   type TripState,
 } from "@tc/domain";
-import { japanTripCommands } from "./commands.ts";
+import { deterministicMintId, japanTripCommands } from "./commands.ts";
 import { COORDINATE_OVERRIDES } from "./coordinateOverrides.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
 import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, REFERENCE_START_DATE } from "./trip.ts";
@@ -33,11 +33,10 @@ export { REFERENCE_START_DATE };
 
 const REFERENCE_TRIP_ID = "00000000-0000-4000-8000-00000000f000";
 
-/** Counter-derived uuids, so two runs produce byte-identical commands. */
-export function deterministicMintId(): () => string {
-  let n = 0;
-  return () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
-}
+// Moved to ./commands.ts, which the demo trip in apps/web also folds (ADR-031).
+// Re-exported so `verify.test.ts` and `pnpm seed:verify` keep importing the
+// harness from one place.
+export { deterministicMintId };
 
 export type JapanTripReport = {
   dayCount: number;

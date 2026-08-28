@@ -4,6 +4,7 @@ import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { listTripSummaries } from "@/server/projections";
 import { JAPAN_TRIP_NAME, japanTripCommands } from "@tc/fixtures";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
+import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 
 // Debug-tool endpoint (Mitchell's request, 2026-08-24): wipes the signed-in
 // user's own trips and reseeds the 14-day/68-stop Japan demo trip, so a UI
@@ -20,20 +21,6 @@ import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 // necessarily for what used to be ~70 sequential round trips against a
 // growing event stream, so this still gets an explicit ceiling.
 export const maxDuration = 30;
-
-/**
- * Local calendar date, N days from today, as `YYYY-MM-DD`.
- *
- * Duplicated from scripts/db-seed.ts deliberately: both callers must date the
- * demo trip identically, and the alternative — exporting it from @tc/fixtures —
- * would put a wall-clock read inside a package whose determinism is what
- * `pnpm seed:verify` depends on (ADR-030).
- */
-function isoDateInDays(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 export async function POST(_request: Request) {
   if (!isDemoDataResetEnabled()) {
@@ -85,7 +72,7 @@ export async function POST(_request: Request) {
   //
   // Dated relative to today, like db:seed, so the demo trip is always upcoming
   // and the homepage hero always has something to show.
-  const commands = japanTripCommands(tripId, { startDate: isoDateInDays(10) });
+  const commands = japanTripCommands(tripId, { startDate: isoDateInDays(DEMO_TRIP_LEAD_DAYS) });
 
   // One executeTripCommandBatch call, not ~70 sequential executeTripCommand
   // calls — and deliberately one batch rather than the fixture's own

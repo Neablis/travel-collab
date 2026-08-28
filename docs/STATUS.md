@@ -5,6 +5,49 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## The demo trip has no database behind it, 2026-08-28 — ADR-031, KI-61
+
+**`/s/featured` is the Japan fixture, folded in memory on the way out of the
+API.** `DEMO_SHARE_TOKEN` and `readFeaturedShare` are deleted.
+
+The old shape resolved that env var to a real share row and replayed that
+trip's 74-event stream on every view. Unset — which was CI, every fresh clone,
+and every preview branch — the front door's second CTA rendered "Nothing to see
+here", and the e2e suite asserted that empty state, so it was green *because*
+nothing was configured.
+
+Mitchell rejected the recorded fix path (commit a fixed token, have the seeders
+publish under it) on two grounds it had not weighed: a preview branch would
+still need a human step before its own front door worked, and an
+unauthenticated page anyone can hit as often as they like should not carry a
+share lookup plus a full replay per view.
+
+**What is unchanged:** the route shape, the `SharedTripView` contract, the page
+component, the client function, `cloneFrom`. `server/demoTrip.ts` runs the
+fixture's commands through `decideTripCommand` → `evolveTrip` →
+`tripDetailFromState` — the same functions the command pipeline runs — and
+hands the result to the same `toSharedView` a real share read uses. Only the
+source of the bytes changed.
+
+**"No database" is enforced.** `toSharedView` moved into its own pure module,
+because `access/shares.ts` imports `db/client` and that constructs a `pg.Pool`
+at module load; the unit tests mock `pg` to throw on construction, so any future
+import of the client — direct or transitive — fails a test instead of opening a
+connection on a public path. The only write near the demo is "Make this trip
+mine", which now works: a signed-in visitor gets a real, editable copy through
+the ordinary command pipeline, and a signed-out one gets
+`/signin?callbackUrl=/s/featured` and lands back where they were.
+
+**Two judgement calls worth arguing with**, both in ADR-031: the copy records
+`forkedFrom` pointing at a synthetic trip id that names no row (display-only
+text today, and better than telling someone their trip came from nowhere), and
+`travellerCount` is declared by the fixture (`JAPAN_TRIP_TRAVELLERS = 4`)
+rather than read from the folded member list, which has exactly one entry.
+
+**Run:** full `pnpm check`, `pnpm --filter web test:int`, `pnpm seed:verify`,
+and `pnpm --filter web test:e2e:ci-like` on the share spec — the CTA test now
+asserts the trip renders instead of asserting it does not.
+
 ## The subagent protocol landed, 2026-08-28
 
 `.claude/protocol/` now carries a binding contract for every dispatched

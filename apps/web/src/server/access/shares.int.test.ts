@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/client";
 import { events, tripDetails, tripInvites, tripMemberships, tripShares, tripSummaries } from "../db/schema";
 import { executeTripCommand } from "../commands";
 import { createInvite, acceptInvite } from "./invites";
-import { createShare, listShares, readFeaturedShare, readShare, revokeShare } from "./shares";
+import { createShare, listShares, readShare, revokeShare } from "./shares";
 
 const OWNER = "share-alice";
 
@@ -25,11 +25,6 @@ beforeEach(async () => {
   await db.delete(tripDetails);
   await db.delete(tripSummaries);
   await db.delete(events);
-  delete process.env.DEMO_SHARE_TOKEN;
-});
-
-afterEach(() => {
-  delete process.env.DEMO_SHARE_TOKEN;
 });
 
 describe("a pinned share is pinned", () => {
@@ -233,36 +228,12 @@ describe("what a stranger is served", () => {
   });
 });
 
-describe("the featured share", () => {
-  it("is not configured by default, and says so rather than picking a trip", async () => {
-    const tripId = await seedTrip();
-    await createShare(tripId, OWNER); // a real share exists…
-    const result = await readFeaturedShare();
-    // …and is deliberately NOT promoted to the front page.
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message).toBe("No trip is published here yet.");
-  });
-
-  it("serves the configured share when one is named", async () => {
-    const tripId = await seedTrip("Featured");
-    const share = await createShare(tripId, OWNER);
-    expect(share.ok).toBe(true);
-    if (!share.ok) return;
-    process.env.DEMO_SHARE_TOKEN = share.value.token;
-    const result = await readFeaturedShare();
-    expect(result.ok && result.value.name).toBe("Featured");
-  });
-
-  it("falls back to nothing if the configured share was turned off", async () => {
-    const tripId = await seedTrip();
-    const share = await createShare(tripId, OWNER);
-    expect(share.ok).toBe(true);
-    if (!share.ok) return;
-    await revokeShare(tripId, share.value.shareId);
-    process.env.DEMO_SHARE_TOKEN = share.value.token;
-    expect((await readFeaturedShare()).ok).toBe(false);
-  });
-});
+// The featured share used to be tested here: `readFeaturedShare` resolved
+// `DEMO_SHARE_TOKEN` against this table. `/s/featured` now serves the built-in
+// demo trip, folded from the fixture with no database at all (ADR-031), so its
+// coverage is `src/server/demoTrip.test.ts` and
+// `src/app/api/shares/featured/route.test.ts` — neither of which needs Postgres,
+// which is the whole claim.
 
 // KI-53. `mode: "string"` columns echoed the write path's own ISO input and
 // rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
