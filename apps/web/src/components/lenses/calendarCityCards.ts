@@ -79,8 +79,26 @@ export function calendarCityCards(
     else cityGroups.push({ city, stops: [activity] });
   }
 
+  // City-less stops FOLD INTO the day's last city rather than forming a group
+  // of their own (Mitchell, walking the #71 preview: "Whats with the time above
+  // the card?"). They used to be appended as a `city: null` group, and
+  // CalendarLens renders every group except the arriving one as a one-line
+  // strip of "<city> <time>" — so a nameless group rendered an empty label and
+  // a bare timestamp hanging above the card, which says nothing to anyone.
+  //
+  // Folding is better than dropping the strip: those stops really did happen
+  // that day, so their count, cost and time still belong in the day's numbers.
+  // They join the LAST city group because that is the day's arriving card —
+  // where the day ends up, and the card that carries the day's totals.
+  //
+  // A day with no city ANYWHERE still yields one untitled group, which is the
+  // honest "we don't know where this was" and keeps the day's numbers visible.
   const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
-  if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
+  if (unplaced.length > 0) {
+    const arriving = groups[groups.length - 1];
+    if (arriving === undefined) groups.push({ city: null, stops: unplaced });
+    else arriving.stops = [...arriving.stops, ...unplaced];
+  }
 
   return groups.map(({ city, stops }) => {
     const windows = stops

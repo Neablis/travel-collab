@@ -124,15 +124,20 @@ describe("CalendarLens", () => {
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
-    // TWO, not three: this day's third stop is the unlocated flight home, and
-    // Rome's card counts Rome's stops. It said "3 stops" while grouping folded
-    // city-less stops into whatever city was in progress — which was a guess
-    // about where the flight was. The flight is still on the cell, in its own
-    // untitled group; it just no longer counts as a Rome stop.
-    expect(cell.textContent).toContain("2 stops");
-    // Colosseum starts 09:00, and Rome's window ends with Rome — 13:00, not
-    // the flight's 17:30.
-    expect(cell.textContent).toContain("9 am – 1 pm");
+    // THREE: two Rome stops plus the unlocated flight home. This asserted "2
+    // stops" for one commit, while a city-less stop opened a `city: null` group
+    // of its own — which rendered as an empty label and a bare time above the
+    // card ("Whats with the time above the card?", Mitchell on the #71
+    // preview). City-less stops now fold into the day's last city, so the cell
+    // counts the day rather than counting one group of it.
+    //
+    // This does NOT re-assert where the flight was: nothing renders its
+    // location, and the cell's heading is still Rome because Rome is the only
+    // city the day names. It counts the stop on the day the user put it on.
+    expect(cell.textContent).toContain("3 stops");
+    // 09:00 (Colosseum) through 17:30 (the flight) — the day's real extent now
+    // that the day is one card.
+    expect(cell.textContent).toContain("9 am – 5:30 pm");
   });
 
   // SPEC §12 replaced the per-stop chips with a per-city summary: "Calendar no
@@ -147,9 +152,9 @@ describe("CalendarLens", () => {
     expect(cell.textContent).not.toContain("Colosseum tour");
     expect(cell.textContent).not.toContain("Roman Forum");
     expect(cell.textContent).not.toContain("Flight home");
-    // What replaces them: the city, its stop count, and its window.
+    // What replaces them: the city, the day's stop count, and its window.
     expect(cell.textContent).toContain("Rome");
-    expect(cell.textContent).toContain("2 stops");
+    expect(cell.textContent).toContain("3 stops");
   });
 
   it("counts every stop in the summary, however many there are", () => {

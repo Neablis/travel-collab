@@ -120,13 +120,26 @@ describe("calendarCityCards", () => {
     expect(calendarCityCards(day, activities)[0]!.costMinor).toBe(700);
   });
 
-  // These two used to assert the opposite — an unlocated stop was folded into
-  // whatever group was in progress, and a day that opened unlocated adopted the
-  // first city it later learned about. Both were guesses: a flight with no
-  // location is not evidence you were in Rome, it is evidence nobody geocoded
-  // it. A stop with no city now says so instead of borrowing one (Mitchell,
-  // walking the #71 preview).
-  it("puts an unlocated stop in its own untitled group rather than a city's", () => {
+  // These two have been round the houses, so the reasoning is worth keeping.
+  //
+  // Originally an unlocated stop was folded into whatever group was in
+  // progress, and a day that opened unlocated adopted the first city it later
+  // learned about — a guess, and the one that let a venue NAME become a city
+  // heading. `d2a8627` stopped that: no city means no city, and such stops went
+  // into a `city: null` group of their own.
+  //
+  // That over-corrected. CalendarLens renders every group but the arriving one
+  // as a one-line "<city> <time>" strip, so a nameless group rendered an empty
+  // label and a naked timestamp floating above the card — Mitchell, walking the
+  // #71 preview: "Whats with the time above the card?"
+  //
+  // They now fold into the day's LAST city. The distinction that makes this
+  // right rather than a return to the guess: folding does not *label* the stop
+  // or claim it happened in Rome — nothing renders its location. It only counts
+  // it in the day the user actually put it on, which is true by construction.
+  // The thing `d2a8627` forbade — inventing a place name from a venue — is
+  // still forbidden, and `cityFor`/`shortPlace` still never fall back to name.
+  it("folds an unlocated stop into the day's last city rather than opening a nameless group", () => {
     const { day, activities } = dayOf([
       stop("a", "Rome", { start: "09:00", end: "11:00" }),
       stop("b", "Rome", { start: "11:30", end: "12:30" }),
@@ -134,13 +147,13 @@ describe("calendarCityCards", () => {
     ]);
 
     const cards = calendarCityCards(day, activities);
-    expect(cards).toHaveLength(2);
-    // Rome counts its own two stops, and does not claim the third.
-    expect(cards[0]).toMatchObject({ city: "Rome", stops: 2, window: { start: "09:00", end: "12:30" } });
-    expect(cards[1]).toMatchObject({ city: null, stops: 1, window: { start: "17:00", end: "17:30" } });
+    expect(cards).toHaveLength(1);
+    // Rome carries all three: the stop happened on this day, so its count and
+    // its time belong in the day's numbers rather than in a ghost group.
+    expect(cards[0]).toMatchObject({ city: "Rome", stops: 3, window: { start: "09:00", end: "17:30" } });
   });
 
-  it("collects every unlocated stop into ONE untitled group, not one each", () => {
+  it("folds unlocated stops on both sides of a city into that city, not into groups of their own", () => {
     const { day, activities } = dayOf([
       stop("a", null, { start: "08:00", end: "09:00" }),
       stop("b", "Kyoto", { start: "10:00", end: "11:00" }),
@@ -148,11 +161,11 @@ describe("calendarCityCards", () => {
     ]);
 
     const cards = calendarCityCards(day, activities);
-    // Two untitled stops on either side of Kyoto are still one untitled group —
-    // a day must not fragment into several anonymous places.
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toMatchObject({ city: "Kyoto", stops: 1 });
-    expect(cards[1]).toMatchObject({ city: null, stops: 2 });
+    // Two unlocated stops on either side of Kyoto: neither opens a group, and
+    // the day does not fragment into anonymous places. Kyoto is the day's only
+    // city, so it is the day, and it counts all three.
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ city: "Kyoto", stops: 3, window: { start: "08:00", end: "13:00" } });
   });
 
   it("groups stops with no location at all under a null city", () => {
