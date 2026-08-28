@@ -120,10 +120,13 @@ describe("calendarCityCards", () => {
     expect(calendarCityCards(day, activities)[0]!.costMinor).toBe(700);
   });
 
-  it("does not let an unlocated stop split the day", () => {
-    // A flight home with no location does not mean the day left the city — it
-    // means nobody geocoded it. Splitting there handed the day's card to a
-    // nameless group and demoted the real city to a strip.
+  // These two used to assert the opposite — an unlocated stop was folded into
+  // whatever group was in progress, and a day that opened unlocated adopted the
+  // first city it later learned about. Both were guesses: a flight with no
+  // location is not evidence you were in Rome, it is evidence nobody geocoded
+  // it. A stop with no city now says so instead of borrowing one (Mitchell,
+  // walking the #71 preview).
+  it("puts an unlocated stop in its own untitled group rather than a city's", () => {
     const { day, activities } = dayOf([
       stop("a", "Rome", { start: "09:00", end: "11:00" }),
       stop("b", "Rome", { start: "11:30", end: "12:30" }),
@@ -131,18 +134,25 @@ describe("calendarCityCards", () => {
     ]);
 
     const cards = calendarCityCards(day, activities);
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ city: "Rome", stops: 3, window: { start: "09:00", end: "17:30" } });
+    expect(cards).toHaveLength(2);
+    // Rome counts its own two stops, and does not claim the third.
+    expect(cards[0]).toMatchObject({ city: "Rome", stops: 2, window: { start: "09:00", end: "12:30" } });
+    expect(cards[1]).toMatchObject({ city: null, stops: 1, window: { start: "17:00", end: "17:30" } });
   });
 
-  it("adopts the first city it learns about when a day opens unlocated", () => {
+  it("collects every unlocated stop into ONE untitled group, not one each", () => {
     const { day, activities } = dayOf([
       stop("a", null, { start: "08:00", end: "09:00" }),
       stop("b", "Kyoto", { start: "10:00", end: "11:00" }),
+      stop("c", null, { start: "12:00", end: "13:00" }),
     ]);
 
-    expect(calendarCityCards(day, activities)).toHaveLength(1);
-    expect(calendarCityCards(day, activities)[0]!.city).toBe("Kyoto");
+    const cards = calendarCityCards(day, activities);
+    // Two untitled stops on either side of Kyoto are still one untitled group —
+    // a day must not fragment into several anonymous places.
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({ city: "Kyoto", stops: 1 });
+    expect(cards[1]).toMatchObject({ city: null, stops: 2 });
   });
 
   it("groups stops with no location at all under a null city", () => {

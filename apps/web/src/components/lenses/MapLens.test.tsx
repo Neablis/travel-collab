@@ -118,7 +118,7 @@ function detailFixture() {
         activityId: "located1",
         title: "Colosseum tour",
         timeWindow: { start: "09:00", end: "11:00" },
-        location: { name: "Colosseum, Rome, Italy", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
+        location: { name: "Colosseum, Rome, Italy", city: "Rome", lat: 41.8902, lng: 12.4922, countryCode: "IT" },
         notes: null,
         anchors: [],
         kind: "planned" as const,
@@ -151,12 +151,16 @@ function detailFixture() {
   });
 }
 
-function locatedActivity(id: string, lat: number, lng: number) {
+// `city` defaults to the id so each fixture day derives a distinct city, which
+// is what `dayAccents` colours the routes by. It used to come out of the
+// `?? name` fallback that grouping no longer does; naming it here keeps these
+// route-colour tests about colour rather than about city derivation.
+function locatedActivity(id: string, lat: number, lng: number, city = id) {
   return {
     activityId: id,
     title: id,
     timeWindow: null,
-    location: { name: id, lat, lng },
+    location: { name: id, city, lat, lng },
     notes: null,
     anchors: [],
     kind: "planned" as const,

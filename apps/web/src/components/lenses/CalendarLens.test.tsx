@@ -57,7 +57,7 @@ function detailFixture() {
         activityId: rome,
         title: "Colosseum tour",
         timeWindow: { start: "09:00", end: "11:00" },
-        location: { name: "Rome" },
+        location: { name: "Rome", city: "Rome" },
         notes: null,
         anchors: [],
         kind: "planned" as const,
@@ -68,7 +68,7 @@ function detailFixture() {
         activityId: forum,
         title: "Roman Forum",
         timeWindow: { start: "11:30", end: "13:00" },
-        location: { name: "Rome" },
+        location: { name: "Rome", city: "Rome" },
         notes: null,
         anchors: [],
         kind: "planned" as const,
@@ -124,10 +124,15 @@ describe("CalendarLens", () => {
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
-    expect(cell.textContent).toContain("3 stops");
-    // Colosseum starts 09:00, flight home ends 17:30 — earliest start to latest
-    // end, through lib/time's toClockRange like every other time surface.
-    expect(cell.textContent).toContain("9 am – 5:30 pm");
+    // TWO, not three: this day's third stop is the unlocated flight home, and
+    // Rome's card counts Rome's stops. It said "3 stops" while grouping folded
+    // city-less stops into whatever city was in progress — which was a guess
+    // about where the flight was. The flight is still on the cell, in its own
+    // untitled group; it just no longer counts as a Rome stop.
+    expect(cell.textContent).toContain("2 stops");
+    // Colosseum starts 09:00, and Rome's window ends with Rome — 13:00, not
+    // the flight's 17:30.
+    expect(cell.textContent).toContain("9 am – 1 pm");
   });
 
   // SPEC §12 replaced the per-stop chips with a per-city summary: "Calendar no
@@ -144,7 +149,7 @@ describe("CalendarLens", () => {
     expect(cell.textContent).not.toContain("Flight home");
     // What replaces them: the city, its stop count, and its window.
     expect(cell.textContent).toContain("Rome");
-    expect(cell.textContent).toContain("3 stops");
+    expect(cell.textContent).toContain("2 stops");
   });
 
   it("counts every stop in the summary, however many there are", () => {
@@ -158,7 +163,7 @@ describe("CalendarLens", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
           ]),
         ),
       }),
@@ -182,7 +187,7 @@ describe("CalendarLens", () => {
           activityId: rome,
           title: "All-day pass",
           timeWindow: { start: "09:00", end: "17:00" },
-          location: { name: "Rome" },
+          location: { name: "Rome", city: "Rome" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -193,7 +198,7 @@ describe("CalendarLens", () => {
           activityId: forum,
           title: "Guided tour",
           timeWindow: { start: "10:00", end: "11:00" },
-          location: { name: "Rome" },
+          location: { name: "Rome", city: "Rome" },
           notes: null,
           anchors: [],
           kind: "planned" as const,
@@ -217,7 +222,7 @@ describe("CalendarLens", () => {
           activityId: rome,
           title: "Colosseum tour",
           timeWindow: null,
-          location: { name: "Rome" },
+          location: { name: "Rome", city: "Rome" },
           notes: null,
           anchors: [],
           kind: "planned" as const,

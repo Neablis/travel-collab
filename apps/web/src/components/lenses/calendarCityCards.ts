@@ -53,36 +53,34 @@ export function calendarCityCards(
   day: TripDetail["days"][number],
   activities: TripDetail["activities"],
 ): CityCard[] {
-  const groups: { city: string | null; stops: ActivityView[] }[] = [];
+  // Cities only. `location.name` is a display label — "Gonpachi Nishiazabu" —
+  // and it used to stand in for a missing `city`, which meant a restaurant
+  // opened a city group and split the day as if you had travelled to it
+  // (Mitchell, walking the #71 preview). A name is never an identity here.
+  //
+  // Everything with no city goes in ONE untitled bucket rather than each
+  // opening its own, so a day never fragments into several anonymous places.
+  const cityGroups: { city: string; stops: ActivityView[] }[] = [];
+  const unplaced: ActivityView[] = [];
 
   for (const activityId of day.activityIds) {
     const activity = activities[activityId];
     if (activity === undefined) continue;
-    // Same city-else-name fallback DayChips.cityFor documents: `location.city`
-    // is the geocoder's own structured city, and `name` is the stand-in for a
-    // location that predates that field or has no city-level component.
-    const city = activity.location ? (activity.location.city ?? activity.location.name) : null;
-    const last = groups[groups.length - 1];
-
-    // Only a located stop naming a DIFFERENT city splits the day. A stop with
-    // no location tells us nothing about having moved, so it joins the group in
-    // progress rather than opening one of its own — otherwise a day of three
-    // Rome stops where the flight home has no location renders as "Rome" plus a
-    // nameless card, and the nameless one wins the day (caught by
-    // CalendarLens.test.tsx's own fixture, which has exactly that shape).
-    if (last === undefined) {
-      groups.push({ city, stops: [activity] });
-    } else if (city === null || city === last.city) {
-      last.stops.push(activity);
-    } else if (last.city === null) {
-      // The day opened with unlocated stops; the first city we learn about is
-      // theirs too, since nothing in between said we went anywhere.
-      last.city = city;
-      last.stops.push(activity);
-    } else {
-      groups.push({ city, stops: [activity] });
+    const city = activity.location?.city ?? null;
+    if (city === null) {
+      unplaced.push(activity);
+      continue;
     }
+    const last = cityGroups[cityGroups.length - 1];
+    // Consecutive stops in the same city are one group; a different city opens
+    // the next one. Returning to a city later in the day is a new group again,
+    // which is right — you went back.
+    if (last !== undefined && last.city === city) last.stops.push(activity);
+    else cityGroups.push({ city, stops: [activity] });
   }
+
+  const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
+  if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
 
   return groups.map(({ city, stops }) => {
     const windows = stops

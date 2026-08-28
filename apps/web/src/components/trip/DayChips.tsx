@@ -74,10 +74,14 @@ export function parseLocalDate(iso: string): Date {
 // that isn't there" stance as the TripSummary city comments in
 // NextTripHero.tsx / TripCard.tsx. Falls through subsequent activityIds if
 // the first has no location; null if none of the day's activities have one.
+// The day's city: the first stop that names one. A `location.name` is a
+// display label, never a stand-in for a city — it used to be, which is how a
+// restaurant ended up labelling a day (Mitchell, walking the #71 preview). A
+// day whose stops all lack a city has no city, and says so by returning null.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (const activityId of day.activityIds) {
-    const location = activities[activityId]?.location;
-    if (location) return location.city ?? location.name;
+    const city = activities[activityId]?.location?.city;
+    if (city !== undefined && city !== "") return city;
   }
   return null;
 }
