@@ -5,6 +5,120 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## A travel day is no longer a mistake, 2026-08-28 — KI-60
+
+**The Japan demo went from 12 conflicts to 2, and the fixture never changed.**
+Mitchell reseeded and asked why a demo meant to show one or two conflicts showed
+many, "many many around distances being too far". All ten `impossible-geography`
+warnings were false, and all sat on the two days the trip relocates: 4 on the
+Odawara → Kyoto day, 6 on the Osaka → Tokyo day. In every pair the day's own
+shinkansen was scheduled **between** the two stops.
+
+`detectConflicts` compared every same-day located pair against a flat 150km and
+never read `kind`. M18 added `ActivityKind: "transit"` for exactly this
+reasoning; `conflicts.ts` predated it. The rule now excuses a distance a transit
+stop crosses **in time** — "a distance is only a problem if nothing on the day
+accounts for crossing it."
+
+Conservative on purpose, because a false negative hides a real problem while a
+false positive is only noise: **time order, not stored order** (`activityIds` is
+display order, reorderable without changing when anything happens); **an untimed
+stop is never excused**; **an untimed transit stop excuses nothing**. It does not
+check the transit stop goes to the right *place* — nothing models a from/to
+(KI-59), so "some travel is scheduled in this interval" is the strongest signal
+available.
+
+The weaker rule — *skip a pair if either stop is transit* — was rejected with
+evidence, not taste: it clears day 7 but only 3 of day 14's 6, leaving
+"Breakfast at the hotel" vs the three Tokyo stops.
+
+**The two that remain are the ones worth showing:** "Nezu Museum" vs "Lunch at
+Kagari", and "Kiyomizu-dera and Sannenzaka" vs "Lunch at Omen Kodaiji".
+
+**Two of my own claims this corrected**, both made without checking and both
+recorded in `expectations.ts`: that the Gora Kadan check-in was a *planted*
+conflict (it is flavour text; no rule detects "check-in closes at 16:00"), and
+that ten distance warnings were "what a real six-city trip produces". Pinning an
+observed number as expected is how a defect becomes a baseline — the comment now
+names the target and says to suspect the rule before the content.
+
+**Run:** full `pnpm check` (domain **153**, web 1054/1 skipped), `test:int`
+**201**, `pnpm seed:verify` OK at 2 conflicts, and a real browser walk after
+`db:reset` + `db:seed` — hero reads "2 open conflicts", Day-columns shows two
+dismissible banners where it stacked twelve. Regression block verified
+non-vacuous: removing the exclusion turns 5 of its 7 cases red.
+
+## The Japan demo trip is one fixture now, 2026-08-28 — ADR-030
+
+**Three surfaces, one copy.** `@tc/fixtures` is a new workspace package owning
+the 14-day/68-stop Japan trip. `scripts/db-seed.ts`, the preview branch's
+`api/dev/reset-demo-data`, and a new `@tc/factories` scenario all call the same
+`japanTripCommands`. `src/lib/japanTripImporter.ts` is deleted.
+
+**The two copies that existed were identical, and that was luck.** All 68 stops
+plus 4 backlog items agreed field-for-field on title, place, area, start, end,
+status, cost, note and `who`. Nothing checked it.
+
+**Where they differed is what this fixes, and it was live on preview:**
+
+- The preview reset produced a trip with **zero tags** — the export carries
+  none. M18 PR 2 ships tag chips and a filter row that could not have been
+  reviewed on a preview deployment.
+- Coordinates were **72/72 local, 51/72 preview**, and six of the 51 were the
+  wrong venue: Hama-rikyū Gardens matched to `"Tokyo, Chiyoda"` (a city
+  centroid), Bread & Espresso to `"Cawaii Bread & Coffee"`, Yoshida-ya to
+  `"Coffee Yoshida"`, Onibus to the Setagaya branch, Sushi Yoshitake to
+  `"Sushi Wasabi, Shinjuku"`, Torishiki to a locality. Filed as **KI-58**; the
+  data is fixed, the script is not.
+- The export's dates are pinned to `2026-09-20`. Both callers now pass
+  `today + 10`, so the homepage hero always has an upcoming trip.
+
+**`pnpm seed:verify` is the thing that keeps it true.** It folds the fixture
+through the real domain — `decideTripCommand`, `evolveTrip`, `rollupCosts`,
+`detectConflicts`, no DB, no clock — and diffs against a recorded baseline. Two
+mechanisms make it grow with the product: the kind/tag histograms are typed
+`Record<ActivityKind, number>`, so a new enum value breaks the build until the
+fixture covers it; and every count must be **> 0**, so a value that exists in
+the contract but appears nowhere in the fixture is a finding. It runs inside
+`pnpm check` as well, because an unwired script rots.
+`docs/guidelines/fixtures-and-seed-data.md` is the procedure for new features.
+
+**One trap worth remembering.** `db-seed.ts` runs under plain `node` with type
+stripping. It imported `@tc/contracts` extensionlessly and got away with it only
+because that import was **type-only** and erased at load. A *value* import of a
+source-only workspace package needs the specifier to resolve for real — so every
+relative import inside `@tc/fixtures` now carries a `.ts` extension, and
+`tsconfig.base.json` sets `allowImportingTsExtensions`. This failed loudly on
+the first live `db:seed`, not in any test.
+
+**What was actually run on this branch:**
+
+- `pnpm typecheck` — green across all **7** packages (6 + the new one).
+- Root `pnpm lint` — green (ESLint, lint wall, colour wall 356 files / 0 pending
+  re-skin, case collisions 758 paths).
+- `pnpm test` — contracts 98, pages 32, domain 146, **fixtures 8**, factories
+  354, web 1054 passed / 1 skipped.
+- `pnpm --filter web test:int` — **201 passed, 20 files**, against Postgres on
+  :5433. Includes a new assertion that the preview reset seeds all four tags and
+  a coordinate on **every** stop — proven non-vacuous by stripping tags from the
+  fixture and watching it go red.
+- `pnpm seed:verify` — OK, and its report matches a live `db:seed` read back
+  through the API exactly: 14 days, 72 activities, kinds booked 13 / planned 39
+  / transit 9 / idea 6 / hold 5, tags meal 33 / outdoors 11 / ticketed 8 /
+  lodging 4 with 18 untagged, 72/72 coordinates, budget 16,400 / planned 9,085
+  USD (the export's own `plannedTotal`), 12 conflicts.
+- Browser walk at 1280px: homepage hero ("Next trip", Mon Sep 7, `$9,085.00
+  planned of $16,400.00`, 12 open conflicts, all six city chips), the trip's
+  Day-columns lens, and the Map lens with tiles and pins. No console errors.
+- Both new guards checked non-vacuous: perturbing a stop's time fails the
+  upstream-drift test; removing the last `lodging` tag fails tag coverage.
+- E2E **not** run — no UI behaviour changed, only the data behind it.
+
+**Two things found and filed rather than fixed:** KI-58 (the geocoder still
+matches the wrong venue) and KI-57 (`reset-demo-data/route.int.test.ts` only
+passes against a fresh DB — it accumulates one outsider trip per run; CI is
+unaffected).
+
 ## M18 PR 1 (the contract change) is done, 2026-08-27 — PR 2+ carries the surfaces
 
 **A stop now knows what kind of thing it is.** `ActivityKind`

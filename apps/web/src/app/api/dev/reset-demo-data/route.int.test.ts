@@ -14,23 +14,22 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-// Overridden per-test (undefined = pass through to the real importer) so one
+// Overridden per-test (undefined = pass through to the real fixture) so one
 // test can force the seed batch to reject partway through without needing a
-// fixture of its own — @/lib/japanTripImporter's real importJapanTripSeed
-// always produces a valid ~74-command batch, so a forced rejection needs a
-// seam here.
+// fixture of its own — @tc/fixtures's real japanTripCommands always produces a
+// valid 74-command batch, so a forced rejection needs a seam here.
 let seedCommandsOverride: ((tripId: string) => TripCommand[]) | undefined;
-vi.mock("@/lib/japanTripImporter", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/japanTripImporter")>();
+vi.mock("@tc/fixtures", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tc/fixtures")>();
   return {
     ...actual,
-    importJapanTripSeed: (seed: unknown, tripId: string) =>
-      seedCommandsOverride ? seedCommandsOverride(tripId) : actual.importJapanTripSeed(seed as never, tripId),
+    japanTripCommands: (tripId: string, options: { startDate: string }) =>
+      seedCommandsOverride ? seedCommandsOverride(tripId) : actual.japanTripCommands(tripId, options),
   };
 });
 
 // Import after the mocks so the route picks up mocked `auth` and
-// `importJapanTripSeed` — same pattern as every other *.int.test.ts under
+// `japanTripCommands` — same pattern as every other *.int.test.ts under
 // src/app/api.
 const { POST } = await import("./route");
 
@@ -122,6 +121,46 @@ describe("POST /api/dev/reset-demo-data", () => {
     // The real 14-day / 68-stop / 4-unscheduled Japan seed, not a stub.
     expect(body.days).toBe(14);
     expect(body.activities).toBe(68 + 4);
+  });
+
+  // The reason @tc/fixtures exists (ADR-030). This route used to build its own
+  // commands from the raw design-handoff export, which carries no tags at all
+  // and only 51 of 72 coordinates — six of those pointing at the wrong venue.
+  // So a preview deployment, the environment reviews actually happen in, showed
+  // a thinner and partly wrong trip than any local browser walk did. Asserted
+  // here rather than left to hold by construction, because "the preview data is
+  // as good as local" is exactly the kind of claim that silently stops being
+  // true.
+  it("seeds the FULL-fidelity trip — every tag and a coordinate on every stop", async () => {
+    openGate();
+    const res = await POST(new Request("http://test/api/dev/reset-demo-data", { method: "POST" }));
+    expect(res.status).toBe(200);
+    const { tripId } = await res.json();
+
+    const detail = await getTripDetail(tripId);
+    const activities = Object.values(detail!.activities);
+
+    // Both components: the test's claim is "a coordinate on every stop", and
+    // lat alone would pass on a fixture that lost every lng. (CodeRabbit, PR #74.)
+    expect(
+      activities.filter((a) => a.location?.lat !== undefined && a.location?.lng !== undefined),
+    ).toHaveLength(72);
+
+    const tagged = new Set(activities.flatMap((a) => a.tags ?? []));
+    expect([...tagged].sort()).toEqual(["lodging", "meal", "outdoors", "ticketed"]);
+
+    const kinds = new Set(activities.map((a) => a.kind));
+    expect([...kinds].sort()).toEqual(["booked", "hold", "idea", "planned", "transit"]);
+
+    // The stop the overlay mismatched worst: it matched "Tokyo, Chiyoda, Tokyo"
+    // — a city centroid, not a garden. See coordinateOverrides.ts.
+    const hamarikyu = activities.find((a) => a.title.startsWith("Hama-rikyū"));
+    expect(hamarikyu?.location?.lat).toBeCloseTo(35.6597, 4);
+    expect(hamarikyu?.location?.lng).toBeCloseTo(139.7633, 4);
+
+    // Dated relative to today, like db:seed — so the demo trip is always
+    // upcoming and the homepage hero always has something to show.
+    expect(detail!.startDate! > new Date().toISOString().slice(0, 10)).toBe(true);
   });
 
   it("leaves no partially-seeded trip when a command mid-batch is rejected", async () => {

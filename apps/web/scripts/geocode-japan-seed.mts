@@ -1,8 +1,15 @@
 // One-off, offline geocoding pass for the Japan demo seed
 // (.design-sync/handoff/data/japan-trip-seed.json). Writes
-// src/lib/japanTripSeedCoordinates.json, the overlay `importJapanTripSeed`
-// (src/lib/japanTripImporter.ts) reads to attach lat/lng — the seed itself
-// carries none, which is why MapLens's 72 demo stops render zero pins today.
+// packages/fixtures/src/japan/coordinates.json.
+//
+// That overlay is no longer read at seed time. Since ADR-030 the canonical
+// coordinates live on the rows in packages/fixtures/src/japan/trip.ts, and this
+// file is a PROPOSAL checked against them: `verify.ts` fails if a row disagrees
+// with the overlay unless the disagreement is recorded, with a reason, in
+// `coordinateOverrides.ts`. Twelve currently are — six because this script
+// matched the wrong venue inside the right city, which is the limit KI-39
+// documents. So re-running this script does not change what the app stores;
+// it changes what the app's coordinates are checked against.
 //
 // Run from apps/web:
 //   node --env-file=.env.local scripts/geocode-japan-seed.mts
@@ -36,10 +43,9 @@
 // Method (KI-15's lesson — docs/known-issues.md — reproduced at this call
 // site, not by loosening the shared seam):
 //   1. Query = "<place>, <area>, <city>, Japan" for a scheduled stop — the
-//      seed's own fields, the same shape japanTripImporter.ts's
-//      `locationName()` builds for the activity's display name (exported
-//      from there so this script can't drift from what actually gets
-//      stored).
+//      seed's own fields, the same shape @tc/fixtures's `locationName()`
+//      builds for the activity's display name (imported from there so this
+//      script can't drift from what actually gets stored).
 //   2. A TIGHT, hand-picked bounding box per city the trip visits (below) —
 //      not a soft, whole-Japan bias. Narrow enough that Narita, Chiba (a
 //      real LocationIQ top result for "HND Terminal 3, Tokyo, Japan") falls
@@ -75,7 +81,7 @@
 //      guesses one.
 //
 // `unscheduled[]` items (the trip's backlog) carry no city of their own
-// (see DROPPED_SEED_FIELDS / UnscheduledSeed in japanTripImporter.ts), so
+// (see `UnscheduledSeed` in @tc/fixtures's seedSchema.ts), so
 // there's no single per-city box to apply step 2 with. Their query drops the
 // city segment ("<place>, <area>, Japan", matching
 // `unscheduledLocationName()`) and the search itself is unbounded; the
@@ -101,10 +107,10 @@ import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts"
 import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
 import { placeNameVerdict, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
 import { mapRateLimited } from "../src/server/ai/rateLimit.ts";
-import { parseTripSeed, locationName, unscheduledLocationName } from "../src/lib/japanTripImporter.ts";
+import { parseTripSeed, locationName, unscheduledLocationName } from "@tc/fixtures";
 
 const SEED_PATH = fileURLToPath(new URL("../../../.design-sync/handoff/data/japan-trip-seed.json", import.meta.url));
-const OUTPUT_PATH = fileURLToPath(new URL("../src/lib/japanTripSeedCoordinates.json", import.meta.url));
+const OUTPUT_PATH = fileURLToPath(new URL("../../../packages/fixtures/src/japan/coordinates.json", import.meta.url));
 
 // Tight boxes around the six cities the trip actually visits (trip.cities in
 // the seed) — hand-picked from the real-world span of this trip's own stops

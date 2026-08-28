@@ -11,7 +11,8 @@
     "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs",
     "test": "pnpm -r --if-present test",
     "test:int": "pnpm --filter web test:int",
-    "check": "pnpm typecheck && pnpm lint && pnpm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test"
   },
   "dependencies": {
     "@vercel/speed-insights": "^2.0.0"

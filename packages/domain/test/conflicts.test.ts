@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { TimeWindow } from "@tc/contracts";
+import type { ActivityKind, TimeWindow } from "@tc/contracts";
 import {
   detectConflicts,
   GEO_INFEASIBLE_KM,
@@ -14,6 +14,7 @@ type ActivitySpec = {
   title?: string;
   window?: TimeWindow;
   point?: { name: string; lat: number; lng: number };
+  kind?: ActivityKind;
 };
 
 function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySpec[] = []): TripState {
@@ -35,7 +36,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           location: a.point ? { name: a.point.name, lat: a.point.lat, lng: a.point.lng } : null,
           notes: null,
           anchors: [],
-          kind: "planned" as const,
+          kind: a.kind ?? ("planned" as const),
           tags: [],
           cost: null,
         },
@@ -123,6 +124,103 @@ describe("impossible-geography rule", () => {
   it("haversine sanity: Rome–NYC is far, Rome–Vatican is near", () => {
     expect(haversineKm(ROME, NYC)).toBeGreaterThan(GEO_INFEASIBLE_KM);
     expect(haversineKm(ROME, VATICAN)).toBeLessThan(10);
+  });
+
+  // KI-60. A travel day is not a mistake. Every case below was a false
+  // conflict before the transit exclusion, and the "still flags" ones are the
+  // boundary that keeps it from excusing everything.
+  describe("a transit stop excuses the distance it crosses (KI-60)", () => {
+    const geo = (state: TripState) =>
+      detectConflicts(state).filter((c) => c.kind === "impossible-geography");
+
+    it("excuses a pair a transit stop sits BETWEEN in time", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("excuses a pair when the transit stop IS one of them — it is what moves you", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "t", point: ROME, window: { start: "08:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("still flags when the transit stop is OUTSIDE the interval", () => {
+      // Travel at 20:00 cannot explain being in Rome at 08:00 and NYC at 10:00.
+      const conflicts = geo(
+        boardState([
+          { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+          { id: "b", point: NYC, window: { start: "10:00", end: "11:00" } },
+          { id: "t", point: NYC, window: { start: "20:00", end: "22:00" }, kind: "transit" },
+        ]),
+      );
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0]!.subjects).toEqual(["a", "b"]);
+    });
+
+    it("still flags an untimed stop — 'when' is unknown, so travel cannot cover it", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME },
+            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toHaveLength(1);
+    });
+
+    // `t` carries no point in this test and the next, so it forms no far-apart
+    // pair of its own — the only conflict available is a<->b, which is exactly
+    // the question being asked.
+    it("ignores an untimed transit stop — it cannot be placed in the interval", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toHaveLength(1);
+    });
+
+    it("is transit-only — no other kind excuses a distance", () => {
+      for (const kind of ["planned", "booked", "hold", "idea"] as const) {
+        expect(
+          geo(
+            boardState([
+              { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+              { id: "t", window: { start: "10:00", end: "14:00" }, kind },
+              { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+            ]),
+          ),
+          `kind ${kind} must not excuse a distance`,
+        ).toHaveLength(1);
+      }
+    });
+
+    it("does not touch time-overlap conflicts on the same day", () => {
+      const conflicts = detectConflicts(
+        boardState([
+          { id: "t", point: ROME, window: { start: "08:00", end: "14:00" }, kind: "transit" },
+          { id: "a", point: NYC, window: { start: "18:00", end: "20:00" } },
+          { id: "b", point: NYC, window: { start: "19:00", end: "21:00" } },
+        ]),
+      );
+      expect(conflicts.map((c) => c.kind)).toEqual(["time-overlap"]);
+    });
   });
 });
 

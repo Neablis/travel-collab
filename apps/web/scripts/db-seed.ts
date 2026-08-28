@@ -47,18 +47,25 @@
 // mismatch — no automated check can substitute for updating the seed data
 // itself when a new feature needs new kinds of fixtures.
 //
-// This script's own curated content (three named, realistic demo trips —
-// Japan, Rochester, Portland) is intentionally NOT routed through
-// `@tc/factories`'s `commandsFor` (ADR-020): `commandsFor`'s generic named
-// scenarios (emptyTrip, overBudgetTrip, ...) exist for tests and e2e, where
-// "a" over-budget trip is the point; this script's demo trips are specific,
-// narratively real content ("Japan: Tokyo -> Kyoto -> Osaka", 68 stops) that
-// no generic scenario name could capture without flattening it into
-// placeholder data. Both draw on the same TripCommand vocabulary; only the
-// content differs.
+// This script's curated content (three named, realistic demo trips — Japan,
+// Rochester, Portland) is intentionally NOT routed through `@tc/factories`'s
+// `commandsFor` (ADR-020): `commandsFor`'s generic named scenarios (emptyTrip,
+// overBudgetTrip, ...) exist for tests and e2e, where "a" over-budget trip is
+// the point; these demo trips are specific, narratively real content that no
+// generic scenario name could capture without flattening it into placeholder
+// data. Both draw on the same TripCommand vocabulary; only the content differs.
+//
+// The JAPAN trip is no longer written out here at all. It lives in
+// `@tc/fixtures` (ADR-030) because three surfaces need the identical trip: this
+// script, the preview branch's reset route, and the `japanTrip` factory
+// scenario. It used to be duplicated between the first two, which is a drift
+// bug that had not gone off yet. Rochester and Portland stay here — nothing
+// else consumes them, and they exist to cover shapes Japan does not (an empty
+// day, a two-day trip, a non-Japan country code).
 
 import { randomUUID } from "node:crypto";
 import type { ActivityKind, ActivityTag, BatchableCommand, TripCommand } from "@tc/contracts";
+import { JAPAN_TRIP_NAME, japanTripCommandGroups } from "@tc/fixtures";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3001";
 const DEV_USER = process.env.SEED_USER ?? "alice";
@@ -192,20 +199,6 @@ function isoDateInDays(days: number): string {
 
 // ---- seed content --------------------------------------------------
 
-// Folds `who` into the notes field. It is the last piece of stop metadata the
-// domain doesn't model — Access & Membership's data, not an activity field
-// (see japanTripImporter.ts's DROPPED_SEED_FIELDS) — and "all" is the
-// uninteresting default, omitted so notes stay quiet for the common case.
-//
-// `status` used to be folded in here too, which is why cards read "(transit)"
-// and "(idea)". M18 gave it a real home: AddActivity.kind. Do not put it back.
-function buildNotes(note?: string, who?: string | string[]): string | undefined {
-  const parts: string[] = [];
-  if (note) parts.push(note);
-  if (who && who !== "all") parts.push(`(${Array.isArray(who) ? who.join(" + ") : who})`);
-  return parts.length > 0 ? parts.join(" ") : undefined;
-}
-
 type SeedStop = {
   day: string;
   title: string;
@@ -214,8 +207,9 @@ type SeedStop = {
   place: string;
   city: string;
   // Sub-settlement locality, straight onto Location.area (KI-35). Optional
-  // because the Rochester trip's stops have no neighbourhood worth naming;
-  // the Japan rows all carry one.
+  // because the Rochester and Portland stops have no neighbourhood worth
+  // naming. (The Japan trip's rows all carry one, but they come from
+  // @tc/fixtures now and never pass through this type.)
   area?: string;
   lat: number;
   lng: number;
@@ -226,178 +220,28 @@ type SeedStop = {
   notes?: string;
 };
 
-// A longer, denser trip: 14 days, 6 cities, 68 stops plus a backlog, adapted
-// from a JSON export of the Trip Planner redesign prototype. Costs are the
-// export's derived seed values (whole USD, converted to minor units below).
-// Coordinates aren't in the export — added here from general knowledge of
-// these (real, well-known) landmarks, since MapLens/TimelineLens need them.
-// Seeded first and with the soonest start date so it's the trip GET
-// /api/trips returns first — the homepage hero picks trips[0] with no
-// sort of its own (apps/web/src/app/page.tsx), so insertion order is what
-// decides "next trip" today.
+/**
+ * Seeds the Japan demo trip.
+ *
+ * Its content is NOT here any more: it lives in `@tc/fixtures` (ADR-030),
+ * which is also what the preview branch's reset route and the `@tc/factories`
+ * japan scenario use. This file used to carry its own copy of the same 68
+ * stops; the two agreed only by luck, and only the copy here ever had tags or
+ * a full set of coordinates.
+ *
+ * Seeded first and with the soonest start date so it is the trip
+ * `GET /api/trips` returns first — the homepage hero picks `trips[0]` with no
+ * sort of its own (`app/(app)/page.tsx`), so insertion order is what decides
+ * "next trip" today (KI-34).
+ */
 async function seedJapanTrip(cookie: string): Promise<void> {
-  const { tripId } = await createTrip(cookie, "Japan: Tokyo → Kyoto → Osaka");
-  const dayIds = Array.from({ length: 14 }, () => randomUUID());
-  // `newDayIds` is consumed in order (decide.ts:170 emits one DayAdded per id,
-  // evolve.ts:60 appends each to `days`), and this trip has no days yet — so
-  // dayIds[i] IS day i+1, and there is no need to round-trip the response just
-  // to read back ids this script minted.
-  await batch(cookie, tripId, [
-    { type: "SetTripDates", startDate: isoDateInDays(10), endDate: isoDateInDays(23), newDayIds: dayIds },
-    { type: "SetTripBudget", budget: { amountMinor: 1_640_000, currency: "USD" } },
-  ]);
-
-  const stops = [
-    // Day 1 — Tokyo
-    { day: 1, title: "Land at Haneda", tags: [], place: "HND Terminal 3", area: "Ōta", city: "Tokyo", lat: 35.5494, lng: 139.7798, start: "14:30", end: "16:00", status: "transit", cost: 310 },
-    { day: 1, title: "Check in at Trunk Hotel", tags: ["lodging"], place: "Trunk Hotel", area: "Shibuya", city: "Tokyo", lat: 35.6684, lng: 139.704, start: "17:00", end: "17:30", status: "booked", note: "Bags to the room, then straight out — nobody sleeps yet.", cost: 385 },
-    { day: 1, title: "Dinner at Gonpachi", tags: ["meal"], place: "Gonpachi Nishiazabu", area: "Nishi-Azabu", city: "Tokyo", lat: 35.6564, lng: 139.7238, start: "19:00", end: "20:30", status: "hold", cost: 295 },
-    { day: 1, title: "Nightcap at Bar Trench", tags: ["meal"], place: "Bar Trench", area: "Ebisu", city: "Tokyo", lat: 35.6467, lng: 139.7133, start: "21:00", end: "22:30", status: "idea", who: ["Sam K", "Jonah M"] },
-
-    // Day 2 — Tokyo
-    { day: 2, title: "Coffee at Onibus", tags: ["meal"], place: "Onibus Coffee", area: "Nakameguro", city: "Tokyo", lat: 35.6435, lng: 139.6987, start: "07:30", end: "08:15", cost: 70 },
-    { day: 2, title: "teamLab Planets", tags: ["ticketed"], place: "teamLab Planets", area: "Toyosu", city: "Tokyo", lat: 35.6469, lng: 139.793, start: "09:00", end: "11:00", status: "booked", note: "Timed entry 9 am. Barefoot — no tights.", cost: 355 },
-    { day: 2, title: "Lunch at Tsukiji Outer Market", tags: ["meal"], place: "Tsukiji Outer Market", area: "Tsukiji", city: "Tokyo", lat: 35.6654, lng: 139.7707, start: "12:00", end: "13:00", cost: 10 },
-    { day: 2, title: "Hama-rikyū Gardens", tags: ["outdoors"], place: "Hama-rikyū Gardens", area: "Hamamatsuchō", city: "Tokyo", lat: 35.6597, lng: 139.7633, start: "14:00", end: "16:00", who: ["Priya R", "Mei T"], cost: 15 },
-    { day: 2, title: "Yakitori at Torishiki", tags: ["meal"], place: "Torishiki", area: "Meguro", city: "Tokyo", lat: 35.6339, lng: 139.7157, start: "19:00", end: "21:00", status: "hold", cost: 315 },
-
-    // Day 3 — Tokyo
-    { day: 3, title: "Breakfast at Bread & Espresso", tags: ["meal"], place: "Bread & Espresso", area: "Omotesandō", city: "Tokyo", lat: 35.6658, lng: 139.7128, start: "08:00", end: "09:00", cost: 85 },
-    { day: 3, title: "Meiji Jingū", tags: ["outdoors"], place: "Meiji Jingū", area: "Yoyogi", city: "Tokyo", lat: 35.6764, lng: 139.6993, start: "09:30", end: "11:30", cost: 5 },
-    { day: 3, title: "Lunch at Afuri", tags: ["meal"], place: "Afuri", area: "Harajuku", city: "Tokyo", lat: 35.6702, lng: 139.7026, start: "12:30", end: "14:00", cost: 90 },
-    { day: 3, title: "Shimokitazawa record shops", tags: [], place: "Shimokitazawa", area: "Setagaya", city: "Tokyo", lat: 35.6613, lng: 139.6674, start: "15:00", end: "17:30", who: ["Jonah M"], cost: 20 },
-    { day: 3, title: "Dinner at Den", tags: ["meal"], place: "Den", area: "Jingūmae", city: "Tokyo", lat: 35.6688, lng: 139.7096, start: "19:30", end: "21:30", status: "booked", note: "Held with a card. 48h cancellation.", cost: 260 },
-
-    // Day 4 — Nikkō (day trip from Tokyo)
-    { day: 4, title: "Limited Express to Nikkō", tags: [], place: "Tobu Asakusa Station", area: "Asakusa", city: "Nikkō", lat: 35.7107, lng: 139.8017, start: "07:10", end: "09:10", status: "transit", cost: 100 },
-    { day: 4, title: "Tōshō-gū Shrine", tags: ["outdoors"], place: "Tōshō-gū", area: "Nikkō", city: "Nikkō", lat: 36.7581, lng: 139.5994, start: "10:00", end: "12:30", cost: 20 },
-    { day: 4, title: "Lunch at Hippari Dako", tags: ["meal"], place: "Hippari Dako", area: "Nikkō", city: "Nikkō", lat: 36.7508, lng: 139.5989, start: "13:00", end: "14:00", cost: 65 },
-    { day: 4, title: "Kegon Falls", tags: ["outdoors"], place: "Kegon Falls", area: "Chūzenji", city: "Nikkō", lat: 36.7383, lng: 139.4994, start: "15:00", end: "16:30", cost: 15 },
-    { day: 4, title: "Train back to Tokyo", tags: [], place: "Tobu Nikkō Station", area: "Nikkō", city: "Nikkō", lat: 36.7578, lng: 139.6122, start: "18:30", end: "20:30", status: "transit", cost: 135 },
-
-    // Day 5 — Tokyo
-    { day: 5, title: "Coffee at Koffee Mameya", tags: ["meal"], place: "Koffee Mameya", area: "Omotesandō", city: "Tokyo", lat: 35.6674, lng: 139.7104, start: "09:00", end: "10:00", cost: 65 },
-    { day: 5, title: "Nezu Museum", tags: ["ticketed"], place: "Nezu Museum", area: "Minami-Aoyama", city: "Tokyo", lat: 35.6641, lng: 139.7168, start: "10:30", end: "13:00", who: ["Priya R", "Mei T"], cost: 95 },
-    { day: 5, title: "Lunch at Kagari", tags: ["meal"], place: "Kagari", area: "Ginza", city: "Tokyo", lat: 35.6717, lng: 139.765, start: "12:30", end: "14:00", cost: 45 },
-    { day: 5, title: "Itoya and Ginza Six", tags: [], place: "Itoya", area: "Ginza", city: "Tokyo", lat: 35.6733, lng: 139.7644, start: "16:00", end: "18:00", cost: 125 },
-    { day: 5, title: "Omakase at Sushi Yoshitake", tags: ["meal"], place: "Sushi Yoshitake", area: "Ginza", city: "Tokyo", lat: 35.671, lng: 139.7638, start: "20:00", end: "22:00", status: "hold", note: "Concierge is chasing this one.", cost: 155 },
-
-    // Day 6 — Hakone (day trip / overnight from Tokyo)
-    { day: 6, title: "Romancecar to Hakone-Yumoto", tags: [], place: "Shinjuku Station", area: "Shinjuku", city: "Hakone", lat: 35.6896, lng: 139.7006, start: "08:20", end: "09:55", status: "transit", cost: 35 },
-    { day: 6, title: "Hakone Open-Air Museum", tags: ["ticketed", "outdoors"], place: "Open-Air Museum", area: "Ninotaira", city: "Hakone", lat: 35.2444, lng: 139.0464, start: "10:30", end: "12:30", status: "booked", cost: 475 },
-    { day: 6, title: "Lunch at Bakery & Table", tags: ["meal"], place: "Bakery & Table", area: "Motohakone", city: "Hakone", lat: 35.201, lng: 139.0269, start: "13:00", end: "14:00", cost: 95 },
-    { day: 6, title: "Check in at Gora Kadan", tags: ["lodging"], place: "Gora Kadan", area: "Gōra", city: "Hakone", lat: 35.2379, lng: 139.0561, start: "16:40", end: "17:10", status: "booked", note: "Check-in closes at 16:00 — this is the conflict the assistant flagged.", cost: 250 },
-    { day: 6, title: "Kaiseki dinner at the ryokan", tags: ["meal"], place: "Gora Kadan", area: "Gōra", city: "Hakone", lat: 35.2379, lng: 139.0561, start: "18:30", end: "20:30", status: "booked", cost: 320 },
-
-    // Day 7 — Kyoto (arrival from Hakone; 4-night stay begins)
-    { day: 7, title: "Shinkansen Odawara → Kyoto", tags: [], place: "Odawara Station", area: "Odawara", city: "Kyoto", lat: 35.2547, lng: 139.1546, start: "09:30", end: "11:45", status: "transit", cost: 30 },
-    { day: 7, title: "Lunch at Honke Owariya", tags: ["meal"], place: "Honke Owariya", area: "Nakagyō", city: "Kyoto", lat: 35.0149, lng: 135.7592, start: "12:30", end: "13:30", cost: 20 },
-    { day: 7, title: "Nijō Castle", tags: ["ticketed"], place: "Nijō Castle", area: "Nakagyō", city: "Kyoto", lat: 35.0142, lng: 135.7481, start: "14:30", end: "16:30", cost: 75 },
-    { day: 7, title: "Check in at Nazuna Gosho", tags: ["lodging"], place: "Nazuna Kyoto Gosho", area: "Kamigyō", city: "Kyoto", lat: 35.0246, lng: 135.7601, start: "17:00", end: "17:30", status: "booked", cost: 305 },
-    { day: 7, title: "Dinner at Gion Nanba", tags: ["meal"], place: "Gion Nanba", area: "Gion", city: "Kyoto", lat: 35.0037, lng: 135.7756, start: "19:00", end: "21:00", status: "idea", note: "No reservation yet. Priya wants kaiseki here." },
-
-    // Day 8 — Kyoto
-    { day: 8, title: "Fushimi Inari at dawn", tags: ["outdoors"], place: "Fushimi Inari Taisha", area: "Fushimi", city: "Kyoto", lat: 34.9671, lng: 135.7727, start: "06:30", end: "08:00", note: "Go before 7 am or the gates are shoulder to shoulder.", cost: 65 },
-    { day: 8, title: "Breakfast at % Arabica", tags: ["meal"], place: "% Arabica", area: "Higashiyama", city: "Kyoto", lat: 34.9998, lng: 135.7801, start: "09:00", end: "10:00", cost: 70 },
-    { day: 8, title: "Kiyomizu-dera and Sannenzaka", tags: ["outdoors"], place: "Kiyomizu-dera", area: "Higashiyama", city: "Kyoto", lat: 34.9949, lng: 135.785, start: "10:30", end: "12:30", cost: 80 },
-    { day: 8, title: "Lunch at Omen Kodaiji", tags: ["meal"], place: "Omen Kodaiji", area: "Higashiyama", city: "Kyoto", lat: 35.0013, lng: 135.7809, start: "12:00", end: "13:15", cost: 30 },
-    { day: 8, title: "Nishiki Market", tags: ["meal"], place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", lat: 35.005, lng: 135.765, start: "16:00", end: "17:30", who: ["Jonah M", "Mei T"], cost: 20 },
-    { day: 8, title: "Dinner at Giro Giro Hitoshina", tags: ["meal"], place: "Giro Giro Hitoshina", area: "Shimogyō", city: "Kyoto", lat: 35.0028, lng: 135.7683, start: "19:30", end: "21:30", status: "hold", cost: 90 },
-
-    // Day 9 — Kyoto
-    { day: 9, title: "Breakfast at Walden Woods", tags: ["meal"], place: "Walden Woods", area: "Shimogyō", city: "Kyoto", lat: 34.9925, lng: 135.7423, start: "08:00", end: "09:00", cost: 30 },
-    { day: 9, title: "Arashiyama and Tenryū-ji", tags: ["outdoors"], place: "Tenryū-ji", area: "Arashiyama", city: "Kyoto", lat: 35.0159, lng: 135.6742, start: "09:45", end: "12:00", cost: 85 },
-    { day: 9, title: "Lunch at Yoshida-ya", tags: ["meal"], place: "Yoshida-ya", area: "Arashiyama", city: "Kyoto", lat: 35.0116, lng: 135.6786, start: "12:30", end: "13:30", cost: 55 },
-    { day: 9, title: "Tea at Ippodo Kaboku", tags: ["meal"], place: "Ippodo Kaboku", area: "Nakagyō", city: "Kyoto", lat: 35.0107, lng: 135.7601, start: "15:00", end: "16:30", who: ["Priya R"], cost: 80 },
-    { day: 9, title: "Dinner at Kichi Kichi", tags: ["meal"], place: "Kichi Kichi", area: "Pontochō", city: "Kyoto", lat: 35.0069, lng: 135.771, start: "18:00", end: "19:30", status: "booked", cost: 495 },
-
-    // Day 10 — Kyoto
-    { day: 10, title: "Ginkaku-ji and the Philosopher's Path", tags: ["outdoors"], place: "Ginkaku-ji", area: "Sakyō", city: "Kyoto", lat: 35.027, lng: 135.7982, start: "09:00", end: "11:00", cost: 5 },
-    { day: 10, title: "Lunch at Monk", tags: ["meal"], place: "Monk", area: "Sakyō", city: "Kyoto", lat: 35.0271, lng: 135.7936, start: "11:30", end: "12:30", status: "booked", cost: 500 },
-    { day: 10, title: "Pottery at Kyoto Handicraft Center", tags: [], place: "Handicraft Center", area: "Sakyō", city: "Kyoto", lat: 35.0202, lng: 135.7784, start: "14:00", end: "16:00", who: ["Mei T"], cost: 30 },
-
-    // Day 11 — Osaka (arrival from Kyoto; 2-night stay begins)
-    { day: 11, title: "Train Kyoto → Osaka", tags: [], place: "Kyoto Station", area: "Shimogyō", city: "Osaka", lat: 34.9858, lng: 135.7588, start: "10:00", end: "10:40", status: "transit", cost: 190 },
-    { day: 11, title: "Check in at Zentis Osaka", tags: ["lodging"], place: "Zentis Osaka", area: "Kita", city: "Osaka", lat: 34.6971, lng: 135.4938, start: "11:30", end: "12:00", status: "booked", cost: 465 },
-    { day: 11, title: "Lunch at Harukoma Sushi", tags: ["meal"], place: "Harukoma Sushi", area: "Nakazakichō", city: "Osaka", lat: 34.7043, lng: 135.5064, start: "12:30", end: "14:00", cost: 30 },
-    { day: 11, title: "Osaka Castle Park", tags: ["outdoors"], place: "Osaka Castle", area: "Chūō", city: "Osaka", lat: 34.6873, lng: 135.5262, start: "15:00", end: "17:00", cost: 10 },
-    { day: 11, title: "Dōtonbori food crawl", tags: ["meal"], place: "Dōtonbori", area: "Chūō", city: "Osaka", lat: 34.6687, lng: 135.5013, start: "19:00", end: "21:30", note: "Five stops, one bite each. Jonah is picking.", cost: 15 },
-
-    // Day 12 — Osaka
-    { day: 12, title: "Breakfast at Mel Coffee", tags: ["meal"], place: "Mel Coffee Roasters", area: "Nishi", city: "Osaka", lat: 34.6811, lng: 135.4894, start: "08:30", end: "09:30", cost: 75 },
-    { day: 12, title: "Nakanoshima Museum", tags: ["ticketed"], place: "Nakanoshima Museum", area: "Kita", city: "Osaka", lat: 34.6937, lng: 135.4934, start: "10:00", end: "12:00", who: ["Priya R", "Mei T"], cost: 100 },
-    { day: 12, title: "Lunch at Kuromon Market", tags: ["meal"], place: "Kuromon Ichiba", area: "Chūō", city: "Osaka", lat: 34.6656, lng: 135.5064, start: "13:00", end: "14:30", cost: 20 },
-    { day: 12, title: "Shinsekai and Tsūtenkaku", tags: [], place: "Tsūtenkaku", area: "Naniwa", city: "Osaka", lat: 34.6524, lng: 135.5063, start: "16:00", end: "18:00", cost: 120 },
-    { day: 12, title: "Kushikatsu at Yaekatsu", tags: ["meal"], place: "Yaekatsu", area: "Naniwa", city: "Osaka", lat: 34.6529, lng: 135.5083, start: "20:00", end: "22:00", status: "hold", cost: 370 },
-
-    // Day 13 — Naoshima (day trip from Osaka)
-    { day: 13, title: "Train and ferry to Naoshima", tags: [], place: "Uno Port", area: "Tamano", city: "Naoshima", lat: 34.4903, lng: 133.9491, start: "07:00", end: "10:00", status: "transit", cost: 130 },
-    { day: 13, title: "Chichū Art Museum", tags: ["ticketed"], place: "Chichū Art Museum", area: "Naoshima", city: "Naoshima", lat: 34.459, lng: 133.995, start: "10:30", end: "12:30", status: "booked", note: "Timed ticket 10:30 am. Late arrivals are turned away.", cost: 340 },
-    { day: 13, title: "Lunch at Aisunao", tags: ["meal"], place: "Aisunao", area: "Honmura", city: "Naoshima", lat: 34.4565, lng: 134.008, start: "13:00", end: "14:00", cost: 95 },
-    { day: 13, title: "Benesse House and Yellow Pumpkin", tags: ["ticketed", "outdoors"], place: "Benesse House", area: "Naoshima", city: "Naoshima", lat: 34.4551, lng: 133.9945, start: "14:30", end: "16:30", cost: 130 },
-    { day: 13, title: "Ferry and train back to Osaka", tags: [], place: "Miyanoura Port", area: "Naoshima", city: "Naoshima", lat: 34.4614, lng: 133.9782, start: "17:30", end: "20:30", status: "transit", cost: 180 },
-
-    // Day 14 — Osaka → Tokyo → home. Tagged Tokyo throughout (the day's
-    // destination city), matching how days 7 and 11 (the other city-
-    // transition days) are tagged with their arrival city rather than
-    // split — splitting this one triggered a pile of "same day, ~400km
-    // apart" distance warnings between the Osaka-morning and Tokyo-evening
-    // stops, which is accurate but noisy for a fixture.
-    { day: 14, title: "Breakfast at the hotel", tags: ["meal"], place: "Zentis Osaka", area: "Kita", city: "Tokyo", lat: 34.6971, lng: 135.4938, start: "08:00", end: "08:45", cost: 25 },
-    { day: 14, title: "Shinkansen to Tokyo", tags: [], place: "Shin-Osaka Station", area: "Yodogawa", city: "Tokyo", lat: 34.7333, lng: 135.5002, start: "09:30", end: "11:45", status: "transit", cost: 140 },
-    { day: 14, title: "Last lunch at Maisen", tags: ["meal"], place: "Tonkatsu Maisen", area: "Omotesandō", city: "Tokyo", lat: 35.6659, lng: 139.7123, start: "12:30", end: "14:00", cost: 40 },
-    { day: 14, title: "Transfer to Haneda", tags: [], place: "HND Terminal 3", area: "Ōta", city: "Tokyo", lat: 35.5494, lng: 139.7798, start: "16:30", end: "18:00", status: "booked", cost: 175 },
-    { day: 14, title: "Flight home", tags: [], place: "HND Terminal 3", area: "Ōta", city: "Tokyo", lat: 35.5494, lng: 139.7798, start: "20:10", end: "21:00", status: "booked", note: "Check-in opens 5:10 pm.", cost: 160 },
-  ];
-
-  await addActivities(
-    cookie,
-    tripId,
-    stops.map((s) => ({
-      day: dayIds[s.day - 1]!,
-      title: s.title,
-      start: s.start,
-      end: s.end,
-      place: `${s.place}, ${s.area}, ${s.city}, Japan`,
-      city: s.city,
-      area: s.area,
-      lat: s.lat,
-      lng: s.lng,
-      country: "JP",
-      // The seed literals omit `status` for the common case, which is exactly
-      // what ActivityKind's "planned" means.
-      kind: (s.status ?? "planned") as ActivityKind,
-      tags: s.tags as ActivityTag[],
-      costMinor: s.cost !== undefined ? Math.round(s.cost * 100) : undefined,
-      notes: buildNotes(s.note, s.who),
-    })),
-  );
-
-  // Unscheduled backlog — ideas raised but not yet placed on a day.
-  const backlog = [
-    { title: "Kiyomizu-dera at golden hour", place: "Kiyomizu-dera", area: "Higashiyama", city: "Kyoto", lat: 34.9949, lng: 135.785, note: "Priya added it" },
-    { title: "Kōenji vintage crawl", place: "Kōenji", area: "Suginami", city: "Tokyo", lat: 35.7057, lng: 139.6497, who: ["Jonah M"], note: "Jonah added it" },
-    { title: "Nishiki Market", place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", lat: 35.005, lng: 135.765, note: "From a saved day" },
-    { title: "Ghibli Museum, if tickets appear", place: "Ghibli Museum", area: "Mitaka", city: "Tokyo", lat: 35.696, lng: 139.5704, note: "Mei added it", tags: ["ticketed" as const] },
-  ];
-  // One batch, so the four parked ideas read as one "someone dumped their
-  // wishlist in" entry in History rather than four separate ones.
-  await batch(
-    cookie,
-    tripId,
-    backlog.map((b) => {
-      const notes = buildNotes(b.note, b.who);
-      return {
-        type: "AddActivity" as const,
-        activityId: randomUUID(),
-        title: b.title,
-        location: { name: `${b.place}, ${b.area}, ${b.city}, Japan`, city: b.city, area: b.area, lat: b.lat, lng: b.lng, countryCode: "JP" },
-        kind: "idea" as const,
-        ...(b.tags && b.tags.length > 0 ? { tags: b.tags } : {}),
-        ...(notes ? { notes } : {}),
-      };
-    }),
-  );
+  const { tripId } = await createTrip(cookie, JAPAN_TRIP_NAME);
+  // Group by group, not one flat batch: one batch is one History entry, and the
+  // grouping (dates+budget, then a day at a time, then the backlog) is defined
+  // alongside the fixture itself. See japanTripCommandGroups' own comment.
+  for (const group of japanTripCommandGroups(tripId, { startDate: isoDateInDays(10) })) {
+    await batch(cookie, tripId, group.map(({ tripId: _tripId, ...command }) => command as DistributiveOmit<BatchableCommand, "tripId">));
+  }
 }
 
 async function seedRochesterTrip(cookie: string): Promise<void> {
