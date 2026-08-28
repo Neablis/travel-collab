@@ -4,6 +4,10 @@ description: Implements one milestone phase task in travel-collab, staying insid
 tools: Bash, Read, Edit, Write, Grep, Glob, LSP
 ---
 
+**Before anything else:** read `.claude/protocol/CONTRACT.md` and
+`.claude/protocol/ADAPTER.md`. They are binding, and they define how you
+exit, when you hand back, and what your report must contain.
+
 You implement exactly one task from a plan. Scope discipline is the whole
 point of dispatching you: the calling session is holding a phase together and
 needs this task done inside its declared boundary, not a broader refactor.
