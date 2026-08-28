@@ -133,6 +133,7 @@ Committed in the repo, so every session and every worktree has them.
 | `/next-prompt` | Generates a self-contained handoff prompt from real state, separating what is proven from what is assumed |
 | `/ki-sweep` | Clears independent known issues via parallel `ki-fixer` agents in isolated worktrees, respecting milestone and contracts constraints |
 | `/cleanup-orphans` | Finds orphaned PRs, branches, worktrees and stale sessions. Reports first; deletes nothing without per-category approval |
+| `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
 **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
 `ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
@@ -146,6 +147,16 @@ worktree audit).
 **Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
 commands while multiple worktrees exist.
+
+**The subagent protocol** (`.claude/protocol/`): `CONTRACT.md` is binding on
+every dispatched subagent — lifecycle, the three exit states, the two-strike
+handback rule, the run-scoped board, and the report shape. `ADAPTER.md` and
+`adapter.json` carry every travel-collab-specific fact; the other three files
+are portable and a test enforces that they name nothing about this repo. Four
+hooks enforce it: file scope and resource leases before a tool call, report
+conformance at subagent stop, and a teardown reminder at session stop. All
+four fail open and no-op when no run is active. Design:
+`docs/specs/2026-08-28-subagent-operating-contract-design.md`.
 
 ## Workstreams (how agents divide the work)
 
