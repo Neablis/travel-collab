@@ -25,6 +25,15 @@
             "command": "node scripts/hooks/check-destructive-git.mjs"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/subagent-file-scope.mjs"
+          }
+        ]
       }
     ],
     "PostToolUse": [
