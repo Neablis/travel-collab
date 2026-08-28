@@ -5,48 +5,64 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
-## The demo trip has no database behind it, 2026-08-28 — ADR-031, KI-61
+## `/demo` is the real board, read-only, 2026-08-28 — ADR-031, KI-61
 
-**`/s/featured` is the Japan fixture, folded in memory on the way out of the
-API.** `DEMO_SHARE_TOKEN` and `readFeaturedShare` are deleted.
+**The demo trip is the Japan fixture folded in memory, served through the
+ordinary trip endpoints, rendered by the ordinary trip board.**
+`DEMO_SHARE_TOKEN`, `readFeaturedShare` and `GET /api/shares/featured` are
+deleted.
 
-The old shape resolved that env var to a real share row and replayed that
-trip's 74-event stream on every view. Unset — which was CI, every fresh clone,
-and every preview branch — the front door's second CTA rendered "Nothing to see
-here", and the e2e suite asserted that empty state, so it was green *because*
-nothing was configured.
+The old shape resolved that env var to a share row and replayed that trip's
+74-event stream on every view. Unset — CI, every fresh clone, every preview
+branch — the front door's second CTA rendered "Nothing to see here", and the
+e2e suite asserted that empty state, so it was green *because* nothing was
+configured.
 
-Mitchell rejected the recorded fix path (commit a fixed token, have the seeders
-publish under it) on two grounds it had not weighed: a preview branch would
-still need a human step before its own front door worked, and an
-unauthenticated page anyone can hit as often as they like should not carry a
-share lookup plus a full replay per view.
+**Three objections drove it, and the third only surfaced on the second pass.**
+A preview branch needed a human step before its own front door worked; an
+unauthenticated page anyone can hit should not carry a share lookup plus a full
+replay per view; and a pinned share renders as a flat list of days — no
+Timeline, no Day columns, no Map, no Calendar, no conflicts, no history. The
+person deciding whether to sign up was being shown the least of the product.
 
-**What is unchanged:** the route shape, the `SharedTripView` contract, the page
-component, the client function, `cloneFrom`. `server/demoTrip.ts` runs the
-fixture's commands through `decideTripCommand` → `evolveTrip` →
-`tripDetailFromState` — the same functions the command pipeline runs — and
-hands the result to the same `toSharedView` a real share read uses. Only the
-source of the bytes changed.
+**One seam did most of the work.** `requireTripAccess` is the single gate
+`GET /api/trips/:id`, `/history`, `/history/:seq` and `/access` all pass
+through. The demo is answered there, before `auth()`, as a **viewer** — so all
+four serve it publicly and **not one of those route files changed**, and
+read-only is the product's own permission rule (`MINIMUM_ROLE` has no `viewer`
+entry) rather than a second implementation. `/demo` then mounts the same
+provider stack and the same `TripBoardScreen` as `(app)/trips/[tripId]`.
 
-**"No database" is enforced.** `toSharedView` moved into its own pure module,
-because `access/shares.ts` imports `db/client` and that constructs a `pg.Pool`
-at module load; the unit tests mock `pg` to throw on construction, so any future
-import of the client — direct or transitive — fails a test instead of opening a
-connection on a public path. The only write near the demo is "Make this trip
-mine", which now works: a signed-in visitor gets a real, editable copy through
-the ordinary command pipeline, and a signed-out one gets
-`/signin?callbackUrl=/s/featured` and lands back where they were.
+**It fixed the invited-viewer board on the way past.** A viewer used to see a
+pencil and a ✕ on every card, "Dismiss" on every conflict, "+ Add" on every
+column, and could drag a card and watch it snap back — `TripProvider` refused
+the command but never stopped the board offering it. `readOnly` now threads
+from that same gate into `Board`, `Column`, `ActivityCard`, `TimelineLens`,
+`OverlapWarning`, `ConflictBanner` and `UnscheduledRack`, drag registration
+included. **This reaches every invited viewer, not just the demo** — the one
+thing here most worth arguing with, and ADR-031 says so, with the split it
+would take if disabled-not-hidden turns out to be right for real viewers.
+`TripHeader`'s disabled "Add stop" was deliberately left alone and is filed as
+KI-64.
 
-**Two judgement calls worth arguing with**, both in ADR-031: the copy records
-`forkedFrom` pointing at a synthetic trip id that names no row (display-only
-text today, and better than telling someone their trip came from nowhere), and
-`travellerCount` is declared by the fixture (`JAPAN_TRIP_TRAVELLERS = 4`)
-rather than read from the folded member list, which has exactly one entry.
+**"No database" is enforced.** The unit tests mock `pg` to throw on
+construction, so any future import of `db/client` into the demo's graph — direct
+or transitive — fails a test instead of opening a connection on a public path.
+The only write near the demo is "Make this trip mine", which goes through the
+ordinary `POST /api/trips/:id/duplicate` into the same `cloneFrom` every other
+copy uses.
+
+**Two judgement calls in ADR-031:** the travellers are fiction carried in the
+detail (`TripMember.userId` IS the label the timeline renders, so the ids are
+names — four of them, because "1 travellers" on the page arguing for planning
+together undersells the product), and the copy records `forkedFrom` pointing at
+a synthetic trip id that names no row.
 
 **Run:** full `pnpm check`, `pnpm --filter web test:int`, `pnpm seed:verify`,
-and `pnpm --filter web test:e2e:ci-like` on the share spec — the CTA test now
-asserts the trip renders instead of asserting it does not.
+`pnpm --filter web test:e2e:ci-like` (all 46, including six new demo cases),
+and a real browser walk of all four lenses against the production build — the
+map's tiles are blocked in this container, so the map rail was checked and the
+canvas was not.
 
 ## The subagent protocol landed, 2026-08-28
 

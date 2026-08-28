@@ -4,6 +4,8 @@ import { hasAtLeast, memberRole } from "../accessPolicy";
 import { db } from "../db/client";
 import { getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
+import { demoTripDetail } from "../demoTrip";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 /**
  * "May this session read/act on this trip, and what is the trip?" — the single
@@ -17,6 +19,22 @@ import { effectiveMembers } from "./members";
  * overlay lives at the read boundary, which is the only place a person's
  * membership is a fact about the answer rather than a fact about the plan.
  */
+/**
+ * The only `minimum` the demo trip can satisfy. Written as a named constant
+ * compared against, rather than `minimum !== "viewer"`, so the line reads as
+ * the rule it is: a demo read is a viewer read, and anything asking for more
+ * is a write in disguise.
+ */
+const RANK_VIEWER_IS_ENOUGH: TripRole = "viewer";
+
+/**
+ * Who the demo's reader is, as far as the access seam is concerned. Not a real
+ * account and never authenticated as one — it exists because `TripAccessResult`
+ * names a `userId`, and every consumer of the demo's result uses it only to
+ * compute a role that is already decided.
+ */
+const DEMO_VISITOR_ID = "demo-visitor";
+
 export type TripAccessResult =
   | { error: Response }
   | { userId: string; role: TripRole; detail: TripDetail };
@@ -25,6 +43,27 @@ export async function requireTripAccess(
   tripId: string,
   minimum: TripRole,
 ): Promise<TripAccessResult> {
+  // The built-in demo trip (ADR-031), answered here and nowhere else.
+  //
+  // This is the one seam every trip read passes through, which is exactly why
+  // the demo is answered at it: `GET /api/trips/:id`, `/history`, `/access` and
+  // `/history/:seq` all become public reads of a trip that is folded in memory,
+  // without one of those four routes gaining a branch or losing a check.
+  //
+  // Before `auth()`, because the whole point is a visitor with no session; and
+  // as a **viewer**, which is what makes the demo read-only by the same rule
+  // that makes an invited viewer read-only. `MINIMUM_ROLE` in accessPolicy.ts
+  // has no `viewer` entry — a viewer executes no planning command at all — so
+  // every write route asks for `editor` or `owner` here and is refused, and the
+  // refusal is the product's own permission rule rather than a special case
+  // somebody has to remember to write on each new endpoint.
+  if (isDemoTripId(tripId)) {
+    if (RANK_VIEWER_IS_ENOUGH !== minimum) {
+      return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
+    }
+    const detail = demoTripDetail();
+    return { userId: DEMO_VISITOR_ID, role: "viewer", detail };
+  }
   const session = await auth();
   if (!session?.user?.id) {
     return { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };

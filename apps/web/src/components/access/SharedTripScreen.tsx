@@ -16,7 +16,6 @@ import { formatMoney } from "@/components/lenses/formatMoney";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockRange } from "@/lib/time";
 import { cloneSharedTrip, fetchSharedTrip } from "@/lib/apiClient";
-import { isDemoShare } from "@/lib/demoShare";
 import { cn } from "@/lib/cn";
 
 // The read side of M11 link 4. Read-only by construction rather than by
@@ -34,13 +33,6 @@ function timeLabel(window: SharedTripView["activities"][string]["timeWindow"]): 
 
 export function SharedTripScreen({ token }: { token: string }) {
   const router = useRouter();
-  // `/s/featured` is the built-in demo trip, not a plan a person chose to hand
-  // out (ADR-031). Everything about the page is the same — same fetch, same
-  // contract, same read-only-by-construction subtree — except the two lines
-  // that would otherwise say something untrue about it: a fixture was not
-  // "shared on" a date by anyone, and it cannot go stale, because there is no
-  // live trip behind it to move on.
-  const isDemo = isDemoShare(token);
   const [trip, setTrip] = useState<SharedTripView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cloneError, setCloneError] = useState<string | null>(null);
@@ -134,7 +126,7 @@ export function SharedTripScreen({ token }: { token: string }) {
             <Badge variant="neutral">Read only</Badge>
           </div>
           <Button variant="secondary" disabled={cloning} onClick={() => void clone()}>
-            {isDemo ? "Make this trip mine" : "Make this my trip"}
+            Make this my trip
           </Button>
         </div>
 
@@ -158,15 +150,11 @@ export function SharedTripScreen({ token }: { token: string }) {
 
         {/* The whole point of the feature, said out loud. A pinned link keeps
             showing what was shared, so a reader who is also a traveller needs
-            to know when that is no longer the current plan. The demo says the
-            other true thing instead: it is an example, and the way to get a
-            version you can edit is to take a copy. */}
+            to know when that is no longer the current plan. */}
         <Banner variant="info">
-          {isDemo
-            ? "An example trip, to look around. Nothing here can be changed — make it yours and every part of it becomes editable."
-            : trip.stale
-              ? `Shared on ${formatTripDate(trip.sharedAt.slice(0, 10))} — this is the plan as it was then. It has changed since.`
-              : `Shared on ${formatTripDate(trip.sharedAt.slice(0, 10))} — this is the plan as it was then.`}
+          {trip.stale
+            ? `Shared on ${formatTripDate(trip.sharedAt.slice(0, 10))} — this is the plan as it was then. It has changed since.`
+            : `Shared on ${formatTripDate(trip.sharedAt.slice(0, 10))} — this is the plan as it was then.`}
         </Banner>
 
         <div className="flex flex-col gap-3">

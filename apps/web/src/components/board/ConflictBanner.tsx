@@ -20,6 +20,7 @@ export function ConflictBanner({
   activities,
   onDismiss,
   onSelectActivity,
+  readOnly = false,
 }: {
   conflicts: Conflict[];
   dismissedConflictIds: string[];
@@ -30,6 +31,12 @@ export function ConflictBanner({
   // mechanism. Optional so a caller with no jump target (none today) still
   // renders a plain, non-interactive banner.
   onSelectActivity?: (activityId: string) => void;
+  /**
+   * Drops "Dismiss". The conflicts themselves stay: they are the product
+   * noticing something, which is exactly what a reader should see it do —
+   * dismissing one is a command, and a viewer runs none (ADR-031).
+   */
+  readOnly?: boolean;
 }) {
   const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
   const collapsible = visible.length > COLLAPSE_ABOVE;
@@ -100,13 +107,15 @@ export function ConflictBanner({
                 key={c.id}
                 variant="warning"
                 actions={
-                  <Button
-                    variant="ghost"
-                    onClick={() => onDismiss(c.id)}
-                    aria-label={`Dismiss: ${c.description}`}
-                  >
-                    Dismiss
-                  </Button>
+                  readOnly ? undefined : (
+                    <Button
+                      variant="ghost"
+                      onClick={() => onDismiss(c.id)}
+                      aria-label={`Dismiss: ${c.description}`}
+                    >
+                      Dismiss
+                    </Button>
+                  )
                 }
               >
                 {jump !== undefined ? (

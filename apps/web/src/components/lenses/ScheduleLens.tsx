@@ -15,19 +15,22 @@ export function ScheduleLens({
   detail,
   onSelectActivity,
   onCommand,
+  readOnly = false,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
   // Passed straight through to TimelineLens (the overlap warning's fix and
   // dismiss) — this component owns no commands of its own.
   onCommand?: (command: TripCommand) => void;
+  /** Forwarded to the timeline: show the plan, offer nothing that changes it. */
+  readOnly?: boolean;
 }) {
   const { view } = useLens();
 
   return (
     <div data-testid="schedule-lens">
       {view === "Timeline" ? (
-        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} onCommand={onCommand} />
+        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} onCommand={onCommand} readOnly={readOnly} />
       ) : (
         <CalendarLens detail={detail} onSelectActivity={onSelectActivity} />
       )}

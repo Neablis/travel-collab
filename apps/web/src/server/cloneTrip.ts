@@ -5,7 +5,8 @@ import { executeTripCommand, executeTripCommandBatch, type CommandResult } from 
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { readShareForClone } from "./access/shares";
-import { demoTrip } from "./demoTrip";
+import { demoTripDetail, demoTripHeadSeq } from "./demoTrip";
+import { isDemoTripId } from "@/lib/demoTrip";
 import { db } from "./db/client";
 import { getTripHead } from "./history";
 import { getTripDetail } from "./projections";
@@ -124,6 +125,13 @@ async function cloneFrom(
  * product feel arbitrary.
  */
 export async function duplicateTrip(sourceTripId: string, actorId: string): Promise<CommandResult> {
+  // "Make this trip mine", from the demo at `/demo`, is this same endpoint
+  // (ADR-031). It has to branch before the membership check below rather than
+  // satisfy it: the demo grants every visitor `viewer` at the access seam, but
+  // its member list names invented people, so `hasAtLeast` would refuse a real
+  // account. Everything after this line — the id remap, the diff, the
+  // compensating delete — is the path any other copy takes.
+  if (isDemoTripId(sourceTripId)) return cloneDemoTrip(actorId);
   const source = await getTripDetail(sourceTripId);
   if (source === null) {
     return { ok: false, error: { code: "not-found", message: "This trip does not exist." } };
@@ -166,27 +174,31 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
 }
 
 /**
- * "Make this my trip" — from the built-in demo trip at `/s/featured`.
+ * The demo trip, copied into a real one the visitor owns.
  *
  * The same `cloneFrom` every other copy goes through, handed a `TripDetail`
- * that was folded in memory instead of read out of Postgres (ADR-031). The
- * copy that lands in the visitor's list is an ordinary trip built by the
- * ordinary command pipeline; nothing about it remembers it came from a
- * fixture except the lineage pointer.
+ * that was folded in memory instead of read out of Postgres (ADR-031). What
+ * lands in their list is an ordinary trip built by the ordinary command
+ * pipeline; nothing about it remembers it came from a fixture except the
+ * lineage pointer.
  *
- * That pointer names `DEMO_TRIP_ID`, which is a real UUID naming no row —
- * see the note on it. `forkedFrom` is display-only text today ("Copied from
- * ..., as it was at change N"), and this is the trade the demo is worth: the
- * alternative, `forkedFrom: null`, would tell the person who just cloned the
- * demo that their trip came from nowhere.
+ * **Not `<name> (copy)`.** Every other clone is a copy of something the person
+ * can already see in their own list, and needs telling apart from it. This is
+ * somebody's first trip, and it is theirs — naming it "(copy)" would frame the
+ * demo as the real one.
+ *
+ * The lineage names `DEMO_TRIP_ID`, a real UUID naming no row. `forkedFrom` is
+ * display-only text today ("Copied from …, as it was at change N"), and this is
+ * the trade the demo is worth: the alternative, `forkedFrom: null`, tells the
+ * person who just copied the demo that their trip came from nowhere.
  */
 export async function cloneDemoTrip(actorId: string): Promise<CommandResult> {
-  const { detail, seq } = demoTrip();
+  const detail = demoTripDetail();
   return cloneFrom(
     detail,
-    { tripId: detail.tripId, atSeq: seq, name: detail.name },
+    { tripId: detail.tripId, atSeq: demoTripHeadSeq(), name: detail.name },
     actorId,
-    `${detail.name} (copy)`,
+    detail.name,
   );
 }
 

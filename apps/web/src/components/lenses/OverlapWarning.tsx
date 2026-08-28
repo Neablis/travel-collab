@@ -20,10 +20,17 @@ export function OverlapWarning({
   overlap,
   onFix,
   onDismiss,
+  readOnly = false,
 }: {
   overlap: Overlap;
   onFix: () => void;
   onDismiss: () => void;
+  /**
+   * Keeps the warning, drops its two actions. Both are commands, and a reader
+   * runs none — but the warning itself is the product noticing something,
+   * which is exactly what a reader should see it do (ADR-031).
+   */
+  readOnly?: boolean;
 }) {
   // Assembled as one string rather than interpolated into the JSX: the copy is
   // a single sentence, and a run of sibling text nodes is exactly what
@@ -51,14 +58,16 @@ export function OverlapWarning({
         >
           {line}
         </span>
-        {overlap.suggestedEnd !== null && (
+        {!readOnly && overlap.suggestedEnd !== null && (
           <Button variant="secondary" size="sm" onClick={onFix}>
             Start {toClockLabel(overlap.suggestedStart)}
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={onDismiss}>
-          Dismiss
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="sm" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        )}
       </div>
     </div>
   );

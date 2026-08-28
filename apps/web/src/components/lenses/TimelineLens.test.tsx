@@ -51,11 +51,11 @@ function detailFixture() {
   });
 }
 
-function renderLens(detail = detailFixture(), onSelectActivity = vi.fn()) {
+function renderLens(detail = detailFixture(), onSelectActivity = vi.fn(), readOnly = false) {
   return render(
     <FocusProvider>
       <EditorHost>
-        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} />
+        <TimelineLens detail={detail} onSelectActivity={onSelectActivity} readOnly={readOnly} />
       </EditorHost>
     </FocusProvider>,
   );
@@ -674,5 +674,31 @@ describe("TimelineLens", () => {
     expect(screen.getByText("No days yet.")).toBeTruthy();
     expect(screen.queryByTestId("end-of-trip")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
+  });
+});
+
+// A viewer's timeline, and the public demo's (ADR-031): the whole schedule,
+// with nothing on it that writes.
+describe("a read-only timeline", () => {
+  it("keeps every stop, time and gap, and drops the controls", () => {
+    const detail = detailFixture();
+    renderLens(detail, vi.fn(), true);
+
+    // The schedule itself is untouched — that is what a reader came for.
+    expect(screen.getAllByTestId(/^timeline-row-|^day-meta-/).length).toBeGreaterThan(0);
+
+    expect(screen.queryAllByRole("button", { name: "Edit" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Ask" })).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^timeline-add-/)).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: /Add a day/i })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: /Keep this day/i })).toHaveLength(0);
+  });
+
+  it("offers all of them when it is not read-only", () => {
+    // The negative half — otherwise the block above passes against a lens
+    // that renders nothing.
+    renderLens();
+    expect(screen.getAllByRole("button", { name: "Edit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId(/^timeline-add-/).length).toBeGreaterThan(0);
   });
 });

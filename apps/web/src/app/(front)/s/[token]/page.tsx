@@ -9,12 +9,10 @@ export const metadata = { title: "A shared trip — Caesura" };
 // share link to /signin, which is precisely the thing the link exists to
 // avoid.
 //
-// `/s/featured` reaches this same component: `featured` is a reserved token
-// the API maps to the built-in demo trip (ADR-031 — the Japan fixture folded
-// in memory, no database), so the landing page's "Look around a real trip" is
-// an ordinary link to an ordinary share page rather than a bespoke public-read
-// path. It used to name whichever share `DEMO_SHARE_TOKEN` pointed at, which
-// meant it pointed at nothing almost everywhere (KI-61).
+// Every token here is a real share someone created. There is no longer a
+// reserved `featured` token: the landing page's "look around a real trip" goes
+// to `/demo`, which renders the actual board read-only against a trip folded in
+// memory (ADR-031), rather than this narrowed one-page view of a pinned share.
 export default async function SharedTripPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   return <SharedTripScreen token={token} />;

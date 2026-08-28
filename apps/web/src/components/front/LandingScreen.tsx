@@ -6,7 +6,7 @@ import { DataText } from "@/components/ui/data-text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingHeroArt } from "@/components/front/LandingHeroArt";
 import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
-import { DEMO_SHARE_PATH } from "@/lib/demoShare";
+import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
 // Every string here is transcribed from the design source
@@ -103,16 +103,15 @@ export function LandingScreen() {
                 {/* Real as of M11 link 4, and still a plain link: SPEC §14
                     says this page runs on nothing — no session, no fetch, no
                     backend — so the CTA does not go looking for a trip to
-                    peek at. `/s/featured` is an ordinary share page reading
-                    the built-in demo trip, which is the Japan fixture folded
-                    in memory rather than a row anyone had to configure
+                    peek at. `/demo` is the real trip board, read-only, running
+                    the real lenses against the Japan fixture folded in memory
                     (ADR-031, superseding ADR-027's `DEMO_SHARE_TOKEN`). So
                     this link works on every deploy, every preview branch and
                     a fresh clone, and a data-model change still cannot break
                     the front door — which is the rule this shell was parked
                     behind. */}
                 <Link
-                  href={DEMO_SHARE_PATH}
+                  href={DEMO_PATH}
                   className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}
                 >
                   Look around a real trip
@@ -155,7 +154,7 @@ export function LandingScreen() {
                   writes its id to `data-preview-id` and two shells could not
                   share one; two links to one href have no such problem. */}
               <Link
-                href={DEMO_SHARE_PATH}
+                href={DEMO_PATH}
                 className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
               >
                 See a finished one

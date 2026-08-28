@@ -22,6 +22,7 @@ import { rackDropWindow } from "./rackDropWindow";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { shortPlace } from "@/lib/place";
+import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
@@ -51,7 +52,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, readOnly } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -62,6 +63,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
+  // The demo board (`/demo`, ADR-031) runs everything on this screen except
+  // the assistant. Not because it would look wrong — because it would not
+  // work: `composeAiPlan` posts to `/api/trips/:id/ai`, which needs a session
+  // and, being a write to the plan, is refused for a viewer anyway. Offering a
+  // signed-out visitor a launcher whose only outcome is an error is worse than
+  // not offering it, and this is the one control on the board with no
+  // read-only half to fall back to.
+  const isDemo = isDemoTripId(tripId);
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
   // Collapsed by default (Phase 3's design). The open flag is paired with who
@@ -378,7 +387,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // ("mapwrap" in the handoff) — the default px-6 gutter would
             // leave the rail's 16px inset reading as ~40px instead.
             <PageContainer width="full" className="px-0">
-              {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
+              {/* The map's own card is a read surface — the pin, the place,
+                  the time, the cost. Its one write is the jump into the stop
+                  editor, which is `onSelectActivity`, and that is optional. */}
+              {lens === "Map" && (
+                <MapLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
+              )}
             </PageContainer>
           ) : (
             <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
@@ -386,6 +400,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <Board
                   trip={activeTrip}
                   focusedDay={focusedDay}
+                  // A viewer's board, and the demo's, show the plan and offer
+                  // nothing that changes it (ADR-031). `readOnly` comes from
+                  // the provider's own gate — the same flag that already
+                  // refuses the command — so the controls and the refusal can
+                  // never disagree about who may edit.
+                  readOnly={readOnly}
                   callbacks={{
                     onSelectDay: setFocusedDay,
                     onMove: moveActivity,
@@ -415,7 +435,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               {lens === "Schedule" && (
                 <ScheduleLens
                   detail={activeTrip}
-                  onSelectActivity={openEdit}
+                  readOnly={readOnly}
+                  onSelectActivity={readOnly ? undefined : openEdit}
                   // The timeline raises real commands through this one seam:
                   // UpdateActivity for the overlap warning's one-click fix,
                   // DismissConflict for its dismissal, and — Phase 6 — AddDay
@@ -446,7 +467,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           so it doesn't affect any lens's own layout. Unmounted entirely
           (not just visually hidden) when the user hides it, so its fixed
           scrim/aside don't linger in the DOM. */}
-      {assistant.open ? (
+      {isDemo ? null : assistant.open ? (
         <AssistantRail
           contextLine={assistantContextLine}
           quickAsks={PREVIEW_QUICK_ASKS}
@@ -503,6 +524,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           The gate is a question about drop targets rather than a lens list so
           the drawer comes back on its own when Timeline and Calendar get
           theirs (TODO.md's four rack/lens gaps). */}
+      {/* The rack is a drop target and an "add to day" picker — both writes.
+          Its four parked ideas are still part of the plan a reader should see,
+          so on a read-only board it renders without the picker rather than
+          disappearing (UnscheduledRack drops it when `onAssign` is absent). */}
       {lensAcceptsDrops(lens) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
@@ -510,7 +535,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             dayOptions={rackDayOptions}
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
-            onAssign={assignFromRack}
+            onAssign={readOnly ? undefined : assignFromRack}
           />
         </div>
       )}
