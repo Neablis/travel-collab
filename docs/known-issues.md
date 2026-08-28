@@ -52,6 +52,26 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   2026-08-09 (Task 19) — the `text-danger-ink` bullet stays open by
   deliberate re-defer; everything else above is fixed or closed by restyle.
 
+### KI-54 — `activitiesEqual` ignores `city` and `countryCode`, so a change to either is invisible to diff/revert/undo
+- **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)
+- **Area:** `packages/domain/src/trip/equality.ts`
+- **Symptom:** `activitiesEqual` compares `Location` **field by field**, and the list is hand-maintained:
+
+  ```ts
+  (a.location === null ||
+    (a.location.name === b.location!.name &&
+      a.location.lat === b.location!.lat &&
+      a.location.lng === b.location!.lng &&
+      a.location.area === b.location!.area))
+  ```
+
+  `city` and `countryCode` are not in it. `diffTripStates` is built on this predicate, so an activity whose *only* change is its city or its country code compares EQUAL — the diff emits no `ActivityUpdated`, and a revert or undo through that path silently keeps the old value while the UI has already shown the new one.
+- **Why it is not merely theoretical:** `city` is written by the geocoder on every place pick, and is what `cityFor()` (`DayChips.tsx`) uses to name a day and pick its accent. Re-geocoding a stop so that only its city component changes — the exact thing the `accept-language` change (`9c3fe15`) does to every Japanese location on re-geocode — is a change this predicate cannot see.
+- **How it surfaced:** found while adding `area` to the same comparison for KI-35 (2026-08-28). `area` was added because omitting it would have had precisely this consequence; the two fields one line over already had it.
+- **Why it was not fixed there:** widening the comparison changes revert/undo semantics for two fields nobody had asked about, inside a change that was scoped to adding a field. That is a behaviour change deserving its own diff and its own witness, not a rider.
+- **Fix path:** add `city` and `countryCode` to the comparison, then add a test per field that a single-field edit produces an `ActivityUpdated` in `diffTripStates` — mutation-proved by removing the field again. Consider replacing the hand-enumeration with a structural compare so the next field added to `Location` cannot repeat this; that is the root cause, and it has now bitten twice.
+- **First noted:** 2026-08-28 (KI-35 implementation).
+
 ### KI-5 — Optimistic commands can be silently lost on abrupt navigation before the send queue drains
 - **Severity:** correctness (data loss, no error surfaced)
 - **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` /
@@ -620,12 +640,21 @@ needs action — skip this section when triaging.
   `/home/user/ki35-area`: `pnpm typecheck`, `pnpm lint`, `pnpm test`
   (139 domain + 53 contracts + 901 web), `pnpm test:int` (85), and
   `pnpm --filter web test:e2e:ci-like` (31 passed).
-- **Left alone, deliberately** (reported, not fixed): `TripBoardScreen.tsx`'s
-  unscheduled rack computes a field it literally calls `area` as
-  `location?.city ?? location?.name` — the same venue-name-in-an-area-slot
-  shape, at a third call site this entry never named; and `equality.ts` still
-  omits `city` and `countryCode` from its comparison, which is the same
-  hand-enumeration hole one field over.
+- **A third call site, found during the fix and also closed:**
+  `TripBoardScreen.tsx`'s unscheduled rack computed a field it literally calls
+  `area` as `location?.city ?? location?.name` — the same
+  venue-name-in-an-area-slot shape, at a site this entry never named. It now
+  calls `shortPlace()` like every other place line, so the rack picks up the
+  new field and agrees with the timeline. Included because shipping an `area`
+  field while a slot named `area` still rendered "Ugly Duck Coffee" would have
+  left the entry half-true.
+- **Left alone, reported not fixed:** `equality.ts` still omits `city` and
+  `countryCode` from its field-by-field `Location` comparison — the same
+  hand-enumeration hole one field over, and a correctness bug rather than a
+  cosmetic one (a city-only edit is invisible to `diffTripStates`, so
+  revert/undo silently keeps the old value). Filed as **KI-54** rather than
+  widened into here: it changes revert/undo semantics for two fields nobody
+  asked about, which deserves its own diff and its own witness.
 - **Severity:** cosmetic
 - **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
