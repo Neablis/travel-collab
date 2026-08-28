@@ -19,6 +19,19 @@ import { BASE_URL } from "@/config";
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
 
+// INVARIANT: every helper below RESOLVES an ApiResult and never rejects.
+// `status: 0` is the shape for "the request never produced a response" — a
+// rejected fetch (offline, DNS) or a schema `.parse` throw on a 200.
+//
+// This is not cosmetic consistency. Callers treat these as total functions:
+// TripProvider's sequential sender awaits one without a try/catch of its own,
+// so a rejection there used to skip `inFlight.current = false` and gate the
+// send queue permanently — "Saving…" forever, no failure recorded, no retry
+// offered, every queued edit lost on navigation
+// (docs/reviews/2026-08-28-project-review.md §1.1). `apiClient.test.ts`'s
+// "never rejects" suite enforces this for the whole module; add new helpers
+// to that list.
+
 export type BoardCommand = Exclude<TripCommand, { type: "CreateTrip" }>;
 
 // Browsers resolve relative URLs against the page; Node's fetch (jsdom tests)
@@ -39,11 +52,10 @@ export function apiUrl(path: string): string {
 // (CreateTrip only ever carries a name; the wizard applies dates/budget as
 // separate commands against the tripId this returns).
 export async function createTrip(input: { name: string }): Promise<ApiResult<{ tripId: string }>> {
-  // Unlike this file's other helpers, createTrip's only caller (the wizard's
-  // submit()) has no surrounding try/catch of its own — a rejected fetch
-  // (offline, DNS, a network blip) would otherwise reject this promise
-  // instead of resolving `{ ok: false }`, leaving the wizard stuck
-  // "submitting" with no error shown (CodeRabbit, PR #32).
+  // The first helper here to carry the guard (CodeRabbit, PR #32): its only
+  // caller (the wizard's submit()) has no try/catch of its own, so a rejected
+  // fetch left the wizard stuck "submitting" with no error shown. Every other
+  // helper now carries it too, for the same reason — see the module invariant.
   try {
     const res = await fetch(apiUrl("/api/trips"), {
       method: "POST",
@@ -62,33 +74,45 @@ export async function createTrip(input: { name: string }): Promise<ApiResult<{ t
 }
 
 export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDetail>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}`));
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}`));
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    const data = (await res.json()) as { trip: unknown };
+    return { ok: true, value: TripDetail.parse(data.trip) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { trip: unknown };
-  return { ok: true, value: TripDetail.parse(data.trip) };
 }
 
 export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHistory>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/history`));
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history`));
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    const data = (await res.json()) as { history: unknown };
+    return { ok: true, value: TripHistory.parse(data.history) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { history: unknown };
-  return { ok: true, value: TripHistory.parse(data.history) };
 }
 
 export async function fetchTripDetailAt(tripId: string, seq: number): Promise<ApiResult<TripDetail>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    const data = (await res.json()) as { trip: unknown };
+    return { ok: true, value: TripDetail.parse(data.trip) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { trip: unknown };
-  return { ok: true, value: TripDetail.parse(data.trip) };
 }
 
 export type CommandOutcome = { detail: TripDetail; history: TripHistory };
@@ -98,40 +122,48 @@ function parseOutcome(data: { detail: unknown; history: unknown }): CommandOutco
 }
 
 export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<CommandOutcome>> {
-  const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    return {
-      ok: false,
-      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-    };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(command),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    const data = (await res.json()) as { detail: unknown; history: unknown };
+    return { ok: true, value: parseOutcome(data) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { detail: unknown; history: unknown };
-  return { ok: true, value: parseOutcome(data) };
 }
 
 export async function sendTripCommandBatch(
   tripId: string,
   commands: BatchableCommand[],
 ): Promise<ApiResult<CommandOutcome>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ commands }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    return {
-      ok: false,
-      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-    };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commands }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    const data = (await res.json()) as { detail: unknown; history: unknown };
+    return { ok: true, value: parseOutcome(data) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { detail: unknown; history: unknown };
-  return { ok: true, value: parseOutcome(data) };
 }
 
 // Task 5.5: POST /api/trips/:id/ai. `composeAiPage` is the page-authoring
@@ -145,20 +177,24 @@ export async function composeAiPage(
   prompt: string,
   pageContext: PageContext,
 ): Promise<ApiResult<{ content: PageContent; simulated: boolean }>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, surface: "page", pageContext }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    return {
-      ok: false,
-      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-    };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, surface: "page", pageContext }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    const data = (await res.json()) as { content: unknown; simulated?: unknown };
+    return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { content: unknown; simulated?: unknown };
-  return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
 }
 
 // The plan surface returns the same detail/history as a command batch, plus a
@@ -173,58 +209,70 @@ export async function composeAiPlan(
   prompt: string,
   surface: "board" | "combined" = "board",
 ): Promise<ApiResult<PlanOutcome>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, surface }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    return {
-      ok: false,
-      error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, surface }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    const data = (await res.json()) as {
+      detail: unknown;
+      history: unknown;
+      message?: unknown;
+      simulated?: unknown;
     };
+    return {
+      ok: true,
+      value: {
+        ...parseOutcome(data),
+        message: typeof data.message === "string" ? data.message : "",
+        simulated: data.simulated === true,
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as {
-    detail: unknown;
-    history: unknown;
-    message?: unknown;
-    simulated?: unknown;
-  };
-  return {
-    ok: true,
-    value: {
-      ...parseOutcome(data),
-      message: typeof data.message === "string" ? data.message : "",
-      simulated: data.simulated === true,
-    },
-  };
 }
 
 // Task A11's clone endpoint: POST, no body, 201 with the new trip's id. Used
 // by both the trip-list row menu and SettingsSheet's in-trip mirror (A15) —
 // both just need the new id to navigate to.
 export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId: string }>> {
-  const res = await fetch(apiUrl(`/api/trips/${tripId}/duplicate`), { method: "POST" });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/duplicate`), { method: "POST" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    const data = (await res.json()) as { tripId: string };
+    return { ok: true, value: data };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { tripId: string };
-  return { ok: true, value: data };
 }
 
 // AccountMenu's "Reset to demo data" item (preview only — see
 // src/lib/demoDataReset.ts). Clears the signed-in user's own trips and
 // reseeds the Japan demo trip; POST, no body, 200 with the new trip's id.
 export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
-  const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  try {
+    const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    const data = (await res.json()) as { tripId: string };
+    return { ok: true, value: data };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
-  const data = (await res.json()) as { tripId: string };
-  return { ok: true, value: data };
 }
 
 // ── Access & Membership (M11 link 3) ─────────────────────────────────────────

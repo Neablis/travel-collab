@@ -552,3 +552,78 @@ describe("TripProvider retained-unit sender (KI-42)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// The send-queue wedge (docs/reviews/2026-08-28-project-review.md §1.1).
+//
+// `inFlight` used to be reset on the line AFTER an unprotected `await`, so a
+// throw anywhere in the send path skipped it and the sequential sender was
+// gated for the life of the page: no failure recorded, no retry offered, the
+// header saying "Saving…" forever and every queued edit lost on navigation.
+// apiClient's helpers all resolve rather than reject now (its own totality
+// suite pins that), so this is the second line of defence — and the one that
+// matters, because it is the only place the cost of being wrong is silent
+// data loss rather than a visible error.
+// ---------------------------------------------------------------------------
+
+describe("TripProvider sender — a throw in the send path never gates the queue", () => {
+  it("records the throw as an ordinary failed send, and retry still drains", async () => {
+    sendTripCommandMock.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+
+    // Reported through KI-36's existing surface rather than vanishing: the
+    // edit is retained, the failure is dated, and the user is told.
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+    expect(screen.getByTestId("failureMessage").textContent).toBe("Failed to fetch");
+    expect(screen.getByTestId("unsent").textContent).toBe("1");
+    expect(screen.getByTestId("dayCount").textContent).toBe("2");
+
+    // The load-bearing assertion. If `inFlight` leaked, the sender's effect
+    // returns early forever and this retry sends nothing — `unsent` would
+    // stay at 1 and the call count at 1.
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: twoDayDetail(), history: historyFixture("x") },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("0"));
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("failedAt").textContent).toBe("none");
+  });
+});
+
+// The same class at the other site: a throwing initial read used to leave
+// `status` on "loading" forever — a permanent spinner with nothing on screen
+// to say why (project review §1.1, second site).
+function StatusProbe() {
+  const { status, error } = useTrip();
+  return (
+    <div>
+      <span data-testid="status">{status}</span>
+      <span data-testid="error">{error ?? "none"}</span>
+    </div>
+  );
+}
+
+describe("TripProvider load — a throwing read is an error state, not a spinner", () => {
+  it("leaves status on error with the reason, not on loading", async () => {
+    fetchTripDetailMock.mockRejectedValue(new Error("Failed to fetch"));
+
+    render(
+      <TripProvider tripId="x">
+        <StatusProbe />
+      </TripProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("error"));
+    expect(screen.getByTestId("error").textContent).toBe("Failed to fetch");
+  });
+});

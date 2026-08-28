@@ -671,3 +671,46 @@ describe("assistant rail visibility", () => {
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 });
+
+// docs/reviews/2026-08-28-project-review.md §1.4. The AI batch is decided
+// server-side against state that does not include anything still queued here,
+// and `applyOutcome` clears `pending` to take its result — so drag a card and
+// immediately ask, and the queued-but-unsent edit was discarded from the UI
+// and the server both, with nothing said. History commands have guarded
+// exactly this since M6 (`if (pending) return`); this path had no equivalent.
+describe("assistant ask — unsent work blocks the ask", () => {
+  it("refuses the ask, says why, and sends nothing while an edit is still unsent", async () => {
+    const fixture = tripDetailFixture();
+    server.use(
+      // Never settles: the head stays in flight, so `pending` stays true for
+      // the whole test rather than for the handful of microseconds a resolved
+      // handler would give us. FIRST in the list on purpose — within one
+      // `server.use` call MSW takes the earliest matching handler, so putting
+      // this after the spread would silently lose to makeTripHandlers' own
+      // commands handler and the ask would run with an empty queue.
+      http.post("/api/trips/:tripId/commands", () => new Promise<never>(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    // Queue an edit that will never be confirmed.
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+      target: { value: "Plan my afternoon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Finish saving your changes before asking the assistant.",
+      ),
+    );
+    expect(composeAiPlanMock).not.toHaveBeenCalled();
+    // The optimistic day is still on the board — the whole point of refusing.
+    expect(screen.getAllByTestId("day-column")).toHaveLength(1);
+  });
+});

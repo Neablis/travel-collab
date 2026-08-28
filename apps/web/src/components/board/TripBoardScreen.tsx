@@ -51,7 +51,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -296,6 +296,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // resulting { detail, history } already reconciled — applyOutcome is the
   // same reconciler ComposePanel's board surface used, no refetch needed.
   const submitAssistantAsk = async (text: string) => {
+    // Refused while the optimistic queue still holds unsent work. The AI batch
+    // is decided server-side against state that does NOT include those units,
+    // and `applyOutcome` clears `pending` to take its result — so asking on
+    // top of a queued-but-unsent drag discarded that drag from the UI and the
+    // server both, silently, and the in-flight head raced the batch on
+    // optimistic concurrency (docs/reviews/2026-08-28-project-review.md §1.4).
+    // Reported through the rail's own askError surface rather than swallowed:
+    // disabling the box outright would need a new AssistantRail prop, and a
+    // control that silently does nothing is the failure mode TripProvider's
+    // runDispatch comment was written about.
+    if (pending) {
+      setAskStatus("error");
+      setAskError("Finish saving your changes before asking the assistant.");
+      setAskSimulated(false);
+      // false keeps the rail's typed prompt on screen: this ask never reached
+      // the model, so making the user retype it would read as a broken box.
+      return false;
+    }
     setAskStatus("loading");
     setAskError(null);
     setAskSimulated(false);

@@ -92,30 +92,42 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const optimisticRef = useRef<OptimisticState | null>(null);
 
   const load = useCallback(async () => {
-    const [detailResult, historyResult, accessResult] = await Promise.all([
-      fetchTripDetail(tripId),
-      fetchTripHistory(tripId),
-      // Failure here is deliberately non-fatal: `myRole` stays null and the
-      // board behaves exactly as it did before roles existed. The server is
-      // the boundary; this read only decides what the UI *offers*.
-      fetchTripAccess(tripId),
-    ]);
-    setMyRole(accessResult.ok ? accessResult.value.myRole : null);
-    if (!detailResult.ok) {
-      setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
-      setError(detailResult.error.message);
-      return;
+    try {
+      const [detailResult, historyResult, accessResult] = await Promise.all([
+        fetchTripDetail(tripId),
+        fetchTripHistory(tripId),
+        // Failure here is deliberately non-fatal: `myRole` stays null and the
+        // board behaves exactly as it did before roles existed. The server is
+        // the boundary; this read only decides what the UI *offers*.
+        fetchTripAccess(tripId),
+      ]);
+      setMyRole(accessResult.ok ? accessResult.value.myRole : null);
+      if (!detailResult.ok) {
+        setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
+        setError(detailResult.error.message);
+        return;
+      }
+      setOptimistic({
+        confirmed: {
+          detail: detailResult.value,
+          history: historyResult.ok
+            ? historyResult.value
+            : { tripId, entries: [], canUndo: false, canRedo: false },
+        },
+        pending: [],
+      });
+      setStatus("ready");
+    } catch (err) {
+      // `status` has exactly one terminal-looking value that renders nothing
+      // and says nothing — "loading" — so any throw that escapes here leaves
+      // a permanent spinner with no error and no retry
+      // (docs/reviews/2026-08-28-project-review.md §1.1, second site). The
+      // apiClient helpers resolve rather than reject now, which makes this
+      // unreachable through them; it is kept because the cost of being wrong
+      // about that is a page that never loads and never explains itself.
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Could not load this trip.");
     }
-    setOptimistic({
-      confirmed: {
-        detail: detailResult.value,
-        history: historyResult.ok
-          ? historyResult.value
-          : { tripId, entries: [], canUndo: false, canRedo: false },
-      },
-      pending: [],
-    });
-    setStatus("ready");
   }, [tripId]);
 
   useEffect(() => {
@@ -157,11 +169,27 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     const head = optimistic.pending[0]!;
     inFlight.current = true;
     (async () => {
-      const result: { ok: true; value: CommandOutcome } | { ok: false; error: { message: string; code?: string } } =
-        head.commands.length === 1
-          ? await sendTripCommand(head.commands[0]! as BoardCommand)
-          : await sendTripCommandBatch(tripId, head.commands);
-      inFlight.current = false;
+      let result: { ok: true; value: CommandOutcome } | { ok: false; error: { message: string; code?: string } };
+      try {
+        result =
+          head.commands.length === 1
+            ? await sendTripCommand(head.commands[0]! as BoardCommand)
+            : await sendTripCommandBatch(tripId, head.commands);
+      } catch (err) {
+        // A throw here is a failed send like any other, and is treated as one
+        // so the user gets KI-36's retained queue and manual retry. It should
+        // be unreachable — every apiClient helper resolves rather than
+        // rejects (see its module invariant) — but this is the site where
+        // being wrong was catastrophic: the reset below was skipped, the
+        // sender stayed gated for the life of the page, and every queued edit
+        // was lost on navigation with the header still saying "Saving…"
+        // (docs/reviews/2026-08-28-project-review.md §1.1).
+        result = { ok: false, error: { message: err instanceof Error ? err.message : "Network error" } };
+      } finally {
+        // Unconditional, and the whole point of the try/finally: nothing on
+        // any path may leave the sequential sender permanently in flight.
+        inFlight.current = false;
+      }
       // Built out here, not inside the updater below: `new Date()` is a
       // wall-clock read and updaters must stay pure (React may invoke them
       // more than once), which is the same reason setError is decided out
@@ -280,6 +308,16 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // `outcome` is `{ detail, history }` — exactly the `confirmed` shape. Clear
     // pending: this is authoritative server state, nothing local is unconfirmed
     // relative to it (matches the undo/redo/revert reconciliation).
+    //
+    // PRECONDITION, on the caller: only apply an outcome when `pending` is
+    // empty. The server decided this outcome without seeing anything still
+    // queued here, so clearing discards those units from the UI as well as
+    // from the server — the same silent loss `dispatch` refuses to cause
+    // below (`if (pending) return`). Callers gate their own affordance rather
+    // than being refused here, so the user is told why instead of watching a
+    // control do nothing: AddSavedDayButton disables the button, and
+    // TripBoardScreen's assistant ask reports it in the rail
+    // (docs/reviews/2026-08-28-m11-pr71-review.md §4).
     setOptimistic((prev) => (prev ? { confirmed: outcome, pending: [] } : prev));
     setError(null);
   }, []);

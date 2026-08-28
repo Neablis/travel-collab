@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
@@ -66,14 +66,29 @@ describe("AssistantRail", () => {
     expect(onAsk).not.toHaveBeenCalled();
   });
 
-  it("the Ask box is real: typing and submitting calls onAsk with the typed text", () => {
+  it("the Ask box is real: typing and submitting calls onAsk with the typed text", async () => {
     const onAsk = vi.fn();
     renderRail({ onAsk });
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
-    expect((input as HTMLInputElement).value).toBe("");
+    // Awaited: the clear now waits on onAsk's answer, because a refused ask
+    // keeps the prompt. An accepted one still clears, one microtask later.
+    await waitFor(() => expect((input as HTMLInputElement).value).toBe(""));
+  });
+
+  // The refusal half of the same rule. TripBoardScreen returns false when
+  // unsent edits are still queued; the ask never reaches the model, so making
+  // the user retype it would read as the box being broken.
+  it("keeps the typed prompt when onAsk refuses the ask", async () => {
+    const onAsk = vi.fn().mockResolvedValue(false);
+    renderRail({ onAsk });
+    const input = screen.getByPlaceholderText(/ask about this day/i);
+    fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?"));
+    expect((input as HTMLInputElement).value).toBe("Where am I overbooked?");
   });
 
   it("submits on Enter", () => {

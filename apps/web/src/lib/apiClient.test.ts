@@ -1,12 +1,33 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
+import * as apiClientModule from "@/lib/apiClient";
 import {
+  acceptInvite,
+  cloneSharedTrip,
+  composeAiPage,
+  composeAiPlan,
+  createSavedDay,
+  createTrip,
+  createTripInvite,
+  createTripShare,
+  deleteSavedDay,
+  duplicateTrip,
+  fetchInvitePreview,
+  fetchSavedDays,
+  fetchSharedTrip,
+  fetchTripAccess,
   fetchTripDetail,
   fetchTripDetailAt,
   fetchTripHistory,
+  fetchTripShares,
+  insertSavedDay,
+  resetDemoData,
+  revokeTripInvite,
+  revokeTripShare,
   sendTripCommand,
   sendTripCommandBatch,
+  type ApiResult,
 } from "@/lib/apiClient";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
@@ -118,5 +139,113 @@ describe("apiClient", () => {
     const unknown = await fetchTripDetailAt(fixture.tripId, 99);
     if (unknown.ok) throw new Error("expected error");
     expect(unknown.error.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The module invariant: EVERY helper resolves an ApiResult and none of them
+// rejects.
+//
+// Nine helpers used to have no try/catch at all, and TripProvider's sequential
+// sender awaits one without a try/catch of its own — so a rejected fetch
+// (offline, DNS) skipped `inFlight.current = false` and gated the send queue
+// permanently: "Saving…" forever, no failure recorded, no retry offered, every
+// queued edit lost on navigation (docs/reviews/2026-08-28-project-review.md
+// §1.1, docs/reviews/2026-08-28-m11-pr71-review.md §3). A `.parse` throw on a
+// 200 reached the same place by a different door.
+//
+// Table-driven over the whole module rather than the two helpers the queue
+// happens to use today: the totality claim is about the module, and the
+// coverage test below is what stops a new helper from being added without it.
+// ---------------------------------------------------------------------------
+
+const TRIP_ID = "11111111-1111-4111-8111-111111111111";
+const UUID = "22222222-2222-4222-8222-222222222222";
+
+// Every exported helper that performs a request, and how to call it. Arguments
+// only have to be well-typed — no call in this suite ever reaches a server.
+const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
+  createTrip: () => createTrip({ name: "Rome" }),
+  fetchTripDetail: () => fetchTripDetail(TRIP_ID),
+  fetchTripHistory: () => fetchTripHistory(TRIP_ID),
+  fetchTripDetailAt: () => fetchTripDetailAt(TRIP_ID, 1),
+  sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
+  sendTripCommandBatch: () =>
+    sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
+  composeAiPage: () => composeAiPage(TRIP_ID, "plan it", { tripId: TRIP_ID }),
+  composeAiPlan: () => composeAiPlan(TRIP_ID, "plan it", "board"),
+  duplicateTrip: () => duplicateTrip(TRIP_ID),
+  resetDemoData: () => resetDemoData(),
+  fetchTripAccess: () => fetchTripAccess(TRIP_ID),
+  createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
+  revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  fetchInvitePreview: () => fetchInvitePreview("tok"),
+  acceptInvite: () => acceptInvite("tok"),
+  fetchTripShares: () => fetchTripShares(TRIP_ID),
+  createTripShare: () => createTripShare(TRIP_ID),
+  revokeTripShare: () => revokeTripShare(TRIP_ID, UUID),
+  fetchSharedTrip: () => fetchSharedTrip("tok"),
+  cloneSharedTrip: () => cloneSharedTrip("tok"),
+  fetchSavedDays: () => fetchSavedDays(),
+  createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
+  deleteSavedDay: () => deleteSavedDay(UUID),
+  insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
+};
+
+// Pure URL builders — they touch no network, so totality is not a claim about
+// them. Anything else exported as a function has to be in the table above.
+const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink"]);
+
+describe("apiClient totality — no helper ever rejects", () => {
+  // The witness for the suite below: it asserts nothing about behaviour, only
+  // that the table is the whole module. Without it a helper added tomorrow
+  // (M11 added fourteen at once) is simply absent from the table and the
+  // it.each below stays green while covering less.
+  it("covers every fetching helper the module exports", () => {
+    const exported = Object.entries(apiClientModule)
+      .filter(([, value]) => typeof value === "function")
+      .map(([name]) => name);
+    const uncovered = exported.filter(
+      (name) => !NON_FETCHING_EXPORTS.has(name) && !(name in FETCHING_HELPERS),
+    );
+    expect(uncovered).toEqual([]);
+    // Guards the other direction too: an import that resolved to an empty
+    // module would make `uncovered` trivially empty.
+    expect(exported.length).toBe(NON_FETCHING_EXPORTS.size + Object.keys(FETCHING_HELPERS).length);
+  });
+
+  // Pins the mechanism the suite below depends on. `HttpResponse.error()` has
+  // to make `fetch` REJECT; if it ever degraded to a plain non-ok response,
+  // every assertion below would still be green while testing the ordinary
+  // HTTP-error path this file already covered — the wedge would be back and
+  // nothing would say so.
+  it("HttpResponse.error() makes a bare fetch reject, not resolve", async () => {
+    server.use(http.all("*", () => HttpResponse.error()));
+    await expect(fetch(apiClientModule.apiUrl("/api/trips"))).rejects.toThrow();
+  });
+
+  it.each(Object.keys(FETCHING_HELPERS))(
+    "%s resolves { ok: false, status: 0 } when the fetch rejects",
+    async (name) => {
+      server.use(http.all("*", () => HttpResponse.error()));
+      const result = await FETCHING_HELPERS[name]!();
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      // status 0 is this file's shape for "no response at all" — distinct from
+      // any HTTP status, so callers can tell a refusal from a network failure.
+      expect(result.error.status).toBe(0);
+      expect(typeof result.error.message).toBe("string");
+    },
+  );
+
+  // The second door into the same wedge: the response is a perfectly good 200,
+  // and the schema parse is what throws.
+  it("returns an error result when a 200 body fails schema validation", async () => {
+    server.use(
+      http.get("*/api/trips/:tripId", () => HttpResponse.json({ trip: { nonsense: true } })),
+    );
+    const result = await fetchTripDetail(TRIP_ID);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.status).toBe(0);
   });
 });

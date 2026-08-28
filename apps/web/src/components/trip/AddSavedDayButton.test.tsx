@@ -21,8 +21,8 @@ import { AddSavedDayButton } from "./AddSavedDayButton";
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const applyOutcome = vi.fn();
 
-function asRole(myRole: TripRole) {
-  useTripMock.mockReturnValue({ tripId, applyOutcome, readOnly: myRole === "viewer" });
+function asRole(myRole: TripRole, pending = false) {
+  useTripMock.mockReturnValue({ tripId, applyOutcome, readOnly: myRole === "viewer", pending });
 }
 
 afterEach(cleanup);
@@ -60,5 +60,34 @@ describe("AddSavedDayButton", () => {
     expect(savedDaysDialogSpy).toHaveBeenCalledWith(
       expect.objectContaining({ onInserted: applyOutcome }),
     );
+  });
+});
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §4. The insert comes back as an
+// authoritative outcome and `applyOutcome` clears `pending` to take it — so
+// inserting on top of a queued-but-unsent drag discarded that drag from the
+// UI and the server both, silently, and wiped a KI-36-retained failure queue
+// without ever offering its retry.
+describe("AddSavedDayButton — unsent work blocks the insert", () => {
+  it("disables the button, with a reason, while the queue holds unsent edits", async () => {
+    asRole("owner", true);
+    render(<AddSavedDayButton />);
+
+    const button = screen.getByRole("button", { name: "Add a saved day" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("title")).toBe("Saving your changes — available in a moment");
+
+    // Not merely styled as unavailable: the picker cannot be reached, so the
+    // insert that would clear `pending` can never be started.
+    await userEvent.click(button);
+    expect(screen.queryByTestId("saved-days-dialog")).toBeNull();
+  });
+
+  it("is enabled again once nothing is unsent", () => {
+    asRole("owner", false);
+    render(<AddSavedDayButton />);
+    const button = screen.getByRole("button", { name: "Add a saved day" });
+    expect(button.hasAttribute("disabled")).toBe(false);
+    expect(button.getAttribute("title")).toBeNull();
   });
 });
