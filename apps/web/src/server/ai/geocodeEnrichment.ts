@@ -172,6 +172,7 @@ async function resolveOne(
     lng: match.lng,
     ...(match.countryCode ? { countryCode: match.countryCode } : {}),
     ...(match.city ? { city: match.city } : {}),
+    ...(match.area ? { area: match.area } : {}),
   };
   const matchPoint: LatLng = { lat: match.lat, lng: match.lng };
 

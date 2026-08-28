@@ -13,6 +13,37 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-28 — KI-35: `Location.area`
+- Added: `area: z.string().min(1).max(200).optional()` on `Location`
+  (`packages/contracts/src/activity.ts`) — the sub-settlement locality
+  (neighbourhood/suburb/quarter/city district), one level finer than `city`
+  and read from the same structured geocoder address breakdown
+- Why: KI-35 — nothing carried an area, so `shortPlace()` and `cityFor()` fell
+  back to the first comma-delimited segment of `name` when there was no city,
+  and that segment is the *venue*: a coffee shop rendered where a neighbourhood
+  should be, and a day inside one city rendered "Tokyo → Tokyo → Tokyo"
+- Display-only. Nothing groups, colours or buckets by it —
+  `calendarCityCards.ts` still groups strictly on `location.city`
+- Consumers updated (same change): `@tc/domain` `equality.ts` (it is the ONE
+  module that compares `Location` field by field; without it `diffTripStates`
+  treats an area-only edit as a no-op and revert/undo silently keeps the old
+  value), the shared property generator
+  (`packages/domain/test/support/tripGenerator.ts`) so the field is actually
+  in the generated input space, and in `apps/web`: `geocoding/geocoder.ts` +
+  `geocoding/locationiq.ts` (`suburb ?? neighbourhood ?? quarter ??
+  city_district`, the `city` read untouched), `ai/geocodeEnrichment.ts`,
+  `LocationInput.tsx`, the MSW handlers, `lib/place.ts`, `DayChips.tsx`,
+  `japanTripImporter.ts` and `scripts/db-seed.ts`.
+  `diff.ts`/`hydrate.ts`/`detail.ts` pass `location` through whole and needed
+  no change
+- Breaking? no — `.optional()`, exactly like `city`. A `trip_details.doc` or a
+  stored event written before this change parses unchanged; there is no
+  migration and no event rewrite. Asserted directly, not just claimed:
+  `packages/contracts/test/ki35-location-area.test.ts` parses a complete
+  pre-`area` projection document. M18 added *required* fields to this same
+  raw-jsonb-then-parse shape and 500'd every untouched board (fix `8abbaa3`) —
+  that test is the tripwire
+
 ## 2026-08-27 — M18: activity kind & tags
 - Added: `ActivityKind` (`booked|hold|idea|transit|planned`) and `ActivityTag`
   (`meal|lodging|ticketed|outdoors`) enums

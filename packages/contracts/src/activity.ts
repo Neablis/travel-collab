@@ -44,6 +44,27 @@ export const Location = z
     // `name` for grouping/coloring by city; falls back to `name` when a
     // location predates this field or never had one.
     city: z.string().min(1).max(200).optional(),
+    // The sub-settlement locality: neighbourhood, suburb, quarter, or city
+    // district, populated by the geocoder from the same structured address
+    // data as `city` and strictly finer-grained than it ("Nishi-Azabu" inside
+    // "Tokyo"). Display-only: it is what shortPlace() (apps/web/src/lib/place.ts)
+    // shows on a timeline route/place line so a day inside one city reads
+    // "Nishi-Azabu → Ebisu" rather than "Tokyo → Tokyo", and it is
+    // cityFor()'s (DayChips.tsx) fallback when there is no city, in place of
+    // the venue name that stood in for one before (KI-35).
+    //
+    // Nothing groups or colours by it: the calendar's city cards and the day
+    // accents group strictly on `city`, deliberately (see
+    // components/lenses/calendarCityCards.ts).
+    //
+    // Optional, like `city` and for the same reasons: manually-entered
+    // locations, geocoder results with no sub-settlement component, and every
+    // location written before this field existed carry none. That optionality
+    // is load-bearing, not tidiness — `trip_details.doc` is stored as raw
+    // jsonb and parsed on read, so a projection written before this field must
+    // still parse (see contracts/test/ki35-location-area.test.ts, and the M18
+    // regression it exists to not repeat).
+    area: z.string().min(1).max(200).optional(),
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",
