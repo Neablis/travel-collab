@@ -151,6 +151,45 @@ test("unitForCwd skips a unit whose worktree is not a string", () => {
   assert.equal(unitForCwd(unitDir), null);
 });
 
+test("unitForCwd skips a unit with no id, even when worktree and resources match", () => {
+  // Verified against production: with a valid `worktree` but a missing `id`,
+  // and `resources: {"postgres":"u2"}`, resource-lease.mjs's
+  // `holder === found.unit.id` compares "u2" against `undefined` — false —
+  // so the lease looks free and the hook fails open when it should have
+  // recognized this manifest entry as malformed and no-opped instead.
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: [{ worktree: unitDir, fileScope: ["src/**"], state: "open" }],
+    resources: { postgres: "u2" },
+  });
+  assert.equal(unitForCwd(unitDir), null);
+});
+
+test("unitForCwd skips a unit whose id is not a string", () => {
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: [{ id: 5, worktree: unitDir, fileScope: ["src/**"], state: "open" }],
+    resources: {},
+  });
+  assert.equal(unitForCwd(unitDir), null);
+});
+
+test("unitForCwd returns null instead of throwing on a non-string cwd", () => {
+  // `resolve(cwd)` throws a TypeError on a non-string argument. A hook
+  // payload's `cwd` is attacker/mistake-controlled JSON, so a malformed
+  // payload (a number, an object, `undefined` falling through a bad `??`)
+  // must not crash a PreToolUse hook.
+  assert.equal(unitForCwd(5), null);
+  assert.equal(unitForCwd(undefined), null);
+  assert.equal(unitForCwd({}), null);
+});
+
 test("inScope fails open when the glob list is a string rather than an array", () => {
   assert.equal(inScope("src/a.ts", "src/**"), false);
 });

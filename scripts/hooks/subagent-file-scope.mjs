@@ -32,14 +32,21 @@ const resolved = resolve(cwd, target);
 // protocol built for unattended parallelism, on the board that is the whole
 // anti-poisoning mechanism.
 //
-// Scoped to THIS run's own directory, and sep-terminated rather than a bare
-// string prefix, so "<run-dir>-evil/" is still an escape.
+// The allowance is narrowed to exactly those two things: the unit's OWN
+// report, and anything under notes/. Permitting the whole run directory
+// (every non-manifest path) let a unit overwrite another unit's report — a
+// real integrity hole in a protocol whose whole point is parallel units.
+// Everything else, including manifest.json and another unit's report, falls
+// through to the worktree-boundary check below and therefore asks — this
+// depends on run-context.mjs's `unit.id` validation in unitForCwd, so
+// `unit.id` is guaranteed a non-empty string by the time we get here.
 //
-// manifest.json is carved back out: a unit that can rewrite the manifest can
-// switch off the very hooks that constrain it.
+// Sep-terminated rather than a bare string prefix, so "<run-dir>-evil/" is
+// still an escape.
 const runRoot = resolve(runDir);
-const inRunDir = resolved === runRoot || resolved.startsWith(runRoot + sep);
-if (inRunDir && resolved !== join(runRoot, "manifest.json")) process.exit(0);
+const ownReport = join(runRoot, "reports", `${unit.id}.md`);
+const notesRoot = join(runRoot, "notes") + sep;
+if (resolved === ownReport || resolved.startsWith(notesRoot)) process.exit(0);
 
 const rel = relative(root, resolved);
 
@@ -57,11 +64,17 @@ if (rel === "" || rel === ".." || rel.startsWith(".." + sep) || rel.startsWith(s
   process.exit(0);
 }
 
-if (!inScope(rel, unit.fileScope)) {
+// Normalised once: `inScope` already fails open (false) on a non-array
+// fileScope via its own Array.isArray guard, but the ask-message builder
+// below used to call `.join()` on `unit.fileScope` directly — `?? []` does
+// not catch a truthy non-array like the string "src/**", so a malformed
+// manifest crashed the hook (exit 1) instead of asking.
+const fileScope = Array.isArray(unit.fileScope) ? unit.fileScope : [];
+if (!inScope(rel, fileScope)) {
   ask(
     "PreToolUse",
     `"${rel}" is outside unit "${unit.id}"'s declared file scope:\n  ` +
-      `${(unit.fileScope ?? []).join("\n  ")}\n\n` +
+      `${fileScope.join("\n  ")}\n\n` +
       "The contract (.claude/protocol/CONTRACT.md) requires reporting an " +
       "out-of-scope need rather than expanding silently, and widening your own " +
       "scope to get past a blocker is an automatic BLOCKED. If the scope is " +

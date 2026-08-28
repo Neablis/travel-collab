@@ -83,5 +83,12 @@ export function runHookRaw(name, rawInput) {
 }
 
 export function decision(res) {
+  // A non-zero exit with no parseable JSON on stdout produces the SAME
+  // `null` as a successful allow — which is also the expected value in
+  // every allow-path test in this suite. Without this check, a hook that
+  // crashed instead of allowing would pass those tests silently.
+  if (res.status !== 0) {
+    throw new Error(`hook exited ${res.status}: ${res.stderr}`);
+  }
   return res.json?.hookSpecificOutput?.permissionDecision ?? null;
 }

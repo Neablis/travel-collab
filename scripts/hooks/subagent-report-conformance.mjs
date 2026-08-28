@@ -28,6 +28,22 @@ const REQUIRED = [
 
 const BLOCKED_EXTRA = ["## Blocker", "## Tree state"];
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// A required label must appear as an actual heading — at the start of a
+// line, followed by whitespace or end-of-line — not merely as a substring
+// anywhere in the report. `text.includes(heading)` (the previous check) let
+// a report that never wrote the section but happened to quote its label in
+// a sentence pass conformance, which defeats the one thing this hook exists
+// to enforce. Labels are escaped rather than interpolated raw: today's list
+// is regex-safe, but it will be edited later by someone who doesn't know
+// that, and an unescaped label could silently become a broader pattern.
+function hasHeading(text, label) {
+  return new RegExp(`^${escapeRegExp(label)}(?:\\s|$)`, "m").test(text);
+}
+
 const payload = parseStdin(await readAll(process.stdin));
 if (!payload || typeof payload !== "object") process.exit(0);
 
@@ -90,7 +106,7 @@ const required = [
 ];
 
 for (const heading of required) {
-  if (!text.includes(heading)) missing.push(heading);
+  if (!hasHeading(text, heading)) missing.push(heading);
 }
 
 if (missing.length > 0) {

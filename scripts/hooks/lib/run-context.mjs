@@ -111,6 +111,11 @@ export function activeRuns(cwd) {
 }
 
 export function unitForCwd(cwd) {
+  // A hook payload's `cwd` is untrusted JSON (a bad `??` fallback, an
+  // attacker/mistake-supplied number or object). `resolve()` throws a
+  // TypeError on anything but a string, which would crash a PreToolUse hook
+  // instead of failing open.
+  if (typeof cwd !== "string") return null;
   const here = resolve(cwd);
   for (const run of activeRuns(cwd)) {
     // Same reasoning as the guard in run-teardown-reminder.mjs: the manifest
@@ -123,6 +128,12 @@ export function unitForCwd(cwd) {
     for (const unit of units) {
       if (!unit || typeof unit !== "object") continue;
       if (typeof unit.worktree !== "string" || !unit.worktree) continue;
+      // A missing/non-string `id` used to slip through here: downstream,
+      // `holder === found.unit.id` compares a lease holder string against
+      // `undefined`, which is never equal, so a malformed manifest entry
+      // made resource-lease.mjs report a false-positive "ask" instead of
+      // failing open on a shape it can't understand.
+      if (typeof unit.id !== "string" || !unit.id) continue;
       const root = resolve(unit.worktree);
       if (here === root || here.startsWith(root + sep)) {
         return { ...run, unit };

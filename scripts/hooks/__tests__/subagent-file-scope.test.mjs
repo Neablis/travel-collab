@@ -66,6 +66,29 @@ test("a dotdot-prefixed directory name inside the worktree is not mistaken for a
   );
 });
 
+test("a malformed fileScope (string, not array) asks rather than throwing", () => {
+  // Verified against production: `"fileScope": "src/**"` (a string) makes
+  // `inScope` fail open (false, via its own Array.isArray guard), but the
+  // ask-message builder then called `.join()` on that same string and
+  // crashed the hook — exit 1 with a stack trace, not the fail-open "ask"
+  // this hook is supposed to produce on a shape it can't understand.
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: [{ id: "u1", worktree: unitDir, fileScope: "src/**", state: "open" }],
+    resources: {},
+  });
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Edit",
+    tool_input: { file_path: join(unitDir, "other/b.ts") },
+  });
+  assert.equal(res.status, 0);
+  assert.equal(decision(res), "ask");
+});
+
 test("no manifest means no opinion", () => {
   const root = makeRepo();
   const loose = makeUnitDir(root, "loose");
@@ -176,6 +199,22 @@ test("the manifest carve-out is narrow: notes/ and reports/ still pass silently"
     assert.equal(res.status, 0, `${rel} must exit 0`);
     assert.equal(decision(res), null, `${rel} must pass silently`);
   }
+});
+
+// The run-directory allowance previously permitted EVERY non-manifest path
+// under runDir, which let a unit overwrite another unit's report — a real
+// integrity hole in a protocol whose whole point is parallel units. It must
+// permit only the unit's own report and anything under notes/.
+
+test("another unit's report write still asks", () => {
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(runDir, "reports/u2.md") },
+  });
+  assert.equal(decision(res), "ask");
+  assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /outside its own worktree/);
 });
 
 test("a manifest.json under a nested path in the run dir is not the governing manifest", () => {

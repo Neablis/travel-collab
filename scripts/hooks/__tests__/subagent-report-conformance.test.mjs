@@ -69,6 +69,25 @@ test("a report missing Evidence gaps is blocked and told which section", () => {
   assert.match(res.stderr, /## Evidence gaps/);
 });
 
+test("omitting a required section but quoting its label in prose is still blocked", () => {
+  // Verified against production: a report that never has "## Evidence gaps"
+  // as an actual heading, but merely mentions the string in a sentence,
+  // passed (exit 0) because the old check was `text.includes(heading)` —
+  // a substring match anywhere in the report, not a heading match. Enforcing
+  // report shape is this hook's entire job, and quoting the label instead of
+  // writing the section is exactly what a skipped section looks like.
+  const quotedNotHeading = COMPLETE_DONE.replace(
+    "## Evidence gaps\nnone\n",
+    "I have no gaps; see \"## Evidence gaps\" mentioned in the template for context.\n",
+  );
+  const res = runHook("subagent-report-conformance.mjs", {
+    transcript_path: transcriptWith(quotedNotHeading),
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Evidence gaps/);
+});
+
 test("a BLOCKED report also requires Blocker and Tree state", () => {
   const blocked = COMPLETE_DONE.replace("## Exit: DONE", "## Exit: BLOCKED");
   const res = runHook("subagent-report-conformance.mjs", {
