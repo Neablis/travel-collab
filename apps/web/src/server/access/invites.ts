@@ -39,6 +39,12 @@ function mintToken(): string {
 
 type InviteRow = typeof tripInvites.$inferSelect;
 
+/**
+ * The one place a stored instant becomes a `TripInvite`'s string. The columns
+ * are `mode: "date"` precisely so this conversion cannot be skipped on the
+ * write path: a row built in memory carries `Date`s exactly like a row read
+ * back does, so both paths render the same ISO-8601 string (KI-53).
+ */
 function toDto(row: InviteRow): TripInvite {
   return {
     inviteId: row.id,
@@ -48,10 +54,10 @@ function toDto(row: InviteRow): TripInvite {
     status: row.status as InviteStatus,
     token: row.token,
     invitedBy: row.invitedBy,
-    createdAt: row.createdAt,
+    createdAt: row.createdAt.toISOString(),
     acceptedBy: row.acceptedBy,
-    acceptedAt: row.acceptedAt,
-    revokedAt: row.revokedAt,
+    acceptedAt: row.acceptedAt === null ? null : row.acceptedAt.toISOString(),
+    revokedAt: row.revokedAt === null ? null : row.revokedAt.toISOString(),
   };
 }
 
@@ -69,7 +75,7 @@ export async function createInvite(
     token: mintToken(),
     status: "pending",
     invitedBy,
-    createdAt: now,
+    createdAt: new Date(now),
     acceptedBy: null,
     acceptedAt: null,
     revokedAt: null,
@@ -109,10 +115,11 @@ export async function revokeInvite(
     if (row.acceptedBy !== null) {
       await revokeMembership(tx, tripId, row.acceptedBy);
     }
-    const updated: InviteRow = { ...row, status: "revoked", revokedAt: now };
+    const revokedAt = new Date(now);
+    const updated: InviteRow = { ...row, status: "revoked", revokedAt };
     await tx
       .update(tripInvites)
-      .set({ status: "revoked", revokedAt: now })
+      .set({ status: "revoked", revokedAt })
       .where(eq(tripInvites.id, inviteId));
     return { ok: true, value: toDto(updated) };
   });
@@ -221,7 +228,7 @@ function acceptInviteTransaction(
 
     const claimed = await tx
       .update(tripInvites)
-      .set({ status: "accepted", acceptedBy: userId, acceptedAt: now })
+      .set({ status: "accepted", acceptedBy: userId, acceptedAt: new Date(now) })
       .where(and(eq(tripInvites.token, token), eq(tripInvites.status, "pending")))
       .returning();
     const row = claimed[0];

@@ -11,9 +11,23 @@ import { readFileSync } from "node:fs";
 // every other city-accented surface, so it needs no raw-hex exception of its
 // own anymore (Mitchell, 2026-08-25 — one city, one color, everywhere).
 const pending = new Set(JSON.parse(readFileSync("scripts/design-wall-pending.json", "utf8")));
-const files = execSync("git ls-files 'apps/web/src/**/*.ts' 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css'", { encoding: "utf8" })
-  .split("\n")
-  .filter(Boolean)
+// --others --exclude-standard adds untracked-but-not-ignored files to the
+// tracked (--cached) list: a brand-new file was invisible to the wall until it
+// was staged (KI-51), which is exactly the file most likely to carry a raw hex.
+// --exclude-standard keeps .gitignore honoured, so node_modules/.next/generated
+// output stay out — walking the tree naively would not. Set dedupes the stage
+// 1/2/3 duplicates --cached emits for unmerged paths mid-conflict.
+const files = [
+  ...new Set(
+    execSync(
+      "git ls-files --cached --others --exclude-standard 'apps/web/src/**/*.ts' 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css'",
+      { encoding: "utf8" },
+    )
+      .split("\n")
+      .filter(Boolean),
+  ),
+]
+  .sort()
   .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f));
 
 const colorLiteral = /(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;

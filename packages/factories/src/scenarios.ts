@@ -37,19 +37,32 @@ export const scenarios = {
       },
     }),
 
-  // Two activities on one day. Their windows already clash — `activityFactory`
-  // gives every activity the same 09:00-11:00 window, and identical windows
-  // satisfy `windowsOverlap`. The reason this scenario still reports no
-  // conflict is that `tripDetailFactory` hardcodes `conflicts: []` and never
-  // runs the conflict engine; the windows were never the missing piece. A
-  // caller that wants populated conflicts sets them via `overrides.conflicts`,
-  // or hydrates the fixture and calls `detectConflicts` itself. Note this
-  // scenario is NOT distinguished from its `activitiesPerDay >= 2` siblings on
-  // the projection side — see KI-40. The command-side twin,
-  // `commandsFor("overlappingDay")`, does produce a real partial overlap.
+  // Two activities on one day whose windows genuinely *partially* overlap —
+  // the interesting case, not the degenerate identical-window one. This is the
+  // only scenario whose windows clash: every other one walks
+  // `hourlyWindow`'s back-to-back ladder, which merely touches at the hour and
+  // so is overlap-free under the strict `windowsOverlap` (KI-40). These are the
+  // same two windows the command twin `commandsFor("overlappingDay")` states
+  // (`OVERLAPPING_WINDOWS`, commands.ts); `conflicts.test.ts` asserts the twins
+  // agree rather than sharing a constant, because scenarios.ts cannot import
+  // commands.ts (commands.ts imports this module).
+  //
+  // The scenario still reports `conflicts: []` of its own: `tripDetailFactory`
+  // hardcodes it and never runs the conflict engine. A caller that wants
+  // populated conflicts sets them via `overrides.conflicts`, or hydrates the
+  // fixture and calls `detectConflicts` itself — which now finds exactly this
+  // day's overlap and nothing else.
   overlappingDay: (overrides: Partial<TripDetail> = {}): TripDetail =>
     tripDetailFactory.build(overrides, {
-      transient: { dayCount: 1, activitiesPerDay: 2, startDate: "2027-06-01" },
+      transient: {
+        dayCount: 1,
+        activitiesPerDay: 2,
+        startDate: "2027-06-01",
+        timeWindows: [
+          { start: "09:00", end: "10:00" },
+          { start: "09:30", end: "10:30" },
+        ],
+      },
     }),
 
   // A populated backlog — the unscheduled rack.

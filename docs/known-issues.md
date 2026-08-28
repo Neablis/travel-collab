@@ -13,6 +13,38 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
+- **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
+- **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx` (the `min-h-5 leading-5` slot), `apps/web/src/lib/cost.ts` (`plannedOfBudgetLine`)
+- **Symptom:** KI-28's fix reserves **one** `text-sm` line for the planned-of-budget line, so the card cannot change height when its `TripDetail` fetch resolves. That holds only while the string fits on one line. `plannedOfBudgetLine` produces `` `${formatMoney(total)} planned of ${formatMoney(budget)}` `` — for a large-figure currency (JPY especially) that is long, and in a narrow card it wraps.
+- **Measured (2026-08-28, production build, string `¥1,234,567 planned of ¥5,000,000` injected into the real rendered slot):**
+  ```
+  1440px slotW 523 | slot 20.2 -> 20.2 | card growth 0.0px
+   500px slotW 402 | slot 20.2 -> 20.2 | card growth 0.0px
+   375px slotW 277 | slot 20.2 -> 40.4 | card growth 20.2px
+   320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
+  ```
+  20px of growth is enough to move an open trip-actions menu off its target — KI-28's measurement showed 24px already lands a click aimed at "Delete" on "Duplicate".
+- **Why it is filed rather than fixed:** every fix is a product-visible choice about a money figure, not a mechanical one. Three options, none obviously right:
+  1. **`truncate`** (or `whitespace-nowrap` + ellipsis) — one line forever, but at 375px it renders `¥1,234,567 planned of ¥5,00…`, so the budget half of "planned *of* budget" becomes unreadable on the screens with least room to recover it.
+  2. **Reserve two lines below `sm`** (`min-h-10 sm:min-h-5`) — keeps the number whole and the height fixed, at the cost of permanent blank space on small screens even when the line is short.
+  3. **Shorten the string at narrow widths** — e.g. `plannedOfBudgetLine` emitting `¥1,234,567 / ¥5,000,000` instead of spelling out `planned of`. Keeps both figures *and* one line; costs a `cost.ts` change and a width-aware caller. Raised on PR #73's review thread and probably the best of the three, which is exactly why it should be chosen rather than defaulted into.
+  Per KI-46, below ~1100px there is no designed card yet for any of these to be measured against, so whatever lands here is likely to be overwritten by that design.
+- **Found by:** CodeRabbit's review of PR #73 flagged "long budget text may expand cards on narrow screens" as a residual risk on KI-28's fix; the measurement above confirms it and bounds it.
+- **Cross-reference:** KI-28 (resolved 2026-08-28 — this is the residue outside its measured bound), KI-46 (below ~1100px is the desktop layout, not the designed mobile companion).
+- **First noted:** 2026-08-28 (KI sweep, PR #73 review).
+
+### KI-55 — A unit queued after a KI-42 retention predicts over a base that skips the retained work
+- **Severity:** correctness-cosmetic (the optimistic *preview* can show a trip no send will produce; **no work is lost** — every retained unit is still queued, still counted by `unsentCount`, and still sent in order)
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`enqueue`, `baseDetail`)
+- **Symptom:** after `confirmHead` retains units it can no longer predict (KI-42), those units carry `predictedDetail: null` and `baseDetail` scans past them to the last unit that *has* a prediction. `enqueue` predicts a newly queued unit against that base — so the new prediction, and therefore `activeDetail`, omits the retained work even though it is still queued and will still be sent. `confirmHead`'s own comment states the opposite guarantee ("predicting a later one against a base that skips an earlier one would show the user a trip that no send is ever going to produce"); that guarantee covers only the units `confirmHead` itself re-predicts, not ones enqueued afterwards.
+- **Found by:** CodeRabbit's review of PR #73 (the KI sweep that fixed KI-42), 2026-08-28. Verified against the code and **pinned by a characterization test** — `optimistic.test.ts`, "predicts a newly queued unit over a base that skips the retained ones (KI-55)" — so a change to this behavior is a visible test change rather than a silent one.
+- **Why it is recorded rather than fixed:** the recommended fix (make a null-prediction unit a barrier, so newly queued units are also retained unpredicted) has a real cost — the user's *next* edit would visibly do nothing on screen until the queue became predictable again. The current behavior is at least self-consistent: the user can only act on what is rendered, what is rendered is already `baseDetail`, so the new prediction matches the screen they clicked. Which trade-off is right is a product call about the optimistic layer, not a mechanical fix — the same class of decision `tripDetailFactory`'s `conflicts: []` was left as.
+- **A third option, if neither is wanted:** surface the retained-but-invisible units explicitly (the count is already in `sync.unsent`), so the preview's incompleteness is stated rather than inferred.
+- **How it is reached:** requires a concurrent write that invalidates a queued unit's prediction mid-flight, *and* the user making further edits before the queue drains. Rare in single-player; Invariant 6 makes it normal in Phase 2.
+- **Cross-reference:** KI-42 (resolved 2026-08-28 — this is the boundary of that fix's guarantee), KI-5 (navigation trigger, still open), KI-36 (failed-send trigger, resolved).
+- **First noted:** 2026-08-28 (CodeRabbit review of PR #73).
+
 ### KI-3 — Minor M5 re-skin cosmetic/cleanup notes
 - **Severity:** cosmetic / cleanup
 - **Area:** `apps/web/src` (various)
@@ -257,69 +289,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
   decides the escape hatch isn't worth the risk.
 
-### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport
-- **Severity:** reliability (no product impact observed yet; e2e flake, seen twice — see the 2026-08-28 recurrence below, which is what identified the mechanism)
-- **Area:** `apps/web/src/app/(app)/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`, and its per-card `TripDetail` fan-out), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/src/components/home/TripCard.tsx`, `apps/web/e2e/m8-make-it-real.spec.ts`
-- **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
-- **Originally proposed mechanism — MEASURED AND RULED OUT (2026-08-24).** The entry used to read: "the home trip list accumulates one card per e2e spec across a full suite run, so by the time `m8` runs the target card sits far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport." That was flagged at the time as "a plausible read of the symptom, not a diagnosis." It is now falsified. Driving m8's exact `trip actions for … → Delete` sequence against a real server and DB at the suite's own 1280x900 `desktop` viewport, with the menu deliberately opened *before* the per-card "planned of budget" lines land (that fan-out of one `GET /api/trips/:id` per visible card is the home page's only asynchronous layout shift, and it is what a long list makes slow):
-
-  | trip cards in the list | Delete menuitem, worst top / bottom observed while open | click |
-  |---|---|---|
-  | 2-4 | 698 / 761 | ok |
-  | 5-7 (worst case — the menu flips *above* the trigger here) | 745 / 832 | ok |
-  | 8-31 | 513 / 624 | ok |
-  | 32, 62, 92, 122, 182, 242 | 513 / 623 | ok |
-
-  Viewport height is 900. The margin never fell below 68px, and **it does not shrink as the list grows** — two independent effects cap it: Playwright's own `scrollIntoViewIfNeeded` *centers* the trigger as soon as the list is long enough to need scrolling at all (so from ~8 cards up the menu starts mid-viewport, not at the edge), and Chrome's scroll anchoring absorbs nearly all of the late layout growth above the anchor. The residual anchor drift after the cost lines land is a constant ~73px at 32 cards and still ~73px at 242 cards; it is the target card's *own* row growth, not a per-row accumulation. Checked against both a dev server and a production build (`next build` + `CI=true`, i.e. the `ci-like` path the flake was actually seen on). **Do not spend another session on trip-list length.**
-- **What *does* produce this exact error, both demonstrated in the same session — match a trace against these two signatures before anything else:**
-  1. **The anchor leaves the viewport while the menu is open.** `@radix-ui/react-popper` positions with `strategy: "fixed"` and `shift({ limiter: limitShift() })`, so the content deliberately *follows* its anchor out of view rather than detaching from it. Scrolling the page to the top with the menu open moved the Delete item to `y=1783` in a 900px viewport, where it stayed — visible, attached, and permanently unclickable, failing with exactly `element is outside of the viewport`. Nothing on the home page was found that scrolls the window or moves the anchor that far, so this needs a source of scroll/relayout that this investigation did not find.
-  2. **The popper never completes its first `computePosition`.** While `isPositioned` is false, `react-popper` parks the wrapper at `transform: translate(0, -200%)` and — unless `hideWhenDetached` is set, which this app's `Popover` does not set — leaves it fully *visible*. Forcing that state put the Delete item at `y=-123` with `isVisible() === true`, again failing with exactly `element is outside of the viewport`. This is the better fit for a failure that persisted the full 30s rather than resolving: it is a stuck state, not a transient one. It is also directly checkable from a trace — look for `translate(0, -200%)` on `[data-radix-popper-content-wrapper]` in the DOM snapshot at the failing step.
-- **RECURRENCE, 2026-08-28 (PR #71, `integration-e2e` on `06031d2`) — signature 2 falsified, signature 1 confirmed, and the missing relayout source found.** The 2026-08-24 entry closed by saying signature 1 "needs a source of scroll/relayout that this investigation did not find." This run's call log contains it. The failure went, in order:
-
-  ```
-  - locator resolved to <button role="menuitem" ...>Delete</button>
-  - attempting click action
-    - element is visible, enabled and stable
-    - scrolling into view if needed
-    - done scrolling
-    - <h3 ...>Oslo 1787874837059</h3> from <main ...> subtree intercepts pointer events
-  - retrying click action
-    - element is visible, enabled and stable
-    - scrolling into view if needed
-    - done scrolling
-    - element is outside of the viewport      <- and from here on, every retry
-  ```
-
-  Two things follow, and they are what the previous investigation lacked:
-
-  1. **Signature 2 is ruled out for this occurrence.** A popper parked at `translate(0, -200%)` because `computePosition` never completed is off-screen from its first frame; it can never first resolve to a real on-screen point that *another trip card's `<h3>`* is hit-testing over. The menu here was positioned correctly, then stopped being clickable. The stuck 30s that made signature 2 "the better fit" is explained instead by signature 1's own mechanism: once the anchor has moved, it stays moved.
-  2. **The relayout source is the home page's own per-card `TripDetail` fan-out** — `page.tsx` fires one `GET /api/trips/:id` per visible card to fill each card's "planned of budget" line. The 2026-08-24 measurement already established that this lands ~73px of growth on the target card's *own* row (and correctly ruled out any per-row accumulation, which is why list length was a dead end). What it did not connect is that ~73px of anchor drift is *enough*: `@radix-ui/react-popper` uses `strategy: "fixed"` with `shift({ limiter: limitShift() })`, so an open menu follows its anchor rather than repositioning. The interception is that drift caught mid-flight — the point Playwright hit-tested is now over the neighbouring card — and the subsequent permanent "outside of the viewport" is the same drift after `scrollIntoViewIfNeeded` re-anchored against a row that had already moved.
-
-  **Why it surfaced now:** M11 put `requireTripAccess` in front of `GET /api/trips/:id` (an extra membership/invite round-trip per request). The home page fans that endpoint out once per visible card in a single `Promise.all`, so on the long trip list an e2e suite accumulates, every card's cost line lands measurably later than it did when KI-28 was measured. That does not create the race — it is the same race as 2026-08-23 — but it widens the window in which the menu is opened *before* the anchor has settled. Recorded as a probability change, not a new defect: nothing in M11 touches the menu, the `Popover`, or the delete path.
-- **Fix (2026-08-28):** the spec now waits for the target card's own cost line before opening its menu, so the anchor is settled before the gesture starts:
-
-  ```ts
-  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
-  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
-  ```
-
-  `TripCard`'s root gained `data-testid="trip-card"` to make a card addressable at all (the trigger's `aria-label` gives no handle on the row it belongs to). This is deliberately the KI-21 shape of fix — settle both ends *before* the gesture, rather than widen a timing budget or retry harder — and deliberately **not** a change to `Popover`'s collision/positioning config, which the note below still applies to: whether an anchored menu should follow its card or close when the card moves is a design decision, and the product-side question is filed separately below rather than guessed at here.
-- **Still open (product, not test):** the underlying behaviour is real outside the test. A user who opens a trip's actions menu on a cold home page load, before the cost lines land, can have that menu drift under an adjacent card. It is far less visible at human speed than at Playwright speed (the drift is one row, ~73px, and a real user's next click just re-opens it) which is why this is filed rather than fixed under an M11 PR. The candidate fixes are (a) `onOpenChange(false)` when the anchor moves, (b) reserving the cost line's height so the row never grows, or (c) `hideWhenDetached`. (b) is the one that removes the cause rather than reacting to it.
-- **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
-- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
-- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stays open for the product-side behaviour above, not for the flake.
-
-
-### KI-53 — Access-module timestamps come back in two different formats depending on whether you just wrote the row
-- **Severity:** correctness-latent (no current consumer breaks, but the same field has two shapes across the API surface)
-- **Area:** `apps/web/src/server/db/schema.ts` (`trip_invites`, `trip_shares`, `saved_days`), `apps/web/src/server/access/shares.ts`, `apps/web/src/server/access/invites.ts`, `apps/web/src/server/savedDays.ts`
-- **Symptom:** these columns are `timestamp(..., { withTimezone: true, mode: "string" })`. On the WRITE path the service returns the row object it just built, so the caller gets back exactly the ISO-8601 string it passed in — `2026-01-01T00:00:00.000Z`. On the READ path Drizzle hands back Postgres's own rendering of the same value — `2026-01-01 00:00:00+00`. So `createdAt` / `revokedAt` / `acceptedAt` are ISO from `createShare`, `createInvite`, `saveDay`, and Postgres-format from `listShares`, `listInvites`, `listSavedDays`, `getSavedDay`.
-- **How it surfaced:** tightening `shares.int.test.ts`'s "revoking twice is a no-op" to assert the timestamp does not MOVE (CodeRabbit's suggestion on PR #71) failed with `expected '2026-01-01 00:00:00+00' to be '2026-01-01T00:00:00.000Z'` — the first revoke returned its own input, the second returned the stored row. The finding was about a missing assertion; the format split is what the assertion then found.
-- **Why nothing is broken today:** the contracts type these as `z.string()`, not `z.string().datetime()`, so neither shape fails validation. `new Date()` parses both in V8. The list sorts compare strings, but every row in a given list comes from the same read path, so they are internally consistent.
-- **Where it could bite:** a client that string-compares a just-created DTO against a listed one (they will never be equal even for the same row); anything that tightens these fields to `.datetime()` (the Postgres form fails it); and any future dedupe or cache keyed on the timestamp.
-- **Fix path:** either normalise in each `toDto` (`new Date(row.createdAt).toISOString()`), or switch the columns to `mode: "date"` and serialise once at the boundary. The second is the real fix and touches three tables and their DTOs, which is why it is filed rather than done inside a review-response commit.
-- **Worked around meanwhile:** the revoke test reads the stored value back and compares against that, so it proves the timestamp does not move without asserting either format.
-- **First noted:** 2026-08-27 (M11 link 4/6, CodeRabbit review of PR #71).
 
 ### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
 - **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
@@ -331,74 +300,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** add a start date to `TripSummary`, then swap `nextTrip` to a real date-sort and `TripCard`'s date line to that field, the same way `NextTripHero` already prefers its real `TripDetail.startDate` over `createdAt` once that fetch resolves.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.5).
 
-### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings
-- **Severity:** cleanup (no live failure today — the projection factory never runs the conflict engine, so the clash is currently unobservable)
-- **Area:** `packages/factories/src/trip.ts` (`activityFactory`'s literal `timeWindow`, and `tripDetailFactory`'s hardcoded `conflicts: []`), `packages/factories/src/scenarios.ts`
-- **Symptom:** `activityFactory` (`trip.ts:47`) gives **every** activity the identical literal window `{ start: "09:00", end: "11:00" }`. Identical windows satisfy the domain's `windowsOverlap` (`a.start < b.end && b.start < a.end`), so every scenario with `activitiesPerDay >= 2` — `threeDayTrip`, `overBudgetTrip`, `ungeocodedTrip` **and** `overlappingDay` — is carrying a mutual time clash on every day. `scenarios.overlappingDay` is therefore not distinguished from its siblings on the projection side at all: the thing its name promises is a property all four share.
-- **Why nothing fails today:** `tripDetailFactory` hardcodes `conflicts: []` (`trip.ts:151`) and never calls `detectConflicts`, so the clash is never computed and never observed. The moment a caller hydrates one of these fixtures and runs the real engine — which is a reasonable thing to do — `threeDayTrip` starts reporting a degenerate `time-overlap` conflict it was never meant to have, and any assertion of the form "the ordinary case has no conflicts" breaks.
-- **Distinct from the command side, which is fixed.** `commandsFor("overlappingDay")` emitted `09:00-10:00` and `10:00-11:00` — touching, not overlapping — and now emits a real partial overlap (`09:00-10:00` / `09:30-10:30`), verified through `decideTripCommand` → `evolveTrip` → `detectConflicts` in `packages/factories/src/conflicts.test.ts`. This entry is the *projection*-side twin of that problem, and the two are now asymmetric: the command twin overlaps deliberately, the projection twin overlaps accidentally and everywhere.
-- **Why not fixed here:** staggering `activityFactory`'s default window is a one-line change with a blast radius nobody has measured — `@tc/factories` is consumed by ~34 `apps/web` test files (`TimelineLens`, `overlapData`, `calendarData`, `ScheduleLens`, `CalendarLens` and others) whose layout and grouping assertions may depend on every activity sharing a window. Verifying that is a scoped change of its own, not a rider on a KI sweep.
-- **Fix path:** stagger `activityFactory`'s `timeWindow` by index the way `commandsFor` now does, run the full `apps/web` unit suite, and repair whatever depended on the shared window. Then decide separately whether `tripDetailFactory` should compute `conflicts` via the real engine instead of hardcoding `[]` — that is a design question about what the factory is for (an inert skeleton vs. a self-consistent projection), and it is Mitchell's, not a mechanical fix.
-- **Cross-reference:** KI-37 (the command-side window bug, resolved 2026-08-25) — same family, opposite twin.
-- **First noted:** 2026-08-25 (KI sweep, found while making `commandsFor("overlappingDay")` actually overlap).
-
-### KI-42 — `confirmHead` silently drops queued units on a *successful* send when they no longer predict cleanly
-- **Severity:** correctness (silent loss of confirmed-to-the-user work — the **same class as KI-5 and KI-36**, on the one trigger neither of them covers)
-- **Area:** `apps/web/src/components/trip/context/optimistic.ts:65-77` (`confirmHead`)
-- **Symptom:** when the head send *succeeds*, `confirmHead` adopts the authoritative confirmed state and then re-predicts each remaining queued unit against the new base. Any unit that no longer predicts cleanly is dropped — and, via the `break`, so is **every unit queued behind it**:
-  ```ts
-  for (const unit of rest) {
-    const r = enqueue(acc, unit.id, unit.commands);
-    if (r.ok) acc = r.state;
-    // If a queued unit no longer predicts cleanly against the new base, drop it
-    // (and, by breaking, everything after it) ...
-    else break;
-  }
-  ```
-  The user has already been shown those edits as applied (client-side prediction). They vanish with **no alert at all** — unlike a failed send, which at least calls `setError` and renders a `role="alert"`. Nothing counts what was dropped, names it, or offers a retry.
-- **Why this is the sharpest of the three:** KI-5 needs the user to navigate away mid-send; KI-36 needs the send to fail. This one fires on the **happy path** — a perfectly successful save silently discards later queued edits. The code comment claims the loss "will be reported via `failHead` semantics at send time", but that is not what happens: the units are removed from `pending` here, so they are never sent, and `failHead` never sees them. **That comment is a stated invariant nothing enforces** — the exact species AGENTS.md's testing model calls out ("if a comment asserts an invariant, a test enforces it or the comment is a lie with a timer on it"), and the same species as KI-1, KI-14 and KI-38.
-- **How it is reached:** any queued unit whose prediction depends on state the server's authoritative outcome changed underneath it — e.g. a queued `UpdateActivity` against an activity a just-confirmed batch removed or moved, or a positional command whose index no longer resolves. Rare in single-player, but the whole point of Invariant 6 is that Phase 2 makes concurrent writes normal, at which case re-prediction failures stop being rare.
-- **Why not fixed with KI-36:** found while scoping KI-36's Option 1 (2026-08-25) and deliberately kept out of that change to keep it reviewable — KI-36 is the failed-send path, this is the successful-send path, and they want different answers. KI-36's fix adds the machinery (a retained queue, a failure record, a `retry()`) that a fix here could reuse.
-- **Fix path:** decide what a re-prediction failure *means* rather than dropping it silently. At minimum, surface it the way a failed send now is — a count, a description of what was lost, and either a retry or an explicit "these could not be applied" message. Then either enforce the code comment's claim with a test or delete the claim.
-- **Cross-reference:** KI-5 (navigation trigger), KI-36 (failed-send trigger, resolved 2026-08-25). Three triggers, one queue, one class of silent loss.
-- **First noted:** 2026-08-25 (KI sweep, found reading the send loop while scoping KI-36's Option 1).
-
-### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue
-- **Severity:** correctness (a confidently wrong pin, same family as KI-15)
-- **Area:** `apps/web/scripts/geocode-japan-seed.mts`,
-  `apps/web/src/lib/japanTripSeedCoordinates.json`
-- **Symptom:** the script's acceptance test (`withinBox`, a per-city bounding
-  box — see the script's own header comment) only rejects a wrong-*city*
-  match; it has no way to reject a wrong-*venue* match that happens to fall
-  inside the correct city's box. Three of the 54 stops the script originally
-  resolved were exactly that: a plausible-sounding, in-city LocationIQ result
-  for the wrong place. All three were hand-verified and their entries deleted
-  from the overlay (CodeRabbit's final PR #46 review, 2026-08-25) rather than
-  shipped:
-  - `d4-s4-kegon-falls` resolved to "Urami Falls, Nikko…" — a different
-    waterfall in the same city.
-  - `d11-s2-check-in-at-zentis-osaka` resolved to "Hotels Inn Osaka
-    KitaUmeda…" — a different hotel in the same city.
-  - `d14-s2-shinkansen-to-tokyo` resolved to Shinagawa Station — the wrong
-    Shinkansen station; the real stop is Shin-Osaka.
-  The overlay now carries 51 of the seed's 72 stops (down from 54); those
-  three stops render no pin rather than a wrong one, which is the standing
-  principle this branch established for `MapLens` — a missing pin is fine, a
-  confidently wrong one is not.
-- **Why not fixed here:** a name-identity check (e.g. requiring the
-  candidate's own name/address to match the queried place, not just its
-  coordinates falling in a box) is real design work on a script that already
-  does one offline, hand-verified pass — not a mechanical fix, and explicitly
-  deferred rather than bundled into a CodeRabbit-response task.
-- **Fix path:** before the overlay is ever regenerated, add a name-identity
-  check alongside `withinBox` — e.g. a fuzzy match between the queried place
-  name and the candidate's returned `display_name`/address components —
-  rejecting a same-city, different-venue candidate the box alone can't catch.
-- **Cross-reference:** KI-15 — same family ("a plausible wrong location is
-  worse than none"), different call site (live AI enrichment vs. this offline
-  one-off script).
-- **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
-  review round).
 
 ### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion
 
@@ -509,35 +410,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   touches production auth configuration — not something to change while a
   milestone gate is mid-verification. Mitchell's call, 2026-08-26.
 
-### KI-51 — The colour wall is blind to untracked files, so a new file is unguarded until it is staged
-- **Severity:** cleanup (no user impact; a hole in a CI gate, not a defect in shipped code)
-- **Area:** `scripts/check-color-wall.mjs`.
-- **Symptom (2026-08-27, landing-page design pass):** the script enumerates the
-  files it scans with `git ls-files`, so a brand-new file that has never been
-  staged is not in the list. It is not skipped with a warning — it is invisible,
-  and the script prints `color wall OK` with a file count that silently excludes
-  it. Reproduced directly: with the two new landing components untracked the run
-  reported `309 files scanned`; `git add`ing them took the same run to
-  `313 files scanned`.
-- **Why it matters more than the file count suggests:** the wall is blind to
-  exactly the files most likely to violate it. A raw hex or a `[13px]` bracket
-  value is far likelier in freshly written UI than in a file that has already
-  been through review, and an agent or contributor who runs the gate before
-  staging gets a clean pass that means nothing. Three separate agents on this
-  pass each hit it and each hand-checked their own files with the script's own
-  regexes to compensate.
-- **Not what it looks like:** this is not the pre-M5 `design-wall-pending.json`
-  exemption list, which is a deliberate, shrinking allowlist. This is an
-  unintended gap in enumeration.
-- **Candidate fixes (not chosen yet):** scan the working tree rather than the
-  index; or add untracked-but-not-ignored files via
-  `git ls-files --others --exclude-standard` alongside the tracked list. The
-  second keeps `.gitignore` honoured, which walking the tree naively would not.
-- **Workaround in use:** `git add -A` before running the wall, and read the file
-  count — if it did not go up after adding new files, the run did not see them.
-- **Same class:** `check-lint-wall.mjs` and `check-case-collisions.mjs` should be
-  checked for the identical `git ls-files` assumption before this is called fixed.
-
 ### KI-52 — The tag chip row ships four tags where the handoff designs six
 
 - **Severity:** cleanup (a recorded design delta, not a defect)
@@ -567,6 +439,274 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-51 — The colour wall is blind to untracked files, so a new file is unguarded until it is staged — RESOLVED
+- **Severity:** cleanup (no user impact; a hole in a CI gate, not a defect in shipped code)
+- **Area:** `scripts/check-color-wall.mjs`.
+- **Symptom (2026-08-27, landing-page design pass):** the script enumerates the
+  files it scans with `git ls-files`, so a brand-new file that has never been
+  staged is not in the list. It is not skipped with a warning — it is invisible,
+  and the script prints `color wall OK` with a file count that silently excludes
+  it. Reproduced directly: with the two new landing components untracked the run
+  reported `309 files scanned`; `git add`ing them took the same run to
+  `313 files scanned`.
+- **Why it matters more than the file count suggests:** the wall is blind to
+  exactly the files most likely to violate it. A raw hex or a `[13px]` bracket
+  value is far likelier in freshly written UI than in a file that has already
+  been through review, and an agent or contributor who runs the gate before
+  staging gets a clean pass that means nothing. Three separate agents on this
+  pass each hit it and each hand-checked their own files with the script's own
+  regexes to compensate.
+- **Not what it looks like:** this is not the pre-M5 `design-wall-pending.json`
+  exemption list, which is a deliberate, shrinking allowlist. This is an
+  unintended gap in enumeration.
+- **Candidate fixes (not chosen yet):** scan the working tree rather than the
+  index; or add untracked-but-not-ignored files via
+  `git ls-files --others --exclude-standard` alongside the tracked list. The
+  second keeps `.gitignore` honoured, which walking the tree naively would not.
+- **Workaround in use:** `git add -A` before running the wall, and read the file
+  count — if it did not go up after adding new files, the run did not see them.
+- **Same class:** `check-lint-wall.mjs` and `check-case-collisions.mjs` should be
+  checked for the identical `git ls-files` assumption before this is called fixed.
+- **Fix (2026-08-28):** `scripts/check-color-wall.mjs` now enumerates with
+  `git ls-files --cached --others --exclude-standard <same pathspec>` — the
+  second candidate fix listed above. One `git` invocation, not two, so the gate
+  is no faster to skip and no slower to pass; `--exclude-standard` keeps
+  `.gitignore` honoured (node_modules, `.next`, generated output stay out), and
+  the result is de-duplicated and sorted so the stage-1/2/3 duplicates
+  `--cached` emits for an unmerged path mid-conflict can't double-report.
+- **Proof:** an untracked `apps/web/src/components/Ki51ScratchProbe.tsx`
+  carrying `#ff00aa` and `p-[13px]` was invisible before the change — `color
+  wall OK (356 files scanned, 0 pending re-skin)`, exit 0. After it, the same
+  untracked file fails the gate on both regexes and exits 1. An *ignored* file
+  with the same raw hex (untracked, matched by a `.gitignore`) is still
+  correctly skipped. Clean tree before and after: `356 files scanned`, exit 0,
+  ~0.08s — same count, same speed. Both probe files removed.
+- **No regression test:** repo-root `scripts/*.mjs` are covered by no suite
+  (`apps/web`'s vitest only includes `src/**/*.test.{ts,tsx}`), and standing up
+  a root test project to hold one is well outside this entry's Area. The
+  enumeration line carries a comment naming KI-51 instead, so dropping
+  `--others` shows up in review.
+- **Same class, still unchecked:** `check-lint-wall.mjs` and
+  `check-case-collisions.mjs` were left alone — both still enumerate with plain
+  `git ls-files` and have the identical gap. Filed as follow-up, not fixed here
+  (one KI, one blast radius).
+
+### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings — RESOLVED
+- **Severity (as filed):** cleanup (no live failure — the projection factory never runs the conflict engine, so the clash was unobservable)
+- **Area:** `packages/factories/src/trip.ts` (`activityFactory`'s literal `timeWindow`), `packages/factories/src/scenarios.ts`
+- **Symptom (as filed):** `activityFactory` gave **every** activity the identical literal window `{ start: "09:00", end: "11:00" }`. Identical windows satisfy `windowsOverlap`, so `threeDayTrip`, `overBudgetTrip`, `ungeocodedTrip` **and** `overlappingDay` all carried a mutual clash on every day, and `scenarios.overlappingDay` was not distinguished from its siblings on the projection side at all.
+- **Reproduced first**, by hydrating the fixtures and running the real engine (`detectConflicts(hydrate(trip))`) — the exact thing the entry predicted a caller would do:
+  ```
+  threeDayTrip windows: [09:00-11:00 x6]      overlappingDay windows: [09:00-11:00 x2]
+  threeDayTrip overlaps: 3    overBudgetTrip overlaps: 2    ungeocodedTrip overlaps: 1    overlappingDay overlaps: 1
+  × threeDayTrip — the ORDINARY case — has no time-overlap conflicts
+    → expected [ { …(6) }, { …(6) }, { …(6) } ] to deeply equal []
+  ```
+  Each of the three `threeDayTrip` conflicts was a full `time-overlap` object, e.g. `"Flight to Rome" and "Vatican Museums" overlap in time on the same day.` — the degenerate conflict the ordinary fixture was never meant to have.
+- **Fix (2026-08-28):** the entry's own fix path. `trip.ts` now has `hourlyWindow(indexWithinDay)` — back-to-back one-hour windows walking the clock from 09:00, the projection-side twin of `commands.ts`'s `HOURLY_WINDOWS`. `activityFactory` takes an `indexWithinDay` transient (default 0 → `09:00`–`10:00`) instead of a literal window, and `tripDetailFactory` passes each activity its position within its day. Because `windowsOverlap` is strict, back-to-back windows touch but do not clash. `tripDetailFactory` also gained a `timeWindows` transient (the projection twin of `ScenarioSpec.timeWindows`), and `scenarios.overlappingDay` uses it to state a real *partial* overlap — `09:00`–`10:00` / `09:30`–`10:30`, byte-identical to what its command twin emits. The ladder has 23 slots (every hour but 23:00, whose one-hour end would be the invalid `"24:00"`); the widest fixture in the package is 12 activities per day, and the no-overlap property is now pinned by test at that width.
+- **Left as filed, deliberately:** `tripDetailFactory` still hardcodes `conflicts: []` and never runs the conflict engine. The entry says that is a design question about what the factory is for and is Mitchell's, not a mechanical fix; the characterization test recording it is kept.
+- **Consumer ripple: none.** `activityFactory` has no call site outside the package (only the `index.ts` re-export); consumers use `scenarios`/`tripDetailFactory`. All 31 `apps/web` unit test files that import `@tc/factories` pass unchanged — no test depended on activities sharing a window.
+- **Proof:** the reproduction above now reports `threeDayTrip/overBudgetTrip/ungeocodedTrip overlaps: 0` and `overlappingDay overlaps: 1`. Check subset per `minimal-check-subset` (two files in one leaf package + its consumers, no `packages/contracts` change): `pnpm --filter @tc/factories test` → **354/354 across 5 files**; `pnpm --filter @tc/factories typecheck` and `pnpm --filter web typecheck` clean; `vitest run -c vitest.unit.config.ts` over the 31 `apps/web` unit files importing `@tc/factories` → **374/374**. The one remaining consumer, `reset-demo-data/route.int.test.ts`, uses `commandsFor` (command side, untouched), so the integration suite was not run.
+- **Regression test:** `packages/factories/src/conflicts.test.ts` — a new "the projection side clashes only where it says it does" suite: an `it.each` hydrating every non-overlapping scenario and asserting zero `time-overlap` conflicts from the real engine, a check that the projection and command twins state the *same* two overlapping windows (they cannot share a constant — `commands.ts` imports `scenarios.ts`), and a 3x12-activity build that stays overlap-free. Verified as a real guard by reverting `hourlyWindow` to the old literal: 4 of the new tests go red, `Tests 4 failed | 15 passed (19)`.
+- **Cross-reference:** KI-37 (the command-side window bug, resolved 2026-08-25) — same family, opposite twin. The twins now agree.
+- **First noted:** 2026-08-25 (KI sweep). **Resolved:** 2026-08-28 (KI sweep).
+
+### KI-42 — `confirmHead` silently drops queued units on a *successful* send when they no longer predict cleanly — RESOLVED
+- **Severity (as filed):** correctness (silent loss of confirmed-to-the-user work — the **same class as KI-5 and KI-36**, on the one trigger neither of them covers)
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`confirmHead`, `baseDetail`, `PendingUnit`)
+- **Symptom (as filed):** when the head send *succeeds*, `confirmHead` adopted the authoritative confirmed state and re-predicted each remaining queued unit against the new base. Any unit that no longer predicted cleanly was dropped — and, via the loop's `break`, so was **every unit queued behind it**. The user had already been shown those edits as applied; they vanished with **no alert at all**, nothing counting or naming them, and no retry. The code comment claimed the loss "will be reported via `failHead` semantics at send time", which it could not be: the units were removed from `pending`, so they were never sent and `failHead` never saw them — a stated invariant nothing enforced.
+- **Reproduced before fixing**, as a reducer test in `optimistic.test.ts`: queue `u1 = AddDay d-a`, `u2 = AddActivity on d-a`, `u3 = AddDay d-c`, then confirm the head with an authoritative outcome that does **not** contain `d-a` (a concurrent removal). Result:
+  ```
+  FAIL  src/components/trip/context/optimistic.test.ts > confirmHead retains queued units
+        that no longer predict (KI-42) > keeps the unpredictable unit AND everything queued behind it
+  AssertionError: expected [] to deeply equal [ 'u2', 'u3' ]
+  ```
+  Both units gone: `u2` because it could not re-predict, `u3` — which re-predicts perfectly well on its own — purely because it sat behind `u2`. `unsentCount` 0, no `failure`, nothing sent.
+- **Fix (2026-08-28):** a unit that no longer predicts is **kept, not dropped**, and so is everything behind it. `PendingUnit.predictedDetail` becomes `TripDetail | null`, where `null` means "queued and real, but not currently predictable" — the unit stays in `pending`, is still counted by `unsentCount`, still shows as a pending history row, and is **still sent**, so the server (not the client's local guess) decides its fate. This makes the old comment's claim true rather than deleting it: if the server refuses the unit, `failHead` records a real server message and lights the save mark red with a retry (KI-36's machinery, reused as that entry predicted); if the server accepts it — the client's re-prediction can be more conservative than the server's own decision — the work simply survives. `baseDetail` now scans backwards for the last unit that *has* a prediction, so an unpredictable unit contributes nothing to `activeDetail`: the board shows the authoritative state rather than a prediction computed against a base the server has replaced. Everything after the first unpredictable unit is retained unpredicted too, even when it would predict cleanly alone — these are ordered edits, and predicting a later one against a base that skips an earlier one would render a trip no send will ever produce.
+- **Deliberately NOT done:** no new alert, banner or "these could not be applied" copy. The entry's fix path offered "either a retry or an explicit message"; retention plus the existing save-light/retry surface gives the retry route with no new UI, and the honest count (`sync.unsent`) it renders is now correct where before it silently dropped to 0. No file outside `optimistic.ts` needed to change.
+- **Proof:** the reproduction above now passes. Regression tests — 6 in `optimistic.test.ts` under "confirmHead retains queued units that no longer predict (KI-42)": the retained unit *and* the units behind it survive with an honest `unsentCount`; the retained head's commands are intact and no `failure` gates the sender, so the send (and therefore `failHead`) actually happens — the old comment's claim, enforced; the retained units still render as pending history rows; `activeDetail` equals the authoritative detail rather than a stale prediction; units *ahead* of the unpredictable one keep predicting (`d-b` visible, `d-d` not); and a retained unit re-predicts once the head ahead of it is confirmed, so the queue self-heals. Mutation-proved: restoring the `break` turns **5 of the 6** red (the sixth guards the display side against the retention itself, and passes either way).
+- **Check subset** (per `minimal-check-subset`; changed files are `optimistic.ts` + `optimistic.test.ts`, both `apps/web`, no `packages/contracts`): `pnpm --filter web typecheck` clean, `pnpm --filter web lint` clean, `vitest run -c vitest.unit.config.ts` over `optimistic` / `TripProvider` / `context` / `SaveLight` (**47 passing**) and over the consumer components that render the queue — `TripBoardScreen`, `TimelineLens`, `ActivityEditorSheet`, `TripHeader` (**87 passing**). Not run, deliberately: the full `pnpm check`, `test:int` and e2e — five KI agents were running in parallel and that is the load condition KI-13 documents; nothing outside `apps/web/src/components/trip/context` changed.
+- **What this does NOT close:** KI-5 (the queue is still in memory and a reload still loses it) is untouched and stays open, though it shares this file. There is still no way to *abandon* a unit the server will never accept except by reloading — the same gap KI-36 recorded.
+- **First noted:** 2026-08-25 (KI sweep, found reading the send loop while scoping KI-36's Option 1). **Resolved:** 2026-08-28 (KI sweep).
+
+### KI-53 — Access-module timestamps come back in two different formats depending on whether you just wrote the row — RESOLVED
+- **Severity:** correctness-latent (no current consumer broke, but the same field had two shapes across the API surface)
+- **Area:** `apps/web/src/server/db/schema.ts` (`trip_invites`, `trip_shares`, `saved_days`), `apps/web/src/server/access/shares.ts`, `apps/web/src/server/access/invites.ts`, `apps/web/src/server/savedDays.ts`
+- **Symptom:** these columns were `timestamp(..., { withTimezone: true, mode: "string" })`. On the WRITE path the service returned the row object it had just built, so the caller got back exactly the ISO-8601 string it passed in — `2026-01-01T00:00:00.000Z`. On the READ path Drizzle handed back Postgres's own rendering of the same value — `2026-01-01 00:00:00+00`. So `createdAt` / `revokedAt` / `acceptedAt` were ISO from `createShare`, `createInvite`, `saveDay`, and Postgres-format from `listShares`, `listInvites`, `listSavedDays`, `getSavedDay`.
+- **How it surfaced:** tightening `shares.int.test.ts`'s "revoking twice is a no-op" to assert the timestamp does not MOVE (CodeRabbit's suggestion on PR #71) failed with `expected '2026-01-01 00:00:00+00' to be '2026-01-01T00:00:00.000Z'` — the first revoke returned its own input, the second returned the stored row.
+- **Reproduced before fixing (2026-08-28):** a throwaway `*.int.test.ts` asserting `listX()[0].createdAt === createX().createdAt` for all three modules, against the real local Postgres. All three failed identically: `AssertionError: expected '2026-01-01 00:00:00+00' to be '2026-01-01T00:00:00.000Z'` (share, invite and saved day).
+- **Fix (2026-08-28, KI sweep):** the second of the two options filed — the columns on all three tables are now `mode: "date"`, and each module's `toDto` does the single `.toISOString()` at the DTO boundary (`row.revokedAt === null ? null : row.revokedAt.toISOString()` for the nullable ones). `mode: "date"` rather than a normalising `new Date(row.createdAt).toISOString()` in `toDto` because it makes the bug unrepeatable rather than merely absent: a row built in memory now carries `Date`s exactly like a row read back does, so a future write path cannot hand a raw ISO string through and typecheck. `readShare` passes `toDto(share)` into `toSharedView` for the same reason, so `sharedAt` takes the same one conversion.
+- **No migration:** `mode` is a client-side mapping only; the column stays `timestamptz`. Confirmed with `pnpm --filter web db:generate` → "No schema changes, nothing to migrate", which created no file.
+- **Proof:** the throwaway repro passes and was deleted in favour of permanent regression tests — `shares.int.test.ts` ("share timestamps have one shape": `createdAt`, `revokedAt`, and the public view's `sharedAt`), `invites.int.test.ts` ("invite timestamps have one shape": `createdAt`, `revokedAt`, `acceptedAt`), `savedDays.int.test.ts` ("saved-day timestamps have one shape": `createdAt` across `saveDay`, `listSavedDays` and `getSavedDay`). Each pins the ISO literal on both paths, which is exactly the assertion that failed before. Full `pnpm --filter web test:int` **200 passed, 20 files**; `pnpm --filter web typecheck` and `pnpm --filter web lint` clean.
+- **Workaround removed:** `shares.int.test.ts`'s "revoking twice is a no-op" no longer reads the stored value back to dodge the format question — it asserts the literal on both paths, and its comment says why that is now possible.
+- **Left alone deliberately:** `users`, `pages`, `trip_summaries`, `events` and `trip_memberships` still use `mode: "string"`. Their timestamps are not exposed on a write-path DTO the way these three were, so they do not show the split; converting them is a separate change with its own blast radius.
+- **First noted:** 2026-08-27 (M11 link 4/6, CodeRabbit review of PR #71). **Resolved:** 2026-08-28 (KI sweep).
+
+### KI-39 — The Japan seed's geocoder accepts any candidate inside the right city, not the right venue — RESOLVED
+- **Severity:** correctness (a confidently wrong pin, same family as KI-15)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`,
+  `apps/web/src/lib/japanTripSeedCoordinates.json`
+- **Symptom:** the script's acceptance test (`withinBox`, a per-city bounding
+  box — see the script's own header comment) only rejects a wrong-*city*
+  match; it has no way to reject a wrong-*venue* match that happens to fall
+  inside the correct city's box. Three of the 54 stops the script originally
+  resolved were exactly that: a plausible-sounding, in-city LocationIQ result
+  for the wrong place. All three were hand-verified and their entries deleted
+  from the overlay (CodeRabbit's final PR #46 review, 2026-08-25) rather than
+  shipped:
+  - `d4-s4-kegon-falls` resolved to "Urami Falls, Nikko…" — a different
+    waterfall in the same city.
+  - `d11-s2-check-in-at-zentis-osaka` resolved to "Hotels Inn Osaka
+    KitaUmeda…" — a different hotel in the same city.
+  - `d14-s2-shinkansen-to-tokyo` resolved to Shinagawa Station — the wrong
+    Shinkansen station; the real stop is Shin-Osaka.
+  The overlay now carries 51 of the seed's 72 stops (down from 54); those
+  three stops render no pin rather than a wrong one, which is the standing
+  principle this branch established for `MapLens` — a missing pin is fine, a
+  confidently wrong one is not.
+- **Why not fixed here:** a name-identity check (e.g. requiring the
+  candidate's own name/address to match the queried place, not just its
+  coordinates falling in a box) is real design work on a script that already
+  does one offline, hand-verified pass — not a mechanical fix, and explicitly
+  deferred rather than bundled into a CodeRabbit-response task.
+- **Fix path:** before the overlay is ever regenerated, add a name-identity
+  check alongside `withinBox` — e.g. a fuzzy match between the queried place
+  name and the candidate's returned `display_name`/address components —
+  rejecting a same-city, different-venue candidate the box alone can't catch.
+- **Cross-reference:** KI-15 — same family ("a plausible wrong location is
+  worse than none"), different call site (live AI enrichment vs. this offline
+  one-off script).
+- **Fix (2026-08-28):** the name-identity check the fix path asked for, as a
+  pure predicate — `placeNameVerdict`
+  (`apps/web/src/server/ai/geocodeNameMatch.ts`, new; a sibling of
+  `geocodeRegion.ts` rather than an addition to it, since that module's header
+  promises arithmetic). Every *distinctive* token of the queried place — its
+  own name minus category nouns ("Falls", "Station", "Hotel") and minus the
+  geography already in the query (area, city, country) — must appear as a token
+  of the candidate's own name (`display_name`'s leading segment). ALL tokens,
+  not any: "Bread & Espresso" vs. "Cawaii Bread & Coffee" shares exactly one.
+  The verdict is three-valued, and that is the load-bearing design decision:
+  LocationIQ answers a romanised query with the object's *local-script* name
+  whenever OSM has no `name:en` ("Meiji Jingū" -> 明治神宮), which is
+  `not-comparable`, not `mismatch` — 29 of the 54 original resolutions look
+  like that and every one is the right place. The script
+  (`geocode-japan-seed.mts`) applies it after `withinBox`, prefers a
+  name-verified candidate over a higher-ranked unverified one, reports rejects
+  under "In the box but a different venue", and now prints an explicit
+  "accepted but name-unverified" list so the next human pass knows which pins
+  rest on the box alone.
+- **Proof:** reproduced first — the real script run against the vendor rows
+  the 2026-08-25 pass actually recorded (recovered from commit `7fb5da2`'s
+  overlay, `fetch` stubbed, no live API): before, it wrote all three
+  hand-caught wrong venues into the overlay ("Resolved 3/72"); after, "Resolved
+  0/72 … 3 in box but wrong venue", each listed with the rejected candidate. A
+  positive control in the same harness (Meiji Jingū local-script, Gōra Kadan
+  romanised) still resolves, so the check does not simply reject everything.
+  Replayed over all 54 of that run's resolutions offline: 11 mismatches — the
+  3 deleted plus 8 more the same run shipped (see below) — 14 matches, 29
+  not-comparable, and **no correct match rejected**. Regression test:
+  `apps/web/src/server/ai/geocodeNameMatch.test.ts`, a table of those real
+  vendor answers (37 cases). Checks run: `pnpm --filter web typecheck`, `pnpm
+  --filter web lint`, `pnpm --filter web exec vitest run -c
+  vitest.unit.config.ts src/server/ai/geocodeNameMatch.test.ts
+  src/server/ai/geocodeRegion.test.ts src/lib/japanTripImporter.test.ts` (3
+  files, 62 tests, all passing).
+- **Found while proving it, deliberately NOT fixed here:** the same wrong-venue
+  failure is *already shipped* in the committed overlay in eight more places
+  the hand pass missed — `d2-s4-hama-rikyu-gardens` -> "Tokyo, Chiyoda",
+  `d2-s5-yakitori-at-torishiki` -> "MeGuro, Shinagawa",
+  `d3-s1-breakfast-at-bread-espresso` -> "Cawaii Bread & Coffee",
+  `d3-s3-lunch-at-afuri` -> "WITH HARAJUKU", `d5-s5-omakase-at-sushi-yoshitake`
+  -> "Sushi Wasabi, Shinjuku", `d7-s5-dinner-at-gion-nanba` -> "GION KIMUTAKO",
+  `d9-s3-lunch-at-yoshida-ya` -> "Coffee Yoshida",
+  `d9-s5-dinner-at-kichi-kichi` -> "KICHIRI 河原町店". The new check rejects all
+  eight (they are the regression table's second block), so a regeneration drops
+  them — but deleting eight demo pins from
+  `japanTripSeedCoordinates.json` is a product-visible data decision, not this
+  fix, and this task was scoped to one KI — handed back to the session that
+  dispatched it to file or schedule.
+- **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
+  review round). **Resolved:** 2026-08-28.
+
+### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport — RESOLVED
+- **Severity:** reliability (no product impact observed yet; e2e flake, seen twice — see the 2026-08-28 recurrence below, which is what identified the mechanism)
+- **Area:** `apps/web/src/app/(app)/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`, and its per-card `TripDetail` fan-out), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/src/components/home/TripCard.tsx`, `apps/web/e2e/m8-make-it-real.spec.ts` — and, added by the 2026-08-28 fix below because the measurement found a second growth source there, `apps/web/src/components/home/NextTripHero.tsx`
+- **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
+- **Originally proposed mechanism — MEASURED AND RULED OUT (2026-08-24).** The entry used to read: "the home trip list accumulates one card per e2e spec across a full suite run, so by the time `m8` runs the target card sits far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport." That was flagged at the time as "a plausible read of the symptom, not a diagnosis." It is now falsified. Driving m8's exact `trip actions for … → Delete` sequence against a real server and DB at the suite's own 1280x900 `desktop` viewport, with the menu deliberately opened *before* the per-card "planned of budget" lines land (that fan-out of one `GET /api/trips/:id` per visible card is the home page's only asynchronous layout shift, and it is what a long list makes slow):
+
+  | trip cards in the list | Delete menuitem, worst top / bottom observed while open | click |
+  |---|---|---|
+  | 2-4 | 698 / 761 | ok |
+  | 5-7 (worst case — the menu flips *above* the trigger here) | 745 / 832 | ok |
+  | 8-31 | 513 / 624 | ok |
+  | 32, 62, 92, 122, 182, 242 | 513 / 623 | ok |
+
+  Viewport height is 900. The margin never fell below 68px, and **it does not shrink as the list grows** — two independent effects cap it: Playwright's own `scrollIntoViewIfNeeded` *centers* the trigger as soon as the list is long enough to need scrolling at all (so from ~8 cards up the menu starts mid-viewport, not at the edge), and Chrome's scroll anchoring absorbs nearly all of the late layout growth above the anchor. The residual anchor drift after the cost lines land is a constant ~73px at 32 cards and still ~73px at 242 cards; it is the target card's *own* row growth, not a per-row accumulation. Checked against both a dev server and a production build (`next build` + `CI=true`, i.e. the `ci-like` path the flake was actually seen on). **Do not spend another session on trip-list length.**
+- **What *does* produce this exact error, both demonstrated in the same session — match a trace against these two signatures before anything else:**
+  1. **The anchor leaves the viewport while the menu is open.** `@radix-ui/react-popper` positions with `strategy: "fixed"` and `shift({ limiter: limitShift() })`, so the content deliberately *follows* its anchor out of view rather than detaching from it. Scrolling the page to the top with the menu open moved the Delete item to `y=1783` in a 900px viewport, where it stayed — visible, attached, and permanently unclickable, failing with exactly `element is outside of the viewport`. Nothing on the home page was found that scrolls the window or moves the anchor that far, so this needs a source of scroll/relayout that this investigation did not find.
+  2. **The popper never completes its first `computePosition`.** While `isPositioned` is false, `react-popper` parks the wrapper at `transform: translate(0, -200%)` and — unless `hideWhenDetached` is set, which this app's `Popover` does not set — leaves it fully *visible*. Forcing that state put the Delete item at `y=-123` with `isVisible() === true`, again failing with exactly `element is outside of the viewport`. This is the better fit for a failure that persisted the full 30s rather than resolving: it is a stuck state, not a transient one. It is also directly checkable from a trace — look for `translate(0, -200%)` on `[data-radix-popper-content-wrapper]` in the DOM snapshot at the failing step.
+- **RECURRENCE, 2026-08-28 (PR #71, `integration-e2e` on `06031d2`) — signature 2 falsified, signature 1 confirmed, and the missing relayout source found.** The 2026-08-24 entry closed by saying signature 1 "needs a source of scroll/relayout that this investigation did not find." This run's call log contains it. The failure went, in order:
+
+  ```
+  - locator resolved to <button role="menuitem" ...>Delete</button>
+  - attempting click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <h3 ...>Oslo 1787874837059</h3> from <main ...> subtree intercepts pointer events
+  - retrying click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - element is outside of the viewport      <- and from here on, every retry
+  ```
+
+  Two things follow, and they are what the previous investigation lacked:
+
+  1. **Signature 2 is ruled out for this occurrence.** A popper parked at `translate(0, -200%)` because `computePosition` never completed is off-screen from its first frame; it can never first resolve to a real on-screen point that *another trip card's `<h3>`* is hit-testing over. The menu here was positioned correctly, then stopped being clickable. The stuck 30s that made signature 2 "the better fit" is explained instead by signature 1's own mechanism: once the anchor has moved, it stays moved.
+  2. **The relayout source is the home page's own per-card `TripDetail` fan-out** — `page.tsx` fires one `GET /api/trips/:id` per visible card to fill each card's "planned of budget" line. The 2026-08-24 measurement already established that this lands ~73px of growth on the target card's *own* row (and correctly ruled out any per-row accumulation, which is why list length was a dead end). What it did not connect is that ~73px of anchor drift is *enough*: `@radix-ui/react-popper` uses `strategy: "fixed"` with `shift({ limiter: limitShift() })`, so an open menu follows its anchor rather than repositioning. The interception is that drift caught mid-flight — the point Playwright hit-tested is now over the neighbouring card — and the subsequent permanent "outside of the viewport" is the same drift after `scrollIntoViewIfNeeded` re-anchored against a row that had already moved.
+
+  **Why it surfaced now:** M11 put `requireTripAccess` in front of `GET /api/trips/:id` (an extra membership/invite round-trip per request). The home page fans that endpoint out once per visible card in a single `Promise.all`, so on the long trip list an e2e suite accumulates, every card's cost line lands measurably later than it did when KI-28 was measured. That does not create the race — it is the same race as 2026-08-23 — but it widens the window in which the menu is opened *before* the anchor has settled. Recorded as a probability change, not a new defect: nothing in M11 touches the menu, the `Popover`, or the delete path.
+- **Fix (2026-08-28):** the spec now waits for the target card's own cost line before opening its menu, so the anchor is settled before the gesture starts:
+
+  ```ts
+  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
+  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
+  ```
+
+  `TripCard`'s root gained `data-testid="trip-card"` to make a card addressable at all (the trigger's `aria-label` gives no handle on the row it belongs to). This is deliberately the KI-21 shape of fix — settle both ends *before* the gesture, rather than widen a timing budget or retry harder — and deliberately **not** a change to `Popover`'s collision/positioning config, which the note below still applies to: whether an anchored menu should follow its card or close when the card moves is a design decision, and the product-side question is filed separately below rather than guessed at here.
+- **Was still open (product, not test) — CLOSED by the fix below:** the underlying behaviour is real outside the test. A user who opens a trip's actions menu on a cold home page load, before the cost lines land, can have that menu drift under an adjacent card. It is far less visible at human speed than at Playwright speed (the drift is one row, ~73px, and a real user's next click just re-opens it) which is why this is filed rather than fixed under an M11 PR. The candidate fixes are (a) `onOpenChange(false)` when the anchor moves, (b) reserving the cost line's height so the row never grows, or (c) `hideWhenDetached`. (b) is the one that removes the cause rather than reacting to it.
+- **Fix (2026-08-28, KI sweep) — candidate (b), the cause removed rather than reacted to.** The cost line's height is now *reserved* whether or not it has landed: `apps/web/src/components/home/TripCard.tsx` and `apps/web/src/components/home/NextTripHero.tsx` render the slot unconditionally as `mt-1 min-h-5 leading-5` (exactly one `text-sm` line) with the text inside it, instead of rendering the whole `<div>` only when the prop is present. Absence is still honest absence — an unresolved or failed fetch renders empty space, never a fabricated figure, and `TripCard.test.tsx`'s "renders no planned-spend line" assertion is untouched and still passes. Neither `Popover` nor its collision/positioning config was touched, per the reasoning above; nothing about "does a menu follow its card, or close?" had to be decided, because after this the card does not move.
+
+  **`NextTripHero.tsx` is outside this entry's declared Area and was changed deliberately.** Measurement (below) showed the drift is the sum of *two* sources, not one: 24px per trip card **plus 27px on the hero above the grid**, which pushes the entire grid — and any menu anchored to a card in it — down by that much. Fixing only `TripCard` would have left 27px of drift, which was measured to be enough to land the point aimed at "Delete" on "Duplicate". The hero's own cost line is the same `plannedOfBudgetLine` fed by the same fan-out, so it is the same one-line change.
+- **Reproduced deterministically before the fix** (not waited for as a flake — the suite ran green on this branch beforehand). A harness held every `GET /api/trips/:id` until the actions menu was already open, then released it and measured. Against `next build` + `CI=true` at the suite's own 1280x900 viewport, 32 cards in the list:
+
+  | card | delete item y, before → after the cost lines land | drift | what is under the point aimed at "Delete" |
+  |---|---|---|---|
+  | #0 | 698 → 725 | 27px | the **"Duplicate"** menu item |
+  | #3 | 745 → 796 | 51px | the **"Duplicate"** menu item |
+  | #6 | 513 → 588 | 75px | a **neighbouring trip card** |
+  | #14 | 513 → 586 | 73px | a **neighbouring trip card** |
+  | #31 | 513 → 587 | 74px | a **neighbouring trip card** |
+
+  Every card grew 159px → 183px, and the document 2846px → 3139px. That last column is the CI failure verbatim: "a neighbouring trip card" under the pointer *is* `<h3 …> from <main …> subtree intercepts pointer events`. The same table after the fix: drift 0-1px on every card, and "Delete" still under the pointer every time.
+- **Regression test:** `apps/web/e2e/m8-make-it-real.spec.ts` → "an open trip-actions menu does not drift when the cost lines land". It holds the whole per-card fan-out with `page.route` until the menu is open, releases it, and asserts (a) the card's height did not change, (b) the Delete item did not move, and (c) `document.elementFromPoint` at the exact point a click would have used still resolves to the **Delete** menu item — then clicks it for real. **Proved non-vacuous:** with only the two component changes stashed and the app rebuilt, it fails on both the first run and the retry, in the same place, with `expect(received).toBeLessThan(expected) / Expected: < 3 / Received: 24.296875` — i.e. exactly one card's growth. This is the layout invariant the entry's whole history is about, and it can no longer come back silently.
+- **Proof:** `pnpm --filter web test:e2e:ci-like` — **42 passed** (the suite's 41 plus the new regression test), the only lane a verdict counts from (KI-27). Plus `pnpm --filter web typecheck` green, root `pnpm lint` green (ESLint + lint wall + colour wall, 356 files / 0 pending re-skin + case collisions), and `vitest run -c vitest.unit.config.ts src/components/home/TripCard.test.tsx src/components/home/NextTripHero.test.tsx "src/app/(app)/page.test.tsx"` — 39 passed / 1 skipped.
+- **Left in place on purpose:** the spec's 2026-08-28 wait for the target card's own cost line before opening its menu. It is no longer load-bearing, but it is still the right shape for a test (settle before the gesture) and removing it would be churn.
+- **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
+- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
+- **Bound of this fix, measured (2026-08-28, CodeRabbit's review of PR #73 raised it and the numbers below settle it):** the reserved slot is **one** `text-sm` line, so the guarantee holds only while the money string fits on one line. Measured by injecting a long string (`¥1,234,567 planned of ¥5,000,000`) into the real rendered slot at each width against a production build:
+  ```
+  1440px slotW 523 | slot 20.2 -> 20.2 | card growth 0.0px
+  1100px slotW 513 | slot 20.2 -> 20.2 | card growth 0.0px
+   500px slotW 402 | slot 20.2 -> 20.2 | card growth 0.0px
+   375px slotW 277 | slot 20.2 -> 40.4 | card growth 20.2px
+   320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
+  ```
+  So the drift is gone at every width from 500px up, including the e2e suite's 1280px and every desktop width. At **375px and below** a long enough figure wraps to a second line and the card grows 20px again — the same mechanism, reintroduced. Not fixed here because the only one-line-forever fix is truncating a money figure, which hides information and is a product-visible choice, and because `responsive.spec.ts` widths are inside the region KI-46 already records as undesigned. Filed as **KI-56**.
+- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stayed open for the product-side behaviour above, not for the flake. **Resolved:** 2026-08-28 (KI sweep) — the anchor drift is gone at 500px and up, and a deterministic regression test guards it; the narrow-width residue is KI-56.
+
 
 ### KI-54 — `activitiesEqual` ignored `city` and `countryCode`, so a change to either was invisible to diff/revert/undo — RESOLVED
 - **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)

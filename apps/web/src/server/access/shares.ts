@@ -18,6 +18,12 @@ function mintToken(): string {
 
 type ShareRow = typeof tripShares.$inferSelect;
 
+/**
+ * The one place a stored instant becomes a `TripShare`'s string. The columns
+ * are `mode: "date"` precisely so this conversion cannot be skipped on the
+ * write path: a row built in memory carries `Date`s exactly like a row read
+ * back does, so both paths render the same ISO-8601 string (KI-53).
+ */
 function toDto(row: ShareRow): TripShare {
   return {
     shareId: row.id,
@@ -25,8 +31,8 @@ function toDto(row: ShareRow): TripShare {
     token: row.token,
     seq: row.seq,
     createdBy: row.createdBy,
-    createdAt: row.createdAt,
-    revokedAt: row.revokedAt,
+    createdAt: row.createdAt.toISOString(),
+    revokedAt: row.revokedAt === null ? null : row.revokedAt.toISOString(),
   };
 }
 
@@ -58,7 +64,7 @@ export async function createShare(
       token: mintToken(),
       seq: envelopes.length,
       createdBy,
-      createdAt: now,
+      createdAt: new Date(now),
       revokedAt: null,
     };
     await tx.insert(tripShares).values(row);
@@ -90,8 +96,9 @@ export async function revokeShare(
   // Idempotent: revoking an already-revoked link is a success, not a 404, so
   // a double-click cannot produce a scary error.
   if (row.revokedAt !== null) return { ok: true, value: toDto(row) };
-  await db.update(tripShares).set({ revokedAt: now }).where(eq(tripShares.id, shareId));
-  return { ok: true, value: toDto({ ...row, revokedAt: now }) };
+  const revokedAt = new Date(now);
+  await db.update(tripShares).set({ revokedAt }).where(eq(tripShares.id, shareId));
+  return { ok: true, value: toDto({ ...row, revokedAt }) };
 }
 
 /**
@@ -148,7 +155,9 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
   const members = await effectiveMembers(db, share.tripId, current.members);
   return {
     ok: true,
-    value: toSharedView(replayed.detail, share, members.length, replayed.headSeq),
+    // `toDto(share)`, not the row: `sharedAt` crosses the API boundary, so it
+    // takes the same single conversion every other share timestamp takes.
+    value: toSharedView(replayed.detail, toDto(share), members.length, replayed.headSeq),
   };
 }
 

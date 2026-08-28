@@ -447,3 +447,43 @@ describe("member profiles", () => {
     ]);
   });
 });
+
+// KI-53. `mode: "string"` columns echoed the write path's own ISO input and
+// rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
+// the same field had two shapes depending on which call you got it from.
+// `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
+// equal; asserting the ISO literal is what stops it silently coming back.
+describe("invite timestamps have one shape", () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("returns the same createdAt from the write path and the read path", async () => {
+    const tripId = await seedTrip();
+    const created = await createInvite(
+      tripId,
+      OWNER,
+      { email: null, role: "editor" },
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(created.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect((await listInvites(tripId))[0]!.createdAt).toBe(created.createdAt);
+  });
+
+  it("returns the same revokedAt from the write path and the read path", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const revoked = await revokeInvite(tripId, invite.inviteId, "2026-03-04T05:06:07.008Z");
+    expect(revoked.ok).toBe(true);
+    if (!revoked.ok) return;
+    expect(revoked.value.revokedAt).toBe("2026-03-04T05:06:07.008Z");
+    expect((await listInvites(tripId))[0]!.revokedAt).toBe(revoked.value.revokedAt);
+  });
+
+  it("renders acceptedAt in the same shape as the rest", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    await acceptInvite(invite.token, GUEST, "2026-02-03T04:05:06.007Z");
+    const listed = (await listInvites(tripId))[0]!;
+    expect(listed.acceptedAt).toBe("2026-02-03T04:05:06.007Z");
+    expect(listed.createdAt).toMatch(ISO);
+  });
+});

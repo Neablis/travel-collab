@@ -97,11 +97,25 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
             <DataText size="sm">Created {createdLabel}</DataText>
           </div>
         )}
-        {plannedOfBudget && (
-          <div className="mt-1">
-            <DataText size="sm">{plannedOfBudget}</DataText>
-          </div>
-        )}
+        {/* KI-28: the slot is reserved (mt-1 + min-h-5, exactly one text-sm
+            line; leading-5 pins the FILLED line box to that same 20px, which
+            takes the residual difference between the two states from ~0.3px
+            to ~0.2px) whether or not the line has landed, so a card NEVER
+            changes height when its caller's TripDetail fetch resolves. The card is the
+            anchor for its own actions menu, and Radix positions that menu with
+            `strategy: "fixed"` + `shift({ limiter: limitShift() })` — an open
+            menu follows its anchor instead of repositioning, so every pixel a
+            row (or a row above it) grows underneath an open menu moves the
+            menu's items out from under the pointer. Measured before this:
+            24px per card, and up to 75px of cumulative drift at the menu,
+            enough to land the point aimed at "Delete" on "Duplicate" instead.
+            Reserving the space removes the cause rather than reacting to it
+            (candidate (b) in KI-28). Still honest absence, not a fabricated
+            line: an unresolved or failed fetch renders empty space, never a
+            number. */}
+        <div className="mt-1 min-h-5 leading-5">
+          {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
+        </div>
       </div>
 
       <div className="mt-auto flex items-center justify-between pt-1">

@@ -155,11 +155,15 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 </div>
               )
             )}
-            {plannedOfBudget && (
-              <div className="mt-1.5">
-                <DataText size="sm">{plannedOfBudget}</DataText>
-              </div>
-            )}
+            {/* KI-28: reserved slot, same reason as TripCard's own cost line
+                — this hero sits ABOVE the trip grid, so the 27px it used to
+                gain when its TripDetail landed pushed every card (and any
+                actions menu anchored to one) down by that much. Height is
+                reserved whether or not the line arrives; absence still renders
+                nothing rather than a fabricated figure. */}
+            <div className="mt-1.5 min-h-5 leading-5">
+              {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center" role="group" aria-label={`${trip.members.length} traveler${trip.members.length === 1 ? "" : "s"}`}>

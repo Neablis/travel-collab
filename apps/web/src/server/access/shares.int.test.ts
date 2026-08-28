@@ -138,14 +138,14 @@ describe("share lifecycle", () => {
     // `revokedAt !== null` early return would let the second call rewrite the
     // timestamp and this test would still pass (CodeRabbit, PR #71). The
     // invariant is that an already-revoked link comes back unchanged.
-    await revokeShare(tripId, share.value.shareId, "2026-01-01T00:00:00.000Z");
-    // Read back rather than compared to the literal: `revokedAt` is a
-    // `timestamp(mode: "string")`, which echoes whatever ISO string the write
-    // passed in but renders Postgres's own format ("2026-01-01 00:00:00+00")
-    // on the way out. Asserting the literal here would be asserting that
-    // storage detail rather than the behaviour — see docs/known-issues.md KI-53.
-    const stored = (await listShares(tripId))[0]!.revokedAt;
-    expect(stored).not.toBeNull();
+    const first = await revokeShare(tripId, share.value.shareId, "2026-01-01T00:00:00.000Z");
+    expect(first.ok).toBe(true);
+    // The literal, not just "whatever got stored": since KI-53 the write path
+    // and the read path agree on one ISO-8601 shape, so both can be pinned
+    // here. This used to read the value back precisely because they did not.
+    const stored = "2026-01-01T00:00:00.000Z";
+    expect(first.ok && first.value.revokedAt).toBe(stored);
+    expect((await listShares(tripId))[0]!.revokedAt).toBe(stored);
 
     const second = await revokeShare(tripId, share.value.shareId, "2026-02-01T00:00:00.000Z");
     expect(second.ok).toBe(true);
@@ -261,5 +261,47 @@ describe("the featured share", () => {
     await revokeShare(tripId, share.value.shareId);
     process.env.DEMO_SHARE_TOKEN = share.value.token;
     expect((await readFeaturedShare()).ok).toBe(false);
+  });
+});
+
+// KI-53. `mode: "string"` columns echoed the write path's own ISO input and
+// rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
+// the same field had two shapes depending on which call you got it from.
+// `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
+// equal; asserting the ISO literal is what stops it silently coming back.
+describe("share timestamps have one shape", () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("returns the same createdAt from the write path and the read path", async () => {
+    const tripId = await seedTrip();
+    const created = await createShare(tripId, OWNER, "2026-01-01T00:00:00.000Z");
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.value.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect((await listShares(tripId))[0]!.createdAt).toBe(created.value.createdAt);
+  });
+
+  it("returns the same revokedAt from the write path and the read path", async () => {
+    const tripId = await seedTrip();
+    const share = await createShare(tripId, OWNER);
+    expect(share.ok).toBe(true);
+    if (!share.ok) return;
+    const revoked = await revokeShare(tripId, share.value.shareId, "2026-03-04T05:06:07.008Z");
+    expect(revoked.ok).toBe(true);
+    if (!revoked.ok) return;
+    expect(revoked.value.revokedAt).toBe("2026-03-04T05:06:07.008Z");
+    expect((await listShares(tripId))[0]!.revokedAt).toBe(revoked.value.revokedAt);
+  });
+
+  it("serves the public view's sharedAt in the same shape", async () => {
+    const tripId = await seedTrip();
+    const share = await createShare(tripId, OWNER, "2026-01-01T00:00:00.000Z");
+    expect(share.ok).toBe(true);
+    if (!share.ok) return;
+    const view = await readShare(share.value.token);
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.value.sharedAt).toMatch(ISO);
+    expect(view.value.sharedAt).toBe(share.value.createdAt);
   });
 });
