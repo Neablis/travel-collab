@@ -15,7 +15,12 @@ import { dirname, join, resolve, sep } from "node:path";
 export async function readAll(stream) {
   let out = "";
   stream.setEncoding("utf8");
-  for await (const chunk of stream) out += chunk;
+  try {
+    for await (const chunk of stream) out += chunk;
+  } catch {
+    // EPIPE from a parent that closed early must not crash the hook's
+    // entry point; return whatever was read before the stream broke.
+  }
   return out;
 }
 
@@ -45,17 +50,28 @@ export function activeRuns(cwd) {
   const root = join(main, ".claude", "run");
   if (!existsSync(root)) return [];
 
+  // `.claude/run` existing as a stray file (ENOTDIR) or being permission-denied
+  // (EACCES) must not throw through unitForCwd into the calling hook — an
+  // unreadable run directory is exactly the "cannot determine context" case
+  // this library exists to no-op on.
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
   const runs = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const file = join(root, entry.name, "manifest.json");
-    if (!existsSync(file)) continue;
     try {
+      if (!existsSync(file)) continue;
       const manifest = JSON.parse(readFileSync(file, "utf8"));
       if (manifest.teardown) continue;
       runs.push({ runDir: join(root, entry.name), manifest });
     } catch {
-      // A malformed manifest must not block work.
+      // A malformed manifest, or a read failure on it, must not block work.
     }
   }
   return runs;
@@ -79,14 +95,20 @@ export function globToRegExp(glob) {
   let out = "";
   for (let i = 0; i < glob.length; i += 1) {
     const c = glob[i];
-    if (c === "*") {
-      if (glob[i + 1] === "*") {
+    if (c === "*" && glob[i + 1] === "*") {
+      if (glob[i + 2] === "/") {
+        // "**/" matches zero or more whole directory segments — not a
+        // substring of the final segment. Swallowing the "/" into ".*"
+        // (the previous version) let "src/**/x.ts" match "src/foo/bar-x.ts",
+        // silently under-blocking the out-of-scope edits inScope exists to catch.
+        out += "(?:.*/)?";
+        i += 2;
+      } else {
         out += ".*";
         i += 1;
-        if (glob[i + 1] === "/") i += 1;
-      } else {
-        out += "[^/]*";
       }
+    } else if (c === "*") {
+      out += "[^/]*";
     } else if (c === "?") {
       out += "[^/]";
     } else {

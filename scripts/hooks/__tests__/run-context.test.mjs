@@ -68,6 +68,13 @@ test("globToRegExp handles ** and *", () => {
   assert.ok(!globToRegExp("src/**").test("docs/a.md"));
 });
 
+test("globToRegExp matches **/ as whole directory segments, not a substring", () => {
+  assert.ok(globToRegExp("src/**/x.ts").test("src/a/x.ts"));
+  assert.ok(globToRegExp("src/**/x.ts").test("src/a/b/x.ts"));
+  assert.ok(globToRegExp("src/**/x.ts").test("src/x.ts")); // zero segments
+  assert.ok(!globToRegExp("src/**/x.ts").test("src/a/bar-x.ts")); // the bug
+});
+
 test("inScope is false for an empty or missing glob list", () => {
   assert.equal(inScope("src/a.ts", []), false);
   assert.equal(inScope("src/a.ts", undefined), false);
