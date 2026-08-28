@@ -39,7 +39,8 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview, readOnly, myRole } = useTrip();
+  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview, readOnly, myRole, accessUnknown } =
+    useTrip();
   const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -163,6 +164,20 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                 were all still live for a viewer, so this comment was making a
                 promise the header did not keep. */}
             {readOnly && <Badge variant="info">View only</Badge>}
+            {/* The access read failed, so this board is live on an assumption
+                rather than on an answer (TripProvider's `load` explains why
+                that is the deliberate choice). Said out loud here, beside the
+                role badge it stands in for, so a write the server then refuses
+                reads as the consequence of a known-unknown rather than as the
+                app breaking. */}
+            {accessUnknown && (
+              <Badge
+                variant="warning"
+                title="We could not check your access to this trip. You can keep working, but the server may refuse changes."
+              >
+                Access unknown
+              </Badge>
+            )}
           </div>
         </div>
 

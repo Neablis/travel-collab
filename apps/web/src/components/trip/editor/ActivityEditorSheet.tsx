@@ -2,11 +2,16 @@
 
 import type { ActivityView } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { DataText } from "@/components/ui/data-text";
+import { Text } from "@/components/ui/text";
 import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { dayLabel } from "@/lib/dates";
+import { toClockRange } from "@/lib/time";
+import { formatMoney } from "@/components/lenses/formatMoney";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
 // editor is now a portable Sheet raised from EditorHost's own state, not
@@ -22,10 +27,19 @@ import { dayLabel } from "@/lib/dates";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
-  const { activeTrip, dispatch } = useTrip();
+  const { activeTrip, dispatch, readOnly } = useTrip();
 
   const open = state.mode !== null;
-  const title = state.mode === "edit" ? "Edit activity" : "Add a stop";
+  // A viewer never gets the form. This is the backstop for every caller of
+  // `openEdit` the board surface does not own — MapLens, TimelineLens and
+  // CalendarLens all raise the sheet, and all three are outside this change's
+  // scope — so the sheet presents read-only regardless of which one opened it
+  // (docs/reviews/2026-08-28-m11-pr71-review.md §5). The title changes with
+  // it: "Edit activity" over a form nothing can save is a promise the sheet
+  // does not keep. NOT the security boundary — the server refuses a viewer's
+  // UpdateActivity/AddActivity independently, and TripProvider's own dispatch
+  // gate refuses them before they reach the network.
+  const title = readOnly ? "Activity" : state.mode === "edit" ? "Edit activity" : "Add a stop";
 
   const editingActivity: ActivityView | null =
     state.mode === "edit" && state.activityId !== undefined
@@ -81,6 +95,9 @@ export function ActivityEditorSheet() {
 
   function handleSave(value: ActivityFormValue) {
     if (activeTrip === null) return;
+    // Unreachable while the form is not rendered for a viewer; kept so the
+    // gate does not depend on the render branch above staying correct.
+    if (readOnly) return;
     if (state.mode === "edit" && state.activityId !== undefined) {
       // UpdateActivity carries no dayId (ActivityEditor's Day select is
       // disabled in edit mode for exactly this reason) — cross-day moves
@@ -129,7 +146,14 @@ export function ActivityEditorSheet() {
           activityId={editingActivityId}
         />
       )}
-      {open && (
+      {open && readOnly && (
+        <ReadOnlyActivity
+          activity={editingActivity}
+          currency={activeTrip?.currency ?? "USD"}
+          onClose={close}
+        />
+      )}
+      {open && !readOnly && (
         <ActivityEditor
           // Edit mode's key includes whether the real activity has loaded
           // yet, not just its id — activeTrip is null only during a trip's
@@ -154,5 +178,51 @@ export function ActivityEditorSheet() {
         />
       )}
     </Sheet>
+  );
+}
+
+// A viewer's presentation of the sheet: what the stop actually is, with no
+// control that would dispatch. It exists because the notes field has no other
+// surface in the app — dropping the sheet entirely for a viewer would hide
+// real content, not just an affordance.
+function ReadOnlyActivity({
+  activity,
+  currency,
+  onClose,
+}: {
+  activity: ActivityView | null;
+  currency: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {activity === null ? (
+        <Text as="p" variant="secondary">
+          You have view-only access to this trip.
+        </Text>
+      ) : (
+        <>
+          <Text as="p" className="font-medium">{activity.title}</Text>
+          <DataText size="xs" className="block">
+            {activity.timeWindow === null
+              ? "No time yet"
+              : toClockRange(activity.timeWindow.start, activity.timeWindow.end)}
+          </DataText>
+          {activity.location && (
+            <Text as="p" variant="secondary">{activity.location.name}</Text>
+          )}
+          <DataText size="xs" className="block">
+            {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}
+          </DataText>
+          {activity.notes !== null && activity.notes !== "" && (
+            <Text as="p" variant="secondary">{activity.notes}</Text>
+          )}
+          <Text as="p" variant="secondary">You have view-only access to this trip.</Text>
+        </>
+      )}
+      <div className="flex justify-end">
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+      </div>
+    </div>
   );
 }

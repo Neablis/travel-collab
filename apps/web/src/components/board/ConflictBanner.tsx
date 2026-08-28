@@ -20,11 +20,17 @@ export function ConflictBanner({
   activities,
   onDismiss,
   onSelectActivity,
+  readOnly = false,
 }: {
   conflicts: Conflict[];
   dismissedConflictIds: string[];
   activities: Record<string, ActivityView>;
   onDismiss: (conflictId: string) => void;
+  /** A viewer reads the conflicts but cannot dismiss them — DismissConflict is
+      a real command the server refuses for a viewer. The list itself stays:
+      conflicts are data (AGENTS.md invariant 3), and reading them is not a
+      write. Only the Dismiss action goes. */
+  readOnly?: boolean;
   // Same openEdit path Board already wires as onSelectActivity for every
   // other surface (TimelineLens, MapLens) — not a second navigation
   // mechanism. Optional so a caller with no jump target (none today) still
@@ -100,13 +106,15 @@ export function ConflictBanner({
                 key={c.id}
                 variant="warning"
                 actions={
-                  <Button
-                    variant="ghost"
-                    onClick={() => onDismiss(c.id)}
-                    aria-label={`Dismiss: ${c.description}`}
-                  >
-                    Dismiss
-                  </Button>
+                  readOnly ? undefined : (
+                    <Button
+                      variant="ghost"
+                      onClick={() => onDismiss(c.id)}
+                      aria-label={`Dismiss: ${c.description}`}
+                    >
+                      Dismiss
+                    </Button>
+                  )
                 }
               >
                 {jump !== undefined ? (

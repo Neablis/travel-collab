@@ -56,6 +56,7 @@ export function Column({
   onSelect,
   onAddActivity,
   onDismissOverlap,
+  readOnly = false,
 }: {
   title: string;
   dayId: string;
@@ -79,6 +80,10 @@ export function Column({
   onSelect?: () => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
+  /** A viewer's column: no drop target, no "Remove day", no "+ Add", and its
+      cards are not draggable. See Board.tsx's own `readOnly` note for why the
+      client gate is defence in depth rather than the security boundary. */
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLUListElement>(null);
   // Whether this column itself — not one of its cards — is the innermost
@@ -92,7 +97,10 @@ export function Column({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    // A read-only board registers no drop target at all: nothing in it is
+    // draggable either, so a target here could only ever accept a drag
+    // arriving from somewhere that is itself gated.
+    if (!el || readOnly) return;
     const updateIsOver = ({ location }: { location: DragLocationHistory }) =>
       setIsOver(location.current.dropTargets[0]?.element === el);
     return dropTargetForElements({
@@ -103,7 +111,7 @@ export function Column({
       onDragLeave: () => setIsOver(false),
       onDrop: () => setIsOver(false),
     });
-  }, [dayId]);
+  }, [dayId, readOnly]);
 
   return (
     <section
@@ -138,7 +146,7 @@ export function Column({
         ) : (
           <span className="text-sm font-semibold text-ink">{title}</span>
         )}
-        {onRemoveDay && (
+        {onRemoveDay && !readOnly && (
           <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
             <X className="size-3.5" aria-hidden />
           </Button>
@@ -159,6 +167,7 @@ export function Column({
               onEdit={() => onEditActivity(id)}
               onRemove={() => onRemoveActivity(id)}
               onDismissOverlap={onDismissOverlap}
+              readOnly={readOnly}
             />
           );
         })}
@@ -174,7 +183,7 @@ export function Column({
           column" — a consistent dashed affordance regardless of whether the
           day already has cards, rather than collapsing to a bare "+" once
           populated (#20's original empty-only treatment). */}
-      {onAddActivity && (
+      {onAddActivity && !readOnly && (
         <Button
           variant="ghost"
           size="sm"

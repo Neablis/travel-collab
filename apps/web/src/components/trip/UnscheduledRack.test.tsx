@@ -79,3 +79,48 @@ describe("UnscheduledRack", () => {
     expect(onAssign).toHaveBeenCalledWith("a1", "d2");
   });
 });
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5: the drawer had no viewer
+// awareness, so a viewer could drag a parked stop onto a day (it moved and
+// snapped back) or pick a day from the select — both real MoveActivity +
+// UpdateActivity pairs the server refuses. What is parked STAYS listed: that is
+// content, and reading it is not a write. Each absence is paired with its
+// editor mirror above, so these are statements about the role.
+describe("UnscheduledRack — a viewer's drawer", () => {
+  it("still lists what is parked", () => {
+    renderRack({ open: true, readOnly: true });
+
+    expect(screen.getByText("Souvenir shopping")).toBeTruthy();
+    expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
+  });
+
+  it("makes no card draggable", () => {
+    renderRack({ open: true, readOnly: true });
+    // pdnd's `draggable()` sets this attribute; its absence is the missing
+    // registration, not a styling difference.
+    for (const card of screen.getAllByTestId("rack-card")) {
+      expect(card.getAttribute("draggable")).toBeNull();
+    }
+  });
+
+  it("makes every card draggable for an editor", () => {
+    renderRack({ open: true });
+    for (const card of screen.getAllByTestId("rack-card")) {
+      expect(card.getAttribute("draggable")).toBe("true");
+    }
+  });
+
+  it("withholds Add to day", () => {
+    renderRack({ open: true, readOnly: true });
+    expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
+  });
+
+  // The empty state's instruction ("Drag a stop down here…") is only true for
+  // someone who can drag, so a viewer gets the state without the instruction.
+  it("drops the drag instruction from the empty state", () => {
+    renderRack({ open: true, items: [], readOnly: true });
+
+    expect(screen.getByText("Nothing parked.")).toBeTruthy();
+    expect(screen.queryByText(/Drag a stop down here/)).toBeNull();
+  });
+});

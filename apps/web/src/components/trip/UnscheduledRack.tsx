@@ -43,12 +43,20 @@ export function UnscheduledRack({
   open,
   onToggle,
   onAssign,
+  readOnly = false,
 }: {
   items: RackItem[];
   dayOptions: { value: string; label: string }[];
   open: boolean;
   onToggle: () => void;
   onAssign: (activityId: string, dayId: string) => void;
+  /** A viewer's drawer: still opens, still lists what is parked — that is
+      content, and a viewer is entitled to read it — but it is neither a drop
+      target nor a source of drags, and the per-card "Add to day" (a real
+      MoveActivity + UpdateActivity pair) is withheld. The server refuses those
+      commands independently; this is what stops the card moving and snapping
+      back (docs/reviews/2026-08-28-m11-pr71-review.md §5). */
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [isOver, setIsOver] = useState(false);
@@ -59,7 +67,7 @@ export function UnscheduledRack({
   // droppable from the moment a drag starts, before the auto-open lands.
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || readOnly) return;
     return dropTargetForElements({
       element: el,
       getData: () => ({ rack: true }),
@@ -67,7 +75,7 @@ export function UnscheduledRack({
       onDragLeave: () => setIsOver(false),
       onDrop: () => setIsOver(false),
     });
-  }, []);
+  }, [readOnly]);
 
   return (
     <section
@@ -140,11 +148,21 @@ export function UnscheduledRack({
               // eslint-disable-next-line no-restricted-syntax -- 240px min width and 12.5px copy are design-fixed values with no token equivalent
               style={{ minWidth: "240px", fontSize: "12.5px" }}
             >
-              Nothing parked. Drag a stop down here to take it off the schedule without losing it.
+              {/* The invitation to drag is only true for someone who can:
+                  a viewer gets the state without the instruction. */}
+              {readOnly
+                ? "Nothing parked."
+                : "Nothing parked. Drag a stop down here to take it off the schedule without losing it."}
             </p>
           ) : (
             items.map((item) => (
-              <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} />
+              <RackCard
+                key={item.activityId}
+                item={item}
+                dayOptions={dayOptions}
+                onAssign={onAssign}
+                readOnly={readOnly}
+              />
             ))
           )}
         </div>
@@ -157,10 +175,12 @@ function RackCard({
   item,
   dayOptions,
   onAssign,
+  readOnly,
 }: {
   item: RackItem;
   dayOptions: { value: string; label: string }[];
   onAssign: (activityId: string, dayId: string) => void;
+  readOnly: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -170,21 +190,23 @@ function RackCard({
   // dragged between days — resolveDrop needs no rack-source special case.
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    // pdnd's `draggable` is what sets the DOM `draggable="true"` attribute, so
+    // not registering it is what actually makes a viewer's card immovable.
+    if (!el || readOnly) return;
     return draggable({
       element: el,
       getInitialData: () => ({ activityId: item.activityId }),
       onDragStart: () => setDragging(true),
       onDrop: () => setDragging(false),
     });
-  }, [item.activityId]);
+  }, [item.activityId, readOnly]);
 
   return (
     <div
       ref={ref}
       data-testid="rack-card"
       data-blstop=""
-      className="cursor-grab rounded-lg transition-opacity duration-200"
+      className={cn("rounded-lg transition-opacity duration-200", readOnly ? "cursor-default" : "cursor-grab")}
       // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as ActivityCard's)
       style={{ flex: "0 0 208px", touchAction: "none", opacity: dragging ? 0.5 : 1 }}
     >
@@ -235,23 +257,26 @@ function RackCard({
             option's "Add to day…" is the visible placeholder. The
             select stays pinned to `value=""` so it reads as an
             action, not a stored choice — assigning moves the stop
-            out of the rack entirely. */}
-        <NativeSelect
-          aria-label="Add to day"
-          className="mt-auto w-full"
-          value=""
-          onChange={(event) => {
-            const dayId = event.target.value;
-            if (dayId !== "") onAssign(item.activityId, dayId);
-          }}
-        >
-          <option value="">Add to day…</option>
-          {dayOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </NativeSelect>
+            out of the rack entirely. Withheld entirely for a viewer:
+            scheduling is a write. */}
+        {readOnly ? null : (
+          <NativeSelect
+            aria-label="Add to day"
+            className="mt-auto w-full"
+            value=""
+            onChange={(event) => {
+              const dayId = event.target.value;
+              if (dayId !== "") onAssign(item.activityId, dayId);
+            }}
+          >
+            <option value="">Add to day…</option>
+            {dayOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </NativeSelect>
+        )}
       </Card>
     </div>
   );

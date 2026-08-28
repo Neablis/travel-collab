@@ -51,7 +51,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -306,6 +306,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // disabling the box outright would need a new AssistantRail prop, and a
     // control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
+    // A viewer's ask is refused for the same reason their drag is: the AI
+    // route is editor-gated server-side, so the model would plan a batch the
+    // server then refuses wholesale. Reported through the rail's own askError
+    // surface rather than swallowed — same call the `pending` gate below makes,
+    // and for the same reason (a control that silently does nothing is the
+    // failure mode TripProvider's runDispatch comment was written about).
+    if (readOnly) {
+      setAskStatus("error");
+      setAskError("You have view-only access to this trip.");
+      setAskSimulated(false);
+      return false;
+    }
     if (pending) {
       setAskStatus("error");
       setAskError("Finish saving your changes before asking the assistant.");
@@ -404,6 +416,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <Board
                   trip={activeTrip}
                   focusedDay={focusedDay}
+                  // M11 link 3, finishing what the header started: a viewer's
+                  // board offers no drag, no "Add a day", no "+ Add" and no
+                  // per-card remove. The server refuses every one of those
+                  // commands on its own (accessPolicy.ts) and TripProvider
+                  // refuses them again before the network — this is defence in
+                  // depth and the difference between an inert board and one
+                  // whose cards move and snap back
+                  // (docs/reviews/2026-08-28-m11-pr71-review.md §5).
+                  readOnly={readOnly}
                   callbacks={{
                     onSelectDay: setFocusedDay,
                     onMove: moveActivity,
@@ -529,6 +550,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
             onAssign={assignFromRack}
+            readOnly={readOnly}
           />
         </div>
       )}

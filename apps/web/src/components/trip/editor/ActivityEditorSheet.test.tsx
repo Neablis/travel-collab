@@ -22,10 +22,18 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripDetail: vi.fn(),
     fetchTripHistory: vi.fn(),
     fetchTripDetailAt: vi.fn(),
+    // Owner by default in `beforeEach` — every pre-existing test here was
+    // written against a sheet its user can save. The viewer block at the
+    // bottom drives it to "viewer". Mocked rather than left to the real
+    // helper: unmocked it resolves ok:false, which leaves `myRole` null, and
+    // "the role read failed" is a different state from "the role is owner"
+    // (TripProvider's `accessUnknown`).
+    fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
 });
+const fetchTripAccessMock = vi.fn();
 
 import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider } from "@/components/trip/context/TripProvider";
@@ -108,6 +116,10 @@ function renderEditorSheet({ mode, activityId }: { mode: "create" | "edit"; acti
 beforeEach(() => {
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
+  fetchTripAccessMock.mockReset().mockResolvedValue({
+    ok: true,
+    value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [] },
+  });
   vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: fixture() });
   vi.mocked(fetchTripHistory).mockResolvedValue({ ok: true, value: historyFixture(TRIP_ID) });
   sendTripCommandMock.mockResolvedValue({
@@ -285,5 +297,58 @@ describe("ActivityEditorSheet conflicts", () => {
     expect(await screen.findByLabelText("What or where")).toBeTruthy();
     expect(screen.queryByText(DISTANCE_COPY)).toBeNull();
     expect(screen.queryByText(UNRELATED_COPY)).toBeNull();
+  });
+});
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5: the sheet took `dispatch`
+// ungated, so a viewer opened a full editable form and typed into it — every
+// save refused at dispatch with "You have view-only access". This gate is also
+// the backstop for the lenses that raise the sheet and are outside the board
+// surface (MapLens, TimelineLens, CalendarLens all call openEdit): whichever
+// one opened it, a viewer gets the read-only presentation. NOT the security
+// boundary — the server refuses UpdateActivity/AddActivity from a viewer on
+// its own.
+describe("ActivityEditorSheet — a viewer gets no form", () => {
+  const asViewer = () =>
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: { tripId: TRIP_ID, myRole: "viewer", members: [], invites: [] },
+    });
+
+  it("shows the stop read-only instead of the editor, and dispatches nothing", async () => {
+    asViewer();
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    // The activity is still legible — the sheet is the only surface that shows
+    // a stop's notes at all, so withholding it would hide content, not an
+    // affordance.
+    expect(await screen.findByRole("heading", { name: "Activity" })).toBeTruthy();
+    expect(screen.getByText("Existing stop")).toBeTruthy();
+    expect(screen.getByText("You have view-only access to this trip.")).toBeTruthy();
+
+    // …and every writable control is gone.
+    expect(screen.queryByLabelText("What or where")).toBeNull();
+    expect(screen.queryByLabelText("Day")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("gives an owner the editable form at the same call site", async () => {
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByRole("heading", { name: "Edit activity" })).toBeTruthy();
+    expect(screen.getByLabelText("What or where")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+  });
+
+  it("refuses create mode too", async () => {
+    asViewer();
+    const dispatch = renderEditorSheet({ mode: "create" });
+
+    expect(await screen.findByRole("heading", { name: "Activity" })).toBeTruthy();
+    expect(screen.queryByLabelText("What or where")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

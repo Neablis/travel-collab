@@ -714,3 +714,65 @@ describe("assistant ask — unsent work blocks the ask", () => {
     expect(screen.getAllByTestId("day-column")).toHaveLength(1);
   });
 });
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5: TripHeader was thoroughly
+// viewer-gated and this screen never read `readOnly` at all, so everything
+// below the header stayed live for a viewer. The end-to-end statement — one
+// real `myRole: "viewer"` access read, one real board — that the individual
+// component tests (board.test.tsx, UnscheduledRack.test.tsx,
+// ActivityEditorSheet.test.tsx) each make about their own surface.
+//
+// The server refuses each of these commands independently (accessPolicy.ts);
+// this is defence in depth and a legible read-only board, never the boundary.
+describe("TripBoardScreen — a viewer's board", () => {
+  it("says View only and offers no way to change the trip", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByText("View only")).toBeTruthy();
+
+    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
+    // The rack's day-assign select is the drawer's non-drag write path.
+    fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
+    expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
+  });
+
+  it("offers all of them to an owner", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
+  });
+
+  // The AI route is editor-gated server-side, so a viewer's ask would have the
+  // model plan a batch the server then refuses wholesale. Refused here with a
+  // reason, the same way the `pending` gate above reports through the rail's
+  // own error surface — a control that silently does nothing is the failure
+  // mode TripProvider's runDispatch comment was written about.
+  it("refuses the assistant ask and says why", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+      target: { value: "Plan my afternoon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
+    );
+    expect(composeAiPlanMock).not.toHaveBeenCalled();
+  });
+});

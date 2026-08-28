@@ -94,6 +94,7 @@ export function Board({
   trip,
   callbacks,
   focusedDay = null,
+  readOnly = false,
 }: {
   trip: TripDetail;
   callbacks: BoardCallbacks;
@@ -101,6 +102,17 @@ export function Board({
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
   focusedDay?: number | null;
+  /** A viewer's board: every affordance that would dispatch a command is
+      withheld rather than rendered live and refused on click. NOT a security
+      boundary — the server refuses a viewer's writes independently
+      (accessPolicy.ts), and TripProvider's own `readOnly` gate refuses them
+      before they ever leave the client. This is defence in depth, and the
+      difference between "there is nothing to drag here" and a card that moves
+      and snaps back (docs/reviews/2026-08-28-m11-pr71-review.md §5).
+      A prop, like `focusedDay`, rather than a `useTrip()` read: Board renders
+      standalone in its own tests, and TripBoardScreen already owns the
+      context read. */
+  readOnly?: boolean;
 }) {
   const { openCreate, openEdit } = useEditor();
 
@@ -217,6 +229,7 @@ export function Board({
         activities={trip.activities}
         onDismiss={callbacks.onDismissConflict}
         onSelectActivity={openEdit}
+        readOnly={readOnly}
       />
       {/* The unscheduled pool is no longer a full-width Backlog column above
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted
@@ -258,9 +271,15 @@ export function Board({
             onSelect={() => callbacks.onSelectDay(index)}
             onAddActivity={() => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
+            readOnly={readOnly}
           />
         ))}
-        <OneMoreDayColumn onAddDay={callbacks.onAddDay} />
+        {/* The trailing column is nothing but affordance — "Add a day" and the
+            shelled "Add a saved day" — so a viewer gets no column rather than
+            a dead one. The "View only" badge in TripHeader is where the reason
+            is stated, the same division AddSavedDayButton already follows by
+            returning null. */}
+        {!readOnly && <OneMoreDayColumn onAddDay={callbacks.onAddDay} />}
       </div>
     </div>
   );

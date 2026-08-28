@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge, type Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { AlertTriangle, Eye, Pencil, X } from "lucide-react";
 import type { ActivityView } from "@tc/contracts";
 import { toClockRange } from "@/lib/time";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { cn } from "@/lib/cn";
 
 export function ActivityCard({
   activity,
@@ -24,6 +25,7 @@ export function ActivityCard({
   onEdit,
   onRemove,
   onDismissOverlap,
+  readOnly = false,
 }: {
   activity: ActivityView;
   dayId: string | null;
@@ -41,6 +43,13 @@ export function ActivityCard({
   onEdit: () => void;
   onRemove: () => void;
   onDismissOverlap: (conflictId: string) => void;
+  /** A viewer's card: not draggable, no Remove, no overlap dismissal, and the
+      pencil becomes a plain "View" (the editor sheet presents read-only for a
+      viewer too — ActivityEditorSheet). The server refuses every one of those
+      writes independently; withholding the affordance is what stops a card
+      moving and snapping back
+      (docs/reviews/2026-08-28-m11-pr71-review.md §5). */
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -53,7 +62,10 @@ export function ActivityCard({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    // Neither draggable nor a drop target for a viewer: pdnd's `draggable`
+    // sets the DOM `draggable="true"` attribute, so skipping registration is
+    // what actually makes the card immovable rather than merely un-styled.
+    if (!el || readOnly) return;
     return combine(
       draggable({
         element: el,
@@ -75,7 +87,7 @@ export function ActivityCard({
         onDrop: () => setClosestEdge(null),
       }),
     );
-  }, [activity.activityId, dayId]);
+  }, [activity.activityId, dayId, readOnly]);
 
   return (
     <Card
@@ -84,7 +96,7 @@ export function ActivityCard({
       data-testid={`activity-card-${activity.activityId}`}
       // eslint-disable-next-line no-restricted-syntax -- drag opacity is computed per-frame by pragmatic-drag-and-drop state, not expressible as a token class
       style={{ opacity: dragging ? 0.5 : 1 }}
-      className="relative mb-1.5 cursor-grab p-3"
+      className={cn("relative mb-1.5 p-3", readOnly ? "cursor-default" : "cursor-grab")}
     >
       {/* The insertion line: Phase 3's own design intent (Column.tsx's
           comment on the removed hover-tint: "the design keeps only the
@@ -112,12 +124,23 @@ export function ActivityCard({
           )}
         </span>
         <span className="flex shrink-0 gap-0.5">
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${activity.title}`}>
-            <Pencil className="size-3.5" aria-hidden />
+          {/* Kept for a viewer, relabelled: the sheet it opens is the only
+              place a stop's notes are legible at all, so removing it would
+              hide real content rather than an affordance. "Edit" would be a
+              promise the sheet does not keep for a viewer. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            aria-label={`${readOnly ? "View" : "Edit"} ${activity.title}`}
+          >
+            {readOnly ? <Eye className="size-3.5" aria-hidden /> : <Pencil className="size-3.5" aria-hidden />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
-            <X className="size-3.5" aria-hidden />
-          </Button>
+          {!readOnly && (
+            <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
+              <X className="size-3.5" aria-hidden />
+            </Button>
+          )}
         </span>
       </div>
       {activity.timeWindow && (
@@ -146,15 +169,17 @@ export function ActivityCard({
           style={{ marginTop: "7px", borderRadius: "7px", fontSize: "11px" }}
         >
           <span className="min-w-0 flex-1 truncate text-warning-ink">Overlaps {overlap.otherTitle}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-4 shrink-0 text-warning-ink"
-            aria-label="Dismiss overlap warning"
-            onClick={() => onDismissOverlap(overlap.conflictId)}
-          >
-            <X className="size-3" aria-hidden />
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-4 shrink-0 text-warning-ink"
+              aria-label="Dismiss overlap warning"
+              onClick={() => onDismissOverlap(overlap.conflictId)}
+            >
+              <X className="size-3" aria-hidden />
+            </Button>
+          )}
         </div>
       )}
     </Card>

@@ -77,7 +77,12 @@ function threeWayOverlapFixture() {
 // needs an EditorHost ancestor, and tests that assert on the trigger observe
 // EditorHost's state through this small consumer (same pattern as E1's
 // TripBoardScreen.test.tsx OpenCreateButton / context.test.tsx Consumer).
-function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks, focusedDay: number | null = null) {
+function renderBoard(
+  trip: ReturnType<typeof fixture>,
+  callbacks: BoardCallbacks,
+  focusedDay: number | null = null,
+  readOnly = false,
+) {
   let editorState: ReturnType<typeof useEditor>["state"] | undefined;
   function StateSpy() {
     editorState = useEditor().state;
@@ -86,7 +91,7 @@ function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks
   const utils = render(
     <EditorHost>
       <StateSpy />
-      <Board trip={trip} callbacks={callbacks} focusedDay={focusedDay} />
+      <Board trip={trip} callbacks={callbacks} focusedDay={focusedDay} readOnly={readOnly} />
     </EditorHost>,
   );
   return { ...utils, getEditorState: () => editorState };
@@ -474,5 +479,89 @@ describe("selecting a day from its column", () => {
     expect(columns[0]!.className).not.toContain("ring-brand");
     expect(headerOf(columns[1]!).getAttribute("aria-pressed")).toBe("true");
     expect(headerOf(columns[0]!).getAttribute("aria-pressed")).toBe("false");
+  });
+});
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5: the header was thoroughly
+// viewer-gated and the board underneath it was not, so a viewer could drag a
+// card (it moved and snapped back), open the editor and edit fields — every
+// attempt refused at dispatch, which is graceful but reads as a broken board
+// rather than a read-only one. NOT a security boundary: the server refuses
+// each of these commands independently. Every absence below is paired with its
+// owner mirror, so these are statements about the ROLE and not about a control
+// that never rendered.
+describe("Board — a viewer's board offers no writes", () => {
+  const cardOf = (id: string) => screen.getByTestId(`activity-card-${id}`);
+
+  it("makes no card draggable", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+    // pdnd's `draggable()` is what sets this attribute (element-adapter's
+    // addAttribute), so its absence is the real drag registration missing,
+    // not a styling difference.
+    expect(cardOf(A1).getAttribute("draggable")).toBeNull();
+    expect(cardOf(A2).getAttribute("draggable")).toBeNull();
+  });
+
+  it("makes every card draggable for an editor", () => {
+    renderBoard(fixture(), noopCallbacks());
+    expect(cardOf(A1).getAttribute("draggable")).toBe("true");
+    expect(cardOf(A2).getAttribute("draggable")).toBe("true");
+  });
+
+  it("withholds Add a day, + Add, Remove day and Remove stop", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+
+    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove Colosseum" })).toBeNull();
+  });
+
+  it("offers all four to an editor", () => {
+    renderBoard(fixture(), noopCallbacks());
+
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Add activity to / }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^Remove Day / }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Remove Colosseum" })).toBeTruthy();
+  });
+
+  // Dismissal is a real command (DismissConflict) — the conflicts themselves
+  // stay, because conflicts are data a viewer is entitled to read (AGENTS.md
+  // invariant 3) and reading is not a write.
+  it("keeps the conflicts readable but withholds every dismissal", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+
+    expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Dismiss:/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
+  });
+
+  it("offers both dismissals to an editor", () => {
+    renderBoard(fixture(), noopCallbacks());
+
+    expect(screen.getByRole("button", { name: /^Dismiss:/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dismiss overlap warning" })).toBeTruthy();
+  });
+
+  // The one control a viewer keeps, relabelled: the sheet it raises is the
+  // only place a stop's notes are legible, and it presents read-only for a
+  // viewer (ActivityEditorSheet). "Edit" would be a promise it does not keep.
+  it("relabels the card's pencil as View, and still opens the sheet", async () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null, true);
+
+    expect(screen.queryByRole("button", { name: "Edit Colosseum" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "View Colosseum" }));
+
+    expect(getEditorState()).toEqual({ mode: "edit", activityId: A1 });
+  });
+
+  it("labels it Edit for an editor", () => {
+    renderBoard(fixture(), noopCallbacks());
+    expect(screen.getByRole("button", { name: "Edit Colosseum" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "View Colosseum" })).toBeNull();
   });
 });

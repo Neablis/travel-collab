@@ -53,6 +53,10 @@ type TripCtx = {
   // drag a card and watch it snap back with a 403.
   myRole: TripRole | null;
   readOnly: boolean;
+  // True once the access read has completed and FAILED — not while it is still
+  // in flight. See `load()` for why the failure stays non-fatal, and TripHeader
+  // for where it is said out loud.
+  accessUnknown: boolean;
   // KI-36: the send queue's honest failure surface. `unsent` is the live count
   // of queued units the server has NOT accepted (retained, not discarded);
   // `failure` carries when the send failed and what the server said; `retry`
@@ -80,6 +84,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
+  const [accessUnknown, setAccessUnknown] = useState(false);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
@@ -102,6 +107,20 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         fetchTripAccess(tripId),
       ]);
       setMyRole(accessResult.ok ? accessResult.value.myRole : null);
+      // Reviewed and kept non-fatal, deliberately, against the alternative
+      // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge): a
+      // failed access read for a real VIEWER leaves the board live, and every
+      // write they then attempt 403s into a retained queue whose retry can
+      // never succeed. Treating an unknown role as read-only would fix that
+      // case and break the commoner one — an OWNER locked out of their own
+      // trip by one 500 on a secondary read, with no way back but a reload.
+      // A false "view only" is the worse failure, and it would be the more
+      // frequent one, so the failure is surfaced rather than acted on:
+      // `accessUnknown` is what TripHeader says out loud, so a later refusal
+      // is expected rather than mystifying. The security boundary is
+      // unchanged either way — the server refuses every write independently
+      // (accessPolicy.ts), and it is the only thing that ever did.
+      setAccessUnknown(!accessResult.ok);
       if (!detailResult.ok) {
         setStatus(detailResult.error.status === 401 ? "unauthenticated" : "error");
         setError(detailResult.error.message);
@@ -354,6 +373,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         applyOutcome,
         myRole,
         readOnly,
+        accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
       }}

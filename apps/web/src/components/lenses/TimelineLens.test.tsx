@@ -16,6 +16,16 @@ import { toMinutes, toTimeString } from "@/lib/time";
 vi.mock("@/components/trip/AddSavedDayButton", () => ({
   AddSavedDayButton: () => null,
 }));
+// EndOfTrip itself now reads TripProvider too, for the same M11 link 3 reason
+// — a viewer gets no "Add a day" at all
+// (docs/reviews/2026-08-28-m11-pr71-review.md §5, EndOfTrip.test.tsx covers
+// the gate). Stubbed to an editor's answer, which is what every assertion in
+// this file was written against; without it these bare renders throw
+// "useTrip outside TripProvider". TimelineLens itself imports nothing from
+// this module, so the stub touches only what EndOfTrip reads.
+vi.mock("@/components/trip/context/TripProvider", () => ({
+  useTrip: () => ({ readOnly: false }),
+}));
 
 import { TimelineLens, nextSlot } from "./TimelineLens";
 import type { TimelineRow } from "./timelineData";
