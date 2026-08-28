@@ -1,4 +1,4 @@
-import { relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { ask, inScope, parseStdin, readAll, unitForCwd } from "./lib/run-context.mjs";
 
 // PreToolUse hook (matcher: Edit|Write). Keeps a dispatched unit inside the
@@ -34,8 +34,12 @@ const resolved = resolve(cwd, target);
 //
 // Scoped to THIS run's own directory, and sep-terminated rather than a bare
 // string prefix, so "<run-dir>-evil/" is still an escape.
+//
+// manifest.json is carved back out: a unit that can rewrite the manifest can
+// switch off the very hooks that constrain it.
 const runRoot = resolve(runDir);
-if (resolved === runRoot || resolved.startsWith(runRoot + sep)) process.exit(0);
+const inRunDir = resolved === runRoot || resolved.startsWith(runRoot + sep);
+if (inRunDir && resolved !== join(runRoot, "manifest.json")) process.exit(0);
 
 const rel = relative(root, resolved);
 

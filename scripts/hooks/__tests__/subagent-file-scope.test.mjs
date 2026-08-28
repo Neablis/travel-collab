@@ -148,3 +148,46 @@ test("the run-directory allowance is boundary-safe, not a string prefix", () => 
   assert.equal(decision(res), "ask");
   assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /outside its own worktree/);
 });
+
+// The manifest is the orchestrator's file and the hooks' own off-switch: a
+// unit that can rewrite it can widen its own fileScope, or append a unit
+// rooted at "/", and thereby disable file-scope and lease enforcement for
+// itself. The run-directory allowance must not cover it.
+
+test("a write to the run's manifest.json asks", () => {
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(runDir, "manifest.json") },
+  });
+  assert.equal(decision(res), "ask");
+  assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /outside its own worktree/);
+});
+
+test("the manifest carve-out is narrow: notes/ and reports/ still pass silently", () => {
+  const { unitDir, runDir } = setup();
+  for (const rel of ["reports/u1.md", "notes/x.md"]) {
+    const res = runHook("subagent-file-scope.mjs", {
+      cwd: unitDir,
+      tool_name: "Write",
+      tool_input: { file_path: join(runDir, rel) },
+    });
+    assert.equal(res.status, 0, `${rel} must exit 0`);
+    assert.equal(decision(res), null, `${rel} must pass silently`);
+  }
+});
+
+test("a manifest.json under a nested path in the run dir is not the governing manifest", () => {
+  // Only <run-dir>/manifest.json is the orchestrator's file. A unit's own
+  // scratch "notes/manifest.json" is not, and carving out every basename
+  // match would block a legitimate board write.
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(runDir, "notes/manifest.json") },
+  });
+  assert.equal(res.status, 0);
+  assert.equal(decision(res), null);
+});

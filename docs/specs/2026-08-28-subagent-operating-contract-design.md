@@ -37,8 +37,10 @@ The boundary is enforced by file placement, not by discipline:
   are **portable**. They must never name travel-collab, its commands, its
   packages, or its milestones. A reviewer should be able to drop them into an
   unrelated repository unchanged.
-- `.claude/protocol/ADAPTER.md` is the **only** file carrying repo-specific
-  facts. Porting to another repo means rewriting this one file.
+- `.claude/protocol/ADAPTER.md` and `.claude/protocol/adapter.json` are the
+  **only** files carrying repo-specific facts — the same facts in prose and in
+  machine-readable form. Porting to another repo means rewriting these two
+  files, and nothing else.
 - The four hook scripts are portable in logic and read all repo-specific values
   from `ADAPTER.md` and `manifest.json`.
 
