@@ -13,6 +13,35 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
+- **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
+- **Symptom:** KI-39 hardened this script to reject candidates outside the right city's bounding box. That is a real bound, but "inside Tokyo" is a ~60km box, so a wrong *venue* within the right city still passes. Read off the overlay's own `canonicalName`, of the 12 stops where its output disagrees with the canonical coordinates, **six are simply the wrong place**:
+  ```
+  Hama-rikyū Gardens  -> "Tokyo, Chiyoda, Tokyo, Japan"          a city centroid, not a garden
+  Bread & Espresso    -> "Cawaii Bread & Coffee, Chūō, Tokyo"    a different café
+  Yoshida-ya          -> "Coffee Yoshida, Kyoto-shi"             a different venue
+  Onibus Coffee       -> "Onibus Coffee, Setagaya"               the wrong branch
+  Sushi Yoshitake     -> "Sushi Wasabi, Shinjuku"                a different restaurant, wrong ward
+  Torishiki           -> "MeGuro, Shinagawa"                     a locality, not the restaurant
+  ```
+  The other six are the right venue offset by 1.2–1.9km.
+- **What this cost while it was live:** the preview branch's reset route read this overlay directly, so a preview deployment rendered those six stops at coordinates for somewhere else, while local dev — which used `db-seed.ts`'s hand-authored values — rendered them correctly. Nobody had compared the two. **Closed as a data problem by ADR-030**: the canonical coordinates now live on the fixture rows, all 72 of them, and every caller gets the same ones.
+- **What is still open:** the script itself. Re-running it still produces these six wrong matches. It is a one-off offline tool needing a LocationIQ key, so it was not re-run or re-tuned as part of ADR-030.
+- **Why it is bounded now rather than fixed:** `packages/fixtures/src/japan/coordinateOverrides.ts` records all twelve disagreements with what the geocoder actually matched, and `verify.ts` fails on any *unlisted* disagreement. So the tool can no longer silently move a pin — a future run either agrees, or lands in that file with a reason next to it.
+- **Fix path:** a name-similarity floor between the query's `place` and the candidate's own name, rejecting "Cawaii Bread & Coffee" for "Bread & Espresso". The script already has a name-verification step (step 4 of its own method comment); it prefers a name-verified candidate but does not *require* one.
+- **Cross-reference:** KI-39 (resolved — the city-box bound this is the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), ADR-030.
+- **First noted:** 2026-08-28 (ADR-030, while checking the two seed copies against each other).
+
+### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database
+- **Severity:** cleanup (CI is unaffected — it runs against a fresh database every time; this bites local re-runs only)
+- **Area:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`, `apps/web/vitest.config.ts`
+- **Symptom:** the "clears only the caller's own trips" test creates a trip owned by an *outsider* and asserts the route left it alone: `expect(outsiderTrips).toEqual([outsiderTripId])`. The route correctly never deletes another user's trips — so that trip survives the run, and the next run's assertion sees two. Run the file four times against one database and it reports `expected [ …(4) ] to deeply equal [ Array(1) ]`.
+- **Reproduced, not inferred:** four consecutive local runs left four rows named `"Outsider's trip"` in `trip_summaries` (all `status = active`). Truncating and running the full integration suite once gives **201 passed, 20 files**.
+- **Why it isn't fixed here:** nothing in `vitest.config.ts` truncates between runs, so this is a suite-wide property rather than one test's bug — every `*.int.test.ts` that asserts on an absolute row count has the same exposure, and picking the mechanism (a global setup truncate, a per-file transaction rollback, or a unique-per-run actor id) is a decision about the whole integration lane. Filed rather than patched in an unrelated PR.
+- **Workaround:** `TRUNCATE events, trip_details, trip_summaries, pages, trip_invites, trip_memberships, users CASCADE;` before a local re-run, or `pnpm --filter web db:reset --yes`.
+- **First noted:** 2026-08-28 (ADR-030's verification — surfaced by adding a second `POST` to that file).
+
 ### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
 - **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
 - **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx` (the `min-h-5 leading-5` slot), `apps/web/src/lib/cost.ts` (`plannedOfBudgetLine`)
