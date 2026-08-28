@@ -56,11 +56,27 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   plannedTotalMinor: 908_500,
   currencies: ["USD"],
 
-  // Deliberately planted, not incidental. The Gora Kadan check-in at 16:40
-  // ("Check-in closes at 16:00 — this is the conflict the assistant flagged")
-  // is the one the demo narrative is built around; the rest are the same-day
-  // distance warnings a real six-city trip produces. If this number moves, a
-  // rule changed or the content did.
+  // TWO of these are wanted; TEN are a recorded defect, not a target.
+  //
+  // The two `time-overlap` warnings are the demo's own — "Nezu Museum" against
+  // "Lunch at Kagari", and "Kiyomizu-dera and Sannenzaka" against "Lunch at
+  // Omen Kodaiji". Realistic, one per city, exactly the "show me what a
+  // conflict looks like" the fixture is for.
+  //
+  // The ten `impossible-geography` warnings are ALL FALSE POSITIVES and all on
+  // the two travel days — 4 on day 7 (Odawara → Kyoto) and 6 on day 14 (Osaka
+  // → Tokyo). Every pair spans a relocation that the day's own shinkansen
+  // accounts for; `detectConflicts` compares same-day located pairs against a
+  // flat 150km and has no concept of a `transit` stop explaining a distance.
+  // The fixture is right and the rule is incomplete. Tracked as KI-60, which
+  // also carries the proposed rule; when that lands this number should drop to
+  // 0 and `conflictTotal` to 2.
+  //
+  // Recorded here rather than quietly accepted, because pinning an observed
+  // number as "expected" is how a defect becomes a baseline. (An earlier
+  // version of this comment claimed the Gora Kadan check-in was a planted
+  // conflict — it is not: that note is flavour text, and no rule detects
+  // "check-in closes at 16:00".)
   conflictsByKind: { "impossible-geography": 10, "time-overlap": 2 },
   conflictTotal: 12,
 };

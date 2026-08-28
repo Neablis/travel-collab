@@ -13,6 +13,29 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-60 — Every travel day produces false "impossible geography" conflicts, because the engine cannot see that a `transit` stop crosses the distance
+- **Severity:** correctness (product-visible noise: 10 of the Japan demo's 12 conflicts are false, and any real user's travel day gets the same treatment)
+- **Area:** `packages/domain/src/trip/conflicts.ts` (`detectConflicts`, `GEO_INFEASIBLE_KM`)
+- **Symptom:** `detectConflicts` compares **every pair** of located stops on a day against a flat 150km and flags anything further apart. It has no concept of a stop that *moves you*, so a day where the trip legitimately relocates between cities flags every before/after pair. On the Japan seed that is 10 conflicts across exactly two days:
+  ```
+  Day  7 (Odawara → Kyoto, 4 conflicts)
+    "Shinkansen Odawara → Kyoto"  vs  Lunch at Honke Owariya / Nijō Castle /
+                                      Check in at Nazuna Gosho / Dinner at Gion Nanba   ~310 km
+  Day 14 (Osaka → Tokyo, 6 conflicts)
+    "Breakfast at the hotel" (Zentis Osaka)  vs  Last lunch at Maisen /
+                                                 Transfer to Haneda / Flight home       ~400 km
+    "Shinkansen to Tokyo" (Shin-Osaka)       vs  the same three                          ~400 km
+  ```
+  In every one of those pairs the day's own shinkansen is scheduled *between* the two stops. The data is correct; the rule is incomplete.
+- **The other two conflicts are the wanted ones** — `time-overlap` on "Nezu Museum" vs "Lunch at Kagari" and "Kiyomizu-dera and Sannenzaka" vs "Lunch at Omen Kodaiji". So a demo that should show one or two conflicts shows twelve, and the two real ones are buried under ten false ones.
+- **Why the field to fix it already exists:** M18 added `ActivityKind: "transit"` precisely so a surface could tell that a stop *is* travel rather than a place you sit in. `conflicts.ts` predates it and does not read `kind` at all.
+- **Proposed rule (needs Mitchell's approval — this is a domain change and its own reviewed step):** order a day's located stops by start time; when testing a pair, skip it if a `transit` stop lies at or between their two positions. "A distance is only a problem if nothing on the day accounts for crossing it." Against the Japan seed this takes day 7 and day 14 to zero and leaves the two time overlaps — `conflictTotal: 12 -> 2`.
+  - Weaker variant considered and rejected as incomplete: *skip a pair if either stop is `transit`*. That clears day 7 (transit is an endpoint of all four pairs) but only 3 of day 14's 6 — it leaves "Breakfast at the hotel" vs the three Tokyo stops, which is the same false positive with the transit stop merely not being one of the endpoints.
+- **Blast radius to check when it lands:** the Day-columns conflict banners, the Calendar, `TripDetail.conflicts`, and `@tc/fixtures`'s `expectations.ts` baseline (which currently pins the defect at 10 with a comment saying so). KI-43 is the reason a pile of banners is worth avoiding.
+- **Cross-reference:** KI-59 (day 14's breakfast is tagged Tokyo while physically in Osaka — a *different* symptom of the same missing idea, that the domain has no model of a stop that moves between two places), KI-43 (conflict banners), M18 (`kind`), KI-2.
+- **Found by:** Mitchell, 2026-08-28, reviewing the reseeded demo trip — "I would expect one or two so the demo can see how they look but many many around distances being too far".
+- **First noted:** 2026-08-28 (PR #74).
+
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
