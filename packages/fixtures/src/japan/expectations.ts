@@ -56,29 +56,22 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   plannedTotalMinor: 908_500,
   currencies: ["USD"],
 
-  // TWO of these are wanted; TEN are a recorded defect, not a target.
+  // Two, and both are wanted: "Nezu Museum" against "Lunch at Kagari", and
+  // "Kiyomizu-dera and Sannenzaka" against "Lunch at Omen Kodaiji". Realistic,
+  // one per city, and exactly the "show me what a conflict looks like" the
+  // fixture exists to demonstrate.
   //
-  // The two `time-overlap` warnings are the demo's own — "Nezu Museum" against
-  // "Lunch at Kagari", and "Kiyomizu-dera and Sannenzaka" against "Lunch at
-  // Omen Kodaiji". Realistic, one per city, exactly the "show me what a
-  // conflict looks like" the fixture is for.
+  // This was 12 until KI-60. The other ten were `impossible-geography` and all
+  // FALSE — 4 on the Odawara -> Kyoto day and 6 on the Osaka -> Tokyo day,
+  // every pair spanning a relocation the day's own shinkansen accounts for.
+  // `detectConflicts` compared same-day located pairs against a flat 150km and
+  // never read `kind`; it now excuses a distance a `transit` stop crosses in
+  // time. The fixture never changed — the rule did.
   //
-  // The ten `impossible-geography` warnings are ALL FALSE POSITIVES and all on
-  // the two travel days — 4 on day 7 (Odawara → Kyoto) and 6 on day 14 (Osaka
-  // → Tokyo). Every pair spans a relocation that the day's own shinkansen
-  // accounts for; `detectConflicts` compares same-day located pairs against a
-  // flat 150km and has no concept of a `transit` stop explaining a distance.
-  // The fixture is right and the rule is incomplete. Tracked as KI-60, which
-  // also carries the proposed rule; when that lands this number should drop to
-  // 0 and `conflictTotal` to 2.
-  //
-  // Recorded here rather than quietly accepted, because pinning an observed
-  // number as "expected" is how a defect becomes a baseline. (An earlier
-  // version of this comment claimed the Gora Kadan check-in was a planted
-  // conflict — it is not: that note is flavour text, and no rule detects
-  // "check-in closes at 16:00".)
-  conflictsByKind: { "impossible-geography": 10, "time-overlap": 2 },
-  conflictTotal: 12,
+  // If this number climbs back toward twelve, suspect the rule before the
+  // content: a travel day flagging its own travel is the shape of that bug.
+  conflictsByKind: { "time-overlap": 2 },
+  conflictTotal: 2,
 };
 
 /**

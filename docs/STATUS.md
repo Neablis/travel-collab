@@ -5,6 +5,49 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## A travel day is no longer a mistake, 2026-08-28 — KI-60
+
+**The Japan demo went from 12 conflicts to 2, and the fixture never changed.**
+Mitchell reseeded and asked why a demo meant to show one or two conflicts showed
+many, "many many around distances being too far". All ten `impossible-geography`
+warnings were false, and all sat on the two days the trip relocates: 4 on the
+Odawara → Kyoto day, 6 on the Osaka → Tokyo day. In every pair the day's own
+shinkansen was scheduled **between** the two stops.
+
+`detectConflicts` compared every same-day located pair against a flat 150km and
+never read `kind`. M18 added `ActivityKind: "transit"` for exactly this
+reasoning; `conflicts.ts` predated it. The rule now excuses a distance a transit
+stop crosses **in time** — "a distance is only a problem if nothing on the day
+accounts for crossing it."
+
+Conservative on purpose, because a false negative hides a real problem while a
+false positive is only noise: **time order, not stored order** (`activityIds` is
+display order, reorderable without changing when anything happens); **an untimed
+stop is never excused**; **an untimed transit stop excuses nothing**. It does not
+check the transit stop goes to the right *place* — nothing models a from/to
+(KI-59), so "some travel is scheduled in this interval" is the strongest signal
+available.
+
+The weaker rule — *skip a pair if either stop is transit* — was rejected with
+evidence, not taste: it clears day 7 but only 3 of day 14's 6, leaving
+"Breakfast at the hotel" vs the three Tokyo stops.
+
+**The two that remain are the ones worth showing:** "Nezu Museum" vs "Lunch at
+Kagari", and "Kiyomizu-dera and Sannenzaka" vs "Lunch at Omen Kodaiji".
+
+**Two of my own claims this corrected**, both made without checking and both
+recorded in `expectations.ts`: that the Gora Kadan check-in was a *planted*
+conflict (it is flavour text; no rule detects "check-in closes at 16:00"), and
+that ten distance warnings were "what a real six-city trip produces". Pinning an
+observed number as expected is how a defect becomes a baseline — the comment now
+names the target and says to suspect the rule before the content.
+
+**Run:** full `pnpm check` (domain **153**, web 1054/1 skipped), `test:int`
+**201**, `pnpm seed:verify` OK at 2 conflicts, and a real browser walk after
+`db:reset` + `db:seed` — hero reads "2 open conflicts", Day-columns shows two
+dismissible banners where it stacked twelve. Regression block verified
+non-vacuous: removing the exclusion turns 5 of its 7 cases red.
+
 ## The Japan demo trip is one fixture now, 2026-08-28 — ADR-030
 
 **Three surfaces, one copy.** `@tc/fixtures` is a new workspace package owning
