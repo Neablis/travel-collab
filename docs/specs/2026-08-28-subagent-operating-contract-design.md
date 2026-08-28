@@ -42,7 +42,7 @@ The boundary is enforced by file placement, not by discipline:
   machine-readable form. Porting to another repo means rewriting these two
   files, and nothing else.
 - The four hook scripts are portable in logic and read all repo-specific values
-  from `ADAPTER.md` and `manifest.json`.
+  from `adapter.json` and `manifest.json`.
 
 **Design point:** the protocol targets a high-water mark of **2–4 concurrent
 units on one phase**. Resource *leasing* is deliberately simple (declared owner
