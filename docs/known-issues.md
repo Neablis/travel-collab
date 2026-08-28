@@ -13,6 +13,65 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-57 — Report-conformance may check the wrong unit's report when units run concurrently
+
+- **Severity:** unknown-until-observed (could make the hook inert exactly where the protocol is used)
+- **Area:** `scripts/hooks/subagent-report-conformance.mjs`
+- **Symptom:** the hook walks backwards through `transcript_path` for the last
+  assistant text block. If Claude Code records subagent sidechains into the
+  parent session's transcript, then with 2-4 concurrent units their entries
+  interleave, and the last text block at a given `SubagentStop` may belong to a
+  *different* unit — yielding a silent no-op (no `## Exit:` heading found) or a
+  conformance check against the wrong unit's report.
+- **Scope:** only bites with concurrent units. Every test uses a synthetic
+  single-agent transcript, and the real-transcript check that was run was
+  against a single-session file.
+- **Why not fixed here:** the transcript-path semantics for concurrent
+  subagents could not be established without a real multi-unit run, and
+  guessing at a fix would be worse than recording the question.
+- **How to settle it:** on the first real `/dispatch` run, dispatch two units,
+  let both finish, and confirm the hook engaged for each. If it did not, the
+  backstop is `/dispatch` step 4's "confirm `reports/<unit-id>.md` exists",
+  which is already the only thing catching a report that was never written.
+- **First noted:** 2026-08-28, final review of the subagent protocol branch.
+
+### KI-58 — Small subagent-protocol defects found in review and consciously left
+
+- **Severity:** cleanup
+- **Area:** `scripts/hooks/resource-lease.mjs`,
+  `scripts/hooks/subagent-report-conformance.mjs`,
+  `scripts/hooks/lib/run-context.mjs`,
+  `docs/specs/2026-08-28-subagent-operating-contract-design.md`,
+  `.claude/protocol/ADAPTER.md`
+- **What was left, and why each was judged safe:**
+  - `resource-lease.mjs` does not validate `entry.resource` / `entry.symptom`.
+    An adapter entry containing an object with non-callable `toString`/`valueOf`
+    would throw on coercion. Requires deliberately pathological JSON — a merely
+    missing field coerces to `"undefined"` harmlessly — and the portability
+    test now asserts `typeof entry.pattern === "string"`, which catches the
+    realistic shape at source.
+  - `subagent-report-conformance.mjs`: a catch comment overstates its trigger
+    (claims non-UTF8 content, which `readFileSync` does not throw on); a
+    redundant `raw ? … : []` branch; and with two `## Exit:` headings the first
+    governs. Worst case for the last is one wasted round trip.
+  - The `## Exit:` trigger will false-positive on a subagent that merely
+    *quotes* the protocol — plausible in this repo now. Bounded to one blocked
+    stop by the `stop_hook_active` guard. If it becomes annoying, require the
+    heading within the first few lines rather than anywhere in the message.
+  - The `mainCheckout` / `worktreeRoot` divergence comment sits above
+    `worktreeRoot` with no forward pointer from `mainCheckout`.
+  - The design spec's hook-1 description names neither the worktree-boundary
+    branch nor the run-directory allowance; `CONTRACT.md` and the code comments
+    both carry the behaviour.
+  - `ADAPTER.md` lists `ci-minutes` as an exclusive resource with no
+    `adapter.json` entry. Now marked as a human-observed policy rather than a
+    hook-enforced lease; no fake entry was invented for it.
+- **Why not fixed here:** each is cosmetic or needs an unrealistic input, and
+  the branch already ran two fix waves. Recorded rather than dropped because
+  the ledger holding them was deleted at teardown — which is exactly the
+  failure this protocol's promotion gate exists to prevent.
+- **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
+
 ### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
 - **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
 - **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx` (the `min-h-5 leading-5` slot), `apps/web/src/lib/cost.ts` (`plannedOfBudgetLine`)
