@@ -233,3 +233,27 @@ describe("inserting a saved day", () => {
     expect(result.ok === false && result.error.code).toBe("forbidden");
   });
 });
+
+// KI-53. `mode: "string"` columns echoed the write path's own ISO input and
+// rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
+// the same field had two shapes depending on which call you got it from.
+// `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
+// equal; asserting the ISO literal is what stops it silently coming back.
+describe("saved-day timestamps have one shape", () => {
+  it("returns the same createdAt from the write path and both read paths", async () => {
+    const { tripId, dayId } = await seedDay();
+    const saved = await saveDay(
+      { name: "Day one", dayId },
+      await detailFor(tripId),
+      OWNER,
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.value.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect((await listSavedDays(OWNER))[0]!.createdAt).toBe(saved.value.createdAt);
+    expect((await getSavedDay(saved.value.savedDayId, OWNER))!.createdAt).toBe(
+      saved.value.createdAt,
+    );
+  });
+});

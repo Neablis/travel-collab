@@ -21,6 +21,12 @@ import { stopsForDay } from "@/lib/savedStops";
 
 type SavedDayRow = typeof savedDays.$inferSelect;
 
+/**
+ * The one place a stored instant becomes a `SavedDay`'s string. The column is
+ * `mode: "date"` precisely so this conversion cannot be skipped on the write
+ * path: a row built in memory carries a `Date` exactly like a row read back
+ * does, so both paths render the same ISO-8601 string (KI-53).
+ */
 function toDto(row: SavedDayRow): SavedDay {
   return {
     savedDayId: row.id,
@@ -29,7 +35,7 @@ function toDto(row: SavedDayRow): SavedDay {
     stops: row.stops,
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
-    createdAt: row.createdAt,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -63,7 +69,7 @@ export async function saveDay(
     stops,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
-    createdAt: now,
+    createdAt: new Date(now),
   };
   await db.insert(savedDays).values(row);
   return { ok: true, value: toDto(row) };

@@ -140,10 +140,11 @@ export const tripInvites = pgTable(
     token: text("token").notNull(),
     status: text("status").notNull().default("pending"),
     invitedBy: text("invited_by").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+    // `mode: "date"`, not `"string"` — see the note above `savedDays` (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     acceptedBy: text("accepted_by"),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "string" }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
     uniqueIndex("trip_invites_token").on(t.token),
@@ -165,8 +166,9 @@ export const tripShares = pgTable(
     token: text("token").notNull(),
     seq: integer("seq").notNull(),
     createdBy: text("created_by").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
+    // `mode: "date"`, not `"string"` — see the note above `savedDays` (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
 );
@@ -179,6 +181,17 @@ export const tripShares = pgTable(
 // value, copied in and copied out whole, never queried into. `source_trip_name`
 // is a snapshot at save time, on the same terms as a trip's lineage (ADR-028) —
 // the credit has to survive the source being renamed or deleted.
+//
+// The Access-module timestamps (here, `trip_invites`, `trip_shares`) are
+// `mode: "date"` where the older tables are `mode: "string"`. `mode: "string"`
+// hands the write path back exactly the ISO string it was given while the read
+// path gets Postgres's own rendering ("2026-01-01 00:00:00+00"), so the same
+// field had two shapes depending on whether you had just written the row —
+// KI-53. `mode: "date"` makes the column a `Date` on both sides and each
+// module's `toDto` does the one `.toISOString()` at the DTO boundary, so the
+// shape is decided in one place instead of by which path you came in on. This
+// is a client-side mapping only: the column stays `timestamptz` and no
+// migration is involved.
 export const savedDays = pgTable(
   "saved_days",
   {
@@ -190,7 +203,7 @@ export const savedDays = pgTable(
     stops: jsonb("stops").$type<SavedStop[]>().notNull(),
     sourceTripId: uuid("source_trip_id").notNull(),
     sourceTripName: text("source_trip_name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [index("saved_days_owner").on(t.ownerId)],
 );
