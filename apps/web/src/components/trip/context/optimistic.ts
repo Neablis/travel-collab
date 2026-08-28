@@ -4,7 +4,17 @@ import { predictBatch } from "@tc/predict";
 export type PendingUnit = {
   id: string;
   commands: BatchableCommand[];
-  predictedDetail: TripDetail;
+  // The client's prediction of what this unit does, or `null` when the unit is
+  // queued but NOT currently predictable against the confirmed state (KI-42):
+  // `confirmHead` adopted an authoritative outcome the unit's commands no
+  // longer read cleanly against. `null` is a display fact only — the unit is
+  // still real, unsent work: it stays in `pending`, it is still counted by
+  // `unsentCount`, and the sender still sends it, so the server (not this
+  // client's guess) decides its fate. What `null` costs is the optimistic
+  // preview: an unpredictable unit contributes nothing to `activeDetail`,
+  // because the alternative is showing a prediction computed against a base
+  // the server has since replaced.
+  predictedDetail: TripDetail | null;
   description: string;
 };
 export type Confirmed = { detail: TripDetail; history: TripHistory };
@@ -35,9 +45,17 @@ export type CommandOutcome = { detail: TripDetail; history: TripHistory };
 // confirmed rather than requiring the field to be explicitly `false`.
 export type HistoryRow = HistoryEntry & { pending?: boolean };
 
+// The newest state anything should predict or render from: the last queued
+// unit that HAS a prediction, else confirmed. Scans backwards rather than
+// reading `pending[length - 1]` because the tail may be units retained without
+// a prediction (KI-42) — those carry no detail to show, so the last predicted
+// unit before them is still the truest picture of the trip.
 function baseDetail(state: OptimisticState): TripDetail {
-  const last = state.pending[state.pending.length - 1];
-  return last ? last.predictedDetail : state.confirmed.detail;
+  for (let i = state.pending.length - 1; i >= 0; i--) {
+    const predicted = state.pending[i]!.predictedDetail;
+    if (predicted) return predicted;
+  }
+  return state.confirmed.detail;
 }
 
 export function activeDetail(state: OptimisticState): TripDetail {
@@ -79,16 +97,44 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // The head send succeeded: adopt authoritative confirmed state, drop the head,
 // and re-predict the remaining pending units on the new base (their predicted
 // details may shift now that confirmed advanced).
+//
+// KI-42: a unit that no longer predicts cleanly against the new base is KEPT,
+// not dropped — and so is everything queued behind it. This function used to
+// `break` out of the loop on the first re-prediction failure, discarding that
+// unit and every later one, on the claim that the loss "will be reported via
+// failHead semantics at send time". It could not be: the units were removed
+// from `pending`, so they were never sent and `failHead` never saw them. Work
+// the user had already been shown as applied vanished on a *successful* save
+// with no alert, no count and no retry — the same silent-loss class as KI-5
+// and KI-36, on the one trigger neither covers.
+//
+// Retaining them makes that claim true rather than deleting it: the units stay
+// queued in order, the sender sends them, and the server decides. If it
+// refuses one, `failHead` records a real server message and lights the save
+// mark red with a retry. If it accepts (the client's local re-prediction can
+// be more conservative than the server's own decision), the work survives.
+// Either way nothing disappears without something saying so.
+//
+// Everything after the first unpredictable unit is retained unpredicted too,
+// even if it would predict cleanly on its own: these are ordered edits, and
+// predicting a later one against a base that skips an earlier one would show
+// the user a trip that no send is ever going to produce.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
   const rest = state.pending.slice(1);
   let acc: OptimisticState = { confirmed: outcome, pending: [] };
+  let predictable = true;
   for (const unit of rest) {
-    const r = enqueue(acc, unit.id, unit.commands);
-    if (r.ok) acc = r.state;
-    // If a queued unit no longer predicts cleanly against the new base, drop it
-    // (and, by breaking, everything after it) — it will be reported via failHead
-    // semantics at send time. Conservative: keep only cleanly-predictable units.
-    else break;
+    if (predictable) {
+      const r = enqueue(acc, unit.id, unit.commands);
+      if (r.ok) {
+        acc = r.state;
+        continue;
+      }
+      predictable = false;
+    }
+    // Retained with the description the user was already shown (there is no
+    // fresh prediction to describe it from) and no predicted detail.
+    acc = { ...acc, pending: [...acc.pending, { ...unit, predictedDetail: null }] };
   }
   return acc;
 }
