@@ -76,9 +76,12 @@ export function diffAgainstExpectations(
 ): string[] {
   const findings: string[] = [];
 
-  // Key order must not matter. `kinds` and `tags` are built in enum order by
-  // verify.ts and written by hand here; comparing raw JSON.stringify output
-  // made this diff fail on ordering alone, which is noise, not a finding.
+  /**
+   * JSON with object keys sorted, so key ORDER cannot register as a difference.
+   * `kinds` and `tags` are built in enum order by verify.ts and written by hand
+   * here; comparing raw `JSON.stringify` output made this diff fail on ordering
+   * alone, which is noise, not a finding.
+   */
   const canonical = (v: unknown): string =>
     JSON.stringify(v, (_k, value) =>
       value && typeof value === "object" && !Array.isArray(value)
@@ -86,6 +89,7 @@ export function diffAgainstExpectations(
         : value,
     );
 
+  /** Records a finding when one expected value does not match. */
   const scalar = (label: string, actual: unknown, want: unknown) => {
     if (canonical(actual) !== canonical(want)) {
       findings.push(`${label}: expected ${canonical(want)}, got ${canonical(actual)}`);

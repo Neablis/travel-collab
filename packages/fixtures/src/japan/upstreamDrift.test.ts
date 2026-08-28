@@ -113,6 +113,11 @@ describe("the canonical copy still matches the design handoff export", () => {
 
   it("accounts for every field the export carries, including ones the schema would strip", () => {
     const paths = new Set<string>();
+    /**
+     * Collects every field path in the export, normalising array indices to
+     * `[]` — so `days[3].stops[7].note` and `days[0].stops[0].note` are one
+     * path, and a field is reported once however deep or repeated it is.
+     */
     const walk = (value: unknown, prefix: string) => {
       if (Array.isArray(value)) {
         // EVERY element, not just the first. Sampling `value[0]` was defensible
@@ -144,8 +149,12 @@ describe("the canonical copy still matches the design handoff export", () => {
       "unscheduled[].area", "unscheduled[].status", "unscheduled[].note", "unscheduled[].who",
     ]);
 
-    // Exclusion is inherited: listing `trip.travelers` covers
-    // `trip.travelers[].name` without enumerating a shape we do not read.
+    /**
+     * Is this path, or any ancestor of it, on the not-carried list?
+     *
+     * Exclusion is inherited: listing `trip.travelers` covers
+     * `trip.travelers[].name` without enumerating a shape we do not read.
+     */
     const excluded = (path: string): boolean => {
       for (const p of NOT_CARRIED_FROM_UPSTREAM) {
         if (path === p || path.startsWith(`${p}.`) || path.startsWith(`${p}[`)) return true;
