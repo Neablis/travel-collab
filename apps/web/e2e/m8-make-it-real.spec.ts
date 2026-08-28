@@ -121,6 +121,20 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 
   // -- delete + undo, from the trip list --
   await page.goto("/");
+  // KI-28: the home page fans out one `GET /api/trips/:id` per visible card to
+  // fill in each card's cost line, and that line landing grows the target
+  // card's *own* row (~73px, measured 2026-08-24). The actions menu is
+  // anchored to that row, and Radix positions it with `strategy: "fixed"` and
+  // `shift({ limiter: limitShift() })` — so an open menu *follows* its anchor
+  // instead of repositioning, and a row that grows underneath it lands the
+  // Delete item either behind a neighbouring card (a hit-target interception)
+  // or off-screen entirely ("element is outside of the viewport"). Waiting for
+  // this card's own cost line settles the anchor before the gesture starts,
+  // the same way KI-21's pre-drag `scrollIntoViewIfNeeded` settled both ends
+  // of a drag rather than widening a timing budget. Either branch of
+  // `plannedOfBudgetLine` (lib/cost.ts) proves the fetch resolved.
+  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
+  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`trip actions for ${renamedTripName}`, "i") }).click();
   await page.getByRole("menuitem", { name: /delete/i }).click();
   await page.getByRole("button", { name: /^delete$/i }).click();
