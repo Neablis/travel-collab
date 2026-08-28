@@ -11,9 +11,9 @@ describe("devLoginIdentity", () => {
     expect(devLoginIdentity("alice")).toEqual({
       id: "dev-alice",
       name: "alice",
-      email: "neablis121+alice@gmail.com",
+      email: "dev+alice@example.com",
     });
-    expect(devLoginIdentity("bob")!.email).toBe("neablis121+bob@gmail.com");
+    expect(devLoginIdentity("bob")!.email).toBe("dev+bob@example.com");
   });
 
   it("keeps the id shape `actor_id` has always carried", () => {
@@ -85,8 +85,8 @@ describe("devLoginIdentity", () => {
   });
 
   it("accepts the punctuation a username legitimately carries", () => {
-    expect(devLoginIdentity("alice-2")!.email).toBe("neablis121+alice-2@gmail.com");
-    expect(devLoginIdentity("alice_2")!.email).toBe("neablis121+alice_2@gmail.com");
+    expect(devLoginIdentity("alice-2")!.email).toBe("dev+alice-2@example.com");
+    expect(devLoginIdentity("alice_2")!.email).toBe("dev+alice_2@example.com");
     expect(devLoginIdentity("a".repeat(32))).not.toBeNull();
   });
 });
@@ -106,7 +106,74 @@ describe("dev login is case-insensitive in the identity, not just the address", 
     expect(identity).toEqual({
       id: "dev-alice",
       name: "alice",
-      email: "neablis121+alice@gmail.com",
+      email: "dev+alice@example.com",
     });
+  });
+});
+
+// The provider registration itself, not just the identity it mints. Until
+// this existed, nothing anywhere asserted that a password-less credentials
+// provider is ABSENT when it should be — the gate was one env var, one
+// mis-scoped Vercel variable away from production accepting credential-less
+// sign-in as any existing `dev-*` member (project review M1, PR #71 §7).
+describe("the dev-login provider's registration gate", () => {
+  // Keyed on `type`, not on our `id`. Auth.js's `Credentials()` factory
+  // returns a defaults object (`id: "credentials"`) that stashes the config
+  // we passed under `options` and merges it only during `NextAuth()`
+  // initialization — so the `id: "dev-login"` we set is not visible on the
+  // static config, and asserting on it would be asserting on an Auth.js
+  // internal. `type` is also the stronger claim: what must be absent from a
+  // production deployment is ANY password-less credentials provider, not
+  // specifically the one named dev-login.
+  async function credentialsProviderRegistered(env: Record<string, string | undefined>): Promise<boolean> {
+    const saved = { AUTH_DEV_LOGIN: process.env.AUTH_DEV_LOGIN, VERCEL_ENV: process.env.VERCEL_ENV };
+    try {
+      for (const [key, value] of Object.entries(env)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      vi.resetModules();
+      const { authConfig } = await import("./authConfig");
+      return authConfig.providers.some((p) => typeof p === "object" && p !== null && p.type === "credentials");
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      vi.resetModules();
+    }
+  }
+
+  it("registers nothing when the opt-in is unset", async () => {
+    expect(await credentialsProviderRegistered({ AUTH_DEV_LOGIN: undefined, VERCEL_ENV: undefined })).toBe(false);
+  });
+
+  it("registers nothing for any value other than the exact opt-in string", async () => {
+    for (const value of ["", "false", "1", "TRUE", "yes", " true "]) {
+      expect(
+        await credentialsProviderRegistered({ AUTH_DEV_LOGIN: value, VERCEL_ENV: undefined }),
+        `expected AUTH_DEV_LOGIN=${JSON.stringify(value)} not to register the provider`,
+      ).toBe(false);
+    }
+  });
+
+  // The clause the review asked for: VERCEL_ENV is set by Vercel, never by
+  // us, so this is the part an operator cannot get wrong by scoping
+  // AUTH_DEV_LOGIN to "All Environments".
+  it("registers nothing in production even with the opt-in on", async () => {
+    expect(await credentialsProviderRegistered({ AUTH_DEV_LOGIN: "true", VERCEL_ENV: "production" })).toBe(false);
+  });
+
+  it("registers the provider in local development, where VERCEL_ENV is unset", async () => {
+    expect(await credentialsProviderRegistered({ AUTH_DEV_LOGIN: "true", VERCEL_ENV: undefined })).toBe(true);
+  });
+
+  it("registers the provider in preview and in Vercel's own dev environment", async () => {
+    for (const env of ["preview", "development"]) {
+      expect(
+        await credentialsProviderRegistered({ AUTH_DEV_LOGIN: "true", VERCEL_ENV: env }),
+        `expected VERCEL_ENV=${env} to keep dev login available`,
+      ).toBe(true);
+    }
   });
 });

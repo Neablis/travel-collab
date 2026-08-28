@@ -2,6 +2,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
 import type { NextAuthConfig } from "next-auth";
+import { isDevLoginEnabled } from "@/lib/devLogin";
 
 // Edge-safe Auth.js configuration (ADR-024, superseding ADR-023). This is
 // deliberately just data: providers, callbacks, and the pages map — nothing
@@ -20,8 +21,9 @@ import type { NextAuthConfig } from "next-auth";
 // build an Auth.js instance from it.
 
 // Dev-login identities are built to resemble a real Google one as closely as a
-// password-less local provider can: a stable id, a display name, and a REAL,
-// deliverable email address.
+// password-less local provider can: a stable id, a display name, and an email
+// address that is well-formed and — once AUTH_DEV_EMAIL_BASE points at a real
+// inbox — actually deliverable.
 //
 // The email is the point. Google sign-in always yields one; dev login yielding
 // none meant every email-shaped feature was untestable end to end, and that
@@ -31,9 +33,17 @@ import type { NextAuthConfig } from "next-auth";
 //
 // Plus-addressing is what makes one inbox serve every dev user: `base+alice@`
 // and `base+bob@` are distinct addresses that both deliver to `base@`, so
-// invite mail can actually be received and read. Overridable by env so a
-// second developer is not stuck with the first one's inbox.
-const DEV_EMAIL_BASE = process.env.AUTH_DEV_EMAIL_BASE ?? "neablis121@gmail.com";
+// invite mail can actually be received and read. Set AUTH_DEV_EMAIL_BASE to
+// your own address to receive it.
+//
+// The fallback is the RFC 2606 reserved `example.com`, which is undeliverable
+// by design: it keeps every dev identity well-formed with the var unset (the
+// charset check below is the only thing that has to hold for sign-in to work),
+// while making it obvious that no mail is going anywhere until someone opts
+// in. It used to be a maintainer's personal address checked into the repo
+// (project review, PR #71 §7) — a default that silently sends invite mail to
+// one specific human on any deployment that forgets to set the var.
+const DEV_EMAIL_BASE = process.env.AUTH_DEV_EMAIL_BASE ?? "dev@example.com";
 
 // Letters, digits, `-` and `_` only. This is what makes the address above
 // well-formed rather than cosmetic: a username carrying whitespace or `@`
@@ -87,7 +97,11 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
   providers.push(Google);
 }
 
-if (process.env.AUTH_DEV_LOGIN === "true") {
+// Gate shared with the sign-in/sign-up pages rather than repeated here: the
+// username box and the provider backing it must never disagree. See
+// `lib/devLogin.ts` for why the gate needs a VERCEL_ENV clause on top of the
+// opt-in (project review M1).
+if (isDevLoginEnabled()) {
   providers.push(
     Credentials({
       id: "dev-login",
