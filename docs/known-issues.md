@@ -52,26 +52,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   2026-08-09 (Task 19) — the `text-danger-ink` bullet stays open by
   deliberate re-defer; everything else above is fixed or closed by restyle.
 
-### KI-54 — `activitiesEqual` ignores `city` and `countryCode`, so a change to either is invisible to diff/revert/undo
-- **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)
-- **Area:** `packages/domain/src/trip/equality.ts`
-- **Symptom:** `activitiesEqual` compares `Location` **field by field**, and the list is hand-maintained:
-
-  ```ts
-  (a.location === null ||
-    (a.location.name === b.location!.name &&
-      a.location.lat === b.location!.lat &&
-      a.location.lng === b.location!.lng &&
-      a.location.area === b.location!.area))
-  ```
-
-  `city` and `countryCode` are not in it. `diffTripStates` is built on this predicate, so an activity whose *only* change is its city or its country code compares EQUAL — the diff emits no `ActivityUpdated`, and a revert or undo through that path silently keeps the old value while the UI has already shown the new one.
-- **Why it is not merely theoretical:** `city` is written by the geocoder on every place pick, and is what `cityFor()` (`DayChips.tsx`) uses to name a day and pick its accent. Re-geocoding a stop so that only its city component changes — the exact thing the `accept-language` change (`9c3fe15`) does to every Japanese location on re-geocode — is a change this predicate cannot see.
-- **How it surfaced:** found while adding `area` to the same comparison for KI-35 (2026-08-28). `area` was added because omitting it would have had precisely this consequence; the two fields one line over already had it.
-- **Why it was not fixed there:** widening the comparison changes revert/undo semantics for two fields nobody had asked about, inside a change that was scoped to adding a field. That is a behaviour change deserving its own diff and its own witness, not a rider.
-- **Fix path:** add `city` and `countryCode` to the comparison, then add a test per field that a single-field edit produces an `ActivityUpdated` in `diffTripStates` — mutation-proved by removing the field again. Consider replacing the hand-enumeration with a structural compare so the next field added to `Location` cannot repeat this; that is the root cause, and it has now bitten twice.
-- **First noted:** 2026-08-28 (KI-35 implementation).
-
 ### KI-5 — Optimistic commands can be silently lost on abrupt navigation before the send queue drains
 - **Severity:** correctness (data loss, no error surfaced)
 - **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` /
@@ -581,6 +561,18 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-54 — `activitiesEqual` ignored `city` and `countryCode`, so a change to either was invisible to diff/revert/undo — RESOLVED
+- **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)
+- **Area:** `packages/domain/src/trip/equality.ts`
+- **Symptom:** `activitiesEqual` compares `Location` **field by field**, and the list was hand-maintained: `name`, `lat`, `lng` (and, from KI-35, `area`). `city` and `countryCode` were never in it. `diffTripStates` is built on this predicate, so an activity whose *only* change was its city or country code compared EQUAL — the diff emitted no `ActivityUpdated`, and a revert or undo through that path silently kept the old value while the UI had already shown the new one.
+- **Not hypothetical:** `city` is written by the geocoder on every place pick and is what `cityFor()` uses to name a day and pick its accent. The `accept-language=en` change (`9c3fe15`) re-renders a Japanese location's `city` and nothing else — precisely the edit this predicate could not see.
+- **How it surfaced:** found while adding `area` to the same comparison for KI-35 (2026-08-28). `area` was added because omitting it would have had exactly this consequence; the two fields one line over already had it. Filed first, then **CodeRabbit independently flagged the same omission on PR #72 and rated it Major** — which is what changed the call from "file it" to "fix it here".
+- **Fix (2026-08-28, PR #72):** `city` and `countryCode` added to the comparison, which is now every persisted field of `Location`. The comment above it says so and tells the next person to extend it in the same commit as any contract change.
+- **Proof:** one test **per field** in `packages/domain/test/ki35-location-area.test.ts` (a single combined case would pass with only one of the two comparisons present — the very shape of this bug), each asserting both `tripStatesEqual` is false and that `diffTripStates` emits an `ActivityUpdated`; plus a replay test that a city-only diff, applied through `evolveTrip`, lands on the target state. Mutation-proved by removing each comparison in turn: dropping `city` fails 2 tests, `countryCode` 1, `area` 3.
+- **Root cause, still standing:** the hand-enumeration itself, which has now bitten twice. A structural compare would make it unrepeatable. Not done here — it is a change to how equality is *defined*, with a blast radius across undo/revert/diff, and it wants its own diff.
+- **First noted:** 2026-08-28 (KI-35 implementation). **Resolved:** 2026-08-28 (PR #72).
+
 
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.

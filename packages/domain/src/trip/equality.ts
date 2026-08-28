@@ -43,12 +43,17 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     (a.location === null) === (b.location === null) &&
     // Location is compared field by field, so every field the contract grows
     // has to be added here or diff() silently treats a change to it as a
-    // no-op and revert/undo quietly keeps the old value. `area` is included
-    // for exactly that reason (KI-35).
+    // no-op and revert/undo quietly keeps the old value. `area` was added for
+    // exactly that reason (KI-35) — and `city` and `countryCode` were found
+    // missing in the same breath (KI-54, CodeRabbit on #72). This list is now
+    // every persisted field of Location; if you add one to the contract, add
+    // it here in the same commit.
     (a.location === null ||
       (a.location.name === b.location!.name &&
         a.location.lat === b.location!.lat &&
         a.location.lng === b.location!.lng &&
+        a.location.city === b.location!.city &&
+        a.location.countryCode === b.location!.countryCode &&
         a.location.area === b.location!.area)) &&
     sameAnchors(a.anchors, b.anchors) &&
     a.kind === b.kind &&
