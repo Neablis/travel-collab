@@ -525,6 +525,11 @@ describe("TripProvider retained-unit sender (KI-42)", () => {
     // Predicts cleanly against the head's prediction, which has d-a in it.
     fireEvent.click(screen.getByRole("button", { name: "add-activity" }));
     await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("2"));
+    // Pin that the second unit has NOT been sent yet. Without this, a sender
+    // that fired queued units concurrently would reach two calls without the
+    // retention ever happening, and the assertion below would pass for the
+    // wrong reason — the test would no longer be about KI-42 at all.
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
 
     // The head SUCCEEDS, but the authoritative outcome has no d-a — the state
     // the queued AddActivity predicted against is gone (a concurrent removal).

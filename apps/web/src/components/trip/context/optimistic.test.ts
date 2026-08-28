@@ -176,9 +176,15 @@ describe("optimistic state machine", () => {
       // Nothing is lost: the retained units are still queued, still counted.
       expect(added.state.pending.map((u) => u.id)).toEqual(["u2", "u3", "u4"]);
       expect(unsentCount(added.state)).toBe(3);
-      // But the rendered trip is authoritative + u4, with u2/u3 absent.
+      // But the rendered trip is authoritative + u4, with u2/u3 absent. Assert
+      // the day *identities*, not just the count: "renders d-c, omits d-d" adds
+      // one day too, so a count alone would stay green on the exact inversion
+      // this test exists to pin.
       const shown = activeDetail(added.state);
       expect(shown.days.length).toBe(authoritative().detail.days.length + 1);
+      const shownDayIds = shown.days.map((day) => day.dayId);
+      expect(shownDayIds).toContain("d-d");
+      expect(shownDayIds).not.toContain("d-c");
     });
 
     it("keeps the retained units visible as pending history rows", () => {
