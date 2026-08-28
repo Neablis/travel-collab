@@ -467,3 +467,83 @@ describe("TripProvider — a client-predicted rejection says so", () => {
     expect(screen.getByTestId("error").textContent).toBe("none");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KI-42: a unit `confirmHead` can no longer predict is RETAINED, and the whole
+// point of retaining it is that the sender still sends it — the server, not
+// this client's re-prediction, decides its fate.
+//
+// `optimistic.test.ts` can only show the retained unit is *eligible* to be
+// sent (queued, in order, with no `failure` gating the sender); it never
+// invokes the sender, so a sender regression would leave it green. This is
+// that claim enforced end to end, per CodeRabbit's review of PR #73 and
+// AGENTS.md's rule that an asserted invariant needs a test or it is a lie
+// with a timer on it (the KI-1 / KI-14 class — and the exact class KI-42
+// itself was, since the comment it replaced claimed a `failHead` report that
+// could never happen).
+// ---------------------------------------------------------------------------
+
+function RetainProbe() {
+  const { activeTrip, sync, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="unsent">{sync.unsent}</span>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-a" } as never)}>add-day</button>
+      <button
+        onClick={() =>
+          dispatch({
+            type: "AddActivity",
+            tripId: "x",
+            activityId: "act-1",
+            dayId: "d-a",
+            title: "Colosseum tour",
+          } as never)
+        }
+      >
+        add-activity
+      </button>
+    </div>
+  );
+}
+
+describe("TripProvider retained-unit sender (KI-42)", () => {
+  it("sends a unit confirmHead retained without a prediction", async () => {
+    // Head (AddDay d-a) is held in flight so the second edit queues behind it.
+    let settleFirst: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockImplementationOnce(() => new Promise((res) => { settleFirst = res; }));
+
+    render(
+      <TripProvider tripId="x">
+        <RetainProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+    // Predicts cleanly against the head's prediction, which has d-a in it.
+    fireEvent.click(screen.getByRole("button", { name: "add-activity" }));
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("2"));
+
+    // The head SUCCEEDS, but the authoritative outcome has no d-a — the state
+    // the queued AddActivity predicted against is gone (a concurrent removal).
+    // Before KI-42 this dropped the AddActivity silently and it was never sent.
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+    await act(async () => {
+      settleFirst({ ok: true, value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") } });
+    });
+
+    // The retained unit reaches the server: that is the claim, and this is the
+    // only place it is enforced.
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(2));
+    expect(sendTripCommandMock.mock.calls[1]![0]).toMatchObject({
+      type: "AddActivity",
+      activityId: "act-1",
+      dayId: "d-a",
+    });
+  });
+});

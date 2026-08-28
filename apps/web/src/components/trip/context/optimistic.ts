@@ -119,6 +119,17 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // even if it would predict cleanly on its own: these are ordered edits, and
 // predicting a later one against a base that skips an earlier one would show
 // the user a trip that no send is ever going to produce.
+//
+// Scope of that guarantee, precisely (KI-55, CodeRabbit on PR #73): it holds
+// for the units this function re-predicts. It does NOT extend to units the
+// user queues *afterwards* — `enqueue` predicts against `baseDetail`, which
+// skips the retained nulls, so a later edit does get a prediction computed
+// over a base missing them. That is deliberate rather than overlooked: the
+// user can only act on what is rendered, and what is rendered is already
+// `baseDetail`, so the new prediction is consistent with the screen they
+// clicked on. Blocking it instead would mean their next edit visibly does
+// nothing. Nothing is lost either way — every retained unit is still queued,
+// still counted, still sent in order. See KI-55 for the trade-off.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
   const rest = state.pending.slice(1);
   let acc: OptimisticState = { confirmed: outcome, pending: [] };

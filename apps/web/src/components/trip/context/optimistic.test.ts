@@ -140,11 +140,16 @@ describe("optimistic state machine", () => {
     });
 
     // The old comment's claim ("it will be reported via failHead semantics at
-    // send time") was false precisely because the units left `pending`. This
-    // is that claim enforced: the retained head is intact and the sender is
-    // not gated, so the send — and therefore the server's verdict, and
-    // therefore `failHead` — actually happens.
-    it("leaves the retained units in a state the sender will send", () => {
+    // send time") was false precisely because the units left `pending`.
+    //
+    // This reducer-level test can only show the retained head is ELIGIBLE to
+    // be sent — intact commands, in order, with no `failure` gating the
+    // sender. It never invokes TripProvider's sender, so on its own it would
+    // stay green through a sender regression, which is the same "asserted but
+    // unenforced" shape KI-42 was. The end-to-end claim — that the retained
+    // unit actually reaches the server — is enforced in
+    // `TripProvider.test.tsx`, "TripProvider retained-unit sender (KI-42)".
+    it("leaves the retained head eligible for the sender: intact and ungated", () => {
       const next = confirmHead(queued(), authoritative());
       expect(next.pending[0]!.commands).toEqual([
         { type: "AddActivity", tripId, activityId: "act-1", dayId: "d-a", title: "Colosseum tour" },
@@ -152,6 +157,28 @@ describe("optimistic state machine", () => {
       // TripProvider's sequential sender runs while pending is non-empty and
       // no failure is recorded. A successful send records none.
       expect(next.failure).toBeUndefined();
+    });
+
+    // KI-55, recorded rather than fixed. `enqueue` predicts a NEWLY queued
+    // unit against `baseDetail`, which skips the retained nulls — so the new
+    // prediction (and therefore `activeDetail`) omits work that IS still
+    // queued and WILL still be sent. This pins that behaviour so a change to
+    // it is a visible test change and not a silent one; it is not an
+    // endorsement. See docs/known-issues.md KI-55 for the trade-off.
+    it("predicts a newly queued unit over a base that skips the retained ones (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      expect(retained.pending.every((u) => u.predictedDetail === null)).toBe(true);
+
+      const added = enqueue(retained, "u4", [{ type: "AddDay", tripId, dayId: "d-d" }]);
+      expect(added.ok).toBe(true);
+      if (!added.ok) throw new Error("unreachable");
+
+      // Nothing is lost: the retained units are still queued, still counted.
+      expect(added.state.pending.map((u) => u.id)).toEqual(["u2", "u3", "u4"]);
+      expect(unsentCount(added.state)).toBe(3);
+      // But the rendered trip is authoritative + u4, with u2/u3 absent.
+      const shown = activeDetail(added.state);
+      expect(shown.days.length).toBe(authoritative().detail.days.length + 1);
     });
 
     it("keeps the retained units visible as pending history rows", () => {

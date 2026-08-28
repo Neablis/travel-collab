@@ -13,6 +13,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-55 — A unit queued after a KI-42 retention predicts over a base that skips the retained work
+- **Severity:** correctness-cosmetic (the optimistic *preview* can show a trip no send will produce; **no work is lost** — every retained unit is still queued, still counted by `unsentCount`, and still sent in order)
+- **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`enqueue`, `baseDetail`)
+- **Symptom:** after `confirmHead` retains units it can no longer predict (KI-42), those units carry `predictedDetail: null` and `baseDetail` scans past them to the last unit that *has* a prediction. `enqueue` predicts a newly queued unit against that base — so the new prediction, and therefore `activeDetail`, omits the retained work even though it is still queued and will still be sent. `confirmHead`'s own comment states the opposite guarantee ("predicting a later one against a base that skips an earlier one would show the user a trip that no send is ever going to produce"); that guarantee covers only the units `confirmHead` itself re-predicts, not ones enqueued afterwards.
+- **Found by:** CodeRabbit's review of PR #73 (the KI sweep that fixed KI-42), 2026-08-28. Verified against the code and **pinned by a characterization test** — `optimistic.test.ts`, "predicts a newly queued unit over a base that skips the retained ones (KI-55)" — so a change to this behavior is a visible test change rather than a silent one.
+- **Why it is recorded rather than fixed:** the recommended fix (make a null-prediction unit a barrier, so newly queued units are also retained unpredicted) has a real cost — the user's *next* edit would visibly do nothing on screen until the queue became predictable again. The current behavior is at least self-consistent: the user can only act on what is rendered, what is rendered is already `baseDetail`, so the new prediction matches the screen they clicked. Which trade-off is right is a product call about the optimistic layer, not a mechanical fix — the same class of decision `tripDetailFactory`'s `conflicts: []` was left as.
+- **A third option, if neither is wanted:** surface the retained-but-invisible units explicitly (the count is already in `sync.unsent`), so the preview's incompleteness is stated rather than inferred.
+- **How it is reached:** requires a concurrent write that invalidates a queued unit's prediction mid-flight, *and* the user making further edits before the queue drains. Rare in single-player; Invariant 6 makes it normal in Phase 2.
+- **Cross-reference:** KI-42 (resolved 2026-08-28 — this is the boundary of that fix's guarantee), KI-5 (navigation trigger, still open), KI-36 (failed-send trigger, resolved).
+- **First noted:** 2026-08-28 (CodeRabbit review of PR #73).
+
 ### KI-3 — Minor M5 re-skin cosmetic/cleanup notes
 - **Severity:** cosmetic / cleanup
 - **Area:** `apps/web/src` (various)
