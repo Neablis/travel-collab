@@ -13,6 +13,23 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
+- **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
+- **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx` (the `min-h-5 leading-5` slot), `apps/web/src/lib/cost.ts` (`plannedOfBudgetLine`)
+- **Symptom:** KI-28's fix reserves **one** `text-sm` line for the planned-of-budget line, so the card cannot change height when its `TripDetail` fetch resolves. That holds only while the string fits on one line. `plannedOfBudgetLine` produces `` `${formatMoney(total)} planned of ${formatMoney(budget)}` `` — for a large-figure currency (JPY especially) that is long, and in a narrow card it wraps.
+- **Measured (2026-08-28, production build, string `¥1,234,567 planned of ¥5,000,000` injected into the real rendered slot):**
+  ```
+  1440px slotW 523 | slot 20.2 -> 20.2 | card growth 0.0px
+   500px slotW 402 | slot 20.2 -> 20.2 | card growth 0.0px
+   375px slotW 277 | slot 20.2 -> 40.4 | card growth 20.2px
+   320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
+  ```
+  20px of growth is enough to move an open trip-actions menu off its target — KI-28's measurement showed 24px already lands a click aimed at "Delete" on "Duplicate".
+- **Why it is filed rather than fixed:** the only fix that makes the slot one line *forever* is `truncate` (or `whitespace-nowrap` + ellipsis), which hides digits of a money figure. That is a product-visible choice, not a mechanical one. Reserving two lines below `sm` instead would keep the number whole but leave permanent blank space on small screens. Which is right depends on what the narrow-width card is supposed to be — and per KI-46, below ~1100px there is no designed card yet.
+- **Found by:** CodeRabbit's review of PR #73 flagged "long budget text may expand cards on narrow screens" as a residual risk on KI-28's fix; the measurement above confirms it and bounds it.
+- **Cross-reference:** KI-28 (resolved 2026-08-28 — this is the residue outside its measured bound), KI-46 (below ~1100px is the desktop layout, not the designed mobile companion).
+- **First noted:** 2026-08-28 (KI sweep, PR #73 review).
+
 ### KI-55 — A unit queued after a KI-42 retention predicts over a base that skips the retained work
 - **Severity:** correctness-cosmetic (the optimistic *preview* can show a trip no send will produce; **no work is lost** — every retained unit is still queued, still counted by `unsentCount`, and still sent in order)
 - **Area:** `apps/web/src/components/trip/context/optimistic.ts` (`enqueue`, `baseDetail`)
@@ -675,7 +692,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Left in place on purpose:** the spec's 2026-08-28 wait for the target card's own cost line before opening its menu. It is no longer load-bearing, but it is still the right shape for a test (settle before the gesture) and removing it would be churn.
 - **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
 - **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
-- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stayed open for the product-side behaviour above, not for the flake. **Resolved:** 2026-08-28 (KI sweep) — the anchor drift itself is gone, and a deterministic regression test guards it.
+- **Bound of this fix, measured (2026-08-28, CodeRabbit's review of PR #73 raised it and the numbers below settle it):** the reserved slot is **one** `text-sm` line, so the guarantee holds only while the money string fits on one line. Measured by injecting a long string (`¥1,234,567 planned of ¥5,000,000`) into the real rendered slot at each width against a production build:
+  ```
+  1440px slotW 523 | slot 20.2 -> 20.2 | card growth 0.0px
+  1100px slotW 513 | slot 20.2 -> 20.2 | card growth 0.0px
+   500px slotW 402 | slot 20.2 -> 20.2 | card growth 0.0px
+   375px slotW 277 | slot 20.2 -> 40.4 | card growth 20.2px
+   320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
+  ```
+  So the drift is gone at every width from 500px up, including the e2e suite's 1280px and every desktop width. At **375px and below** a long enough figure wraps to a second line and the card grows 20px again — the same mechanism, reintroduced. Not fixed here because the only one-line-forever fix is truncating a money figure, which hides information and is a product-visible choice, and because `responsive.spec.ts` widths are inside the region KI-46 already records as undesigned. Filed as **KI-56**.
+- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stayed open for the product-side behaviour above, not for the flake. **Resolved:** 2026-08-28 (KI sweep) — the anchor drift is gone at 500px and up, and a deterministic regression test guards it; the narrow-width residue is KI-56.
 
 
 ### KI-54 — `activitiesEqual` ignored `city` and `countryCode`, so a change to either was invisible to diff/revert/undo — RESOLVED
