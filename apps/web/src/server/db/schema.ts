@@ -207,3 +207,22 @@ export const savedDays = pgTable(
   },
   (t) => [index("saved_days_owner").on(t.ownerId)],
 );
+
+// Vendor-spend rate limiting (security review 2026-08-28, H1/L4). Not part of
+// any module's domain data — it is infrastructure, disposable in the same sense
+// projections are: dropping every row costs one window of over-permissiveness
+// and nothing else.
+//
+// One row per bucket, not per bucket per window: `server/quota.ts` carries the
+// window forward in the same upsert that increments, so row count is bounded by
+// the number of actors and there is no expiry sweep. `bucket` is the primary
+// key for exactly that reason — the atomic `ON CONFLICT DO UPDATE ... RETURNING`
+// it enables is what makes the counter correct across concurrent serverless
+// instances, where an in-memory counter caps nothing.
+export const rateLimitCounters = pgTable("rate_limit_counters", {
+  // "<policy>:user:<userId>" or "<policy>:global" — see server/quota.ts.
+  bucket: text("bucket").primaryKey(),
+  // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
+  windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
+  hits: integer("hits").notNull(),
+});

@@ -40,6 +40,7 @@ import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
+import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
 import { selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { buildEnvelope, type AiSurface } from "@/server/ai/context";
@@ -62,8 +63,16 @@ const STATUS: Record<string, number> = {
   "concurrency-conflict": 409,
 };
 
+// Ceiling on a single prompt (security review 2026-08-28, H1). The prompt is
+// re-sent to the provider on EVERY step alongside the whole envelope, so its
+// cost is multiplied by MAX_STEPS — an unbounded prompt was an unbounded bill
+// on someone else's key. 4,000 characters is ~1k tokens: several paragraphs,
+// well past any real "plan me a week in Rome", and small enough that 32 steps
+// of it is not the dominant term next to the envelope itself.
+const MAX_PROMPT_CHARS = 4000;
+
 const AiRequest = z.object({
-  prompt: z.string().min(1),
+  prompt: z.string().min(1).max(MAX_PROMPT_CHARS, `prompt must be ${MAX_PROMPT_CHARS} characters or fewer`),
   surface: z.enum(["page", "board", "combined"]),
   pageContext: PageContext.optional(),
 });
@@ -84,6 +93,20 @@ const AiRequest = z.object({
 // for when the model insists on going one at a time. Page composition is still
 // a single compose_page call.
 const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 };
+
+// Operator override for the planning budget, e.g. AI_MAX_STEPS=8 (security
+// review 2026-08-28, H1: 32 round-trips is the per-request blast radius, and
+// until now nothing could turn it down without a deploy). It can only TIGHTEN:
+// `Math.min` against the compiled default means a misconfigured or hostile env
+// var can lower spend but never raise it, and anything that is not a positive
+// integer is ignored rather than treated as "no limit". The page surface is one
+// compose_page call and is not worth a knob.
+function maxStepsFor(surface: AiSurface): number {
+  const ceiling = MAX_STEPS[surface];
+  if (surface === "page") return ceiling;
+  const raw = Number(process.env.AI_MAX_STEPS);
+  return Number.isInteger(raw) && raw > 0 ? Math.min(ceiling, raw) : ceiling;
+}
 
 // Per-call retry ceiling passed to generateText (the AI SDK's own retry of
 // transient provider failures). Surfaced in the response `meta` so a caller
@@ -175,9 +198,22 @@ export async function handleAiRequest(
 
   const parsed = AiRequest.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "malformed request" }, { status: 400 });
+    // The size cap is the one rejection a legitimate caller can hit by
+    // accident (a pasted document), so it says which rule it broke instead of
+    // the generic envelope — and it is a clean 400 here rather than something
+    // the provider bills us for and then errors on.
+    const issue = parsed.error.issues.find((i) => i.path[0] === "prompt");
+    return Response.json({ error: issue?.message ?? "malformed request" }, { status: 400 });
   }
   const { prompt, surface, pageContext } = parsed.data;
+
+  // Charged AFTER validation (a malformed request costs the operator nothing,
+  // so it should not cost the user their allowance) and BEFORE model selection,
+  // which is the first thing on this path that can spend money. Applies in
+  // simulated mode too: the request still writes to the log and the limiter's
+  // job is to bound requests, not to guess which ones reached a provider.
+  const quota = await consumeQuota(aiQuotas(), userId);
+  if (!quota.allowed) return quotaRefusal(quota);
 
   // Injected model => that exact model is used and the flag is never consulted;
   // "simulated" is derived from whether the injected model IS simulatedModel's
@@ -245,7 +281,7 @@ export async function handleAiRequest(
         system,
         prompt,
         tools,
-        stopWhen: isStepCount(MAX_STEPS.page),
+        stopWhen: isStepCount(maxStepsFor("page")),
         maxRetries: AI_MAX_RETRIES,
       });
     } catch (err) {
@@ -289,7 +325,7 @@ export async function handleAiRequest(
       system,
       prompt,
       tools,
-      stopWhen: isStepCount(MAX_STEPS[surface]),
+      stopWhen: isStepCount(maxStepsFor(surface)),
       maxRetries: AI_MAX_RETRIES,
     });
   } catch (err) {

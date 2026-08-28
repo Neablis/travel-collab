@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MockLanguageModelV4 } from "ai/test";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
+import { rateLimitCounters } from "@/server/db/schema";
 import { validateComposedPage } from "@/server/ai/pageTools";
 import { getGeocoder } from "@/server/geocoding";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
@@ -144,9 +146,17 @@ function fakeGeocoder(responses: Record<string, GeocodeResult[] | Error>): Geoco
 // eventStore.int.test.ts's comment and docs/testing-baseline.md (Phase 2
 // Task 2.6). currentUserId still resets every test — that's mock auth state,
 // not DB state.
+//
+// `rate_limit_counters` is the one exception, and it has to be: it is keyed by
+// ACTOR, not by trip, so unlike every other row here it is state this file's
+// tests genuinely share. Twenty-odd requests as ACTOR_ID would otherwise walk
+// into the hourly ceiling partway through the file, and the failure would land
+// on whichever test happened to be ~30th that day. Nothing else is deleted, so
+// other int suites running against the same database are untouched.
 describe("POST /api/trips/:id/ai", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     currentUserId = ACTOR_ID;
+    await db.delete(rateLimitCounters);
   });
 
   it("401s when unauthenticated", async () => {
@@ -800,6 +810,123 @@ describe("POST /api/trips/:id/ai", () => {
         else process.env.AI_LIVE = priorLive;
         if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
       }
+    });
+  });
+  // Security review 2026-08-28, H1: the endpoint had no prompt cap and no rate
+  // limit, so any signed-in account could loop near-body-limit prompts through
+  // a 32-round-trip handler on the operator's gateway key.
+  describe("spend controls", () => {
+    // A model that fails the test if it is ever reached — a request refused by
+    // the cap or the limiter must cost nothing at the provider.
+    const modelThatMustNotRun = () =>
+      new MockLanguageModelV4({
+        doGenerate: async () => {
+          throw new Error("the model was called for a request that should have been refused");
+        },
+      });
+
+    it("rejects an over-long prompt with a 400 that names the rule, never reaching a model", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "x".repeat(4001), surface: "board" }),
+        tripId,
+        modelThatMustNotRun(),
+      );
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toBe("prompt must be 4000 characters or fewer");
+    });
+
+    it("accepts a prompt exactly at the cap", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "x".repeat(4000), surface: "board" }),
+        tripId,
+        modelWithToolCalls([]),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("does not refuse a normal single request", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "add a day", surface: "board" }),
+        tripId,
+        modelWithToolCalls([toolCall("add_day", {})]),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("refuses the request after the per-user ceiling with a 429, and never calls the model", async () => {
+      vi.stubEnv("AI_RATE_LIMIT_PER_USER_HOURLY", "2");
+      try {
+        const tripId = await seedTrip();
+        const ok = (prompt: string) =>
+          handleAiRequest(req(tripId, { prompt, surface: "board" }), tripId, modelWithToolCalls([]));
+        expect((await ok("one")).status).toBe(200);
+        expect((await ok("two")).status).toBe(200);
+
+        const refused = await handleAiRequest(
+          req(tripId, { prompt: "three", surface: "board" }),
+          tripId,
+          modelThatMustNotRun(),
+        );
+        expect(refused.status).toBe(429);
+        expect(Number(refused.headers.get("Retry-After"))).toBeGreaterThan(0);
+        const body = (await refused.json()) as { reason: string };
+        expect(body.reason).toBe("user");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    // The ceiling is a property of the actor, not of the deployment or the trip
+    // — one abusive account must not lock everyone else out (that is what the
+    // separate, much higher global ceiling is for).
+    it("meters each actor separately", async () => {
+      vi.stubEnv("AI_RATE_LIMIT_PER_USER_HOURLY", "1");
+      try {
+        const tripId = await seedTrip();
+        expect(
+          (await handleAiRequest(req(tripId, { prompt: "one", surface: "board" }), tripId, modelWithToolCalls([])))
+            .status,
+        ).toBe(200);
+        expect(
+          (await handleAiRequest(req(tripId, { prompt: "two", surface: "board" }), tripId, modelWithToolCalls([])))
+            .status,
+        ).toBe(429);
+
+        // A second member of the same trip, with their own untouched allowance.
+        currentUserId = OUTSIDER_ID;
+        const otherTrip = await executeTripCommand(
+          { type: "CreateTrip", tripId: randomUUID(), name: "Lisbon" },
+          OUTSIDER_ID,
+        );
+        expect(otherTrip.ok).toBe(true);
+        const otherTripId = otherTrip.ok ? otherTrip.detail.tripId : "";
+        expect(
+          (
+            await handleAiRequest(
+              req(otherTripId, { prompt: "one", surface: "board" }),
+              otherTripId,
+              modelWithToolCalls([]),
+            )
+          ).status,
+        ).toBe(200);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("charges nothing for a request rejected before validation passes", async () => {
+      const tripId = await seedTrip();
+      const res = await handleAiRequest(
+        req(tripId, { prompt: "", surface: "board" }),
+        tripId,
+        modelThatMustNotRun(),
+      );
+      expect(res.status).toBe(400);
+      expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
     });
   });
 });
