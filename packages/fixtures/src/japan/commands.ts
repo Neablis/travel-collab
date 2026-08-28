@@ -64,9 +64,9 @@ export function locationName(place: string, area: string, city: string): string 
  * tied to a day, so the export never assigned it one). ./trip.ts does give each
  * backlog item a city, so what actually gets stored uses `locationName` above —
  * a future geocoder run could pass that city and get a tight per-city box
- * instead of searching all six. Left alone for now: that script needs a vendor
- * key to run, so changing its query shape is not something this change can
- * verify.
+ * instead of searching all six. Left alone for now: changing that script's
+ * query shape means re-running ~70 live lookups and re-reviewing every result,
+ * which is its own piece of work (KI-58), not a rider on this one.
  */
 export function unscheduledLocationName(place: string, area: string): string {
   return `${place}, ${area}, Japan`;
