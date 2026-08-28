@@ -200,3 +200,90 @@ describe("ActivityEditorSheet", () => {
     expect(call?.[0].dayId).toBeUndefined();
   });
 });
+
+// KI-43's remaining half. The board-level ConflictBanner list was the only
+// place a distance conflict's words existed, and it filters dismissed ids out
+// — so dismissing one left a warning triangle on the card with no copy behind
+// it anywhere. Mitchell's call ("All conflicts should still show up in the ui
+// when editing the activity") puts that copy here, unfiltered, which is also
+// what makes overlapData's "a dismissal suppresses the badge for every kind"
+// a quieting rather than a loss.
+describe("ActivityEditorSheet conflicts", () => {
+  const OTHER_ACTIVITY_ID = "activity-3";
+  const DISTANCE_ID = `impossible-geography:${DAY_1}:${SCHEDULED_ACTIVITY_ID}:${OTHER_ACTIVITY_ID}`;
+  const DISTANCE_COPY =
+    '"Existing stop" (Tokyo) and "Far stop" (Kanazawa) are ~309 km apart on the same day.';
+  const UNRELATED_ID = `impossible-geography:${DAY_1}:${OTHER_ACTIVITY_ID}:activity-4`;
+  const UNRELATED_COPY = '"Far stop" (Kanazawa) and "Other stop" (Osaka) are ~91 km apart on the same day.';
+
+  function withConflicts(dismissedConflictIds: string[]) {
+    const base = fixture();
+    vi.mocked(fetchTripDetail).mockResolvedValue({
+      ok: true,
+      value: {
+        ...base,
+        conflicts: [
+          {
+            id: DISTANCE_ID,
+            kind: "impossible-geography",
+            severity: "warn",
+            subjects: [SCHEDULED_ACTIVITY_ID, OTHER_ACTIVITY_ID],
+            description: DISTANCE_COPY,
+            resolutions: [],
+          },
+          {
+            id: UNRELATED_ID,
+            kind: "impossible-geography",
+            severity: "warn",
+            subjects: [OTHER_ACTIVITY_ID, "activity-4"],
+            description: UNRELATED_COPY,
+            resolutions: [],
+          },
+        ],
+        dismissedConflictIds,
+      },
+    });
+  }
+
+  it("shows a live conflict naming the stop being edited, in the conflict's own words", async () => {
+    withConflicts([]);
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText(DISTANCE_COPY)).toBeTruthy();
+  });
+
+  it("still shows a dismissed conflict, marked as dismissed rather than hidden", async () => {
+    withConflicts([DISTANCE_ID]);
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    // The whole point: the board stops showing this one (its banner row is
+    // filtered, its triangle is now suppressed too) — the editor does not.
+    expect(await screen.findByText(DISTANCE_COPY)).toBeTruthy();
+    expect(screen.getByText("Dismissed")).toBeTruthy();
+  });
+
+  it("leaves an undismissed conflict unmarked", async () => {
+    withConflicts([]);
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    await screen.findByText(DISTANCE_COPY);
+    expect(screen.queryByText("Dismissed")).toBeNull();
+  });
+
+  it("shows only the conflicts that name this stop", async () => {
+    withConflicts([]);
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    await screen.findByText(DISTANCE_COPY);
+    expect(screen.queryByText(UNRELATED_COPY)).toBeNull();
+  });
+
+  it("shows nothing in create mode, where the stop has no id to be named by", async () => {
+    withConflicts([]);
+    renderEditorSheet({ mode: "create" });
+
+    expect(await screen.findByLabelText("What or where")).toBeTruthy();
+    expect(screen.queryByText(DISTANCE_COPY)).toBeNull();
+    expect(screen.queryByText(UNRELATED_COPY)).toBeNull();
+  });
+});

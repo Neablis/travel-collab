@@ -44,10 +44,17 @@ export function ConflictBanner({
   // Collapsing rather than truncating: every conflict is still here, still
   // dismissable, still a jump target — they are one click away instead of
   // pushing the surface they describe off screen. This is the summary half of
-  // KI-43's recorded fix path; the other half (moving each conflict's copy
-  // in-card, the way the handoff draws it) is still open, and matters because
-  // distance conflicts have no inline home yet — Timeline's OverlapWarning
-  // covers overlaps only, so deleting this list outright would lose the copy.
+  // KI-43's recorded fix path.
+  //
+  // The other half landed 2026-08-28, at the location Mitchell picked rather
+  // than the in-card one KI-43 guessed: the activity editor
+  // (`trip/editor/ActivityConflicts.tsx`) lists every conflict naming the stop
+  // being edited, dismissed ones included, in this same `c.description` copy.
+  // That is why this list can keep filtering dismissed ids — and why
+  // `overlapData.ts` can now suppress the card triangle for a dismissed
+  // conflict of *any* kind — without the words going anywhere. This list stays
+  // as the whole-trip view with the Dismiss and jump actions; the editor is
+  // the per-stop view that never filters.
   const summary = (
     <Banner
       variant="warning"
