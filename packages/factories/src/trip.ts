@@ -1,6 +1,6 @@
 import { Factory } from "fishery";
 import { rollupCosts } from "@tc/domain";
-import type { ActivityView, Location, Money, TripDetail, TripMember } from "@tc/contracts";
+import type { ActivityView, Location, Money, TimeWindow, TripDetail, TripMember } from "@tc/contracts";
 import { faker } from "./seed";
 import { uuidFrom } from "./ids";
 
@@ -42,17 +42,52 @@ export const locationFactory = Factory.define<Location>(() => ({
   ...faker.helpers.arrayElement(REAL_LOCATIONS),
 }));
 
-export const activityFactory = Factory.define<ActivityView>(({ sequence }) => ({
-  activityId: uuidFrom(sequence),
-  title: faker.helpers.arrayElement(REAL_ACTIVITY_TITLES),
-  timeWindow: { start: "09:00", end: "11:00" },
-  location: null,
-  notes: null,
-  anchors: [],
-  kind: "planned" as const,
-  tags: [],
-  cost: null,
-}));
+// Back-to-back one-hour windows walking the clock from 09:00, indexed by an
+// activity's position *within its day* — the projection-side twin of
+// `commands.ts`'s HOURLY_WINDOWS, and the same property both rely on:
+// `windowsOverlap` (packages/domain/src/trip/conflicts.ts) is strict
+// (`a.start < b.end && b.start < a.end`), so windows that merely touch at
+// 10:00 do NOT conflict. Every activity used to get the identical literal
+// 09:00-11:00 window, which made every `activitiesPerDay >= 2` fixture carry a
+// degenerate mutual time clash on every day and left `scenarios.overlappingDay`
+// indistinguishable from its siblings (KI-40).
+//
+// 23 distinct slots: every hour but 23:00, whose one-hour end would be the
+// invalid "24:00" (`TimeWindow`'s HHMM regex stops at 23:59). The ladder wraps
+// after that (index 14 lands at 00:00), so a single day carrying more than 23
+// activities repeats a window and clashes again. Nothing comes near it — the
+// widest fixture in the package is 12 activities per day (contract.test.ts) —
+// and `trip.test.ts` pins the no-overlap property over the counts that exist.
+const DAY_SLOT_COUNT = 23;
+const padHour = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
+export function hourlyWindow(indexWithinDay: number): TimeWindow {
+  const startHour = (9 + indexWithinDay) % DAY_SLOT_COUNT;
+  return { start: padHour(startHour), end: padHour(startHour + 1) };
+}
+
+type ActivityTransient = {
+  /**
+   * Position of this activity within its day. Selects its slot on the hourly
+   * ladder above; defaults to 0 (09:00-10:00) so a bare `activityFactory.build()`
+   * still reads like the first stop of a morning.
+   */
+  indexWithinDay: number;
+};
+
+export const activityFactory = Factory.define<ActivityView, ActivityTransient>(
+  ({ sequence, transientParams }) => ({
+    activityId: uuidFrom(sequence),
+    title: faker.helpers.arrayElement(REAL_ACTIVITY_TITLES),
+    timeWindow: hourlyWindow(transientParams.indexWithinDay ?? 0),
+    location: null,
+    notes: null,
+    anchors: [],
+    kind: "planned" as const,
+    tags: [],
+    cost: null,
+  }),
+);
 
 export const tripMemberFactory = Factory.define<TripMember>(() => ({
   userId: "dev-alice",
@@ -72,6 +107,12 @@ type TripTransient = {
   budget: Money | null;
   currency: string;
   startDate: string | null;
+  // Window for the i-th activity of each day, indexed by position within the
+  // day. A hole or a short array falls back to `hourlyWindow(i)`, so a caller
+  // states only the windows it actually cares about. This is the override
+  // surface `scenarios.overlappingDay` uses to state a real partial overlap,
+  // mirroring `commands.ts`'s `ScenarioSpec.timeWindows` on the command side.
+  timeWindows: readonly (TimeWindow | undefined)[];
 };
 
 // The single highest-value factory in this package: every TripDetail it
@@ -90,6 +131,7 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
       budget = null,
       currency = "USD",
       startDate = null,
+      timeWindows = [],
     } = transientParams;
 
     const days = Array.from({ length: dayCount }, (_, dayIndex) => {
@@ -115,20 +157,33 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
 
     const activities: Record<string, ActivityView> = {};
     for (const day of days) {
-      for (const activityId of day.activityIds) {
-        activities[activityId] = activityFactory.build({
-          activityId,
-          location: locationFor(),
-          cost: costed ? moneyFactory.build({ currency }) : null,
-        });
-      }
-    }
-    for (const activityId of backlog) {
-      activities[activityId] = activityFactory.build({
-        activityId,
-        cost: costed ? moneyFactory.build({ currency }) : null,
+      day.activityIds.forEach((activityId, i) => {
+        activities[activityId] = activityFactory.build(
+          {
+            activityId,
+            location: locationFor(),
+            cost: costed ? moneyFactory.build({ currency }) : null,
+            // Only an explicitly supplied window overrides the ladder; `undefined`
+            // would win over the factory default, so the fallback is stated here.
+            timeWindow: timeWindows[i] ?? hourlyWindow(i),
+          },
+          { transient: { indexWithinDay: i } },
+        );
       });
     }
+    // Backlog activities are on no day, so they can never clash with anything —
+    // they still walk the ladder so a rack fixture does not read as a stack of
+    // identical 09:00 stops.
+    backlog.forEach((activityId, i) => {
+      activities[activityId] = activityFactory.build(
+        {
+          activityId,
+          cost: costed ? moneyFactory.build({ currency }) : null,
+          timeWindow: hourlyWindow(i),
+        },
+        { transient: { indexWithinDay: i } },
+      );
+    });
 
     afterBuild((trip) => {
       const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(trip);

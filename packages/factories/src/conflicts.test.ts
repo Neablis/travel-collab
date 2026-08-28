@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { Conflict, TripCommand } from "@tc/contracts";
+import type { Conflict, TripCommand, TripDetail } from "@tc/contracts";
 import { decideTripCommand, detectConflicts, evolveTrip, hydrate, type TripState } from "@tc/domain";
 import { describe, expect, it } from "vitest";
 import { commandsFor } from "./commands";
 import { scenarios } from "./scenarios";
+import { tripDetailFactory } from "./trip";
 
 type ScenarioName = keyof typeof scenarios;
 const scenarioNames = Object.keys(scenarios) as ScenarioName[];
@@ -110,24 +111,68 @@ describe("every other scenario's command stream stays overlap-free", () => {
   });
 });
 
-// Characterization only — nothing on the projection side was changed, and this
-// records why. `tripDetailFactory` hardcodes `conflicts: []` (trip.ts) and
-// never calls the conflict engine, so `scenarios.overlappingDay().conflicts` is
-// empty no matter what the windows say. It is not that the windows fail to
-// clash: `activityFactory` gives EVERY activity the identical 09:00-11:00
-// window, and identical windows do satisfy `windowsOverlap` — hydrating the
-// same fixture and running the real engine finds the overlap immediately.
-// Whether the factory should populate `conflicts` is a design question about
-// what the factory is for; it is reported, not decided here.
-describe("scenarios.overlappingDay (projection twin) — characterization", () => {
-  it("carries no conflicts of its own, because the factory never runs the engine", () => {
-    expect(scenarios.overlappingDay().conflicts).toEqual([]);
+// The projection twin of the two suites above (KI-40). Same engine, same
+// property, different door in: `scenarios` builds a `TripDetail` directly
+// rather than replaying commands, so nothing but this file checks that the two
+// halves of the package agree about which fixtures clash.
+//
+// Before KI-40 they did not. `activityFactory` gave EVERY activity the
+// identical literal 09:00-11:00 window, and identical windows do satisfy
+// `windowsOverlap`, so hydrating `threeDayTrip` — the ORDINARY case — and
+// running the real engine reported three degenerate time-overlap conflicts,
+// `overBudgetTrip` two and `ungeocodedTrip` one. `overlappingDay` was
+// therefore not distinguished from its siblings at all. It is now the only
+// scenario that clashes.
+function buildScenario(name: ScenarioName): TripDetail {
+  return name === "mappedTrip" ? scenarios.mappedTrip(5) : scenarios[name]();
+}
+
+describe("the projection side clashes only where it says it does", () => {
+  it.each(otherScenarioNames)("scenarios.%s hydrates to no time-overlap conflict", (name) => {
+    expect(timeOverlaps(detectConflicts(hydrate(buildScenario(name))))).toEqual([]);
   });
 
-  it("does overlap once the same fixture is put through the real engine", () => {
+  it("scenarios.overlappingDay does overlap once put through the real engine", () => {
     const trip = scenarios.overlappingDay();
     const overlaps = timeOverlaps(detectConflicts(hydrate(trip)));
     expect(overlaps).toHaveLength(1);
     expect(overlaps[0]!.subjects).toEqual([...trip.days[0]!.activityIds].sort());
+  });
+
+  it("overlaps partially rather than identically, exactly as its command twin does", () => {
+    // The two twins state the same pair of windows in two places —
+    // `scenarios.ts` cannot import `commands.ts` (that would be a cycle), so
+    // this asserts they agree instead of sharing a constant. If either side is
+    // edited alone, this goes red.
+    const trip = scenarios.overlappingDay();
+    const projection = trip.days[0]!.activityIds.map((id) => trip.activities[id]!.timeWindow);
+    const state = stateFromCommands("overlappingDay", randomUUID());
+    const command = state.days[0]!.activityIds.map((id) => state.activities[id]!.timeWindow);
+
+    expect(projection).toEqual([
+      { start: "09:00", end: "10:00" },
+      { start: "09:30", end: "10:30" },
+    ]);
+    expect(projection).toEqual(command);
+    expect(projection[0]).not.toEqual(projection[1]);
+  });
+
+  it("stays overlap-free at the widest activity count the package builds", () => {
+    // contract.test.ts builds 12 activities on one day; the hourly ladder has
+    // 23 distinct slots, so this is well inside it. A regression to a shared
+    // (or a clamped) window shows up here first, and on every day at once.
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 3, activitiesPerDay: 12, unscheduledCount: 6 } });
+    const windows = trip.days.flatMap((d) => d.activityIds.map((id) => trip.activities[id]!.timeWindow));
+    expect(windows).toHaveLength(36);
+    expect(timeOverlaps(detectConflicts(hydrate(trip)))).toEqual([]);
+  });
+
+  it("still carries no conflicts of its own, because the factory never runs the engine", () => {
+    // Unchanged by KI-40 and deliberately so: `tripDetailFactory` hardcodes
+    // `conflicts: []` (trip.ts) and never calls the conflict engine, so
+    // `scenarios.overlappingDay().conflicts` is empty however the windows read.
+    // Whether the factory should populate `conflicts` is a design question
+    // about what the factory is for; it is recorded here, not decided.
+    expect(scenarios.overlappingDay().conflicts).toEqual([]);
   });
 });
