@@ -54,9 +54,25 @@
 //      a ranking bias (KI-15) — this script supplies the missing acceptance
 //      test itself, exactly what `GeocodeOptions.viewbox`'s own comment says
 //      the caller is responsible for.
-//   4. No candidate inside the box -> unresolved. No city-centroid fallback,
-//      no retry with a looser box, no unbounded query. A missing pin is
-//      reported and left missing; nothing here ever guesses one.
+//   4. Then a NAME-IDENTITY check on the candidates that survived step 3
+//      (`placeNameVerdict`, src/server/ai/geocodeNameMatch.ts — KI-39). The
+//      box only rejects a wrong-CITY match; it structurally cannot reject a
+//      wrong-VENUE match sitting inside the right city, and on the first run
+//      eleven of the 54 accepted results were exactly that ("Kegon Falls" ->
+//      Urami Falls, "Zentis Osaka" -> Hotels Inn Osaka KitaUmeda,
+//      "Shin-Osaka Station" -> Shinagawa Station, "Afuri" -> WITH HARAJUKU,
+//      …). Every distinctive token of the queried place — its own name minus
+//      category nouns ("Falls", "Station", "Hotel") and minus the geography
+//      already in the query — must appear in the candidate's own name.
+//      A candidate whose name comes back purely in local script (明治神宮 for
+//      "Meiji Jingū") has nothing romanised to compare and is reported as
+//      name-unverified rather than failed: see that module's header for why
+//      that is neither "match" nor "mismatch". A name-verified candidate is
+//      preferred over an unverified one even if the vendor ranked it lower.
+//   5. No candidate inside the box, or none whose name matches -> unresolved.
+//      No city-centroid fallback, no retry with a looser box, no unbounded
+//      query. A missing pin is reported and left missing; nothing here ever
+//      guesses one.
 //
 // `unscheduled[]` items (the trip's backlog) carry no city of their own
 // (see DROPPED_SEED_FIELDS / UnscheduledSeed in japanTripImporter.ts), so
@@ -68,7 +84,9 @@
 // the seed's 72 stops take this path, and each of the four place names
 // (Ghibli Museum, Kōenji, Nishiki Market, Kiyomizu-dera) is distinctive
 // enough in Japan that an unbounded top-5 search finding its real match is
-// not the same risk "HND Terminal 3" was — the box test still guards it.
+// not the same risk "HND Terminal 3" was — the box test still guards it, and
+// step 4's name check now guards it too (with only the area, not a city, as
+// the geography it must discount).
 //
 // Duplicate stops (the same place/area queried under the same city — e.g.
 // HND Terminal 3 appears on both Day 1 and Day 14, Gora Kadan twice on Day
@@ -81,6 +99,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts";
 import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
+import { placeNameVerdict, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
 import { mapRateLimited } from "../src/server/ai/rateLimit.ts";
 import { parseTripSeed, locationName, unscheduledLocationName } from "../src/lib/japanTripImporter.ts";
 
@@ -116,6 +135,8 @@ const MIN_INTERVAL_MS = 1000 / REQUESTS_PER_SECOND;
 interface Job {
   key: string;
   query: string;
+  place: string; // the venue alone — what the name-identity check must find
+  context: string[]; // area/city/country: real, but useless for telling two venues apart
   viewbox: BoundingBox | undefined; // biases the search; undefined = unbounded (unscheduled items only)
   acceptBoxes: readonly BoundingBox[]; // the hard bound this script itself enforces
   ids: string[];
@@ -127,12 +148,16 @@ interface Resolved {
   lat: number;
   lng: number;
   canonicalName: string;
+  // "not-comparable" = accepted on the box plus a local-script name nothing
+  // here can read. Reported at the end so a human pass knows which pins were
+  // never name-verified (KI-39).
+  nameVerdict: Exclude<NameVerdict, "mismatch">;
 }
 
 interface Unresolved {
   ids: string[];
   query: string;
-  reason: "no-candidate-in-box" | "lookup-failed";
+  reason: "no-candidate-in-box" | "name-mismatch" | "lookup-failed";
   detail?: string;
   // Every candidate LocationIQ actually returned, so "why did this miss"
   // is answerable from the report without re-running the script.
@@ -142,9 +167,7 @@ interface Unresolved {
 function addJob(
   jobs: Map<string, Job>,
   key: string,
-  query: string,
-  viewbox: BoundingBox | undefined,
-  acceptBoxes: readonly BoundingBox[],
+  job: Omit<Job, "key" | "ids">,
   id: string,
 ): void {
   const existing = jobs.get(key);
@@ -152,7 +175,7 @@ function addJob(
     existing.ids.push(id);
     return;
   }
-  jobs.set(key, { key, query, viewbox, acceptBoxes, ids: [id] });
+  jobs.set(key, { key, ...job, ids: [id] });
 }
 
 function buildJobs(seed: ReturnType<typeof parseTripSeed>): Job[] {
@@ -163,13 +186,15 @@ function buildJobs(seed: ReturnType<typeof parseTripSeed>): Job[] {
     if (!box) throw new Error(`no viewbox configured for city "${day.city}" (day ${day.index})`);
     for (const stop of day.stops) {
       const query = locationName(stop.place, stop.area, day.city);
-      addJob(jobs, `stop|${day.city}|${stop.place}|${stop.area}`, query, box, [box], stop.id);
+      const job = { query, place: stop.place, context: [stop.area, day.city, "Japan"], viewbox: box, acceptBoxes: [box] };
+      addJob(jobs, `stop|${day.city}|${stop.place}|${stop.area}`, job, stop.id);
     }
   }
 
   for (const item of seed.unscheduled) {
     const query = unscheduledLocationName(item.place, item.area);
-    addJob(jobs, `unscheduled|${item.place}|${item.area}`, query, undefined, ALL_CITY_BOXES, item.id);
+    const job = { query, place: item.place, context: [item.area, "Japan"], viewbox: undefined, acceptBoxes: ALL_CITY_BOXES };
+    addJob(jobs, `unscheduled|${item.place}|${item.area}`, job, item.id);
   }
 
   return [...jobs.values()];
@@ -188,16 +213,31 @@ async function resolveJob(
     return { ids: job.ids, query: job.query, reason: "lookup-failed", detail: String(err) };
   }
 
-  const match = candidates.find((c) => job.acceptBoxes.some((box) => withinBox(box, { lat: c.lat, lng: c.lng } satisfies LatLng)));
-  if (!match) {
-    return {
-      ids: job.ids,
-      query: job.query,
-      reason: "no-candidate-in-box",
-      candidates: candidates.map((c) => ({ lat: c.lat, lng: c.lng, canonicalName: c.canonicalName })),
-    };
+  const report = (c: { lat: number; lng: number; canonicalName: string }) => ({ lat: c.lat, lng: c.lng, canonicalName: c.canonicalName });
+
+  const inBox = candidates.filter((c) => job.acceptBoxes.some((box) => withinBox(box, { lat: c.lat, lng: c.lng } satisfies LatLng)));
+  if (inBox.length === 0) {
+    return { ids: job.ids, query: job.query, reason: "no-candidate-in-box", candidates: candidates.map(report) };
   }
-  return { ids: job.ids, query: job.query, lat: match.lat, lng: match.lng, canonicalName: match.canonicalName };
+
+  // Name identity, after the box (KI-39). A verified name beats the vendor's
+  // ranking: an unverifiable candidate is only taken when no candidate in the
+  // box actually matches the queried venue by name.
+  const judged = inBox.map((c) => ({ candidate: c, verdict: placeNameVerdict(job.place, c.canonicalName, job.context) }));
+  const verified = judged.find((j) => j.verdict === "match");
+  const match = verified ?? judged.find((j) => j.verdict === "not-comparable");
+  if (!match) {
+    return { ids: job.ids, query: job.query, reason: "name-mismatch", candidates: inBox.map(report) };
+  }
+  const nameVerdict: Exclude<NameVerdict, "mismatch"> = verified ? "match" : "not-comparable";
+  return {
+    ids: job.ids,
+    query: job.query,
+    lat: match.candidate.lat,
+    lng: match.candidate.lng,
+    canonicalName: match.candidate.canonicalName,
+    nameVerdict,
+  };
 }
 
 function isResolved(r: Resolved | Unresolved): r is Resolved {
@@ -221,6 +261,8 @@ async function main(): Promise<void> {
   const unresolved = results.filter((r): r is Unresolved => !isResolved(r));
   const failed = unresolved.filter((r) => r.reason === "lookup-failed");
   const noMatch = unresolved.filter((r) => r.reason === "no-candidate-in-box");
+  const nameMismatch = unresolved.filter((r) => r.reason === "name-mismatch");
+  const unverified = resolved.filter((r) => r.nameVerdict === "not-comparable");
 
   const coordinates: Record<string, { lat: number; lng: number; canonicalName: string }> = {};
   for (const r of resolved) {
@@ -242,13 +284,26 @@ async function main(): Promise<void> {
   writeFileSync(OUTPUT_PATH, `${JSON.stringify(overlay, null, 2)}\n`);
 
   console.log(`\nResolved ${resolvedStopCount}/${totalStops} stops (${resolved.length} unique lookups matched).`);
-  console.log(`Unresolved: ${unresolvedStopCount} stops (${noMatch.length} no candidate in box, ${failed.length} lookup failed).`);
+  console.log(`Unresolved: ${unresolvedStopCount} stops (${noMatch.length} no candidate in box, ${nameMismatch.length} in box but wrong venue, ${failed.length} lookup failed).`);
   if (noMatch.length > 0) {
     console.log("\nNo candidate in box:");
     for (const r of noMatch) {
       console.log(`  ${r.ids.join(", ")} — "${r.query}"`);
       for (const c of r.candidates ?? []) console.log(`      candidate: ${c.lat},${c.lng} ${c.canonicalName}`);
     }
+  }
+  if (nameMismatch.length > 0) {
+    console.log("\nIn the box but a different venue (name identity, KI-39):");
+    for (const r of nameMismatch) {
+      console.log(`  ${r.ids.join(", ")} — "${r.query}"`);
+      for (const c of r.candidates ?? []) console.log(`      rejected: ${c.lat},${c.lng} ${c.canonicalName}`);
+    }
+  }
+  // Not a failure — a to-verify list. These pins rest on the box plus a
+  // local-script name the check cannot read (see geocodeNameMatch.ts).
+  if (unverified.length > 0) {
+    console.log(`\nAccepted but name-unverified (${unverified.length} lookups — local-script name, box only):`);
+    for (const r of unverified) console.log(`  ${r.ids.join(", ")} — "${r.query}" -> ${r.canonicalName}`);
   }
   if (failed.length > 0) {
     console.log("\nLookup failed (rate limit or vendor error — rerun to retry):");
