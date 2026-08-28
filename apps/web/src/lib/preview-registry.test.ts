@@ -16,8 +16,10 @@ const isTest = (file: string) => /\.test\.tsx?$/.test(file);
 
 // Next.js app-router entry points are rendered by the framework, not imported
 // by another module, so "nothing imports it" does not make one dead.
+// `middleware` and `proxy` are both listed: Next 16 renamed the convention to
+// `proxy` (this repo uses `src/proxy.ts`) but still recognises `middleware`.
 const NEXT_ENTRY =
-  /(?:^|\/)(?:page|layout|template|loading|error|global-error|not-found|default|route|middleware|instrumentation|sitemap|robots|opengraph-image|icon|apple-icon)\.tsx?$/;
+  /(?:^|\/)(?:page|layout|template|loading|error|global-error|not-found|default|route|middleware|proxy|instrumentation|sitemap|robots|opengraph-image|icon|apple-icon)\.tsx?$/;
 
 // Resolve an import specifier (`@/…` alias or relative) to a file inside src/,
 // mirroring the tsconfig `@/*` → `src/*` path mapping. Bare package specifiers

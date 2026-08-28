@@ -166,7 +166,9 @@ describe("AccountMenuFromSession", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    // `/welcome`, not `/`: see AccountMenu.tsx's onSignOut comment — routing
+    // sign-out through `/` raced the session cookie being cleared.
+    expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
   });
 
   it("defaults demoResetEnabled to off, so no reset item appears without an explicit prop", async () => {

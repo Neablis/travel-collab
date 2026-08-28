@@ -8,9 +8,9 @@ import { recordSignIn } from "./users";
 //
 // The `signIn` callback is added here rather than in `authConfig` on purpose
 // (ADR-024, ADR-025): it writes to Postgres, and `authConfig` must stay
-// importable from the Edge runtime that `src/middleware.ts` builds its own
+// importable from the Edge runtime that `src/proxy.ts` builds its own
 // instance in. Composing it at this seam keeps the database out of that
-// instance entirely — middleware still reads the JWT and touches nothing.
+// instance entirely — the proxy still reads the JWT and touches nothing.
 // This is also the only place it can live and still run once per sign-in: the
 // `jwt` callback in `authConfig` runs on every session read, in both runtimes.
 export const { handlers, auth, signIn, signOut } = NextAuth({

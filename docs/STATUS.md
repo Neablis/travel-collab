@@ -249,7 +249,7 @@ file's 2026-08-26 reorder note and
 record. `TODO.md` has M15 ticked.
 
 What M15 shipped: the landing page at `/welcome` (with `/` redirecting to it
-server-side via `apps/web/src/middleware.ts`'s own Auth.js instance,
+server-side via `apps/web/src/proxy.ts`'s own Auth.js instance,
 ADR-024), custom sign-in/sign-up screens replacing NextAuth's default,
 designed states for sign-in failure/a denied Google grant/a network failure
 during trip creation, and Home's empty-state first-run moment via the

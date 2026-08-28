@@ -37,10 +37,11 @@ export default [
     // to `route.ts` files only (not the whole `.well-known/**` tree) so a
     // future non-route file placed under `.well-known` doesn't inherit the
     // exemption for free.
-    // `src/middleware.ts` is NOT in this list (ADR-024, superseding ADR-023):
-    // it now builds its own Auth.js instance from `@/lib/authConfig` instead
-    // of importing `@/server/auth`, so it no longer needs an exemption from
-    // this rule — it's held to the same standard as any other UI file.
+    // `src/proxy.ts` (named `src/middleware.ts` before the Next 16 rename) is
+    // NOT in this list (ADR-024, superseding ADR-023): it builds its own
+    // Auth.js instance from `@/lib/authConfig` instead of importing
+    // `@/server/auth`, so it needs no exemption from this rule — it's held to
+    // the same standard as any other UI file.
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/server/**", "src/app/api/**", "src/app/.well-known/**/route.ts"],
     rules: {
@@ -55,10 +56,14 @@ export default [
   {
     // THE AUTH-CONFIG WALL (ADR-024): `src/lib/authConfig.ts` holds the
     // edge-safe Auth.js provider/callback config so both `src/server/auth.ts`
-    // and `src/middleware.ts` can build their own instance from it (the
-    // split-config pattern) without middleware reaching into server
+    // and `src/proxy.ts` can build their own instance from it (the
+    // split-config pattern) without the proxy reaching into server
     // internals. That makes it importable by genuine UI too — closed here.
-    // Only `src/server/auth.ts` and `src/middleware.ts` may import it.
+    // Only `src/server/auth.ts` and `src/proxy.ts` may import it.
+    //
+    // `src/proxy.ts` is the Next 16 name for what was `src/middleware.ts`;
+    // this wall is keyed on the filename, so the rename had to be made here
+    // too or the file it exists to permit would be the one it rejected.
     //
     // `files` is `src/**/*.{ts,tsx}` — the whole tree, mirroring the wall
     // above — because a narrower glob (previously just `components/**` and
@@ -67,7 +72,7 @@ export default [
     // component could import that module, reaching the client bundle
     // transitively with the rule never firing. `ignores` explicitly exempts
     // the two allowed importers (`src/server/**` covers `auth.ts`;
-    // `src/middleware.ts` by name) plus `src/lib/authConfig.ts` itself.
+    // `src/proxy.ts` by name) plus `src/lib/authConfig.ts` itself.
     //
     // This block's `files` glob now fully overlaps the wall above's, and
     // ESLint flat config fully replaces a rule's config with the last
@@ -81,10 +86,10 @@ export default [
     // restriction on files the wall above deliberately exempts. Because
     // every file this block newly reaches (`lib/`, `mocks/`,
     // `test-support/`) was already covered by the wall above with the
-    // identical `domainAndServerWallPatterns`, and `src/middleware.ts` /
+    // identical `domainAndServerWallPatterns`, and `src/proxy.ts` /
     // `src/lib/authConfig.ts` are excluded from *this* block only (so the
     // wall above, which does not ignore them, still applies
-    // `domainAndServerWallPatterns` to both — middleware is held to the same
+    // `domainAndServerWallPatterns` to both — the proxy is held to the same
     // standard as any other UI file per ADR-024, and authConfig.ts gets the
     // same baseline check) — this widening changes only which files get the
     // new `@/lib/authConfig` restriction, not which files
@@ -92,7 +97,7 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     ignores: [
       "src/server/**",
-      "src/middleware.ts",
+      "src/proxy.ts",
       "src/lib/authConfig.ts",
       "src/app/api/**",
       "src/app/.well-known/**/route.ts",
@@ -106,7 +111,7 @@ export default [
             {
               group: ["@/lib/authConfig"],
               message:
-                "Only src/server/auth.ts and src/middleware.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
+                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
             },
           ],
         },
