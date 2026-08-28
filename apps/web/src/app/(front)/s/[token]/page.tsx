@@ -5,7 +5,7 @@ export const metadata = { title: "A shared trip — Caesura" };
 // Under `(front)`, not `(app)`: this is the one page in the product a person
 // with no account is meant to reach, so it draws the front door's chrome
 // rather than the signed-in shell. It is also deliberately absent from
-// `middleware.ts`'s matcher — matching it would bounce every recipient of a
+// `proxy.ts`'s matcher — matching it would bounce every recipient of a
 // share link to /signin, which is precisely the thing the link exists to
 // avoid.
 //

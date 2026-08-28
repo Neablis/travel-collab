@@ -214,7 +214,7 @@ export default function Home() {
     };
   }, [visibleTripIds]);
 
-  // M15 (ADR-023): `src/middleware.ts` now handles *arrival* — a signed-out
+  // M15 (ADR-023): `src/proxy.ts` now handles *arrival* — a signed-out
   // visitor hitting `/` is redirected to `/welcome` before this page ever
   // renders, so this branch no longer fires on first load. What it still
   // covers is *expiry-in-place*: a session that lapses while this page is

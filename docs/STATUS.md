@@ -50,6 +50,14 @@ and M15 (gate closed 2026-08-26, PR #56).
 `docs/milestones/README.md`. Re-scope it before scheduling it: M11 link 1
 already shipped the `users` table its file frames as the deliverable.
 
+**Next 16 and Vitest 4 landed 2026-08-28 (PR #77)**, closing the postcss and
+sharp advisories that a `next@15` pin was holding open. Two things every session
+needs from it: `src/middleware.ts` is now `src/proxy.ts` (Next 16's name; the
+ADR-024 lint wall and the preview-registry entry-point regex moved with it), and
+the node/jsdom test split is expressed as vitest `projects` — Vitest 4 removed
+`environmentMatchGlobs` entirely, and dropping the split rather than migrating
+it would have silently cost the whole Phase 0 saving with nothing red.
+
 **In flight on this branch (`claude/project-review-plan-xnsmw1`):** remediation
 of the two 2026-08-28 reviews, per `docs/plans/2026-08-28-review-remediation.md`.
 Landed so far — the revoke/accept race and invite-metadata leak, the rejected-

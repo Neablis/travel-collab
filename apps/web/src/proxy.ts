@@ -2,14 +2,22 @@ import { NextResponse } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/authConfig";
 
-// M15 (ADR-024, superseding ADR-023): middleware builds its own lightweight
+// This file was `src/middleware.ts` until the Next 16 upgrade, which
+// deprecated the `middleware` file convention in favour of `proxy` (the
+// build warns and points at `npx @next/codemod middleware-to-proxy`; that
+// codemod only rewrites a named `middleware` export, so this rename was done
+// by hand). Nothing about the behaviour below changes — same request seam,
+// same matcher semantics, same Edge runtime. Only the filename and the words
+// for it moved.
+//
+// M15 (ADR-024, superseding ADR-023): this builds its own lightweight
 // Auth.js instance from the shared edge-safe config in `@/lib/authConfig`,
 // rather than importing `@/server/auth`'s live singleton. This is Auth.js
-// v5's own documented split-config pattern for edge-compatible middleware —
-// middleware now depends on configuration (data), not on the server's auth
-// instance or any server internal, so it no longer needs a lint-wall
-// exemption. `authConfig` has no `@/server/*` imports and nothing Node-only,
-// so this instance is safe to construct in the Edge runtime.
+// v5's own documented split-config pattern for edge-compatible request
+// interception — it depends on configuration (data), not on the server's
+// auth instance or any server internal, so it needs no lint-wall exemption.
+// `authConfig` has no `@/server/*` imports and nothing Node-only, so this
+// instance is safe to construct in the Edge runtime.
 const { auth } = NextAuth(authConfig);
 
 // `/` sends a signed-out visitor to the landing page at
@@ -28,7 +36,7 @@ const { auth } = NextAuth(authConfig);
 // checks auth() independently and that is unchanged), but app chrome and
 // empty screens shown to strangers. Fixed here, not in the layout: the
 // layout is UI and can't call auth() (lint wall forbids importing
-// @/server/* outside src/app/api/**), and middleware already exists as the
+// @/server/* outside src/app/api/**), and this file already exists as the
 // right seam.
 //
 // `/` keeps its own distinct behaviour (redirect to `/welcome`, the
@@ -38,9 +46,8 @@ const { auth } = NextAuth(authConfig);
 // it. AuthScreen already honours `callbackUrl` via lib/safeCallbackUrl.ts,
 // so this composes with that existing path rather than inventing a new one.
 //
-// Exported directly as Auth.js v5's middleware wrapper (`auth((req) => ...)`)
-// rather than composed with other logic — there's nothing else this route
-// needs. `req.auth` is populated by the wrapper from the session JWT; no
+// Exported directly as Auth.js v5's wrapper (`auth((req) => ...)`) rather
+// than composed with other logic — there's nothing else this route needs. `req.auth` is populated by the wrapper from the session JWT; no
 // database read happens here (this project uses JWT sessions with no
 // adapter — see server/auth.ts), which is the configuration Auth.js v5's
 // docs call out as the one that works reliably in the Edge runtime.
@@ -59,7 +66,7 @@ export default auth((req) => {
 // An explicit matcher list, not a catch-all negative-lookahead: a broad
 // `"/((?!api|_next).*)"` pattern risks guarding API routes, static assets,
 // and the front-door routes (`/welcome`, `/signin`, `/signup`) themselves,
-// none of which should ever hit this middleware. An explicit list matches
+// none of which should ever hit this file. An explicit list matches
 // exactly the `(app)` route group instead:
 //   - `/`                 — Home (apps/web/src/app/(app)/page.tsx)
 //   - `/playbooks/:path*` — matches `/playbooks` itself *and* any nested

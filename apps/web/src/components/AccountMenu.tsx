@@ -257,7 +257,20 @@ function AccountMenuFor({
     <AccountMenu
       name={user.name ?? user.email ?? "Account"}
       email={user.email ?? ""}
-      onSignOut={() => void signOut({ callbackUrl: "/" })}
+      // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
+      // `signOut` POSTs to /api/auth/signout (whose response clears the session
+      // cookie) and then sets `window.location.href`. Pointed at `/`, the
+      // landing depends on `src/proxy.ts` bouncing a signed-out visitor on to
+      // `/welcome` — but if the navigation is issued before the browser has
+      // committed that Set-Cookie, the `/` request still carries a valid
+      // session, the proxy passes it through, and the user is left on a
+      // signed-out-but-still-rendering-Home page. Measured on Next 16:
+      // `GET /` came back 200 instead of 307 in 4 of 16 runs of
+      // e2e/m15-front-door.spec.ts (0 of 16 on Next 15, which is why this
+      // surfaced with that upgrade and not before). `/welcome` is public, so
+      // going straight there is correct whether or not the cookie has landed
+      // yet — and it is where `/` was going to send them anyway.
+      onSignOut={() => void signOut({ callbackUrl: "/welcome" })}
       demoResetEnabled={demoResetEnabled}
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />

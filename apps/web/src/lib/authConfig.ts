@@ -7,17 +7,17 @@ import { isDevLoginEnabled } from "@/lib/devLogin";
 // Edge-safe Auth.js configuration (ADR-024, superseding ADR-023). This is
 // deliberately just data: providers, callbacks, and the pages map — nothing
 // here reaches into `@/server/*` or anything Node-only, so it is safe to
-// import from the Edge runtime `apps/web/src/middleware.ts` runs in as well
+// import from the Edge runtime `apps/web/src/proxy.ts` runs in as well
 // as from `apps/web/src/server/auth.ts`. This is Auth.js v5's own documented
-// split-config shape for edge-compatible middleware: a shared config object,
+// split-config shape for edge-compatible request interception: a shared config object,
 // with each consumer building its own `NextAuth(authConfig)` instance rather
-// than middleware importing the server's live singleton.
+// than the proxy importing the server's live singleton.
 //
 // Moving this out of `src/server/auth.ts` makes it importable by genuine UI
 // too, which is the one real cost of this restructure — closed by a
 // `no-restricted-imports` rule in `apps/web/eslint.config.mjs` that forbids
 // `@/lib/authConfig` from `src/components/**` and `src/app/**` (excluding
-// `src/app/api/**`). Only `src/server/auth.ts` and `src/middleware.ts` may
+// `src/app/api/**`). Only `src/server/auth.ts` and `src/proxy.ts` may
 // build an Auth.js instance from it.
 
 // Dev-login identities are built to resemble a real Google one as closely as a
