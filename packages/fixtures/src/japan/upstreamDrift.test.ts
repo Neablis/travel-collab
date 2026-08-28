@@ -115,8 +115,13 @@ describe("the canonical copy still matches the design handoff export", () => {
     const paths = new Set<string>();
     const walk = (value: unknown, prefix: string) => {
       if (Array.isArray(value)) {
-        // One representative element: the schema guarantees the array is homogeneous.
-        if (value.length > 0) walk(value[0], `${prefix}[]`);
+        // EVERY element, not just the first. Sampling `value[0]` was defensible
+        // while this walked the parsed seed — zod had already forced every
+        // element to one shape. Walking the raw export, nothing has: a re-sync
+        // that adds a field to stop 37 alone would be invisible. 72 stops is
+        // not a cost worth optimising against that. (CodeRabbit, PR #74 —
+        // a follow-on from its own parsed-vs-raw finding.)
+        for (const element of value) walk(element, `${prefix}[]`);
         return;
       }
       if (value === null || typeof value !== "object") return;
