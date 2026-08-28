@@ -109,11 +109,24 @@ describe("KI-54 — every persisted Location field is part of equality", () => {
     expect(diffTripStates(current, target).map((e) => e.type)).toEqual(["ActivityUpdated"]);
   });
 
-  it("a countryCode-only change is not equal, and diffs", () => {
+  // Carries the payload and replay assertions the city case gets from its own
+  // test below (CodeRabbit, #71). "An ActivityUpdated exists" is the weakest
+  // possible claim here: it passes if the event omits the changed field, and it
+  // passes if `evolveTrip` drops it on the way back in. Both are exactly the
+  // failure this describes, so both are asserted.
+  it("a countryCode-only change is not equal, diffs, carries the new value, and replays", () => {
     const current = withLocation({ countryCode: "JP" });
     const target = withLocation({ countryCode: "FR" });
     expect(tripStatesEqual(current, target)).toBe(false);
-    expect(diffTripStates(current, target).map((e) => e.type)).toEqual(["ActivityUpdated"]);
+
+    const events = diffTripStates(current, target);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe("ActivityUpdated");
+    if (events[0]!.type !== "ActivityUpdated") throw new Error("wrong type");
+    expect(events[0]!.payload.location?.countryCode).toBe("FR");
+
+    const replayed = events.reduce<TripState | null>((st, e) => evolveTrip(st, e), current);
+    expect(replayed).toEqual(target);
   });
 
   it("replaying a city-only diff lands on the target", () => {
