@@ -13,6 +13,23 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-61 — The landing page's "look around a real trip" always dead-ends, because nothing ever creates the share it points at
+- **Severity:** correctness (product gap — the front door's most prominent secondary CTA lands on an empty state on every environment, including a freshly seeded local one)
+- **Area:** `apps/web/scripts/db-seed.ts`, `apps/web/src/app/api/dev/reset-demo-data/route.ts`, `.env.example`, `apps/web/src/server/access/shares.ts` (`readFeaturedShare`)
+- **Symptom:** `/welcome`'s "Look around a real trip" and "See a finished one" both link to `/s/featured`. That reserved token resolves through `readFeaturedShare`, which reads `DEMO_SHARE_TOKEN`; unset, it returns `not-found` and `SharedTripScreen` renders **"Nothing to see here / No trip is published here yet."** So the CTA advertises a read-only tour of a real trip and delivers an empty state.
+- **Not a defect in the share machinery.** `/s/:token` works: the ShareButton mints a token, the link replays the log at the pinned seq, and `readShare` is fine. The empty state is the *designed* behaviour for "unset" — ADR-027 chose it deliberately over falling back to "the newest share on the instance", which would publish a real user's private trip on the front page the moment they clicked Share.
+- **Three gaps compounding, measured 2026-08-28:**
+  1. `DEMO_SHARE_TOKEN` is **not in `.env.example`** (`grep -c` → 0), so no local dev or fresh worktree has ever had it set.
+  2. **The seed creates no share at all** (`grep -c 'createShare\|/shares' db-seed.ts` → 0). Even a developer who wanted to set the var has no token to set it to without publishing a trip by hand through the UI and copying the token out.
+  3. `createShare` mints a random token, so any token obtained that way **dies at the next `db:reseed`** — the trip it pins no longer exists.
+- **ADR-027 predicted exactly this** and it was never filed here, so it has been invisible to `/ki-sweep` and to anyone reading this file: *"The known weak point: with `DEMO_SHARE_TOKEN` unset — CI, a fresh local database, and any deploy where nobody set it — the landing page's most prominent secondary CTA lands on that empty state... it depends on a deploy step no test can enforce."*
+- **CI enshrines the broken case:** `e2e/m11-share.spec.ts`'s "the landing page's peek CTAs" asserts the empty state is reached, so the suite is green precisely because nothing is configured. That is a reasonable assertion for the unset branch and a bad one to be the only coverage.
+- **Fix path (needs a decision — see below):** give `@tc/fixtures` a fixed demo share token, have both seeders publish the Japan trip under it, and ship `DEMO_SHARE_TOKEN` in `.env.example` so a `pnpm setup` + `db:reseed` front door works out of the box; set the same value once on Vercel Preview/Production.
+- **The decision it needs, and why it is not mechanical:** that token would be **committed to the repo and publicly guessable**. For the seeded demo trip that is the intent — it is meant to be world-readable. But it means adding a token-override path to `createShare`, which is the one place share secrecy is decided, and that path must be impossible to reach for a real user's share. Whether to take that, versus generating a random token at seed time and printing it for a human to paste into env (honest, but leaves preview broken until someone does it), is Mitchell's call.
+- **Found by:** Mitchell, 2026-08-28 — "why the homepage preview (see a planned trip) of this trip using the seed data to power it shows Nothing to see here".
+- **Cross-reference:** ADR-027 (the reserved token and the deliberate empty state), M12 Community (owns real discovery and would replace this env var entirely), KI-50 (the other "preview needs a deploy step nobody did" entry).
+- **First noted:** 2026-08-28 (PR #74).
+
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
