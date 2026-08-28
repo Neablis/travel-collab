@@ -17,7 +17,14 @@ const JSDOM_TS_FILES = [
 
 // Never a unit test in either project: integration specs have their own
 // config, and node_modules is never ours.
-const ALWAYS_EXCLUDE = ["src/**/*.int.test.ts", "node_modules/**"];
+//
+// The brace matters. This was `src/**/*.int.test.ts` (inherited from the
+// pre-`projects` config), which does not match `.int.test.tsx` — while the
+// jsdom project's `src/**/*.test.tsx` include does. There are no
+// `.int.test.tsx` files today, so nothing was ever miscollected, but the
+// trap was real: the first one written would have been dragged into the
+// unit run instead of the integration one. Flagged by CodeRabbit on PR #77.
+const ALWAYS_EXCLUDE = ["src/**/*.int.test.{ts,tsx}", "node_modules/**"];
 
 // Projects are separate Vite configs — they do not inherit the root's
 // `plugins`/`resolve`, so both of these are shared explicitly rather than
