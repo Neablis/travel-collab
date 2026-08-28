@@ -145,22 +145,37 @@ export type RemoveActivity = z.infer<typeof RemoveActivity>;
 
 // ---- Events (payloads use explicit null — they are stored as jsonb forever) ----
 
+// The activity field set as an event payload carries it: explicit null instead
+// of omission, and a `.default()` on every field added after v1 shipped so a
+// payload written before that field existed still parses off jsonb.
+//
+// ActivityAdded and ActivityUpdated both `.extend()` this rather than listing
+// it twice (they were verbatim copies until 2026-08-28). The duplication was a
+// live hazard, not just noise: a `.default()` added to one payload and missed
+// on the other corrupts replay for *updated* activities only, and nothing would
+// surface it until someone replayed an old log. `.extend()` after the ids keeps
+// the shape's key order — and therefore the serialised payload — unchanged.
+const ActivityPayloadFields = {
+  title: z.string().min(1).max(200),
+  timeWindow: TimeWindow.nullable(),
+  location: Location.nullable(),
+  notes: z.string().max(2000).nullable(),
+  anchors: z.array(Anchor).default([]),
+  kind: ActivityKind.default("planned"),
+  tags: z.array(ActivityTag).default([]),
+  cost: Money.nullable().default(null),
+};
+
 export const ActivityAddedV1 = z.object({
   type: z.literal("ActivityAdded"),
   version: z.literal(1),
-  payload: z.object({
-    tripId: z.string().uuid(),
-    activityId: z.string().uuid(),
-    dayId: z.string().uuid().nullable(),
-    title: z.string().min(1).max(200),
-    timeWindow: TimeWindow.nullable(),
-    location: Location.nullable(),
-    notes: z.string().max(2000).nullable(),
-    anchors: z.array(Anchor).default([]),
-    kind: ActivityKind.default("planned"),
-    tags: z.array(ActivityTag).default([]),
-    cost: Money.nullable().default(null),
-  }),
+  payload: z
+    .object({
+      tripId: z.string().uuid(),
+      activityId: z.string().uuid(),
+      dayId: z.string().uuid().nullable(),
+    })
+    .extend(ActivityPayloadFields),
 });
 export type ActivityAddedV1 = z.infer<typeof ActivityAddedV1>;
 
@@ -168,18 +183,12 @@ export type ActivityAddedV1 = z.infer<typeof ActivityAddedV1>;
 export const ActivityUpdatedV1 = z.object({
   type: z.literal("ActivityUpdated"),
   version: z.literal(1),
-  payload: z.object({
-    tripId: z.string().uuid(),
-    activityId: z.string().uuid(),
-    title: z.string().min(1).max(200),
-    timeWindow: TimeWindow.nullable(),
-    location: Location.nullable(),
-    notes: z.string().max(2000).nullable(),
-    anchors: z.array(Anchor).default([]),
-    kind: ActivityKind.default("planned"),
-    tags: z.array(ActivityTag).default([]),
-    cost: Money.nullable().default(null),
-  }),
+  payload: z
+    .object({
+      tripId: z.string().uuid(),
+      activityId: z.string().uuid(),
+    })
+    .extend(ActivityPayloadFields),
 });
 export type ActivityUpdatedV1 = z.infer<typeof ActivityUpdatedV1>;
 

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Preview } from "@/components/ui/preview";
 import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
+import { toMinutes } from "@/lib/time";
 
 const TRIP_OPTIONS = [
   { value: "japan", label: "Japan: Tokyo → Kyoto → Osaka · Oct 2026" },
@@ -18,11 +19,10 @@ const TRIP_OPTIONS = [
 
 const DAY_OPTIONS = Array.from({ length: 7 }, (_, i) => ({ value: String(i + 1), label: `Day ${i + 1}` }));
 
-function toMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
+// Deliberately NOT lib/time.ts's toTimeString, which clamps to DAY_END_MIN:
+// the reflow below shifts every stop by one delta, so a late Playbook pushed
+// past midnight must wrap to the next day's clock ("23:00" + 2h → "01:00")
+// rather than pile every overflowing stop onto 23:59.
 function fromMinutes(total: number): string {
   const normalized = ((total % 1440) + 1440) % 1440;
   const h = Math.floor(normalized / 60);
