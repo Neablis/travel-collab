@@ -141,16 +141,25 @@ describe("calendarCityCards", () => {
   // still forbidden, and `cityFor`/`shortPlace` still never fall back to name.
   it("folds an unlocated stop into the day's last city rather than opening a nameless group", () => {
     const { day, activities } = dayOf([
-      stop("a", "Rome", { start: "09:00", end: "11:00" }),
-      stop("b", "Rome", { start: "11:30", end: "12:30" }),
-      stop("c", null, { start: "17:00", end: "17:30" }),
+      stop("a", "Rome", { start: "09:00", end: "11:00" }, 1000),
+      stop("b", "Rome", { start: "11:30", end: "12:30" }, 500),
+      // Priced on purpose: `costMinor` is the third thing folding is supposed
+      // to carry, and asserting only count and window would leave that claim
+      // enforced by a comment alone (CodeRabbit, #71). 1750 vs 1500 is what
+      // separates "folded" from "counted but its money dropped".
+      stop("c", null, { start: "17:00", end: "17:30" }, 250),
     ]);
 
     const cards = calendarCityCards(day, activities);
     expect(cards).toHaveLength(1);
-    // Rome carries all three: the stop happened on this day, so its count and
-    // its time belong in the day's numbers rather than in a ghost group.
-    expect(cards[0]).toMatchObject({ city: "Rome", stops: 3, window: { start: "09:00", end: "17:30" } });
+    // Rome carries all three: the stop happened on this day, so its count, its
+    // cost and its time belong in the day's numbers rather than a ghost group.
+    expect(cards[0]).toMatchObject({
+      city: "Rome",
+      stops: 3,
+      costMinor: 1750,
+      window: { start: "09:00", end: "17:30" },
+    });
   });
 
   it("folds unlocated stops on both sides of a city into that city, not into groups of their own", () => {
