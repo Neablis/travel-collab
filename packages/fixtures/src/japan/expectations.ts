@@ -128,6 +128,7 @@ export function diffAgainstExpectations(
     ["days whose stops are stored out of chronological order", report.daysOutOfChronologicalOrder],
     ['notes still carrying a folded "(status)"', report.notesWithFoldedStatus],
     ["activities with no coordinates", report.activitiesWithoutCoordinates],
+    ['days that would render "N stops have no place yet" in the Map lens', report.daysWithUnlocatedStops],
     ["canonical coordinates disagreeing with the geocode overlay", report.coordinateDisagreements],
     ["COORDINATE_OVERRIDES entries that no longer explain anything", report.staleOverrides],
   ];

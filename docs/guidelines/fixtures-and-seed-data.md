@@ -83,8 +83,33 @@ clock — and compares the result to `expectations.ts`:
 - the 12 conflicts `detectConflicts` finds, by kind
 - and these findings lists, each of which must be empty: commands the domain
   rejected, empty days, days stored out of chronological order, notes still
-  carrying a folded `(status)`, activities with no coordinates, and coordinates
-  disagreeing with the geocode overlay without a recorded reason
+  carrying a folded `(status)`, activities with no coordinates, **days that
+  would render "N stops have no place yet"**, and coordinates disagreeing with
+  the geocode overlay without a recorded reason
+
+### Assert the rendered property, not a proxy for it
+
+The last two of those are the same fact counted two ways, and keeping both is
+the point.
+
+`withCoordinates: 72` is a count of *activities*. What a person actually sees on
+the Map lens is a per-*day* flag: `mapRailData.ts` builds `locatedStops` from
+`day.activityIds`, requiring both `lat` and `lng`, and any day with a shortfall
+renders "N stops have no place yet". Those two statements agree right now, and
+nothing makes them agree. A trip can hold 72 coordinates and still flag ten days
+if the missing ones happen to be the scheduled ones — which is precisely the
+state the preview branch was in before ADR-030: 21 unlocated stops across 10 of
+14 days, while every local check said the data was fine.
+
+So when you add a check, ask what the reader of the screen would notice, and
+assert *that*. A count is a proxy; a proxy is a thing that can be right while
+the product is wrong.
+
+Two smaller versions of the same trap, both real and both caught late on
+PR #74: `withCoordinates` counted `lat` alone, so a fixture that lost every
+`lng` would have reported full coverage while the lens flagged ten days; and
+the coordinate check compared against the geocode overlay as though the overlay
+were authoritative, when six of its entries point at the wrong venue.
 
 ## The geocode overlay is a proposal, not a source
 

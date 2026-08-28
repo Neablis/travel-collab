@@ -62,6 +62,7 @@ export type JapanTripReport = {
   daysOutOfChronologicalOrder: number[];
   notesWithFoldedStatus: string[];
   activitiesWithoutCoordinates: string[];
+  daysWithUnlocatedStops: string[];
   coordinateDisagreements: string[];
   staleOverrides: string[];
 };
@@ -146,8 +147,36 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
 
   const emptyDays: number[] = [];
   const daysOutOfChronologicalOrder: number[] = [];
+
+  // The rendered property, not a proxy for it.
+  //
+  // `withCoordinates` above counts activities; what a reader of the Map lens
+  // actually sees is a per-DAY flag. apps/web's mapRailData.ts builds
+  // `locatedStops` from `day.activityIds`, requiring both lat and lng, and any
+  // day with a shortfall renders "N stops have no place yet". A trip can hold
+  // 72 coordinates and still flag ten of fourteen days if the missing ones
+  // happen to be scheduled — which is exactly the state the preview branch was
+  // in before ADR-030 (21 unlocated stops across 10 days).
+  //
+  // This mirrors that rule rather than importing it: mapRailData.ts is UI, and
+  // apps/web imports this package, not the reverse (AGENTS.md's dependency
+  // rules). The two must agree; if `locatedStops` ever changes what "located"
+  // means, this is the other half to change with it.
+  const daysWithUnlocatedStops: string[] = [];
+
   state.days.forEach((day, i) => {
     if (day.activityIds.length === 0) emptyDays.push(i + 1);
+
+    const unlocated = day.activityIds.filter((id) => {
+      const location = state.activities[id]?.location;
+      return location?.lat === undefined || location?.lng === undefined;
+    });
+    if (unlocated.length > 0) {
+      const titles = unlocated.map((id) => state.activities[id]?.title ?? id).join(", ");
+      daysWithUnlocatedStops.push(
+        `Day ${i + 1} would render "${unlocated.length === 1 ? "1 stop has" : `${unlocated.length} stops have`} no place yet" (${titles})`,
+      );
+    }
     const starts = day.activityIds.map((id) => state.activities[id]?.timeWindow?.start ?? "");
     // Rendered verbatim by the Day-columns lens and the calendar cells, so a
     // day stored out of order reads 9pm-first on screen (design audit A1).
@@ -225,6 +254,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     daysOutOfChronologicalOrder,
     notesWithFoldedStatus,
     activitiesWithoutCoordinates,
+    daysWithUnlocatedStops,
     coordinateDisagreements,
     staleOverrides,
   };
