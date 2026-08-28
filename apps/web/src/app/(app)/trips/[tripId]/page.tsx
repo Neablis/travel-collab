@@ -5,6 +5,15 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 
+// "Trip plan — Caesura" via the layout's title template. Deliberately not a
+// per-trip generateMetadata: the lint wall keeps `@/server/*` out of page
+// files, this route is auth-gated so an unfurl scraper never reaches it
+// (middleware 307s it to /signin, whose generateMetadata carries the
+// shared-trip card — see that file), and a private trip's name shouldn't be
+// in anonymous <head> output anyway. Real per-trip OpenGraph belongs to
+// M11's share links, where read access becomes deliberate.
+export const metadata = { title: "Trip plan" };
+
 export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   // Task L1: non-full lenses (Board and Schedule — Itinerary/Daily/Trip were
