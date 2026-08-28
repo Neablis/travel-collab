@@ -4,6 +4,16 @@
 **Deciders:** Mitchell (product/eng), Claude (implementer), following CodeRabbit review on PR #56
 **Supersedes:** ADR-023 (`src/middleware.ts` joins the lint wall's exempt shell)
 Related: ADR-002 (server/UI boundary), ADR-019 (§ lint wall widened for `.well-known`)
+
+> **Later note (2026-08-28, Next 16 upgrade).** The file this ADR calls
+> `src/middleware.ts` is now **`src/proxy.ts`**. Next 16 deprecated the
+> `middleware` file convention in favour of `proxy`; the rename is purely
+> nominal and the boundary this ADR describes is unchanged — same split
+> config, same Edge-safe `@/lib/authConfig` instance, same matcher. The
+> `eslint.config.mjs` auth-config wall is keyed on the filename and was
+> renamed with it, so the rule still names exactly the two permitted
+> importers (`src/server/auth.ts` and `src/proxy.ts`). Nothing below is
+> superseded; only the filename moved.
 Milestone: `docs/milestones/M15-front-door.md`
 
 ## Context

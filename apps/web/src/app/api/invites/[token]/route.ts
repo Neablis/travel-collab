@@ -5,7 +5,7 @@ import { previewInvite } from "@/server/access/invites";
 const STATUS: Record<string, number> = { "not-found": 404, gone: 410, forbidden: 403, invalid: 400 };
 
 // The one Access read a non-member may perform. Still requires a session: the
-// accept screen is behind `middleware.ts`'s matcher, so an unauthenticated
+// accept screen is behind `proxy.ts`'s matcher, so an unauthenticated
 // visitor is sent to /signin?callbackUrl=/invite/<token> and lands back here.
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const session = await auth();
