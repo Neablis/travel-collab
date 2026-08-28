@@ -51,6 +51,16 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/subagent-report-conformance.mjs"
+          }
+        ]
+      }
     ]
   }
 }
