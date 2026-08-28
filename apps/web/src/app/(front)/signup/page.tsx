@@ -1,8 +1,16 @@
 import { isDevLoginEnabled } from "@/lib/devLogin";
 import { isGoogleSignInAvailable } from "@/lib/googleAuth";
 import { AuthScreen } from "@/components/front/AuthScreen";
+import { AUTH_COPY } from "@/components/front/authCopy";
+import { pageMetadata } from "@/lib/siteMetadata";
 
-export const metadata = { title: "Start planning — Caesura" };
+// Same rendered <title> as before ("Start planning — Caesura") — the suffix
+// now comes from the layout's title template. Description reuses the
+// screen's own sub-line rather than inventing meta-only copy.
+export const metadata = pageMetadata({
+  title: "Start planning",
+  description: AUTH_COPY.signup.sub,
+});
 
 // Server component: `isDevLoginEnabled()` and `isGoogleSignInAvailable()`
 // read process.env, which is only populated on the server. Both booleans
