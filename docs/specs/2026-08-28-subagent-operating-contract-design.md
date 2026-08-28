@@ -1,6 +1,7 @@
 # Subagent Operating Contract — design
 
-**Status:** approved design, not yet implemented
+**Status:** implemented — `.claude/protocol/`, the four hooks in
+`scripts/hooks/`, and `.claude/commands/dispatch.md`
 **Date:** 2026-08-28
 **Supersedes:** nothing. Extends `AGENTS.md` (binding law) and the three agent
 definitions in `.claude/agents/`.
@@ -54,7 +55,11 @@ than stretched.
   CONTRACT.md              the one page every subagent reads first
   DISPATCH-TEMPLATE.md     orchestrator fills one per unit of work
   REPORT-TEMPLATE.md       required sections of a final report
-  ADAPTER.md               the ONLY file carrying repo-specific facts
+  ADAPTER.md               repo-specific facts, in prose, for the agent
+  adapter.json             the same facts machine-readable — exclusive-resource
+                           patterns the lease hook matches commands against,
+                           and the forbidden-token list the portability test
+                           enforces the three portable files against
 scripts/hooks/
   subagent-file-scope.mjs
   resource-lease.mjs

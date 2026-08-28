@@ -37,11 +37,21 @@ const pending = activeRuns(cwd).filter(({ manifest }) => {
 
 if (pending.length === 0) process.exit(0);
 
-const names = pending.map(({ manifest }) => manifest.runId).join(", ");
+// `activeRuns` scans from the git common dir, so this reaches EVERY session
+// in the repo — including one whose cwd is an unrelated sibling worktree that
+// has never heard of this run. Two things keep it from reading as an
+// instruction to an uninvolved agent: the run directory's absolute path, so a
+// reader can tell at a glance whether it is theirs, and the explicit
+// permission below to do nothing. Without them the message tells a stranger
+// to triage notes and get approval to delete worktrees and branches.
+const label = pending.length === 1 ? "Run" : "Runs";
+const names = pending.map(({ manifest, runDir }) => `${manifest.runId} (${runDir})`).join(", ");
 
 console.error(
-  `Run ${names}: every unit is closed, but teardown is not recorded.\n\n` +
-    "Before this run's directory is deleted:\n" +
+  `${label} ${names}: every unit is closed, but teardown is not recorded.\n\n` +
+    "If you neither dispatched this work nor were dispatched into it, it is\n" +
+    "not yours to act on — say so and stop again.\n\n" +
+    "Otherwise, before this run's directory is deleted:\n" +
     "  1. Triage every board entry in <run-dir>/notes/ — promote each one to a\n" +
     "     known-issue, an ADR, or the adapter, or discard it with a one-line reason.\n" +
     "     (See the promotion table in .claude/protocol/ADAPTER.md.)\n" +

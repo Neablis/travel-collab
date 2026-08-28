@@ -59,11 +59,21 @@ When a unit reports:
 - Confirm `reports/<unit-id>.md` exists. The conformance hook checks a
   report's shape; it cannot catch a report that was never written. **This
   step is the only thing that does.**
-- On DONE: set that unit's `state` to `"closed"` in the manifest.
-- On BLOCKED: do **not** debug inline — that reimports the context delegation
-  was spending to avoid. Re-split the unit, dispatch a fresh debug agent with
-  the handback report as its brief, or escalate. A unit whose dependency ends
-  BLOCKED or DESCOPED is not dispatched; re-plan instead.
+- **All three exits converge on `"closed"`.** DONE, BLOCKED and DESCOPED each
+  end with that unit's `state` set to `"closed"` in the manifest. `"closed"`
+  means *this unit is finished being worked*, not *it succeeded* — the report
+  carries the outcome. The `Stop` hook arms the promotion gate only when every
+  unit is closed, so a single BLOCKED unit left open disarms teardown for the
+  entire run — and BLOCKED units are exactly the ones whose environment and
+  tooling observations are worth promoting.
+- On DONE: close it.
+- On BLOCKED: close it, then do **not** debug inline — that reimports the
+  context delegation was spending to avoid. Re-split the work, dispatch a
+  fresh debug agent with the handback report as its brief, or escalate.
+  **A re-split is a new unit id appended to the manifest, never a reopening
+  of the closed one** — reopening erases the handback from the record and
+  disarms the gate again. A unit whose dependency ends BLOCKED or DESCOPED is
+  not dispatched; re-plan instead.
 - On DESCOPED: close it and re-check whether dependent units still make sense.
 
 ## 5. Teardown

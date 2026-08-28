@@ -155,7 +155,9 @@ handback rule, the run-scoped board, and the report shape. `ADAPTER.md` and
 are portable and a test enforces that they name nothing about this repo. Four
 hooks enforce it: file scope and resource leases before a tool call, report
 conformance at subagent stop, and a teardown reminder at session stop. All
-four fail open and no-op when no run is active. Design:
+four fail open, and three no-op when no run is active. Report conformance is
+the exception: it never reads the manifest, and engages for any subagent whose
+final message carries an `## Exit:` heading — run or no run. Design:
 `docs/specs/2026-08-28-subagent-operating-contract-design.md`.
 
 ## Workstreams (how agents divide the work)

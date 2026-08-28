@@ -6,13 +6,13 @@ import { decision, makeRepo, makeUnitDir, runHook, runHookRaw, writeManifest } f
 function setup() {
   const root = makeRepo();
   const unitDir = makeUnitDir(root, "u1");
-  writeManifest(root, {
+  const runDir = writeManifest(root, {
     runId: "r1",
     teardown: null,
     units: [{ id: "u1", worktree: unitDir, fileScope: ["src/**", "docs/notes.md"], state: "open" }],
     resources: {},
   });
-  return { root, unitDir };
+  return { root, unitDir, runDir };
 }
 
 test("an in-scope edit passes silently", () => {
@@ -93,4 +93,58 @@ test("genuinely unparseable stdin fails open", () => {
   const res = runHookRaw("subagent-file-scope.mjs", "{ not json");
   assert.equal(res.status, 0);
   assert.equal(decision(res), null);
+});
+
+// The contract MANDATES two writes that land outside the unit's worktree:
+// the report at <run-dir>/reports/<unit-id>.md and board entries at
+// <run-dir>/notes/<ts>-<slug>.md. The run directory lives in the main
+// checkout while units live in worktrees, so both used to trip the
+// worktree-boundary branch and stall every unit on a permission prompt for
+// the file it was ordered to produce. Silence here is the feature.
+
+test("the mandated report write into the active run's reports/ passes silently", () => {
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(runDir, "reports/u1.md") },
+  });
+  assert.equal(res.status, 0);
+  assert.equal(decision(res), null);
+});
+
+test("the mandated board write into the active run's notes/ passes silently", () => {
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(runDir, "notes/2026-08-28T12:00:00Z-pg-port.md") },
+  });
+  assert.equal(res.status, 0);
+  assert.equal(decision(res), null);
+});
+
+test("the run-directory allowance is scoped: another path outside the worktree still asks", () => {
+  const { unitDir, root } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: join(root, "somewhere-else/x.md") },
+  });
+  assert.equal(decision(res), "ask");
+  assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /outside its own worktree/);
+});
+
+test("the run-directory allowance is boundary-safe, not a string prefix", () => {
+  // "<runDir>-evil" starts with the run directory's path as a string but is
+  // a sibling directory, not a child. A bare startsWith(runDir) would let it
+  // through; the sep-terminated check must not.
+  const { unitDir, runDir } = setup();
+  const res = runHook("subagent-file-scope.mjs", {
+    cwd: unitDir,
+    tool_name: "Write",
+    tool_input: { file_path: `${runDir}-evil/reports/u1.md` },
+  });
+  assert.equal(decision(res), "ask");
+  assert.match(res.json.hookSpecificOutput.permissionDecisionReason, /outside its own worktree/);
 });

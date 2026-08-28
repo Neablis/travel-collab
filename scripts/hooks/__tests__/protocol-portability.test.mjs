@@ -45,6 +45,11 @@ test("the adapter carries the machine-readable half", () => {
   for (const entry of adapter.exclusiveCommands) {
     assert.equal(typeof entry.resource, "string");
     assert.equal(typeof entry.symptom, "string");
+    // `new RegExp(undefined)` does NOT throw — it compiles to /(?:)/ — so
+    // doesNotThrow alone let a misspelled or omitted `pattern` key pass CI
+    // green while resource-lease.mjs correctly skipped the entry, leaving
+    // the resource silently unleased. The type check is what closes that.
+    assert.equal(typeof entry.pattern, "string", `missing pattern for ${entry.resource}`);
     assert.doesNotThrow(() => new RegExp(entry.pattern), `bad pattern for ${entry.resource}`);
   }
 });

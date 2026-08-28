@@ -106,3 +106,56 @@ test("inScope is false for an empty or missing glob list", () => {
   assert.equal(inScope("src/a.ts", []), false);
   assert.equal(inScope("src/a.ts", undefined), false);
 });
+
+// The manifest is hand-authored JSON produced by an LLM, so every shape below
+// has actually been written by mistake. Each one used to throw an uncaught
+// TypeError out of unitForCwd — which, on a PreToolUse hook, means every
+// Bash/Edit/Write call in the repo fails until someone finds the run
+// directory. These pin the fail-open result instead.
+
+test("unitForCwd fails open when units is an object rather than an array", () => {
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: { u1: { id: "u1", worktree: unitDir, fileScope: ["src/**"], state: "open" } },
+    resources: {},
+  });
+  assert.equal(unitForCwd(unitDir), null);
+});
+
+test("unitForCwd skips a null unit entry and still matches a valid sibling", () => {
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: [null, { id: "u1", worktree: unitDir, fileScope: ["src/**"], state: "open" }],
+    resources: {},
+  });
+  const found = unitForCwd(unitDir);
+  assert.ok(found, "expected the valid sibling to still match");
+  assert.equal(found.unit.id, "u1");
+});
+
+test("unitForCwd skips a unit whose worktree is not a string", () => {
+  const root = makeRepo();
+  const unitDir = makeUnitDir(root, "u1");
+  writeManifest(root, {
+    runId: "r1",
+    teardown: null,
+    units: [{ id: "u1", worktree: 5, fileScope: ["src/**"], state: "open" }],
+    resources: {},
+  });
+  assert.equal(unitForCwd(unitDir), null);
+});
+
+test("inScope fails open when the glob list is a string rather than an array", () => {
+  assert.equal(inScope("src/a.ts", "src/**"), false);
+});
+
+test("inScope skips a non-string glob entry rather than throwing on it", () => {
+  assert.equal(inScope("src/a.ts", [null, 5]), false);
+  assert.equal(inScope("src/a.ts", [null, "src/**"]), true);
+});

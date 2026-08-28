@@ -10,7 +10,9 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `.claude/protocol/` now carries a binding contract for every dispatched
 subagent — lifecycle, three exit states, a two-strike handback rule, a
 run-scoped board, and a mechanically checked report shape. Four fail-open
-hooks enforce it; all four no-op when no run is active. `ADAPTER.md` and
+hooks enforce it. Three no-op when no run is active; the fourth, report
+conformance, never reads the manifest and engages for any subagent whose
+final message carries an `## Exit:` heading, run or no run. `ADAPTER.md` and
 `adapter.json` hold every travel-collab-specific fact, and a test enforces
 that the other three files name nothing about this repo.
 

@@ -113,8 +113,16 @@ export function activeRuns(cwd) {
 export function unitForCwd(cwd) {
   const here = resolve(cwd);
   for (const run of activeRuns(cwd)) {
-    for (const unit of run.manifest.units ?? []) {
-      if (!unit.worktree) continue;
+    // Same reasoning as the guard in run-teardown-reminder.mjs: the manifest
+    // is hand-authored JSON, so `units` arrives as an object, or carrying a
+    // null entry, or with a non-string `worktree` — and each of those threw
+    // an uncaught TypeError out of a PreToolUse hook, breaking every Bash,
+    // Edit and Write in the repo until someone found the run directory.
+    // Failing open on a shape we don't understand is the whole contract here.
+    const units = Array.isArray(run.manifest.units) ? run.manifest.units : [];
+    for (const unit of units) {
+      if (!unit || typeof unit !== "object") continue;
+      if (typeof unit.worktree !== "string" || !unit.worktree) continue;
       const root = resolve(unit.worktree);
       if (here === root || here.startsWith(root + sep)) {
         return { ...run, unit };
@@ -152,7 +160,13 @@ export function globToRegExp(glob) {
 }
 
 export function inScope(relPath, globs) {
-  return (globs ?? []).some((glob) => globToRegExp(glob).test(relPath));
+  // A hand-authored `"fileScope": "src/**"` (string, not array) used to throw
+  // `.some is not a function` straight out of the file-scope hook. False is
+  // the fail-open answer for the caller: it asks rather than crashing.
+  // The per-element check is the same defect one level down: a null inside
+  // the array throws on `glob.length` just as fatally as the string did.
+  if (!Array.isArray(globs)) return false;
+  return globs.some((glob) => typeof glob === "string" && globToRegExp(glob).test(relPath));
 }
 
 export function loadAdapter(cwd) {

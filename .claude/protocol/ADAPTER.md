@@ -12,13 +12,14 @@ report — never a rule to bend.
 
 ## Exclusive resources
 
-Declared machine-readably in `adapter.json`; the lease hook reads it.
+The hook-enforced ones are declared machine-readably in `adapter.json`, which
+the lease hook reads. A row marked otherwise below is yours to observe.
 
 | Resource | Why exclusive |
 |---|---|
 | `postgres` | One docker-compose instance. `pnpm --filter web test:int` runs the whole suite and cannot be scoped file-by-file, so two units running it concurrently corrupt each other's results — the symptom is a *different random subset* failing each run, which reads as flakiness and burns hours. |
 | `dev-server` | Fixed ports. A second `pnpm dev` either fails to bind or silently serves the wrong worktree. |
-| `ci-minutes` | This repo is private on a GitHub Free plan; a measured 30-day sample burned 1,956 of 2,000 minutes, 71% on pull-request runs. Open PRs as drafts and mark ready only when you believe they are green. See `docs/guidelines/ci-cost-and-capacity.md`. |
+| `ci-minutes` | **Human-observed policy, not a hook-enforced lease** — `adapter.json` declares no pattern for it, so no hook will stop a second unit; you have to hold this one yourself. This repo is private on a GitHub Free plan; a measured 30-day sample burned 1,956 of 2,000 minutes, 71% on pull-request runs. Open PRs as drafts and mark ready only when you believe they are green. See `docs/guidelines/ci-cost-and-capacity.md`. |
 
 ## Acceptance-check catalogue
 
