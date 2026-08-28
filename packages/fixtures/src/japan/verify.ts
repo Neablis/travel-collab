@@ -154,6 +154,19 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const overlay = coordinatesOverlay.coordinates as Record<string, { lat: number; lng: number }>;
   const coordinateDisagreements: string[] = [];
   const staleOverrides: string[] = [];
+
+  // An override whose key names no row at all — a stop deleted, or its id
+  // changed. Checked separately because the loop below only ever visits keys
+  // that still exist as rows, so a dead key would otherwise be silently
+  // unreachable and the guard would report less than it claims. (CodeRabbit,
+  // PR #74.) A dead key is inert rather than dangerous, but an override list
+  // that quietly stops describing reality is how the overlay got trusted in
+  // the first place.
+  const rowIds = new Set([...JAPAN_STOPS, ...JAPAN_BACKLOG].map((r) => r.id));
+  for (const id of Object.keys(COORDINATE_OVERRIDES)) {
+    if (!rowIds.has(id)) staleOverrides.push(`${id} is overridden but no stop or backlog item has that id`);
+  }
+
   for (const row of [...JAPAN_STOPS, ...JAPAN_BACKLOG]) {
     const resolved = overlay[row.id];
     const overridden = row.id in COORDINATE_OVERRIDES;

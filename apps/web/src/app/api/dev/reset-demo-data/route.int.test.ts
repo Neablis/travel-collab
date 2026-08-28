@@ -140,7 +140,11 @@ describe("POST /api/dev/reset-demo-data", () => {
     const detail = await getTripDetail(tripId);
     const activities = Object.values(detail!.activities);
 
-    expect(activities.filter((a) => a.location?.lat !== undefined)).toHaveLength(72);
+    // Both components: the test's claim is "a coordinate on every stop", and
+    // lat alone would pass on a fixture that lost every lng. (CodeRabbit, PR #74.)
+    expect(
+      activities.filter((a) => a.location?.lat !== undefined && a.location?.lng !== undefined),
+    ).toHaveLength(72);
 
     const tagged = new Set(activities.flatMap((a) => a.tags ?? []));
     expect([...tagged].sort()).toEqual(["lodging", "meal", "outdoors", "ticketed"]);

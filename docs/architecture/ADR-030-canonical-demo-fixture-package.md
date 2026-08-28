@@ -84,6 +84,14 @@ matches it on every field the export owns. It also asserts the list of
 *deliberately not carried* fields is exhaustive, so a re-sync that **adds** a
 field fails until someone decides whether it belongs in the fixture.
 
+**That exhaustiveness check has one trap, and the first version fell in it.**
+`parseTripSeed` is a `z.object`, and zod strips unknown keys — so walking the
+*parsed* seed cannot see a field a re-sync added, which is precisely the case
+the check exists for. It walks the **raw** JSON; the content assertions use the
+parsed value. Caught by CodeRabbit on PR #74, reproduced by adding a key to the
+raw object and watching it vanish from the parsed one, and now pinned by that
+same reproduction.
+
 Fields that are ours, not upstream's: `tags`, `lat`/`lng`, and the backlog's
 `city`. Tags stay hand-authored per M18's rule that inferring them from title
 text is the prose parse that milestone disqualifies.

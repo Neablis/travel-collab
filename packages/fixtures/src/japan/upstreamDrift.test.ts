@@ -26,7 +26,15 @@ import {
 } from "./trip.ts";
 
 const SEED_PATH = new URL("../../../../.design-sync/handoff/data/japan-trip-seed.json", import.meta.url);
-const seed = parseTripSeed(JSON.parse(readFileSync(SEED_PATH, "utf8")));
+// Kept separately on purpose. `parseTripSeed` is a `z.object`, and zod STRIPS
+// unknown keys — so a field a re-sync adds is gone from `seed` before anything
+// can look at it. The content tests below want the parsed, validated value; the
+// exhaustiveness test at the bottom must walk `raw`, or the one thing it exists
+// to catch is the one thing it cannot see. (Found by CodeRabbit on PR #74;
+// reproduced by adding a key to the raw object and watching it vanish from the
+// parsed one.)
+const raw = JSON.parse(readFileSync(SEED_PATH, "utf8")) as Record<string, unknown>;
+const seed = parseTripSeed(raw);
 
 // Export fields ./trip.ts deliberately does not carry. Everything here is
 // either derived, a computed rollup the domain owns, or another module's data.
@@ -103,7 +111,7 @@ describe("the canonical copy still matches the design handoff export", () => {
       .toEqual(seed.unscheduled.map((u) => ({ id: u.id, title: u.title, place: u.place, area: u.area, kind: u.status, note: u.source, who: u.who })));
   });
 
-  it("accounts for every field the export carries", () => {
+  it("accounts for every field the export carries, including ones the schema would strip", () => {
     const paths = new Set<string>();
     const walk = (value: unknown, prefix: string) => {
       if (Array.isArray(value)) {
@@ -118,7 +126,7 @@ describe("the canonical copy still matches the design handoff export", () => {
         walk(child, path);
       }
     };
-    walk(seed, "");
+    walk(raw, "");
 
     // Fields ./trip.ts carries, under the export's own names.
     const carried = new Set([

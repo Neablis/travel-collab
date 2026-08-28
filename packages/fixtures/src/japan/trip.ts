@@ -43,8 +43,31 @@ export type JapanStop = {
   title: string;
   place: string;
   area: string;
-  /** The containing day's city, denormalised. Upstream models this as
-   *  `days[].city`; a stop carries no city of its own there. */
+  /**
+   * The containing day's city, denormalised. Upstream models this as
+   * `days[].city`; a stop carries no city of its own there.
+   *
+   * A DAY IS TAGGED WITH ITS DESTINATION, so on the seven transition stops
+   * this is deliberately not the city the stop is physically in: day 4's
+   * "Limited Express to Nikkō" departs Tobu Asakusa Station in Tokyo and is
+   * tagged Nikkō; day 14's hotel breakfast is at Zentis Osaka and is tagged
+   * Tokyo. It reads oddly in `Location.name` ("Zentis Osaka, Kita, Tokyo,
+   * Japan") and it is on purpose — this rationale was carried over from
+   * db-seed.ts, which recorded it against day 14:
+   *
+   *   > Tagged Tokyo throughout (the day's destination city), matching how
+   *   > days 7 and 11 (the other city-transition days) are tagged with their
+   *   > arrival city rather than split — splitting this one triggered a pile
+   *   > of "same day, ~400km apart" distance warnings between the
+   *   > Osaka-morning and Tokyo-evening stops, which is accurate but noisy
+   *   > for a fixture.
+   *
+   * Nothing groups by anything else: `cityFor()` picks a day's name and accent
+   * from its activities' `city`, and the calendar's city cards group strictly
+   * on it. Splitting these seven would change the day accents, the calendar
+   * cards and the conflict baseline, so it is a product decision rather than a
+   * correction. Raised by CodeRabbit on PR #74 and recorded as KI-59.
+   */
   city: string;
   start: string;
   end: string;

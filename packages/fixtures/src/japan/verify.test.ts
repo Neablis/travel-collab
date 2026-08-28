@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ActivityKind, ActivityTag } from "@tc/contracts";
 import { diffAgainstExpectations, JAPAN_TRIP_EXPECTATIONS } from "./expectations.ts";
 import { japanTripCommands } from "./commands.ts";
 import { deterministicMintId, formatReport, REFERENCE_START_DATE, verifyJapanTrip } from "./verify.ts";
@@ -37,6 +38,16 @@ describe("the canonical Japan fixture", () => {
   });
 
   it("covers every ActivityKind and every ActivityTag", () => {
+    // Witness floor first (AGENTS.md: "a property that skips every generated
+    // case still reports ✓"). Both loops below iterate the report's own
+    // histograms, so an EMPTY histogram asserts nothing and passes. What keeps
+    // them non-empty is `verify.ts` seeding them from the enum's `options`;
+    // counting only kinds that are present — the alternative its own comment
+    // warns against — would make this test green and vacuous in one step.
+    // (CodeRabbit, PR #74.)
+    expect(Object.keys(report.kinds)).toHaveLength(ActivityKind.options.length);
+    expect(Object.keys(report.tags)).toHaveLength(ActivityTag.options.length);
+
     for (const [kind, n] of Object.entries(report.kinds)) expect(n, `kind ${kind}`).toBeGreaterThan(0);
     for (const [tag, n] of Object.entries(report.tags)) expect(n, `tag ${tag}`).toBeGreaterThan(0);
   });

@@ -13,6 +13,27 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+- **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
+- **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
+- **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
+  ```
+  day  4  Tobu Asakusa Station   tagged Nikkō     "Limited Express to Nikkō"
+  day  6  Shinjuku Station       tagged Hakone    "Romancecar to Hakone-Yumoto"
+  day  7  Odawara Station        tagged Kyoto     "Shinkansen Odawara → Kyoto"
+  day 11  Kyoto Station          tagged Osaka     "Train Kyoto → Osaka"
+  day 13  Uno Port               tagged Naoshima  "Train and ferry to Naoshima"
+  day 14  Zentis Osaka           tagged Tokyo     "Breakfast at the hotel"
+  day 14  Shin-Osaka Station     tagged Tokyo     "Shinkansen to Tokyo"
+  ```
+  `city` lands on both `Location.city` and, via `locationName`, inside `Location.name` — so the stored label reads `"Zentis Osaka, Kita, Tokyo, Japan"` for a hotel in Osaka.
+- **Why it is filed rather than fixed:** it is the fixture's stated convention, inherited from `db-seed.ts` where the day-14 case was reasoned out explicitly — splitting that day produced "a pile of 'same day, ~400km apart' distance warnings ... accurate but noisy for a fixture". `cityFor()` names and colours a day from its activities' `city`, and `calendarCityCards.ts` groups strictly on it, so splitting these seven would change day accents, the calendar's city cards, and the 12-conflict baseline `pnpm seed:verify` pins. That is a product decision about how a travel day is modelled, not a mechanical correction — the same class as KI-39's note that the seed's coordinates are "a product-visible data decision".
+- **The real question underneath it:** the domain has no concept of a stop that moves between two places. `ActivityKind: "transit"` says a stop *is* travel but not where it goes. Until there is a from/to, any single `city` on a transit stop is a lie in one direction or the other; the current convention at least makes the lie consistent.
+- **Fix path, if taken:** give a transit stop the city it departs from and let the day derive its label from the majority or the last stop — or model an origin/destination pair on the activity, which is a contract change and its own reviewed step.
+- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`).
+- **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
+- **First noted:** 2026-08-28 (PR #74 review).
+
 ### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
 - **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
 - **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
