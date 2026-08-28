@@ -123,6 +123,32 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Timeline: scrolling should move the day chips, the way the map rail
+  already does (2026-08-28, Mitchell, walking PR #71's preview — "Add this to
+  the future tasks").** The timeline's focus binding is one-way today. A chip
+  click scrolls the timeline (`TimelineLens`'s `scrollIntoView` effect on
+  `focusedDay`), but nothing reads scroll position back out, so scrolling never
+  moves the chips. `MapRail.tsx:186` is the only scroll listener in the app and
+  there are no IntersectionObservers at all.
+  It reads as a regression because **the behaviour already exists on another
+  lens**: the map rail focuses whichever day its focus line is over, through
+  the same `onFocus` callback a click uses, and `m10-map-rail.spec.ts`
+  ("scrolling tracks focus through every day") pins it. Having it in one place
+  and not the other is what makes its absence feel like breakage rather than
+  an unbuilt feature.
+  Build it by reusing the rail's approach rather than inventing a second one —
+  measure the day headers, cache the offsets, refresh with a `ResizeObserver`,
+  and pick whichever header is nearest a focus line on each scroll. The rail's
+  own comment argues against an IntersectionObserver for two reasons that
+  apply here unchanged: a header sitting at ratio 1.0 never re-reports while
+  its real position keeps moving, and IO delivers nothing in a backgrounded
+  tab — both leave focus on stale data.
+  The one thing to get right is the feedback loop: focus-on-scroll must not
+  re-trigger the `scrollIntoView` effect, or the view fights the user. The rail
+  avoids it by calling `onFocus` only when the resolved day actually changes;
+  the timeline additionally needs that effect to skip scrolling when the change
+  came *from* scrolling.
+
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
   logo is the save light" justifies putting trip-scoped save state in an
