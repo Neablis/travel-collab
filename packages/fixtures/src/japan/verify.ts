@@ -128,7 +128,13 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     kinds[activity.kind] += 1;
     if (activity.tags.length === 0) untaggedCount += 1;
     for (const tag of activity.tags) tags[tag] += 1;
-    if (activity.location?.lat !== undefined) withCoordinates += 1;
+    // BOTH components, matching what actually decides whether a stop can be
+    // drawn: mapRailData.ts's `locatedStops` requires lat AND lng, and a day
+    // with any unlocated stop renders "N stops have no place yet". Counting lat
+    // alone would let a fixture that lost every lng report full coverage while
+    // the Map lens flagged ten of fourteen days. (Same defect CodeRabbit found
+    // in reset-demo-data's integration test on PR #74.)
+    if (activity.location?.lat !== undefined && activity.location?.lng !== undefined) withCoordinates += 1;
     else activitiesWithoutCoordinates.push(activity.title);
     if (activity.location?.city) cities.add(activity.location.city);
     if (activity.cost) {
