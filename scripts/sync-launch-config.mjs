@@ -32,14 +32,20 @@ const configurations = worktrees.map((worktree, index) => {
     worktree.path === mainWorktreePath
       ? "web"
       : path.basename(worktree.path);
+  const port = 3001 + index;
   return {
     name,
     runtimeExecutable: "bash",
     runtimeArgs: [
       "-c",
-      `cd "${worktree.path}" && pnpm --filter web dev`,
+      // WEB_PORT has to be in the command, not just in `port` below: `port`
+      // only tells the launcher where to look, and apps/web's dev script
+      // binds `${WEB_PORT:-3001}`. Without it every worktree's server bound
+      // 3001, so the second one failed to start while launch.json claimed it
+      // was on 3002.
+      `cd "${worktree.path}" && WEB_PORT=${port} pnpm --filter web dev`,
     ],
-    port: 3001 + index,
+    port,
     autoPort: true,
   };
 });

@@ -60,12 +60,23 @@ Don't re-run full CI to reproduce — use the smallest matching local command:
 
 - static-and-unit: `pnpm typecheck` / `pnpm lint` / `pnpm test` (or the
   narrowest of the three — see the `minimal-check-subset` skill)
-- one unit test file: `pnpm --filter web test -- --run <file>`
+- one unit test file:
+  `pnpm --filter web exec vitest run -c vitest.unit.config.ts <file>`
+
+  **Not** `pnpm --filter web test -- --run <file>`: pnpm swallows the `--`
+  passthrough, so the entire suite runs while the printed command reads as
+  narrowed. `minimal-check-subset` has the measurement and the reason `-c` is
+  not optional.
 - integration: `pnpm --filter web test:int` (needs real Postgres — see
   `docker-compose.yml`)
-- e2e: `pnpm --filter web test:e2e` (needs the same env vars CI sets:
-  `DATABASE_URL=postgres://postgres:postgres@localhost:5432/travel`,
-  `AUTH_SECRET=ci-secret`, `AUTH_DEV_LOGIN=true`, `AUTH_TRUST_HOST=true`)
+- e2e: `pnpm --filter web test:e2e:ci-like` — the only e2e lane whose result
+  counts (CLAUDE.md rule 1, `AGENTS.md`, KI-27). Plain `test:e2e` serves
+  `pnpm dev`, which compiles routes on first hit and invents timeouts CI does
+  not have. No env vars to export by hand: `playwright.config.ts`'s
+  `webServer.env` sets `AUTH_DEV_LOGIN`, `AUTH_SECRET`, `AI_LIVE` and (under
+  `CI=true`) `AUTH_TRUST_HOST` itself, and `DATABASE_URL` arrives from
+  `apps/web/.env.local` via the `preload-dotenv` import in the `test:e2e`
+  script.
 
 ## 5. Recognize an environmental failure — don't just retry
 

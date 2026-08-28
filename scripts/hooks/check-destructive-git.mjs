@@ -17,11 +17,31 @@ try {
   process.exit(0);
 }
 
+// Everything that can move a branch tip out from under a sibling worktree.
+// The first version of this pattern matched only `reset --hard|--soft`,
+// `rebase`, and a force flag sitting *immediately* after `push` — so plain
+// `git reset HEAD~1`, `git reset --mixed HEAD~1`, `git commit --amend` and
+// `git push origin --force` all walked straight through, and those move the
+// tip exactly as far as the forms it did catch.
+//
+// `SEGMENT` keeps each flag search inside one command, so `git status && rm
+// -rf --force x` can never read as `git push --force`.
+const SEGMENT = "[^\n;|&]*?";
+const DESTRUCTIVE = new RegExp(
+  [
+    // A reset only rewrites history when it names a commit-ish or a mode.
+    // Bare `git reset` and `git reset HEAD -- <path>` just touch the index,
+    // and asking about those would train everyone to click through.
+    `\\bgit\\s+reset\\b(?=${SEGMENT}(?:--(?:hard|soft|mixed|merge|keep)\\b|\\bHEAD[~^]|\\bHEAD@\\{|\\bORIG_HEAD\\b|\\b[0-9a-f]{7,40}\\b|\\borigin/))`,
+    "\\bgit\\s+rebase\\b",
+    // --amend replaces the tip commit without the word "reset" appearing.
+    `\\bgit\\s+commit\\b(?=${SEGMENT}\\s--amend\\b)`,
+    `\\bgit\\s+push\\b(?=${SEGMENT}\\s(?:--force(?:-with-lease|-if-includes)?\\b|-f\\b))`,
+  ].join("|"),
+);
+
 const command = parsed?.tool_input?.command ?? "";
-const destructive =
-  /\bgit\s+(reset\s+--(hard|soft)\b|rebase\b|push\s+(--force\b|-f\b))/.test(
-    command,
-  );
+const destructive = DESTRUCTIVE.test(command);
 
 if (!destructive) {
   process.exit(0);

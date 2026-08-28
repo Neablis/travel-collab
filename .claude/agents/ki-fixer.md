@@ -1,7 +1,7 @@
 ---
 name: ki-fixer
 description: Fixes exactly one open known issue from docs/known-issues.md end to end — reproduce, fix, prove, then move the entry to Resolved. Use when clearing KI backlog items, especially several in parallel worktrees since they are independent of the milestone phase chain.
-tools: Bash, Read, Edit, Write, Grep, Glob, LSP
+tools: Bash, Read, Edit, Write, Grep, Glob, LSP, Skill
 ---
 
 **Before anything else:** read `.claude/protocol/CONTRACT.md` and
@@ -31,13 +31,16 @@ If you cannot reproduce it, stop and report that. "Not reproducible" is a
 legitimate outcome and may mean the entry should be re-scoped rather than
 fixed — KI-13 was resolved exactly that way.
 
-**3. Fix the cause, not the symptom.** Use `superpowers:systematic-debugging`.
-The entry's Area field bounds where you should be working; a fix that sprawls
-well beyond it usually means you found a different problem.
+**3. Fix the cause, not the symptom.** Work back from the reproduction to the
+line that is actually wrong before changing anything; a patch that makes the
+symptom go away without an explanation of the mechanism is a guess. The entry's
+Area field bounds where you should be working; a fix that sprawls well beyond
+it usually means you found a different problem.
 
 **4. Prove it.** Re-run the exact reproduction from step 2 and show it now
 passes. Then run the narrowest sufficient check subset
-(`minimal-check-subset` skill). Where the bug class allows it, add a
+(the `minimal-check-subset` skill, or read
+`.claude/skills/minimal-check-subset/SKILL.md` directly). Where the bug class allows it, add a
 regression test — a KI that can silently come back was not fully closed.
 
 **5. Move the entry to Resolved.** In `docs/known-issues.md`, move it from

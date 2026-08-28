@@ -113,12 +113,21 @@ next quarter:
   ~4 minutes, so pushes rarely overlap. Worth doing because it's free.
 - **Path filtering as a major lever → small.** Only ~5 of 36 PRs were prose-only:
   **~80 min (4%)**.
-- **Dependabot → monthly: not actionable.** There is no `.github/dependabot.yml`;
-  all 8 runs in the sample were **security** updates that fired in a single
-  backlog flush on 2026-08-25 when the feature was first enabled. Security
-  updates trigger on advisory publication, not a schedule, so there is no cadence
-  to turn down. Adding a `dependabot.yml` would risk *enabling version updates*
-  and increasing spend. Left alone deliberately.
+- **Dependabot → monthly: reversed 2026-08-28, and the original reasoning still
+  holds for the half it was about.** The measurement stands: all 8 runs in the
+  sample were **security** updates that fired in a single backlog flush on
+  2026-08-25 when the feature was first enabled, and those trigger on advisory
+  publication whether a config file exists or not — so there was, and is, no
+  cadence there to turn down. What this bullet got wrong was treating "adding a
+  `dependabot.yml` risks enabling version updates" as a reason not to have one.
+  Version bumps did not stop arriving; they arrived **untracked**, which is how
+  Vitest went 2 → 3 without the migration its own config comment mandates,
+  leaving the repo one major away from silently losing the node/jsdom split
+  (2026-08-28 project review, Testing §2). `.github/dependabot.yml` now exists
+  and is configured against exactly the objection above: monthly, grouped,
+  majors ignored, three PRs a month maximum (~30 billed min, ~1.5% of the cap),
+  and `rebase-strategy: disabled` so a moving `main` does not force-push a
+  re-run per merge. The file's header comment carries the full accounting.
 - **CircleCI / GitLab → unpriced switching cost.** The `ci-triage` skill,
   `docs/known-issues.md` KI-27, and `CLAUDE.md`'s `test:e2e:ci-like` rule are all
   built on `gh run` semantics. Migrating CI means rewriting the repo's triage

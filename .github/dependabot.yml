@@ -1,0 +1,68 @@
+# Dependency updates, deliberately throttled.
+#
+# `docs/guidelines/ci-cost-and-capacity.md` recorded "no dependabot.yml" as an
+# intentional choice, on the reasoning that enabling version updates would add
+# CI spend against a 2,000-minute Free-plan cap. The counter-evidence is that
+# ad-hoc bumps are how Vitest went 2 -> 3 without the migration its own upgrade
+# notes mandate. This file is the compromise: updates arrive on a schedule, in
+# batches, and never as a major.
+#
+# Two things worth knowing before changing anything here:
+#
+# - Security updates do NOT come from this file. They fire on advisory
+#   publication whether it exists or not (8 such runs in the sampled 30 days),
+#   so nothing below turns them down or off.
+# - Dependabot opens PRs ready, not draft, so ci.yml's `draft == false` gate
+#   does not hold them back. Every PR here costs a full run of both jobs
+#   (~9 billed minutes). The knobs below cap that at three PRs a month —
+#   roughly 30 minutes, ~1.5% of the cap — plus a re-run per push to one.
+version: 2
+updates:
+  - package-ecosystem: npm # covers the whole pnpm workspace from the root lockfile
+    directory: "/"
+    schedule:
+      interval: monthly
+    # Two batched PRs a month, not one per dependency. Splitting production
+    # from development keeps a runtime bump reviewable (and revertable) on its
+    # own instead of buried in a twenty-package diff.
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    open-pull-requests-limit: 2
+    ignore:
+      # Majors are migrations, not updates — they get planned, done on their
+      # own branch, and verified. Vitest 2 -> 3 landed here as a routine bump
+      # and skipped a mandated migration; nothing about a Dependabot PR makes
+      # anyone read release notes, so this closes the door rather than
+      # trusting review to catch it.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Dependabot otherwise force-pushes every open PR whenever `main` moves,
+    # and each force-push is a `synchronize` event and another billed run. On
+    # a repo that merges several PRs a week that is the single largest cost of
+    # having Dependabot on at all.
+    rebase-strategy: disabled
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Workflow action pins (`actions/checkout@v7` and friends). One grouped PR a
+  # month; this is supply-chain hygiene, and majors are excluded here too
+  # because an action major can change a workflow's contract.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    rebase-strategy: disabled
+    commit-message:
+      prefix: chore
+      include: scope

@@ -61,17 +61,22 @@ export function makeLinkedWorktree(root) {
   return linked;
 }
 
-export function runHook(name, payload) {
-  return runHookRaw(name, JSON.stringify(payload));
+// `options.cwd` matters for hooks that shell out to git from their own working
+// directory rather than from a path in the payload — check-destructive-git.mjs
+// counts worktrees that way, so its tests must be able to point it at a
+// purpose-built repo instead of whatever repo the test runner happens to be in.
+export function runHook(name, payload, options = {}) {
+  return runHookRaw(name, JSON.stringify(payload), options);
 }
 
 // For tests that need to send stdin a hook's own `parseStdin` cannot parse.
 // `runHook` always JSON.stringifies its payload, so it can never produce
 // genuinely malformed input — this sends `rawInput` through untouched.
-export function runHookRaw(name, rawInput) {
+export function runHookRaw(name, rawInput, options = {}) {
   const res = spawnSync(process.execPath, [join(HOOKS_DIR, name)], {
     input: rawInput,
     encoding: "utf8",
+    cwd: options.cwd,
   });
   let json = null;
   try {
