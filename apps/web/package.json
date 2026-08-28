@@ -32,6 +32,7 @@
     "@radix-ui/react-tabs": "^1.1.17",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
+    "@tc/fixtures": "workspace:*",
     "@tc/pages": "workspace:*",
     "@tc/predict": "workspace:*",
     "@tiptap/pm": "^2.11.0",

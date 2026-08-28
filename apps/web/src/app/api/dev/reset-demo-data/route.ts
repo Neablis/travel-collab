@@ -2,16 +2,8 @@ import { randomUUID } from "node:crypto";
 import { auth } from "@/server/auth";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { listTripSummaries } from "@/server/projections";
-import { importJapanTripSeed, parseTripSeed } from "@/lib/japanTripImporter";
+import { JAPAN_TRIP_NAME, japanTripCommands } from "@tc/fixtures";
 import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
-// A static import, not a runtime fs.readFileSync: this route is
-// preview-only, and Vercel's Root Directory for this project is apps/web
-// (docs/milestones/M0-walking-skeleton.md) — `.design-sync/` sits outside
-// it, so a path read at request time would depend on output-file-tracing
-// including a file the deploy's root directory doesn't own. A static import
-// sidesteps that entirely: the bundler (tsconfig's resolveJsonModule) inlines
-// the JSON into the compiled route at build time, same as any other module.
-import rawJapanTripSeed from "../../../../../../../.design-sync/handoff/data/japan-trip-seed.json";
 
 // Debug-tool endpoint (Mitchell's request, 2026-08-24): wipes the signed-in
 // user's own trips and reseeds the 14-day/68-stop Japan demo trip, so a UI
@@ -28,6 +20,20 @@ import rawJapanTripSeed from "../../../../../../../.design-sync/handoff/data/jap
 // necessarily for what used to be ~70 sequential round trips against a
 // growing event stream, so this still gets an explicit ceiling.
 export const maxDuration = 30;
+
+/**
+ * Local calendar date, N days from today, as `YYYY-MM-DD`.
+ *
+ * Duplicated from scripts/db-seed.ts deliberately: both callers must date the
+ * demo trip identically, and the alternative — exporting it from @tc/fixtures —
+ * would put a wall-clock read inside a package whose determinism is what
+ * `pnpm seed:verify` depends on (ADR-030).
+ */
+function isoDateInDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 export async function POST(_request: Request) {
   if (!isDemoDataResetEnabled()) {
@@ -63,18 +69,28 @@ export async function POST(_request: Request) {
   // write (AGENTS.md invariant 1).
   const tripId = randomUUID();
   const created = await executeTripCommand(
-    { type: "CreateTrip", tripId, name: "Japan: Tokyo → Kyoto → Osaka" },
+    { type: "CreateTrip", tripId, name: JAPAN_TRIP_NAME },
     userId,
   );
   if (!created.ok) {
     return Response.json({ error: created.error.message, code: created.error.code }, { status: 400 });
   }
 
-  const seed = parseTripSeed(rawJapanTripSeed);
-  const commands = importJapanTripSeed(seed, tripId);
+  // The SAME commands db:seed runs locally, from @tc/fixtures (ADR-030). This
+  // route used to build its own from the raw design-handoff export, which
+  // carried no tags at all and only 51 of 72 coordinates — six of those
+  // pointing at the wrong venue. A preview deployment therefore showed a
+  // materially thinner, partly wrong trip than any local browser walk did,
+  // which is exactly backwards for the environment reviews happen in.
+  //
+  // Dated relative to today, like db:seed, so the demo trip is always upcoming
+  // and the homepage hero always has something to show.
+  const commands = japanTripCommands(tripId, { startDate: isoDateInDays(10) });
 
   // One executeTripCommandBatch call, not ~70 sequential executeTripCommand
-  // calls: SetTripDates, SetTripBudget and AddActivity (everything
+  // calls — and deliberately one batch rather than the fixture's own
+  // per-day grouping (japanTripCommandGroups), trading History readability for
+  // all-or-nothing rollback on a throwaway preview reset: SetTripDates, SetTripBudget and AddActivity (everything
   // importJapanTripSeed emits) are all BatchableCommand
   // (packages/contracts/src/trip.ts), so the whole seed decides and appends
   // under one batchId inside one transaction — a rejection partway through

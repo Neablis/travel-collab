@@ -144,6 +144,11 @@ container with no local infra.
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
 worktree audit).
 
+**Fixture check** (`pnpm seed:verify`): folds the canonical Japan demo trip
+through the real domain and reports counts, kind/tag coverage, coordinates,
+rollups and conflicts against a recorded baseline. Runs inside `pnpm check`
+too; the standalone command is for the readable table. See ADR-030.
+
 **Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
 commands while multiple worktrees exist.
@@ -220,6 +225,11 @@ carries the full accounting.
 - New domain logic has unit tests; new endpoints have contract + integration
   tests; new user flows extend the milestone e2e script.
 - The projection-rebuild golden test still passes if events or reducers changed.
+- **If the change adds a contract field, the demo fixture exercises it.** A
+  field no fixture carries has no demo, no preview and no screenshot — M18's
+  tag chips shipped against a preview whose data had zero tags. Add it to
+  `@tc/fixtures` and to the expectations, then run `pnpm seed:verify`.
+  `docs/guidelines/fixtures-and-seed-data.md` is the procedure.
 - No invariant weakened. If one blocked you, that is a finding to report to
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible

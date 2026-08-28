@@ -13,7 +13,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-57 — Report-conformance may check the wrong unit's report when units run concurrently
+### KI-62 — Report-conformance may check the wrong unit's report when units run concurrently
 
 - **Severity:** unknown-until-observed (could make the hook inert exactly where the protocol is used)
 - **Area:** `scripts/hooks/subagent-report-conformance.mjs`
@@ -35,7 +35,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   which is already the only thing catching a report that was never written.
 - **First noted:** 2026-08-28, final review of the subagent protocol branch.
 
-### KI-58 — Small subagent-protocol defects found in review and consciously left
+### KI-63 — Small subagent-protocol defects found in review and consciously left
 
 - **Severity:** cleanup
 - **Area:** `scripts/hooks/resource-lease.mjs`,
@@ -71,6 +71,72 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   the ledger holding them was deleted at teardown — which is exactly the
   failure this protocol's promotion gate exists to prevent.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
+### KI-61 — The landing page's "look around a real trip" always dead-ends, because nothing ever creates the share it points at
+- **Severity:** correctness (product gap — the front door's most prominent secondary CTA lands on an empty state on every environment, including a freshly seeded local one)
+- **Area:** `apps/web/scripts/db-seed.ts`, `apps/web/src/app/api/dev/reset-demo-data/route.ts`, `.env.example`, `apps/web/src/server/access/shares.ts` (`readFeaturedShare`)
+- **Symptom:** `/welcome`'s "Look around a real trip" and "See a finished one" both link to `/s/featured`. That reserved token resolves through `readFeaturedShare`, which reads `DEMO_SHARE_TOKEN`; unset, it returns `not-found` and `SharedTripScreen` renders **"Nothing to see here / No trip is published here yet."** So the CTA advertises a read-only tour of a real trip and delivers an empty state.
+- **Not a defect in the share machinery.** `/s/:token` works: the ShareButton mints a token, the link replays the log at the pinned seq, and `readShare` is fine. The empty state is the *designed* behaviour for "unset" — ADR-027 chose it deliberately over falling back to "the newest share on the instance", which would publish a real user's private trip on the front page the moment they clicked Share.
+- **Three gaps compounding, measured 2026-08-28:**
+  1. `DEMO_SHARE_TOKEN` is **not in `.env.example`** (`grep -c` → 0), so no local dev or fresh worktree has ever had it set.
+  2. **The seed creates no share at all** (`grep -c 'createShare\|/shares' db-seed.ts` → 0). Even a developer who wanted to set the var has no token to set it to without publishing a trip by hand through the UI and copying the token out.
+  3. `createShare` mints a random token, so any token obtained that way **dies at the next `db:reseed`** — the trip it pins no longer exists.
+- **ADR-027 predicted exactly this** and it was never filed here, so it has been invisible to `/ki-sweep` and to anyone reading this file: *"The known weak point: with `DEMO_SHARE_TOKEN` unset — CI, a fresh local database, and any deploy where nobody set it — the landing page's most prominent secondary CTA lands on that empty state... it depends on a deploy step no test can enforce."*
+- **CI enshrines the broken case:** `e2e/m11-share.spec.ts`'s "the landing page's peek CTAs" asserts the empty state is reached, so the suite is green precisely because nothing is configured. That is a reasonable assertion for the unset branch and a bad one to be the only coverage.
+- **Fix path (needs a decision — see below):** give `@tc/fixtures` a fixed demo share token, have both seeders publish the Japan trip under it, and ship `DEMO_SHARE_TOKEN` in `.env.example` so a `pnpm setup` + `db:reseed` front door works out of the box; set the same value once on Vercel Preview/Production.
+- **The decision it needs, and why it is not mechanical:** that token would be **committed to the repo and publicly guessable**. For the seeded demo trip that is the intent — it is meant to be world-readable. But it means adding a token-override path to `createShare`, which is the one place share secrecy is decided, and that path must be impossible to reach for a real user's share. Whether to take that, versus generating a random token at seed time and printing it for a human to paste into env (honest, but leaves preview broken until someone does it), is Mitchell's call.
+- **Found by:** Mitchell, 2026-08-28 — "why the homepage preview (see a planned trip) of this trip using the seed data to power it shows Nothing to see here".
+- **Cross-reference:** ADR-027 (the reserved token and the deliberate empty state), M12 Community (owns real discovery and would replace this env var entirely), KI-50 (the other "preview needs a deploy step nobody did" entry).
+- **First noted:** 2026-08-28 (PR #74).
+
+### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+- **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
+- **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
+- **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
+  ```
+  day  4  Tobu Asakusa Station   tagged Nikkō     "Limited Express to Nikkō"
+  day  6  Shinjuku Station       tagged Hakone    "Romancecar to Hakone-Yumoto"
+  day  7  Odawara Station        tagged Kyoto     "Shinkansen Odawara → Kyoto"
+  day 11  Kyoto Station          tagged Osaka     "Train Kyoto → Osaka"
+  day 13  Uno Port               tagged Naoshima  "Train and ferry to Naoshima"
+  day 14  Zentis Osaka           tagged Tokyo     "Breakfast at the hotel"
+  day 14  Shin-Osaka Station     tagged Tokyo     "Shinkansen to Tokyo"
+  ```
+  `city` lands on both `Location.city` and, via `locationName`, inside `Location.name` — so the stored label reads `"Zentis Osaka, Kita, Tokyo, Japan"` for a hotel in Osaka.
+- **Why it is filed rather than fixed:** it is the fixture's stated convention, inherited from `db-seed.ts` where the day-14 case was reasoned out explicitly — splitting that day produced "a pile of 'same day, ~400km apart' distance warnings ... accurate but noisy for a fixture". `cityFor()` names and colours a day from its activities' `city`, and `calendarCityCards.ts` groups strictly on it, so splitting these seven would change day accents, the calendar's city cards, and the 12-conflict baseline `pnpm seed:verify` pins. That is a product decision about how a travel day is modelled, not a mechanical correction — the same class as KI-39's note that the seed's coordinates are "a product-visible data decision".
+- **The real question underneath it:** the domain has no concept of a stop that moves between two places. `ActivityKind: "transit"` says a stop *is* travel but not where it goes. Until there is a from/to, any single `city` on a transit stop is a lie in one direction or the other; the current convention at least makes the lie consistent.
+- **Fix path, if taken:** give a transit stop the city it departs from and let the day derive its label from the majority or the last stop — or model an origin/destination pair on the activity, which is a contract change and its own reviewed step.
+- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`).
+- **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
+- **First noted:** 2026-08-28 (PR #74 review).
+
+### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
+- **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
+- **Symptom:** KI-39 hardened this script to reject candidates outside the right city's bounding box. That is a real bound, but "inside Tokyo" is a ~60km box, so a wrong *venue* within the right city still passes. Read off the overlay's own `canonicalName`, of the 12 stops where its output disagrees with the canonical coordinates, **six are simply the wrong place**:
+  ```
+  Hama-rikyū Gardens  -> "Tokyo, Chiyoda, Tokyo, Japan"          a city centroid, not a garden
+  Bread & Espresso    -> "Cawaii Bread & Coffee, Chūō, Tokyo"    a different café
+  Yoshida-ya          -> "Coffee Yoshida, Kyoto-shi"             a different venue
+  Onibus Coffee       -> "Onibus Coffee, Setagaya"               the wrong branch
+  Sushi Yoshitake     -> "Sushi Wasabi, Shinjuku"                a different restaurant, wrong ward
+  Torishiki           -> "MeGuro, Shinagawa"                     a locality, not the restaurant
+  ```
+  The other six are the right venue offset by 1.2–1.9km.
+- **What this cost while it was live:** the preview branch's reset route read this overlay directly, so a preview deployment rendered those six stops at coordinates for somewhere else, while local dev — which used `db-seed.ts`'s hand-authored values — rendered them correctly. Nobody had compared the two. **Closed as a data problem by ADR-030**: the canonical coordinates now live on the fixture rows, all 72 of them, and every caller gets the same ones.
+- **What is still open:** the script itself. Re-running it still produces these six wrong matches. It was not re-run or re-tuned as part of ADR-030 because that is separate work — changing the matching rule, re-running ~70 live lookups, and re-reviewing every result — not because it could not be run. `LOCATIONIQ_API_KEY` is set in the main checkout's `apps/web/.env.local`; a fresh worktree does not get it, because `scripts/setup-env.mjs` copies `.env.example`, where the value is empty.
+- **Why it is bounded now rather than fixed:** `packages/fixtures/src/japan/coordinateOverrides.ts` records all twelve disagreements with what the geocoder actually matched, and `verify.ts` fails on any *unlisted* disagreement. So the tool can no longer silently move a pin — a future run either agrees, or lands in that file with a reason next to it.
+- **Fix path:** a name-similarity floor between the query's `place` and the candidate's own name, rejecting "Cawaii Bread & Coffee" for "Bread & Espresso". The script already has a name-verification step (step 4 of its own method comment); it prefers a name-verified candidate but does not *require* one.
+- **Cross-reference:** KI-39 (resolved — the city-box bound this is the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), ADR-030.
+- **First noted:** 2026-08-28 (ADR-030, while checking the two seed copies against each other).
+
+### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database
+- **Severity:** cleanup (CI is unaffected — it runs against a fresh database every time; this bites local re-runs only)
+- **Area:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`, `apps/web/vitest.config.ts`
+- **Symptom:** the "clears only the caller's own trips" test creates a trip owned by an *outsider* and asserts the route left it alone: `expect(outsiderTrips).toEqual([outsiderTripId])`. The route correctly never deletes another user's trips — so that trip survives the run, and the next run's assertion sees two. Run the file four times against one database and it reports `expected [ …(4) ] to deeply equal [ Array(1) ]`.
+- **Reproduced, not inferred:** four consecutive local runs left four rows named `"Outsider's trip"` in `trip_summaries` (all `status = active`). Truncating and running the full integration suite once gives **201 passed, 20 files**.
+- **Why it isn't fixed here:** nothing in `vitest.config.ts` truncates between runs, so this is a suite-wide property rather than one test's bug — every `*.int.test.ts` that asserts on an absolute row count has the same exposure, and picking the mechanism (a global setup truncate, a per-file transaction rollback, or a unique-per-run actor id) is a decision about the whole integration lane. Filed rather than patched in an unrelated PR.
+- **Workaround:** `TRUNCATE events, trip_details, trip_summaries, pages, trip_invites, trip_memberships, users CASCADE;` before a local re-run, or `pnpm --filter web db:reset --yes`.
+- **First noted:** 2026-08-28 (ADR-030's verification — surfaced by adding a second `POST` to that file).
 
 ### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
 - **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
@@ -498,6 +564,29 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-60 — Every travel day produced false "impossible geography" conflicts — RESOLVED
+- **Severity (as filed):** correctness (10 of the Japan demo's 12 conflicts were false, and any real user's travel day got the same treatment)
+- **Area:** `packages/domain/src/trip/conflicts.ts` (`geographyRule`, new `transitExcusesDistance`)
+- **Symptom (as filed):** `detectConflicts` compared **every pair** of located stops on a day against a flat `GEO_INFEASIBLE_KM` (150km) and never read `kind`, so a day where the trip legitimately relocates flagged every before/after pair:
+  ```
+  Day  7 (Odawara → Kyoto, 4 conflicts)   "Shinkansen Odawara → Kyoto" vs the 4 Kyoto stops   ~310 km
+  Day 14 (Osaka → Tokyo,   6 conflicts)   the 2 Osaka morning stops vs the 3 Tokyo stops      ~400 km
+  ```
+  In every pair the day's own shinkansen was scheduled *between* the two stops. The data was right; the rule was incomplete. M18 had added `ActivityKind: "transit"` for exactly this reasoning and `conflicts.ts` predated it.
+- **Fix (2026-08-28):** the entry's proposed rule. A day's `transit` stops contribute their start times; a far-apart pair is skipped when a transit stop sits **at or between** the two stops in time. "A distance is only a problem if nothing on the day accounts for crossing it."
+- **Deliberately conservative in three ways**, because a false negative hides a real problem while a false positive is only noise:
+  1. **Time order, not stored order.** `day.activityIds` is display order, which a user can reorder without changing when anything happens.
+  2. **An untimed stop is never excused.** "We don't know when this is" is not evidence that travel covered it.
+  3. **An untimed *transit* stop excuses nothing** — it cannot be placed in the interval.
+  It does not check that the transit stop goes to the right *place*: nothing models a from/to (KI-59), so "some travel is scheduled in this interval" is the strongest available signal.
+- **The weaker variant was rejected with evidence:** *skip a pair if either stop is `transit`* clears day 7 (transit is an endpoint of all four pairs) but only 3 of day 14's 6 — it leaves "Breakfast at the hotel" vs the three Tokyo stops, the same false positive with transit merely not being an endpoint.
+- **Proof:** the Japan fixture goes **12 conflicts → 2**, and the two that remain are the wanted ones — "Nezu Museum" vs "Lunch at Kagari" and "Kiyomizu-dera and Sannenzaka" vs "Lunch at Omen Kodaiji". Confirmed in a real browser after a full `db:reset` + `db:seed`: the hero reads "2 open conflicts" and the Day-columns lens shows exactly two dismissible banners, where it previously stacked twelve (the pile KI-43 describes). No console errors.
+- **Regression tests:** `packages/domain/test/conflicts.test.ts`, a new "a transit stop excuses the distance it crosses (KI-60)" block — seven cases covering between/endpoint/outside-the-interval, untimed stop, untimed transit, transit-only (every other `ActivityKind` must still flag), and that time-overlap detection is untouched. **Verified non-vacuous:** removing the one-line exclusion turns 5 of the 7 red.
+- **Check subset:** full `pnpm check` (domain **153**, contracts 98, pages 32, fixtures 8, factories 354, web 1054/1 skipped) and `pnpm --filter web test:int` **201 passed** — the latter run because this is a domain change and the projection-rebuild golden test is in it.
+- **Baseline moved with it:** `@tc/fixtures`'s `expectations.ts` pinned `conflictTotal: 12`; it is now `2`, with a comment saying to suspect the rule before the content if it climbs back.
+- **Found by:** Mitchell, 2026-08-28, reviewing the reseeded demo trip — "I would expect one or two so the demo can see how they look but many many around distances being too far".
+- **Cross-reference:** KI-59 (a stop still carries one city, so the domain still has no model of a stop that MOVES between two places — this fix routes around that rather than closing it), KI-43 (why a pile of banners matters), M18 (`kind`).
 
 ### KI-51 — The colour wall is blind to untracked files, so a new file is unguarded until it is staged — RESOLVED
 - **Severity:** cleanup (no user impact; a hole in a CI gate, not a defect in shipped code)
