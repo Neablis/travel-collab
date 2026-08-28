@@ -11,7 +11,22 @@ type LocationIQRow = {
   // result; smaller settlements come back under `town`/`village`/`hamlet`
   // instead — checked in that order, the same specificity order Nominatim
   // itself uses when deciding which one to populate.
-  address?: { country_code?: string; city?: string; town?: string; village?: string; hamlet?: string };
+  // Below the settlement, Nominatim populates whichever of
+  // `suburb`/`neighbourhood`/`quarter`/`city_district` its source data
+  // supports for that place — again checked most-to-least specific, matching
+  // the settlement fallback chain above. These are strictly sub-settlement, so
+  // they never collide with the `city` read.
+  address?: {
+    country_code?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    hamlet?: string;
+    suburb?: string;
+    neighbourhood?: string;
+    quarter?: string;
+    city_district?: string;
+  };
 };
 
 export function createLocationIQGeocoder(apiKey: string): Geocoder {
@@ -51,6 +66,11 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
         canonicalName: r.display_name,
         countryCode: r.address?.country_code?.toUpperCase(),
         city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
+        area:
+          r.address?.suburb ??
+          r.address?.neighbourhood ??
+          r.address?.quarter ??
+          r.address?.city_district,
       }));
     },
   };

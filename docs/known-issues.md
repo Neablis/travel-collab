@@ -331,16 +331,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix path:** add a start date to `TripSummary`, then swap `nextTrip` to a real date-sort and `TripCard`'s date line to that field, the same way `NextTripHero` already prefers its real `TripDetail.startDate` over `createdAt` once that fetch resolves.
 - **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.5).
 
-### KI-35 — No true "area" field; route and place lines are a city-or-first-segment approximation
-- **Severity:** cosmetic
-- **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
-- **Symptom:** `shortPlace()` (this task, `lib/place.ts`) and `cityFor()` (`DayChips.tsx`, earlier work) both face the same gap: `Location` has no dedicated "area"/"neighborhood" field, only the geocoder's structured `city` and the full `name` label. Both helpers fall back to `location.city` when present, else the first comma-delimited segment of `name` — a real but imprecise stand-in that can occasionally read oddly, since that first segment is the *venue name* for a location with no `city`, not an area (e.g. "Ugly Duck Coffee" rather than "Rochester"). The timeline's day-header route line and each activity's place line both inherit this via `shortPlace()`.
-- **Why it's not fixed here:** the real fix is a contract change — a dedicated `area` field on `Location` — which M10 Wave 2's Phase 8 (Task 8.7 — plan deleted at M10's gate close, see `docs/milestones/M10-visual-craft.md`'s "Wave 2 scope") explicitly ruled out of scope: it is presentational-only, no `packages/contracts` growth.
-- **Fix path:** add a real `area` field to `Location`, populated by the geocoder alongside `city`, and prefer it in both `shortPlace()` and `cityFor()` ahead of their current fallbacks.
-- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
-
-
-
 ### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings
 - **Severity:** cleanup (no live failure today — the projection factory never runs the conflict engine, so the clash is currently unobservable)
 - **Area:** `packages/factories/src/trip.ts` (`activityFactory`'s literal `timeWindow`, and `tripDetailFactory`'s hardcoded `conflicts: []`), `packages/factories/src/scenarios.ts`
@@ -578,6 +568,18 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Resolved
 
+### KI-54 — `activitiesEqual` ignored `city` and `countryCode`, so a change to either was invisible to diff/revert/undo — RESOLVED
+- **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)
+- **Area:** `packages/domain/src/trip/equality.ts`
+- **Symptom:** `activitiesEqual` compares `Location` **field by field**, and the list was hand-maintained: `name`, `lat`, `lng` (and, from KI-35, `area`). `city` and `countryCode` were never in it. `diffTripStates` is built on this predicate, so an activity whose *only* change was its city or country code compared EQUAL — the diff emitted no `ActivityUpdated`, and a revert or undo through that path silently kept the old value while the UI had already shown the new one.
+- **Not hypothetical:** `city` is written by the geocoder on every place pick and is what `cityFor()` uses to name a day and pick its accent. The `accept-language=en` change (`9c3fe15`) re-renders a Japanese location's `city` and nothing else — precisely the edit this predicate could not see.
+- **How it surfaced:** found while adding `area` to the same comparison for KI-35 (2026-08-28). `area` was added because omitting it would have had exactly this consequence; the two fields one line over already had it. Filed first, then **CodeRabbit independently flagged the same omission on PR #72 and rated it Major** — which is what changed the call from "file it" to "fix it here".
+- **Fix (2026-08-28, PR #72):** `city` and `countryCode` added to the comparison, which is now every persisted field of `Location`. The comment above it says so and tells the next person to extend it in the same commit as any contract change.
+- **Proof:** one test **per field** in `packages/domain/test/ki35-location-area.test.ts` (a single combined case would pass with only one of the two comparisons present — the very shape of this bug), each asserting both `tripStatesEqual` is false and that `diffTripStates` emits an `ActivityUpdated`; plus a replay test that a city-only diff, applied through `evolveTrip`, lands on the target state. Mutation-proved by removing each comparison in turn: dropping `city` fails 2 tests, `countryCode` 1, `area` 3.
+- **Root cause, still standing:** the hand-enumeration itself, which has now bitten twice. A structural compare would make it unrepeatable. Not done here — it is a change to how equality is *defined*, with a blast radius across undo/revert/diff, and it wants its own diff.
+- **First noted:** 2026-08-28 (KI-35 implementation). **Resolved:** 2026-08-28 (PR #72).
+
+
 Closed issues, kept for the reasoning rather than the status. Nothing here
 needs action — skip this section when triaging.
 
@@ -639,6 +641,90 @@ needs action — skip this section when triaging.
   screen to explain it or dismiss it again. Dismissal now suppresses the badge
   for every kind, because the editor is the surface that never filters.
 - **First noted:** 2026-08-26 (design-sync UI audit, `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` A2). **Resolved:** 2026-08-28.
+
+### KI-35 — No true "area" field; route and place lines are a city-or-first-segment approximation — RESOLVED
+- **Resolved (2026-08-28)** by adding the field the entry's own fix path named.
+  `Location.area` (`packages/contracts/src/activity.ts`) is a real optional
+  field — the sub-settlement locality, one level finer than `city` — populated
+  by the geocoder from the same structured address breakdown and preferred
+  ahead of the venue-name fallback in both helpers this entry names.
+- **What was actually wrong, reproduced first.** Against the real Japan seed:
+  `Location.parse({ …, area: "Nishi-Azabu" })` returned an object with `area`
+  `undefined` (the contract had no such field, so zod stripped it); the
+  importer's `AddActivity` for "Dinner at Gonpachi" carried
+  `{name, city: "Tokyo", lat, lng}` and no area; and `shortPlace()` on the
+  backlog idea "Kiyomizu-dera at golden hour" — which has an area
+  ("Higashiyama") and no city — returned **`"Kiyomizu-dera"`**, a venue name
+  in a slot that means "whereabouts". That is the symptom, verbatim.
+- **The two helpers now order differently, on purpose.** `shortPlace()`
+  (`lib/place.ts`) is `area ?? city ?? first segment of name`: it labels a
+  *stop*, and a day inside one city is exactly where the city stops saying
+  anything — four Tokyo stops rendered "Tokyo → Tokyo → Tokyo → Tokyo" where
+  "Ōta → Shibuya → Nishi-Azabu → Ebisu" is the real shape of the day.
+  `cityFor()` (`DayChips.tsx`) is `city ?? area`, null otherwise: it names the
+  *day*, drives the day accent and the "Tokyo → Nikkō" transition, so a ward in
+  that slot would split one city's days apart. **It has no `name` fallback** —
+  this entry originally shipped `city ?? area ?? name`, written off a `main`
+  that predated Mitchell's instruction on the #71 preview ("Never fall back to
+  name, if you have absolutely no city, then make a new bucket with no city in
+  title"), and the merge into `#71` resolved it to drop `name`. `area` does not
+  violate that rule — a locality is a place — but a venue name does, and was
+  how a restaurant came to label a whole day. Both orderings are commented at
+  their call sites.
+- **Grouping is untouched.** `calendarCityCards.ts` still groups strictly on
+  `location.city`; nothing groups, colours, or buckets by `area`. It is
+  display-only, as scoped.
+- **The hand-enumeration sites.** Found by grepping every co-occurrence of
+  `countryCode`/`lat`/`lng`/`city`, every `location.<field>` read and every
+  `location: {` construction outside tests. Exactly one module compares a
+  `Location` field by field — `packages/domain/src/trip/equality.ts` — and it
+  now compares `area`, or `diffTripStates` would treat an area-only edit as a
+  no-op and revert/undo would silently keep the old value.
+  `diff.ts`, `hydrate.ts` and `contracts/src/detail.ts` pass `location`
+  through whole and needed no change. Producers updated: the LocationIQ
+  adapter, the AI geocode enrichment, `LocationInput`, the MSW handlers, the
+  Japan seed importer (`stops[].area` / `unscheduled[].area` are no longer in
+  `DROPPED_SEED_FIELDS`), `db-seed.ts`, and the domain property generator's
+  location space.
+- **Additive against a live database, tested as such.** `area` is `.optional()`
+  exactly as `city` is, so a `trip_details.doc` written before this change
+  still parses — `packages/contracts/test/ki35-location-area.test.ts` parses a
+  full pre-`area` projection document with no `area` key anywhere and asserts
+  it succeeds. That test exists because M18 added *required* fields to this
+  same jsonb-returned-raw shape and 500'd every untouched board (fix commit
+  `8abbaa3`); this is the tripwire for not repeating it.
+- **Proof.** Every new test was mutation-checked: reverting `shortPlace`'s
+  ordering fails 3 assertions across `place.test.ts` and
+  `japanTripImporter.test.ts`; reverting `cityFor`'s fallback fails the
+  DayChips area test; dropping `area` from `equality.ts` fails all three
+  domain equality/diff assertions; dropping it from the importer or from the
+  LocationIQ mapping fails their respective suites; making the contract field
+  required fails the pre-`area`-document parse. Gates green from
+  `/home/user/ki35-area`: `pnpm typecheck`, `pnpm lint`, `pnpm test`
+  (139 domain + 53 contracts + 901 web), `pnpm test:int` (85), and
+  `pnpm --filter web test:e2e:ci-like` (31 passed).
+- **A third call site, found during the fix and also closed:**
+  `TripBoardScreen.tsx`'s unscheduled rack computed a field it literally calls
+  `area` as `location?.city ?? location?.name` — the same
+  venue-name-in-an-area-slot shape, at a site this entry never named. It now
+  calls `shortPlace()` like every other place line, so the rack picks up the
+  new field and agrees with the timeline. Included because shipping an `area`
+  field while a slot named `area` still rendered "Ugly Duck Coffee" would have
+  left the entry half-true.
+- **Found here, fixed here: KI-54.** `equality.ts` also omitted `city` and
+  `countryCode` from its field-by-field `Location` comparison — the same
+  hand-enumeration hole one field over, and a correctness bug rather than a
+  cosmetic one (a city-only edit was invisible to `diffTripStates`, so
+  revert/undo silently kept the old value). It was first *filed* as KI-54 on
+  the reasoning that widening the comparison changes revert/undo semantics for
+  two fields nobody asked about. CodeRabbit then flagged the same omission on
+  PR #72 and rated it Major, which was the right correction: the list's own
+  comment says every field the contract grows must be added to it, so those two
+  were an omission rather than a decision. Fixed in the same PR — see KI-54,
+  resolved above.
+- **Severity:** cosmetic
+- **Area:** `apps/web/src/lib/place.ts`, `apps/web/src/components/lenses/TimelineLens.tsx`, `packages/contracts/src/activity.ts` (`Location`)
+- **First noted:** 2026-08-24 (M10 Wave 2 Phase 8, Task 8.7).
 
 ### KI-47 — No `tags` field on an activity, and five designed surfaces depend on one — RESOLVED
 - **Resolved (2026-08-27)** by M18's contract PR. `ActivityTag`

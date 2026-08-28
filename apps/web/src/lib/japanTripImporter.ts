@@ -196,12 +196,10 @@ export const DROPPED_SEED_FIELDS = [
   "days[].overlaps", // precomputed conflict data from the prototype; the real Conflict Engine
   // derives overlaps live from placed activities (Invariant 3) — importing a stale,
   // precomputed copy would risk it silently disagreeing with what the engine finds.
-  "stops[].area", // no Location sub-field for it; folded into `place` in the AddActivity location.name instead
   "stops[].who", // Access & Membership's territory, not an activity field
   "stops[].durationMinutes", // redundant with start/end, which TimeWindow already carries
   "stops[].cost.estimated", // Money is {amountMinor, currency} only — no provenance sub-field
   "stops[].cost.source", // same
-  "unscheduled[].area", // see stops[].area
   "unscheduled[].who", // see stops[].who
   "unscheduled[].source", // attribution ("Priya added it"), not a Money source — no field for it
 ] as const;
@@ -209,6 +207,10 @@ export const DROPPED_SEED_FIELDS = [
 // Exported so scripts/geocode-japan-seed.mts builds the exact same query
 // string this importer uses for a stop's display name — the geocode overlay
 // can't drift from what actually gets stored.
+// `area` is BOTH folded into this label and carried as its own
+// Location.area (KI-35). The duplication is deliberate: `name` stays the full
+// human label the geocode overlay was built against and must not change, while
+// `area` is the structured field the UI reads.
 export function locationName(place: string, area: string, city: string): string {
   return `${place}, ${area}, ${city}, Japan`;
 }
@@ -237,7 +239,8 @@ function coordsFor(id: string): { lat: number; lng: number } | undefined {
 // appends to the end of the target day's activityIds, so iterating stops in
 // the seed's own per-day order reproduces the seed's order exactly. `city`
 // comes from the containing day, not the stop — stops carry no city of
-// their own in this export (only `area`, folded into the location name).
+// their own in this export (only `area`, which now lands on Location.area as
+// well as inside the location name — see locationName above).
 // The seed's own stop.id is read to pick this stop out during mapping
 // (day/city lookups etc.) and to look up its entry in the geocode overlay —
 // it never appears in the emitted command itself, though: the activity's
@@ -256,7 +259,7 @@ function stopToAddActivity(
     dayId,
     title: stop.title,
     timeWindow: { start: stop.start, end: stop.end },
-    location: { name: locationName(stop.place, stop.area, city), city, ...coordsFor(stop.id) },
+    location: { name: locationName(stop.place, stop.area, city), city, area: stop.area, ...coordsFor(stop.id) },
     kind: stop.status,
     ...(stop.note ? { notes: stop.note } : {}),
     ...(cost ? { cost } : {}),
@@ -273,7 +276,7 @@ function unscheduledToAddActivity(tripId: string, item: TripSeedV1["unscheduled"
     tripId,
     activityId: randomUUID(),
     title: item.title,
-    location: { name: unscheduledLocationName(item.place, item.area), ...coordsFor(item.id) },
+    location: { name: unscheduledLocationName(item.place, item.area), area: item.area, ...coordsFor(item.id) },
     kind: item.status,
     ...(item.note ? { notes: item.note } : {}),
   };

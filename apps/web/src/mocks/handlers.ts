@@ -10,7 +10,7 @@ import {
   type TripRole,
 } from "@tc/contracts";
 
-type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string };
+type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string; area?: string };
 
 // Deliberately naive state transitions — just enough for UI development and
 // component tests. The real semantics live in @tc/domain, which UI-side code

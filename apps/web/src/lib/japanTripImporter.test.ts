@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TripCommand } from "@tc/contracts";
 import { DROPPED_SEED_FIELDS, importJapanTripSeed, parseTripSeed } from "./japanTripImporter";
+import { shortPlace } from "./place";
 
 const SEED_PATH = resolve(import.meta.dirname, "../../../../.design-sync/handoff/data/japan-trip-seed.json");
 
@@ -117,6 +118,37 @@ describe("japanTripImporter", () => {
   it("no longer lists stop status as a dropped field", () => {
     expect(DROPPED_SEED_FIELDS).not.toContain("stops[].status");
     expect(DROPPED_SEED_FIELDS).not.toContain("unscheduled[].status");
+  });
+
+  // KI-35. The seed has always carried an area per stop; Location had nowhere
+  // to put it, so the importer folded it into the display name and dropped it
+  // as a field. Now that Location.area exists, it lands as a field — which is
+  // what makes a Tokyo day render "Nishi-Azabu" instead of four "Tokyo"s.
+  it("carries every stop's area onto Location.area, scheduled and backlog alike", () => {
+    const adds = importJapanTripSeed(loadRealSeed(), randomUUID()).filter((c) => c.type === "AddActivity");
+
+    expect(adds.length).toBeGreaterThan(0);
+    expect(adds.every((c) => c.location?.area !== undefined)).toBe(true);
+
+    // A scheduled stop: area is finer than the day's city, and both survive.
+    const gonpachi = adds.find((c) => c.title === "Dinner at Gonpachi");
+    expect(gonpachi?.location?.area).toBe("Nishi-Azabu");
+    expect(gonpachi?.location?.city).toBe("Tokyo");
+    // The name keeps its full label — the geocode overlay is keyed to it.
+    expect(gonpachi?.location?.name).toBe("Gonpachi Nishiazabu, Nishi-Azabu, Tokyo, Japan");
+
+    // A backlog item: no city in the export at all, so `area` is now the only
+    // locality it has. Before, shortPlace() showed "Kiyomizu-dera" here — a
+    // venue name in a slot that means "whereabouts". That was KI-35.
+    const parked = adds.find((c) => c.title === "Kiyomizu-dera at golden hour");
+    expect(parked?.location?.area).toBe("Higashiyama");
+    expect(parked?.location?.city).toBeUndefined();
+    expect(shortPlace(parked?.location)).toBe("Higashiyama");
+  });
+
+  it("no longer lists stop area as a dropped field", () => {
+    expect(DROPPED_SEED_FIELDS).not.toContain("stops[].area");
+    expect(DROPPED_SEED_FIELDS).not.toContain("unscheduled[].area");
   });
 
   // witness: a real run of scripts/geocode-japan-seed.mts (2026-08-25)

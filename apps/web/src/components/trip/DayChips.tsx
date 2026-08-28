@@ -67,21 +67,31 @@ export function parseLocalDate(iso: string): Date {
 
 // The first scheduled activity's location.city (packages/contracts'
 // Location.city — the geocoder's own structured city/town/village, distinct
-// from the full place-name label). Falls back to location.name only for a
-// location that predates that field, or one with no city-level address
-// component at all (e.g. an ocean crossing, or a manually-typed place) — a
-// real but imprecise stand-in, matching the same "don't fabricate a field
-// that isn't there" stance as the TripSummary city comments in
-// NextTripHero.tsx / TripCard.tsx. Falls through subsequent activityIds if
-// the first has no location; null if none of the day's activities have one.
-// The day's city: the first stop that names one. A `location.name` is a
-// display label, never a stand-in for a city — it used to be, which is how a
-// restaurant ended up labelling a day (Mitchell, walking the #71 preview). A
-// day whose stops all lack a city has no city, and says so by returning null.
+// from the full place-name label).
+//
+// `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
+// with `area`. This value names the day and drives the day accent and the
+// "Tokyo → Nikkō" transition, so a ward or neighbourhood in this slot would
+// split one city's days apart and invent transitions inside a single city.
+//
+// `area` is the ONLY fallback, and there is deliberately no `name` one.
+// Resolved here when #72 (KI-35) merged into this branch: #72 was written off
+// a `main` that predated Mitchell's instruction on the #71 preview — "Never
+// fall back to name, if you have absolutely no city, then make a new bucket
+// with no city in title" — and so restored `?? location.name`. That rule
+// stands: a venue name is not a place, and it is how a restaurant came to
+// label a whole day. `area` does not violate it, because a real locality
+// ("Higashiyama") IS a place; the venue name ("Kiyomizu-dera") never was.
+// So a day whose stops carry neither city nor area has no city, and says so
+// by returning null — the callers all handle that.
+//
+// Falls through subsequent activityIds if the first has no location; null if
+// none of the day's activities name a city or an area.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (const activityId of day.activityIds) {
-    const city = activities[activityId]?.location?.city;
-    if (city !== undefined && city !== "") return city;
+    const location = activities[activityId]?.location;
+    const place = location?.city ?? location?.area;
+    if (place !== undefined && place !== "") return place;
   }
   return null;
 }

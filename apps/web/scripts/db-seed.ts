@@ -213,6 +213,10 @@ type SeedStop = {
   end: string;
   place: string;
   city: string;
+  // Sub-settlement locality, straight onto Location.area (KI-35). Optional
+  // because the Rochester trip's stops have no neighbourhood worth naming;
+  // the Japan rows all carry one.
+  area?: string;
   lat: number;
   lng: number;
   country: string;
@@ -356,6 +360,7 @@ async function seedJapanTrip(cookie: string): Promise<void> {
       end: s.end,
       place: `${s.place}, ${s.area}, ${s.city}, Japan`,
       city: s.city,
+      area: s.area,
       lat: s.lat,
       lng: s.lng,
       country: "JP",
@@ -386,7 +391,7 @@ async function seedJapanTrip(cookie: string): Promise<void> {
         type: "AddActivity" as const,
         activityId: randomUUID(),
         title: b.title,
-        location: { name: `${b.place}, ${b.area}, ${b.city}, Japan`, city: b.city, lat: b.lat, lng: b.lng, countryCode: "JP" },
+        location: { name: `${b.place}, ${b.area}, ${b.city}, Japan`, city: b.city, area: b.area, lat: b.lat, lng: b.lng, countryCode: "JP" },
         kind: "idea" as const,
         ...(b.tags && b.tags.length > 0 ? { tags: b.tags } : {}),
         ...(notes ? { notes } : {}),
@@ -525,7 +530,7 @@ function activityCommands(a: SeedStop, position: number): DistributiveOmit<Batch
       activityId,
       title: a.title,
       timeWindow: { start: a.start, end: a.end },
-      location: { name: a.place, city: a.city, lat: a.lat, lng: a.lng, countryCode: a.country },
+      location: { name: a.place, city: a.city, ...(a.area ? { area: a.area } : {}), lat: a.lat, lng: a.lng, countryCode: a.country },
       kind: a.kind ?? "planned",
       ...(a.tags !== undefined && a.tags.length > 0 ? { tags: a.tags } : {}),
       ...(a.costMinor !== undefined ? { cost: { amountMinor: a.costMinor, currency: "USD" } } : {}),

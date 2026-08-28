@@ -21,6 +21,7 @@ import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
+import { shortPlace } from "@/lib/place";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
@@ -191,10 +192,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     });
 
   // The unscheduled rack's contents: trip.backlog is the source of truth for
-  // "parked", and each id resolves through activities. `area` reuses the same
-  // city-else-name fallback DayChips.cityFor documents — location.city is the
-  // geocoder's own city component, and .name is the only stand-in for a
-  // location that predates that field or has no city-level component at all.
+  // "parked", and each id resolves through activities. The card's `area` slot
+  // is `shortPlace()` — the same area-then-city-then-name-segment order the
+  // timeline's place line uses. It used to inline `city ?? name`, which put
+  // the venue's own name ("Ugly Duck Coffee") in a slot that means
+  // "whereabouts": KI-35's exact defect, at a call site that entry never
+  // named. Now that Location carries a real `area`, the helper is what fills
+  // it honestly, and the rack agrees with every other place line in the app.
   // A backlog id with no matching activity is dropped rather than rendered as
   // a blank card.
   const rackItems = activeTrip.backlog.flatMap((activityId) => {
@@ -204,7 +208,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {
         activityId,
         title: activity.title,
-        area: activity.location?.city ?? activity.location?.name ?? null,
+        area: shortPlace(activity.location),
         timeWindow: activity.timeWindow,
       },
     ];
