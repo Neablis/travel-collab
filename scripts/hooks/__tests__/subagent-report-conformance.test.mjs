@@ -98,11 +98,11 @@ test("a non-protocol subagent is left alone", () => {
 });
 
 test("stop_hook_active short-circuits so the hook cannot loop", () => {
-  // If this guard were missing or ordered after the transcript read, exit 2
-  // on a genuinely incomplete report would re-trigger SubagentStop forever.
-  // Use an incomplete report here (not a bare "## Exit: DONE") so the test
-  // actually proves stop_hook_active suppresses a block that would otherwise
-  // fire — a complete report would pass regardless of the guard.
+  // "## Exit: DONE\n" alone is missing every other required section, so
+  // absent the guard this report would fail conformance and exit 2 — which
+  // is exactly the case that would re-trigger SubagentStop forever if
+  // stop_hook_active weren't checked first. A complete report would pass
+  // regardless of the guard, so it wouldn't prove anything; this does.
   const res = runHook("subagent-report-conformance.mjs", {
     transcript_path: transcriptWith("## Exit: DONE\n"),
     stop_hook_active: true,
