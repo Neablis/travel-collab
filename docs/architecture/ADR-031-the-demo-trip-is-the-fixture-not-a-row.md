@@ -146,6 +146,16 @@ but its member list names invented people, so `hasAtLeast` would refuse a real
 account. Signed out, the 401 becomes `/signin?callbackUrl=/demo` and they land
 back on the page they were reading.
 
+The sign-in detour **carries the intent**, not just the destination:
+`?callbackUrl=/demo?clone=1`, and the demo finishes the copy on arrival. Without
+it the 401 round trip cost the visitor their click — they pressed the button,
+signed in, landed back on the demo, and had to press it again, with nothing on
+the page saying so. The marker is dropped from the URL (via `history.replaceState`,
+not a router navigation, which would race the push that follows) before the copy
+runs, so a failure leaves an ordinary `/demo`; and a 401 on the automatic run
+shows the button and a message rather than bouncing to sign-in again, which is
+where a loop would start.
+
 The copy is named for the trip, **not** `<name> (copy)`: every other clone is a
 copy of something already in your list and needs telling apart from it; this is
 somebody's first trip, and calling it "(copy)" frames the demo as the real one.

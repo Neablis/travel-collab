@@ -22,6 +22,13 @@ export const DEMO_TRIP_ID = "00000000-0000-4000-8000-00000000d000";
 /** Where the demo board renders. Not under `/trips`, which middleware guards. */
 export const DEMO_PATH = "/demo";
 
+/**
+ * Marks a return from sign-in by someone who already pressed "Make this trip
+ * mine". `/demo?clone=1` finishes the copy instead of making them press it
+ * again — the sign-in detour carries the intent rather than dropping it.
+ */
+export const DEMO_CLONE_PARAM = "clone";
+
 export function isDemoTripId(tripId: string): boolean {
   return tripId === DEMO_TRIP_ID;
 }

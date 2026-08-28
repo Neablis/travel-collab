@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
@@ -13,7 +13,7 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
-import { DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { DEMO_CLONE_PARAM, DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
 // `/demo` — the real board, read-only, for someone who has no account yet
@@ -102,28 +102,70 @@ function DemoBanner() {
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function makeItMine() {
-    setCopying(true);
-    setError(null);
-    // The ordinary duplicate endpoint. Signed out it answers 401, which is the
-    // visitor's cue to sign in and come straight back here — the same
-    // `callbackUrl` machinery M15 built for every other front-door detour.
-    const result = await duplicateTrip(DEMO_TRIP_ID);
-    if (result.ok) {
-      router.push(`/trips/${result.value.tripId}`);
-      return;
-    }
-    if (result.error.status === 401) {
-      router.push(`/signin?callbackUrl=${encodeURIComponent(DEMO_PATH)}`);
-      return;
-    }
-    // Released only on the paths that STAY on this page: `router.push` does not
-    // unmount synchronously, so clearing it before navigating re-enables the
-    // button while this page is still on screen, and a second click there is a
-    // second trip in their list rather than a no-op (CodeRabbit, PR #71).
-    setCopying(false);
-    setError(result.error.message);
-  }
+  /**
+   * `signInOn401` is false for the automatic run below, and that asymmetry is
+   * the point: a click by someone signed out should take them to sign in,
+   * while a 401 on the way BACK from signing in means something is wrong with
+   * the session, and bouncing them to sign in again is the start of a loop.
+   * There, the honest outcome is the button and a message.
+   */
+  const makeItMine = useCallback(
+    async ({ signInOn401 }: { signInOn401: boolean }) => {
+      setCopying(true);
+      setError(null);
+      // The ordinary duplicate endpoint. Signed out it answers 401, which is the
+      // visitor's cue to sign in — and to come back and have the copy happen,
+      // rather than land here again with the button still to press.
+      const result = await duplicateTrip(DEMO_TRIP_ID);
+      if (result.ok) {
+        router.push(`/trips/${result.value.tripId}`);
+        return;
+      }
+      if (result.error.status === 401 && signInOn401) {
+        router.push(`/signin?callbackUrl=${encodeURIComponent(`${DEMO_PATH}?${DEMO_CLONE_PARAM}=1`)}`);
+        return;
+      }
+      // Released only on the paths that STAY on this page: `router.push` does not
+      // unmount synchronously, so clearing it before navigating re-enables the
+      // button while this page is still on screen, and a second click there is a
+      // second trip in their list rather than a no-op (CodeRabbit, PR #71).
+      setCopying(false);
+      setError(
+        result.error.status === 401
+          ? "Sign in first, then take a copy — this one is not yours to change."
+          : result.error.message,
+      );
+    },
+    [router],
+  );
+
+  // Coming back from sign-in, having already asked for a copy.
+  //
+  // Without this, the 401 round trip cost the visitor their click: they pressed
+  // "Make this trip mine", signed in, landed back on the demo, and had to press
+  // it again — with nothing on the page saying so (Mitchell, 2026-08-28). The
+  // sign-in detour carries the intent in its `callbackUrl` and this finishes it.
+  //
+  // Read from `window.location` in an effect rather than `useSearchParams()`:
+  // this page is prerendered, and a `useSearchParams()` call here would pull
+  // the banner — the CTA included — behind the board's Suspense boundary and
+  // out of the first paint, which is the one thing the boundary was placed to
+  // avoid. The auto-clone is a post-hydration action either way.
+  const autoCloned = useRef(false);
+  useEffect(() => {
+    if (autoCloned.current) return;
+    if (new URLSearchParams(window.location.search).get(DEMO_CLONE_PARAM) !== "1") return;
+    // Once per mount, before the await: StrictMode runs effects twice in dev,
+    // and a second pass here is a second trip in somebody's list.
+    autoCloned.current = true;
+    // Dropped from the URL first, so a reload after a failure is an ordinary
+    // `/demo` rather than another attempt. `history.replaceState`, not
+    // `router.replace`: this is a URL tidy-up, not a navigation, and a router
+    // navigation queued here would race the `router.push` that `makeItMine` is
+    // about to make on success.
+    window.history.replaceState(null, "", DEMO_PATH);
+    void makeItMine({ signInOn401: false });
+  }, [makeItMine]);
 
   return (
     <div className="border-y border-hairline bg-moss px-7 py-3.5">
@@ -143,7 +185,7 @@ function DemoBanner() {
               {error}
             </Text>
           )}
-          <Button variant="primary" disabled={copying} onClick={() => void makeItMine()}>
+          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ signInOn401: true })}>
             {copying ? "Making it yours…" : "Make this trip mine"}
           </Button>
         </div>

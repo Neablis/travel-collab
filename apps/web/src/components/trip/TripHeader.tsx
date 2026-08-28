@@ -13,6 +13,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { cn } from "@/lib/cn";
 import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
@@ -101,7 +102,19 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
 
   return (
-    <header aria-label="Trip" className="sticky top-14 z-10 border-b border-hairline bg-surface px-6 pt-3.5">
+    <header
+      aria-label="Trip"
+      // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
+      // sits above this one on every `(app)` route. `/demo` draws
+      // FrontDoorHeader instead, which does not stick — so there, offsetting by
+      // 56px pins this header 56px down from the top and leaves a see-through
+      // strip of scrolled content above it (Mitchell, preview comment on
+      // `/demo`). Nothing is sticky above it there, so it pins to the top.
+      className={cn(
+        "sticky z-10 border-b border-hairline bg-surface px-6 pt-3.5",
+        isDemoTripId(tripId) ? "top-0" : "top-14",
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           {/* Both links go to `(app)` routes behind middleware, so on the

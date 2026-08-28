@@ -58,11 +58,20 @@ names — four of them, because "1 travellers" on the page arguing for planning
 together undersells the product), and the copy records `forkedFrom` pointing at
 a synthetic trip id that names no row.
 
-**Run:** full `pnpm check`, `pnpm --filter web test:int`, `pnpm seed:verify`,
-`pnpm --filter web test:e2e:ci-like` (all 46, including six new demo cases),
-and a real browser walk of all four lenses against the production build — the
-map's tiles are blocked in this container, so the map rail was checked and the
-canvas was not.
+**Three fixes from Mitchell's preview pass, 2026-08-28.** The sign-in detour
+now carries the intent: `?clone=1` on the way back finishes the copy instead of
+landing them on the demo with the button still to press (it was two clicks and
+nothing said so). `TripHeader`'s `sticky top-14` is the height of `AppHeader`,
+which `/demo` does not draw — it pinned 56px down and left a see-through strip
+of scrolled content above it, so it sticks to `top-0` there. And `MapLegend`
+moved from bottom-right to top-right, off MapLibre's own attribution control.
+
+**Run:** full `pnpm check`, `pnpm --filter web test:int` (208),
+`pnpm seed:verify`, `pnpm --filter web test:e2e:ci-like` (all 46, including six
+demo cases — one of which now walks the signed-out click → sign-in → owned copy
+round trip), and a real browser walk of all four lenses against the production
+build — the map's tiles are blocked in this container, so the map rail and the
+legend's placement were checked and the canvas was not.
 
 ## The subagent protocol landed, 2026-08-28
 

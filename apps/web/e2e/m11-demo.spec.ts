@@ -81,16 +81,30 @@ test.describe("the demo trip", () => {
     await expect(page.getByRole("button", { name: "Redo" })).toHaveCount(0);
   });
 
-  test("sends a signed-out visitor to sign in, and back, when they take a copy", async ({ page }) => {
+  test("finishes the copy after sign-in, without a second click", async ({ page }) => {
     await page.goto("/demo");
     await page.getByRole("button", { name: "Make this trip mine" }).click();
-    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo$/);
+
+    // The detour carries the intent, not just the destination: `clone=1` is
+    // what tells the demo to finish the job when they land back on it.
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%3Fclone%3D1$/);
+
+    await page.fill('input[name="username"]', "alice");
+    await page.getByRole("button", { name: /sign in with dev login/i }).click();
+
+    // Straight through to their own copy — no second press of the button, and
+    // the marker is gone from the URL on the way (Mitchell, 2026-08-28: "you
+    // get redirected back to the sample board, and you need to click again").
+    await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
+    await expect(page.getByText("View only")).toHaveCount(0);
   });
 });
 
 // The other half of the conversion, in the session it actually happens in: a
 // signed-in visitor takes the demo home and it is a real, editable trip of
 // their own.
+// The already-signed-in half: one click, no detour.
 test("a signed-in visitor makes the demo trip theirs, and can edit it", async ({ page }) => {
   test.slow();
   await page.goto("/demo");
