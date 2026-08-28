@@ -55,10 +55,12 @@ Establishes the contract itself, the test lane the later tasks use, and an autom
 `pnpm test` is `pnpm -r --if-present test`, which recurses into workspace packages only. `scripts/` is not a package, so hook tests would never run. Change the root `test` script:
 
 ```json
-"test": "pnpm -r --if-present test && node --test scripts/hooks/__tests__/"
+"test": "pnpm -r --if-present test && node --test \"scripts/hooks/__tests__/**/*.test.mjs\""
 ```
 
 This keeps `pnpm check` (`typecheck && lint && test`) as the single gate. No new dependency: `node --test` ships with Node 22, and `engines.node` is already `>=22.18.0`.
+
+**The quoted glob is required.** `node --test <dir>` treats the path as a *file to execute* and fails with `MODULE_NOT_FOUND`; Node expands the quoted glob itself. Verified on Node 22.23.2 and 26.4.0.
 
 - [ ] **Step 2: Write the failing portability test**
 
@@ -111,7 +113,7 @@ test("the adapter carries the machine-readable half", () => {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `node --test scripts/hooks/__tests__/`
+Run: `node --test "scripts/hooks/__tests__/**/*.test.mjs"`
 Expected: FAIL — `ENOENT` on `.claude/protocol/CONTRACT.md`.
 
 - [ ] **Step 4: Allowlist the protocol directory in .gitignore**
@@ -493,7 +495,7 @@ Leave the rest of each agent file unchanged — the contract generalises what th
 
 - [ ] **Step 11: Run the tests to verify they pass**
 
-Run: `node --test scripts/hooks/__tests__/`
+Run: `node --test "scripts/hooks/__tests__/**/*.test.mjs"`
 Expected: PASS, 2 tests.
 
 If the portability test fails, the fix is to move the offending sentence into `ADAPTER.md` — never to shorten the forbidden-token list.
