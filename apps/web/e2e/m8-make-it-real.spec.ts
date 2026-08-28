@@ -151,3 +151,92 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await page.getByRole("button", { name: /undo/i }).click(); // restore
   await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).toBeVisible();
 });
+
+// KI-28 regression (the product-side half). The home page fans out one
+// `GET /api/trips/:id` per visible card — plus one for the hero above the
+// grid — to fill in each "planned of budget" line. Those responses used to
+// GROW the row they land in: 24px per card, 27px on the hero. Radix positions
+// the per-card actions menu with `strategy: "fixed"` and
+// `shift({ limiter: limitShift() })`, so an already-open menu FOLLOWS its
+// anchor instead of repositioning — every one of those pixels moved the open
+// menu out from under wherever the pointer was aimed. Measured on the trip
+// list before the fix: 27px of drift for a card in the first grid row, 75px
+// for one further down, with the point aimed at "Delete" landing on
+// "Duplicate", or on a neighbouring card entirely — which is the
+// `<h3 …> intercepts pointer events` / `element is outside of the viewport`
+// pair the CI flake reported.
+//
+// The fix reserves the cost line's height (TripCard/NextTripHero), so this
+// test does what waiting cannot: it holds the whole fan-out until the menu is
+// already open, then releases it and asserts nothing moved. Deterministic —
+// it fails on the un-fixed build every run, not one run in twenty.
+test("an open trip-actions menu does not drift when the cost lines land", async ({ page }) => {
+  const tripName = `Anchor ${Date.now()}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
+  await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
+
+  // Hold every per-card TripDetail response until `release()`, then reload:
+  // that is the cold-load state the drift needs, produced on purpose instead
+  // of waited for. Only the detail fetches are held — the list request
+  // (`/api/trips`) has no id segment and passes straight through.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/api\/trips\/[^/?]+$/, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    await held;
+    await route.continue();
+  });
+  await page.goto("/");
+
+  const card = page.getByTestId("trip-card").filter({ hasText: tripName });
+  await expect(card).toBeVisible();
+  const cardBefore = (await card.boundingBox())!;
+
+  await page.getByRole("button", { name: new RegExp(`trip actions for ${tripName}`, "i") }).click();
+  const deleteItem = page.getByRole("menuitem", { name: /delete/i });
+  await expect(deleteItem).toBeVisible();
+  const menuBefore = (await deleteItem.boundingBox())!;
+  // The point a click aimed at "Delete" would use, captured while the cost
+  // lines are still in flight.
+  const aim = { x: menuBefore.x + menuBefore.width / 2, y: menuBefore.y + menuBefore.height / 2 };
+
+  release();
+  await expect(card.getByText(/planned of|No budget yet/)).toBeVisible();
+  // Two frames, not a sleep: enough for layout plus any repositioning Radix
+  // would do in response, and it ends at a real event rather than a guess.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null)))),
+  );
+
+  const cardAfter = (await card.boundingBox())!;
+  const menuAfter = (await deleteItem.boundingBox())!;
+  // 3px, not 0: the reserved slot and the filled line differ by ~0.2px of
+  // line box, which accumulates to ~2px across a long list. The defect this
+  // guards starts at 24px (one card's own growth) and was measured at 75px.
+  expect(Math.abs(cardAfter.height - cardBefore.height)).toBeLessThan(3);
+  expect(Math.abs(menuAfter.y - menuBefore.y)).toBeLessThan(3);
+
+  // The sharp end of it: whatever the pointer was aimed at must still be
+  // under the pointer. Before the fix this resolved to the "Duplicate" item
+  // or to a neighbouring trip card.
+  const underAim = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return "(nothing — outside the viewport)";
+    const item = el.closest('[role="menuitem"]');
+    return item ? (item.textContent ?? "").trim() : `not a menu item: <${el.tagName.toLowerCase()}>`;
+  }, aim);
+  expect(underAim).toBe("Delete");
+
+  // ...and it is still a working Delete, not merely a stationary one.
+  // Deleting for real also keeps this test from leaving a card behind in the
+  // shared "alice" trip list.
+  await deleteItem.click();
+  await page.getByRole("button", { name: /^delete$/i }).click();
+  await expect(page.getByRole("heading", { name: tripName, level: 3 })).not.toBeVisible();
+});

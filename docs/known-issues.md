@@ -268,58 +268,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
   decides the escape hatch isn't worth the risk.
 
-### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport
-- **Severity:** reliability (no product impact observed yet; e2e flake, seen twice — see the 2026-08-28 recurrence below, which is what identified the mechanism)
-- **Area:** `apps/web/src/app/(app)/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`, and its per-card `TripDetail` fan-out), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/src/components/home/TripCard.tsx`, `apps/web/e2e/m8-make-it-real.spec.ts`
-- **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
-- **Originally proposed mechanism — MEASURED AND RULED OUT (2026-08-24).** The entry used to read: "the home trip list accumulates one card per e2e spec across a full suite run, so by the time `m8` runs the target card sits far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport." That was flagged at the time as "a plausible read of the symptom, not a diagnosis." It is now falsified. Driving m8's exact `trip actions for … → Delete` sequence against a real server and DB at the suite's own 1280x900 `desktop` viewport, with the menu deliberately opened *before* the per-card "planned of budget" lines land (that fan-out of one `GET /api/trips/:id` per visible card is the home page's only asynchronous layout shift, and it is what a long list makes slow):
-
-  | trip cards in the list | Delete menuitem, worst top / bottom observed while open | click |
-  |---|---|---|
-  | 2-4 | 698 / 761 | ok |
-  | 5-7 (worst case — the menu flips *above* the trigger here) | 745 / 832 | ok |
-  | 8-31 | 513 / 624 | ok |
-  | 32, 62, 92, 122, 182, 242 | 513 / 623 | ok |
-
-  Viewport height is 900. The margin never fell below 68px, and **it does not shrink as the list grows** — two independent effects cap it: Playwright's own `scrollIntoViewIfNeeded` *centers* the trigger as soon as the list is long enough to need scrolling at all (so from ~8 cards up the menu starts mid-viewport, not at the edge), and Chrome's scroll anchoring absorbs nearly all of the late layout growth above the anchor. The residual anchor drift after the cost lines land is a constant ~73px at 32 cards and still ~73px at 242 cards; it is the target card's *own* row growth, not a per-row accumulation. Checked against both a dev server and a production build (`next build` + `CI=true`, i.e. the `ci-like` path the flake was actually seen on). **Do not spend another session on trip-list length.**
-- **What *does* produce this exact error, both demonstrated in the same session — match a trace against these two signatures before anything else:**
-  1. **The anchor leaves the viewport while the menu is open.** `@radix-ui/react-popper` positions with `strategy: "fixed"` and `shift({ limiter: limitShift() })`, so the content deliberately *follows* its anchor out of view rather than detaching from it. Scrolling the page to the top with the menu open moved the Delete item to `y=1783` in a 900px viewport, where it stayed — visible, attached, and permanently unclickable, failing with exactly `element is outside of the viewport`. Nothing on the home page was found that scrolls the window or moves the anchor that far, so this needs a source of scroll/relayout that this investigation did not find.
-  2. **The popper never completes its first `computePosition`.** While `isPositioned` is false, `react-popper` parks the wrapper at `transform: translate(0, -200%)` and — unless `hideWhenDetached` is set, which this app's `Popover` does not set — leaves it fully *visible*. Forcing that state put the Delete item at `y=-123` with `isVisible() === true`, again failing with exactly `element is outside of the viewport`. This is the better fit for a failure that persisted the full 30s rather than resolving: it is a stuck state, not a transient one. It is also directly checkable from a trace — look for `translate(0, -200%)` on `[data-radix-popper-content-wrapper]` in the DOM snapshot at the failing step.
-- **RECURRENCE, 2026-08-28 (PR #71, `integration-e2e` on `06031d2`) — signature 2 falsified, signature 1 confirmed, and the missing relayout source found.** The 2026-08-24 entry closed by saying signature 1 "needs a source of scroll/relayout that this investigation did not find." This run's call log contains it. The failure went, in order:
-
-  ```
-  - locator resolved to <button role="menuitem" ...>Delete</button>
-  - attempting click action
-    - element is visible, enabled and stable
-    - scrolling into view if needed
-    - done scrolling
-    - <h3 ...>Oslo 1787874837059</h3> from <main ...> subtree intercepts pointer events
-  - retrying click action
-    - element is visible, enabled and stable
-    - scrolling into view if needed
-    - done scrolling
-    - element is outside of the viewport      <- and from here on, every retry
-  ```
-
-  Two things follow, and they are what the previous investigation lacked:
-
-  1. **Signature 2 is ruled out for this occurrence.** A popper parked at `translate(0, -200%)` because `computePosition` never completed is off-screen from its first frame; it can never first resolve to a real on-screen point that *another trip card's `<h3>`* is hit-testing over. The menu here was positioned correctly, then stopped being clickable. The stuck 30s that made signature 2 "the better fit" is explained instead by signature 1's own mechanism: once the anchor has moved, it stays moved.
-  2. **The relayout source is the home page's own per-card `TripDetail` fan-out** — `page.tsx` fires one `GET /api/trips/:id` per visible card to fill each card's "planned of budget" line. The 2026-08-24 measurement already established that this lands ~73px of growth on the target card's *own* row (and correctly ruled out any per-row accumulation, which is why list length was a dead end). What it did not connect is that ~73px of anchor drift is *enough*: `@radix-ui/react-popper` uses `strategy: "fixed"` with `shift({ limiter: limitShift() })`, so an open menu follows its anchor rather than repositioning. The interception is that drift caught mid-flight — the point Playwright hit-tested is now over the neighbouring card — and the subsequent permanent "outside of the viewport" is the same drift after `scrollIntoViewIfNeeded` re-anchored against a row that had already moved.
-
-  **Why it surfaced now:** M11 put `requireTripAccess` in front of `GET /api/trips/:id` (an extra membership/invite round-trip per request). The home page fans that endpoint out once per visible card in a single `Promise.all`, so on the long trip list an e2e suite accumulates, every card's cost line lands measurably later than it did when KI-28 was measured. That does not create the race — it is the same race as 2026-08-23 — but it widens the window in which the menu is opened *before* the anchor has settled. Recorded as a probability change, not a new defect: nothing in M11 touches the menu, the `Popover`, or the delete path.
-- **Fix (2026-08-28):** the spec now waits for the target card's own cost line before opening its menu, so the anchor is settled before the gesture starts:
-
-  ```ts
-  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
-  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
-  ```
-
-  `TripCard`'s root gained `data-testid="trip-card"` to make a card addressable at all (the trigger's `aria-label` gives no handle on the row it belongs to). This is deliberately the KI-21 shape of fix — settle both ends *before* the gesture, rather than widen a timing budget or retry harder — and deliberately **not** a change to `Popover`'s collision/positioning config, which the note below still applies to: whether an anchored menu should follow its card or close when the card moves is a design decision, and the product-side question is filed separately below rather than guessed at here.
-- **Still open (product, not test):** the underlying behaviour is real outside the test. A user who opens a trip's actions menu on a cold home page load, before the cost lines land, can have that menu drift under an adjacent card. It is far less visible at human speed than at Playwright speed (the drift is one row, ~73px, and a real user's next click just re-opens it) which is why this is filed rather than fixed under an M11 PR. The candidate fixes are (a) `onOpenChange(false)` when the anchor moves, (b) reserving the cost line's height so the row never grows, or (c) `hideWhenDetached`. (b) is the one that removes the cause rather than reacting to it.
-- **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
-- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
-- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stays open for the product-side behaviour above, not for the flake.
-
 
 ### KI-34 — `TripSummary` has no start date, so "next trip" and trip-card dates are approximations
 - **Severity:** correctness (the "next trip" selection — see below — can genuinely surface the wrong trip, not just an approximate date) / cosmetic (the `createdAt` display fallback). Split rather than a single label, per CodeRabbit's review of PR #35: the two consequences below are not the same class of problem.
@@ -659,6 +607,76 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   dispatched it to file or schedule.
 - **First noted:** 2026-08-25 (M10 Wave 2 Phase 8b, PR #46's final CodeRabbit
   review round). **Resolved:** 2026-08-28.
+
+### KI-28 — `m8-make-it-real.spec.ts`'s trip-actions menu can render its "Delete" item outside the viewport — RESOLVED
+- **Severity:** reliability (no product impact observed yet; e2e flake, seen twice — see the 2026-08-28 recurrence below, which is what identified the mechanism)
+- **Area:** `apps/web/src/app/(app)/page.tsx` (the trip list's per-card `Popover` menu, `align="end"`, and its per-card `TripDetail` fan-out), `apps/web/src/components/ui/popover.tsx` (the shared Radix wrapper — added 2026-08-24, see signature 2 below), `apps/web/src/components/home/TripCard.tsx`, `apps/web/e2e/m8-make-it-real.spec.ts` — and, added by the 2026-08-28 fix below because the measurement found a second growth source there, `apps/web/src/components/home/NextTripHero.tsx`
+- **Symptom (2026-08-23, test-suite-overhaul Phase 3/4 final verification):** one run of the full `test:e2e:ci-like` suite (21 tests) flaked on `m8-make-it-real.spec.ts` — `page.getByRole("menuitem", { name: /delete/i }).click()` timed out after 30s with `element is outside of the viewport`, then passed cleanly on Playwright's automatic retry. Distinct from and unrelated to this session's other m8 fix (a `getByText` substring collision on a later line, already resolved — this failure never reached that line).
+- **Originally proposed mechanism — MEASURED AND RULED OUT (2026-08-24).** The entry used to read: "the home trip list accumulates one card per e2e spec across a full suite run, so by the time `m8` runs the target card sits far enough down the (now long) grid that opening its `Popover` leaves the menu content with no room to flip inside the viewport." That was flagged at the time as "a plausible read of the symptom, not a diagnosis." It is now falsified. Driving m8's exact `trip actions for … → Delete` sequence against a real server and DB at the suite's own 1280x900 `desktop` viewport, with the menu deliberately opened *before* the per-card "planned of budget" lines land (that fan-out of one `GET /api/trips/:id` per visible card is the home page's only asynchronous layout shift, and it is what a long list makes slow):
+
+  | trip cards in the list | Delete menuitem, worst top / bottom observed while open | click |
+  |---|---|---|
+  | 2-4 | 698 / 761 | ok |
+  | 5-7 (worst case — the menu flips *above* the trigger here) | 745 / 832 | ok |
+  | 8-31 | 513 / 624 | ok |
+  | 32, 62, 92, 122, 182, 242 | 513 / 623 | ok |
+
+  Viewport height is 900. The margin never fell below 68px, and **it does not shrink as the list grows** — two independent effects cap it: Playwright's own `scrollIntoViewIfNeeded` *centers* the trigger as soon as the list is long enough to need scrolling at all (so from ~8 cards up the menu starts mid-viewport, not at the edge), and Chrome's scroll anchoring absorbs nearly all of the late layout growth above the anchor. The residual anchor drift after the cost lines land is a constant ~73px at 32 cards and still ~73px at 242 cards; it is the target card's *own* row growth, not a per-row accumulation. Checked against both a dev server and a production build (`next build` + `CI=true`, i.e. the `ci-like` path the flake was actually seen on). **Do not spend another session on trip-list length.**
+- **What *does* produce this exact error, both demonstrated in the same session — match a trace against these two signatures before anything else:**
+  1. **The anchor leaves the viewport while the menu is open.** `@radix-ui/react-popper` positions with `strategy: "fixed"` and `shift({ limiter: limitShift() })`, so the content deliberately *follows* its anchor out of view rather than detaching from it. Scrolling the page to the top with the menu open moved the Delete item to `y=1783` in a 900px viewport, where it stayed — visible, attached, and permanently unclickable, failing with exactly `element is outside of the viewport`. Nothing on the home page was found that scrolls the window or moves the anchor that far, so this needs a source of scroll/relayout that this investigation did not find.
+  2. **The popper never completes its first `computePosition`.** While `isPositioned` is false, `react-popper` parks the wrapper at `transform: translate(0, -200%)` and — unless `hideWhenDetached` is set, which this app's `Popover` does not set — leaves it fully *visible*. Forcing that state put the Delete item at `y=-123` with `isVisible() === true`, again failing with exactly `element is outside of the viewport`. This is the better fit for a failure that persisted the full 30s rather than resolving: it is a stuck state, not a transient one. It is also directly checkable from a trace — look for `translate(0, -200%)` on `[data-radix-popper-content-wrapper]` in the DOM snapshot at the failing step.
+- **RECURRENCE, 2026-08-28 (PR #71, `integration-e2e` on `06031d2`) — signature 2 falsified, signature 1 confirmed, and the missing relayout source found.** The 2026-08-24 entry closed by saying signature 1 "needs a source of scroll/relayout that this investigation did not find." This run's call log contains it. The failure went, in order:
+
+  ```
+  - locator resolved to <button role="menuitem" ...>Delete</button>
+  - attempting click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <h3 ...>Oslo 1787874837059</h3> from <main ...> subtree intercepts pointer events
+  - retrying click action
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - element is outside of the viewport      <- and from here on, every retry
+  ```
+
+  Two things follow, and they are what the previous investigation lacked:
+
+  1. **Signature 2 is ruled out for this occurrence.** A popper parked at `translate(0, -200%)` because `computePosition` never completed is off-screen from its first frame; it can never first resolve to a real on-screen point that *another trip card's `<h3>`* is hit-testing over. The menu here was positioned correctly, then stopped being clickable. The stuck 30s that made signature 2 "the better fit" is explained instead by signature 1's own mechanism: once the anchor has moved, it stays moved.
+  2. **The relayout source is the home page's own per-card `TripDetail` fan-out** — `page.tsx` fires one `GET /api/trips/:id` per visible card to fill each card's "planned of budget" line. The 2026-08-24 measurement already established that this lands ~73px of growth on the target card's *own* row (and correctly ruled out any per-row accumulation, which is why list length was a dead end). What it did not connect is that ~73px of anchor drift is *enough*: `@radix-ui/react-popper` uses `strategy: "fixed"` with `shift({ limiter: limitShift() })`, so an open menu follows its anchor rather than repositioning. The interception is that drift caught mid-flight — the point Playwright hit-tested is now over the neighbouring card — and the subsequent permanent "outside of the viewport" is the same drift after `scrollIntoViewIfNeeded` re-anchored against a row that had already moved.
+
+  **Why it surfaced now:** M11 put `requireTripAccess` in front of `GET /api/trips/:id` (an extra membership/invite round-trip per request). The home page fans that endpoint out once per visible card in a single `Promise.all`, so on the long trip list an e2e suite accumulates, every card's cost line lands measurably later than it did when KI-28 was measured. That does not create the race — it is the same race as 2026-08-23 — but it widens the window in which the menu is opened *before* the anchor has settled. Recorded as a probability change, not a new defect: nothing in M11 touches the menu, the `Popover`, or the delete path.
+- **Fix (2026-08-28):** the spec now waits for the target card's own cost line before opening its menu, so the anchor is settled before the gesture starts:
+
+  ```ts
+  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
+  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
+  ```
+
+  `TripCard`'s root gained `data-testid="trip-card"` to make a card addressable at all (the trigger's `aria-label` gives no handle on the row it belongs to). This is deliberately the KI-21 shape of fix — settle both ends *before* the gesture, rather than widen a timing budget or retry harder — and deliberately **not** a change to `Popover`'s collision/positioning config, which the note below still applies to: whether an anchored menu should follow its card or close when the card moves is a design decision, and the product-side question is filed separately below rather than guessed at here.
+- **Was still open (product, not test) — CLOSED by the fix below:** the underlying behaviour is real outside the test. A user who opens a trip's actions menu on a cold home page load, before the cost lines land, can have that menu drift under an adjacent card. It is far less visible at human speed than at Playwright speed (the drift is one row, ~73px, and a real user's next click just re-opens it) which is why this is filed rather than fixed under an M11 PR. The candidate fixes are (a) `onOpenChange(false)` when the anchor moves, (b) reserving the cost line's height so the row never grows, or (c) `hideWhenDetached`. (b) is the one that removes the cause rather than reacting to it.
+- **Fix (2026-08-28, KI sweep) — candidate (b), the cause removed rather than reacted to.** The cost line's height is now *reserved* whether or not it has landed: `apps/web/src/components/home/TripCard.tsx` and `apps/web/src/components/home/NextTripHero.tsx` render the slot unconditionally as `mt-1 min-h-5 leading-5` (exactly one `text-sm` line) with the text inside it, instead of rendering the whole `<div>` only when the prop is present. Absence is still honest absence — an unresolved or failed fetch renders empty space, never a fabricated figure, and `TripCard.test.tsx`'s "renders no planned-spend line" assertion is untouched and still passes. Neither `Popover` nor its collision/positioning config was touched, per the reasoning above; nothing about "does a menu follow its card, or close?" had to be decided, because after this the card does not move.
+
+  **`NextTripHero.tsx` is outside this entry's declared Area and was changed deliberately.** Measurement (below) showed the drift is the sum of *two* sources, not one: 24px per trip card **plus 27px on the hero above the grid**, which pushes the entire grid — and any menu anchored to a card in it — down by that much. Fixing only `TripCard` would have left 27px of drift, which was measured to be enough to land the point aimed at "Delete" on "Duplicate". The hero's own cost line is the same `plannedOfBudgetLine` fed by the same fan-out, so it is the same one-line change.
+- **Reproduced deterministically before the fix** (not waited for as a flake — the suite ran green on this branch beforehand). A harness held every `GET /api/trips/:id` until the actions menu was already open, then released it and measured. Against `next build` + `CI=true` at the suite's own 1280x900 viewport, 32 cards in the list:
+
+  | card | delete item y, before → after the cost lines land | drift | what is under the point aimed at "Delete" |
+  |---|---|---|---|
+  | #0 | 698 → 725 | 27px | the **"Duplicate"** menu item |
+  | #3 | 745 → 796 | 51px | the **"Duplicate"** menu item |
+  | #6 | 513 → 588 | 75px | a **neighbouring trip card** |
+  | #14 | 513 → 586 | 73px | a **neighbouring trip card** |
+  | #31 | 513 → 587 | 74px | a **neighbouring trip card** |
+
+  Every card grew 159px → 183px, and the document 2846px → 3139px. That last column is the CI failure verbatim: "a neighbouring trip card" under the pointer *is* `<h3 …> from <main …> subtree intercepts pointer events`. The same table after the fix: drift 0-1px on every card, and "Delete" still under the pointer every time.
+- **Regression test:** `apps/web/e2e/m8-make-it-real.spec.ts` → "an open trip-actions menu does not drift when the cost lines land". It holds the whole per-card fan-out with `page.route` until the menu is open, releases it, and asserts (a) the card's height did not change, (b) the Delete item did not move, and (c) `document.elementFromPoint` at the exact point a click would have used still resolves to the **Delete** menu item — then clicks it for real. **Proved non-vacuous:** with only the two component changes stashed and the app rebuilt, it fails on both the first run and the retry, in the same place, with `expect(received).toBeLessThan(expected) / Expected: < 3 / Received: 24.296875` — i.e. exactly one card's growth. This is the layout invariant the entry's whole history is about, and it can no longer come back silently.
+- **Proof:** `pnpm --filter web test:e2e:ci-like` — **42 passed** (the suite's 41 plus the new regression test), the only lane a verdict counts from (KI-27). Plus `pnpm --filter web typecheck` green, root `pnpm lint` green (ESLint + lint wall + colour wall, 356 files / 0 pending re-skin + case collisions), and `vitest run -c vitest.unit.config.ts src/components/home/TripCard.test.tsx src/components/home/NextTripHero.test.tsx "src/app/(app)/page.test.tsx"` — 39 passed / 1 skipped.
+- **Left in place on purpose:** the spec's 2026-08-28 wait for the target card's own cost line before opening its menu. It is no longer load-bearing, but it is still the right shape for a test (settle before the gesture) and removing it would be churn.
+- **Why it stayed open through 2026-08-27, and why no fix was attempted then:** the symptom was real (it cost a CI retry) but remained unexplained — closing it on a green non-reproduction would have been the KI-1 mistake ("probably a flake") in reverse. The 2026-08-28 recurrence is what supplied the missing evidence; the reasoning below is why `Popover` itself was still not touched. Nothing here justifies touching `Popover`'s collision/positioning config: signature 1 is arguably correct anchored-menu behavior and changing it is a design decision (does a menu follow its card, or close?), and signature 2 would need a real diagnosis before a `hideWhenDetached`-style change is anything but a guess.
+- **Mitigation meanwhile:** `retries: process.env.CI ? 1 : 0` (Phase 1) already labels this a flake rather than a silent failure, which is how it surfaced. If it recurs, capture the trace (`trace: "on-first-retry"` is already on, and CI now uploads traces on failure) and check it against the two signatures above **before** attempting a fix.
+- **First noted:** 2026-08-23 (test-suite-overhaul Phase 3/4 final verification). **Re-scoped, not resolved:** 2026-08-24 (KI-backlog session) — hypothesis measured and ruled out, no code change. **Mechanism identified and the test race fixed:** 2026-08-28 (M11 link 4/6, PR #71) — the entry stayed open for the product-side behaviour above, not for the flake. **Resolved:** 2026-08-28 (KI sweep) — the anchor drift itself is gone, and a deterministic regression test guards it.
+
 
 ### KI-54 — `activitiesEqual` ignored `city` and `countryCode`, so a change to either was invisible to diff/revert/undo — RESOLVED
 - **Severity:** correctness (silent loss of a user's edit on revert/undo — same family as KI-5 and KI-42, on a different trigger)
