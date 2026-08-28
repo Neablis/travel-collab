@@ -58,9 +58,9 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
-| M11 | Fork & remix | Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
+| M11 | Fork & remix / Sharing and invites | **In flight — links 1-6 landed 2026-08-28 (PR #71); the gate has not been run.** Scheduled 2026-08-27 ahead of M18's remaining surfaces and M16, and **absorbed M13's invites/roles/revocation scope** in the same decision. Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
 | M12 | Community | Public gallery, discovery, voting, reporting (all trust & safety scope quarantined here) |
-| M13 | Collaboration | Invites, roles, revocation; near-real-time sync (transport ADR due here); concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
+| M13 | Collaboration | **Narrowed 2026-08-27: invites, roles and revocation moved to M11** — what is left is near-real-time sync (transport ADR due here) and concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
 | M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7) |
 | M15 | Front door | **Gate closed 2026-08-26, PR #56.** Approved 2026-08-23 (ADR-021); ADR-022 (2026-08-25) placed it after M16, but it in fact **ran ahead of both M10's Phase 9 gate and M16** — decided by Mitchell 2026-08-26, superseding ADR-021/ADR-022's stated ordering (see the reorder note below). The unauthenticated surface the product had never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, and the header account menu (already shipped in M10 Phase 8b). The designed first-run screen was dropped — `NewTripWizard`'s "Create empty" already creates a trip from a name alone. Scope, exit gate and retro: `M15-front-door.md` |
 
@@ -124,8 +124,10 @@ for collaboration later landing on a product people already want to join.
 
   **Superseded twice since, both on 2026-08-26:** M18 was approved and
   scheduled between M10's gate and M16 (see M18's row above), and M10's own
-  Phase 9 gate then closed on 2026-08-27. Current order is `M18 → M16 → M11 →
-  M12 → M13 → M14 → M9` — see Current milestone below.
+  Phase 9 gate then closed on 2026-08-27. **Superseded again 2026-08-27**, when
+  M11 was scheduled ahead of both M18's remaining surfaces and M16. Current
+  order is `M11 → M18 (surfaces) → M16 → M12 → M13 → M14 → M9`, with **M17
+  approved and unplaced** — see Current milestone below.
 
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
@@ -182,8 +184,17 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M18 — A stop knows what kind of thing it is**
-(`M18-stop-kind.md`). Not started.
+Current milestone: **M11 — Sharing, invites, and a trip you can hand to
+someone** (`M11-sharing-and-invites.md`), in flight. Mitchell scheduled it
+2026-08-27 **ahead of M18's remaining surfaces and ahead of M16** (that
+milestone file's Status line is the record). Links 1-6 landed 2026-08-28 via
+PR #71; its exit gate has one of nine boxes ticked, so it is not done.
+
+**M18 is started, not current.** PR 1, the contract change, landed 2026-08-27
+(PR #63) — `ActivityKind` and `ActivityTag` are real fields on the commands,
+both V1 event payloads and `ActivityView`. Its dependent surfaces (Calendar
+transit split, `N to book`, the home-hero tile, `act.badge`, tag chips and the
+filter row) are PR 2+, and sit behind M11 by the 2026-08-27 call.
 
 **M10's Wave-2 gate closed 2026-08-27** — the full Definition of Done green, the
 e2e suite 31/31 twice against a production build, and every surface walked at
@@ -201,5 +212,35 @@ M10's gate. **M18 was then approved and scheduled ahead of it on 2026-08-26**,
 on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put
 it in a soon milestone"* — because `kind` and `tags` are one contract change and
 between them gate five designed surfaces. That later decision governs; M16 keeps
-its place immediately after M18. Order from here: **M18 → M16 → M11 → M12 →
-M13 → M14 → M9** (ADR-022 moves **M9 to last, after M14**; M15 is done).
+its place immediately after M18.
+
+- **Reorder (2026-08-27), M11's Status line.** **M11 was scheduled ahead of
+  M18's remaining surfaces and ahead of M16**, by Mitchell's call, and it
+  absorbed M13's invite/role/revocation scope in the same decision (M13 keeps
+  only near-real-time sync and its transport ADR — read the M13 row above with
+  that subtraction applied). Links 1-6 landed 2026-08-28 via PR #71. The
+  decision lives in `M11-sharing-and-invites.md`; it had not been propagated
+  here or into `TODO.md` until 2026-08-28. Order from here: **M11 (in flight) →
+  M18's remaining surfaces → M16 → M12 → M13 → M14 → M9** (ADR-022 moves **M9
+  to last, after M14**; M15 is done, M10 is done).
+
+**M17 is approved and has no place in that order — that is the open item, not
+an omission.** It was approved 2026-08-26 out of SPEC §12 and never scheduled;
+until 2026-08-28 it appeared in the table above and nowhere else, which is how
+an approved milestone stayed invisible to `TODO.md`, whose rule is "first
+unchecked item = current work". Placing it is Mitchell's call and is not made
+here. Two facts that call needs:
+
+- **Its central question has already been answered elsewhere.** M17's file
+  makes the deliverable *"a `users` table, and the decision of what it keys on
+  — the decision is the deliverable here, not just the DDL."* **M11 link 1
+  shipped exactly that** (PR #71, ADR-025): `users` is a real table keyed on
+  the Auth.js user id verbatim, with JWT sessions kept rather than moving
+  Auth.js onto a database adapter. What is left in M17 is the *preferences*
+  half — name, home airport, account-scope distance units via one `kmLabel`,
+  home-time-on-hover — plus resolving `who` to a display name. That is a
+  smaller and more ordinary milestone than the one that was approved, and it is
+  worth re-scoping before it is scheduled.
+- **Nothing downstream is blocked on it.** No milestone in the order above
+  names M17 as a prerequisite, so it can be placed anywhere without moving
+  anything else.

@@ -11,6 +11,13 @@ Brought forward ahead of M9 (2026-08-08) — see
 `docs/architecture/ADR-018-visual-pass-ahead-of-ai-behind-preview-seam.md` and
 the design record, `docs/specs/2026-08-08-M10-redesign-incorporation-design.md`.
 
+**The per-phase landing record lives elsewhere.** `docs/STATUS.md` carried an
+830-line phase-by-phase account of Wave 2 — what each phase shipped, what it
+deliberately did not, and the landing gaps that cost time. It was moved out on
+2026-08-28 when that file was cut back to live instruction only, and it is
+verbatim in `docs/retros/2026-08-28-status-archive.md`. This file's Wave-2 retro
+below is the summary; the archive is the long form.
+
 **Read this file in halves.** Everything from "Scope" to "Retro" is **Wave 1**,
 closed 2026-08-10. Everything from "Why the first wave's gate passed anyway"
 onward is **Wave 2**, closed 2026-08-27. Where the two disagree, Wave 2 is

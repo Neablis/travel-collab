@@ -41,8 +41,11 @@ const contentSecurityPolicy = [
 
   // Tailwind ships a linked stylesheet, but inline styles are unavoidable
   // here: Radix positions popovers and dialogs with style attributes,
-  // tippy.js (the notebook's slash-command popup) injects a <style> element
-  // at runtime, and the element wall's enumerated exceptions (map container,
+  // @tiptap/core's editor injects a <style> element at runtime (its
+  // `injectCSS` ships a stylesheet that happens to carry `.tippy-box`
+  // rules — which is why this was first misread as the tippy.js package,
+  // now removed as a direct dependency with no importers), and the
+  // element wall's enumerated exceptions (map container,
   // computed timeline geometry) are style attributes by design. There is no
   // style equivalent of the nonce trade-off worth making for those.
   "style-src 'self' 'unsafe-inline'",
