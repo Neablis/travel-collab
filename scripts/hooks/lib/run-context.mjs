@@ -44,6 +44,39 @@ export function mainCheckout(cwd) {
   }
 }
 
+// `mainCheckout` and `worktreeRoot` resolve to the SAME directory for a repo
+// with no linked worktrees, which is why this split is easy to "simplify"
+// away — don't. They diverge exactly when a linked worktree is in play
+// (every unit in this protocol runs in one), and each is right for a
+// different kind of data:
+//
+//   - `.claude/run/` is cross-worktree shared scratch: every worktree
+//     dispatched from one run must see the same manifest, so callers that
+//     locate a run resolve via `mainCheckout` (git-common-dir).
+//   - `.claude/protocol/adapter.json` is branch-versioned repo content: a
+//     worktree must read the copy checked out on ITS OWN branch, not
+//     whatever happens to be on disk in the main checkout. Resolve that via
+//     `worktreeRoot` (--show-toplevel) instead.
+//
+// Collapsing these into one resolver made `loadAdapter` read the main
+// checkout's copy regardless of which worktree asked — silently inert
+// pre-merge (the main checkout has no adapter.json yet) and silently stale
+// post-merge (a worktree that edits adapter.json is still governed by
+// main's copy until it merges). Both failures are quiet: no error, no
+// crash, just a hook that fails open when it shouldn't.
+export function worktreeRoot(cwd) {
+  try {
+    const top = execSync("git rev-parse --show-toplevel", {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return top || null;
+  } catch {
+    return null;
+  }
+}
+
 export function activeRuns(cwd) {
   const main = mainCheckout(cwd);
   if (!main) return [];
@@ -123,11 +156,12 @@ export function inScope(relPath, globs) {
 }
 
 export function loadAdapter(cwd) {
-  const main = mainCheckout(cwd);
-  if (!main) return null;
+  // worktreeRoot, not mainCheckout — see the comment above worktreeRoot.
+  const top = worktreeRoot(cwd);
+  if (!top) return null;
   try {
     return JSON.parse(
-      readFileSync(join(main, ".claude", "protocol", "adapter.json"), "utf8"),
+      readFileSync(join(top, ".claude", "protocol", "adapter.json"), "utf8"),
     );
   } catch {
     return null;

@@ -2,9 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { makeLooseDir, makeRepo, makeUnitDir, writeManifest } from "./fixture.mjs";
 import {
-  activeRuns, globToRegExp, inScope, mainCheckout, unitForCwd,
+  makeLinkedWorktree, makeLooseDir, makeRepo, makeUnitDir, writeAdapter, writeManifest,
+} from "./fixture.mjs";
+import {
+  activeRuns, globToRegExp, inScope, loadAdapter, mainCheckout, unitForCwd, worktreeRoot,
 } from "../lib/run-context.mjs";
 
 function manifestFor(unitDir, extra = {}) {
@@ -24,6 +26,31 @@ test("mainCheckout resolves the repo root from a nested directory", () => {
 
 test("mainCheckout returns null outside a git repo", () => {
   assert.equal(mainCheckout(makeLooseDir()), null);
+});
+
+test("worktreeRoot returns null outside a git repo", () => {
+  assert.equal(worktreeRoot(makeLooseDir()), null);
+});
+
+test("loadAdapter reads the calling worktree's own adapter.json, not the main checkout's", () => {
+  const root = makeRepo();
+  const linked = makeLinkedWorktree(root);
+
+  // The adapter exists only in the linked worktree — exactly the pre-merge
+  // shape in production, where a feature branch's adapter.json exists in
+  // the worktree checked out on that branch but not yet in the main
+  // checkout. `mainCheckout` and `worktreeRoot` both equal `root` for a
+  // plain repo, so this case can only be told apart with a real linked
+  // worktree (hence `makeLinkedWorktree` rather than two makeRepo() calls).
+  writeAdapter(linked, { exclusiveCommands: ["from-linked-worktree"] });
+
+  assert.equal(worktreeRoot(linked), linked);
+  assert.equal(mainCheckout(linked), root);
+  assert.deepEqual(loadAdapter(linked), { exclusiveCommands: ["from-linked-worktree"] });
+
+  // The main checkout shares the linked worktree's git-common-dir but must
+  // not see its adapter.json — this is the regression the fix closes.
+  assert.equal(loadAdapter(root), null);
 });
 
 test("unitForCwd matches a unit whose worktree contains cwd", () => {

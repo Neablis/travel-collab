@@ -41,6 +41,26 @@ export function writeAdapter(root, adapter) {
   return dir;
 }
 
+// A real linked worktree off `root`, for tests that need to prove a
+// resolver picks the CALLING worktree rather than the main checkout —
+// `mainCheckout` and `worktreeRoot` return the same directory for `root`
+// itself, so only an actual `git worktree add` can tell them apart.
+// `git worktree add` needs a real commit to check out, hence the commit
+// here rather than in every caller.
+export function makeLinkedWorktree(root) {
+  writeFileSync(join(root, "README.md"), "root\n");
+  execFileSync("git", ["add", "README.md"], { cwd: root });
+  execFileSync(
+    "git",
+    ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-q", "-m", "init"],
+    { cwd: root },
+  );
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "tc-protocol-worktree-")));
+  const linked = join(parent, "linked");
+  execFileSync("git", ["worktree", "add", "-q", linked], { cwd: root });
+  return linked;
+}
+
 export function runHook(name, payload) {
   return runHookRaw(name, JSON.stringify(payload));
 }
