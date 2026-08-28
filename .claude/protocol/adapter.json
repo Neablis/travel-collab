@@ -1,0 +1,19 @@
+{
+  "exclusiveCommands": [
+    {
+      "resource": "postgres",
+      "pattern": "\\btest:int\\b|\\bdocker\\s+compose\\b|\\bdb:(reseed|reset|migrate)\\b",
+      "symptom": "Two units running the integration suite share one Postgres. The symptom is a different random subset of tests failing each run, which reads as flakiness and burns hours."
+    },
+    {
+      "resource": "dev-server",
+      "pattern": "\\bpnpm\\s+(--filter\\s+\\S+\\s+)?dev\\b|\\bnext\\s+(dev|start)\\b|\\btest:e2e\\b",
+      "symptom": "Fixed ports. A second dev server either fails to bind or silently serves a different worktree than the one you are testing."
+    }
+  ],
+  "portabilityForbiddenTokens": [
+    "travel-collab", "pnpm", "apps/web", "packages/domain", "packages/contracts",
+    "Postgres", "postgres", "Drizzle", "Vercel", "Playwright",
+    "AGENTS.md", "known-issues.md"
+  ]
+}

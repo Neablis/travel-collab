@@ -5,6 +5,19 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## The subagent protocol landed, 2026-08-28
+
+`.claude/protocol/` now carries a binding contract for every dispatched
+subagent — lifecycle, three exit states, a two-strike handback rule, a
+run-scoped board, and a mechanically checked report shape. Four fail-open
+hooks enforce it. Three no-op when no run is active; the fourth, report
+conformance, never reads the manifest and engages for any subagent whose
+final message carries an `## Exit:` heading, run or no run. `ADAPTER.md` and
+`adapter.json` hold every travel-collab-specific fact, and a test enforces
+that the other three files name nothing about this repo.
+
+Start a run with `/dispatch`. Design:
+`docs/specs/2026-08-28-subagent-operating-contract-design.md`.
 ## A travel day is no longer a mistake, 2026-08-28 — KI-60
 
 **The Japan demo went from 12 conflicts to 2, and the fixture never changed.**

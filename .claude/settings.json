@@ -23,6 +23,19 @@
           {
             "type": "command",
             "command": "node scripts/hooks/check-destructive-git.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/resource-lease.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/subagent-file-scope.mjs"
           }
         ]
       }
@@ -35,6 +48,26 @@
             "type": "command",
             "command": "node scripts/hooks/typecheck-touched-package.mjs",
             "statusMessage": "Typechecking touched package..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/subagent-report-conformance.mjs"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/run-teardown-reminder.mjs"
           }
         ]
       }
