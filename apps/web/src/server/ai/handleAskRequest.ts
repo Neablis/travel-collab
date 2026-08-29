@@ -1,5 +1,13 @@
 // The /ask endpoint's logic (M16, ADR-022): a streaming, multi-turn,
-// tool-using agent that ANSWERS questions about a trip and changes nothing.
+// tool-using agent that answers questions about a trip — and, for an editor,
+// PROPOSES changes to it (M9).
+//
+// The turn itself still changes nothing. Its write tools collect (writeTools.ts)
+// and the loop ends; what goes out on the stream's last chunk is a resolved
+// proposal, and the only thing that commits is `handleApplyProposalRequest`
+// below, reached by a human clicking Approve. Rejecting is that handler not
+// being called — there is no queued draft anywhere for a reject path to have to
+// discard correctly.
 //
 // It lives beside `handleAiRequest`, not inside it. That endpoint's design
 // guarantee is that its user-facing message is derived from the commands it
@@ -24,12 +32,21 @@ import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAg
 import type { TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
+import { hasAtLeast } from "@/server/accessPolicy";
 import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import { buildReadTools, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
+import {
+  buildProposal,
+  buildWriteTools,
+  commitProposal,
+  parseApprovedCommands,
+  WRITE_TOOL_NAMES,
+} from "@/server/ai/writeTools";
+import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 
 // Round-trips one question may take. Eight is generous for a read-only turn —
@@ -38,9 +55,13 @@ import { createAskRecorder, type AskAnalyticsSink } from "@/server/ai/askAnalyti
 // 32, because a question that has taken eight round-trips is not converging.
 const MAX_ASK_STEPS = 8;
 
-// The tools this endpoint offers. Read-only today (ADR-022's opening set); M9's
-// write tools join them here.
-const OFFERED_TOOL_NAMES: readonly string[] = READ_TOOL_NAMES;
+// The tool names this endpoint can offer, by what the turn's actor may do.
+// M9's write tools are the DERIVED planning tools (writeTools.ts) — the same
+// family the command endpoint runs — so this list grows with
+// `BatchableCommand` and never with a hand-written manifest.
+export function offeredToolNamesFor(canWrite: boolean): readonly string[] {
+  return canWrite ? [...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES] : READ_TOOL_NAMES;
+}
 
 // **The guard follows the tool set, not the endpoint.**
 //
@@ -49,17 +70,39 @@ const OFFERED_TOOL_NAMES: readonly string[] = READ_TOOL_NAMES;
 // refusing them would be a permission rule that exists only because the
 // assistant happens to share a route prefix with one that writes.
 //
-// Written as a computation rather than a constant so the rule is executable:
-// the moment a tool that is not in `READ_TOOL_NAMES` joins `OFFERED_TOOL_NAMES`
-// — M9's `AddActivity`, say — this becomes `editor` without anyone having to
-// remember. Both branches are asserted in the /ask route's integration suite
-// (a unit test cannot import this module: `guard()` pulls in next-auth).
+// Written as a computation rather than a constant so the rule is executable.
+// M9 is the case it was written for: the moment a tool that is not in
+// `READ_TOOL_NAMES` is offered — `AddActivity`, say — this answers `editor`
+// without anyone having to remember. It is not consulted only at the door: the
+// handler asks it what the set it is ABOUT to hand the agent requires, and
+// refuses to build an agent the actor's role does not cover. Both branches are
+// asserted in the /ask route's integration suite (a unit test cannot import
+// this module: `guard()` pulls in next-auth).
 export function minimumRoleFor(toolNames: readonly string[]): TripRole {
   const readOnly = (READ_TOOL_NAMES as readonly string[]).slice();
   return toolNames.every((name) => readOnly.includes(name)) ? "viewer" : "editor";
 }
 
-export const ASK_MINIMUM_ROLE = minimumRoleFor(OFFERED_TOOL_NAMES);
+// The minimum to get through the door. A viewer's turn is read-only and always
+// was; whether THIS turn also gets write tools is decided below, from the role
+// the guard resolved, not from the route.
+export const ASK_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor(false));
+
+// The minimum an approval needs — the same computation, asked about the set a
+// proposal can only have come from.
+export const APPLY_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor(true));
+
+// Names the `simulated` verdict on the wire, so the client stops deriving it
+// from the model's own prose.
+//
+// Task 5's client matched the sentence "AI is switched off on this deployment"
+// to decide whether to show the Simulated badge, because the stream carried no
+// flag. That is a display concern derived from generated text — the same
+// anti-pattern `docs/milestones/M18-stop-kind.md` rejects for parsing `kind`
+// out of note text — and it breaks silently the first time the sentence is
+// reworded. A header is honest, is set on the same three lines that already
+// know the answer, and survives a turn that fails before it says anything.
+export const SIMULATED_HEADER = "x-tc-ai-simulated";
 
 // The refusal code for the demo trip. Kebab-case and named after the reason,
 // matching `ai-not-entitled` (modelSelection.ts) and the `STATUS` codes on the
@@ -146,6 +189,14 @@ export async function handleAskRequest(
   if ("error" in g) return g.error;
   const { userId, detail } = g;
 
+  // **Write tools are offered only when the turn's guard resolved editor.**
+  //
+  // Asked through the AccessPolicy seam (`hasAtLeast`), which is the one place
+  // that knows a viewer ranks below an editor (AGENTS.md invariant 6c) — not a
+  // second rank table here. `guard()` has already resolved the effective
+  // members, so this is a read of what it decided, not a second access check.
+  const canWrite = hasAtLeast(userId, detail.members, "editor");
+
   // Measured on the RAW body, before parsing: a 10 MB thread must be refused
   // without ever being deserialized, and `request.json()` would deserialize it
   // first. `Blob` counts bytes, not UTF-16 code units, which is what a limit
@@ -213,7 +264,19 @@ export async function handleAskRequest(
   const quota = await consumeQuota(aiQuotas(), userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
-  const { tools } = buildReadTools();
+  // The tool set for THIS turn. A viewer gets the read half and nothing else,
+  // and the rule is enforced rather than commented: `minimumRoleFor` is asked
+  // what the set about to be handed to the agent requires, and the actor must
+  // already satisfy it. Unreachable while `canWrite` decides the set — which
+  // is why it is here, because the next person to add a branch to that line is
+  // who this catches.
+  const writeTools = canWrite ? buildWriteTools() : null;
+  const tools = { ...buildReadTools().tools, ...(writeTools?.tools ?? {}) };
+  const offeredNames = Object.keys(tools);
+  if (!hasAtLeast(userId, detail.members, minimumRoleFor(offeredNames))) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const recorder = createAskRecorder({
     tripId,
     userId,
@@ -224,13 +287,13 @@ export async function handleAskRequest(
     // "offered" has to be a measurement for `uncalledTools` to mean anything.
     // `readTools.test.ts` ties this set to `READ_TOOL_NAMES`, which is what
     // the guard above is computed from.
-    offeredTools: Object.keys(tools),
+    offeredTools: offeredNames,
     sink,
   });
 
   const agent = new ToolLoopAgent({
     model: selected.model,
-    instructions: instructionsFor(scope, detail.days.length),
+    instructions: instructionsFor(scope, detail.days.length, canWrite),
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
@@ -279,6 +342,27 @@ export async function handleAskRequest(
     });
     return result.toUIMessageStreamResponse({
       originalMessages: validated.data,
+      // Ruling B. Set once, before a byte of the stream, so it is readable on
+      // the failure path too — a half-written simulated answer still gets
+      // badged, which sniffing the closing sentence could not manage.
+      headers: { [SIMULATED_HEADER]: String(selected.simulated) },
+      // **The proposal rides out on the run's final chunk.**
+      //
+      // `messageMetadata` is called for every stream part; `finish` is the
+      // last part of the whole loop, which is the first moment
+      // `getCollected()` is complete — every write tool call the model made,
+      // in emission order, which is the order `resolveBatch` depends on.
+      // Emitting it earlier would ship a proposal missing the calls from the
+      // step still running.
+      //
+      // Nothing is committed here. `buildProposal` resolves and describes;
+      // the only caller of `commitProposal` is the apply endpoint below, and
+      // it runs after a human clicked Approve.
+      messageMetadata: ({ part }) => {
+        if (part.type !== "finish" || writeTools === null) return undefined;
+        const proposal = buildProposal(writeTools.getCollected(), detail, { tripId, actorId: userId });
+        return proposal === null ? undefined : { proposal };
+      },
       onError: (error) => {
         // The turn failed. Record it before the message goes out — `onEnd`
         // will not fire, and the tool-call trace of a failed turn is the
@@ -303,6 +387,95 @@ export async function handleAskRequest(
   }
 }
 
+// Status codes for a batch the executor refused. The same table the command
+// endpoint uses, for the same codes — an approval that loses a race with
+// another editor is a 409 there and must be a 409 here.
+const APPLY_STATUS: Record<string, number> = {
+  "invalid-command": 400,
+  forbidden: 403,
+  "trip-not-found": 404,
+  "concurrency-conflict": 409,
+};
+
+const ApplyProposalRequest = z.object({
+  /** Correlates the approval with the proposal it came from, for the log. Not trusted for anything. */
+  proposalId: z.string().min(1).optional(),
+  commands: z.array(z.unknown()).min(1, "an approval must carry at least one change"),
+});
+
+/**
+ * `POST /api/trips/:id/ask/apply` — the approval half of propose → review →
+ * approve.
+ *
+ * **This is the only place an assistant turn can change a trip**, and it is
+ * reached only by a human clicking Approve. The turn that proposed committed
+ * nothing: its write tools collect (writeTools.ts), the loop ends, and the
+ * proposal goes out on the stream's final chunk as data. Rejection is
+ * therefore not an operation at all — it is this endpoint not being called —
+ * which is why "reject leaves the trip byte-identical" is a property of the
+ * shape rather than of a code path that has to get it right.
+ *
+ * No model is called and no AI quota is consumed. Approving is a write, not a
+ * generation; charging the caller's hourly model allowance for pressing a
+ * button would refuse them the next question for something no provider saw.
+ *
+ * `geocoder` is the same test seam `handleAiRequest` takes, for the same
+ * reason: `getGeocoder()` throws without LOCATIONIQ_API_KEY, so it is resolved
+ * lazily and only when a command actually carries a location.
+ */
+export async function handleApplyProposalRequest(
+  request: Request,
+  tripId: string,
+  geocoder?: Geocoder,
+): Promise<Response> {
+  // Refused first, exactly as the ask half is, and for a stronger reason: the
+  // demo trip has no event log to write to (ADR-031).
+  if (isDemoTripId(tripId)) {
+    return Response.json(
+      { error: "The assistant isn't available on the demo trip.", code: DEMO_TRIP_UNSUPPORTED_CODE },
+      { status: 403 },
+    );
+  }
+
+  // `editor`, computed rather than typed: `minimumRoleFor` answering "editor"
+  // for the write tool set is the SAME rule that decided whether this actor's
+  // turn was offered those tools at all. A viewer whose client somehow held a
+  // proposal is refused here by the same computation that refused them the
+  // tools.
+  const g = await guard(tripId, APPLY_MINIMUM_ROLE);
+  if ("error" in g) return g.error;
+  const { userId, detail } = g;
+
+  const raw = await request.text().catch(() => null);
+  if (raw === null) return badRequest("could not read the request body");
+  if (new Blob([raw]).size > MAX_ASK_BODY_BYTES) {
+    return badRequest(`the request body must be ${MAX_ASK_BODY_BYTES} bytes or fewer`);
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return badRequest("malformed request");
+  }
+  const parsed = ApplyProposalRequest.safeParse(body);
+  if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? "malformed request");
+
+  const commands = parseApprovedCommands(parsed.data.commands, tripId);
+  if (!commands.ok) return badRequest(commands.error);
+
+  const committed = await commitProposal(tripId, commands.commands, userId, detail, geocoder);
+  if (!committed.ok) {
+    return Response.json(
+      { error: committed.error.message, code: committed.error.code },
+      { status: APPLY_STATUS[committed.error.code] ?? 400 },
+    );
+  }
+  // The same `{ detail, history }` every command endpoint answers with, so the
+  // board reconciles an approved plan through `applyOutcome` rather than
+  // through a second, assistant-shaped path.
+  return Response.json(committed.value);
+}
+
 /**
  * The system instruction.
  *
@@ -313,12 +486,32 @@ export async function handleAskRequest(
  * question about day 3 ("is this a long walk from yesterday's hotel?") should
  * be able to look.
  */
-function instructionsFor(scope: AskScope, dayCount: number): string {
+export function instructionsFor(scope: AskScope, dayCount: number, canWrite = false): string {
   return [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
-    "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
+    canWrite
+      ? // The propose→review→approve contract, said to the model in the terms
+        // it can act on. It is not the mechanism — the write tools collect and
+        // commit nothing, so a model that ignored every word of this still
+        // could not change the trip (writeTools.ts) — it is what stops the
+        // answer CLAIMING an edit that has not happened yet.
+        "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them."
+      : "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
     "Call read_trip for the trip's shape, read_day for what happens on a day (it is the only place stop times live), and find_free_time for open time — never work gaps out yourself from read_day's times.",
+    ...(canWrite
+      ? [
+          "Read before you propose. A change that names a day or a stop you have not read is a guess.",
+          "Emit every change the request needs in ONE message. They are applied together as a single atomic change, so no call depends on seeing an earlier call's result.",
+          'You never write, copy or invent an id. Name an existing stop by its exact title via activityRef, and a day via dayRef: "day N" (1-based), or "backlog"/null for the backlog.',
+          // M9's honest unknowns. The 2026-08-02 dogfood run wrote
+          // `amountMinor: 0` on all nine activities it planned, which the board
+          // renders as FREE — a confident wrong number where the truth was
+          // "nobody knows yet". `cost` is optional in the contract precisely so
+          // this can be left out.
+          "NEVER invent a price. `cost` is optional: if you do not know what something costs, leave `cost` out entirely. A cost of 0 means free — writing 0 for something whose price you do not know is a wrong number, not a blank.",
+        ]
+      : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
     scope.kind === "day"

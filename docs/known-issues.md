@@ -13,6 +13,28 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-81 — An approved AI plan carries the model's own place names, ungrounded: `SearchPlaces` is M9's named remainder
+- **Severity:** correctness (a model guess is laundered into a stored fact — the same species as KI-15, one layer up)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`commitProposal`), `apps/web/src/server/ai/geocodeEnrichment.ts`, ADR-022 §1 (the fourth read tool it foresees)
+- **What is missing:** M9's grounding half. The assistant can now propose and commit a batch (propose → review → approve), but a proposed `AddActivity`'s `location` is still whatever the model wrote. ADR-022 already names the fix and calls it earned under its own rule: a `search_places` READ tool the model must call, and a `placeRef` it must cite, so a stored place is a place the vendor returned rather than a name the model produced.
+- **Why the floor is not zero:** an approved batch runs the SAME `enrichCommandLocations` the command endpoint runs — region-biased, "refine, never relocate", everything unverified reported (`commitProposal` is asserted to call it before the batch, in `writeTools.test.ts` and in the apply route's integration suite). So approval is not a second door around KI-15's protection, and locations from the assistant are **no worse than the command path's today**. They are also no better.
+- **Why it was not built here:** it needs LocationIQ throttling at 2 req/s inside a streaming turn, a `placeRef` the resolver understands, and a review step that shows the user which candidate was chosen. That is its own scoped unit; folding it into the write-tools task was the single largest way to not finish either.
+- **Tripwire:** the day `ai-live` is switched on for a real user, this is the entry to read first — an unreviewed model-authored place name is the failure KI-15 already cost a day to.
+- **Found by:** the Task 6 implementer, 2026-08-29, recording it as the deliberate remainder its brief named.
+- **Cross-reference:** KI-15 (the enrichment rewrite this rests on), ADR-022 §1, `docs/milestones/` M9.
+- **First noted:** 2026-08-29.
+
+### KI-80 — Two phrasings of the same command list: `summarizeBatch` (past) and `describeProposedChange` (conditional)
+- **Severity:** cleanup (a duplicated exhaustive switch; both sides read the same `BatchableCommand`s, so they cannot disagree about facts — only about wording)
+- **Area:** `apps/web/src/server/ai/planSummary.ts` (`summarizeBatch`), `apps/web/src/server/ai/writeTools.ts` (`describeProposedChange`)
+- **What the duplication is:** a twelve-case switch over `BatchableCommand["type"]` exists twice. `summarizeBatch` writes the receipt for a batch that has ALREADY applied ("Done — added a day and added “X” to day 1.") — its documented contract, and exactly right after approval. A proposal needs the same information in the conditional mood, because "Done — added a day" rendered above an Approve button claims the thing the button has not done yet.
+- **Why it was not collapsed:** `planSummary.ts`'s behaviour is pinned by ADR-022 §4 and this plan's Constraint 1 ("the command path is not modified"), so the shared `describeCommand(command, detail, mood)` that would collapse the two could not be written from the task that needed it.
+- **Fix path:** move the per-command phrasing into `planSummary.ts` as an exported `describeCommand(command, detail, mood: "applied" | "proposed")`, have `summarizeBatch` join its `"applied"` output (byte-identical, its existing tests prove it), and delete `describeProposedChange`. It is a pure refactor of one module plus one caller.
+- **Tripwire:** both switches are exhaustive with no `default`, so a thirteenth `BatchableCommand` fails to compile in **two** places. Whoever hits that should collapse them rather than write the case twice.
+- **Found by:** the Task 6 implementer, 2026-08-29, while writing the proposal card.
+- **Cross-reference:** KI-73 (the same species: one computation, two copies), ADR-022 §4.
+- **First noted:** 2026-08-29.
+
 ### KI-79 — `/ask` deliberately refuses the demo trip, because a viewer-gated assistant on a session-less trip is an open LLM proxy
 - **Severity:** correctness of a security boundary — currently *closed* by the refusal this entry documents; recorded so the decision is visible rather than buried in a guard clause
 - **Area:** `apps/web/src/server/ai/handleAskRequest.ts` (the `isDemoTripId` refusal), `apps/web/src/server/access/trip-access.ts` (`requireTripAccess`'s demo branch), ADR-031

@@ -21,20 +21,42 @@ import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 // the thread, the scope and the refusals.
 type AskArgs = Parameters<typeof import("@/lib/apiClient").askAssistant>;
 const askAssistantMock = vi.fn();
+const applyProposalMock = vi.fn();
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
     askAssistant: (...args: unknown[]) => askAssistantMock(...args),
+    applyAssistantProposal: (...args: unknown[]) => applyProposalMock(...args),
   };
 });
 
-/** An answer that streams `text` in one delta, after one tool call. */
-function answers(text: string, toolName = "read_trip", input: unknown = {}) {
+/**
+ * An answer that streams `text` in one delta, after one tool call.
+ *
+ * The `meta` event goes first because that is where it goes on the wire — the
+ * server sets a response header, which `askAssistant` reads before it touches
+ * the body (Ruling B). `simulated` defaults to false so most tests say nothing
+ * about it.
+ */
+function answers(text: string, toolName = "read_trip", input: unknown = {}, simulated = false) {
   return async (...args: AskArgs) => {
     const onEvent = args[3]!;
+    onEvent({ type: "meta", simulated });
     onEvent({ type: "tool", toolCallId: "t1", toolName, input });
     onEvent({ type: "text", delta: text });
+    return { ok: true as const, value: { text } };
+  };
+}
+
+/** The same, plus the proposal the turn's final chunk carried. */
+function proposes(text: string, proposal: import("@/lib/apiClient").AssistantProposal) {
+  return async (...args: AskArgs) => {
+    const onEvent = args[3]!;
+    onEvent({ type: "meta", simulated: true });
+    onEvent({ type: "tool", toolCallId: "t1", toolName: "AddActivity", input: { title: "Coffee" } });
+    onEvent({ type: "text", delta: text });
+    onEvent({ type: "proposal", proposal });
     return { ok: true as const, value: { text } };
   };
 }
@@ -115,6 +137,7 @@ beforeEach(() => {
   search = new URLSearchParams("");
   replaceSpy.mockClear();
   askAssistantMock.mockReset();
+  applyProposalMock.mockReset();
   mapLensProps.mockClear();
   setViewportMatches({ "(min-width: 1180px)": true });
 });
@@ -717,9 +740,7 @@ describe("TripBoardScreen", () => {
   it("clears a stale Simulated badge when a follow-up ask fails", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    askAssistantMock.mockImplementationOnce(
-      answers("Rome 2027 runs to 0 days. AI is switched off on this deployment, so I answered from your trip data rather than from a model."),
-    );
+    askAssistantMock.mockImplementationOnce(answers("Rome 2027 runs to 0 days.", "read_trip", {}, true));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
@@ -818,13 +839,18 @@ describe("TripBoardScreen", () => {
     );
   });
 
-  // A partial answer with no badge claims a model wrote it. The verdict has to
-  // come from what the stream revealed, not only from a successful return.
+  // A partial answer with no badge claims a model wrote it. The verdict comes
+  // from the response header, so it is known before any prose arrives — Task
+  // 5's prose sniff could only decide this from the answer's LAST sentence,
+  // which a half-written answer never reaches.
   it("badges a simulated answer that died half way through", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
-      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. AI is switched off on this deployment, so " });
+      // The header arrives before the body, so the badge is decided before a
+      // single word is — which is the whole reason it is a header.
+      args[3]!({ type: "meta", simulated: true });
+      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
       args[3]!({ type: "error", message: "model call failed: upstream 500" });
       return {
         ok: false as const,
@@ -1123,6 +1149,182 @@ describe("TripBoardScreen — a viewer's board", () => {
       expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
     );
     expect(askAssistantMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Propose -> review -> approve (M9)
+// ---------------------------------------------------------------------------
+//
+// The claim this whole block exists to hold: an assistant turn changes nothing
+// until a human clicks Approve, and rejecting one leaves the trip exactly as
+// it was.
+describe("TripBoardScreen — approving an assistant proposal", () => {
+  const NEW_ACTIVITY_ID = "77777777-7777-4777-8777-777777777777";
+
+  function proposalFor(tripId: string, dayId: string) {
+    return {
+      proposalId: "p1",
+      changes: [{ type: "AddActivity", text: "Add “Coffee at Fuglen” to day 1" }],
+      commands: [
+        {
+          type: "AddActivity" as const,
+          tripId,
+          activityId: NEW_ACTIVITY_ID,
+          dayId,
+          title: "Coffee at Fuglen",
+        },
+      ],
+      skipped: [],
+    };
+  }
+
+  /** The same trip with the proposed stop really on it — what the server answers with. */
+  function afterApproval(fixture: ReturnType<typeof costedTripDetailFixture>) {
+    const day = fixture.days[0]!;
+    return {
+      ...fixture,
+      days: [{ ...day, activityIds: [...day.activityIds, NEW_ACTIVITY_ID] }],
+      activities: {
+        ...fixture.activities,
+        [NEW_ACTIVITY_ID]: {
+          activityId: NEW_ACTIVITY_ID,
+          title: "Coffee at Fuglen",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          kind: "planned" as const,
+          tags: [],
+          cost: null,
+        },
+      },
+    };
+  }
+
+  async function askForAChange(fixture: ReturnType<typeof costedTripDetailFixture>) {
+    askAssistantMock.mockImplementation(
+      proposes("I've drafted 1 change. Nothing is applied yet.", proposalFor(fixture.tripId, fixture.days[0]!.dayId)),
+    );
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+      target: { value: "add a coffee stop" },
+    });
+    // Deliberately the BUTTON, not Enter: the Ask control has been covered by
+    // the fixed rack before, and every keyboard-driven test missed it.
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    return screen.findByLabelText("Proposed change");
+  }
+
+  it("renders the proposal, applies NOTHING, and offers the two buttons", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+
+    expect(card.textContent).toContain("Add “Coffee at Fuglen” to day 1");
+    expect(card.textContent).toContain("Not applied yet");
+    expect(applyProposalMock).not.toHaveBeenCalled();
+    // The board is untouched while it sits there.
+    expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
+    expect(within(card).getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(within(card).getByRole("button", { name: "Reject" })).toBeTruthy();
+  });
+
+  it("approving commits ONE batch and the stop really lands on the board", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+
+    applyProposalMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: afterApproval(fixture),
+        history: historyFixture(fixture.tripId),
+        message: "Done — added “Coffee at Fuglen” to day 1.",
+        simulated: false,
+      },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+
+    // The board, not just the card: this is the assertion Ruling A is about.
+    await waitFor(() => expect(screen.getByText("Coffee at Fuglen")).toBeTruthy());
+    expect(applyProposalMock).toHaveBeenCalledTimes(1);
+    const [tripIdArg, proposalArg] = applyProposalMock.mock.calls[0] as [string, { commands: unknown[] }];
+    expect(tripIdArg).toBe(fixture.tripId);
+    // ONE batch for the whole proposal (ADR-013) — not one call per change.
+    expect(proposalArg.commands).toHaveLength(1);
+    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+      "Done — added “Coffee at Fuglen” to day 1.",
+    );
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  // The requirement in its own test: rejection is not an operation.
+  it("rejecting sends nothing and leaves the trip byte-identical", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+    const boardBefore = screen.getByTestId("day-column").textContent;
+
+    fireEvent.click(within(card).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Rejected"));
+    expect(applyProposalMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
+    expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("a refused batch changes nothing and says why, and Approve stays available", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+    const boardBefore = screen.getByTestId("day-column").textContent;
+
+    applyProposalMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 409, message: "someone else changed this trip", code: "concurrency-conflict" },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Proposed change").textContent).toContain("someone else changed this trip"),
+    );
+    // Atomic: nothing applied, so retrying is the honest affordance.
+    expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+  });
+
+  // `applyOutcome`'s stated precondition: apply an outcome only when `pending`
+  // is empty, or the queued units are discarded from the UI and the server
+  // both. The ask is already refused while pending; approving is a SECOND
+  // moment, later, when a drag may have queued something since.
+  it("blocks approving while unsent edits are still queued, and says why", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(
+      // FIRST, so it wins over makeTripHandlers' own POST /commands: MSW takes
+      // the first matching handler, and a command that actually resolves
+      // closes the `pending` window this test is about in a millisecond.
+      http.post("*/api/trips/:tripId/commands", () => new Promise(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    await askForAChange(fixture);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+
+    // Re-queried, not captured: the optimistic add re-renders the whole board.
+    // Both assertions inside the same `waitFor`, so a transient `pending`
+    // window cannot satisfy one and then close before the other.
+    await waitFor(() => {
+      expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByLabelText("Proposed change").textContent).toContain(
+        "Finish saving your changes before applying this.",
+      );
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(applyProposalMock).not.toHaveBeenCalled();
   });
 });
 

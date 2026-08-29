@@ -4,6 +4,7 @@ import { HttpResponse, http } from "msw";
 import * as apiClientModule from "@/lib/apiClient";
 import {
   acceptInvite,
+  applyAssistantProposal,
   askAssistant,
   cloneSharedTrip,
   composeAiPage,
@@ -193,11 +194,18 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
   askAssistant: () =>
     askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
+  applyAssistantProposal: () =>
+    applyAssistantProposal(TRIP_ID, {
+      proposalId: "p1",
+      changes: [],
+      commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }],
+      skipped: [],
+    }),
 };
 
 // Pure URL builders — they touch no network, so totality is not a claim about
 // them. Anything else exported as a function has to be in the table above.
-const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink", "askEventFromFrame", "answerIsSimulated"]);
+const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink", "askEventFromFrame"]);
 
 describe("apiClient totality — no helper ever rejects", () => {
   // The witness for the suite below: it asserts nothing about behaviour, only
@@ -263,7 +271,10 @@ describe("apiClient totality — no helper ever rejects", () => {
 // `error` frame on a 200 rather than a non-200.
 // ---------------------------------------------------------------------------
 
-function sseResponse(frames: string[], { split = false }: { split?: boolean } = {}) {
+function sseResponse(
+  frames: string[],
+  { split = false, simulated }: { split?: boolean; simulated?: boolean } = {},
+) {
   const body = frames.map((f) => `data: ${f}\n\n`).join("");
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -279,7 +290,11 @@ function sseResponse(frames: string[], { split = false }: { split?: boolean } = 
     },
   });
   return new HttpResponse(stream, {
-    headers: { "content-type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" },
+    headers: {
+      "content-type": "text/event-stream",
+      "x-vercel-ai-ui-message-stream": "v1",
+      ...(simulated === undefined ? {} : { "x-tc-ai-simulated": String(simulated) }),
+    },
   });
 }
 
@@ -429,19 +444,142 @@ describe("askEventFromFrame", () => {
   });
 });
 
-describe("answerIsSimulated", () => {
-  // Pinned against the exact sentence simulatedModel.ts appends. If that
-  // sentence moves, this fails rather than the badge silently disappearing —
-  // the whole reason a prose sniff is tolerable at all.
-  it("recognises the simulated model's own closing sentence", () => {
-    expect(
-      apiClientModule.answerIsSimulated(
-        "Day 3 has 5 stops. AI is switched off on this deployment, so I answered from your trip data rather than from a model.",
-      ),
-    ).toBe(true);
+// Ruling B: `simulated` comes from a response HEADER, not from a phrase in the
+// model's own answer. The three tests below are what the deleted prose sniff
+// could not do.
+describe("the simulated verdict", () => {
+  it("is read from the header, before the first delta", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES, { simulated: true })));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events[0]).toEqual({ type: "meta", simulated: true });
   });
 
-  it("does not badge an ordinary answer", () => {
-    expect(apiClientModule.answerIsSimulated("Day 3 has 5 stops.")).toBe(false);
+  it("is false when the header says so, whatever the answer's words are", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(
+          [
+            '{"type":"start"}',
+            // The exact sentence the deleted `answerIsSimulated` matched. A
+            // live model quoting it must not badge the answer.
+            '{"type":"text-delta","id":"0","delta":"AI is switched off on this deployment, they say."}',
+          ],
+          { simulated: false },
+        ),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: false }]);
+  });
+
+  it("still badges a turn that dies before it says anything", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(['{"type":"start"}', '{"type":"error","errorText":"upstream 500"}'], { simulated: true }),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(result.ok).toBe(false);
+    expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: true }]);
+  });
+
+  it("reads a missing header as not simulated", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events[0]).toEqual({ type: "meta", simulated: false });
+  });
+});
+
+const DETAIL = tripDetailFixture();
+const HISTORY = historyFixture(DETAIL.tripId);
+
+const PROPOSAL = {
+  proposalId: "p1",
+  changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+  commands: [
+    { type: "AddActivity", tripId: TRIP_ID, activityId: UUID, dayId: UUID, title: "Coffee" },
+  ],
+  skipped: [],
+};
+
+const FINISH_WITH_PROPOSAL = `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL })}}`;
+
+describe("the proposal on the wire", () => {
+  it("arrives as one event, on the stream's final chunk", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () => sseResponse([...ANSWER_FRAMES, FINISH_WITH_PROPOSAL])),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const proposals = events.filter((e) => e.type === "proposal");
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]!.proposal.proposalId).toBe("p1");
+    expect(proposals[0]!.proposal.commands).toEqual(PROPOSAL.commands);
+    // It is the LAST thing the caller hears about, after the whole answer.
+    expect(events.at(-1)).toBe(proposals[0]);
+  });
+
+  // The commands are posted straight back to /ask/apply, so a malformed
+  // proposal has to be dropped here rather than forwarded.
+  it.each([
+    ['{"type":"finish","finishReason":"stop"}', "no metadata at all"],
+    ['{"type":"finish","finishReason":"stop","messageMetadata":{}}', "metadata with no proposal"],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p1","commands":[]}}}',
+      "an empty command list",
+    ],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p1","commands":[{"type":"Nope"}]}}}',
+      "a command that is not batchable",
+    ],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"commands":[{"type":"AddDay","tripId":"' +
+        TRIP_ID +
+        '","dayId":"' +
+        UUID +
+        '"}]}}}',
+      "no proposalId",
+    ],
+  ])("drops %s (%s)", async (frame) => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+});
+
+describe("applyAssistantProposal", () => {
+  it("posts the reviewed commands to /ask/apply and returns the server's receipt", async () => {
+    let seen: unknown;
+    server.use(
+      http.post("*/api/trips/:tripId/ask/apply", async ({ request }) => {
+        seen = await request.json();
+        return HttpResponse.json({ detail: DETAIL, history: HISTORY, message: "Done — added “Coffee” to day 2." });
+      }),
+    );
+    const result = await applyAssistantProposal(TRIP_ID, PROPOSAL as never);
+    expect(seen).toEqual({ proposalId: "p1", commands: PROPOSAL.commands });
+    if (!result.ok) throw new Error(`expected ok, got ${result.error.message}`);
+    expect(result.value.message).toBe("Done — added “Coffee” to day 2.");
+    expect(result.value.detail.tripId).toBe(DETAIL.tripId);
+    // Approving calls no model, so it claims no authorship of its own.
+    expect(result.value.simulated).toBe(false);
+  });
+
+  it("passes a refusal's status and code through, so the card can say why", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask/apply", () =>
+        HttpResponse.json({ error: "someone else changed this trip", code: "concurrency-conflict" }, { status: 409 }),
+      ),
+    );
+    const result = await applyAssistantProposal(TRIP_ID, PROPOSAL as never);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(409);
+    expect(result.error.code).toBe("concurrency-conflict");
   });
 });

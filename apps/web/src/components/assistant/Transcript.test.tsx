@@ -1,5 +1,5 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
 afterEach(cleanup);
@@ -80,13 +80,103 @@ describe("toolNoteLabel", () => {
     expect(toolNoteLabel(toolName, input)).toBe(expected);
   });
 
-  // Task 6 adds write tools to this same stream. An unknown name gets a civil
-  // sentence, not a blank line and not `undefined`.
-  it("still says something for a tool this build has never heard of", () => {
+  // The write tools (M9) are the derived planning tools, so their names are
+  // the BatchableCommand type literals — PascalCase, where every read tool is
+  // snake_case. A thirteenth command therefore reads correctly here with no
+  // second manifest to update; the change ITSELF is on the proposal card.
+  it.each(["AddActivity", "MoveActivity", "SetTripDates", "DismissConflict"])(
+    "says %s as a drafted change, not as a raw tool name",
+    (toolName) => {
+      expect(toolNoteLabel(toolName, { title: "Coffee" })).toBe("Drafted a change");
+    },
+  );
+
+  // An unknown READ tool still gets a civil sentence, not a blank line and not
+  // `undefined`.
+  it("still says something for a snake_case tool this build has never heard of", () => {
     expect(toolNoteLabel("propose_batch", null)).toBe("Used propose batch");
   });
 
   it("tolerates a non-object input", () => {
     expect(toolNoteLabel("read_day", "nonsense")).toBe("Checked the day you're looking at");
+  });
+});
+
+// M9's propose -> review -> approve, from the transcript's side: the card
+// belongs to the answer that produced it, and the callbacks are keyed by that
+// answer's turn id — so a second proposal later in the thread cannot be
+// approved by clicking the first.
+describe("Transcript proposals", () => {
+  const PROPOSAL = {
+    proposalId: "p1",
+    changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+    commands: [
+      {
+        type: "AddActivity" as const,
+        tripId: "11111111-1111-4111-8111-111111111111",
+        activityId: "22222222-2222-4222-8222-222222222222",
+        dayId: "22222222-2222-4222-8222-222222222222",
+        title: "Coffee",
+      },
+    ],
+    skipped: [],
+  };
+
+  const threadWithTwo: AssistantTurn[] = [
+    { id: "u1", role: "user", text: "add a coffee stop" },
+    {
+      id: "a1",
+      role: "assistant",
+      text: "I've drafted 1 change.",
+      tools: [],
+      pending: false,
+      proposal: { proposal: PROPOSAL, status: "applied", note: "Done — added “Coffee” to day 2." },
+    },
+    { id: "u2", role: "user", text: "and another" },
+    {
+      id: "a2",
+      role: "assistant",
+      text: "I've drafted 1 change.",
+      tools: [],
+      pending: false,
+      proposal: { proposal: PROPOSAL, status: "pending", note: null },
+    },
+  ];
+
+  it("renders no card on an answer that proposed nothing", () => {
+    render(<Transcript turns={THREAD} />);
+    expect(screen.queryByRole("region", { name: "Proposed change" })).toBeNull();
+  });
+
+  it("renders one card per proposing answer, under its prose", () => {
+    render(<Transcript turns={threadWithTwo} />);
+    expect(screen.getAllByLabelText("Proposed change")).toHaveLength(2);
+  });
+
+  it("approves the turn the card belongs to, not the first one in the thread", () => {
+    const onApproveProposal = vi.fn();
+    render(<Transcript turns={threadWithTwo} onApproveProposal={onApproveProposal} onRejectProposal={vi.fn()} />);
+    // Only the pending one offers Approve — the applied one is done.
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(onApproveProposal).toHaveBeenCalledWith("a2");
+  });
+
+  it("rejects the turn the card belongs to", () => {
+    const onRejectProposal = vi.fn();
+    render(<Transcript turns={threadWithTwo} onApproveProposal={vi.fn()} onRejectProposal={onRejectProposal} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(onRejectProposal).toHaveBeenCalledWith("a2");
+  });
+
+  it("passes one blocked reason to every card — it is a fact about the board", () => {
+    render(
+      <Transcript
+        turns={threadWithTwo}
+        onApproveProposal={vi.fn()}
+        onRejectProposal={vi.fn()}
+        approvalBlockedReason="You have view-only access to this trip."
+      />,
+    );
+    expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

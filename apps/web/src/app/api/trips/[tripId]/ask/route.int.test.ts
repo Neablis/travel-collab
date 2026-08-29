@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
+import { getTripDetail } from "@/server/projections";
+import { getTripHistory } from "@/server/history";
 import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
@@ -38,10 +40,17 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
 // Imported after the mocks so the handler picks them up. Only
 // `handleAskRequest` is exercised directly, never `POST` — which is the one
 // path that could construct a real gateway model.
-const { handleAskRequest, ASK_MINIMUM_ROLE, DEMO_TRIP_UNSUPPORTED_CODE, minimumRoleFor } = await import(
-  "@/server/ai/handleAskRequest"
-);
+const {
+  handleAskRequest,
+  APPLY_MINIMUM_ROLE,
+  ASK_MINIMUM_ROLE,
+  DEMO_TRIP_UNSUPPORTED_CODE,
+  SIMULATED_HEADER,
+  minimumRoleFor,
+  offeredToolNamesFor,
+} = await import("@/server/ai/handleAskRequest");
 const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
+const { WRITE_TOOL_NAMES } = await import("@/server/ai/writeTools");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
 async function seedTrip(): Promise<string> {
@@ -237,12 +246,121 @@ describe("POST /api/trips/:id/ask", () => {
       expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
     });
 
-    // The rule, not the current answer: a write tool joining the set moves the
-    // guard to editor without anyone editing the guard.
+    // The rule, not the current answer: the guard follows the tool set, and it
+    // is asked about the set that is actually offered rather than about a
+    // constant. Both branches, both directions.
     it("computes the guard from the tool set", () => {
       expect(ASK_MINIMUM_ROLE).toBe("viewer");
+      expect(APPLY_MINIMUM_ROLE).toBe("editor");
       expect(minimumRoleFor(READ_TOOL_NAMES)).toBe("viewer");
       expect(minimumRoleFor([...READ_TOOL_NAMES, "AddActivity"])).toBe("editor");
+      expect(minimumRoleFor(offeredToolNamesFor(false))).toBe("viewer");
+      expect(minimumRoleFor(offeredToolNamesFor(true))).toBe("editor");
+      // Every write tool, not just the one named above — a thirteenth
+      // BatchableCommand inherits the editor requirement for free.
+      for (const name of WRITE_TOOL_NAMES) {
+        expect(minimumRoleFor([...READ_TOOL_NAMES, name]), `${name} must require editor`).toBe("editor");
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // M9: write tools, and the proposal
+  // -------------------------------------------------------------------------
+  describe("write tools", () => {
+    it("offers an editor the read tools AND the derived write tools", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } }, (r) =>
+        records.push(r),
+      );
+      await res.text();
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+    });
+
+    it("offers a VIEWER no write tool at all, however the question is phrased", async () => {
+      const tripId = await seedTrip();
+      await grantViewer(tripId, VIEWER_ID);
+      currentUserId = VIEWER_ID;
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } },
+        (r) => records.push(r),
+      );
+      const chunks = await chunksOf(res);
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      // No proposal on the wire, and no write tool call in it either.
+      expect(chunks.some((c) => c.type === "finish" && c.messageMetadata !== undefined)).toBe(false);
+      expect(records[0]!.toolCalls.every((c) => (READ_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
+    });
+
+    // The requirement in one test: a turn that PROPOSES commits nothing.
+    it("proposes without committing — the trip is byte-identical afterwards", async () => {
+      const tripId = await seedTrip();
+      const before = await getTripDetail(tripId);
+      const beforeHistory = await getTripHistory(tripId);
+
+      const res = await ask(tripId, {
+        messages: [userMessage("add a coffee stop to day 1")],
+        scope: { kind: "day", dayIndex: 0 },
+      });
+      const chunks = await chunksOf(res);
+
+      // It really did draft one.
+      const finish = chunks.find((c) => c.type === "finish") as
+        | { messageMetadata?: { proposal?: { commands: unknown[]; changes: { text: string }[] } } }
+        | undefined;
+      expect(finish?.messageMetadata?.proposal?.commands).toHaveLength(2);
+
+      // And the trip did not move. JSON equality over the whole projection,
+      // not a spot check: a write anywhere in it fails this.
+      expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
+      expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
+    });
+
+    it("carries the proposal on the run's FINAL chunk, described and resolved", async () => {
+      const tripId = await seedTrip();
+      const res = await ask(tripId, {
+        messages: [userMessage("add a coffee stop to day 1")],
+        scope: { kind: "day", dayIndex: 0 },
+      });
+      const chunks = await chunksOf(res);
+      const withMetadata = chunks.filter((c) => c.messageMetadata !== undefined);
+      expect(withMetadata).toHaveLength(1);
+      expect(withMetadata[0]!.type).toBe("finish");
+      expect(chunks.at(-1)).toBe(withMetadata[0]);
+
+      const proposal = (withMetadata[0] as { messageMetadata: { proposal: Record<string, unknown> } }).messageMetadata
+        .proposal;
+      expect(proposal.changes).toEqual([
+        { type: "AddActivity", text: "Add “Sample: coffee stop” to day 1" },
+        { type: "AddActivity", text: "Add “Sample: evening stroll” to day 1" },
+      ]);
+      expect(typeof proposal.proposalId).toBe("string");
+      // Resolved: real ids the server minted, never anything the model wrote.
+      for (const command of proposal.commands as Record<string, unknown>[]) {
+        expect(command.tripId).toBe(tripId);
+        expect(typeof command.activityId).toBe("string");
+        // M9's honest unknowns: no price was known, so none was written.
+        expect(command.cost).toBeUndefined();
+      }
+      expect(JSON.stringify(proposal.commands)).not.toContain("amountMinor");
+    });
+
+    it("carries no proposal when the turn was only a question", async () => {
+      const tripId = await seedTrip();
+      const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } });
+      const chunks = await chunksOf(res);
+      expect(chunks.every((c) => c.messageMetadata === undefined)).toBe(true);
+    });
+
+    // Ruling B: the client stops sniffing the model's prose for this.
+    it("names the simulated verdict in a response header", async () => {
+      const tripId = await seedTrip();
+      const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } });
+      expect(res.headers.get(SIMULATED_HEADER)).toBe("true");
+      await res.text();
     });
   });
 
@@ -578,8 +696,9 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(record.toolCalls.map((c) => c.name)).toEqual(["read_trip", "find_free_time"]);
       expect(record.toolCalls[1]!.input).toEqual({ after: "08:00", before: "22:00" });
-      // Measured, not inferred — the whole point of the number.
-      expect(record.uncalledTools).toEqual(["read_day"]);
+      // Measured, not inferred — the whole point of the number. An owner is
+      // offered the write tools too, and a question calls none of them.
+      expect(record.uncalledTools).toEqual(["read_day", ...WRITE_TOOL_NAMES]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
@@ -593,7 +712,8 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
       expect(records[0]!.scope).toEqual({ kind: "day", dayIndex: 1 });
-      expect(records[0]!.uncalledTools).toEqual([]);
+      // Every read tool used; every write tool untouched by a question.
+      expect(records[0]!.uncalledTools).toEqual([...WRITE_TOOL_NAMES]);
     });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  BatchableCommand,
   InvitePreview,
   PageContent,
   SavedDay,
@@ -8,7 +9,6 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
-  type BatchableCommand,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type PageContext,
@@ -502,10 +502,43 @@ export type AskWireMessage = {
   parts: { type: "text"; text: string }[];
 };
 
+/**
+ * One change an approved proposal would make. `type` is the command type so a
+ * client can group them; `text` is the server's own conditional-mood sentence
+ * ("Add “Coffee” to day 2"), written where the commands are (writeTools.ts) so
+ * the UI never has to interpret a command to describe it.
+ */
+export type ProposedChange = { type: string; text: string };
+
+/**
+ * What the assistant would change, before it is true (M9).
+ *
+ * `commands` are already-resolved `BatchableCommand`s — parsed here rather than
+ * trusted, because they are posted straight back to `/ask/apply`. They are the
+ * batch that was REVIEWED: re-resolving on approval could commit a different
+ * set than the one on screen.
+ */
+export type AssistantProposal = {
+  proposalId: string;
+  changes: ProposedChange[];
+  commands: BatchableCommand[];
+  /** Changes the server could not match to this trip, as sentences. */
+  skipped: string[];
+};
+
 export type AskEvent =
   /** A tool call, seen the moment it is issued — before any answer text. */
   | { type: "tool"; toolCallId: string; toolName: string; input: unknown }
   | { type: "text"; delta: string }
+  /**
+   * Emitted once, from the response HEADER, before a byte of the body — so a
+   * turn that dies mid-answer is still badged correctly. Replaces Task 5's
+   * `answerIsSimulated`, which decided this by matching a sentence in the
+   * model's own prose.
+   */
+  | { type: "meta"; simulated: boolean }
+  /** The turn's proposal, carried on the stream's final chunk. At most one. */
+  | { type: "proposal"; proposal: AssistantProposal }
   | { type: "error"; message: string };
 
 /** Set on the ApiError when the failure arrived inside an already-open stream. */
@@ -522,18 +555,19 @@ export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 /** The server's refusal code when the actor has no AI entitlement. */
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
 
-// The last sentence the simulated model appends to every answer
-// (`simulatedModel.ts`'s ask branch, and the anchor e2e already asserts on).
-// Sniffing prose is not how this should work — a response header would be —
-// but the stream carries no `simulated` flag today and adding one is a server
-// change outside this task's file scope. Recorded in the task report as the
-// thing to replace when /ask next changes.
-const SIMULATED_ANSWER_MARKER = "AI is switched off on this deployment";
-
-/** True when this answer was composed by the server because ai-live is off. */
-export function answerIsSimulated(text: string): boolean {
-  return text.includes(SIMULATED_ANSWER_MARKER);
-}
+/**
+ * The header `/ask` sets on every turn (`SIMULATED_HEADER` in
+ * handleAskRequest.ts). Duplicated as a literal for the same reason the refusal
+ * codes above are: the UI may not import `@/server/*` (AGENTS.md's dependency
+ * rules).
+ *
+ * It replaced a prose sniff. Task 5 decided `simulated` by matching the
+ * sentence "AI is switched off on this deployment" in the model's own answer,
+ * because the stream carried no flag — a display concern derived from generated
+ * text, which breaks silently the moment the sentence is reworded, and which
+ * could not badge a turn that failed before it said anything.
+ */
+const SIMULATED_HEADER = "x-tc-ai-simulated";
 
 // One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
 // chunk vocabulary is a wire contract, and the frames this deliberately
@@ -572,7 +606,33 @@ export function askEventFromFrame(frame: string): AskEvent | null {
       message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
     };
   }
+  // The turn's proposal rides on the run's final chunk as message metadata —
+  // the first moment the server knows every write tool call the model made.
+  // Parsed, not cast: `commands` go straight back to `/ask/apply`, so a
+  // malformed proposal must be dropped here rather than posted.
+  if (part.type === "finish") {
+    const proposal = proposalFrom((part.messageMetadata as { proposal?: unknown } | undefined)?.proposal);
+    return proposal === null ? null : { type: "proposal", proposal };
+  }
   return null;
+}
+
+/** `unknown` → a proposal we are willing to act on, or `null`. */
+function proposalFrom(value: unknown): AssistantProposal | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const commands = BatchableCommand.array().safeParse(raw.commands);
+  if (!commands.success || commands.data.length === 0) return null;
+  if (typeof raw.proposalId !== "string" || raw.proposalId === "") return null;
+  const changes = Array.isArray(raw.changes)
+    ? raw.changes.flatMap((change) => {
+        if (typeof change !== "object" || change === null) return [];
+        const { type, text } = change as { type?: unknown; text?: unknown };
+        return typeof type === "string" && typeof text === "string" ? [{ type, text }] : [];
+      })
+    : [];
+  const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
+  return { proposalId: raw.proposalId, changes, commands: commands.data, skipped };
 }
 
 /**
@@ -604,6 +664,12 @@ export async function askAssistant(
         error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
       };
     }
+    // Before a byte of the body, so a turn that fails mid-answer is still
+    // badged. `false` when the header is absent rather than "unknown": an
+    // unbadged answer claims a model wrote it, and that is the wrong way to be
+    // wrong.
+    onEvent({ type: "meta", simulated: res.headers.get(SIMULATED_HEADER) === "true" });
+
     if (res.body === null) {
       return { ok: false, error: { status: res.status, message: "The assistant sent no answer." } };
     }
@@ -662,6 +728,50 @@ export async function askAssistant(
     if (err instanceof Error && err.name === "AbortError") {
       return { ok: false, error: { status: 0, message: "The answer was cancelled.", code: ASK_ABORTED_CODE } };
     }
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Approve a proposal — the ONE atomic batch (ADR-013), one history entry, one
+ * undo.
+ *
+ * Rejecting has no counterpart here on purpose: a rejected proposal is this
+ * function not being called. Nothing is queued server-side, so there is no
+ * "discard" to get wrong, which is what makes "reject leaves the trip
+ * byte-identical" a property of the shape rather than of a code path.
+ *
+ * Answers with the same `{ detail, history }` a command batch does, plus the
+ * server's derived receipt — so the board reconciles an approved plan through
+ * `applyOutcome`, exactly as it does an undo.
+ */
+export async function applyAssistantProposal(
+  tripId: string,
+  proposal: AssistantProposal,
+): Promise<ApiResult<PlanOutcome>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask/apply`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: proposal.proposalId, commands: proposal.commands }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, code: data.code } };
+    }
+    const data = (await res.json()) as { detail: unknown; history: unknown; message?: unknown };
+    return {
+      ok: true,
+      value: {
+        ...parseOutcome(data),
+        message: typeof data.message === "string" ? data.message : "",
+        // Approving calls no model — the proposal it applies already carried
+        // whatever authorship the turn had, and this endpoint has none of its
+        // own to claim.
+        simulated: false,
+      },
+    };
+  } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
 }

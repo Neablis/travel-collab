@@ -15,6 +15,11 @@
 // switched-off deployment (which is every Vercel environment today) a working
 // sidebar rather than a placeholder.
 //
+// M9 adds a third shape to that surface: asked to CHANGE something, and offered
+// write tools, it drafts a proposal — read, then propose, then say what it
+// would do. It never claims to have applied anything, because nothing has: the
+// write tools collect and the human approves (writeTools.ts).
+//
 // Hand-rolled rather than `MockLanguageModelV4` from `ai/test`, so no test
 // utility ships in the server bundle. Typed as `LanguageModel` (from `ai`, a
 // direct dependency) rather than `LanguageModelV4` (from `@ai-sdk/provider`,
@@ -128,6 +133,11 @@ interface CallOptionsLike {
     role?: string;
     content?: unknown;
   }[];
+  // The tool set the harness handed this call. Read for exactly one decision:
+  // whether write tools are on the table this turn (M9). Structural, like
+  // everything else this model reads — LanguageModelV4CallOptions lives in a
+  // package apps/web does not depend on.
+  tools?: readonly { name?: string }[];
 }
 
 interface ToolResultLike {
@@ -312,16 +322,127 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
   return sentences;
 }
 
-/** One ask step: questions if none have been answered yet, otherwise the answer. */
+// ---------------------------------------------------------------------------
+// The write half of an ask turn (M9)
+// ---------------------------------------------------------------------------
+
+// Verbs that mean "change this trip" rather than "tell me about it".
+//
+// This is the ONE judgement a real model makes from the question that this
+// model has to stand in for, so it is deliberately small, deliberately
+// imperative-only, and deliberately excludes "plan" — "What's the plan for day
+// 2?" is a question, and the derived suggestion chips ask it verbatim
+// (suggestedQuestions.ts). Word boundaries matter for the same reason: "What
+// still needs booking?" must not match `book`.
+const CHANGE_VERBS = /\b(add|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
+
+/** The newest user message's text — the question this turn is answering. */
+function latestUserText(options: CallOptionsLike): string {
+  const prompt = options.prompt ?? [];
+  for (let i = prompt.length - 1; i >= 0; i--) {
+    const message = prompt[i]!;
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") return message.content;
+    if (!Array.isArray(message.content)) return "";
+    return (message.content as { type?: string; text?: unknown }[])
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text as string)
+      .join(" ");
+  }
+  return "";
+}
+
+/**
+ * Whether write tools are on the table this turn.
+ *
+ * Read from the tool set the harness actually handed this call, never from the
+ * prompt: a viewer's turn is offered read tools only (handleAskRequest), and a
+ * simulated model that proposed anyway would make the switched-off deployment
+ * appear to break a permission rule the live one keeps.
+ */
+function canPropose(options: CallOptionsLike): boolean {
+  return (options.tools ?? []).some((t) => t?.name === "AddActivity");
+}
+
+/** A write tool's result — planningTools' `execute` returns `{ queued: true }`. */
+function isQueued(result: ToolResultLike): boolean {
+  const output = result.output;
+  return typeof output === "object" && output !== null && (output as { queued?: unknown }).queued === true;
+}
+
+/**
+ * The proposal, drawn from what the read tools just returned.
+ *
+ * Deterministic on purpose — the e2e asserts this exact content — and shaped by
+ * two rules that are load-bearing rather than lazy:
+ *
+ *   * **No `cost`.** M9's honest unknowns: `Money` is optional, and a stop
+ *     whose price nobody knows must carry no cost at all. The 2026-08-02
+ *     dogfood run wrote `amountMinor: 0` on all nine activities it planned,
+ *     which the board renders as *free* when the truth was *unknown*.
+ *   * **No `location`.** `enrichCommandLocations` no-ops when there is nothing
+ *     to look up, so the simulated path still cannot reach LocationIQ — the
+ *     same guarantee `planCalls()` keeps for the command endpoint.
+ */
+function proposeCalls(scope: AskScope, results: readonly ToolResultLike[]): ToolCall[] {
+  const trip = resultFor<TripReadout>(results, "read_trip");
+  // An empty trip gets a day to put them on, in the SAME batch — which is
+  // exactly the within-batch ref resolution `resolveBatch` exists for.
+  if (trip && trip.dayCount === 0) {
+    return [
+      call("AddDay", {}),
+      call("AddActivity", { title: "Sample: coffee stop", dayRef: "day 1" }),
+      call("AddActivity", { title: "Sample: evening stroll", dayRef: "day 1" }),
+    ];
+  }
+  const dayRef = `day ${scope.kind === "day" ? scope.dayIndex + 1 : 1}`;
+  return [
+    call("AddActivity", { title: "Sample: coffee stop", dayRef }),
+    call("AddActivity", { title: "Sample: evening stroll", dayRef }),
+  ];
+}
+
+const SIMULATED_PROPOSAL_NOTICE =
+  "AI is switched off on this deployment, so I drafted this from your trip data rather than from a model.";
+
+/**
+ * What the model says about a proposal it has just drafted.
+ *
+ * Never "I added" — the tools collected, nothing committed, and the whole
+ * point of propose→review→approve is that the sentence on screen and the state
+ * of the trip agree. The card underneath carries the changes themselves.
+ */
+function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[] {
+  const queued = results.filter(isQueued).length;
+  const where = scope.kind === "day" ? `day ${scope.dayIndex + 1}` : "this trip";
+  return [
+    `I've drafted ${queued} change${queued === 1 ? "" : "s"} for ${where}. Nothing is applied yet.`,
+    "Review them below — approve to put them on the board, or reject to leave the trip exactly as it is.",
+    SIMULATED_PROPOSAL_NOTICE,
+  ];
+}
+
+/**
+ * One ask step. Three shapes, in order:
+ *
+ *   1. Nothing read yet → read.
+ *   2. Read, the user asked for a CHANGE, write tools are offered, and nothing
+ *      has been queued yet → propose.
+ *   3. Otherwise → speak.
+ *
+ * Step 2 is skipped entirely for a question, and unreachable for a viewer.
+ */
 function askTurn(options: CallOptionsLike): SimulatedStep {
+  const scope = parseAskScope(systemTextOf(options));
   const results = toolResultsOf(options);
   if (results.length === 0) {
-    return {
-      content: askQuestions(parseAskScope(systemTextOf(options))),
-      finishReason: { unified: "tool-calls", raw: undefined },
-    };
+    return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }
-  const sentences = askAnswer(parseAskScope(systemTextOf(options)), results);
+  const proposed = results.some(isQueued);
+  if (!proposed && canPropose(options) && CHANGE_VERBS.test(latestUserText(options))) {
+    return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const sentences = proposed ? proposalAnswer(scope, results) : askAnswer(scope, results);
   return {
     content: [{ type: "text", text: sentences.join(" ") }],
     finishReason: { unified: "stop", raw: undefined },

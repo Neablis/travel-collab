@@ -31,7 +31,7 @@ import {
   AI_NOT_ENTITLED_CODE,
   ASK_ABORTED_CODE,
   DEMO_TRIP_UNSUPPORTED_CODE,
-  answerIsSimulated,
+  applyAssistantProposal,
   askAssistant,
   type ApiError,
   type AskScope,
@@ -77,7 +77,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, preview, pending, readOnly } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -368,10 +368,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the wrong channel for "have a discussion" (ADR-022 §4 says so outright).
   // Two ask boxes side by side — one that talks, one that silently rewrites
   // your trip — is worse than either. `composeAiPlan` itself is untouched and
-  // still exported; Task 6 brings applying a plan back through THIS endpoint,
-  // as write tools behind an explicit approval, which is the version anyone
-  // actually wanted. Until it lands, the board cannot apply an AI plan from
-  // the browser — recorded as a deliberate one-task gap, not an oversight.
+  // still exported.
+  //
+  // M9 (Task 6) brought applying a plan back through THIS endpoint, in the
+  // strictly better form: the turn PROPOSES, the user reviews, and Approve
+  // commits one atomic batch through /ask/apply. See `approveProposal` below.
   //
   // Conversation state is client-held (Ruling R1): there is no conversations
   // table and no migration in this plan, so `thread` IS the conversation and
@@ -418,11 +419,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
       setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
 
-    // Accumulated here as well as in the turn, because the `simulated` verdict
-    // has to be readable on the FAILURE path too: a simulated turn that dies
-    // mid-stream leaves a partial answer on screen, and an unbadged partial
-    // answer claims a model wrote it. `askAssistant` only returns the text
-    // when it succeeds, so the stream is the only place both paths can read.
+    // Accumulated here as well as in the turn, because the rollback below has
+    // to know whether ANY text arrived, and `askAssistant` only returns the
+    // text when it succeeds.
     let streamed = "";
     const result = await askAssistant(
       tripId,
@@ -437,17 +436,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             ...turn,
             tools: [...turn.tools, { id: event.toolCallId, label: toolNoteLabel(event.toolName, event.input) }],
           }));
+        } else if (event.type === "meta") {
+          // Ruling B: read from the response header the server sets, not from
+          // a phrase in the model's own answer. It arrives before the first
+          // delta, so a turn that dies mid-stream is still badged correctly —
+          // which the prose sniff could not do, because the sentence it
+          // matched is the LAST one.
+          setAskSimulated(event.simulated);
+        } else if (event.type === "proposal") {
+          // Attached to the answer, still pending. Nothing has been committed:
+          // the turn's write tools collected, and the only thing that writes is
+          // `applyAssistantProposal`, below, behind the Approve button.
+          patchAnswer((turn) => ({
+            ...turn,
+            proposal: { proposal: event.proposal, status: "pending", note: null },
+          }));
         }
       },
       controller.signal,
     );
     askAbort.current = null;
-
-    // The ai-live flag is off in every Vercel environment, so this is the
-    // deployed path: a real answer, composed from real trip data by the server
-    // rather than by a model, and labelled as such. Read from what the stream
-    // actually revealed, so a half-written simulated answer is still badged.
-    setAskSimulated(answerIsSimulated(streamed));
 
     if (result.ok) {
       patchAnswer((turn) => ({ ...turn, pending: false }));
@@ -484,11 +492,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   const submitAssistantAsk = async (text: string) => {
     // A viewer's ask is refused here even though /ask itself admits a viewer
-    // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and no longer
-    // for the reason the command path had: this is now a product call about
-    // who the assistant is offered to, not a mechanical guard against a batch
-    // the server would refuse. Revisit it in Task 6, when write tools arrive
-    // and `minimumRoleFor` has an editor half to gate on.
+    // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
+    // product call about who the assistant is offered to rather than a
+    // mechanical guard: with M9's write tools landed, the server already
+    // offers a viewer's turn the READ tools only (`minimumRoleFor`, measured
+    // from the set actually handed to the agent), and `/ask/apply` refuses
+    // them outright — so a viewer could hold a safe read-only conversation.
+    // Offering one is a product decision nobody has made; this refusal is
+    // where to change it if it ever is.
     // Reported through the rail's own askError surface rather than swallowed —
     // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
@@ -520,6 +531,75 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // the thing the composer waits for; the answer arrives in `thread`.
     void runAsk(text);
     return true;
+  };
+
+  // ---------------------------------------------------------------------
+  // Propose -> review -> approve (M9)
+  // ---------------------------------------------------------------------
+  //
+  // Why approving can be blocked, and why the reason is computed once here
+  // rather than asked per card:
+  //
+  //   * **View-only.** A viewer's turn is never offered write tools
+  //     (`handleAskRequest`), so they cannot hold a proposal — but a role can
+  //     change under a mounted page, and a button that 403s is worse than one
+  //     that says why.
+  //   * **Unsent edits.** `applyOutcome` has a stated precondition: apply an
+  //     outcome only when `pending` is empty, because the server decided it
+  //     without seeing anything still queued here, so taking it discards those
+  //     units from the UI and the server both (TripProvider's own comment,
+  //     docs/reviews/2026-08-28-m11-pr71-review.md §4). The ask itself is
+  //     already refused while `pending`; approving is a SECOND moment, minutes
+  //     later, when a drag may have queued something since.
+  const approvalBlockedReason = readOnly
+    ? "You have view-only access to this trip."
+    : pending
+      ? "Finish saving your changes before applying this."
+      : null;
+
+  const patchProposal = (
+    turnId: string,
+    fn: (state: NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>) =>
+      | NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>
+      | null,
+  ) =>
+    setThread((current) =>
+      current.map((t) =>
+        t.id === turnId && t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
+      ),
+    );
+
+  const approveProposal = async (turnId: string) => {
+    if (approvalBlockedReason !== null) return;
+    const turn = thread.find((t) => t.id === turnId);
+    if (!turn || turn.role !== "assistant" || turn.proposal == null) return;
+    // Guards a double click and a re-approval of something already applied.
+    if (turn.proposal.status === "applying" || turn.proposal.status === "applied") return;
+    const { proposal } = turn.proposal;
+    patchProposal(turnId, (state) => ({ ...state, status: "applying", note: null }));
+
+    const result = await applyAssistantProposal(tripId, proposal);
+    if (!result.ok) {
+      // The batch is atomic (ADR-013), so a refusal means NOTHING applied —
+      // the card goes back to pending and the user can try again or reject.
+      patchProposal(turnId, (state) => ({ ...state, status: "failed", note: result.error.message }));
+      return;
+    }
+    // Authoritative server state, taken whole, the same way an undo is —
+    // `pending` is empty (checked above), which is `applyOutcome`'s
+    // precondition.
+    applyOutcome({ detail: result.value.detail, history: result.value.history });
+    patchProposal(turnId, (state) => ({ ...state, status: "applied", note: result.value.message }));
+  };
+
+  // Rejecting sends nothing. There is no server-side draft to discard: the
+  // turn's write tools collected into a proposal that lives in this array and
+  // nowhere else, so "reject" is this array changing and the trip staying
+  // byte-identical.
+  const rejectProposal = (turnId: string) => {
+    patchProposal(turnId, (state) =>
+      state.status === "applied" ? state : { ...state, status: "rejected", note: null },
+    );
   };
 
   const startNewConversation = () => {
@@ -729,6 +809,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             restoreDraft={restoredDraft}
             onNewConversation={startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
+            onApproveProposal={(turnId) => void approveProposal(turnId)}
+            onRejectProposal={rejectProposal}
+            approvalBlockedReason={approvalBlockedReason}
             asking={askStatus === "loading"}
             askError={askStatus === "error" ? askError : null}
             simulated={askSimulated}

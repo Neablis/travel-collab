@@ -14,6 +14,8 @@ const baseProps: React.ComponentProps<typeof AssistantRail> = {
   turns: [],
   suggestions: [],
   onAsk: vi.fn(),
+  onApproveProposal: vi.fn(),
+  onRejectProposal: vi.fn(),
   onNewConversation: vi.fn(),
   onHide: vi.fn(),
 };

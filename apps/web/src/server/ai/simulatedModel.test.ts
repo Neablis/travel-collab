@@ -27,11 +27,23 @@ const textOf = (result: Generated) =>
 
 // A prompt as the SDK hands one to the model: the instruction carrying the
 // scope line, the question, and (on the second step) the tool results.
-function askPrompt(scope: AskScope, results: { toolName: string; value: unknown }[] = []) {
+function askPrompt(
+  scope: AskScope,
+  results: { toolName: string; value: unknown }[] = [],
+  { question = "how does this look?", writeTools = false }: { question?: string; writeTools?: boolean } = {},
+) {
   return {
+    // The tool set the harness hands the model. `canPropose` reads it and
+    // nothing else, so a viewer's turn (read tools only) cannot propose.
+    tools: [
+      { name: "read_trip" },
+      { name: "read_day" },
+      { name: "find_free_time" },
+      ...(writeTools ? [{ name: "AddDay" }, { name: "AddActivity" }] : []),
+    ],
     prompt: [
       { role: "system", content: ["You are a test.", askScopeLine(scope)].join("\n") },
-      { role: "user", content: [{ type: "text", text: "how does this look?" }] },
+      { role: "user", content: [{ type: "text", text: question }] },
       ...(results.length === 0
         ? []
         : [
@@ -312,5 +324,107 @@ describe("simulatedModel — the ask surface", () => {
     await model.doGenerate(askPrompt({ kind: "trip" }));
     const second = await model.doGenerate(askPrompt({ kind: "trip" }));
     expect(callsOf(second)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The write half of an ask turn (M9)
+// ---------------------------------------------------------------------------
+
+const READ_RESULTS = [
+  { toolName: "read_trip", value: TRIP_READOUT },
+  { toolName: "read_day", value: DAY_READOUT },
+  { toolName: "find_free_time", value: FREE_READOUT },
+];
+
+const QUEUED = { toolName: "AddActivity", value: { queued: true, type: "AddActivity" } };
+
+describe("simulatedModel — proposing a change", () => {
+  it("proposes after reading, when the question asks for a change and write tools are offered", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "day", dayIndex: 2 }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
+    );
+    expect(callsOf(result).map((c) => c.toolName)).toEqual(["AddActivity", "AddActivity"]);
+    // 1-based on the wire, matching the scope's 0-based dayIndex 2.
+    expect(callsOf(result).map((c) => JSON.parse(c.input))).toEqual([
+      { title: "Sample: coffee stop", dayRef: "day 3" },
+      { title: "Sample: evening stroll", dayRef: "day 3" },
+    ]);
+    expect(result.finishReason.unified).toBe("tool-calls");
+  });
+
+  // M9's honest unknowns, at the source: the model that plans on the
+  // switched-off deployment must not write a price it does not have.
+  it("proposes NO cost and NO location", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
+    );
+    for (const call of callsOf(result)) {
+      const input = JSON.parse(call.input) as Record<string, unknown>;
+      expect(input).not.toHaveProperty("cost");
+      // No location means `enrichCommandLocations` no-ops, so the simulated
+      // path still cannot reach LocationIQ — the same guarantee planCalls()
+      // keeps for the command endpoint.
+      expect(input).not.toHaveProperty("location");
+      expect(JSON.stringify(input)).not.toContain("amountMinor");
+    }
+  });
+
+  it("adds the day it needs, in the same batch, on an empty trip", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: { ...TRIP_READOUT, dayCount: 0, days: [] } }], {
+        question: "add a coffee stop",
+        writeTools: true,
+      }),
+    );
+    expect(callsOf(result).map((c) => c.toolName)).toEqual(["AddDay", "AddActivity", "AddActivity"]);
+  });
+
+  it("never proposes when write tools are not offered, however imperative the question", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question: "add a coffee stop", writeTools: false }),
+    );
+    expect(callsOf(result)).toEqual([]);
+    expect(textOf(result)).toContain("Japan runs to 3 days");
+  });
+
+  // The suggestion chips ask "What's the plan for day 2?" verbatim
+  // (suggestedQuestions.ts), and "What still needs booking?" is another. A
+  // question must not draft a change.
+  it.each([
+    "how does this look?",
+    "What's the plan for day 2?",
+    "Where's the most free time on day 2?",
+    "What on day 2 still needs booking?",
+    "There are 2 conflicts still open — what should I do about them?",
+  ])("answers %s without proposing anything", async (question) => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
+    );
+    expect(callsOf(result)).toEqual([]);
+  });
+
+  it("speaks once the proposal is queued, and never claims it applied", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "day", dayIndex: 2 }, [...READ_RESULTS, QUEUED, QUEUED], {
+        question: "add a coffee stop",
+        writeTools: true,
+      }),
+    );
+    expect(callsOf(result)).toEqual([]);
+    const text = textOf(result);
+    expect(text).toContain("I've drafted 2 changes for day 3. Nothing is applied yet.");
+    expect(text).toContain("approve to put them on the board, or reject to leave the trip exactly as it is");
+    expect(text).toContain("AI is switched off on this deployment");
+    // The words that would be a lie.
+    expect(text).not.toMatch(/\bI (added|moved|removed|applied)\b/);
+    expect(result.finishReason.unified).toBe("stop");
+  });
+
+  it("does not propose twice in one turn", async () => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),
+    );
+    expect(callsOf(result)).toEqual([]);
   });
 });

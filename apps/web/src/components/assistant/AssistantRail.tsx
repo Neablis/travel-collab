@@ -31,12 +31,20 @@ import { Transcript, type AssistantTurn } from "./Transcript";
 // one can only answer with a receipt for what it already did. The chip row
 // is back too, but derived (`suggestedQuestions.ts`) rather than the
 // hardcoded `PREVIEW_QUICK_ASKS` array Task 4 deleted.
+//
+// M9 (Task 6): a turn can now carry a proposal, rendered inside the transcript
+// as a ProposalCard. The rail owns none of it — it forwards two callbacks and
+// one blocked-reason string, because approving reconciles authoritative server
+// state onto the board and only the board can do that.
 export function AssistantRail({
   contextLine,
   turns,
   suggestions,
   restoreDraft = null,
   onAsk,
+  onApproveProposal,
+  onRejectProposal,
+  approvalBlockedReason = null,
   onNewConversation,
   asking = false,
   askError = null,
@@ -71,6 +79,17 @@ export function AssistantRail({
   // prompt in that case — a refusal the user has to retype is a refusal that
   // reads as the box being broken.
   onAsk: (text: string) => void | Promise<boolean | void>;
+  /**
+   * Commits an answer's proposal as ONE atomic batch (M9). Keyed by the turn
+   * that carries it — the rail holds no proposal state of its own for the same
+   * reason it holds no thread: approving reconciles authoritative server state
+   * onto the board, which only the board can do.
+   */
+  onApproveProposal: (turnId: string) => void;
+  /** Discards it. Nothing is sent to the server — rejecting IS not calling it. */
+  onRejectProposal: (turnId: string) => void;
+  /** Why approving is unavailable right now, or `null`. */
+  approvalBlockedReason?: string | null;
   /** Clears the thread. Offered only once there is one to clear. */
   onNewConversation: () => void;
   /** True while a turn is streaming. The composer is disabled for its duration. */
@@ -178,7 +197,12 @@ export function AssistantRail({
             )}
           </>
         ) : (
-          <Transcript turns={turns} />
+          <Transcript
+            turns={turns}
+            onApproveProposal={onApproveProposal}
+            onRejectProposal={onRejectProposal}
+            approvalBlockedReason={approvalBlockedReason}
+          />
         )}
       </div>
 
