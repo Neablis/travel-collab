@@ -11,7 +11,7 @@
     "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-sleep-wall.mjs",
     "test": "pnpm -r --if-present test && node --test \"scripts/**/__tests__/**/*.test.mjs\"",
     "test:int": "pnpm --filter web test:int",
-    "test:int:if-db": "if pg_isready -q -h localhost -p ${POSTGRES_PORT:-5433} 2>/dev/null; then pnpm test:int; else printf '\\n================================================================\\n  SKIPPED: integration tests did NOT run.\\n  No Postgres on localhost:%s — start it with `docker compose up -d`.\\n  CI runs them. A green `pnpm check` here is NOT a green CI.\\n================================================================\\n\\n' \"${POSTGRES_PORT:-5433}\"; fi",
+    "test:int:if-db": "node apps/web/scripts/db-probe.mjs; probe=$?; if [ $probe -eq 0 ]; then pnpm test:int; elif [ $probe -eq 1 ]; then printf '\\n================================================================\\n  SKIPPED: integration tests did NOT run.\\n  No database answered at DATABASE_URL (reason above).\\n  Start it with `docker compose up -d`.\\n  CI runs them. A green `pnpm check` here is NOT a green CI.\\n================================================================\\n\\n'; else exit $probe; fi",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int:if-db",
     "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test"
   }
