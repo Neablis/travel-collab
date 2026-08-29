@@ -145,6 +145,19 @@ describe("SetTripStartDate / SetTripDates reject a non-calendar date (KI-77)", (
     expect(d.ok === false && d.rejection.code).toBe("invalid-dates");
   });
 
+  // The guard is an OR over both ends, so a test that only ever makes the
+  // START invalid leaves half of it unasserted — the end-date branch could be
+  // deleted and everything above would still pass.
+  it("SetTripDates rejects a non-calendar END date too", () => {
+    const d = decideTripCommand(
+      tripWithOneDay(),
+      { type: "SetTripDates", tripId, startDate: "2026-03-01", endDate: "2026-02-30", newDayIds: [] },
+      ctx,
+    );
+    expect(d.ok).toBe(false);
+    expect(d.ok === false && d.rejection.code).toBe("invalid-dates");
+  });
+
   it("still accepts the real dates nearest those rejections", () => {
     const d = decideTripCommand(
       tripWithOneDay(),
