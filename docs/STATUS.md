@@ -46,11 +46,14 @@ future session is most likely to need from it:
   "nobody has run this" half was already closed 2026-08-28 by a local
   production-build walk of twenty surfaces; what that walk explicitly could
   not reach was the preview itself, behind Deployment Protection. M11's gate
-  reached it. Two preview-only behaviours to know before they are mistaken for
-  defects: the CSP blocks Vercel's feedback script (`vercel.live/...`) on every
-  preview page, and when Deployment Protection re-challenges an in-flight XHR
-  the blocked `vercel.com/sso-api` redirect reaches the app as a bare
-  "Failed to fetch".
+  reached it, and a cloud session reached it again a day later by a different
+  route, finding the same thing. One preview-only behaviour to know before it
+  is mistaken for a defect: when Deployment Protection re-challenges an
+  in-flight XHR, the blocked `vercel.com/sso-api` redirect reaches the app as
+  a bare "Failed to fetch". The other one the gate recorded — the CSP blocking
+  Vercel's feedback script on every preview page — **was a real defect and is
+  fixed**, not a behaviour to tolerate: that script is the Vercel Toolbar, and
+  the Toolbar is the Flags Explorer. A preview console should be clean now.
 
 **Playbooks was carved out of M11's gate by Mitchell on 2026-08-28** and is its
 own follow-on: **M11b in `TODO.md`, approved and unplaced**, needing its own
