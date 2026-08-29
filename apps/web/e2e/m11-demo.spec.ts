@@ -40,9 +40,14 @@ test.describe("the demo trip", () => {
 
     await page.getByRole("tab", { name: "Calendar" }).click();
     await expect(page).toHaveURL(/view=Calendar/);
-    // The calendar lays days out as dated cells, not stop titles — each one
-    // labelled with its ordinal and the city it is in.
-    await expect(page.getByLabel(/^Day 1, Tokyo/)).toBeVisible();
+    // The calendar lays days out as dated cells, not stop titles. A cell's
+    // accessible name carries its ordinal, its date, and every card it renders
+    // — "Day 1, Tue, Sep 8. Tokyo, 4 stops, $990.00, …" — because an aria-label
+    // replaces a button's content for assistive technology, so anything left
+    // out of it is announced as nothing at all (M18; see CalendarLens's
+    // `cellLabel`). Asserting the city separately from the ordinal is what
+    // keeps this honest about the whole name rather than just its head.
+    await expect(page.getByLabel(/^Day 1,.*\bTokyo\b/)).toBeVisible();
     await expect(page.getByLabel(/^Day 14,/)).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
