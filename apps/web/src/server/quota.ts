@@ -72,11 +72,21 @@ const DAY_MS = 24 * HOUR_MS;
 // A malformed value falls back to the default rather than to "unlimited": for a
 // spend gate, a typo in a Vercel env var must never be the thing that removes
 // the ceiling.
+// `rate_limit_counters.hits` is a Postgres `integer`, so a ceiling above its
+// maximum is not a ceiling at all — the counter overflows before it is ever
+// reached. `Number.isInteger` alone does not catch that: it accepts 1e21,
+// which reads as a number, passes `> 0`, and silently means "unlimited" —
+// the exact outcome the fallback-on-malformed rule above exists to prevent.
+// `Number.isSafeInteger` plus the column's own bound is what makes the
+// promise true.
+const MAX_COUNTER_HITS = 2_147_483_647;
+
 function envCeiling(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  const usable = Number.isSafeInteger(parsed) && parsed > 0 && parsed <= MAX_COUNTER_HITS;
+  return usable ? parsed : fallback;
 }
 
 /**

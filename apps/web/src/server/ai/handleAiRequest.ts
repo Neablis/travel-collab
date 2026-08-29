@@ -207,14 +207,6 @@ export async function handleAiRequest(
   }
   const { prompt, surface, pageContext } = parsed.data;
 
-  // Charged AFTER validation (a malformed request costs the operator nothing,
-  // so it should not cost the user their allowance) and BEFORE model selection,
-  // which is the first thing on this path that can spend money. Applies in
-  // simulated mode too: the request still writes to the log and the limiter's
-  // job is to bound requests, not to guess which ones reached a provider.
-  const quota = await consumeQuota(aiQuotas(), userId);
-  if (!quota.allowed) return quotaRefusal(quota);
-
   // Injected model => that exact model is used and the flag is never consulted;
   // "simulated" is derived from whether the injected model IS simulatedModel's
   // sentinel (route.int.test.ts's "simulated mode" tests inject simulatedModel()
@@ -244,6 +236,20 @@ export async function handleAiRequest(
   const activeModel = selected.model;
   const { simulated } = selected;
   const baseNotices = simulated ? [SIMULATED_NOTICE] : [];
+
+  // Charged AFTER validation and AFTER model selection, and before the first
+  // `generateText`. A malformed request costs the operator nothing, so it must
+  // not cost the user their allowance — and neither must a request that never
+  // reached a model at all: charging before selection meant a missing
+  // AI_GATEWAY_API_KEY (the 503 above) burned the caller's whole hourly and
+  // daily allowance on retries against an outage that produced zero provider
+  // calls, so the incident outlived its own fix by a day. Nothing between
+  // selection and here reads the counters, so the move is order-safe.
+  // Applies in simulated mode too: the request still writes to the log and the
+  // limiter's job is to bound requests, not to guess which ones reached a
+  // provider.
+  const quota = await consumeQuota(aiQuotas(), userId);
+  if (!quota.allowed) return quotaRefusal(quota);
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
   // The ID rules matter: planning tools (Move/Update/Remove) require the

@@ -148,10 +148,31 @@ describe("policy configuration", () => {
   });
 
   // A typo in a Vercel env var must not be the thing that removes the ceiling.
-  it.each(["abc", "0", "-5", "12.5", ""])("falls back to the default for %o", (raw) => {
-    vi.stubEnv("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", raw);
+  //
+  // The last three are the ones `Number.isInteger` waved through: it is true
+  // for 1e21, so a value that reads as a number and is comfortably `> 0` used
+  // to be accepted as a ceiling — while being both effectively unlimited and
+  // past `rate_limit_counters.hits`'s Postgres `integer` maximum, so the
+  // counter would overflow before ever reaching it. A ceiling no counter can
+  // represent is not a ceiling.
+  it.each(["abc", "0", "-5", "12.5", "", "1e21", "2147483648", "9007199254740993"])(
+    "falls back to the default for %o",
+    (raw) => {
+      vi.stubEnv("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", raw);
+      try {
+        expect(geocodeQuota()[0]?.global).toBe(4000);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  // The boundary itself is usable: an operator who deliberately sets the
+  // column's maximum gets it, rather than being silently dropped to 4000.
+  it("accepts a ceiling at the counter column's maximum", () => {
+    vi.stubEnv("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", "2147483647");
     try {
-      expect(geocodeQuota()[0]?.global).toBe(4000);
+      expect(geocodeQuota()[0]?.global).toBe(2_147_483_647);
     } finally {
       vi.unstubAllEnvs();
     }
