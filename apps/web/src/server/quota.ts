@@ -295,9 +295,21 @@ export async function consumeQuota(
  * on the actor's counter.** The alternative — failing after the provider has
  * already been paid — burns the money AND withholds the answer, which is
  * strictly worse for everyone including the operator. The ceiling is therefore
- * enforced on the NEXT request, and can be overshot by at most one request's
- * step budget. Bounded overshoot on a spend ceiling is the correct trade; an
- * unbounded one would not be.
+ * enforced on the NEXT request.
+ *
+ * **How far it can be overshot, stated correctly.** For one actor issuing
+ * requests in sequence the overshoot is at most one request's step budget. It
+ * is NOT bounded that way under concurrency: every request in flight has
+ * charged only its admission step, so N requests admitted before any of them
+ * settles can together overshoot by up to N × (budget − 1). The global bucket
+ * is where that matters — with distinct users, enough concurrent 32-step
+ * requests can pass the global step ceiling before any of them settles.
+ * Filed as KI-78, with the fix the reviewer proposed (reserve the maximum
+ * in-flight cost at admission and reconcile the unused part afterwards), which
+ * needs a refund primitive this module deliberately does not have yet — see
+ * `bump`'s clamp, and the window-rollover hazard a refund has to survive.
+ * What still bounds the burst today is the request-count layer above
+ * (`aiQuotas`), which caps concurrent admissions independently.
  *
  * **Never refuses and never throws.** The work is already done, so there is no
  * decision left to make, and a counter write failing must not turn a successful

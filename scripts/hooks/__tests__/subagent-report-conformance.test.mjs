@@ -252,6 +252,20 @@ test("KI-62: agent_transcript_path is read in preference to transcript_path", ()
   assert.match(res.stderr, /## Board entries written/);
 });
 
+test("KI-62: a BLANK last_assistant_message falls through to the transcripts", () => {
+  // An empty or whitespace-only field must not select itself and suppress both
+  // fallbacks — that would reintroduce the exact silent no-op this fix ended,
+  // through the very field that fixed it. (CodeRabbit, PR #83.)
+  const res = runHook("subagent-report-conformance.mjs", {
+    last_assistant_message: "   \n  ",
+    agent_transcript_path: transcriptWith(COMPLETE_DONE.replace("## Unit\nu1 — do the thing\n", "")),
+    transcript_path: transcriptWith(PARENT_NOISE),
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Unit/);
+});
+
 test("KI-62: an unreadable agent_transcript_path falls back to transcript_path", () => {
   const res = runHook("subagent-report-conformance.mjs", {
     transcript_path: transcriptWith(COMPLETE_DONE.replace("## Teardown\nnothing created\n", "")),

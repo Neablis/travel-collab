@@ -110,7 +110,12 @@ function lastAssistantText(file) {
 }
 
 let text = "";
-if (typeof payload.last_assistant_message === "string") {
+// Non-blank, not merely present: an empty or whitespace-only
+// `last_assistant_message` would otherwise select this source and suppress
+// BOTH transcript fallbacks, so the hook would exit 0 even when the unit's own
+// transcript holds an incomplete report — the same silent no-op KI-62 exists
+// to end, arriving through the field that fixed it. (CodeRabbit, PR #83.)
+if (typeof payload.last_assistant_message === "string" && payload.last_assistant_message.trim()) {
   text = payload.last_assistant_message;
 } else {
   const files = [payload.agent_transcript_path, payload.transcript_path].filter(
