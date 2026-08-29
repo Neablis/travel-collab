@@ -49,6 +49,17 @@ function wellFormedStop(): SavedStop {
   };
 }
 
+/**
+ * A stop as it was written before `keys` existed. Built by deletion rather
+ * than by hand, so it stays a real stop in every other respect — the point is
+ * a row that was legal when it was written, not an arbitrary broken object.
+ */
+function stopWithout(...keys: (keyof SavedStop)[]): Record<string, unknown> {
+  const stop: Record<string, unknown> = { ...wellFormedStop() };
+  for (const key of keys) delete stop[key];
+  return stop;
+}
+
 const owners: string[] = [];
 function freshOwner(): string {
   const ownerId = `saved-stops-${randomUUID()}`;
@@ -83,8 +94,7 @@ describe("saved day rows are parsed at the read boundary (KI-71)", () => {
     // Silenced here, asserted in the next test: the log is part of the fix, but
     // one deliberately-broken row should not print a stack trace per run.
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const { kind: _kind, tags: _tags, ...legacyStop } = wellFormedStop();
-    const savedDayId = await insertRawRow(ownerId, [legacyStop]);
+    const savedDayId = await insertRawRow(ownerId, [stopWithout("kind", "tags")]);
 
     expect(await getSavedDay(savedDayId, ownerId)).toBeNull();
   });
@@ -92,8 +102,7 @@ describe("saved day rows are parsed at the read boundary (KI-71)", () => {
   it("names the row and the field in the server log rather than failing opaquely", async () => {
     const ownerId = freshOwner();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { kind: _kind, ...legacyStop } = wellFormedStop();
-    const savedDayId = await insertRawRow(ownerId, [legacyStop]);
+    const savedDayId = await insertRawRow(ownerId, [stopWithout("kind")]);
 
     await getSavedDay(savedDayId, ownerId);
 
@@ -109,8 +118,7 @@ describe("saved day rows are parsed at the read boundary (KI-71)", () => {
   it("skips an unreadable row in the list instead of failing the whole read", async () => {
     const ownerId = freshOwner();
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const { kind: _kind, ...legacyStop } = wellFormedStop();
-    await insertRawRow(ownerId, [legacyStop]);
+    await insertRawRow(ownerId, [stopWithout("kind")]);
     const goodId = await insertRawRow(ownerId, [wellFormedStop()]);
 
     const list = await listSavedDays(ownerId);
