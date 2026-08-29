@@ -147,7 +147,17 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   const card = page.getByRole("region", { name: "Proposed change" });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Sample: coffee stop");
-  await page.getByRole("button", { name: "Approve" }).click();
+  // The trip starts at 0 days — day 1 only exists once /ask/apply has landed
+  // and the board has taken the new state. Without waiting for the response,
+  // clicking "New conversation" then the first day chip is a race: the Days
+  // group can still be empty and `.first().click()` times out (m10-simulated-
+  // ai.spec.ts's Approve already waits for this response for the same reason).
+  const [applied] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
+    page.getByRole("button", { name: "Approve" }).click(),
+  ]);
+  expect(applied.status()).toBe(200);
+  await expect(card).toContainText("Applied");
 
   // Now the trip has a day with stops on it. Focus it, and the day-scoped chips
   // are the other three.

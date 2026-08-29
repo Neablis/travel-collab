@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Conflict } from "@tc/contracts";
 import { costedTripDetailFixture, tripDetailFixture } from "@tc/factories";
-import { activeConflicts, askScopeLine, buildEnvelope, parseAskScope, type AskScope } from "./context";
+import { ASK_SCOPE_PREFIX, activeConflicts, askScopeLine, buildEnvelope, parseAskScope, type AskScope } from "./context";
 
 const PAGE_CONTEXT = { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" };
 
@@ -200,10 +200,15 @@ describe("the ask scope encoding", () => {
   // Total by design: a narrowing that silently failed would answer about one
   // day without saying it had. The whole trip is the wider, safer reading.
   it("reads anything it cannot parse as the whole trip", () => {
+    // Built from the real prefix, not a hard-coded "Scope: " — otherwise a
+    // prefix change would silently stop these from reaching the
+    // JSON.parse catch branch (and the invalid-dayIndex rejection below it)
+    // they claim to cover, and still pass by matching parseAskScope's own
+    // "anything unparseable" default.
     expect(parseAskScope("")).toEqual({ kind: "trip" });
-    expect(parseAskScope("Scope: not json")).toEqual({ kind: "trip" });
-    expect(parseAskScope('Scope: {"kind":"day"}')).toEqual({ kind: "trip" });
-    expect(parseAskScope('Scope: {"kind":"day","dayIndex":"2"}')).toEqual({ kind: "trip" });
+    expect(parseAskScope(`${ASK_SCOPE_PREFIX}not json`)).toEqual({ kind: "trip" });
+    expect(parseAskScope(`${ASK_SCOPE_PREFIX}{"kind":"day"}`)).toEqual({ kind: "trip" });
+    expect(parseAskScope(`${ASK_SCOPE_PREFIX}{"kind":"day","dayIndex":"2"}`)).toEqual({ kind: "trip" });
     expect(parseAskScope("The user mentioned a scope of day 4.")).toEqual({ kind: "trip" });
   });
 });

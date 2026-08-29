@@ -1,6 +1,7 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import importPlugin from "eslint-plugin-import";
 
 const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
@@ -80,13 +81,41 @@ export default [
     // standard as any other UI file; this ignore is what keeps that true
     // once a block sits between the wall that sets it and the block that
     // deliberately skips re-asserting it.
+    //
+    // `no-restricted-imports` alone only catches the `@/server/ai/gateway`
+    // ALIAS spelling — ESLint's own docs warn `patterns` does string
+    // matching, not path resolution, so a sibling reaching for the same
+    // module via a relative path (`./gateway` from anywhere in
+    // `src/server/ai/`, which is exactly the directory `handleAskRequest.ts`
+    // and any future second entry point would sit in) was a clean bypass: a
+    // review confirmed lint passed on `import { aiModel } from "./gateway"`.
+    // `import/no-restricted-paths` (eslint-plugin-import, already pulled in
+    // transitively by `eslint-config-next` — pinned here as a direct
+    // devDependency so this file can import it) resolves the import to an
+    // actual file before comparing, so it closes the relative form too,
+    // regardless of how many `../` segments or which extension spelling is
+    // used. Kept alongside the alias pattern rather than replacing it: the
+    // alias check is cheap, already proven, and gives a more specific error
+    // message for the common case.
     files: ["src/**/*.{ts,tsx}"],
     ignores: [
       "src/server/ai/modelSelection.ts",
       "src/server/ai/modelSelection.test.ts",
+      // gateway.test.ts reaches its own subject with a dynamic `await
+      // import("./gateway")` (so it can re-import after `vi.stubEnv` +
+      // `vi.resetModules()`). The old `no-restricted-imports` rule never
+      // saw this — it only inspects static `import` declarations — so this
+      // file didn't need listing here to pass. `import/no-restricted-paths`
+      // resolves dynamic imports too, and DOES see it, so closing the
+      // relative-import hole surfaced this file needing the same explicit
+      // exemption the comment above already claimed it had.
+      "src/server/ai/gateway.test.ts",
       "src/proxy.ts",
       "src/lib/authConfig.ts",
     ],
+    plugins: {
+      import: importPlugin,
+    },
     rules: {
       "no-restricted-imports": [
         "error",
@@ -96,6 +125,19 @@ export default [
               group: ["@/server/ai/gateway"],
               message:
                 "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25).",
+            },
+          ],
+        },
+      ],
+      "import/no-restricted-paths": [
+        "error",
+        {
+          zones: [
+            {
+              target: "./src",
+              from: "./src/server/ai/gateway.ts",
+              message:
+                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25). This still applies via a relative import.",
             },
           ],
         },

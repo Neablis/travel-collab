@@ -114,6 +114,7 @@ describe("ProposalCard", () => {
   it("offers neither button while the batch is in flight", () => {
     renderCard({ state: state({ status: "applying" }) });
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
     expect(screen.getByText("Applying…")).not.toBeNull();
   });
 });

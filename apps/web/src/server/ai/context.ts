@@ -55,7 +55,11 @@ export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
 // one machine-readable line — the same trick `handleAiRequest`'s
 // `Context: {…}` line already uses — keeps the writer and the reader in one
 // module, so they cannot drift apart. A round-trip test enforces that.
-const ASK_SCOPE_PREFIX = "Scope: ";
+// Exported so tests building a malformed scope line (context.test.ts) attach
+// it to the real prefix instead of a hard-coded copy — otherwise the prefix
+// could change here without those tests noticing they'd stopped reaching the
+// JSON.parse catch branch they claim to cover.
+export const ASK_SCOPE_PREFIX = "Scope: ";
 
 export function askScopeLine(scope: AskScope): string {
   return `${ASK_SCOPE_PREFIX}${JSON.stringify(scope)}`;

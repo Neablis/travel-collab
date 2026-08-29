@@ -72,6 +72,25 @@ if (gateway.passed) {
   console.log("lint wall OK: @/server/ai/gateway import outside modelSelection.ts correctly rejected");
 }
 
+// Regression coverage for a Major caught in review: `no-restricted-imports`
+// `patterns` does string matching, not path resolution, so the alias-only
+// check above did not catch a sibling reaching gateway.ts via a relative
+// path — `import { aiModel } from "./gateway"` passed lint clean. The fix
+// adds `import/no-restricted-paths` (which resolves the import before
+// comparing) alongside the alias pattern; this fixture proves the relative
+// spelling is rejected too, not just the alias one.
+const gatewayRelative = lintFixture(
+  "lint_wall_gateway_relative_fixture",
+  'import { aiModel } from "./gateway";\nexport function forbidden() { return aiModel(); }\n',
+  { dir: "src/server/ai", ext: "ts" },
+);
+if (gatewayRelative.passed) {
+  console.error("LINT WALL BREACHED: relative \"./gateway\" import outside modelSelection.ts was NOT flagged");
+  process.exitCode = 1;
+} else {
+  console.log("lint wall OK: relative \"./gateway\" import outside modelSelection.ts correctly rejected");
+}
+
 // Some assertions below check "this exact real file's effective config",
 // which a fixture cannot express — a fixture is, by construction, a file at
 // some OTHER path. `--print-config` reports the no-restricted-imports rule

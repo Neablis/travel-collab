@@ -13,6 +13,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-84 — The docked assistant rail is a fixed 356px at every viewport, so a narrow phone loses the plan under it
+- **Severity:** cosmetic (the docked presentation is not the intended mobile experience — see below — and the assistant is closed by default)
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx` (`style={{ width: "356px", ... }}`), `apps/web/src/app/globals.css` (`.assistant-open ~ .unscheduled-rack { right: 356px; }`)
+- **The behaviour:** the rail's width is a fixed 356px regardless of viewport, with no narrower breakpoint. At a 375px viewport (a common phone width) the plan behind it is squeezed to ~19px; below 356px the plan gets none at all. `.unscheduled-rack`'s right-inset compensation shares the identical 356px literal, so the rack has the same fixed-offset problem the rail does — narrowing the viewport doesn't narrow either one.
+- **Why it is not fixed here:** `SPEC.md` §9 names two other presentations — a 56px bubble and a 364×476 floating draggable card — as the designed answer to exactly this; `docs/milestones/M16-assistant-read-agent.md`'s "Deferred, and owned by this milestone so it stays routed" defers both, by Mitchell's 2026-08-25 call, in favour of shipping the docked rail alone first. `SPEC.md` §10/§13 also make mobile its own surface, not a squeeze of the docked desktop one. And the assistant is closed by default, so no page loses layout until a user opens it.
+- **What would resolve it properly:** build the bubble/floating presentations M16 already deferred, and give the docked rail a breakpoint (or drop to bubble/floating) below some minimum viewport width instead of holding 356px unconditionally.
+- **Found by:** CodeRabbit, PR #88 review, 2026-08-29 — filed rather than fixed because the fix is already routed to M16's deferred work, not a gap in this PR's scope.
+- **Cross-reference:** `docs/milestones/M16-assistant-read-agent.md` ("Deferred, and owned by this milestone so it stays routed"), `SPEC.md` §9/§10/§13.
+- **First noted:** 2026-08-29.
+
 ### KI-83 — Repeated local e2e runs exhaust the per-user AI quota, and `/ask` specs go red with 429 for a reason no code change explains
 - **Severity:** reliability of the test lane (the product ceiling is working exactly as designed; what is missing is any way to tell that from the failure)
 - **Area:** `apps/web/src/server/quota.ts` (`aiQuotas()`), `apps/web/e2e/m10-simulated-ai.spec.ts`, `apps/web/e2e/m16-assistant.spec.ts`, `apps/web/playwright.config.ts` (`webServer.env`), the `rate_limit_counters` table

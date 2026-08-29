@@ -485,6 +485,10 @@ describe("simulatedModel — proposing a change", () => {
     const result = await probe("ask").doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
     );
+    // Witness: without this, a trip-scoped turn that stopped emitting tool
+    // calls would make the loop below run zero times and report this test
+    // green while covering nothing.
+    expect(callsOf(result).length).toBeGreaterThan(0);
     for (const call of callsOf(result)) {
       const input = JSON.parse(call.input) as Record<string, unknown>;
       expect(input).not.toHaveProperty("cost");
