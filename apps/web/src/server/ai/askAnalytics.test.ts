@@ -201,6 +201,54 @@ describe("the per-ask record", () => {
     }
   });
 
+  // The finding this closes: `record.toolCalls[].input` is model-supplied,
+  // and `JSON.stringify` throws on a circular structure. The sink must
+  // survive that AND still log something identifiable — a silent drop is as
+  // bad as an uncaught throw, because `abandon("abort")` reaches this sink
+  // from a raw `AbortSignal` listener (handleAskRequest.ts) that nothing in
+  // this codebase wraps in its own try/catch.
+  it("never throws on a circular tool input, and still logs something identifiable", () => {
+    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const circular: Record<string, unknown> = { title: "Gelato" };
+      circular.self = circular;
+
+      expect(() =>
+        logAskAnalytics({
+          event: "ai.ask",
+          tripId: "trip-with-a-bad-tool-call",
+          userId: "u",
+          scope: { kind: "trip" },
+          question: "move things around",
+          turn: "opening",
+          simulated: false,
+          model: "deepseek/deepseek-v4-flash-0731",
+          steps: 1,
+          toolCalls: [{ name: "AddActivity", input: circular }],
+          toolCallCount: 1,
+          offeredTools: [],
+          uncalledTools: [],
+          answered: true,
+          finishReason: "stop",
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          usageByStep: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
+          droppedCalls: [],
+          latencyMs: 1,
+        }),
+      ).not.toThrow();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [message, payload] = spy.mock.calls[0]!;
+      expect(message).toBe("ai.ask");
+      const parsed = JSON.parse(payload as string) as { event: string; tripId: string; error: string };
+      expect(parsed.event).toBe("ai.ask");
+      expect(parsed.tripId).toBe("trip-with-a-bad-tool-call");
+      expect(parsed.error).toMatch(/failed to serialize/i);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("carries the question and distinguishes an opening turn from a follow-up", () => {
     const opening = recorderWith({ question: "how long is this trip?", turn: "opening" });
     opening.recorder.finish({ finishReason: "stop" });

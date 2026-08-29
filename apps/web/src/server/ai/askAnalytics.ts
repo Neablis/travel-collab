@@ -127,8 +127,44 @@ function truncateForLog(text: string): string {
 // no depth limit and produces one self-contained line, which is also the
 // friendlier shape for a log platform that greps or parses JSON out of a
 // line rather than re-running Node's own formatter on it.
+//
+// `record.toolCalls[].input` is MODEL-supplied, and `JSON.stringify` throws
+// on a circular structure (and drops a `bigint` with a `TypeError`, not
+// silently). `createAskRecorder`'s own comment promises this whole path is
+// "deliberately total and non-throwing" — a promise this sink has to keep
+// itself, not inherit from its caller. Two call sites reach it directly, and
+// only one is safety-netted: `handleAskRequest.ts`'s normal end-of-turn path
+// runs through the AI SDK's own callback dispatch, which swallows a thrown
+// callback silently — no log line, no error, nothing — but `abandon("abort")`
+// is wired straight to `request.signal`'s `addEventListener`, a raw listener
+// nothing in this codebase wraps. A throw there is an unhandled exception on
+// a request's abort path. So: never throw, and never lose the line entirely —
+// a fallback that names the tripId, the event and the failure is a debuggable
+// log, where a silent drop or an uncaught throw is not.
 export const logAskAnalytics: AskAnalyticsSink = (record) => {
-  console.info("ai.ask", JSON.stringify(record));
+  try {
+    console.info("ai.ask", JSON.stringify(record));
+  } catch (err) {
+    // Deliberately minimal — anything derived from `record` itself (a tool's
+    // input, again) risks the same failure. `tripId`/`userId`/`scope` are
+    // server-controlled strings and a JSON literal, never model output, so
+    // this line is safe by construction rather than by another try/catch.
+    try {
+      console.info(
+        "ai.ask",
+        JSON.stringify({
+          event: "ai.ask",
+          tripId: record.tripId,
+          userId: record.userId,
+          error: `record failed to serialize: ${err instanceof Error ? err.message : String(err)}`,
+        }),
+      );
+    } catch {
+      // The fallback's own JSON.stringify call has nothing left in it that
+      // could throw — this exists only so "never throw" is true by
+      // construction, not by an argument about what the fallback contains.
+    }
+  }
 };
 
 // The step shape this module reads. Structural rather than the SDK's
@@ -194,6 +230,16 @@ export interface AskRecorder {
  * Deliberately total and non-throwing: this is telemetry hanging off a
  * streaming response that has already started reaching the user, so a malformed
  * step must never become the reason an answer stops mid-sentence.
+ *
+ * The accumulation itself (`observeStep`/`write`) is non-throwing by
+ * construction — it only ever reads and reshapes what a step handed it, never
+ * calls anything that can fail. The guarantee is only as good as what it
+ * calls out to, though: with no `sink` override this ends in
+ * `logAskAnalytics`, which is why THAT function is non-throwing too (see its
+ * own comment) rather than something this module merely hopes is true of it.
+ * An injected `sink` (every test's) is the caller's own responsibility — this
+ * promise covers the production path, not a test double that chooses to
+ * throw.
  */
 export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   const sink = params.sink ?? logAskAnalytics;
