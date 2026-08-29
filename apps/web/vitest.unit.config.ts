@@ -61,7 +61,10 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["src/**/*.test.ts"],
+          // next.config.test.ts is the one unit test outside src/, because the
+          // thing it covers — the CSP's build-time VERCEL_ENV branch — is
+          // outside src/ too. Nothing else at the app root is a test.
+          include: ["src/**/*.test.ts", "next.config.test.ts"],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,
         },

@@ -7,6 +7,20 @@ import type { NextConfig } from "next";
 // console unreadable without protecting anything that ships.
 const isDev = process.env.NODE_ENV !== "production";
 
+// Vercel sets VERCEL_ENV at build time, and a preview build is the only place
+// the Vercel Toolbar is ever injected. It is not cosmetic here: the Toolbar is
+// how the Flags Explorer flips `ai-live` for one reviewer's session, which
+// `docs/guidelines/environments-and-deploys.md` documents as the way to try
+// live AI on a preview without changing the stored value for everyone. The
+// policy below blocked its loader outright, so that workflow had been broken
+// since the CSP landed — found by browser-walking a preview (see
+// `pnpm --filter web walk:preview`), which is exactly the surface the CSP's
+// own comment records as unobserved. Preview only: production never loads
+// vercel.live, and widening its policy for a tool it does not serve would be
+// paying for nothing.
+const isPreview = process.env.VERCEL_ENV === "preview";
+const toolbar = (...origins: string[]) => (isPreview ? ` ${origins.join(" ")}` : "");
+
 // Project review M2: the app shipped with no security headers at all — no
 // CSP, no frame-ancestors, no Referrer-Policy, no nosniff.
 //
@@ -16,11 +30,15 @@ const isDev = process.env.NODE_ENV !== "production";
 // Checked against a production build served by `next start`: the headers
 // were read off real responses, and every resource the served HTML and the
 // built client chunks reference was enumerated and matched to a directive
-// (all same-origin under /_next, plus tiles.openfreemap.org). It has NOT
-// been exercised by a real rendering engine — this container has no browser
-// and cdn.playwright.dev is blocked by the proxy — so the authenticated
-// surfaces (board, map lens, notebook editor) are reasoned about, not
-// observed. If a violation shows up, it will be in one of those three.
+// (all same-origin under /_next, plus tiles.openfreemap.org). Twenty surfaces
+// were then browser-walked in Chromium 141 against that local build on
+// 2026-08-28 with zero violations, including the board, map lens and notebook
+// editor the first pass could only reason about.
+//
+// What that walk could not see, and a preview walk now can (KI-66): the
+// deployed environment's own additions. The first walk of a real preview,
+// 2026-08-29, found exactly one — the Vercel Toolbar's loader, blocked. See
+// the isPreview note above.
 const contentSecurityPolicy = [
   "default-src 'self'",
 
@@ -37,7 +55,7 @@ const contentSecurityPolicy = [
   // self-hosts at build time, and @vercel/analytics serves from
   // /_vercel/insights on our own origin. In dev it fetches a debug script
   // from va.vercel-scripts.com instead, and React Refresh needs 'unsafe-eval'.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}${toolbar("https://vercel.live")}`,
 
   // Tailwind ships a linked stylesheet, but inline styles are unavoidable
   // here: Radix positions popovers and dialogs with style attributes,
@@ -48,7 +66,7 @@ const contentSecurityPolicy = [
   // element wall's enumerated exceptions (map container,
   // computed timeline geometry) are style attributes by design. There is no
   // style equivalent of the nonce trade-off worth making for those.
-  "style-src 'self' 'unsafe-inline'",
+  `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
 
   // data: for inlined SVG/icons; blob: because maplibre decodes sprite
   // images into `URL.createObjectURL(new Blob(...))` before assigning them
@@ -56,16 +74,24 @@ const contentSecurityPolicy = [
   // connect-src because maplibre's image path has historically moved
   // between fetch and <img>, and the origin is the same one either way — it
   // is the only external origin this app talks to from the browser at all.
-  "img-src 'self' data: blob: https://tiles.openfreemap.org",
+  `img-src 'self' data: blob: https://tiles.openfreemap.org${toolbar("https://vercel.live", "https://vercel.com")}`,
 
   // next/font/google downloads and self-hosts at build time, so no
   // fonts.gstatic.com origin is needed here.
-  "font-src 'self' data:",
+  `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
 
   // Vector tiles, glyphs and the style JSON, all fetched by maplibre. The
   // geocode and AI calls go through our own /api routes, not the vendor.
   // ws: in dev is the HMR socket.
-  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}`,
+  // `wss://*.pusher.com` rather than the `wss://ws-us3.pusher.com` Vercel's
+  // Toolbar CSP documentation names. The `ws-us3` segment is a Pusher cluster
+  // Vercel picked and can move without telling us, and the failure mode if it
+  // does is precisely the one this whole change exists to fix: a CSP silently
+  // refusing a Vercel-side URL, client-side, on a surface no lane loads. We
+  // are not going to notice that twice. The widening buys nothing an attacker
+  // wants — it is preview-only, `connect-src` only, and confined to hosts
+  // under a domain we already have to trust for the Toolbar to work at all.
+  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${toolbar("https://vercel.live", "wss://*.pusher.com")}`,
 
   // maplibre spawns its tile-decoding workers from a blob: URL.
   "worker-src 'self' blob:",
@@ -74,7 +100,7 @@ const contentSecurityPolicy = [
   // second half is the UI-redressing defence the review asked for (the
   // trip-delete and demo-reset buttons). X-Frame-Options below says the same
   // thing for anything that predates frame-ancestors.
-  "frame-src 'none'",
+  isPreview ? "frame-src https://vercel.live" : "frame-src 'none'",
   "frame-ancestors 'none'",
 
   // No <base> tag exists, and no form posts anywhere but here: every form in

@@ -51,6 +51,12 @@ likely to need:
 - **KI-76 is real on this laptop.** `pg_isready` is absent while Postgres runs in
   Docker on :5433, so `pnpm check` would have run **zero** integration tests and
   exited 0. `pnpm --filter web test:int` directly gave 242.
+- **KI-66's CSP finding, from a cloud session the same day** — the CSP blocking
+  Vercel's feedback script on every preview page **was a real defect and is
+  fixed**, not a behaviour to tolerate: that script is the Vercel Toolbar, and
+  the Toolbar is the Flags Explorer. A preview console should be clean now. The
+  one preview-only behaviour that remains: a Deployment Protection re-challenge
+  of an in-flight XHR reaches the app as a bare "Failed to fetch".
 
 **Tag focus was carved out as M18b, approved and unplaced** — SPEC §11's
 cross-lens dimming, the behaviour behind the chips M18 made settable. Its scope
@@ -106,11 +112,36 @@ none of them is live any more:
 - **The CSP's last unwalked environment, the Vercel preview, is walked —
   KI-66.** The entry's "never executed by a browser" half was already closed
   earlier the same day by a local production-build walk; the preview was the
-  named remainder, and M11's gate covered it. Two preview-only behaviours
-  worth knowing before they are mistaken for defects: the CSP blocks Vercel's
-  feedback script on every preview page (no app impact), and a Deployment
-  Protection re-challenge of an in-flight XHR reaches the app as a bare
-  "Failed to fetch".
+  named remainder, and M11's gate covered it — as did a cloud session on
+  2026-08-29, independently, finding the same violation. One preview-only
+  behaviour is still worth knowing before it is mistaken for a defect: a
+  Deployment Protection re-challenge of an in-flight XHR reaches the app as a
+  bare "Failed to fetch". The other one M11's gate recorded — the CSP blocking
+  Vercel's feedback script on every preview page — was **not** "no app impact",
+  and is fixed rather than documented; see the next section.
+
+**A preview deployment is walkable from a cloud session, and the CSP defect that
+found is fixed.** `pnpm --filter web walk:preview <url> [path ...]` —
+`docs/guidelines/cloud-agent-sessions.md` carries the diagnosis, and that file's
+old "the preview is NOT reachable from here" paragraph is gone; it was wrong and
+it cost several runs. Three obstacles stacked: Deployment Protection, Chromium
+not trusting the egress CA, and a TLS 1.3 ClientHello the `*.vercel.app` tunnel
+cannot carry.
+
+What the walk found is the point: **the CSP refused the Vercel Toolbar's loader
+on every preview page**, which breaks the Flags Explorer — the documented way to
+flip `ai-live` for one reviewer's session. M11's gate saw the same refusal and
+filed it as harmless preview noise; it was not. The policy now admits the
+Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
+production's policy is untouched.
+
+**One thing is still Mitchell's to do, and nothing unattended can test a preview
+until it is done:** generate **Protection Bypass for Automation** (Vercel → the
+project → Settings → Deployment Protection) and copy the value into a
+`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret. Until then the only route in is
+an MCP-minted `_vercel_share` link, which expires in 23 hours and suits an
+interactive session, not a scheduled job. Treat the secret like `FLAGS_SECRET`:
+it unlocks every protected deployment this project has.
 
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an
 unbiased top match overwriting correct model coordinates; rate-limit failures

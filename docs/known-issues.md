@@ -13,6 +13,34 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
+- **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
+- **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
+- **Symptom:** `placeNameVerdict` requires every distinctive token of the queried place to appear as a token of the candidate's own name, and `nameTokens` splits on every non-alphanumeric character. So a hyphen the vendor renders differently is a mismatch, and a translated suffix is a mismatch. Three of the Japan seed's stops are rejected this way — all three are the right place:
+  ```
+  "Gonpachi Nishiazabu"  vs  "Gonpachi Nishi-Azabu"   required [gonpachi, nishiazabu], candidate [gonpachi, nishi, azabu]
+  "Tenryū-ji"            vs  "Tenryū Temple"          required [tenryu, ji],           candidate [tenryu, temple]
+  "Ginkaku-ji"           vs  "Ginkakuji"              required [ginkaku, ji],          candidate [ginkakuji]
+  ```
+- **How it surfaced:** the 2026-08-29 regeneration for KI-58. These three had been in the overlay as `not-comparable` — the vendor had previously answered in local script (権八 西麻布, 天龍寺, 銀閣寺), which the check cannot read and therefore accepts. This run it answered in romaji, which the check *can* read and therefore rejects. **The verdict for a correct venue depends on which script the vendor happens to answer in**, which is not a property anyone chose.
+- **Why it matters more than three rows:** `verify.ts` only checks a canonical coordinate where the overlay has an opinion, so each false rejection quietly removes one stop from the cross-check. It fails safe — nothing wrong is stored — but the guard covers 41 of 72 stops instead of 51, and nothing says so at the point of use.
+- **Fix path:** compare on a concatenation-insensitive fold as well as a token fold, so "nishiazabu" matches "nishi"+"azabu" and "ginkakuji" matches "ginkaku"+"ji". That covers two of the three. "-ji" vs "Temple" is a translation, not a spelling, and wants either a small suffix synonym set (`-ji`/`-dera` → temple, `-jingū`/`-gū` → shrine) or acceptance that a translated name is `not-comparable` rather than `mismatch`. **Do not** simply widen `GENERIC_TOKENS` — that module's own comment warns a long list shrinks the distinctive set toward nothing.
+- **Do not fix by loosening the caller.** The script's step 4b (KI-58) is a ranking; this is about what counts as a mismatch at all, and it belongs in the shared module with tests, not in the one-off script.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58 (the run that exposed it), KI-39 (which added the check), KI-15.
+- **First noted:** 2026-08-29.
+
+### KI-78 — The geocode script reports "no results" as a retryable vendor error, on nine stops, every run
+- **Severity:** cleanup (a misleading label in a one-off script's report; no product impact)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts` (`resolveJob`'s `catch`, and the `lookup-failed` reporting block)
+- **Symptom:** LocationIQ answers a zero-result query with **HTTP 404**, not an empty list. `createLocationIQGeocoder` throws on it, `resolveJob` catches it as `reason: "lookup-failed"`, and the report prints it under `Lookup failed (rate limit or vendor error — rerun to retry)`. Nine stops hit this on every run — Hippari Dako, Koffee Mameya, Nazuna Kyoto Gosho, Omen Kodaiji, Giro Giro Hitoshina, Ippodo Kaboku, Aisunao, Zentis Osaka and Tonkatsu Maisen — and none of them is a transient failure. Rerunning changes nothing.
+- **Why it is worth fixing:** the script's whole design point is that a miss is *reported and left missing* rather than guessed (its own method comment, constraint 5). It gets that right; it then files the honest misses under a heading that tells the next reader to rerun. The distinction the report is trying to draw — "the vendor failed us" versus "the vendor has no such place" — is real and currently collapsed, and a genuine rate-limit would be invisible among the nine standing 404s.
+- **One of the nine is a symptom of another bug, not of this one:** `d14-s1-breakfast-at-the-hotel` queries `"Zentis Osaka, Kita, Tokyo, Japan"` — a real Osaka hotel with Tokyo in the string, because the day's destination city is folded into the query. That is KI-59, and it is the clearest independent evidence of it: the query is unanswerable because the data is wrong.
+- **Fix path:** have the vendor adapter distinguish 404 from other failures, or have the script inspect the error, and add a fourth outcome (`no-results`) alongside `no-candidate-in-box` / `name-mismatch` / `lookup-failed`. Touching `locationiq.ts` makes this a change to a shared seam rather than a script edit, so it wants its own scoped step.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58, KI-59 (the Zentis Osaka query), KI-15.
+- **First noted:** 2026-08-29.
+
 ### KI-76 — `pnpm check` exits 0 while running zero integration tests, because the probe is `pg_isready` and that binary need not exist
 - **Severity:** reliability, and it undermines the Definition of Done directly — `AGENTS.md` names `pnpm check` as the bar for every change, and on a machine like this one it silently clears a lower bar than it appears to
 - **Area:** `package.json` → `test:int:if-db`
@@ -75,13 +103,13 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **The policy HAS now been exercised by a browser, and no directive needed loosening.** Walked 2026-08-28 in Chromium 141 against a local production build of `fb51486` serving the header byte-identically. Twenty surfaces, console read on every one, zero CSP violations: landing, sign-in/up, welcome, playbooks, the trips list, the **trip board** (68 cards, drag, conflict banners), the **activity editor and trip-settings Radix sheets at 1280px and 1100px**, the share popover, the assistant rail, all three lenses, the **notebook list and TipTap editor**, the account menu, and `/s/<token>` signed out.
 - **The negatives are real, because enforcement was proved first.** A deliberate control probe from the board page returned `Refused to connect to 'https://example.com/probe' because it violates the following Content Security Policy directive: "connect-src 'self' https://tiles.openfreemap.org"`. Without that probe, "no violations" would have been indistinguishable from "the policy never loaded".
 - **The map lens threaded all three of its directives.** `connect-src` served the style JSON, six vector tiles and four glyph ranges; `img-src blob:` decoded the sprite (explicit `URL.createObjectURL` probe: `blob image loaded ok`); and `worker-src blob:` — the directive nothing had ever exercised — created a real worker, reproduced across two runs. KI-49 bit first (the container's egress blocks the tile host for Chromium, `net::ERR_ABORTED` with **no** `Refused to connect`), so the tile bytes were mirrored in through a route handler. CSP is evaluated in the renderer before a request reaches a route handler, so the policy decision was genuine even though the transport was not.
-- **What the walk still does not cover:** the dev-mode CSP branch (`'unsafe-eval'`, `va.vercel-scripts.com`) was not run. Google OAuth's 302 hand-off against `form-action 'self'` is still reasoning. And `frame-src`/`frame-ancestors`/`object-src`/`base-uri` were never counter-probed — nothing tried to violate them, which is weaker than proving they would block something.
-- **The Vercel preview — this entry's other named gap — was walked at M11's exit gate, 2026-08-28.** The walk above could not reach it (Deployment Protection, no bypass token in that container); M11's gate ran from a laptop with an MCP-minted `_vercel_share` bypass and covered landing, sign-in, the trips list, the new-trip wizard, the trip board, the Add-stop and Trip-settings sheets, the share popover, the invite-accept screen, `/s/<token>` and `/demo` at both lenses. **Two behaviours that only exist on a preview, and both look like application defects if you have not seen this entry:**
-  - `vercel.live/_next-live/feedback/feedback.js` is refused on **every** preview page under `script-src 'self' 'unsafe-inline'`. That is Vercel's preview comment toolbar. Nothing in the app depends on it, but it means a preview console is never clean, so "there were CSP errors" is not by itself a finding there.
+- **What the walk still does not cover:** the dev-mode CSP branch (`'unsafe-eval'`, `va.vercel-scripts.com`) was not run. Google OAuth's 302 hand-off against `form-action 'self'` is still reasoning. And `frame-src`/`frame-ancestors`/`object-src`/`base-uri` were never counter-probed — nothing tried to violate them, which is weaker than proving they would block something. Vercel's own `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` under `script-src 'self'` have not been seen loading in any walk.
+- **The Vercel preview — this entry's other named gap — is walked, twice, from both environments.** M11's exit gate reached it 2026-08-28 from a laptop with an MCP-minted `_vercel_share` bypass (landing, sign-in, the trips list, the new-trip wizard, the trip board, the Add-stop and Trip-settings sheets, the share popover, the invite-accept screen, `/s/<token>` and `/demo` at both lenses). A cloud session reached it 2026-08-29 via `pnpm --filter web walk:preview` — see `docs/guidelines/cloud-agent-sessions.md` for the three obstacles that had to be cleared and why the paragraph claiming it was unreachable was wrong. **Both walks independently found the same CSP violation**, which is the strongest evidence in this entry that the preview was a real gap and not a formality.
+  - `vercel.live/_next-live/feedback/feedback.js` was refused on **every** preview page under `script-src 'self' 'unsafe-inline'`. M11's gate recorded this as expected preview noise that nothing depends on. **That second half was wrong, and it is fixed rather than documented:** the script is the Vercel Toolbar's loader, and the Toolbar is how the Flags Explorer flips `ai-live` for one reviewer's session — the workflow `docs/guidelines/environments-and-deploys.md` documents for trying live AI on a preview without changing the stored value for everyone. It had been broken since the CSP landed. The policy now admits the Toolbar's six documented origins **on preview only**, gated on `VERCEL_ENV` and pinned by `apps/web/next.config.test.ts`, whose every "preview allows X" assertion has a "production still refuses X" twin. A preview console should now be clean; if it is not, that is a finding again.
   - When Deployment Protection re-challenges an **in-flight XHR**, the 307 to `https://vercel.com/sso-api?...` is refused under `connect-src`, `fetch` rejects, and the app surfaces it as whatever its generic failure copy says — in the observed case, invite acceptance rendering *"This invite doesn't work — Failed to fetch"*. The CSP is correct and the app is correct; the request never reached the application at all. `docs/guidelines/cloud-agent-sessions.md` already warns not to read Vercel's redirect as an app response — this is the same trap reaching you through a fetch rejection rather than a page render. Refresh the bypass and repeat the action before believing anything.
-  - Still unobserved even so: Vercel's `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` under `script-src 'self'` were not seen loading in that walk.
+  - **A cloud-session walk runs at TLS 1.2** (the egress tunnel cannot carry Chromium's TLS 1.3 ClientHello), so it is not evidence about anything TLS-version-dependent. A laptop walk has no such limit.
 - **Related correction:** the `style-src` comment attributes the runtime `<style>` injection to *"tippy.js (the notebook's slash-command popup)"*. There is no slash-command popup — macro authoring was removed in M8 — and `tippy.js` was removed as a direct dependency on 2026-08-28 with zero importers. The injector is `@tiptap/core`, whose embedded style string happens to contain `.tippy-box` rules, which is almost certainly where the attribution came from. The directive is still needed; the reason named for it is wrong.
-- **First noted:** 2026-08-28 (security-headers work). Browser-walked the same day, which closed the unverified half and corrected the premise it rested on: this container DOES have a usable Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — see `docs/guidelines/cloud-agent-sessions.md`.
+- **First noted:** 2026-08-28 (security-headers work). Browser-walked the same day, which closed the unverified half and corrected the premise it rested on: this container DOES have a usable Chromium under `$PLAYWRIGHT_BROWSERS_PATH` — and `chromium.launch()` finds it with no `executablePath`. Do not copy a pinned path from anywhere: the revision and the directory layout have both already changed once (`chromium-1194/chrome-linux/` → `chromium-1228/chrome-linux64/`). See `docs/guidelines/cloud-agent-sessions.md`.
 
 ### KI-67 — The AI and geocode quotas meter REQUESTS, so a 32-step answer costs the same allowance as a one-step one
 
@@ -207,11 +235,36 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   failure this protocol's promotion gate exists to prevent.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
-- **ESCALATED 2026-08-29 — it now suppresses a shipped feature, and its original objection is gone.** M18's PR 2 implemented SPEC §12's travel-day split (a day splits at its last `transit` stop; the departing city renders as a one-line strip carrying the departure time). Walked on `/demo` against the canonical fixture, it produces **one departing strip across the trip's seven travel days**, and that one is wrong — day 14 renders `Tokyo → Tokyo`, because the day's Osaka breakfast is tagged Tokyo too.
-  The cause is exactly this entry. The split needs to know where you left from, and **no stop on a travel day records that**: on days 4, 6, 7, 11 and 13 the transit stop is the day's first, so there is no earlier non-transit stop to name the origin, and `calendarCityCards` correctly declines to split rather than render a strip it cannot label. On day 14 there *is* an earlier stop, but it is tagged with the destination, so the split names the wrong city.
-  **Two things this changes about the entry.** First, the split is not "a rule that rarely fires" — it is inert, and will stay inert until a travel day records an origin. Second, **the stated reason for not fixing it no longer holds**: this entry says splitting produced "a pile of 'same day, ~400km apart' distance warnings", and **KI-60 (2026-08-28) fixed precisely that** — `detectConflicts` now excuses a distance a `transit` stop crosses in time, on time order. The 12-conflict baseline it worried about is already the post-KI-60 2. The objection was retired the day before this was found.
-  **Awaiting Mitchell's decision** — it is the product decision this entry always said it was, now with a cost attached. The three options and their trade-offs are in the M18 handoff; nothing in M18 is blocked meanwhile, because the split, the unbooked count and every other surface are shipped and correct — they simply have no travel day to act on.
-- **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident) — **but see the escalation above: it now gates a built feature**
+- **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
+  Two sessions reached this entry from opposite ends on the same day; this
+  paragraph reconciles them.** The other session corrected all seven rows,
+  measured the result as a regression, and reverted it — see "ATTEMPTED AND
+  REVERTED" below. Its stated prerequisite was: *"a day's city must come from
+  where the day **ends**, not from its first stop… `cityFor()` can take the
+  day's last stop instead of its first. Correct these seven rows in the **same**
+  change as that, never before it."* **`cityFor()` now reads a day's LAST
+  city-bearing stop** (M18, Mitchell's day-label rule). So the specific
+  regression that was measured — every corrected first-stop retagging its whole
+  day, Nikkō vanishing from the chips — should no longer occur, because a day's
+  label now comes from where it ends. **That is a prediction from the mechanism,
+  not a measurement: nobody has re-run the correction since `cityFor` changed.**
+  Re-run it before believing it.
+- **One half of that prerequisite did NOT land, and deliberately so.** The same
+  paragraph also expected `calendarCityCards.ts` to split a travel day at its
+  last `transit` stop. That split was built, walked, and **removed** at M18's
+  gate: it fired on one of seven travel days and got that one wrong, and its
+  output depended on this very entry's tagging convention — *"I don't think the
+  shape of the fixture should drive functionality, that's how we get drift"*
+  (Mitchell, 2026-08-29). The Calendar now groups by city alone. So a correction
+  here no longer has a transit rule to coordinate with; it only has to not break
+  day accents and the city cards, which is a smaller question than the entry has
+  carried until now. Full account: `docs/milestones/M18-stop-kind.md`.
+- **Also worth carrying forward:** KI-60 already removed the conflict-baseline
+  obstacle this entry was originally filed against, and `upstreamDrift.test.ts`
+  is the newer one — it asserts `JapanStop.city` equals the export's
+  `days[].city`, so any correction must also declare that `city` is no longer
+  carried verbatim from upstream.
+- **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
 - **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
   ```
@@ -227,29 +280,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it is filed rather than fixed:** it is the fixture's stated convention, inherited from `db-seed.ts` where the day-14 case was reasoned out explicitly — splitting that day produced "a pile of 'same day, ~400km apart' distance warnings ... accurate but noisy for a fixture". `cityFor()` names and colours a day from its activities' `city`, and `calendarCityCards.ts` groups strictly on it, so splitting these seven would change day accents, the calendar's city cards, and the 12-conflict baseline `pnpm seed:verify` pins. That is a product decision about how a travel day is modelled, not a mechanical correction — the same class as KI-39's note that the seed's coordinates are "a product-visible data decision".
 - **The real question underneath it:** the domain has no concept of a stop that moves between two places. `ActivityKind: "transit"` says a stop *is* travel but not where it goes. Until there is a from/to, any single `city` on a transit stop is a lie in one direction or the other; the current convention at least makes the lie consistent.
 - **Fix path, if taken:** give a transit stop the city it departs from and let the day derive its label from the majority or the last stop — or model an origin/destination pair on the activity, which is a contract change and its own reviewed step.
-- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`).
+- **ATTEMPTED AND REVERTED, 2026-08-29 — the correction alone is a regression, now measured.** All seven rows were corrected to the city the stop is physically in and the day chips recomputed. `cityFor()` (`DayChips.tsx`) reads the day's **first** located activity, and all seven of these rows are their day's first stop, so each one retags its entire day:
+  ```
+  day  4  Nikkō    -> Tokyo      the Nikkō day trip stops saying Nikkō
+  day  6  Hakone   -> Tokyo
+  day  7  Kyoto    -> Hakone
+  day 11  Osaka    -> Kyoto
+  day 14  Tokyo    -> Osaka      the fly-home-from-Tokyo day says Osaka
+  ```
+  **Nikkō disappears from the trip's chips altogether** (six cities become five) and every transition badge lands one day late — Tokyo→Hakone on the Kyoto day, Kyoto→Osaka on day 12. So the data fix makes the demo visibly *wrong in a new way*, and the entry's original judgement holds after both M18 and KI-60.
+- **What has changed since it was filed, and what has not.** KI-60 removed one of the three stated obstacles: the conflict baseline is **not** affected, because conflicts are computed from `lat`/`lng`, which were always physically correct — `seed:verify` still reports 2 conflicts with all seven rows corrected. `upstreamDrift.test.ts` is a second, newer obstacle: it asserts `JapanStop.city` equals the export's `days[].city`, so any correction here must also declare that `city` is no longer carried verbatim from upstream. The day accents and the calendar cards remain the real blocker.
+- **The enabling change, and it is downstream:** a day's city must come from where the day **ends**, not from its first stop. M18 shipped `kind`, so `calendarCityCards.ts` can now do what its own comment has always said it would — split a travel day at its last `transit` stop — and `cityFor()` can take the day's last stop instead of its first. Correct these seven rows in the **same** change as that, never before it. Touching `packages/fixtures` alone cannot close this entry.
+- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`); the 2026-08-29 measurement above is recorded there too.
 - **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
 - **First noted:** 2026-08-28 (PR #74 review).
-
-### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
-- **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
-- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
-- **Symptom:** KI-39 hardened this script to reject candidates outside the right city's bounding box. That is a real bound, but "inside Tokyo" is a ~60km box, so a wrong *venue* within the right city still passes. Read off the overlay's own `canonicalName`, of the 12 stops where its output disagrees with the canonical coordinates, **six are simply the wrong place**:
-  ```
-  Hama-rikyū Gardens  -> "Tokyo, Chiyoda, Tokyo, Japan"          a city centroid, not a garden
-  Bread & Espresso    -> "Cawaii Bread & Coffee, Chūō, Tokyo"    a different café
-  Yoshida-ya          -> "Coffee Yoshida, Kyoto-shi"             a different venue
-  Onibus Coffee       -> "Onibus Coffee, Setagaya"               the wrong branch
-  Sushi Yoshitake     -> "Sushi Wasabi, Shinjuku"                a different restaurant, wrong ward
-  Torishiki           -> "MeGuro, Shinagawa"                     a locality, not the restaurant
-  ```
-  The other six are the right venue offset by 1.2–1.9km.
-- **What this cost while it was live:** the preview branch's reset route read this overlay directly, so a preview deployment rendered those six stops at coordinates for somewhere else, while local dev — which used `db-seed.ts`'s hand-authored values — rendered them correctly. Nobody had compared the two. **Closed as a data problem by ADR-030**: the canonical coordinates now live on the fixture rows, all 72 of them, and every caller gets the same ones.
-- **What is still open:** the script itself. Re-running it still produces these six wrong matches. It was not re-run or re-tuned as part of ADR-030 because that is separate work — changing the matching rule, re-running ~70 live lookups, and re-reviewing every result — not because it could not be run. `LOCATIONIQ_API_KEY` is set in the main checkout's `apps/web/.env.local`; a fresh worktree does not get it, because `scripts/setup-env.mjs` copies `.env.example`, where the value is empty.
-- **Why it is bounded now rather than fixed:** `packages/fixtures/src/japan/coordinateOverrides.ts` records all twelve disagreements with what the geocoder actually matched, and `verify.ts` fails on any *unlisted* disagreement. So the tool can no longer silently move a pin — a future run either agrees, or lands in that file with a reason next to it.
-- **Fix path:** a name-similarity floor between the query's `place` and the candidate's own name, rejecting "Cawaii Bread & Coffee" for "Bread & Espresso". The script already has a name-verification step (step 4 of its own method comment); it prefers a name-verified candidate but does not *require* one.
-- **Cross-reference:** KI-39 (resolved — the city-box bound this is the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), ADR-030.
-- **First noted:** 2026-08-28 (ADR-030, while checking the two seed copies against each other).
 
 ### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database
 - **Severity:** cleanup (CI is unaffected — it runs against a fresh database every time; this bites local re-runs only)
@@ -659,7 +703,12 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   Vercel Deployment Protection is enabled on previews (a request to
   `/api/auth/providers` 302s to `vercel.com/sso-api`), so the OAuth callback
   only survives in a browser already authenticated to Vercel SSO; worth
-  confirming that interaction when the proxy is wired up.
+  confirming that interaction when the proxy is wired up. Updated 2026-08-29:
+  "authenticated to Vercel SSO" is no longer the only way in — a share link or
+  the automation bypass secret both set a cookie that carries the whole
+  browsing session, so the callback has a second route through. See
+  `docs/guidelines/environments-and-deploys.md`, "Testing against a preview
+  deployment". Still unconfirmed either way.
 - **Why deferred:** the workaround unblocks M15's gate today, and the proxy
   touches production auth configuration — not something to change while a
   milestone gate is mid-verification. Mitchell's call, 2026-08-26.
@@ -693,6 +742,32 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city — RESOLVED
+- **Severity (as filed):** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracked the tool, not the data)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`, `packages/fixtures/src/japan/coordinateOverrides.ts`
+- **Symptom (as filed):** of the 12 stops where the overlay disagreed with the canonical coordinates, six were simply the wrong place — a city centroid for Hama-rikyū Gardens, "Cawaii Bread & Coffee" for Bread & Espresso, "Coffee Yoshida" for Yoshida-ya, "Sushi Wasabi" for Sushi Yoshitake, "MeGuro" for Torishiki, and the Setagaya branch for Onibus Coffee. The entry's fix path was "a name-similarity floor between the query's `place` and the candidate's own name".
+- **Reproduced first, and the entry was half wrong.** Replaying `placeNameVerdict` offline against the committed overlay's own `canonicalName` for all 12 disagreements (no LocationIQ call needed — the overlay records what was matched) returns **`mismatch` for five of the six**:
+  ```
+  d2-s4-hama-rikyu-gardens     mismatch   "Hama-rikyū Gardens" -> "Tokyo"
+  d2-s5-yakitori-at-torishiki  mismatch   "Torishiki"          -> "MeGuro"
+  d3-s1-breakfast-at-bread-…   mismatch   "Bread & Espresso"   -> "Cawaii Bread & Coffee"
+  d5-s5-omakase-at-sushi-…     mismatch   "Sushi Yoshitake"    -> "Sushi Wasabi"
+  d9-s3-lunch-at-yoshida-ya    mismatch   "Yoshida-ya"         -> "Coffee Yoshida"
+  d2-s1-coffee-at-onibus       MATCH      "Onibus Coffee"      -> "Onibus Coffee"
+  ```
+  The name-similarity floor the entry asks for **already existed** — KI-39 added it as step 4 — and it already rejects five of the six. The overlay was simply never regenerated after KI-39, so it was stale output from a run that predated its own fix. "Re-running it still produces these six wrong matches" was an assumption, not a measurement.
+- **The one real residue is a different bug than the entry describes.** `d2-s1-coffee-at-onibus` scores a genuine `match`: the queried venue and the candidate are the same chain, so their names are *identical* and token identity cannot separate them. `geocodeNameMatch.ts`'s own header says so — "it cannot tell two branches of the same chain apart ... which stays the box's job and the human's" — and the box is ~60km of Tokyo. No name-similarity floor, however tight, can fix a name that matches exactly. The only field that separates the branches is the **ward**, which step 4 deliberately discounts as geography.
+- **Fix (2026-08-29):** a step **4b** in the script — an *area corroboration* tiebreak among the candidates that survive step 4. A candidate whose full display name also carries the queried `area` outranks one that does not, and a pin that wins without it is reported as `area-uncorroborated`. Deliberately a **ranking, not a filter**: plenty of correct OSM addresses render the ward in local script or omit it, so rejecting on it would lose right answers exactly the way collapsing `not-comparable` into `mismatch` would. Implemented in the script, not in `geocodeNameMatch.ts`, so the shared seam keeps its single meaning.
+- **The overlay was then regenerated against the live vendor** (~62 unique lookups, `LOCATIONIQ_API_KEY` from `apps/web/.env.local`), and every result re-reviewed. All six wrong-venue matches are gone from it:
+  - five no longer resolve at all — the name check rejects them, so the overlay simply has no entry for those stops;
+  - `d2-s1-coffee-at-onibus` still resolves to the Setagaya branch (the vendor's top 5 contained no Nakameguro candidate to rank above it) but is now **reported** rather than accepted silently, and keeps its `COORDINATE_OVERRIDES` entry.
+- **It surfaced a second instance of the same branch bug.** `d3-s3-lunch-at-afuri` used to match "WITH HARAJUKU" — a building, wrong venue, but close enough to pass the 2km tolerance unremarked. It now matches "Afuri, Minato", the right chain and the wrong branch, 2.8km from the Harajuku stop, and lands in `COORDINATE_OVERRIDES` with a reason. A wrong pin that was invisible is now written down.
+- **Overlay coverage moved 51 → 41 of 72, deliberately, and every one of the ten is accounted for:** seven were wrong or dubious matches the name check now rejects (the five above, plus "GION KIMUTAKO" for Gion Nanba and "KICHIRI" for Kichi Kichi — both wrong venues that had slipped through only because they happened to sit within the distance tolerance). **Three are false rejections and are filed as KI-77**: Gonpachi, Tenryū-ji and Ginkaku-ji are the right places, rejected on tokenisation ("Nishiazabu" vs "Nishi-Azabu", "-ji" vs "Temple"). The overlay is a *proposal* cross-checked against `trip.ts`, so a lost entry weakens a check but stores nothing wrong; `with coordinates` is still **72/72** and no coordinate the app serves changed.
+- **Verification:** `pnpm seed:verify` green (72/72 coordinates, 6 cities, **2 conflicts** — KI-60's baseline unmoved). The guard proved itself non-vacuously along the way: before `coordinateOverrides.ts` was updated, `verify.ts` failed with exactly the six findings the regeneration should produce — five "overridden but the overlay has no entry for it" and one new unexplained disagreement — so the coupling between the overlay and its override list is enforced, not asserted.
+- **Left alone deliberately:** the script reports LocationIQ's `404` as `lookup-failed (rate limit or vendor error — rerun to retry)`. LocationIQ also returns 404 for *zero results*, and nine stops hit it on every run, so that label is wrong for all nine and invites a pointless rerun. Filed as KI-78 rather than fixed here.
+- **Found by:** ADR-030, 2026-08-28, while checking the two seed copies against each other. **Resolved:** 2026-08-29.
+- **Cross-reference:** KI-39 (the city-box bound this was the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), KI-77 and KI-78 (opened by this work), ADR-030.
 
 ### KI-75 — `m10-map-rail.spec.ts` skips a day about half the time, and a different day each time — RESOLVED, the scan was asserting an unthrottled model of a throttled feature
 - **Severity:** reliability (no product impact — the rail behaves as designed; it made "the full e2e suite is green" an unreliable signal, which is what a milestone gate rests on)

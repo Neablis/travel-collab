@@ -68,29 +68,74 @@ a known-issues entry as fact. Both checks were wrong in the same way: they
 looked for `chromium`/`chrome` on `PATH` and at `~/.cache/ms-playwright`
 (empty), and took `playwright install` failing as confirmation. It fails
 because the proxy 403s `cdn.playwright.dev` (see below), not because
-nothing is installed. A working Chromium is on disk:
+nothing is installed. A working Chromium is on disk, under
+`$PLAYWRIGHT_BROWSERS_PATH` (`/opt/pw-browsers`).
 
-    /opt/pw-browsers/chromium-1194/chrome-linux/chrome    # 141.0.7390.37
+**Do not hardcode a path to it, and do not copy one out of this file.** This
+paragraph used to name `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+and say `playwright-core` wants a newer revision than the one present, so an
+explicit `executablePath` was required. Both halves have since gone stale, and
+a script written from them was wrong in two ways at once: the image now also
+carries `chromium-1228` — the revision `playwright-core` actually asks for —
+and it uses a **different layout**, `chrome-linux64/chrome` rather than
+`chrome-linux/chrome`, so bumping the number alone would still have missed it.
+The pin quietly selected the older build.
 
-`playwright-core` asks for a newer build number than the one present and
-errors with "run npx playwright install" unless you pass `executablePath`
-explicitly. Do that instead of concluding the walk is impossible:
+    ls "$PLAYWRIGHT_BROWSERS_PATH"       # what is actually here, today
 
-    chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" })
+`chromium.launch()` with no `executablePath` resolves and launches correctly
+now. Let it. If you need a fallback for an image where it does not, scan for
+the highest `chromium-<revision>` and accept either layout — see
+`resolveFallbackChromium()` in `apps/web/scripts/walk-preview.mjs`.
 
 This matters more than it sounds. A CSP, a focus ring and a layout bug are
 all enforced or visible only in a renderer — "no browser available" is the
 one excuse that turns a verifiable claim into an unverified one, and it was
 false both times it was used.
 
-**The Vercel preview is NOT reachable from here.** Deployment Protection
-302s every request to `vercel.com/sso-api`, and no bypass token exists in
-this environment. That 302 carries Vercel's own headers, not the app's — do
-not mistake it for a response from the application. Walk a local production
-build instead (`pnpm --filter web build && next start`), which serves
-byte-identical headers; build from a clean `git archive HEAD` if other
-agents are editing the tree, since `check-lint-wall.mjs` deletes its
-fixture mid-run and will break a concurrent `next build`.
+**The Vercel preview IS reachable from here.** This paragraph used to say the
+opposite, and stopped three runs from testing where the bug was. Deployment
+Protection does 302 every unauthenticated request to `vercel.com/sso-api`, and
+that 302 carries Vercel's headers, not the app's — do not mistake it for a
+response from the application. But there are two ways past it, and both work
+from this container:
+
+    pnpm --filter web walk:preview <url> [path ...]
+
+`apps/web/scripts/walk-preview.mjs` is the whole recipe, with the diagnosis in
+its header. Give it either a `?_vercel_share=` URL (mint one for any deployment
+with the Vercel MCP's `get_access_to_vercel_url`; valid 23 hours) or a plain
+preview URL with `VERCEL_AUTOMATION_BYPASS_SECRET` set. It reports status,
+title and console errors per path, and exits non-zero if a path fails — so it
+is usable as a check, not just as a look.
+
+Three things had to be true at once, and each failed with an error naming none
+of the others. Worth knowing, because they bite anything else you point at the
+network from a renderer:
+
+1. **Chromium does not read `/etc/ssl/certs`,** so the egress gateway's
+   TLS-inspection CA is untrusted and inspected hosts fail
+   `ERR_CERT_AUTHORITY_INVALID` — even though `curl` and `node` are fine, which
+   is what makes it confusing. `certutil` is not installed, so the script pins
+   the container's own CAs by SPKI hash instead. That is five named
+   certificates, not `--ignore-certificate-errors`.
+2. **`*.vercel.app` is tunnelled, not inspected,** and the tunnel cannot carry
+   Chromium's TLS 1.3 ClientHello (~1830 B with the post-quantum key share).
+   The upstream answers 39 B and resets: `ERR_CONNECTION_RESET`, with nothing
+   pointing at TLS. `--ssl-version-max=tls1.2` shrinks the ClientHello and it
+   goes through. Every `--disable-features=` spelling of the post-quantum flag
+   was tried first and none worked on Chromium 141. The cost: a walk from here
+   exercises TLS 1.2, so it is not evidence about anything TLS-version-specific.
+3. **Deployment Protection**, above.
+
+A local production build (`pnpm --filter web build && next start`) is still the
+right thing for anything that does not depend on the deployed environment, and
+it is faster. What it cannot show you is what Vercel's own edge adds — the
+first real preview walk, 2026-08-29, found the Vercel Toolbar's loader blocked
+by our CSP, which twenty local surfaces had not. Build from a clean
+`git archive HEAD` if other agents are editing the tree, since
+`check-lint-wall.mjs` deletes its fixture mid-run and will break a concurrent
+`next build`.
 
 ## Egress goes through a proxy, and some hosts are blocked
 
