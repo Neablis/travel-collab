@@ -202,15 +202,23 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
             style={{ width: "92px" }}
           >
-            <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+            {/* Weekday and day-of-month share the first line — "Tue 8" (Mitchell,
+                on the preview: "Lets move the day of the month up to be inline
+                with the Day of the week to be more space efficient"). The number
+                used to sit on the second line ahead of the city, where it was
+                the reason a longer city name truncated: it took a fixed
+                `shrink-0` bite out of a chip only ~72px wide. */}
             <div className="flex w-full items-baseline gap-1 overflow-hidden">
+              <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
-              {/* On a travel day the city moves down to the transition line, which
-                  spells out both ends of the move — printing it here as well would
-                  be the same fact twice on one chip (RULES.md 4), and printing it
-                  here alone is what produced the reported "Nikkō" over "→ Nikkō". */}
+            </div>
+            {/* On a travel day the city moves down to the transition line, which
+                spells out both ends of the move — printing it here as well would
+                be the same fact twice on one chip (RULES.md 4), and printing it
+                here alone is what produced the reported "Nikkō" over "→ Nikkō". */}
+            <div className="flex w-full items-baseline overflow-hidden">
               {day.city && !day.transitionTo ? (
                 <span
                   className="truncate text-slate"
