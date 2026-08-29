@@ -65,9 +65,13 @@ export default defineConfig({
   // "pick one and write it down" instruction.
   //
   // "narrow" (Task 3.4, KI-19) runs only e2e/responsive.spec.ts, below the
-  // 1179px breakpoint where the assistant rail's overlay mode and other
+  // 1179px breakpoint where the Playbooks grid's column reflow and other
   // breakpoint-dependent behavior live — the whole suite does not need to
-  // run twice to catch that class of bug.
+  // run twice to catch that class of bug. The assistant rail used to be one
+  // of those behaviors (an overlay below this breakpoint); M16 Wave 1 made
+  // it a docked flex sibling at every width, so responsive.spec.ts now
+  // checks it explicitly at both 1280px and 1100px rather than relying on
+  // this project's own viewport to be the "below 1180px" case.
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
