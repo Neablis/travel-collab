@@ -100,19 +100,22 @@ a migration is outstanding is comparing `apps/web/drizzle/*.sql` on `main`
 against the `head_sha` of the last successful run — not the absence of a
 complaint. See `docs/guidelines/environments-and-deploys.md`.
 
-**2. `/s/featured` dead-ends on every environment — KI-61.** The landing page's
-most prominent secondary CTA resolves through `DEMO_SHARE_TOKEN`, which is unset
-everywhere and has no token to be set *to*, because the seed creates no share.
-`.env.example` now documents the variable (added 2026-08-28, commented out),
-which closes one of KI-61's three gaps and leaves the other two. The e2e suite
-asserts the empty state, so CI is green *because* nothing is configured. Needs a
-decision (a committed, guessable demo token vs. a seed-time random one), not a
-fix.
+**2. ~~`/s/featured` dead-ends on every environment — KI-61.~~ Not blocking —
+this entry was already stale when it was written.** PR #79 landed the same day
+and repointed both landing CTAs at `/demo`; `DEMO_SHARE_TOKEN` and the featured
+share are gone, and KI-61 sits under **Resolved** in `docs/known-issues.md`.
+This file's own "Where the work is right now" section said so three paragraphs
+up while this paragraph said the opposite. `docs/known-issues.md` is the
+authority on which issues are open — when this list and that file disagree,
+that file wins and this list is what needs editing.
 
 **3. The Map lens cannot be visually verified from a cloud session — KI-49.**
 The egress proxy blocks the tile host, so the map's chrome can be walked and its
 tiles cannot. Nothing on the roadmap is blocked by it; it bounds what a browser
-walk from here is allowed to claim.
+walk from here is allowed to claim. **Being able to walk a preview does not fix
+this** — the block is on this container's egress, not on the deployment, so the
+tiles are just as unreachable from a preview walk. A person with a browser sees
+them fine.
 
 **4. ~~The CSP has never been executed by a browser — KI-66.~~ CLEARED.** Walked
 locally 2026-08-28 (twenty surfaces, zero violations, enforcement proved with a
@@ -141,20 +144,37 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Finish the review-remediation branch and open its PR as a draft**
-(`docs/plans/2026-08-28-review-remediation.md` has the wave table and the file
-scopes). Wave 1's five agents have landed as commits; Wave 2 was running in one
-tree with disjoint scopes when this was written, and **Wave 3 — the testing loop
-and the small refactors — had not started** (nothing had touched
-`vitest.unit.config.ts`, `playwright.config.ts` or the §6.2 files). Check
-`git log` against that plan's table rather than trusting this sentence; it is
-the one line here with a half-life measured in hours. Per `AGENTS.md`, open the
-PR as a draft, mark it ready only when you believe it is green, then
-`gh pr checks <n> --watch --fail-fast`.
+**Run M11's gate.** The review-remediation branch this section used to point at
+merged as **PR #78** (`d41af2e`), and the migration blocker behind the gate is
+cleared — so the gate is now the next action rather than the one after it, and
+nothing structural is in front of it.
 
-**Then M11's gate**, which is the first thing that needs a human: eight of its
-nine exit-gate boxes are unticked, PR #71's review findings are open, and the
-gate cannot honestly close while the migrations behind it are undispatched.
+All six links in M11's scope chain have landed, and **eight of its nine
+exit-gate boxes are unticked because nobody has run the gate, not because the
+work is missing.** Five e2e specs already exist for it — `m11-invites`,
+`m11-share`, `m11-clone`, `m11-saved-days`, `m11-demo`. What the gate needs:
+
+1. `pnpm --filter web test:e2e:ci-like` — the **only** lane whose result counts
+   (CLAUDE.md rule 1). PR #78's own commit messages record the M11 e2e lane as
+   *not run* against several of its fixes, including the invite-preview gating
+   that changed `InviteAcceptScreen`'s behaviour. That is the single most likely
+   place for a red.
+2. Walk the five flows in a browser against a **preview**, which is newly
+   possible: `pnpm --filter web walk:preview`. Invite → accept → edit, and a
+   pinned share surviving a later edit, are both multi-actor flows that no
+   local walk had been able to reach.
+3. Tick the boxes, write the retro, and run the four-flag gate-close checklist
+   in `docs/milestones/README.md` **in one commit** — that is the step that has
+   historically been dropped.
+
+Two things to check while there rather than discover later: the M11-labelled
+`<Preview>` shells still in `preview-registry.ts` are the **Playbooks** ones
+(`home-playbooks-strip`, `playbooks-route`, `insert-playbook`, the wizard's
+panel) plus four that name a missing field. None of them appear in the scope
+chain's "Preview shells retired" column, so the gate box does not cover them —
+but M11's own file says *"M11's own Playbooks/templates scope stays"*, and
+nothing built it. **Whether Playbooks is in this gate or is its own follow-on is
+Mitchell's call, and it should be made before the gate closes, not after.**
 
 **Deliberately deferred, each recorded where it belongs rather than dropped:**
 
