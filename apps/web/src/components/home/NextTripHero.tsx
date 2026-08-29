@@ -13,6 +13,7 @@ import { cityFor } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
+import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 
@@ -67,10 +68,6 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     ? null
     : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-  const daysPlanning = Number.isNaN(created.getTime())
-    ? null
-    : Math.max(0, Math.floor((Date.now() - created.getTime()) / 86_400_000));
-
   // Real TripDetail, fetched on mount (and again if the hero starts
   // rendering a different trip) — the source for both the sparkline and the
   // real start date below. See the SparklineFetchState comment above for why
@@ -96,6 +93,12 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // (Task 6) — now that it's backed by real data, it renders for real, not
   // as a preview.
   const [conflictCount, setConflictCount] = useState<number | null>(null);
+  // The second stat tile's "not booked" count, off the same TripDetail fetch —
+  // stops whose kind is neither `booked` nor `transit`, via the one shared
+  // `needsBooking` predicate the Calendar's per-day `N to book` flag also uses,
+  // so the two never disagree about the same trip. `null` is the same "nothing
+  // honest to say yet" as its neighbours above.
+  const [notBooked, setNotBooked] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +106,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     setStartDate(null);
     setPlannedOfBudget(null);
     setConflictCount(null);
+    setNotBooked(null);
     void fetchTripDetail(trip.tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
@@ -118,6 +122,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         setStartDate(detail.startDate);
         setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
         setConflictCount(detail.conflicts.length);
+        setNotBooked(Object.values(activities).filter((a) => needsBooking(a.kind)).length);
       } else {
         setSparkline({ status: "error" });
       }
@@ -189,11 +194,19 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
               value={String(trip.members.length)}
               label={trip.members.length === 1 ? "traveler" : "travelers"}
             />
-            {/* "days planning" (createdAt -> now) stands in for the mock's
-                "stops planned"/"not booked" tiles, which need stop/booking
-                data TripSummary doesn't carry. See the Task 6 report for the
-                full rationale. */}
-            <StatTile tone="warning" value={daysPlanning === null ? "—" : String(daysPlanning)} label="days planning" />
+            {/* The design's "not booked" tile (M18). This was "days planning"
+                — a createdAt-to-now count that stood in for exactly this tile,
+                on the grounds that TripSummary carries no booking data. It
+                doesn't, but the tile beside it had already beaten that same
+                objection: the hero fetches the whole TripDetail on mount for
+                the sparkline, so the count is free and needs no contract
+                change. "—" while loading or after a failed fetch, matching the
+                conflict tile's convention rather than showing a confident 0. */}
+            <StatTile
+              tone="warning"
+              value={notBooked === null ? "—" : String(notBooked)}
+              label="not booked"
+            />
             {/* Real, live conflict count off the same TripDetail.conflicts
                 fetch above — no longer a hardcoded fabrication behind a
                 Preview shell (Task 8.5; see the conflictCount comment

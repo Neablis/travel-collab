@@ -1,4 +1,5 @@
 import type { ActivityView, TripDetail } from "@tc/contracts";
+import { needsBooking } from "@/lib/needsBooking";
 import { toMinutes } from "@/lib/time";
 
 /** 7am–11pm, the fixed track SPEC §12 draws every span bar against. */
@@ -131,7 +132,7 @@ export function calendarCityCards(
 
 /** SPEC §12: "every stop whose kind is neither `booked` nor `transit`". */
 function unbookedCount(stops: ActivityView[]): number {
-  return stops.filter((s) => s.kind !== "booked" && s.kind !== "transit").length;
+  return stops.filter((s) => needsBooking(s.kind)).length;
 }
 
 /**

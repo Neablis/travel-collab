@@ -340,6 +340,56 @@ describe("NextTripHero", () => {
     expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
   });
 
+  // M18: the second tile was "days planning", a createdAt-to-now count that
+  // stood in for exactly this one. It counts stops whose kind is neither
+  // `booked` nor `transit` — the same predicate the Calendar's `N to book` flag
+  // uses, so the hero and the Calendar can never disagree about one trip.
+  it("counts the trip's unbooked stops in the second stat tile", async () => {
+    const trip = tripSummaryFixture();
+    const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit") => ({
+      activityId: id,
+      title: id,
+      timeWindow: null,
+      location: null,
+      notes: null,
+      anchors: [],
+      kind,
+      tags: [],
+      cost: null,
+    });
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        days: [{ dayId: "d1", activityIds: ["a", "b", "c", "d"], date: "2027-06-01", costSubtotal: 0 }],
+        activities: {
+          a: stop("a", "booked"),
+          b: stop("b", "transit"),
+          c: stop("c", "idea"),
+          d: stop("d", "planned"),
+        },
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    const tiles = await screen.findAllByTestId("stat-tile");
+    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
+    expect(bookingTile).toBeTruthy();
+    // c and d only: `booked` is done and `transit` is not a thing you book here.
+    expect(within(bookingTile!).getByText("2")).toBeTruthy();
+    expect(tiles.some((tile) => /days planning/i.test(tile.textContent ?? ""))).toBe(false);
+  });
+
+  it("shows an em dash, not a confident zero, before the trip detail has loaded", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={trip} />);
+
+    const tiles = await screen.findAllByTestId("stat-tile");
+    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
+    expect(within(bookingTile!).getByText("—")).toBeTruthy();
+  });
+
   // Task 8.5: the visible StatTile label used to say "travelers"
   // unconditionally, even for a solo trip — only the avatar-stack's
   // aria-label already singularized correctly.
