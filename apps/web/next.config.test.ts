@@ -14,10 +14,18 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 
 // next.config.ts reads process.env at module scope, so each case needs a fresh
 // module registry rather than a shared import.
+//
+// `undefined` REMOVES the variable rather than setting it to "" — those are
+// different states (`process.env.VERCEL_ENV` is `undefined` vs `""`), and the
+// first version of this helper conflated them, so the case named "unset" was
+// really testing the empty string and nothing tested a genuinely absent
+// variable at all (CodeRabbit, PR #80). Both are covered below now. The
+// current `=== "preview"` gate treats them alike, which is exactly why the
+// gap was invisible: it costs nothing today and would hide the regression the
+// day the gate becomes a truthiness or `startsWith` check.
 async function cspFor(vercelEnv: string | undefined): Promise<string> {
   vi.resetModules();
-  if (vercelEnv === undefined) vi.stubEnv("VERCEL_ENV", "");
-  else vi.stubEnv("VERCEL_ENV", vercelEnv);
+  vi.stubEnv("VERCEL_ENV", vercelEnv);
   const { default: config } = await import("./next.config");
   const routes = await config.headers!();
   const global = routes.find((r) => r.source === "/:path*");
@@ -135,12 +143,17 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
   // a hand-maintained list of things to check for. Asserting the whole policy
   // is identical to production cannot fall behind: any origin, on any
   // directive, in either direction, fails it.
-  it("an unset VERCEL_ENV (local, CI) produces exactly the production policy", async () => {
+  it("a VERCEL_ENV that is absent entirely (local, CI) produces exactly the production policy", async () => {
+    // Proves the variable really is gone, not set to "" — the distinction this
+    // whole case exists for.
+    vi.resetModules();
+    vi.stubEnv("VERCEL_ENV", undefined);
+    expect(process.env.VERCEL_ENV).toBeUndefined();
     expect(await cspFor(undefined)).toBe(await cspFor("production"));
   });
 
-  it.each(["preview-", "PREVIEW", "prod", "development", " preview"])(
-    "%s is not preview — only the exact value is",
+  it.each(["", "preview-", "PREVIEW", "prod", "development", " preview", "Preview"])(
+    "%o is not preview — only the exact value is",
     async (value) => {
       expect(await cspFor(value)).toBe(await cspFor("production"));
     },
