@@ -20,6 +20,7 @@ vi.mock("@/server/auth", () => ({
 }));
 
 const { handleApplyProposalRequest } = await import("@/server/ai/handleAskRequest");
+type ProposalApplyRecord = import("@/server/ai/handleAskRequest").ProposalApplyRecord;
 
 async function seedTrip(): Promise<string> {
   const tripId = randomUUID();
@@ -48,6 +49,11 @@ async function grantViewer(tripId: string, userId: string) {
     createdAt: new Date().toISOString(),
   });
 }
+
+// The default sink is `console.info`, and `test:int` should not be buried in
+// per-approval log lines. Two tests below pass their own sink deliberately,
+// which is what covers the record's contents.
+const silent = () => {};
 
 function req(tripId: string, body: unknown) {
   return new Request(`http://test/api/trips/${tripId}/ask/apply`, {
@@ -82,7 +88,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
       const tripId = await seedTrip();
       currentUserId = "";
       const commands = await twoStopsOnDayOne(tripId);
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
       expect(res.status).toBe(401);
     });
 
@@ -90,7 +96,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
       const tripId = await seedTrip();
       const commands = await twoStopsOnDayOne(tripId);
       currentUserId = OUTSIDER_ID;
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
       expect(res.status).toBe(403);
     });
 
@@ -103,7 +109,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
       await grantViewer(tripId, VIEWER_ID);
       currentUserId = VIEWER_ID;
       const before = await getTripDetail(tripId);
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
       expect(res.status).toBe(403);
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
     });
@@ -113,6 +119,8 @@ describe("POST /api/trips/:id/ask/apply", () => {
       const res = await handleApplyProposalRequest(
         req(DEMO_TRIP_ID, { commands: [{ type: "AddDay", tripId: DEMO_TRIP_ID, dayId: randomUUID() }] }),
         DEMO_TRIP_ID,
+        undefined,
+        silent,
       );
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({
@@ -127,7 +135,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
     it("consumes no AI quota", async () => {
       const tripId = await seedTrip();
       const commands = await twoStopsOnDayOne(tripId);
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
       expect(res.status).toBe(200);
       expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
     });
@@ -141,7 +149,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
       const historyBefore = await getTripHistory(tripId);
       const commands = await twoStopsOnDayOne(tripId);
 
-      const res = await handleApplyProposalRequest(req(tripId, { proposalId: "p1", commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { proposalId: "p1", commands }), tripId, undefined, silent);
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         detail: { activities: Record<string, { title: string }> };
@@ -171,7 +179,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
     it("undoes the whole proposal in one step", async () => {
       const tripId = await seedTrip();
       const commands = await twoStopsOnDayOne(tripId);
-      await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
 
       // ONE undo takes the whole proposal back off the board (ADR-013). Two
       // batches would have needed two.
@@ -181,17 +189,89 @@ describe("POST /api/trips/:id/ask/apply", () => {
       expect(Object.keys(undone.detail.activities)).toHaveLength(0);
     });
 
-    it("stamps the tripId from the PATH, so a body cannot target another trip", async () => {
+    // Rejected, not re-stamped — the same answer POST /trips/:id/commands/batch
+    // gives, because two doors onto one executor that disagree about what a
+    // mismatch means is how one of them ends up being the wrong one.
+    it("400s a command whose tripId disagrees with the URL, and writes to neither trip", async () => {
       const tripId = await seedTrip();
       const otherTrip = await seedTrip();
+      const before = await getTripDetail(tripId);
       const otherBefore = await getTripDetail(otherTrip);
       const commands = (await twoStopsOnDayOne(tripId)).map((c) => ({ ...c, tripId: otherTrip }));
 
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
-      // The dayIds belong to `tripId`, so re-stamping makes them valid there —
-      // and `otherTrip` is untouched either way, which is the point.
-      expect(res.status).toBe(200);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "a command tripId does not match the URL" });
+      expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
       expect(JSON.stringify(await getTripDetail(otherTrip))).toBe(JSON.stringify(otherBefore));
+    });
+
+    // IMPORTANT 1 (review round 1). Enforced at this door too, so the guarantee
+    // does not depend on the proposal having been built by our own code.
+    it("stores NO cost for a stop whose approved command carried a fabricated zero", async () => {
+      const tripId = await seedTrip();
+      const detail = await getTripDetail(tripId);
+      const dayId = (detail as { days: { dayId: string }[] }).days[0]!.dayId;
+      const res = await handleApplyProposalRequest(
+        req(tripId, {
+          commands: [
+            {
+              type: "AddActivity",
+              tripId,
+              activityId: randomUUID(),
+              dayId,
+              title: "Priceless",
+              cost: { amountMinor: 0, currency: "USD" },
+            },
+          ],
+        }),
+        tripId,
+        undefined,
+        silent,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { detail: { activities: Record<string, { cost: unknown }> } };
+      // `null` is the projection's "no cost" (TripDetail.activities[].cost is
+      // nullable) — unknown reading as unknown, not as `{ amountMinor: 0 }`,
+      // which the board renders as free.
+      expect(Object.values(body.detail.activities)[0]!.cost).toBeNull();
+    });
+
+    it("logs one record per approval, carrying the proposalId the client echoed", async () => {
+      const tripId = await seedTrip();
+      const commands = await twoStopsOnDayOne(tripId);
+      const records: ProposalApplyRecord[] = [];
+      const res = await handleApplyProposalRequest(req(tripId, { proposalId: "p-42", commands }), tripId, undefined, (r) =>
+        records.push(r),
+      );
+      expect(res.status).toBe(200);
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        event: "ai.proposal.apply",
+        tripId,
+        userId: ACTOR_ID,
+        proposalId: "p-42",
+        commandCount: 2,
+        outcome: "applied",
+        code: null,
+      });
+      expect(records[0]!.latencyMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it("logs a refused batch as refused, with the domain's own code", async () => {
+      const tripId = await seedTrip();
+      const records: ProposalApplyRecord[] = [];
+      await handleApplyProposalRequest(
+        req(tripId, {
+          commands: [{ type: "AddActivity", tripId, activityId: randomUUID(), dayId: randomUUID(), title: "Nowhere" }],
+        }),
+        tripId,
+        undefined,
+        (r) => records.push(r),
+      );
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({ outcome: "refused", proposalId: null });
+      expect(records[0]!.code).not.toBeNull();
     });
   });
 
@@ -223,7 +303,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
         },
       ];
 
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, geocoder);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, geocoder, silent);
       expect(res.status).toBe(200);
       // Region-biased, exactly as the command path calls it: the box comes
       // from the trip's own already-geocoded activities plus the model's hint
@@ -240,7 +320,7 @@ describe("POST /api/trips/:id/ask/apply", () => {
       const commands = await twoStopsOnDayOne(tripId);
       // No geocoder injected at all, matching POST's real call shape: if
       // anything tried to construct one, `getGeocoder()` would throw here.
-      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, { commands }), tripId, undefined, silent);
       expect(res.status).toBe(200);
     });
   });
@@ -254,14 +334,14 @@ describe("POST /api/trips/:id/ask/apply", () => {
       [{}, "Required"],
     ])("400s %j", async (body, message) => {
       const tripId = await seedTrip();
-      const res = await handleApplyProposalRequest(req(tripId, body), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, body), tripId, undefined, silent);
       expect(res.status).toBe(400);
       expect(((await res.json()) as { error: string }).error).toContain(message);
     });
 
     it("400s malformed JSON", async () => {
       const tripId = await seedTrip();
-      const res = await handleApplyProposalRequest(req(tripId, "{not json"), tripId);
+      const res = await handleApplyProposalRequest(req(tripId, "{not json"), tripId, undefined, silent);
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: "malformed request" });
     });
@@ -281,6 +361,8 @@ describe("POST /api/trips/:id/ask/apply", () => {
           ],
         }),
         tripId,
+        undefined,
+        silent,
       );
       expect(res.status).toBeGreaterThanOrEqual(400);
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));

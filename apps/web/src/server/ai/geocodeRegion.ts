@@ -19,6 +19,21 @@ const NULL_ISLAND_DEGREES = 0.5;
 // Returns the pair only if BOTH halves are present, finite, and not the
 // model's "I don't know" sentinel. Narrowing to `LatLng | null` (rather than a
 // boolean predicate) means callers cannot forget to check.
+/**
+ * Padding on the box drawn around a trip's existing activities, in km.
+ *
+ * Lives here because THREE callers need the same number and nothing pinned that
+ * they agreed: `handleAiRequest` (the command path), `writeTools.commitProposal`
+ * (the approval path) and `geocodeEnrichment`'s own fallback. KI-15 parity —
+ * "an approved batch is enriched on exactly the command path's terms" — is a
+ * claim about this value being identical, so it is stated once and asserted
+ * against the remaining copies in `writeTools.test.ts`.
+ *
+ * Loose on purpose: a trip legibly spans a region. The per-place hint margin is
+ * much tighter, because it describes one place.
+ */
+export const TRIP_REGION_MARGIN_KM = 150;
+
 export function plausibleCoords(value: { lat?: number | null; lng?: number | null }): LatLng | null {
   const { lat, lng } = value;
   if (typeof lat !== "number" || typeof lng !== "number") return null;

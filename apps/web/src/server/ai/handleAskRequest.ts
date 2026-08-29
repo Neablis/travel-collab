@@ -398,10 +398,40 @@ const APPLY_STATUS: Record<string, number> = {
 };
 
 const ApplyProposalRequest = z.object({
-  /** Correlates the approval with the proposal it came from, for the log. Not trusted for anything. */
+  /**
+   * Correlates the approval with the proposal it came from. Written to the log
+   * below and trusted for nothing else — the commands are re-parsed and the
+   * tripId is checked against the URL regardless of what this says.
+   */
   proposalId: z.string().min(1).optional(),
   commands: z.array(z.unknown()).min(1, "an approval must carry at least one change"),
 });
+
+/**
+ * What one approval records. `console.info`, matching `ai.ask`'s shape
+ * (askAnalytics.ts) and `trip-access.ts`'s — no table, no migration (plan
+ * Constraint 6), and Vercel captures it as a queryable line.
+ *
+ * It exists because `proposalId` is otherwise a field the request carries and
+ * nothing reads, and because "how many proposals were approved vs drafted" is
+ * the first number anyone evaluating M9 will ask for. `outcome` is the whole
+ * point: a refused batch is as interesting as an applied one.
+ */
+export interface ProposalApplyRecord {
+  event: "ai.proposal.apply";
+  tripId: string;
+  userId: string;
+  proposalId: string | null;
+  commandCount: number;
+  outcome: "applied" | "refused";
+  /** The domain rejection code when refused, else null. */
+  code: string | null;
+  latencyMs: number;
+}
+
+export type ProposalApplySink = (record: ProposalApplyRecord) => void;
+
+const defaultApplySink: ProposalApplySink = (record) => console.info(record.event, record);
 
 /**
  * `POST /api/trips/:id/ask/apply` — the approval half of propose → review →
@@ -427,7 +457,9 @@ export async function handleApplyProposalRequest(
   request: Request,
   tripId: string,
   geocoder?: Geocoder,
+  sink: ProposalApplySink = defaultApplySink,
 ): Promise<Response> {
+  const startedAt = Date.now();
   // Refused first, exactly as the ask half is, and for a stronger reason: the
   // demo trip has no event log to write to (ADR-031).
   if (isDemoTripId(tripId)) {
@@ -464,12 +496,22 @@ export async function handleApplyProposalRequest(
   if (!commands.ok) return badRequest(commands.error);
 
   const committed = await commitProposal(tripId, commands.commands, userId, detail, geocoder);
+  const record = {
+    event: "ai.proposal.apply" as const,
+    tripId,
+    userId,
+    proposalId: parsed.data.proposalId ?? null,
+    commandCount: commands.commands.length,
+    latencyMs: Date.now() - startedAt,
+  };
   if (!committed.ok) {
+    sink({ ...record, outcome: "refused", code: committed.error.code });
     return Response.json(
       { error: committed.error.message, code: committed.error.code },
       { status: APPLY_STATUS[committed.error.code] ?? 400 },
     );
   }
+  sink({ ...record, outcome: "applied", code: null });
   // The same `{ detail, history }` every command endpoint answers with, so the
   // board reconciles an approved plan through `applyOutcome` rather than
   // through a second, assistant-shaped path.

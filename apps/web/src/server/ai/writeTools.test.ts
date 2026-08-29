@@ -1,14 +1,17 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
+import { TRIP_REGION_MARGIN_KM } from "./geocodeRegion";
 import {
   buildProposal,
   buildWriteTools,
   commitProposal,
   describeProposedChange,
   parseApprovedCommands,
+  withoutFabricatedCost,
   WRITE_TOOL_NAMES,
   type RawToolIntent,
 } from "./writeTools";
@@ -139,6 +142,24 @@ describe("buildProposal", () => {
     expect(JSON.stringify(command)).not.toContain("amountMinor");
   });
 
+  // The test the review asked for: a proposal that ARRIVES carrying a zero,
+  // rather than one that cannot produce one. `resolveBatch` copies the model's
+  // literal fields through verbatim, so this is exactly the shape a live model
+  // ignoring the instruction produces.
+  it("strips a zero cost the model DID write, so an unknown price never reads as free", () => {
+    const proposal = propose([
+      {
+        type: "AddActivity",
+        args: { title: "Gelato", dayRef: "day 1", cost: { amountMinor: 0, currency: "EUR" } },
+      },
+    ]);
+    const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(command.cost).toBeUndefined();
+    expect(JSON.stringify(proposal!.commands)).not.toContain("amountMinor");
+    // The change still describes the stop it adds — the strip is silent, not a drop.
+    expect(proposal!.changes).toEqual([{ type: "AddActivity", text: "Add “Gelato” to day 1" }]);
+  });
+
   it("keeps a cost the model DID supply — the rule is 'never invent', not 'never carry'", () => {
     const proposal = propose([
       { type: "AddActivity", args: { title: "Gelato", dayRef: "day 1", cost: { amountMinor: 450, currency: "EUR" } } },
@@ -178,40 +199,162 @@ describe("buildProposal", () => {
   });
 });
 
+// One REAL command per BatchableCommand type, with the exact sentence the card
+// shows. Every entry is a command the contract would accept, not a
+// `{type, tripId}` cast — a cast tests the switch's shape and nothing about
+// what it says.
+const PHRASES: [BatchableCommand, string][] = [
+  [{ type: "AddDay", tripId: TRIP_ID, dayId: "aaaaaaaa-1111-4222-8333-444455556666" }, "Add a day"],
+  [{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_ID }, "Remove day 1"],
+  [{ type: "SetTripStartDate", tripId: TRIP_ID, startDate: "2027-06-02" }, "Set the start date to 2027-06-02"],
+  [
+    { type: "AddActivity", tripId: TRIP_ID, activityId: "bbbbbbbb-1111-4222-8333-444455556666", dayId: DAY_ID, title: "Gelato" },
+    "Add “Gelato” to day 1",
+  ],
+  [{ type: "UpdateActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, title: "Colosseum" }, "Update “Colosseum tour”"],
+  [
+    { type: "MoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, toDayId: DAY_ID, position: 0 },
+    "Move “Colosseum tour” to day 1",
+  ],
+  [{ type: "RemoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID }, "Remove “Colosseum tour”"],
+  [
+    { type: "DismissConflict", tripId: TRIP_ID, conflictId: "cccccccc-1111-4222-8333-444455556666" },
+    "Dismiss a conflict",
+  ],
+  [{ type: "SetTripCurrency", tripId: TRIP_ID, currency: "EUR" }, "Set the currency to EUR"],
+  [{ type: "SetTripBudget", tripId: TRIP_ID, budget: null }, "Clear the budget"],
+  [{ type: "SetTripName", tripId: TRIP_ID, name: "Rome" }, "Rename the trip to “Rome”"],
+  [
+    { type: "SetTripDates", tripId: TRIP_ID, startDate: "2027-06-01", endDate: "2027-06-04", newDayIds: [] },
+    "Set the trip dates to 2027-06-01 – 2027-06-04",
+  ],
+];
+
 describe("describeProposedChange", () => {
   // Conditional mood, never past. `summarizeBatch`'s "Done — added a day" is
   // the receipt for a batch that HAS applied; shown above an Approve button it
   // claims the thing the button has not done.
-  it.each([
-    [{ type: "AddDay", tripId: TRIP_ID, dayId: "aaaaaaaa-1111-4222-8333-444455556666" }, "Add a day"],
-    [{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_ID }, "Remove day 1"],
-    [{ type: "RemoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID }, "Remove “Colosseum tour”"],
-    [{ type: "SetTripName", tripId: TRIP_ID, name: "Rome" }, "Rename the trip to “Rome”"],
-    [{ type: "SetTripBudget", tripId: TRIP_ID, budget: null }, "Clear the budget"],
-    [{ type: "SetTripCurrency", tripId: TRIP_ID, currency: "EUR" }, "Set the currency to EUR"],
-  ] as [BatchableCommand, string][])("says %o as %s", (command, text) => {
+  it.each(PHRASES)("says %o as %s", (command, text) => {
     expect(describeProposedChange(command, detail).text).toBe(text);
     expect(describeProposedChange(command, detail).text).not.toContain("Done");
+    expect(describeProposedChange(command, detail).type).toBe(command.type);
   });
 
-  it("has a phrase for every BatchableCommand type", () => {
-    // The switch is exhaustive at compile time; this pins that no branch
-    // returns an empty string, which the compiler cannot see.
-    for (const option of BatchableCommand.options) {
-      const type = option.shape.type.value as BatchableCommand["type"];
-      const command = { type, tripId: TRIP_ID } as unknown as BatchableCommand;
-      expect(describeProposedChange(command, detail).text.length).toBeGreaterThan(0);
-    }
+  // The witness for the table above: without it a thirteenth command is simply
+  // absent from PHRASES and every row keeps passing while covering less.
+  it("covers every BatchableCommand type, with a command the contract accepts", () => {
+    const covered = PHRASES.map(([command]) => command.type).sort();
+    const all = BatchableCommand.options.map((o) => o.shape.type.value as string).sort();
+    expect(covered).toEqual(all);
+    for (const [command] of PHRASES) expect(BatchableCommand.safeParse(command).success).toBe(true);
+  });
+});
+
+// KI-15 parity — "an approved batch is enriched on exactly the command path's
+// terms" — is a claim about ONE number being the same in three places. Two of
+// those files are pinned by ADR-022 §4 and cannot import the shared constant,
+// so the agreement is asserted rather than assumed. If a copy drifts, this
+// fails and names the file.
+describe("the trip-region margin is one number", () => {
+  it.each([
+    "src/server/ai/handleAiRequest.ts",
+    "src/server/ai/geocodeEnrichment.ts",
+  ])("%s agrees with geocodeRegion's TRIP_REGION_MARGIN_KM", (file) => {
+    const source = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
+    const match = /const TRIP_REGION_MARGIN_KM = (\d+)/.exec(source);
+    expect(match, `${file} no longer declares TRIP_REGION_MARGIN_KM`).not.toBeNull();
+    expect(Number(match![1])).toBe(TRIP_REGION_MARGIN_KM);
+  });
+});
+
+// IMPORTANT 1 (review round 1): the instruction forbids inventing a price, and
+// an instruction is not an enforcement mechanism. These tests hand the pipeline
+// a zero cost it would never produce on its own, which is the only way to test
+// what a live model can actually do.
+describe("withoutFabricatedCost", () => {
+  it("drops a zero-amount cost from an AddActivity", () => {
+    const command = {
+      type: "AddActivity",
+      tripId: TRIP_ID,
+      activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+      dayId: DAY_ID,
+      title: "Gelato",
+      cost: { amountMinor: 0, currency: "EUR" },
+    } as BatchableCommand;
+    const cleaned = withoutFabricatedCost(command);
+    expect("cost" in cleaned).toBe(false);
+    expect(JSON.stringify(cleaned)).not.toContain("amountMinor");
+    // Everything else survives.
+    expect(cleaned).toMatchObject({ title: "Gelato", dayId: DAY_ID });
+  });
+
+  // Absent means "unchanged" on an update, so dropping leaves a real price the
+  // user typed alone. `null` would delete it on the strength of a number the
+  // model invented.
+  it("drops, rather than nulls, a zero cost on an UpdateActivity", () => {
+    const cleaned = withoutFabricatedCost({
+      type: "UpdateActivity",
+      tripId: TRIP_ID,
+      activityId: COLOSSEUM_ID,
+      cost: { amountMinor: 0, currency: "USD" },
+    } as BatchableCommand);
+    expect("cost" in cleaned).toBe(false);
+  });
+
+  it.each([
+    [{ amountMinor: 450, currency: "EUR" }, "a real price"],
+    [null, "an explicit clear, which is a decision rather than a guess"],
+  ] as [{ amountMinor: number; currency: string } | null, string][])("keeps %j (%s)", (cost) => {
+    const cleaned = withoutFabricatedCost({
+      type: "UpdateActivity",
+      tripId: TRIP_ID,
+      activityId: COLOSSEUM_ID,
+      cost,
+    } as BatchableCommand);
+    expect((cleaned as { cost?: unknown }).cost).toEqual(cost);
+  });
+
+  it("leaves a SetTripBudget of zero alone — a different claim, made by the user", () => {
+    const command = { type: "SetTripBudget", tripId: TRIP_ID, budget: { amountMinor: 0, currency: "USD" } } as BatchableCommand;
+    expect(withoutFabricatedCost(command)).toBe(command);
   });
 });
 
 describe("parseApprovedCommands", () => {
-  it("re-stamps the tripId from the path, so a body cannot target another trip", () => {
+  it("accepts commands whose tripId matches the URL", () => {
+    const parsed = parseApprovedCommands([{ type: "AddDay", tripId: TRIP_ID, dayId: DAY_ID }], TRIP_ID);
+    expect(parsed).toEqual({ ok: true, commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: DAY_ID }] });
+  });
+
+  // The sibling door — POST /trips/:id/commands/batch — answers exactly this,
+  // and two doors onto the same executor that disagree about what a mismatch
+  // MEANS is how one of them ends up being the wrong one.
+  it("REJECTS a mismatched tripId rather than silently re-stamping it", () => {
+    expect(
+      parseApprovedCommands(
+        [{ type: "AddDay", tripId: "99999999-9999-4999-8999-999999999999", dayId: DAY_ID }],
+        TRIP_ID,
+      ),
+    ).toEqual({ ok: false, error: "a command tripId does not match the URL" });
+  });
+
+  it("strips a fabricated zero cost at this door too", () => {
     const parsed = parseApprovedCommands(
-      [{ type: "AddDay", tripId: "99999999-9999-4999-8999-999999999999", dayId: DAY_ID }],
+      [
+        {
+          type: "AddActivity",
+          tripId: TRIP_ID,
+          activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+          dayId: DAY_ID,
+          title: "Gelato",
+          cost: { amountMinor: 0, currency: "EUR" },
+        },
+      ],
       TRIP_ID,
     );
-    expect(parsed).toEqual({ ok: true, commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: DAY_ID }] });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect((parsed.commands[0] as { cost?: unknown }).cost).toBeUndefined();
   });
 
   it("refuses an empty approval", () => {

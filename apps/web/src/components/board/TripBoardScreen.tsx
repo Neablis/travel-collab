@@ -104,6 +104,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // re-renders; a counter says so and stays deterministic under test, where
   // crypto.randomUUID would not.
   const turnSeq = useRef(0);
+  // `pending`, readable AFTER an await — where the render closure's copy is
+  // stale by a whole AI batch round-trip (see `approveProposal`). Assigned
+  // during render rather than in an effect, the same way TripProvider keeps
+  // `optimisticRef` in step, so it is never a render behind. It must live up
+  // here with the other hooks: everything below the `status` early returns
+  // runs conditionally, and a `useRef` there is a hook-order violation.
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   // Held so "New conversation" — and unmounting — can hang up on a turn that
   // is still streaming. Without it the composer stays disabled behind an
   // answer nobody wants, and navigating away mid-answer leaves the read
@@ -585,9 +593,32 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       patchProposal(turnId, (state) => ({ ...state, status: "failed", note: result.error.message }));
       return;
     }
-    // Authoritative server state, taken whole, the same way an undo is —
-    // `pending` is empty (checked above), which is `applyOutcome`'s
-    // precondition.
+    // **Re-checked after the await, not before it.**
+    //
+    // `applyOutcome` clears `pending` unconditionally, and its documented
+    // precondition is that nothing is queued — the server decided this outcome
+    // without seeing anything still in the local queue, so taking it discards
+    // those units from the UI *and* from the server. The check above ran from a
+    // render-time closure before a whole AI batch round-trip; an edit dragged
+    // during that window would be silently lost. This is the same failure the
+    // rail's "Finish saving your changes before asking the assistant" refusal
+    // was written for (docs/reviews/2026-08-28-project-review.md §1.4), so it
+    // is closed the same way rather than left as a known issue.
+    //
+    // Skipping `applyOutcome` is safe and self-healing, not a dropped result:
+    // the batch really did commit, and the queued edit's own send confirms
+    // against fresh server state (`confirmHead` in TripProvider), which already
+    // contains it. So the stops arrive on the board a moment later, by the
+    // ordinary path, with nothing lost either way.
+    if (pendingRef.current) {
+      patchProposal(turnId, (state) => ({
+        ...state,
+        status: "applied",
+        note: `${result.value.message} It will appear on your board once your other unsaved changes have saved.`,
+      }));
+      return;
+    }
+    // Authoritative server state, taken whole, the same way an undo is.
     applyOutcome({ detail: result.value.detail, history: result.value.history });
     patchProposal(turnId, (state) => ({ ...state, status: "applied", note: result.value.message }));
   };

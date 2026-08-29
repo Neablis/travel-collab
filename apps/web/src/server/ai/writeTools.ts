@@ -26,7 +26,7 @@ import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
-import { boundingBoxAround, plausibleCoords } from "@/server/ai/geocodeRegion";
+import { boundingBoxAround, plausibleCoords, TRIP_REGION_MARGIN_KM } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
@@ -143,6 +143,45 @@ export function describeProposedChange(command: BatchableCommand, detail: TripDe
 }
 
 /**
+ * **A price the model does not have is not zero.**
+ *
+ * `Money.amountMinor` is `nonnegative()`, so `0` parses — and the board renders
+ * it as *free*, which is a confident wrong number where the truth is "nobody
+ * knows yet". The 2026-08-02 dogfood run wrote `amountMinor: 0` on all nine
+ * activities it planned.
+ *
+ * The system instruction forbids it, and an instruction is not an enforcement
+ * mechanism: a live model can ignore every word of it. So the zero is removed
+ * here, structurally, on both doors the assistant owns — the proposal it builds
+ * and the approval it accepts back. M9's exit gate is "unknown reads as
+ * unknown, not as `0`/free", and this is what makes that true of a model nobody
+ * has met yet.
+ *
+ * **Dropping the key, never writing `null`.** On `AddActivity` an absent `cost`
+ * IS "no cost" (contracts/activity.ts:110). On `UpdateActivity` an absent
+ * `cost` means *unchanged* and `null` means *cleared* (activity.ts:126) — so
+ * dropping leaves a real price the user typed alone, where `null` would delete
+ * it on the strength of a number the model invented. An explicit `null` from
+ * the model survives untouched: clearing a cost is a decision, not a guess.
+ *
+ * Only activity costs. `SetTripBudget`'s zero is a different claim ("this trip
+ * has no budget") that the user, not the model, is normally making, and the
+ * gate does not name it.
+ */
+export function withoutFabricatedCost(command: BatchableCommand): BatchableCommand {
+  if (command.type !== "AddActivity" && command.type !== "UpdateActivity") return command;
+  const { cost } = command;
+  if (cost === undefined || cost === null || cost.amountMinor !== 0) return command;
+  // A shallow copy with the key REMOVED, not set to undefined: `"cost" in
+  // command` is the difference between "unchanged" and "explicitly nothing" on
+  // UpdateActivity, and JSON.stringify would drop an undefined either way —
+  // so the distinction has to be real on the object, not just on the wire.
+  const rest: Record<string, unknown> = { ...command };
+  delete rest.cost;
+  return rest as unknown as BatchableCommand;
+}
+
+/**
  * Resolve what the turn collected into a reviewable proposal. Writes nothing.
  *
  * `resolveBatch` is used exactly as the command endpoint uses it — same
@@ -167,10 +206,14 @@ export function buildProposal(
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
   });
   if (commands.length === 0) return null;
+  // Enforced, not requested — see `withoutFabricatedCost`. Applied after
+  // resolution so it sees the parsed command, and before `changes` so the card
+  // and the batch describe the same thing.
+  const honest = commands.map(withoutFabricatedCost);
   return {
     proposalId: opts.proposalId ?? randomUUID(),
-    changes: commands.map((command) => describeProposedChange(command, detail)),
-    commands,
+    changes: honest.map((command) => describeProposedChange(command, detail)),
+    commands: honest,
     skipped: errors.filter((e) => e.code !== "no-op").map((e) => e.message),
   };
 }
@@ -241,13 +284,6 @@ export async function commitProposal(
   };
 }
 
-// Padding on the region drawn from a trip's existing activities — the same
-// value and the same reasoning as `handleAiRequest`'s constant of this name.
-// Duplicated rather than exported from there because it is the CALLER's
-// decision about how loosely to read "the trip is around here", and this is a
-// second caller making the same decision, not a shared enricher setting.
-const TRIP_REGION_MARGIN_KM = 150;
-
 function tripRegionOf(detail: TripDetail) {
   const points = Object.values(detail.activities)
     .map((a) => (a.location ? plausibleCoords(a.location) : null))
@@ -258,12 +294,26 @@ function tripRegionOf(detail: TripDetail) {
 /**
  * Parse commands posted back for approval.
  *
- * Every command is re-parsed against the contract and re-stamped with the
- * tripId from the PATH, so a body claiming a different trip cannot reach the
- * batch executor. This is not the security boundary — an editor can already
- * post arbitrary commands to `/trips/:id/commands/batch`, so nothing here
- * grants authority they lack — it is the typed choke point `batchResolver`
- * describes: a command becomes a domain command only by parsing.
+ * Two rules, and the second is the one worth stating:
+ *
+ *  1. Every command is re-parsed against the contract. This is the typed choke
+ *     point `batchResolver` describes: a command becomes a domain command only
+ *     by parsing, never by an unchecked cast.
+ *  2. A `tripId` that disagrees with the URL is **rejected**, not silently
+ *     rewritten to match. The sibling door — `POST /trips/:id/commands/batch`
+ *     — already answers 400 "a command tripId does not match the URL", and two
+ *     doors onto the same executor that disagree about what a mismatch MEANS is
+ *     how one of them ends up being the wrong one. Rejecting is also strictly
+ *     safer: re-stamping turns "this body is confused" into "this body is now
+ *     about your trip", silently.
+ *
+ * Neither is the security boundary — an editor can already post arbitrary
+ * commands to `/trips/:id/commands/batch`, so nothing here grants authority
+ * they lack.
+ *
+ * Costs are put through `withoutFabricatedCost` on the way in, so the honest-
+ * unknowns guarantee holds at this door too and not only at the one that built
+ * the proposal.
  */
 export function parseApprovedCommands(
   value: unknown,
@@ -275,11 +325,14 @@ export function parseApprovedCommands(
   const commands: BatchableCommand[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return { ok: false, error: "malformed change in this approval" };
-    const parsed = BatchableCommand.safeParse({ ...(raw as Record<string, unknown>), tripId });
+    const parsed = BatchableCommand.safeParse(raw);
     if (!parsed.success) {
       return { ok: false, error: `malformed change in this approval: ${parsed.error.issues[0]?.message ?? "invalid"}` };
     }
-    commands.push(parsed.data);
+    if (parsed.data.tripId !== tripId) {
+      return { ok: false, error: "a command tripId does not match the URL" };
+    }
+    commands.push(withoutFabricatedCost(parsed.data));
   }
   return { ok: true, commands };
 }

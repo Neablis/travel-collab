@@ -1297,6 +1297,64 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
   });
 
+  // IMPORTANT 2 (review round 1). The refusal below covers a `pending` queue
+  // that exists BEFORE Approve is pressed. This covers the window that opens
+  // after it: `approveProposal` read `pending` from a render closure, then
+  // awaited a whole AI batch round-trip, then called `applyOutcome` — which
+  // clears `pending` unconditionally. An edit queued during that round-trip was
+  // silently discarded from the UI and the server both, which is the exact
+  // failure the rail's "Finish saving your changes" refusal exists to prevent
+  // (docs/reviews/2026-08-28-project-review.md §1.4).
+  it("does not discard an edit queued WHILE the approval is in flight", async () => {
+    const fixture = costedTripDetailFixture();
+    let releaseApply: (value: unknown) => void = () => {};
+    const applyLanded = new Promise((resolve) => {
+      releaseApply = resolve;
+    });
+    server.use(
+      // Never resolves, so the day the user adds mid-approval stays queued for
+      // the whole test — the strongest form of "still pending".
+      http.post("*/api/trips/:tripId/commands", () => new Promise(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    const card = await askForAChange(fixture);
+
+    // Approve, and hold the response open.
+    applyProposalMock.mockImplementationOnce(async () => {
+      await applyLanded;
+      return {
+        ok: true,
+        value: {
+          detail: afterApproval(fixture),
+          history: historyFixture(fixture.tripId),
+          message: "Done — added “Coffee at Fuglen” to day 1.",
+          simulated: false,
+        },
+      };
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(applyProposalMock).toHaveBeenCalledTimes(1));
+
+    // …and queue an edit while it is in the air.
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(2));
+
+    releaseApply(undefined);
+
+    // Wait on the state BOTH branches reach, so the two assertions below are
+    // each load-bearing rather than one of them short-circuiting the other.
+    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Applied"));
+
+    // The queued day is STILL THERE. Before the fix, `applyOutcome` took the
+    // server's outcome whole and this column vanished — the data loss.
+    expect(screen.getAllByTestId("day-column")).toHaveLength(2);
+    // …and the user is told why the approved stop is not on the board yet,
+    // rather than watching a receipt describe something they cannot see.
+    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+      "It will appear on your board once your other unsaved changes have saved.",
+    );
+  });
+
   // `applyOutcome`'s stated precondition: apply an outcome only when `pending`
   // is empty, or the queued units are discarded from the UI and the server
   // both. The ask is already refused while pending; approving is a SECOND
