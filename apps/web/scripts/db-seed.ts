@@ -11,8 +11,9 @@
 //   pnpm --filter web dev            # in one terminal
 //   pnpm --filter web db:seed        # in another, once the server is up
 //
-// Env overrides: BASE_URL (default http://localhost:3001), SEED_USER
-// (default "alice" — any string works, AUTH_DEV_LOGIN mints a user for it).
+// Env overrides: WEB_BASE_URL, or the older BASE_URL (default
+// http://localhost:3001), and SEED_USER (default "alice" — any string works,
+// AUTH_DEV_LOGIN mints a user for it).
 //
 // --- Preventing drift (why this script won't silently rot) ---
 // `cmd()`'s command parameter is typed against @tc/contracts's TripCommand
@@ -67,7 +68,12 @@ import { randomUUID } from "node:crypto";
 import type { ActivityKind, ActivityTag, BatchableCommand, TripCommand } from "@tc/contracts";
 import { JAPAN_TRIP_NAME, japanTripCommandGroups } from "@tc/fixtures";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3001";
+// WEB_BASE_URL first: that is the name src/config.ts reads, because `BASE_URL`
+// is owned by Vite (KI-72). This script runs as a plain Node process where Vite
+// never assigns anything, so reading BASE_URL here was never broken — but two
+// different names for "the base URL" would be, so the app's name wins and the
+// old one keeps working.
+const BASE_URL = process.env.WEB_BASE_URL ?? process.env.BASE_URL ?? "http://localhost:3001";
 const DEV_USER = process.env.SEED_USER ?? "alice";
 
 // Every trip this script creates is tagged with this prefix so re-running it
