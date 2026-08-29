@@ -84,18 +84,21 @@ teaching what the repo bans.
 
 ## Blocking / broken right now
 
-**1. Migrations 0006-0010 are merged and undispatched to production. This is
-the only thing on this list that blocks a person rather than a task, and it is
-Mitchell's call, not a subagent's.** Merging no longer applies migrations —
-they are dispatched explicitly (`gh workflow run migrate-production.yml -f
-confirm=migrate`, from `main`; see
-`docs/guidelines/environments-and-deploys.md`). The remediation plan re-checked
-the workflow at plan time and found **zero runs ever**. The consequence is worse
-than M11's features being absent: `server/auth.ts` wires `recordSignIn` as
-Auth.js's `signIn` callback, and it `await`s an upsert into `users` with no
-try/catch — so against a database where that table does not exist, **sign-in
-itself throws**. Verified by reading the code path; not observed against
-production from here.
+**1. ~~Migrations 0006-0010 are merged and undispatched to production.~~ CLEARED
+2026-08-29 — production is at 0010.** Two dispatches, both green: run 1
+(2026-08-28 21:58, at `63f83ff`) applied 0006-0009, the M11 tables whose absence
+made `recordSignIn`'s untry/catch'd upsert throw sign-in itself; run 2
+(2026-08-29 02:41, at `d41af2e`) applied **0010 `rate_limit_counters`**, which
+landed with PR #78 after run 1 and is why one dispatch was not enough. Without
+it the quota limiter fails closed and every AI and geocode request 503s — a
+visible outage rather than a silent hole, by design.
+
+**The rule that produced this, unchanged and worth re-reading: merging does not
+apply a migration.** A merged migration sits pending until someone dispatches
+`migrate-production.yml` from `main` with `confirm=migrate`, and the check that
+a migration is outstanding is comparing `apps/web/drizzle/*.sql` on `main`
+against the `head_sha` of the last successful run — not the absence of a
+complaint. See `docs/guidelines/environments-and-deploys.md`.
 
 **2. `/s/featured` dead-ends on every environment — KI-61.** The landing page's
 most prominent secondary CTA resolves through `DEMO_SHARE_TOKEN`, which is unset
@@ -111,10 +114,25 @@ The egress proxy blocks the tile host, so the map's chrome can be walked and its
 tiles cannot. Nothing on the roadmap is blocked by it; it bounds what a browser
 walk from here is allowed to claim.
 
-**4. The CSP has never been executed by a browser — KI-66.** It was written,
-typechecked and reasoned about; this container has no browser. A CSP fails
-silently, client-side, on surfaces nobody loaded. The trip board, map lens and
-notebook editor are the three that do something a CSP can break.
+**4. ~~The CSP has never been executed by a browser — KI-66.~~ CLEARED.** Walked
+locally 2026-08-28 (twenty surfaces, zero violations, enforcement proved with a
+control probe) and on a **real preview** 2026-08-29, which found the one thing a
+local walk structurally cannot: the Vercel Toolbar's loader refused by
+`script-src`, breaking the Flags Explorer workflow. Fixed preview-only and
+pinned by `apps/web/next.config.test.ts`. What remains open in KI-66 is the
+`'unsafe-inline'` weakening itself, which is accepted and recorded, not a gap.
+
+**A preview deployment is now walkable from a cloud session** —
+`pnpm --filter web walk:preview <url> [path ...]`. Three obstacles stacked
+(Deployment Protection, Chromium not trusting the egress CA, and a ClientHello
+the `*.vercel.app` tunnel cannot carry); `docs/guidelines/cloud-agent-sessions.md`
+carries the diagnosis and that file's old "the preview is NOT reachable from
+here" paragraph is gone. It was wrong, and it cost several runs. The durable
+CI half still needs one click from Mitchell: generate **Protection Bypass for
+Automation** in the Vercel project's Deployment Protection settings and mirror
+the value into a `VERCEL_AUTOMATION_BYPASS_SECRET` repo secret. Until then only
+the interactive 23-hour share-link route works, and nothing unattended can test
+a preview.
 
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an
 unbiased top match overwriting correct model coordinates; rate-limit failures
