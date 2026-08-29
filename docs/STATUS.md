@@ -5,6 +5,74 @@ Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
 `docs/known-issues.md`.
 
+## `/demo` is the real board, read-only, 2026-08-28 — ADR-031, KI-61
+
+**The demo trip is the Japan fixture folded in memory, served through the
+ordinary trip endpoints, rendered by the ordinary trip board.**
+`DEMO_SHARE_TOKEN`, `readFeaturedShare` and `GET /api/shares/featured` are
+deleted.
+
+The old shape resolved that env var to a share row and replayed that trip's
+74-event stream on every view. Unset — CI, every fresh clone, every preview
+branch — the front door's second CTA rendered "Nothing to see here", and the
+e2e suite asserted that empty state, so it was green *because* nothing was
+configured.
+
+**Three objections drove it, and the third only surfaced on the second pass.**
+A preview branch needed a human step before its own front door worked; an
+unauthenticated page anyone can hit should not carry a share lookup plus a full
+replay per view; and a pinned share renders as a flat list of days — no
+Timeline, no Day columns, no Map, no Calendar, no conflicts, no history. The
+person deciding whether to sign up was being shown the least of the product.
+
+**One seam did most of the work.** `requireTripAccess` is the single gate
+`GET /api/trips/:id`, `/history`, `/history/:seq` and `/access` all pass
+through. The demo is answered there, before `auth()`, as a **viewer** — so all
+four serve it publicly and **not one of those route files changed**, and
+read-only is the product's own permission rule (`MINIMUM_ROLE` has no `viewer`
+entry) rather than a second implementation. `/demo` then mounts the same
+provider stack and the same `TripBoardScreen` as `(app)/trips/[tripId]`.
+
+**It fixed the invited-viewer board on the way past.** A viewer used to see a
+pencil and a ✕ on every card, "Dismiss" on every conflict, "+ Add" on every
+column, and could drag a card and watch it snap back — `TripProvider` refused
+the command but never stopped the board offering it. `readOnly` now threads
+from that same gate into `Board`, `Column`, `ActivityCard`, `TimelineLens`,
+`OverlapWarning`, `ConflictBanner` and `UnscheduledRack`, drag registration
+included. **This reaches every invited viewer, not just the demo** — the one
+thing here most worth arguing with, and ADR-031 says so, with the split it
+would take if disabled-not-hidden turns out to be right for real viewers.
+`TripHeader`'s disabled "Add stop" was deliberately left alone and is filed as
+KI-64.
+
+**"No database" is enforced.** The unit tests mock `pg` to throw on
+construction, so any future import of `db/client` into the demo's graph — direct
+or transitive — fails a test instead of opening a connection on a public path.
+The only write near the demo is "Make this trip mine", which goes through the
+ordinary `POST /api/trips/:id/duplicate` into the same `cloneFrom` every other
+copy uses.
+
+**Two judgement calls in ADR-031:** the travellers are fiction carried in the
+detail (`TripMember.userId` IS the label the timeline renders, so the ids are
+names — four of them, because "1 travellers" on the page arguing for planning
+together undersells the product), and the copy records `forkedFrom` pointing at
+a synthetic trip id that names no row.
+
+**Three fixes from Mitchell's preview pass, 2026-08-28.** The sign-in detour
+now carries the intent: `?clone=1` on the way back finishes the copy instead of
+landing them on the demo with the button still to press (it was two clicks and
+nothing said so). `TripHeader`'s `sticky top-14` is the height of `AppHeader`,
+which `/demo` does not draw — it pinned 56px down and left a see-through strip
+of scrolled content above it, so it sticks to `top-0` there. And `MapLegend`
+moved from bottom-right to top-right, off MapLibre's own attribution control.
+
+**Run:** full `pnpm check`, `pnpm --filter web test:int` (208),
+`pnpm seed:verify`, `pnpm --filter web test:e2e:ci-like` (all 46, including six
+demo cases — one of which now walks the signed-out click → sign-in → owned copy
+round trip), and a real browser walk of all four lenses against the production
+build — the map's tiles are blocked in this container, so the map rail and the
+legend's placement were checked and the canvas was not.
+
 ## The subagent protocol landed, 2026-08-28
 
 `.claude/protocol/` now carries a binding contract for every dispatched

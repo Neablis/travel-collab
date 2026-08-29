@@ -13,6 +13,15 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-64 — The trip header still greys out "Add stop" for a viewer while the rest of the board hides its write controls
+- **Severity:** cosmetic (one inconsistent control; no wrong behaviour, nothing unreachable)
+- **Area:** `apps/web/src/components/trip/TripHeader.tsx` (`disabled={readOnly}`)
+- **Symptom:** ADR-031 made a read-only board hide every affordance that writes — card edit/remove, day remove, "+ Add", "One more day?", conflict "Dismiss", the timeline's Ask/Edit/Add stop/Keep-day, the rack's day picker — on the grounds that a greyed control still says "there is something here for you" and for a reader there is not. `TripHeader` was deliberately left alone and still renders "Add stop" **disabled**, so it is the one greyed control on an otherwise quiet page, most visibly on `/demo`.
+- **Why it is filed rather than fixed:** it is not obvious which way is right. Disabled-with-a-badge is arguably the better read for an *invited viewer* — it tells them what they would be able to do if the owner promoted them — while hidden is clearly right for a stranger on the demo. Those are two audiences behind one `readOnly` flag, and splitting it into two is a design decision, not a mechanical one. ADR-031's closing section states the same trade.
+- **Fix path, if taken:** either drop the button under `readOnly` for consistency, or split the flag (`readOnly` for a member without the rank, something like `demo`/`anonymous` for a visitor with no account) and let the header choose per audience.
+- **Found by:** noticed while walking `/demo` in a browser, 2026-08-28.
+- **Cross-reference:** ADR-031, ADR-026 (roles), KI-61.
+
 ### KI-62 — Report-conformance may check the wrong unit's report when units run concurrently
 
 - **Severity:** unknown-until-observed (could make the hook inert exactly where the protocol is used)
@@ -71,23 +80,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   the ledger holding them was deleted at teardown — which is exactly the
   failure this protocol's promotion gate exists to prevent.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
-### KI-61 — The landing page's "look around a real trip" always dead-ends, because nothing ever creates the share it points at
-- **Severity:** correctness (product gap — the front door's most prominent secondary CTA lands on an empty state on every environment, including a freshly seeded local one)
-- **Area:** `apps/web/scripts/db-seed.ts`, `apps/web/src/app/api/dev/reset-demo-data/route.ts`, `.env.example`, `apps/web/src/server/access/shares.ts` (`readFeaturedShare`)
-- **Symptom:** `/welcome`'s "Look around a real trip" and "See a finished one" both link to `/s/featured`. That reserved token resolves through `readFeaturedShare`, which reads `DEMO_SHARE_TOKEN`; unset, it returns `not-found` and `SharedTripScreen` renders **"Nothing to see here / No trip is published here yet."** So the CTA advertises a read-only tour of a real trip and delivers an empty state.
-- **Not a defect in the share machinery.** `/s/:token` works: the ShareButton mints a token, the link replays the log at the pinned seq, and `readShare` is fine. The empty state is the *designed* behaviour for "unset" — ADR-027 chose it deliberately over falling back to "the newest share on the instance", which would publish a real user's private trip on the front page the moment they clicked Share.
-- **Three gaps compounding, measured 2026-08-28:**
-  1. `DEMO_SHARE_TOKEN` is **not in `.env.example`** (`grep -c` → 0), so no local dev or fresh worktree has ever had it set.
-  2. **The seed creates no share at all** (`grep -c 'createShare\|/shares' db-seed.ts` → 0). Even a developer who wanted to set the var has no token to set it to without publishing a trip by hand through the UI and copying the token out.
-  3. `createShare` mints a random token, so any token obtained that way **dies at the next `db:reseed`** — the trip it pins no longer exists.
-- **ADR-027 predicted exactly this** and it was never filed here, so it has been invisible to `/ki-sweep` and to anyone reading this file: *"The known weak point: with `DEMO_SHARE_TOKEN` unset — CI, a fresh local database, and any deploy where nobody set it — the landing page's most prominent secondary CTA lands on that empty state... it depends on a deploy step no test can enforce."*
-- **CI enshrines the broken case:** `e2e/m11-share.spec.ts`'s "the landing page's peek CTAs" asserts the empty state is reached, so the suite is green precisely because nothing is configured. That is a reasonable assertion for the unset branch and a bad one to be the only coverage.
-- **Fix path (needs a decision — see below):** give `@tc/fixtures` a fixed demo share token, have both seeders publish the Japan trip under it, and ship `DEMO_SHARE_TOKEN` in `.env.example` so a `pnpm setup` + `db:reseed` front door works out of the box; set the same value once on Vercel Preview/Production.
-- **The decision it needs, and why it is not mechanical:** that token would be **committed to the repo and publicly guessable**. For the seeded demo trip that is the intent — it is meant to be world-readable. But it means adding a token-override path to `createShare`, which is the one place share secrecy is decided, and that path must be impossible to reach for a real user's share. Whether to take that, versus generating a random token at seed time and printing it for a human to paste into env (honest, but leaves preview broken until someone does it), is Mitchell's call.
-- **Found by:** Mitchell, 2026-08-28 — "why the homepage preview (see a planned trip) of this trip using the seed data to power it shows Nothing to see here".
-- **Cross-reference:** ADR-027 (the reserved token and the deliberate empty state), M12 Community (owns real discovery and would replace this env var entirely), KI-50 (the other "preview needs a deploy step nobody did" entry).
-- **First noted:** 2026-08-28 (PR #74).
-
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
@@ -564,6 +556,19 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-61 — The landing page's "look around a real trip" always dead-ended, because nothing ever created the share it pointed at — RESOLVED
+- **Severity (as filed):** correctness (the front door's most prominent secondary CTA landed on an empty state on every environment, including a freshly seeded local one)
+- **Area:** `apps/web/src/server/access/shares.ts` (`readFeaturedShare`, deleted), `apps/web/src/app/api/shares/featured/` (deleted), new `apps/web/src/server/demoTrip.ts` and `apps/web/src/app/(front)/demo/`
+- **Symptom (as filed):** `/welcome`'s "Look around a real trip" and "See a finished one" both linked to `/s/featured`, which resolved `DEMO_SHARE_TOKEN`; unset, `SharedTripScreen` rendered **"Nothing to see here / No trip is published here yet."** Unset was not an edge case — the var was not in `.env.example`, neither seeder ever created a share, and a hand-made token died at the next `db:reseed`. CI's own e2e asserted the empty state, so the suite was green *because* nothing was configured.
+- **Fix (2026-08-28, ADR-031):** not the fix path this entry proposed. Mitchell rejected a committed world-readable token on grounds the entry had not weighed — a preview branch would still need a manual step to validate its own front door, and `/s/featured` is an unauthenticated page anyone can hit as often as they like, so a share lookup plus a **full 74-event replay** per view is a load profile set by strangers — and then rejected the first implementation too, for showing the wrong thing: a pinned share renders as a flat list of days, with no Timeline, Day columns, Map, Calendar, conflicts or history. "I wanted to leverage all the existing react of the timeline, column, map and calendar tabs on that page to show the real functionality but in a read only mode."
+  So the demo trip stopped being a row **and** stopped being a bespoke page. `server/demoTrip.ts` folds `@tc/fixtures`' commands through the real domain in memory; `requireTripAccess` — the one seam `GET /api/trips/:id`, `/history`, `/history/:seq` and `/access` all pass through — answers for it as a **viewer**, so all four serve it publicly with no route file changed; and `/demo` mounts the same provider stack and the same `TripBoardScreen` the signed-in trip page does.
+- **Read-only is the product's own permission rule, not a second implementation:** `accessPolicy.ts`'s `MINIMUM_ROLE` has no `viewer` entry, so every write route asks that seam for `editor` or `owner` and is refused. A write endpoint added later inherits the refusal without anyone remembering the demo exists.
+- **"No database" is enforced, not asserted:** `demoTrip.test.ts` mocks `pg` so a `Pool` throws on construction — any future import of `db/client` into the demo's graph, direct or transitive, fails a test rather than opening a connection on a public path.
+- **It also fixed the invited-viewer board** (see KI-64, filed for what remains): a viewer used to see a pencil and a ✕ on every card, "Dismiss" on every conflict, "+ Add" on every column, and could drag a card and watch it snap back. `readOnly` now threads from `TripProvider`'s own gate into the board components, so the flag that refuses the command is the flag that hides the control.
+- **Proof:** `m11-demo.spec.ts` — six e2e cases in the `ci-like` lane covering all four lenses, the hidden controls, the History popover, the signed-out `/signin?callbackUrl=%2Fdemo` detour and the signed-in copy. Plus 11 unit tests on the fold, 10 integration tests through the real route handlers, and read-only blocks in `board.test.tsx` and `TimelineLens.test.tsx` (each with a negative half, so they cannot pass against a board that renders nothing).
+- **Found by:** Mitchell, 2026-08-28 — "why the homepage preview (see a planned trip) of this trip using the seed data to power it shows Nothing to see here" — and twice redirected by him on the shape of the fix.
+- **Cross-reference:** ADR-031 (the decision), ADR-027 (whose "Look around a real trip" section this supersedes, and which predicted this failure in writing), ADR-030 (the fixture the demo now folds), KI-64, M12 Community (still owns real discovery, and gets `featured` back).
 
 ### KI-60 — Every travel day produced false "impossible geography" conflicts — RESOLVED
 - **Severity (as filed):** correctness (10 of the Japan demo's 12 conflicts were false, and any real user's travel day got the same treatment)

@@ -48,7 +48,12 @@ export function UnscheduledRack({
   dayOptions: { value: string; label: string }[];
   open: boolean;
   onToggle: () => void;
-  onAssign: (activityId: string, dayId: string) => void;
+  /**
+   * Absent on a read-only board (a viewer's, or the demo's — ADR-031): the
+   * parked ideas are part of the plan and stay visible; the picker that moves
+   * one onto a day is a command, and goes.
+   */
+  onAssign?: (activityId: string, dayId: string) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [isOver, setIsOver] = useState(false);
@@ -160,7 +165,12 @@ function RackCard({
 }: {
   item: RackItem;
   dayOptions: { value: string; label: string }[];
-  onAssign: (activityId: string, dayId: string) => void;
+  /**
+   * Absent on a read-only board (a viewer's, or the demo's — ADR-031): the
+   * parked ideas are part of the plan and stay visible; the picker that moves
+   * one onto a day is a command, and goes.
+   */
+  onAssign?: (activityId: string, dayId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -236,6 +246,7 @@ function RackCard({
             select stays pinned to `value=""` so it reads as an
             action, not a stored choice — assigning moves the stop
             out of the rack entirely. */}
+        {onAssign !== undefined && (
         <NativeSelect
           aria-label="Add to day"
           className="mt-auto w-full"
@@ -252,6 +263,7 @@ function RackCard({
             </option>
           ))}
         </NativeSelect>
+        )}
       </Card>
     </div>
   );

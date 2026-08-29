@@ -7,6 +7,7 @@ import { getTripDetailAtWithHead } from "../history";
 import { getTripDetail } from "../projections";
 import { readStream } from "../eventStore";
 import { effectiveMembers } from "./members";
+import { toSharedView } from "./sharedView";
 import type { AccessResult } from "./invites";
 
 // Same shape and the same argument as an invite token (ADR-026): 32 bytes of
@@ -188,69 +189,4 @@ export async function readShareForClone(
       name: replayed.detail.name,
     },
   };
-}
-
-/**
- * `TripDetail` → the public view, dropping `members`, `conflicts`,
- * `dismissedConflictIds` and `status`. Written as an explicit field list, not
- * a spread-and-delete: a new `TripDetail` field must be opted IN to the public
- * surface, never leak into it because someone added it upstream.
- */
-export function toSharedView(
-  at: Pick<
-    SharedTripView,
-    | "tripId"
-    | "name"
-    | "startDate"
-    | "currency"
-    | "budget"
-    | "days"
-    | "backlog"
-    | "activities"
-    | "unscheduledCostSubtotal"
-    | "tripCostTotal"
-  >,
-  share: { seq: number; createdAt: string },
-  travellerCount: number,
-  currentSeq: number,
-): SharedTripView {
-  return {
-    tripId: at.tripId,
-    name: at.name,
-    startDate: at.startDate,
-    currency: at.currency,
-    budget: at.budget,
-    days: at.days,
-    backlog: at.backlog,
-    activities: at.activities,
-    unscheduledCostSubtotal: at.unscheduledCostSubtotal,
-    tripCostTotal: at.tripCostTotal,
-    travellerCount,
-    seq: share.seq,
-    sharedAt: share.createdAt,
-    stale: currentSeq > share.seq,
-  };
-}
-
-/**
- * The landing page's "Look around a real trip" needs a trip to look around,
- * and M12 Community — a public gallery, discovery, and the trust & safety
- * surface that would decide which trip that is — is explicitly out of M11's
- * scope. So it is deployment configuration, not a product feature: one env
- * var naming one already-published share token.
- *
- * Deliberately NOT "fall back to the newest share on the instance": that
- * would publish some real user's private trip on the front page the moment
- * they clicked Share. Unset means unset — `/s/featured` says so, in a
- * designed empty state with a way onward, rather than dead-ending.
- */
-export async function readFeaturedShare(): Promise<AccessResult<SharedTripView>> {
-  const token = process.env.DEMO_SHARE_TOKEN?.trim();
-  if (token === undefined || token === "") {
-    return {
-      ok: false,
-      error: { code: "not-found", message: "No trip is published here yet." },
-    };
-  }
-  return readShare(token);
 }

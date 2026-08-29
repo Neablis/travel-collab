@@ -10,6 +10,7 @@ import { toClockRange } from "@/lib/time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
@@ -24,6 +25,7 @@ export function ActivityCard({
   onEdit,
   onRemove,
   onDismissOverlap,
+  readOnly = false,
 }: {
   activity: ActivityView;
   dayId: string | null;
@@ -41,6 +43,16 @@ export function ActivityCard({
   onEdit: () => void;
   onRemove: () => void;
   onDismissOverlap: (conflictId: string) => void;
+  /**
+   * Hides the controls that write, leaving everything that reads. Set for a
+   * viewer's board and for the public demo (ADR-031).
+   *
+   * Hidden, not disabled: a greyed-out pencil still says "there is something
+   * here for you", and for a reader there is not. The card keeps its title,
+   * time, place, cost, notes and its overlap warning — a read-only board is
+   * meant to show the whole plan, just not offer to change it.
+   */
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -54,6 +66,12 @@ export function ActivityCard({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // A read-only card is not draggable and not a drop target. Registering
+    // either would let a reader pick a card up and move it, only for
+    // `TripProvider` to refuse the resulting command and the card to snap
+    // back — which is precisely the "visibly move and then jump back" the
+    // provider's own read-only gate exists to prevent (ADR-031).
+    if (readOnly) return;
     return combine(
       draggable({
         element: el,
@@ -75,7 +93,7 @@ export function ActivityCard({
         onDrop: () => setClosestEdge(null),
       }),
     );
-  }, [activity.activityId, dayId]);
+  }, [activity.activityId, dayId, readOnly]);
 
   return (
     <Card
@@ -84,7 +102,7 @@ export function ActivityCard({
       data-testid={`activity-card-${activity.activityId}`}
       // eslint-disable-next-line no-restricted-syntax -- drag opacity is computed per-frame by pragmatic-drag-and-drop state, not expressible as a token class
       style={{ opacity: dragging ? 0.5 : 1 }}
-      className="relative mb-1.5 cursor-grab p-3"
+      className={cn("relative mb-1.5 p-3", !readOnly && "cursor-grab")}
     >
       {/* The insertion line: Phase 3's own design intent (Column.tsx's
           comment on the removed hover-tint: "the design keeps only the
@@ -111,14 +129,16 @@ export function ActivityCard({
             </Badge>
           )}
         </span>
-        <span className="flex shrink-0 gap-0.5">
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${activity.title}`}>
-            <Pencil className="size-3.5" aria-hidden />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
-            <X className="size-3.5" aria-hidden />
-          </Button>
-        </span>
+        {!readOnly && (
+          <span className="flex shrink-0 gap-0.5">
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${activity.title}`}>
+              <Pencil className="size-3.5" aria-hidden />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
+              <X className="size-3.5" aria-hidden />
+            </Button>
+          </span>
+        )}
       </div>
       {activity.timeWindow && (
         <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
@@ -146,15 +166,19 @@ export function ActivityCard({
           style={{ marginTop: "7px", borderRadius: "7px", fontSize: "11px" }}
         >
           <span className="min-w-0 flex-1 truncate text-warning-ink">Overlaps {overlap.otherTitle}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-4 shrink-0 text-warning-ink"
-            aria-label="Dismiss overlap warning"
-            onClick={() => onDismissOverlap(overlap.conflictId)}
-          >
-            <X className="size-3" aria-hidden />
-          </Button>
+          {/* The warning stays for a reader — it is part of the plan they came
+              to look at. Dismissing it is a command, so that half goes. */}
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-4 shrink-0 text-warning-ink"
+              aria-label="Dismiss overlap warning"
+              onClick={() => onDismissOverlap(overlap.conflictId)}
+            >
+              <X className="size-3" aria-hidden />
+            </Button>
+          )}
         </div>
       )}
     </Card>

@@ -77,7 +77,12 @@ function threeWayOverlapFixture() {
 // needs an EditorHost ancestor, and tests that assert on the trigger observe
 // EditorHost's state through this small consumer (same pattern as E1's
 // TripBoardScreen.test.tsx OpenCreateButton / context.test.tsx Consumer).
-function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks, focusedDay: number | null = null) {
+function renderBoard(
+  trip: ReturnType<typeof fixture>,
+  callbacks: BoardCallbacks,
+  focusedDay: number | null = null,
+  readOnly = false,
+) {
   let editorState: ReturnType<typeof useEditor>["state"] | undefined;
   function StateSpy() {
     editorState = useEditor().state;
@@ -86,7 +91,7 @@ function renderBoard(trip: ReturnType<typeof fixture>, callbacks: BoardCallbacks
   const utils = render(
     <EditorHost>
       <StateSpy />
-      <Board trip={trip} callbacks={callbacks} focusedDay={focusedDay} />
+      <Board trip={trip} callbacks={callbacks} focusedDay={focusedDay} readOnly={readOnly} />
     </EditorHost>,
   );
   return { ...utils, getEditorState: () => editorState };
@@ -474,5 +479,54 @@ describe("selecting a day from its column", () => {
     expect(columns[0]!.className).not.toContain("ring-brand");
     expect(headerOf(columns[1]!).getAttribute("aria-pressed")).toBe("true");
     expect(headerOf(columns[0]!).getAttribute("aria-pressed")).toBe("false");
+  });
+});
+
+// A viewer's board, and the public demo's (ADR-031). The rule is one line —
+// show the plan, offer nothing that changes it — and the reason it is tested
+// per control is that each one is dropped at a different level: the card's own
+// buttons in ActivityCard, the day's two in Column (via props Board withholds),
+// the trailing column and the banner's actions in Board itself. A control added
+// at any of those levels without a `readOnly` clause reaches a reader.
+describe("a read-only board", () => {
+  it("shows every stop, and no control that would change one", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+
+    // The plan is all still here.
+    expect(screen.getByText("Colosseum")).toBeTruthy();
+    expect(screen.getByText("Vatican Museums")).toBeTruthy();
+    // …and so is the conflict, which is the product noticing something.
+    expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+
+    for (const name of [
+      /^Edit Colosseum$/,
+      /^Remove Colosseum$/,
+      /^Remove Day 1$/,
+      /^Add activity to Day 1$/,
+      /^Dismiss:/,
+      /^Dismiss overlap warning$/,
+    ]) {
+      expect(screen.queryAllByRole("button", { name })).toHaveLength(0);
+    }
+    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
+  });
+
+  it("does not make its cards draggable, so nothing can move and snap back", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+    const card = screen.getByTestId(`activity-card-${A1}`);
+    // pragmatic-drag-and-drop marks what it has registered; an unregistered
+    // card carries neither the attribute nor the grab cursor.
+    expect(card.getAttribute("draggable")).not.toBe("true");
+    expect(card.className).not.toContain("cursor-grab");
+  });
+
+  it("still offers all of it when it is not read-only", () => {
+    // The negative half: without this the block above passes just as well
+    // against a board that renders no controls at all.
+    renderBoard(fixture(), noopCallbacks());
+    expect(screen.getByRole("button", { name: "Edit Colosseum" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Colosseum" })).toBeTruthy();
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0);
   });
 });

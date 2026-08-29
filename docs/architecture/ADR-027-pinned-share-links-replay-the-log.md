@@ -1,6 +1,8 @@
 # ADR-027 — A share link is pinned to a seq, and the read replays
 
-**Status:** Proposed (M11 link 4, 2026-08-27). Open to reversal.
+**Status:** Proposed (M11 link 4, 2026-08-27). Open to reversal. The
+*"Look around a real trip"* section is **superseded by ADR-031** — the demo
+trip is no longer a configured share row.
 
 **Depends on:** ADR-003 (event sourcing is scoped to planning), ADR-005
 (history commands are appended, never destructive), ADR-026 (Access is CRUD,
@@ -71,6 +73,16 @@ something owners want to hold, the change is one string in
 `app/api/trips/[tripId]/shares/route.ts`.
 
 ## The landing page's "Look around a real trip"
+
+> **Superseded by ADR-031 (2026-08-28).** Everything below describes how this
+> was first built; `DEMO_SHARE_TOKEN` and the reserved `featured` token no
+> longer exist. Both CTAs now point at `/demo`, which renders the **real trip
+> board** read-only against the Japan fixture folded in memory — no share row,
+> no replay, no database. The "known weak point" this section predicted is
+> what happened; it is KI-61, and ADR-031 is the answer. The rest of this ADR
+> — the pin, the replay, who may share, what a stranger is served — is
+> unchanged and still describes `/s/:token`. Read on for the reasoning that
+> was replaced.
 
 M15 shipped that CTA as a `<Preview>` shell and its gate forbade building a
 bespoke public-read path for it. This link builds the general one, so the shell

@@ -92,6 +92,20 @@ export const JAPAN_TRIP_DAY_COUNT = 14;
 /** Whole USD. `commands.ts` converts to minor units. */
 export const JAPAN_TRIP_BUDGET_USD = 16400;
 export const JAPAN_TRIP_CURRENCY = "USD";
+
+/**
+ * How many people this trip is planned for.
+ *
+ * Not derivable from the rows: every stop is `who: "all"`, and travellers are
+ * Access & Membership's data, not Trip Planning's (module map) — a folded
+ * fixture has exactly one member, the actor who "issued" its commands. The
+ * number exists because the public demo (`/s/featured`, ADR-031) renders
+ * `travellerCount`, and "1 traveller" on the one page that argues for planning
+ * *together* undersells the product it is demonstrating. It is part of the
+ * fixture's fiction, exactly like the trip's name and its 72 stops, and it is
+ * declared here so the fiction stays in one file.
+ */
+export const JAPAN_TRIP_TRAVELLERS = 4;
 /** Every location this trip creates sits in Japan. */
 export const JAPAN_COUNTRY_CODE = "JP";
 

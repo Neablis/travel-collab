@@ -122,21 +122,6 @@ test("turning a share link off stops it working", async ({ page, browser }) => {
   }
 });
 
-// The landing CTAs are ordinary links now, not Preview shells. Where no demo
-// share is configured — CI, and any deploy where nobody set DEMO_SHARE_TOKEN —
-// /s/featured is a designed empty state with a way onward, not a dead end.
-test.describe("the landing page's peek CTAs", () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test("both open the public share page", async ({ page }) => {
-    await page.goto("/welcome");
-    for (const name of ["Look around a real trip", "See a finished one"]) {
-      await expect(page.getByRole("link", { name })).toHaveAttribute("href", "/s/featured");
-    }
-    await page.getByRole("link", { name: "Look around a real trip" }).click();
-    await expect(page).toHaveURL(/\/s\/featured$/);
-    // Unconfigured in CI: an empty state that offers the next step, not a 404.
-    await expect(page.getByRole("heading", { name: "Nothing to see here" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start a trip" })).toBeVisible();
-  });
-});
+// The landing page's peek CTAs used to be asserted here, against `/s/featured`
+// and its empty state. They now open `/demo` — the real board, read-only — and
+// are covered by `m11-demo.spec.ts` (ADR-031, KI-61).

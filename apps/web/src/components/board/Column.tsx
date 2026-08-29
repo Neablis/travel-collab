@@ -56,6 +56,7 @@ export function Column({
   onSelect,
   onAddActivity,
   onDismissOverlap,
+  readOnly = false,
 }: {
   title: string;
   dayId: string;
@@ -79,6 +80,8 @@ export function Column({
   onSelect?: () => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
+  /** Passed to every card: hide what writes, keep what reads (ADR-031). */
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLUListElement>(null);
   // Whether this column itself — not one of its cards — is the innermost
@@ -159,6 +162,7 @@ export function Column({
               onEdit={() => onEditActivity(id)}
               onRemove={() => onRemoveActivity(id)}
               onDismissOverlap={onDismissOverlap}
+              readOnly={readOnly}
             />
           );
         })}

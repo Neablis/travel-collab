@@ -225,7 +225,7 @@ function Leg({ prevEnd, nextStart }: { prevEnd: string; nextStart: string }) {
 // with a 4px full-height accent rail, title, optional conflict Badge, place
 // line, optional note block, and a right column with an attributee avatar +
 // ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
-function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, onSelectActivity }: {
+function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, onSelectActivity, readOnly = false }: {
   start: string | null;
   end: string | null;
   activity: ActivityView;
@@ -234,6 +234,7 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
   member: TripMember | undefined;
   currency: string;
   onSelectActivity?: (activityId: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div
@@ -337,21 +338,23 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
           ) : (
             <DataText size="xs">No cost yet</DataText>
           )}
-          <div className="flex gap-0.5">
-            <Preview id="timeline-ghost" size="compact">
-              <Button variant="ghost" size="sm">
-                Ask
+          {!readOnly && (
+            <div className="flex gap-0.5">
+              <Preview id="timeline-ghost" size="compact">
+                <Button variant="ghost" size="sm">
+                  Ask
+                </Button>
+              </Preview>
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`timeline-edit-${activity.activityId}`}
+                onClick={() => onSelectActivity?.(activity.activityId)}
+              >
+                Edit
               </Button>
-            </Preview>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid={`timeline-edit-${activity.activityId}`}
-              onClick={() => onSelectActivity?.(activity.activityId)}
-            >
-              Edit
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>
@@ -362,6 +365,7 @@ export function TimelineLens({
   detail,
   onSelectActivity,
   onCommand,
+  readOnly = false,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
@@ -369,6 +373,14 @@ export function TimelineLens({
   // presentational and hands a real command up to whoever owns dispatch
   // (TripBoardScreen), rather than reaching into useTrip() itself.
   onCommand?: (command: TripCommand) => void;
+  /**
+   * Everything that would change the trip is dropped: the per-stop Ask/Edit
+   * pair, the day header's "Keep this day" flag and "Add stop", the overlap
+   * warnings' one-click fix, and "Add a day" at the end. What is left is the
+   * whole timeline — every stop, time, gap, cost and warning — which is what a
+   * reader came for (ADR-031).
+   */
+  readOnly?: boolean;
 }) {
   const rows = timelineRows(detail);
   // Same per-day city derivation Task 8's DayChips established (first
@@ -569,24 +581,28 @@ export function TimelineLens({
                     <Preview id="keep-day-flag">, which shielded its click.
                     The stops are read from the day's own row, so what gets
                     kept is exactly what is rendered above it. */}
-                <KeepDayFlag
-                  dayIndex={index}
-                  accent={accent.ink}
-                  tripId={detail.tripId}
-                  dayId={row.dayId}
-                  tripName={detail.name}
-                  stops={stopsForDay(detail, row.dayId) ?? []}
-                />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  data-testid={`timeline-add-${row.dayId}`}
-                  disabled={addSlot === null}
-                  title={addSlot === null ? NO_ROOM_LEFT : undefined}
-                  onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
-                >
-                  Add stop
-                </Button>
+                {!readOnly && (
+                  <>
+                    <KeepDayFlag
+                      dayIndex={index}
+                      accent={accent.ink}
+                      tripId={detail.tripId}
+                      dayId={row.dayId}
+                      tripName={detail.name}
+                      stops={stopsForDay(detail, row.dayId) ?? []}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      data-testid={`timeline-add-${row.dayId}`}
+                      disabled={addSlot === null}
+                      title={addSlot === null ? NO_ROOM_LEFT : undefined}
+                      onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
+                    >
+                      Add stop
+                    </Button>
+                  </>
+                )}
               </div>
               {/* Row 2 is the day's route line. On an empty day there is no
                   route to summarise and "0 stops" is a worse thing to say than
@@ -652,6 +668,7 @@ export function TimelineLens({
                         member={detail.members[0]}
                         currency={detail.currency}
                         onSelectActivity={onSelectActivity}
+                        readOnly={readOnly}
                       />
                       {overlaps
                         .filter((overlap) => overlap.laterActivityId === item.activityId)
@@ -661,6 +678,7 @@ export function TimelineLens({
                             overlap={overlap}
                             onFix={() => fixOverlap(overlap)}
                             onDismiss={() => dismissOverlap(overlap)}
+                            readOnly={readOnly}
                           />
                         ))}
                     </div>
@@ -681,6 +699,7 @@ export function TimelineLens({
                     member={detail.members[0]}
                     currency={detail.currency}
                     onSelectActivity={onSelectActivity}
+                    readOnly={readOnly}
                   />
                 );
               })}
@@ -703,7 +722,7 @@ export function TimelineLens({
                   Withheld entirely when nextSlot has no window to offer; see
                   its comment for why that is a withholding and not a
                   degradation. */}
-              {addSlot !== null && (
+              {!readOnly && addSlot !== null && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -723,7 +742,7 @@ export function TimelineLens({
       {/* "Add a day" is real; the saved-day half of the block stays Preview.
           Rendered after the last day, and only when there is a last day — a
           trip with no days at all takes the EmptyState return above. */}
-      <EndOfTrip onAddDay={addDay} />
+      {!readOnly && <EndOfTrip onAddDay={addDay} />}
     </div>
   );
 }
