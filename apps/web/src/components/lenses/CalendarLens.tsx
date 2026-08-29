@@ -9,7 +9,7 @@ import { useFocus } from "../trip/context/FocusProvider";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { calendarCityCards } from "./calendarCityCards";
 import { formatMoney } from "./formatMoney";
-import { toClockLabel, toClockRange } from "@/lib/time";
+import { toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
 
@@ -81,10 +81,6 @@ const CITY_SIZE = { fontSize: "11px" };
 
 // dc.html:684: the chip column's 3px gap — off the spacing scale.
 const CHIP_STACK_GAP = { gap: "3px" };
-
-
-// dc.html:686: chip time, 9.5px — below --text-xs.
-const CHIP_TIME_SIZE = { fontSize: "9.5px" };
 
 
 // dc.html:691: the more/summary line under the chips, 10px text + 5px
@@ -198,29 +194,24 @@ export function CalendarLens({
     const ordinal = cell.ordinal;
     const day = days[ordinal - 1];
     const accent = accents[ordinal - 1] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
-    // SPEC §12: Calendar no longer lists activities. A cell carries one card
-    // per city the day touches, each summarising its own stops. The last group
-    // is where the day ends and gets the full card; earlier ones are one-line
-    // strips, which is what keeps cell heights even across a week instead of
-    // doubling on a travel day.
+    // Calendar no longer lists activities. A cell carries one card per city the
+    // day touches, each summarising its own stops, plus a final untitled bucket
+    // for stops with no city.
+    //
+    // Every card is EQUAL — Mitchell, 2026-08-29, given his own worked example
+    // of 3 Tokyo / 1 Kyoto / 1 unplaced: "I would expect 3 cards". Earlier
+    // groups used to render as one-line "<city> <time>" strips, on SPEC §12's
+    // reasoning that it kept cell heights even across the week. That is a real
+    // cost being paid here — a three-city day is now a visibly taller cell —
+    // and it was accepted deliberately: the Calendar is the zoomed-out "what
+    // cities are on what days" view, so which cities a day touches is the
+    // information, and demoting all but one of them to a strip subordinates
+    // exactly what the view is for.
+    //
     // `day` above is chipModel's ChipDay (city/accent); the stops live on the
     // trip's own day at the same ordinal.
     const tripDay = detail.days[ordinal - 1];
     const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities);
-    // The day ENDS at the last card that names a city. `calendarCityCards`
-    // parks every city-less stop in one untitled bucket at the end, and taking
-    // the last card blindly would hand that bucket the full card and demote a
-    // real city to a one-line strip — the "nameless one wins the day" case the
-    // old grouping avoided by folding city-less stops into whatever group was
-    // in progress. Grouping no longer does that (a name is not a city), so the
-    // guard moves here: an untitled bucket is where we don't know, not where
-    // you finished.
-    const arrivingIndex = cityCards.reduce(
-      (best, card, i) => (card.city !== null ? i : best),
-      cityCards.length - 1,
-    );
-    const arriving = cityCards[arrivingIndex];
-    const departing = cityCards.filter((_, i) => i !== arrivingIndex);
 
     return (
       // Outer surface cell IS the clickable button (dc.html's own click
@@ -287,40 +278,9 @@ export function CalendarLens({
             // eslint-disable-next-line no-restricted-syntax -- dc.html:684's 3px stack gap has no token equivalent
             style={CHIP_STACK_GAP}
           >
-            {/* The departing city (or cities) as a one-line strip: name, then
-                the time it left. SPEC §12 is explicit about the flex here —
-                the city is `flex: 1 0 auto` and the time `flex: 0 1 auto` with
-                `min-width: 0`, so the TIMESTAMP abbreviates before the city
-                name ever does. And no arrow glyph: position carries the
-                relationship. */}
-            {departing.map((card, i) => (
+            {cityCards.map((card, i) => (
               <div
-                key={`${card.city ?? "none"}-${i}`}
-                data-testid="calendar-city-strip"
-                className={cn("flex min-w-0 items-baseline gap-1.5", INK_TEXT[accent.ink])}
-                // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
-                style={CITY_SIZE}
-              >
-                <span className="flex-none truncate font-semibold">{card.city}</span>
-                {/* The DEPARTURE when a transit stop closed this group, and only
-                    then the group's first start. SPEC §12 asks for the transit
-                    stop's start, which on a day that begins before you leave is
-                    not the same time — breakfast at 7:00, train at 8:20. */}
-                {(card.departsAt ?? card.firstStart) !== null && (
-                  <DataText
-                    size="xs"
-                    className="min-w-0 flex-shrink truncate"
-                    // eslint-disable-next-line no-restricted-syntax -- dc.html:686's 9.5px time has no token equivalent
-                    style={CHIP_TIME_SIZE}
-                  >
-                    {toClockLabel(card.departsAt ?? card.firstStart!)}
-                  </DataText>
-                )}
-              </div>
-            ))}
-
-            {arriving && (
-              <div
+                key={`${card.city ?? "no-city"}-${i}`}
                 data-testid="calendar-day-card"
                 className={cn("min-w-0", TINT_BG[accent.tint])}
                 // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent
@@ -333,13 +293,20 @@ export function CalendarLens({
                   style={CARD_HEADER_GAP}
                 >
                   <DayGrip accent={accent.ink} />
-                  <span
-                    className={cn("min-w-0 flex-1 truncate font-semibold", INK_TEXT[accent.ink])}
-                    // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
-                    style={CITY_SIZE}
-                  >
-                    {arriving.city}
-                  </span>
+                  {/* The untitled bucket renders its header with NO city text
+                      rather than a placeholder like "Unknown" — Mitchell, #71
+                      preview: "if you have absolutely no city, then make a new
+                      bucket with no city in title". An invented label would be
+                      the same lie as falling back to a venue name. */}
+                  {card.city !== null && (
+                    <span
+                      className={cn("min-w-0 flex-1 truncate font-semibold", INK_TEXT[accent.ink])}
+                      // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
+                      style={CITY_SIZE}
+                    >
+                      {card.city}
+                    </span>
+                  )}
                 </div>
 
                 {/* The span bar: where in a fixed 7am–11pm day this city's
@@ -347,7 +314,7 @@ export function CalendarLens({
                     gives — and the reason the bar is a fixed track rather than
                     scaled per day, which would make every day look equally
                     full. */}
-                {arriving.span && (
+                {card.span && (
                   <div
                     data-testid="calendar-span-track"
                     aria-hidden
@@ -360,33 +327,33 @@ export function CalendarLens({
                       className={cn("h-full rounded-full", INK_BG[accent.solid])}
                       // eslint-disable-next-line no-restricted-syntax -- the fill's offset and width are computed per-day from the span, not design constants
                       style={{
-                        marginLeft: `${(arriving.span.from * 100).toFixed(2)}%`,
+                        marginLeft: `${(card.span.from * 100).toFixed(2)}%`,
                         // A zero-width fill would render nothing at all, so a
                         // stop with no duration still shows as a tick.
-                        width: `${Math.max(2, (arriving.span.to - arriving.span.from) * 100).toFixed(2)}%`,
+                        width: `${Math.max(2, (card.span.to - card.span.from) * 100).toFixed(2)}%`,
                       }}
                     />
                   </div>
                 )}
 
                 <DataText
-            size="xs"
-            className="mt-1.5 block truncate"
-            // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
-            style={MORE_STYLE}
-          >
-                  {arriving.stops} stop{arriving.stops === 1 ? "" : "s"}
-                  {arriving.costMinor !== null && ` · ${formatMoney(arriving.costMinor, detail.currency)}`}
+                  size="xs"
+                  className="mt-1.5 block truncate"
+                  // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
+                  style={MORE_STYLE}
+                >
+                  {card.stops} stop{card.stops === 1 ? "" : "s"}
+                  {card.costMinor !== null && ` · ${formatMoney(card.costMinor, detail.currency)}`}
                 </DataText>
 
-                {arriving.window && (
+                {card.window && (
                   <DataText
                     size="xs"
                     className="block truncate"
                     // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
                     style={MORE_STYLE}
                   >
-                    {toClockRange(arriving.window.start, arriving.window.end)}
+                    {toClockRange(card.window.start, card.window.end)}
                   </DataText>
                 )}
 
@@ -394,7 +361,7 @@ export function CalendarLens({
                     Only when > 0: a card that says "0 to book" is telling you
                     about the absence of work, which at a month's zoom is noise
                     on every settled day. */}
-                {arriving.toBook > 0 && (
+                {card.toBook > 0 && (
                   <DataText
                     data-testid="calendar-to-book"
                     size="xs"
@@ -402,11 +369,11 @@ export function CalendarLens({
                     // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
                     style={MORE_STYLE}
                   >
-                    {arriving.toBook} to book
+                    {card.toBook} to book
                   </DataText>
                 )}
               </div>
-            )}
+            ))}
           </div>
         )}
       </Button>

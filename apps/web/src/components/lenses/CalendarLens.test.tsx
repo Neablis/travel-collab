@@ -124,20 +124,18 @@ describe("CalendarLens", () => {
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
-    // THREE: two Rome stops plus the unlocated flight home. This asserted "2
-    // stops" for one commit, while a city-less stop opened a `city: null` group
-    // of its own — which rendered as an empty label and a bare time above the
-    // card ("Whats with the time above the card?", Mitchell on the #71
-    // preview). City-less stops now fold into the day's last city, so the cell
-    // counts the day rather than counting one group of it.
-    //
-    // This does NOT re-assert where the flight was: nothing renders its
-    // location, and the cell's heading is still Rome because Rome is the only
-    // city the day names. It counts the stop on the day the user put it on.
-    expect(cell.textContent).toContain("3 stops");
-    // 09:00 (Colosseum) through 17:30 (the flight) — the day's real extent now
-    // that the day is one card.
-    expect(cell.textContent).toContain("9 am – 5:30 pm");
+    // TWO cards, not one: Rome's two stops, and the unlocated flight home in
+    // its own untitled bucket (Mitchell, 2026-08-29 — "1 card with no city in
+    // its header"). This has moved twice. It asserted "2 stops" while a
+    // city-less stop opened a nameless group that rendered as a strip; then
+    // "3 stops" while such stops folded into the day's last city; now the
+    // bucket is a real card, so each carries its own count and window.
+    expect(cell.textContent).toContain("2 stops");
+    expect(cell.textContent).toContain("1 stop");
+    // Rome's own extent, 09:00–13:00 — no longer stretched to 17:30 by a stop
+    // that was never in Rome.
+    expect(cell.textContent).toContain("9 am – 1 pm");
+    expect(cell.textContent).toContain("5 pm – 5:30 pm");
   });
 
   // SPEC §12 replaced the per-stop chips with a per-city summary: "Calendar no
@@ -152,9 +150,9 @@ describe("CalendarLens", () => {
     expect(cell.textContent).not.toContain("Colosseum tour");
     expect(cell.textContent).not.toContain("Roman Forum");
     expect(cell.textContent).not.toContain("Flight home");
-    // What replaces them: the city, the day's stop count, and its window.
+    // What replaces them: the city, each group's stop count, and its window.
     expect(cell.textContent).toContain("Rome");
-    expect(cell.textContent).toContain("3 stops");
+    expect(cell.textContent).toContain("2 stops");
   });
 
   it("counts every stop in the summary, however many there are", () => {
@@ -306,8 +304,11 @@ describe("CalendarLens", () => {
     const button = screen.getByRole("button", { name: /Day 1, Rome/ });
     expect(button.className).toMatch(/bg-surface/);
     expect(button.className).not.toMatch(/-tint\b/);
-    const card = within(button).getByTestId("calendar-day-card");
-    expect(card.className).toMatch(/bg-\w+-tint/);
+    // Several cards per cell now (one per city, plus the untitled bucket), so
+    // every one of them must carry the tint, not merely the first.
+    const cards = within(button).getAllByTestId("calendar-day-card");
+    expect(cards.length).toBeGreaterThan(1);
+    for (const card of cards) expect(card.className).toMatch(/bg-\w+-tint/);
   });
 
   // dc.html:663-696: the city name lives in the tinted card's header row,
@@ -323,9 +324,12 @@ describe("CalendarLens", () => {
   it("shows the city in the day card header", () => {
     renderLens(detailFixture());
     const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
-    const card = within(cell).getByTestId("calendar-day-card");
-    const header = within(card).getByTestId("calendar-day-header");
-    expect(header.textContent).toContain("Rome");
+    const [romeCard, bucketCard] = within(cell).getAllByTestId("calendar-day-card");
+    expect(within(romeCard!).getByTestId("calendar-day-header").textContent).toContain("Rome");
+    // The untitled bucket's header carries the grip and NO city text — an
+    // invented label ("Unknown", "No place") would be the same lie as falling
+    // back to a venue name, which KI-35 forbade.
+    expect(within(bucketCard!).getByTestId("calendar-day-header").textContent).toBe("");
   });
 
   // dc.html:668-670: "Day N" sits on the cell's top row, right of the date
@@ -382,9 +386,10 @@ describe("CalendarLens", () => {
     expect(screen.getByText("December 2022")).toBeDefined();
   });
 
-  // SPEC §12's two travel-day rules, at the render level. The grouping itself
-  // is covered exhaustively in calendarCityCards.test.ts; these pin that the
-  // lens actually shows what the helper computed.
+  // M18. The travel-day split that briefly lived here is GONE (Mitchell,
+  // 2026-08-29): the Calendar is the zoomed-out "what cities are on what days"
+  // view and does not concern itself with how you got around, which is what
+  // `transit` is about. `N to book` is the only thing here that reads `kind`.
   describe("stop kind (M18)", () => {
     function travelDayDetail() {
       const activity = (
@@ -416,27 +421,38 @@ describe("CalendarLens", () => {
       });
     }
 
-    it("splits the travel day, showing the departure time rather than the day's first stop", () => {
+    it("groups a travel day by city alone, with no transit split and no strip", () => {
       renderLens(travelDayDetail());
-      const strip = screen.getByTestId("calendar-city-strip");
-      // Rome, at 8:20 — the train's start. NOT 7:00, when breakfast began.
-      expect(within(strip).getByText("Rome")).toBeDefined();
-      expect(within(strip).getByText("8:20 am")).toBeDefined();
-      expect(within(screen.getByTestId("calendar-day-card")).getByText("Florence")).toBeDefined();
+      const cards = screen.getAllByTestId("calendar-day-card");
+      // Two cities, two equal cards — and no strips at all any more.
+      expect(cards).toHaveLength(2);
+      expect(within(cards[0]!).getByTestId("calendar-day-header").textContent).toContain("Rome");
+      expect(within(cards[1]!).getByTestId("calendar-day-header").textContent).toContain("Florence");
+      expect(screen.queryAllByTestId("calendar-city-strip")).toHaveLength(0);
     });
 
-    it("flags the unbooked stops on the arriving card", () => {
+    it("counts what needs booking per city card, excluding transit", () => {
       renderLens(travelDayDetail());
-      // Only the Uffizi: breakfast is on the departing card, and the train is
+      const flags = screen.getAllByTestId("calendar-to-book");
+      // Rome: breakfast (planned). Florence: the Uffizi (idea) — the train is
       // transit, which SPEC §12 excludes from the count.
-      expect(screen.getByTestId("calendar-to-book").textContent).toBe("1 to book");
+      expect(flags.map((f) => f.textContent)).toEqual(["1 to book", "1 to book"]);
     });
 
-    it("renders no flag at all when nothing on the day needs booking", () => {
+    it("renders no flag at all on a card where nothing needs booking", () => {
       const detail = travelDayDetail();
-      detail.activities[flight]!.kind = "booked";
+      detail.activities[rome]!.kind = "booked";
       renderLens(detail);
-      expect(screen.queryByTestId("calendar-to-book")).toBeNull();
+      // Rome is settled, so only Florence's card carries a flag.
+      expect(screen.getAllByTestId("calendar-to-book").map((f) => f.textContent)).toEqual(["1 to book"]);
+    });
+
+    it("gives an unplaced stop its own card with no city in the header", () => {
+      renderLens(detailFixture());
+      const cards = screen.getAllByTestId("calendar-day-card");
+      expect(cards).toHaveLength(2);
+      expect(within(cards[1]!).getByTestId("calendar-day-header").textContent).toBe("");
+      expect(cards[1]!.textContent).toContain("1 stop");
     });
   });
 });
