@@ -167,12 +167,22 @@ describe("policy configuration", () => {
     },
   );
 
-  // The boundary itself is usable: an operator who deliberately sets the
-  // column's maximum gets it, rather than being silently dropped to 4000.
-  it("accepts a ceiling at the counter column's maximum", () => {
+  // The boundary is one BELOW the column's maximum, and that asymmetry is the
+  // point: refusing needs the counter to reach `ceiling + 1`, so a ceiling at
+  // int4 max can only ever overflow into a fail-closed 503 instead of a 429.
+  it("accepts the highest ceiling whose refusal can actually fire", () => {
+    vi.stubEnv("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", "2147483646");
+    try {
+      expect(geocodeQuota()[0]?.global).toBe(2_147_483_646);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("rejects a ceiling at int4 max, whose +1 refusal check would overflow", () => {
     vi.stubEnv("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", "2147483647");
     try {
-      expect(geocodeQuota()[0]?.global).toBe(2_147_483_647);
+      expect(geocodeQuota()[0]?.global).toBe(4000);
     } finally {
       vi.unstubAllEnvs();
     }

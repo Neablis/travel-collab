@@ -79,7 +79,16 @@ const DAY_MS = 24 * HOUR_MS;
 // the exact outcome the fallback-on-malformed rule above exists to prevent.
 // `Number.isSafeInteger` plus the column's own bound is what makes the
 // promise true.
-const MAX_COUNTER_HITS = 2_147_483_647;
+//
+// The usable maximum is one BELOW the column's, not equal to it. `bump()`
+// increments first and `consumeQuota` then refuses on `count > ceiling`, so
+// a refusal needs the counter to reach `ceiling + 1`. Set the ceiling at
+// `int4` max and that value is unreachable: the increment overflows, the
+// upsert throws, and the fail-closed path answers 503 — an availability
+// failure wearing the costume of a spend limit. A ceiling whose refusal
+// path cannot execute is not a ceiling either.
+const MAX_INT4 = 2_147_483_647;
+const MAX_COUNTER_HITS = MAX_INT4 - 1;
 
 function envCeiling(name: string, fallback: number): number {
   const raw = process.env[name];
