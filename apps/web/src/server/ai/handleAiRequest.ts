@@ -41,7 +41,7 @@ import { PageContext, type PageContent, type TripDetail, type TripHistory } from
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
 import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
-import { selectAiModel } from "@/server/ai/modelSelection";
+import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { buildEnvelope, type AiSurface } from "@/server/ai/context";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
@@ -224,14 +224,20 @@ export async function handleAiRequest(
     // — pre-existing under the old default-parameter form too, but now
     // reachable by flipping a flag on a public deployment rather than only by
     // a local misconfiguration.
+    let outcome;
     try {
-      selected = await selectAiModel(surface);
+      outcome = await selectAiModel({ surface, userId });
     } catch (err) {
       return Response.json(
         { error: `model selection failed: ${errorMessage(err)}`, simulated: false },
         { status: 503 },
       );
     }
+    // `denied` is unreachable today — no entitlement source exists yet
+    // (ADR-019 amendment §3) — but the branch is real so this endpoint
+    // already renders the contract Task 3's /ask endpoint reuses.
+    if (outcome.outcome === "denied") return deniedResponse(outcome.reason);
+    selected = { model: outcome.model, simulated: outcome.outcome === "simulated" };
   }
   const activeModel = selected.model;
   const { simulated } = selected;

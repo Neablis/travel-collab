@@ -54,6 +54,33 @@ export default [
     },
   },
   {
+    // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): every AI
+    // feature reaches a model by asking `selectAiModel()`, never by
+    // constructing one directly. `@/server/ai/gateway` (the only place
+    // AI_GATEWAY_API_KEY is used) is importable ONLY from
+    // `modelSelection.ts` and its own test. Unlike the walls above, this one
+    // is NOT scoped to UI — it covers the whole `src/server` tree too, because
+    // the threat this closes is a second SERVER-SIDE entry point (M16's `/ask`
+    // endpoint) constructing its own gateway client and bypassing the
+    // ai-live flag, not a UI import.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/server/ai/modelSelection.ts", "src/server/ai/modelSelection.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/server/ai/gateway"],
+              message:
+                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // THE AUTH-CONFIG WALL (ADR-024): `src/lib/authConfig.ts` holds the
     // edge-safe Auth.js provider/callback config so both `src/server/auth.ts`
     // and `src/proxy.ts` can build their own instance from it (the

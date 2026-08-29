@@ -44,14 +44,59 @@ if (process.env.VERCEL && process.env.AI_LIVE !== undefined) {
   );
 }
 
+// Who is asking, and for what. `userId` is carried even though nothing reads
+// it yet (ADR-019's 2026-08-25 amendment §3): the day a pro-tier check exists
+// it lands inside `isEntitled` below, not as a signature change that would
+// touch every caller again.
+export interface AiActor {
+  surface: AiSurface;
+  userId: string;
+}
+
+// `live`/`simulated` decide WHICH model answers; `denied` means none does.
+// Three outcomes, not a boolean pair — collapsing `denied` into `simulated`
+// would mean a user without access gets a fabricated plan that mutates their
+// trip instead of a refusal (ADR-019 amendment §3).
+export type ModelSelection =
+  | { outcome: "live"; model: LanguageModel }
+  | { outcome: "simulated"; model: LanguageModel }
+  | { outcome: "denied"; reason: string };
+
+// The HTTP contract for a `denied` outcome, defined once here so every caller
+// (today's /ai endpoint, M16's /ask endpoint) renders the same refusal rather
+// than each inventing its own shape. 403, not 402: 402 asserts a payment
+// relationship that does not exist yet.
+export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
+
+export function deniedResponse(reason: string): Response {
+  return Response.json({ error: reason, code: AI_NOT_ENTITLED_CODE }, { status: 403 });
+}
+
+// No entitlement source exists yet — there is no account tier anywhere in the
+// product (M15 owns the account menu). Every actor is entitled until one
+// exists, so this default keeps `denied` unreachable in production while the
+// type and the branch are real. Callers never override this outside tests;
+// M16/M15 wiring a real check in later is a change inside this function, not
+// a new parameter every caller has to learn about.
+export type AiEntitlementCheck = (actor: AiActor) => boolean | Promise<boolean>;
+const EVERYONE_IS_ENTITLED: AiEntitlementCheck = () => true;
+
 // `aiModel()` is called ONLY on the live branch — it constructs the gateway
 // client that carries AI_GATEWAY_API_KEY, and it throws when that key is unset.
 // Calling it eagerly would both spend-enable the off path and break simulated
 // mode on a deployment that has no key at all. Enforced by a test.
+//
+// `isEntitled` is a test seam, not a real parameter callers pass — it exists
+// so `denied`, currently unreachable in production, can still be exercised by
+// a test (M16's gate requires this).
 export async function selectAiModel(
-  surface: AiSurface,
-): Promise<{ model: LanguageModel; simulated: boolean }> {
+  actor: AiActor,
+  isEntitled: AiEntitlementCheck = EVERYONE_IS_ENTITLED,
+): Promise<ModelSelection> {
+  if (!(await isEntitled(actor))) {
+    return { outcome: "denied", reason: "AI is not available for this account." };
+  }
   return (await aiLive())
-    ? { model: aiModel(), simulated: false }
-    : { model: simulatedModel(surface), simulated: true };
+    ? { outcome: "live", model: aiModel() }
+    : { outcome: "simulated", model: simulatedModel(actor.surface) };
 }
