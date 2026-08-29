@@ -37,11 +37,12 @@ future session is most likely to need from it:
   heuristic is a failure whose **location** wanders; this one's location was
   fixed and its **value** wandered, and it is the same diagnosis. Read the
   whole failure for movement, not just the line number.
-- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
-  where `pg_isready` is not installed (Postgres in Docker, no host client).
-  The Definition of Done names `pnpm check` as the bar, so run `pnpm test:int`
-  directly until this is fixed, and do not read a green `pnpm check` on a
-  laptop as covering integration.
+- **KI-76 — fixed 2026-08-29.** `pnpm check` used to exit 0 while running
+  **zero** integration tests where `pg_isready` is not installed (Postgres in
+  Docker, no host client). The guard is now a real `pg` connect against
+  `DATABASE_URL` (`apps/web/scripts/db-probe.mjs`), and it distinguishes "no
+  database" (skip, still green) from "the probe could not run" (fails loudly).
+  A green `pnpm check` covers integration again.
 - **KI-66's remaining gap — the Vercel preview — is now walked.** Its
   "nobody has run this" half was already closed 2026-08-28 by a local
   production-build walk of twenty surfaces; what that walk explicitly could
@@ -184,11 +185,16 @@ checklist, and M11's close is the one being re-checked.
 **Two things from M11's gate that will bite the next session if unread**, both
 now in `docs/known-issues.md`, which is authoritative:
 
-- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
-  wherever `pg_isready` is absent (Postgres in Docker, no host client — which
-  is Mitchell's laptop). Run `pnpm test:int` directly until it is fixed. The
-  Definition of Done names `pnpm check` as the bar, so this is a false green
-  against the bar itself.
+- **KI-76 — fixed 2026-08-29**, along with KI-72, KI-57, KI-69 and KI-68 (one
+  PR, one theme: the test lane reporting what it actually ran). `pnpm check`
+  no longer exits 0 while running zero integration tests where `pg_isready` is
+  absent. Two things worth carrying forward: the integration suites no longer
+  truncate whole shared tables, so `pnpm test:int` stops destroying local dev
+  data — and `pnpm --filter web db:reset` now clears all ten tables, derived
+  from the schema, rather than a stale list of three. What is **not** fixed is
+  concurrency: `test:int` is still an exclusive resource, and two agents
+  running it at once still corrupt each other (KI-77, caught doing exactly
+  that on 2026-08-29).
 - **KI-75** — the diagnostic rule this repo teaches is a failure whose
   *location* wanders. M11's gate hit one whose location was fixed and whose
   *value* wandered, and it was the same thing: a sampling race, not a defect.
