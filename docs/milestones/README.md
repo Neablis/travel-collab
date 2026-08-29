@@ -58,7 +58,7 @@ for collaboration later landing on a product people already want to join.
 
 | # | Name | Scope |
 |---|---|---|
-| M11 | Fork & remix / Sharing and invites | **In flight — links 1-6 landed 2026-08-28 (PR #71); the gate has not been run.** Scheduled 2026-08-27 ahead of M18's remaining surfaces and M16, and **absorbed M13's invites/roles/revocation scope** in the same decision. Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
+| M11 | Fork & remix / Sharing and invites | **Done, gate closed 2026-08-28** — eight of eight boxes, e2e 46/46 twice against a production build, and the invite→accept→edit and pinned-share flows walked on a Vercel preview as two actors. **Playbooks/templates was carved out at the gate by Mitchell and is M11b, approved and unplaced.** Links 1-6 landed 2026-08-28 (PR #71), remediated by PR #78; retro and gate evidence in `M11-sharing-and-invites.md`. Scheduled 2026-08-27 ahead of M18's remaining surfaces and M16, and **absorbed M13's invites/roles/revocation scope** in the same decision. Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
 | M12 | Community | Public gallery, discovery, voting, reporting (all trust & safety scope quarantined here) |
 | M13 | Collaboration | **Narrowed 2026-08-27: invites, roles and revocation moved to M11** — what is left is near-real-time sync (transport ADR due here) and concurrent-edit conflicts as resolvable data. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
 | M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7) |
@@ -184,17 +184,33 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M11 — Sharing, invites, and a trip you can hand to
-someone** (`M11-sharing-and-invites.md`), in flight. Mitchell scheduled it
-2026-08-27 **ahead of M18's remaining surfaces and ahead of M16** (that
-milestone file's Status line is the record). Links 1-6 landed 2026-08-28 via
-PR #71; its exit gate has one of nine boxes ticked, so it is not done.
+Current milestone: **M18 — A stop knows what kind of thing it is**
+(`M18-stop-kind.md`), its remaining surfaces. PR 1, the contract change, landed
+2026-08-27 (PR #63) — `ActivityKind` and `ActivityTag` are real fields on the
+commands, both V1 event payloads and `ActivityView`. What is left is PR 2+: the
+Calendar transit split, `N to book`, the home-hero tile, `act.badge`, tag chips
+and the filter row. Those sat behind M11 by the 2026-08-27 call and are
+**unblocked by M11's gate closing 2026-08-28**. Order from here:
+`M18 (surfaces) → M16 → M12 → M13 → M14 → M9`.
 
-**M18 is started, not current.** PR 1, the contract change, landed 2026-08-27
-(PR #63) — `ActivityKind` and `ActivityTag` are real fields on the commands,
-both V1 event payloads and `ActivityView`. Its dependent surfaces (Calendar
-transit split, `N to book`, the home-hero tile, `act.badge`, tag chips and the
-filter row) are PR 2+, and sit behind M11 by the 2026-08-27 call.
+**M11's gate closed 2026-08-28** — all eight exit-gate boxes, the full Definition
+of Done green, the e2e suite 46/46 twice against a production build, and the two
+flows a local walk cannot reach walked on a Vercel preview as two real actors
+(invite → accept → edit as the invitee; a pinned share unmoved by three later
+commands). One red spec in the first run was a test-side sampling race in
+`m10-map-rail.spec.ts`, root-caused and fixed rather than retried — KI-75. The
+run also surfaced KI-76, a `pnpm check` that exits 0 while skipping the whole
+integration suite. Gate evidence and retro: `M11-sharing-and-invites.md`.
+
+**Playbooks left M11's gate, by Mitchell's call on 2026-08-28**, as its own
+follow-on — **M11b in `TODO.md`, approved and unplaced**. M11's file said its
+Playbooks/templates scope stayed, but none of its eight gate boxes tested it and
+none of its six links touched it; the four shells (`home-playbooks-strip`,
+`playbooks-route`, `insert-playbook`, `wizard-playbook-panel`) stay M11-tagged
+in `preview-registry.ts`. It needs its own scope and exit gate before it opens.
+
+**Two milestones are approved and unplaced:** M17 (see above — re-scope it
+first) and M11b. Neither is "next" merely by being unchecked.
 
 **M10's Wave-2 gate closed 2026-08-27** — the full Definition of Done green, the
 e2e suite 31/31 twice against a production build, and every surface walked at
@@ -220,12 +236,21 @@ its place immediately after M18.
   only near-real-time sync and its transport ADR — read the M13 row above with
   that subtraction applied). Links 1-6 landed 2026-08-28 via PR #71. The
   decision lives in `M11-sharing-and-invites.md`; it had not been propagated
-  here or into `TODO.md` until 2026-08-28. Order from here: **M11 (in flight) →
-  M18's remaining surfaces → M16 → M12 → M13 → M14 → M9** (ADR-022 moves **M9
-  to last, after M14**; M15 is done, M10 is done).
+  here or into `TODO.md` until 2026-08-28. Order from here, with **M11's gate
+  closed 2026-08-28**: **M18's remaining surfaces → M16 → M12 → M13 → M14 →
+  M9** (ADR-022 moves **M9 to last, after M14**; M15 is done, M10 is done,
+  M11 is done).
 
-**M17 is approved and has no place in that order — that is the open item, not
-an omission.** It was approved 2026-08-26 out of SPEC §12 and never scheduled;
+**Two milestones are approved with no place in that order — M17 and, as of
+M11's gate, M11b Playbooks. Neither is an omission, and neither is "next"
+merely by sitting unchecked in `TODO.md`.** M11b was carved out of M11's gate
+by Mitchell on 2026-08-28: M11's file said its Playbooks/templates scope
+stayed, but none of its eight gate boxes tested it and none of its six links
+touched it, so the gate closed without it rather than holding every other
+status flag stale for scope no box measures. It needs its own scope and exit
+gate written before it opens; saved days (M11 link 6) is the data model it
+would build on, and its four shells stay M11-tagged in `preview-registry.ts`.
+As for M17 — it is the older of the two: It was approved 2026-08-26 out of SPEC §12 and never scheduled;
 until 2026-08-28 it appeared in the table above and nowhere else, which is how
 an approved milestone stayed invisible to `TODO.md`, whose rule is "first
 unchecked item = current work". Placing it is Mitchell's call and is not made

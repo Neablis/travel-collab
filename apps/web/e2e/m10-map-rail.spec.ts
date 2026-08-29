@@ -33,9 +33,11 @@ function dayNumberOf(label: string): number {
  * scroll events are dispatched during the frame's own "run the scroll steps",
  * ahead of requestAnimationFrame callbacks, so the first frame proves the
  * rail's handler has seen this scroll and the second gives React's re-render a
- * frame to land. Nothing here waits for the *throttle*: an evaluation deferred
- * to its trailing edge is still recorded by the MutationObserver below, and
- * every point assertion is a retrying web-first one.
+ * frame to land. Nothing here waits for the *throttle* — every caller instead
+ * follows a move with a retrying web-first assertion on the day it expects,
+ * which waits out the trailing edge without naming a duration. This function
+ * deliberately does not do that waiting itself: proving the rail does NOT emit
+ * (the mount case) needs a move with no expectation attached.
  */
 async function scrollRailTo(page: Page, scrollTop: number): Promise<void> {
   await page.evaluate(async (target) => {
@@ -132,16 +134,35 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
     record();
   });
 
-  const scanSteps = DAY_COUNT * 3;
-  const step = Math.ceil(maxScrollTop / scanSteps);
-  for (let i = 1; i <= scanSteps; i++) await scrollRailTo(page, Math.min(maxScrollTop, i * step));
+  // Walk the rail one day-band at a time, and do not advance until the rail
+  // has actually reported that band. With n uniformly-spaced days the geared
+  // range divides into n even bands (see the maxScrollTop assertion above), so
+  // (i - 0.5)/n of the range is band i's centre.
+  //
+  // Why not a fixed sweep of DAY_COUNT * 3 pixel steps, which is what this was:
+  // `evaluate()` only emits when the day it computes *differs from the last one
+  // it emitted*, and the scroll handler is a leading+trailing throttle
+  // (`scrollThrottleMs`, 50ms). Two frames per step is ~32ms, under that
+  // window, so consecutive steps collapse into one trailing evaluation — and
+  // that deferred evaluation reads whatever scrollTop is current when it
+  // finally runs, not the position that scheduled it. When the collapsed span
+  // crossed a whole band, the day in the middle was never a value of `next`,
+  // so it was never emitted and there was nothing for the MutationObserver to
+  // record. The old header's "an evaluation deferred to its trailing edge is
+  // still recorded" was the wrong half of that: recorded, yes — but only the
+  // position it lands on. That skipped a day in roughly half of runs, and
+  // *which* day moved between them (KI-75).
+  //
+  // `expectFocusedDay` is a retrying web-first assertion, so this waits on the
+  // rail's own emission rather than on a duration — no sleep, and no coupling
+  // to the tuning constant the sleeps this file used to carry were guessing at.
+  for (let day = 1; day <= DAY_COUNT; day++) {
+    await scrollRailTo(page, ((day - 0.5) / DAY_COUNT) * maxScrollTop);
+    await expectFocusedDay(day);
+  }
 
-  // The `ceil`-ed steps end at or past the bottom, so the last focus change is
-  // to DAY_COUNT — but it can still be sitting on the throttle's trailing
-  // edge. Poll for it rather than sleeping, then read the whole log.
-  await expect
-    .poll(() => page.evaluate(() => (window as RailWindow).__railFocusLog!.at(-1)))
-    .toBe(DAY_COUNT);
+  // Every band was awaited above, so the log is already complete; read it back
+  // to prove the rail emitted each day once, in order, with none skipped.
   const dayNumbers = await page.evaluate(() => (window as RailWindow).__railFocusLog!);
   expect(dayNumbers).toEqual(Array.from({ length: DAY_COUNT }, (_, i) => i + 1));
 

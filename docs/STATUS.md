@@ -22,26 +22,47 @@ general setup.
 
 ## Where the work is right now
 
-**M11 — "Sharing, invites, and a trip you can hand to someone" — is the current
-milestone and is in flight.** Mitchell scheduled it 2026-08-27 ahead of M18's
-remaining surfaces and ahead of M16; `docs/milestones/M11-sharing-and-invites.md`
-carries that decision, and `docs/milestones/README.md` and `TODO.md` are
-reconciled to it. It also absorbed M13's invites/roles/revocation scope, leaving
-M13 with near-real-time sync and its transport ADR.
+**M11's gate closed 2026-08-28. M18's remaining surfaces are the current work.**
 
-**Links 1-6 landed 2026-08-28 via PR #71** — users/identity (ADR-025), roles and
-access, invites (ADR-026), pinned share links (ADR-027), clone-with-lineage
-(ADR-028) and saved days (ADR-029). **Its gate has not been run:** one of nine
-exit-gate boxes is ticked, and PR #71's own review
-(`docs/reviews/2026-08-28-m11-pr71-review.md`) still has open findings against
-it.
+M11 shipped links 1-6 (users/identity ADR-025, roles and access, invites
+ADR-026, pinned share links ADR-027, clone-with-lineage ADR-028, saved days
+ADR-029) via PR #71, with both 2026-08-28 reviews remediated in PR #78. All
+eight exit-gate boxes are ticked. **The narrative, the evidence and the retro
+are in `docs/milestones/M11-sharing-and-invites.md`** — per this file's own
+rule, that is their durable home and this is the pointer. The three things a
+future session is most likely to need from it:
 
-**M18 is started but not current.** Its contract PR landed 2026-08-27 (PR #63):
+- **KI-75** — `m10-map-rail.spec.ts` was skipping a day about half the time.
+  Same failing line every run, *different* day each run. The repo's written
+  heuristic is a failure whose **location** wanders; this one's location was
+  fixed and its **value** wandered, and it is the same diagnosis. Read the
+  whole failure for movement, not just the line number.
+- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
+  where `pg_isready` is not installed (Postgres in Docker, no host client).
+  The Definition of Done names `pnpm check` as the bar, so run `pnpm test:int`
+  directly until this is fixed, and do not read a green `pnpm check` on a
+  laptop as covering integration.
+- **KI-66's remaining gap — the Vercel preview — is now walked.** Its
+  "nobody has run this" half was already closed 2026-08-28 by a local
+  production-build walk of twenty surfaces; what that walk explicitly could
+  not reach was the preview itself, behind Deployment Protection. M11's gate
+  reached it. Two preview-only behaviours to know before they are mistaken for
+  defects: the CSP blocks Vercel's feedback script (`vercel.live/...`) on every
+  preview page, and when Deployment Protection re-challenges an in-flight XHR
+  the blocked `vercel.com/sso-api` redirect reaches the app as a bare
+  "Failed to fetch".
+
+**Playbooks was carved out of M11's gate by Mitchell on 2026-08-28** and is its
+own follow-on: **M11b in `TODO.md`, approved and unplaced**, needing its own
+scope and exit gate. Its four `<Preview>` shells stay M11-tagged.
+
+**M18 is now current.** Its contract PR landed 2026-08-27 (PR #63):
 `ActivityKind` and `ActivityTag` are real fields on the commands, both V1 event
 payloads and `ActivityView`, with no migration — the payload additions default,
 so every stored event replays as `planned` / `[]`. The dependent surfaces
 (Calendar transit split, `N to book`, the home-hero tile, `act.badge`, tag chips
-and the filter row) are PR 2+ and sit behind M11.
+and the filter row) are PR 2+ and are **the current work** — M11's gate close
+unblocked them.
 
 **Done:** M0-M8, the Phase 1 gate review, M10 (Wave-2 gate closed 2026-08-27)
 and M15 (gate closed 2026-08-26, PR #56).
@@ -75,67 +96,72 @@ the node/jsdom test split is expressed as vitest `projects` — Vitest 4 removed
 `environmentMatchGlobs` entirely, and dropping the split rather than migrating
 it would have silently cost the whole Phase 0 saving with nothing red.
 
-**In flight on this branch (`claude/project-review-plan-xnsmw1`):** remediation
-of the two 2026-08-28 reviews, per `docs/plans/2026-08-28-review-remediation.md`.
-Landed so far — the revoke/accept race and invite-metadata leak, the rejected-
-fetch send-queue wedge, dev-login environment gating plus security headers, the
-AI prompt cap and AI/geocode spend meters, and the repo's own tooling no longer
-teaching what the repo bans.
+**The 2026-08-28 review remediation landed via PR #78** (plan:
+`docs/plans/2026-08-28-review-remediation.md`) — the revoke/accept race and
+invite-metadata leak, the rejected-fetch send-queue wedge, dev-login
+environment gating plus security headers, the AI prompt cap and AI/geocode
+spend meters, and the repo's own tooling no longer teaching what the repo bans.
+Its commit message recorded the M11 e2e lane as **not run**; M11's gate ran it,
+and every M11 spec passed.
 
 ## Blocking / broken right now
 
-**1. ~~Migrations 0006-0010 are merged and undispatched to production.~~ CLEARED
-2026-08-29 — production is at 0010.** Two dispatches, both green: run 1
-(2026-08-28 21:58, at `63f83ff`) applied 0006-0009, the M11 tables whose absence
-made `recordSignIn`'s untry/catch'd upsert throw sign-in itself; run 2
-(2026-08-29 02:41, at `d41af2e`) applied **0010 `rate_limit_counters`**, which
-landed with PR #78 after run 1 and is why one dispatch was not enough. Without
-it the quota limiter fails closed and every AI and geocode request 503s — a
-visible outage rather than a silent hole, by design.
+**1. The Map lens's tiles have still never been confirmed to paint — KI-49.**
+From a cloud session the egress proxy blocks the tile host outright, so the
+map's chrome can be walked and its tiles cannot. From a laptop the transport
+verifies (M11's gate loaded the style, tilejson, sprites and glyphs from
+`tiles.openfreemap.org` on the preview, and WebGL is real) and the **pixels
+still do not**: the WebGL canvas captures blank in the screenshot pipeline, and
+MapLibre fetches its data tiles from a worker the main thread cannot observe.
+So neither environment has produced a picture of a rendered map. Nothing on the
+roadmap is blocked by it; it bounds what a browser walk is allowed to claim,
+from anywhere. A blank canvas is not a pass.
 
-**The rule that produced this, unchanged and worth re-reading: merging does not
-apply a migration.** A merged migration sits pending until someone dispatches
-`migrate-production.yml` from `main` with `confirm=migrate`, and the check that
-a migration is outstanding is comparing `apps/web/drizzle/*.sql` on `main`
-against the `head_sha` of the last successful run — not the absence of a
-complaint. See `docs/guidelines/environments-and-deploys.md`.
+**Retired from this list at M11's gate, 2026-08-28** — all three were on it and
+none of them is live any more:
 
-**2. ~~`/s/featured` dead-ends on every environment — KI-61.~~ Not blocking —
-this entry was already stale when it was written.** PR #79 landed the same day
-and repointed both landing CTAs at `/demo`; `DEMO_SHARE_TOKEN` and the featured
-share are gone, and KI-61 sits under **Resolved** in `docs/known-issues.md`.
-This file's own "Where the work is right now" section said so three paragraphs
-up while this paragraph said the opposite. `docs/known-issues.md` is the
-authority on which issues are open — when this list and that file disagree,
-that file wins and this list is what needs editing.
+- **Migrations 0006-0010 are dispatched to production.** The gate's blocker, and
+  the preview walk signed in and wrote as two users against the migrated schema,
+  which is exactly the `recordSignIn` upsert into `users` this entry warned
+  would throw. The standing rule is unchanged: merging does not apply a
+  migration — dispatch it (`gh workflow run migrate-production.yml -f
+  confirm=migrate`, from `main`) and say so in the PR body.
+- **`/s/featured`'s dead end is gone — KI-61.** PR #79 replaced it with `/demo`;
+  see the `/demo` paragraph above. Walked on the preview: 14 days, 68 stops,
+  read-only, 2 conflicts rather than the pre-KI-60 twelve.
+- **The CSP's last unwalked environment, the Vercel preview, is walked —
+  KI-66.** The entry's "never executed by a browser" half was already closed
+  earlier the same day by a local production-build walk; the preview was the
+  named remainder, and M11's gate covered it — as did a cloud session on
+  2026-08-29, independently, finding the same violation. One preview-only
+  behaviour is still worth knowing before it is mistaken for a defect: a
+  Deployment Protection re-challenge of an in-flight XHR reaches the app as a
+  bare "Failed to fetch". The other one M11's gate recorded — the CSP blocking
+  Vercel's feedback script on every preview page — was **not** "no app impact",
+  and is fixed rather than documented; see the next section.
 
-**3. The Map lens cannot be visually verified from a cloud session — KI-49.**
-The egress proxy blocks the tile host, so the map's chrome can be walked and its
-tiles cannot. Nothing on the roadmap is blocked by it; it bounds what a browser
-walk from here is allowed to claim. **Being able to walk a preview does not fix
-this** — the block is on this container's egress, not on the deployment, so the
-tiles are just as unreachable from a preview walk. A person with a browser sees
-them fine.
+**A preview deployment is walkable from a cloud session, and the CSP defect that
+found is fixed.** `pnpm --filter web walk:preview <url> [path ...]` —
+`docs/guidelines/cloud-agent-sessions.md` carries the diagnosis, and that file's
+old "the preview is NOT reachable from here" paragraph is gone; it was wrong and
+it cost several runs. Three obstacles stacked: Deployment Protection, Chromium
+not trusting the egress CA, and a TLS 1.3 ClientHello the `*.vercel.app` tunnel
+cannot carry.
 
-**4. ~~The CSP has never been executed by a browser — KI-66.~~ CLEARED.** Walked
-locally 2026-08-28 (twenty surfaces, zero violations, enforcement proved with a
-control probe) and on a **real preview** 2026-08-29, which found the one thing a
-local walk structurally cannot: the Vercel Toolbar's loader refused by
-`script-src`, breaking the Flags Explorer workflow. Fixed preview-only and
-pinned by `apps/web/next.config.test.ts`. What remains open in KI-66 is the
-`'unsafe-inline'` weakening itself, which is accepted and recorded, not a gap.
+What the walk found is the point: **the CSP refused the Vercel Toolbar's loader
+on every preview page**, which breaks the Flags Explorer — the documented way to
+flip `ai-live` for one reviewer's session. M11's gate saw the same refusal and
+filed it as harmless preview noise; it was not. The policy now admits the
+Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
+production's policy is untouched.
 
-**A preview deployment is now walkable from a cloud session** —
-`pnpm --filter web walk:preview <url> [path ...]`. Three obstacles stacked
-(Deployment Protection, Chromium not trusting the egress CA, and a ClientHello
-the `*.vercel.app` tunnel cannot carry); `docs/guidelines/cloud-agent-sessions.md`
-carries the diagnosis and that file's old "the preview is NOT reachable from
-here" paragraph is gone. It was wrong, and it cost several runs. The durable
-CI half still needs one click from Mitchell: generate **Protection Bypass for
-Automation** in the Vercel project's Deployment Protection settings and mirror
-the value into a `VERCEL_AUTOMATION_BYPASS_SECRET` repo secret. Until then only
-the interactive 23-hour share-link route works, and nothing unattended can test
-a preview.
+**One thing is still Mitchell's to do, and nothing unattended can test a preview
+until it is done:** generate **Protection Bypass for Automation** (Vercel → the
+project → Settings → Deployment Protection) and copy the value into a
+`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret. Until then the only route in is
+an MCP-minted `_vercel_share` link, which expires in 23 hours and suits an
+interactive session, not a scheduled job. Treat the secret like `FLAGS_SECRET`:
+it unlocks every protected deployment this project has.
 
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an
 unbiased top match overwriting correct model coordinates; rate-limit failures
@@ -144,37 +170,30 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Run M11's gate.** The review-remediation branch this section used to point at
-merged as **PR #78** (`d41af2e`), and the migration blocker behind the gate is
-cleared — so the gate is now the next action rather than the one after it, and
-nothing structural is in front of it.
+**Open M18's remaining surfaces** — `docs/milestones/M18-stop-kind.md`, PR 2+:
+the Calendar transit split and `N to book`, the home-hero tile, `act.badge`,
+and the tag chips plus filter row. PR 1's contract fields are merged and inert,
+and M11's gate close (2026-08-28) removed the only thing in front of them.
+Read that milestone file's own preflight first: per
+`docs/milestones/README.md`, the next milestone's plan re-checks the gate-close
+checklist, and M11's close is the one being re-checked.
 
-All six links in M11's scope chain have landed, and **eight of its nine
-exit-gate boxes are unticked because nobody has run the gate, not because the
-work is missing.** Five e2e specs already exist for it — `m11-invites`,
-`m11-share`, `m11-clone`, `m11-saved-days`, `m11-demo`. What the gate needs:
+**Two things from M11's gate that will bite the next session if unread**, both
+now in `docs/known-issues.md`, which is authoritative:
 
-1. `pnpm --filter web test:e2e:ci-like` — the **only** lane whose result counts
-   (CLAUDE.md rule 1). PR #78's own commit messages record the M11 e2e lane as
-   *not run* against several of its fixes, including the invite-preview gating
-   that changed `InviteAcceptScreen`'s behaviour. That is the single most likely
-   place for a red.
-2. Walk the five flows in a browser against a **preview**, which is newly
-   possible: `pnpm --filter web walk:preview`. Invite → accept → edit, and a
-   pinned share surviving a later edit, are both multi-actor flows that no
-   local walk had been able to reach.
-3. Tick the boxes, write the retro, and run the four-flag gate-close checklist
-   in `docs/milestones/README.md` **in one commit** — that is the step that has
-   historically been dropped.
+- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
+  wherever `pg_isready` is absent (Postgres in Docker, no host client — which
+  is Mitchell's laptop). Run `pnpm test:int` directly until it is fixed. The
+  Definition of Done names `pnpm check` as the bar, so this is a false green
+  against the bar itself.
+- **KI-75** — the diagnostic rule this repo teaches is a failure whose
+  *location* wanders. M11's gate hit one whose location was fixed and whose
+  *value* wandered, and it was the same thing: a sampling race, not a defect.
+  Read the whole failure for movement.
 
-Two things to check while there rather than discover later: the M11-labelled
-`<Preview>` shells still in `preview-registry.ts` are the **Playbooks** ones
-(`home-playbooks-strip`, `playbooks-route`, `insert-playbook`, the wizard's
-panel) plus four that name a missing field. None of them appear in the scope
-chain's "Preview shells retired" column, so the gate box does not cover them —
-but M11's own file says *"M11's own Playbooks/templates scope stays"*, and
-nothing built it. **Whether Playbooks is in this gate or is its own follow-on is
-Mitchell's call, and it should be made before the gate closes, not after.**
+**Approved and unplaced, neither of them "next":** M17 (re-scope it first) and
+**M11b Playbooks**, carved out of M11's gate by Mitchell on 2026-08-28 — it
+needs its own scope and exit gate written before it opens.
 
 **Deliberately deferred, each recorded where it belongs rather than dropped:**
 
