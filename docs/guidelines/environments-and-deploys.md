@@ -68,6 +68,39 @@ Rules (ADR-004 + M1 retro):
   (`db:reset --yes` + `db:seed`, `.env.local`'s `DATABASE_URL` picked up
   automatically) — see `apps/web/scripts/db-seed.ts`.
 
+## Testing against a preview deployment
+
+Preview and production deployment URLs are behind **Vercel Authentication**
+(`ssoProtection`, scoped `all_except_custom_domains`), so an unauthenticated
+request 302s to `vercel.com/sso-api`. Three runs have now been lost to agents
+treating that 302 as the app's response, or as proof that the preview cannot be
+tested at all. It can. Pick by who is doing the testing:
+
+| Who | How | Lifetime |
+|---|---|---|
+| An agent or a person, interactively | A `?_vercel_share=` URL — the Vercel MCP's `get_access_to_vercel_url` mints one per deployment | 23 hours |
+| CI, or anything unattended | `VERCEL_AUTOMATION_BYPASS_SECRET` as the `x-vercel-protection-bypass` header | Until revoked |
+
+**The bypass secret is the durable one and does not exist yet.** Generating it
+is one click — Vercel → the project → Settings → Deployment Protection →
+Protection Bypass for Automation → Generate. Vercel then injects it into every
+deployment as `VERCEL_AUTOMATION_BYPASS_SECRET`; copy the same value into a
+GitHub Actions repo secret of that name, and a workflow keyed on
+`deployment_status` can run Playwright against the preview it just built.
+Treat it like `FLAGS_SECRET`: anyone holding it can reach every protected
+deployment this project has. Until it exists, unattended preview testing is not
+possible and the share-link route is the only one.
+
+Either way, `pnpm --filter web walk:preview <url> [path ...]` will drive a real
+browser through it — see `apps/web/scripts/walk-preview.mjs`, and
+`cloud-agent-sessions.md` for the two extra container-specific obstacles a
+cloud session hits on top of the auth one.
+
+What a preview shows that a local production build cannot: whatever Vercel's
+own edge injects. The Vercel Toolbar is the live example — it loads only on
+preview, and our CSP blocked it from the day the CSP landed until 2026-08-29,
+because nothing had ever loaded a preview in a renderer.
+
 ## Feature flags
 
 The project's first flag is `ai-live` (declared in
