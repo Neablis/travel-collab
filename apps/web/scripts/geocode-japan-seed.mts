@@ -75,6 +75,17 @@
 //      name-unverified rather than failed: see that module's header for why
 //      that is neither "match" nor "mismatch". A name-verified candidate is
 //      preferred over an unverified one even if the vendor ranked it lower.
+//   4b. Then an AREA CORROBORATION tiebreak among the survivors (KI-58).
+//      Step 4 compares venue names and deliberately discounts the ward, so it
+//      cannot separate two branches of one chain: "Onibus Coffee, Nakameguro"
+//      and "Onibus Coffee, Setagaya" are name-identical and both sit in the
+//      ~60km Tokyo box, and the overlay took the wrong one. The ward is the
+//      only field that tells them apart, so a candidate whose ADDRESS also
+//      carries the queried area outranks one that does not. Deliberately a
+//      RANKING, not a filter — plenty of correct OSM addresses render the ward
+//      in local script or omit it, and rejecting those would lose right
+//      answers the way collapsing "not-comparable" into "mismatch" would. A
+//      pin that wins without it is reported as area-uncorroborated.
 //   5. No candidate inside the box, or none whose name matches -> unresolved.
 //      No city-centroid fallback, no retry with a looser box, no unbounded
 //      query. A missing pin is reported and left missing; nothing here ever
@@ -105,7 +116,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts";
 import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
-import { placeNameVerdict, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
+import { placeNameVerdict, nameTokens, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
 import { mapRateLimited } from "../src/server/ai/rateLimit.ts";
 import { parseTripSeed, locationName, unscheduledLocationName } from "@tc/fixtures";
 
@@ -142,6 +153,7 @@ interface Job {
   key: string;
   query: string;
   place: string; // the venue alone — what the name-identity check must find
+  area: string; // the ward alone — the only field that separates two branches of one chain
   context: string[]; // area/city/country: real, but useless for telling two venues apart
   viewbox: BoundingBox | undefined; // biases the search; undefined = unbounded (unscheduled items only)
   acceptBoxes: readonly BoundingBox[]; // the hard bound this script itself enforces
@@ -158,6 +170,11 @@ interface Resolved {
   // here can read. Reported at the end so a human pass knows which pins were
   // never name-verified (KI-39).
   nameVerdict: Exclude<NameVerdict, "mismatch">;
+  // Did the queried AREA appear in the candidate's own address? The identity
+  // check deliberately discounts area (it is geography, shared by every venue
+  // in the ward), so on a chain it cannot tell one branch from another — see
+  // `areaCorroborated` below. Reported so a branch-ambiguous pin is visible.
+  areaCorroborated: boolean;
 }
 
 interface Unresolved {
@@ -192,18 +209,44 @@ function buildJobs(seed: ReturnType<typeof parseTripSeed>): Job[] {
     if (!box) throw new Error(`no viewbox configured for city "${day.city}" (day ${day.index})`);
     for (const stop of day.stops) {
       const query = locationName(stop.place, stop.area, day.city);
-      const job = { query, place: stop.place, context: [stop.area, day.city, "Japan"], viewbox: box, acceptBoxes: [box] };
+      const job = { query, place: stop.place, area: stop.area, context: [stop.area, day.city, "Japan"], viewbox: box, acceptBoxes: [box] };
       addJob(jobs, `stop|${day.city}|${stop.place}|${stop.area}`, job, stop.id);
     }
   }
 
   for (const item of seed.unscheduled) {
     const query = unscheduledLocationName(item.place, item.area);
-    const job = { query, place: item.place, context: [item.area, "Japan"], viewbox: undefined, acceptBoxes: ALL_CITY_BOXES };
+    const job = { query, place: item.place, area: item.area, context: [item.area, "Japan"], viewbox: undefined, acceptBoxes: ALL_CITY_BOXES };
     addJob(jobs, `unscheduled|${item.place}|${item.area}`, job, item.id);
   }
 
   return [...jobs.values()];
+}
+
+/**
+ * Does the queried AREA appear in the candidate's own address (KI-58)?
+ *
+ * `placeNameVerdict` compares the venue name only, and deliberately discounts
+ * the area — "Nakameguro" cannot distinguish one Tokyo café from another, and
+ * including it would let geography vouch for identity. That is right for
+ * telling two DIFFERENT venues apart, and structurally useless for telling two
+ * branches of the SAME chain apart: "Onibus Coffee, Nakameguro" and "Onibus
+ * Coffee, Setagaya" have identical names, so the name check returns "match"
+ * for the wrong one and the box (~60km of Tokyo) holds both. That is the one
+ * wrong-venue case in the overlay that the name check does not already reject,
+ * and the ward is the only field that separates them.
+ *
+ * Matched against the WHOLE display name, not just its first segment: the ward
+ * is address, not venue name. Token equality via `nameTokens`, so the fold to
+ * comparable tokens is the same one the name check uses. A candidate whose
+ * address is entirely in local script corroborates nothing and simply ranks
+ * lower — it is not rejected.
+ */
+function areaCorroborates(area: string, candidateDisplayName: string): boolean {
+  const wanted = nameTokens(area);
+  if (wanted.length === 0) return false;
+  const present = new Set(nameTokens(candidateDisplayName));
+  return wanted.every((token) => present.has(token));
 }
 
 async function resolveJob(
@@ -229,20 +272,34 @@ async function resolveJob(
   // Name identity, after the box (KI-39). A verified name beats the vendor's
   // ranking: an unverifiable candidate is only taken when no candidate in the
   // box actually matches the queried venue by name.
-  const judged = inBox.map((c) => ({ candidate: c, verdict: placeNameVerdict(job.place, c.canonicalName, job.context) }));
-  const verified = judged.find((j) => j.verdict === "match");
-  const match = verified ?? judged.find((j) => j.verdict === "not-comparable");
-  if (!match) {
+  const judged = inBox
+    .map((c) => ({
+      candidate: c,
+      verdict: placeNameVerdict(job.place, c.canonicalName, job.context),
+      areaCorroborated: areaCorroborates(job.area, c.canonicalName),
+    }))
+    .filter((j): j is typeof j & { verdict: Exclude<NameVerdict, "mismatch"> } => j.verdict !== "mismatch");
+  if (judged.length === 0) {
     return { ids: job.ids, query: job.query, reason: "name-mismatch", candidates: inBox.map(report) };
   }
-  const nameVerdict: Exclude<NameVerdict, "mismatch"> = verified ? "match" : "not-comparable";
+
+  // Rank, don't reject (KI-58). Area corroboration is a TIEBREAK, never a
+  // filter: OSM renders plenty of correct addresses with the ward in local
+  // script or not at all, so requiring it would throw away right answers the
+  // way collapsing "not-comparable" into "mismatch" would. Best available
+  // evidence wins, and what the winner rested on is reported.
+  const rank = (j: (typeof judged)[number]) =>
+    (j.verdict === "match" ? 0 : 2) + (j.areaCorroborated ? 0 : 1);
+  const match = judged.reduce((best, j) => (rank(j) < rank(best) ? j : best));
+
   return {
     ids: job.ids,
     query: job.query,
     lat: match.candidate.lat,
     lng: match.candidate.lng,
     canonicalName: match.candidate.canonicalName,
-    nameVerdict,
+    nameVerdict: match.verdict,
+    areaCorroborated: match.areaCorroborated,
   };
 }
 
@@ -269,6 +326,7 @@ async function main(): Promise<void> {
   const noMatch = unresolved.filter((r) => r.reason === "no-candidate-in-box");
   const nameMismatch = unresolved.filter((r) => r.reason === "name-mismatch");
   const unverified = resolved.filter((r) => r.nameVerdict === "not-comparable");
+  const areaUncorroborated = resolved.filter((r) => !r.areaCorroborated);
 
   const coordinates: Record<string, { lat: number; lng: number; canonicalName: string }> = {};
   for (const r of resolved) {
@@ -280,7 +338,7 @@ async function main(): Promise<void> {
 
   const overlay = {
     $schema: "japan-trip-seed-coordinates/v1",
-    generatedBy: "apps/web/scripts/geocode-japan-seed.mjs",
+    generatedBy: "apps/web/scripts/geocode-japan-seed.mts",
     generatedAt: new Date().toISOString().slice(0, 10),
     sourceSeed: "japan-trip-seed.json",
     resolvedStopCount,
@@ -310,6 +368,14 @@ async function main(): Promise<void> {
   if (unverified.length > 0) {
     console.log(`\nAccepted but name-unverified (${unverified.length} lookups — local-script name, box only):`);
     for (const r of unverified) console.log(`  ${r.ids.join(", ")} — "${r.query}" -> ${r.canonicalName}`);
+  }
+  // Also not a failure — the second to-verify list. A pin here matched by name
+  // but nothing confirmed the WARD, so if the venue is a chain this may be the
+  // wrong branch (KI-58). The one the overlay actually got wrong, Onibus
+  // Coffee, is exactly this shape.
+  if (areaUncorroborated.length > 0) {
+    console.log(`\nAccepted but area-uncorroborated (${areaUncorroborated.length} lookups — check the ward if the venue is a chain):`);
+    for (const r of areaUncorroborated) console.log(`  ${r.ids.join(", ")} — "${r.query}" -> ${r.canonicalName}`);
   }
   if (failed.length > 0) {
     console.log("\nLookup failed (rate limit or vendor error — rerun to retry):");

@@ -22,9 +22,14 @@
 // none of them (its `enums` block lists only `stopStatus`). Tags are
 // hand-authored per M18's rule that inferring them from title text is the
 // prose parse that milestone disqualifies. Coordinates are the union of
-// scripts/geocode-japan-seed.mts's verified output (51 of 72 — see KI-39) and
-// hand-authored values for the 21 the geocoder could not resolve to the right
-// venue; `verify.ts` checks the two still agree wherever both have an opinion.
+// scripts/geocode-japan-seed.mts's verified output (51 of 72 as authored — see
+// KI-39) and hand-authored values for the 21 the geocoder could not resolve to
+// the right venue; `verify.ts` checks the two still agree wherever both have an
+// opinion. The values below have not changed since; the OVERLAY they are
+// checked against has — KI-58's 2026-08-29 re-run tightened the matching and it
+// now proposes 41 of 72, so `verify.ts` cross-checks 41 rows rather than 51.
+// See ./coordinateOverrides.ts for the twelve-turned-eight disagreements, and
+// KI-77 for three correct venues the re-run drops for a tokenisation reason.
 //
 // --- Adding data for a new feature ---
 // See docs/guidelines/fixtures-and-seed-data.md. Short version: add the field
@@ -67,6 +72,30 @@ export type JapanStop = {
    * on it. Splitting these seven would change the day accents, the calendar
    * cards and the conflict baseline, so it is a product decision rather than a
    * correction. Raised by CodeRabbit on PR #74 and recorded as KI-59.
+   *
+   * MEASURED, 2026-08-29, so the next attempt does not have to guess. All seven
+   * rows were corrected to the city the stop is physically in and the day chips
+   * recomputed. `cityFor()` reads the day's FIRST located activity, and all
+   * seven of these are their day's first stop, so every one of them retags its
+   * whole day:
+   *
+   *   day  4  Nikkō    -> Tokyo     the Nikkō day trip stops saying Nikkō
+   *   day  6  Hakone   -> Tokyo
+   *   day  7  Kyoto    -> Hakone
+   *   day 11  Osaka    -> Kyoto
+   *   day 14  Tokyo    -> Osaka     the fly-home-from-Tokyo day says Osaka
+   *
+   * Nikkō disappears from the trip's chips altogether (six cities become five)
+   * and every transition badge lands one day late — Tokyo→Hakone on the Kyoto
+   * day, Kyoto→Osaka on day 12. The correction alone is a visible REGRESSION,
+   * which is why it is still filed rather than applied.
+   *
+   * The enabling change is downstream, not here: a day's city has to come from
+   * where the day ENDS rather than from its first stop — M18 shipped `kind`,
+   * so `calendarCityCards.ts` can now do what its own comment always said it
+   * would and split a travel day at its last `transit` stop, and `cityFor()`
+   * can take the last stop instead of the first. Correct these seven in the
+   * SAME change as that, never before it.
    */
   city: string;
   start: string;
