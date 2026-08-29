@@ -42,6 +42,30 @@ function describe(err) {
   return text || err.code || err.constructor.name;
 }
 
+// "Nothing is listening" — the one failure the SKIPPED banner is for. These are
+// transport-level: the socket never reached a Postgres that could answer. A
+// PostgreSQL *server* error (`28P01` bad password, `3D000` no such database,
+// `28000` no such role) arrives with a five-character SQLSTATE in `code`
+// instead, and is deliberately NOT in this set — see the catch block below.
+const UNREACHABLE = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ECONNRESET",
+  "EAI_AGAIN",
+  "EPIPE",
+]);
+
+function isUnreachable(err) {
+  if (!(err instanceof Error)) return false;
+  // pg's own connect-timeout rejection carries no code at all.
+  if (/timeout expired/i.test(err.message)) return true;
+  const codes = [err.code, ...(err instanceof AggregateError ? err.errors.map((e) => e?.code) : [])];
+  return codes.some((c) => typeof c === "string" && UNREACHABLE.has(c));
+}
+
 // Resolve DATABASE_URL exactly the way vitest.config.ts does, or the probe
 // would be answering a question the tests never asked: load apps/web/.env.local
 // when it exists, and let an already-exported DATABASE_URL win (that is Node's
@@ -55,9 +79,15 @@ if (existsSync(envLocalPath)) {
 
 const url = process.env.DATABASE_URL;
 if (!url) {
+  // Say which of the two it actually is: a missing file and a file that simply
+  // does not define DATABASE_URL need different fixes, and claiming "absent"
+  // for both sends you looking for the wrong one. (CodeRabbit, PR #86.)
+  const envLocalStatus = existsSync(envLocalPath)
+    ? `${envLocalPath} exists but defines no DATABASE_URL`
+    : `${envLocalPath} does not exist`;
   console.error(
     "db-probe: DATABASE_URL is not set, so whether a database exists is unknowable.\n" +
-      `           Looked for ${envLocalPath} (absent) and the environment.\n` +
+      `           ${envLocalStatus}, and the environment does not set it either.\n` +
       "           Run `pnpm setup` to create it, or export DATABASE_URL.",
   );
   process.exit(2);
@@ -96,16 +126,27 @@ try {
   console.log(`db-probe: ${target} answered — running the integration tests.`);
   code = 0;
 } catch (err) {
-  // A genuine "nothing is listening" / "database does not exist" / "auth
-  // refused". Skipping is the intended behavior here, so exit 1 and let the
-  // caller print the banner and keep `pnpm check` green — but say what was
-  // tried and what it said, because the old banner named a host it had not
-  // actually probed.
-  console.error(
-    `db-probe: no database answered at ${target}.\n` +
-      `           ${describe(err)}`,
-  );
-  code = 1;
+  // Only "nothing is listening" is a skip. The banner exists for one case —
+  // a developer who has not started Postgres — and stretching it to cover
+  // every connect failure would rebuild the bug this file was written to fix,
+  // one layer up: a *misconfiguration* silently reported as "no database",
+  // with `pnpm check` green. A server that answers and then rejects us (bad
+  // password, missing database, no such role) is configuration to fix, not
+  // absence to tolerate, so it exits 2 and fails loudly. (CodeRabbit, PR #86.)
+  if (isUnreachable(err)) {
+    console.error(
+      `db-probe: no database answered at ${target}.\n` +
+        `           ${describe(err)}`,
+    );
+    code = 1;
+  } else {
+    console.error(
+      `db-probe: ${target} refused the connection — this is a CONFIGURATION problem, not an absent database.\n` +
+        `           ${describe(err)}\n` +
+        "           Fix DATABASE_URL (or the role/database it names) rather than skipping the tests.",
+    );
+    code = 2;
+  }
 }
 // Close before exiting rather than in a `finally`: process.exit() is immediate
 // and would skip the cleanup, leaving the socket to be reaped by the OS.

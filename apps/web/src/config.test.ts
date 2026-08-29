@@ -26,9 +26,12 @@ describe("BASE_URL", () => {
     expect(process.env.BASE_URL).toBe("/");
   });
 
-  it("derives the default from WEB_PORT", () => {
-    if (!process.env.WEB_BASE_URL) {
-      expect(BASE_URL).toBe(`http://localhost:${WEB_PORT}`);
-    }
+  // Both branches assert. The first draft wrapped the assertion in
+  // `if (!process.env.WEB_BASE_URL)`, so setting that variable turned the test
+  // into a no-op that still reported green — a test that can pass without
+  // asserting the thing it is named for. (CodeRabbit, PR #86.)
+  it("is the override when one is set, and the WEB_PORT default otherwise", () => {
+    const override = process.env.WEB_BASE_URL;
+    expect(BASE_URL).toBe(override ? override : `http://localhost:${WEB_PORT}`);
   });
 });
