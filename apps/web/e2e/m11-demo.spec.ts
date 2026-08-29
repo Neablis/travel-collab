@@ -63,8 +63,10 @@ test.describe("the demo trip", () => {
     await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
     // Needs a session and is a write; it has no read-only half to fall back to.
     await expect(page.getByRole("button", { name: "Assistant" })).toHaveCount(0);
-    // Offered but inert, exactly as it is for an invited viewer.
-    await expect(page.getByRole("button", { name: "Add stop" })).toBeDisabled();
+    // Withheld, exactly as it is for an invited viewer. This asserted
+    // `toBeDisabled()` until KI-64: the header was the one place still
+    // offering a greyed control on a board ADR-031 had otherwise gone quiet.
+    await expect(page.getByRole("button", { name: "Add stop" })).toHaveCount(0);
   });
 
   test("shows the trip's own history, without offering to change it", async ({ page }) => {
