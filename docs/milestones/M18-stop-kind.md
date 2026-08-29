@@ -103,10 +103,17 @@ because a gate definition changes only by explicit decision
 - [x] A stop's kind is a real field, set by a command, visible in the projection.
 - [x] A stop's **tags** are a real field on the same terms (KI-47), landing in
       the same contract change rather than a second one.
-- [ ] Calendar splits a travel day at the last `transit` stop, with the
-      departing city as a strip carrying that stop's **start** time.
-- [ ] `N to book` counts stops whose kind is neither `booked` nor `transit`, and
-      renders only when > 0.
+- [x] ~~Calendar splits a travel day at the last `transit` stop, with the
+      departing city as a strip carrying that stop's **start** time.~~
+      **Removed 2026-08-29 by Mitchell — replaced by the two boxes below.**
+      It was built, walked, and withdrawn the same day; see "The transit split,
+      built and removed" below for why.
+- [ ] Calendar groups a day by **city alone** — one equal full card per city,
+      no strips — plus a single untitled bucket card for stops with no city.
+- [ ] A day's label reads `<yesterday's last placed city> → <today's last
+      placed city>` when they differ, and just the city when they don't.
+- [ ] `N to book` counts stops whose kind is neither `booked` nor `transit`,
+      per card, and renders only when > 0.
 - [ ] `act.badge` renders from `kind` — Booked / Holding / Idea / Travel — and
       renders **nothing** for `planned`, per the handoff's own map
       (`dc.html:3740`, which falls through to an empty string).
@@ -120,6 +127,52 @@ because a gate definition changes only by explicit decision
       live reseed shows zero notes carrying one. The "no surface reads" half
       can only be asserted once PR 2 builds the surfaces that would have.
 - [x] Contracts changelog entry; projection-rebuild golden test still passes.
+
+## The transit split, built and removed (2026-08-29)
+
+SPEC §12 specifies that a travel day splits at its **last `transit` stop**, the
+departing city rendering as a one-line strip carrying that stop's start time.
+It was implemented, walked against the canonical Japan fixture, and withdrawn
+the same day. The reasoning is recorded here because the design still specifies
+it, and because the next person to read SPEC §12 will otherwise rebuild it.
+
+**What the walk showed.** Across the trip's seven travel days the rule produced
+**one** departing strip, and that one was wrong — day 14 rendered `Tokyo →
+Tokyo`. Two causes, both in the data rather than the rule:
+
+- On days 4, 6, 7, 11 and 13 the transit stop is the day's **first** stop, so
+  nothing precedes it to name where you left from. The implementation correctly
+  declined to split rather than print a strip it could not label.
+- Every stop on a travel day carries the **destination** city (**KI-59**),
+  including the ones before you leave — day 14's Osaka hotel breakfast is
+  tagged Tokyo. So the one day that did split named the wrong origin.
+
+**Mitchell's call, and the principle behind it.** *"I don't think the shape of
+the fixture should drive functionality, that's how we get drift."* The rule's
+output depended on how the fixture happened to tag cities, which is precisely
+that failure. And on what the view is for:
+
+> I kinda always pictured the calendar page a zoomed out trip, what cities are
+> on what days of the week, it doesn't really concern itself with the day of
+> activities, which is what transit is about. Timeline view and map view is how
+> I zoom in and see a specific day, how I get around.
+
+**What replaced it.** The transition a travel day expresses is now the *day
+label's* job, from a rule Mitchell specified directly: compare yesterday's last
+placed activity's city with today's; if they differ show `A → B`, otherwise
+show the city. No `kind`, no dependence on how any single stop is tagged. The
+Calendar cell groups purely by city, every group an equal card, plus one bucket
+for stops with no city.
+
+**What this costs, accepted deliberately.** SPEC §12's strips existed to keep
+cell heights even across a week; equal cards give that up, so a three-city day
+is a visibly taller cell. Mitchell chose it on his own worked example — 3 Tokyo,
+1 Kyoto, 1 unplaced, *"I would expect 3 cards"* — and the reason it is the right
+trade at this zoom is that which cities a day touches **is** the information the
+view exists to show.
+
+**Recorded as a deliberate delta from the design**, the same way KI-52 records
+the four-tags-not-six decision. KI-59 keeps the underlying data question.
 
 ## PR 1 — the contract change (2026-08-27)
 
