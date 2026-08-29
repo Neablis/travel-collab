@@ -83,6 +83,23 @@ Two reasons, both fatal:
 
 **PR 1 (the contract change) is done — see below. PR 2+ carries the surfaces.**
 
+**Amended 2026-08-29 by Mitchell** — three boxes to eight. The gate as written
+measured only `kind`, while the milestone's own scope carries `tags` too, and
+three of the surfaces in scope (`act.badge`, the tag chips, the home-hero tile)
+had no box at all. Two scope calls made in the same decision, recorded here
+because a gate definition changes only by explicit decision
+(`docs/milestones/README.md`):
+
+1. **Tag *focus* is out** — SPEC §11's click-a-chip-to-dim behaviour across
+   Timeline, Day columns, Calendar and Map is carved out as **M18b, approved
+   and unplaced**, the same treatment M11b Playbooks got at M11's gate the day
+   before. Tag *chips* stay in: they render and are settable here.
+2. **The stop editor gets a kind picker and a tag picker.** Without them every
+   surface below renders only on seeded data and stays permanently empty on a
+   trip a user creates — a fixture showcase rather than a product capability.
+   The new box 7 is what tests that difference, deliberately phrased as "on a
+   trip you created yourself".
+
 - [x] A stop's kind is a real field, set by a command, visible in the projection.
 - [x] A stop's **tags** are a real field on the same terms (KI-47), landing in
       the same contract change rather than a second one.
@@ -90,6 +107,14 @@ Two reasons, both fatal:
       departing city as a strip carrying that stop's **start** time.
 - [ ] `N to book` counts stops whose kind is neither `booked` nor `transit`, and
       renders only when > 0.
+- [ ] `act.badge` renders from `kind` — Booked / Holding / Idea / Travel — and
+      renders **nothing** for `planned`, per the handoff's own map
+      (`dc.html:3740`, which falls through to an empty string).
+- [ ] Tag chips render on stop cards, four values not the handoff's six (KI-52).
+- [ ] **A kind and a tag can be set from the stop editor, on a trip you created
+      yourself** — not only on seeded data.
+- [ ] The home hero's "not booked" tile replaces "days planning", counted off
+      the live `TripDetail` the hero already fetches.
 - [ ] No surface reads a kind out of `notes`, and the seed stops folding it in.
       *Seed half done in PR 1* — `buildNotes` no longer folds `(status)`, and a
       live reseed shows zero notes carrying one. The "no surface reads" half
