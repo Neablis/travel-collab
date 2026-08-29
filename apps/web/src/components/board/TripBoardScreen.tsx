@@ -25,7 +25,6 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
 import { composeAiPlan } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
@@ -390,154 +389,166 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   return (
     <>
-      {/* .trip-board-content (globals.css): reserves 356px of right padding
-          at >=1180px so real content (day columns, header actions) never
-          sits underneath the fixed-position Assistant rail below — dropped
-          via .assistant-hidden when the rail itself is hidden, so hiding it
-          actually reclaims the width rather than leaving a dead gutter. It
-          also gives lens content a bottom margin against the page, dropped
-          via .full-bleed for the Map lens, which is deliberately full-bleed
-          (same `isFullLens` this component already computes below). */}
-      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden", isFullLens && "full-bleed")}>
-        <TripHeader tripId={tripId}>
-          <TripViewTabs />
-          {/* Task 2.3: MapRail replaces the chips row's job in map view — the
-              two side by side would be redundant, and the chips row's own
-              horizontal scroll makes no sense floating over a full-bleed map. */}
-          {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
-        </TripHeader>
-        {error !== null && (
-          <PageContainer width="full">
-            <p role="alert">{error}</p>
-          </PageContainer>
-        )}
-        <div inert={preview.seq !== null ? true : undefined}>
-          {isFullLens ? (
-            // px-0: Task 2.3 makes the Map lens genuinely full-bleed
-            // ("mapwrap" in the handoff) — the default px-6 gutter would
-            // leave the rail's 16px inset reading as ~40px instead.
-            <PageContainer width="full" className="px-0">
-              {/* Main's rule: a viewer does not get the jump into the stop
-                  editor, so `onSelectActivity` is withheld (ADR-031). The
-                  `readOnly` prop is the half that rule does not reach —
-                  double-click-to-create calls `openCreate` from useEditor()
-                  directly, not through this callback, so without it a viewer
-                  could still raise the editor in create mode. */}
-              {lens === "Map" && (
-                <MapLens
-                  detail={activeTrip}
-                  onSelectActivity={readOnly ? undefined : openEdit}
-                  readOnly={readOnly}
-                />
-              )}
-            </PageContainer>
-          ) : (
-            <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
-              {lens === "Board" && (
-                <Board
-                  trip={activeTrip}
-                  focusedDay={focusedDay}
-                  // A viewer's board, and the demo's, show the plan and offer
-                  // nothing that changes it (ADR-031). `readOnly` comes from
-                  // the provider's own gate — the same flag that already
-                  // refuses the command — so the controls and the refusal can
-                  // never disagree about who may edit. The same reasoning
-                  // reached here independently from the M11 side
-                  // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
-                  // is the difference between an inert board and one whose
-                  // cards move and snap back.
-                  readOnly={readOnly}
-                  callbacks={{
-                    onSelectDay: setFocusedDay,
-                    onMove: moveActivity,
-                    onUnschedule: unscheduleActivity,
-                    onDragStart: () => onRackEvent({ type: "dragStart" }),
-                    onDragEnd: () => onRackEvent({ type: "dragEnd" }),
-                    onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
-                    onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                    onAddActivity: (value: ActivityFormValue) =>
-                      void dispatch({
-                        type: "AddActivity",
-                        tripId,
-                        activityId: crypto.randomUUID(),
-                        title: value.title,
-                        timeWindow: value.timeWindow ?? undefined,
-                        location: value.location ?? undefined,
-                        notes: value.notes ?? undefined,
-                        anchors: value.anchors,
-                        cost: value.cost ?? undefined,
-                      }),
-                    onUpdateActivity: updateActivity,
-                    onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
-                    onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-                  }}
-                />
-              )}
-              {lens === "Schedule" && (
-                <ScheduleLens
-                  detail={activeTrip}
-                  readOnly={readOnly}
-                  onSelectActivity={readOnly ? undefined : openEdit}
-                  // The timeline raises real commands through this one seam:
-                  // UpdateActivity for the overlap warning's one-click fix,
-                  // DismissConflict for its dismissal, and — Phase 6 — AddDay
-                  // from the end-of-trip block's "Add a day". That last one is
-                  // deliberately the SAME `dispatch({ type: "AddDay", tripId,
-                  // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
-                  // above performs, just arriving pre-built (the seam carries
-                  // whole commands) rather than as a bare callback. None of
-                  // the three is ever a CreateTrip, which is the only
-                  // TripCommand dispatch doesn't take. The timeline scrolls
-                  // the appended day into view itself, via the focus effect it
-                  // already owns — see TimelineLens's `addDay`.
-                  onCommand={(command) => {
-                    // All three commands this seam carries (UpdateActivity,
-                    // DismissConflict, AddDay) are writes, so a viewer has
-                    // nothing legitimate to raise through it. Unreachable
-                    // today — the timeline withholds every affordance that
-                    // would raise one (`readOnly` above), and TripProvider's
-                    // `dispatch` refuses a viewer as well — and kept for the
-                    // same reason ActivityEditorSheet's handleSave guard is:
-                    // so the refusal does not depend on a render branch
-                    // somewhere below staying correct. The server refuses each
-                    // of them independently (accessPolicy.ts) and remains the
-                    // real gate; this is defence in depth.
-                    if (readOnly) return;
-                    if (command.type !== "CreateTrip") void dispatch(command);
-                  }}
-                />
-              )}
+      {/* M16 Wave 1 (Task 4, SPEC §9 docked presentation): the Assistant rail
+          is a real flex sibling of the plan now, not `position: fixed` over
+          it — this row is what makes the plan genuinely SHRINK by 356px when
+          the rail opens, rather than being overlaid with a scrim in front of
+          it (KI-16, KI-17). `.assistant-open` (globals.css) is the marker the
+          unscheduled rack's own `position: fixed` right-inset reads, since a
+          fixed element ignores this row's flex sizing entirely and needs its
+          own compensation to stop short of the docked rail instead of
+          running underneath it. */}
+      <div className={cn("flex items-start", !isDemo && assistant.open && "assistant-open")}>
+        {/* .trip-board-content (globals.css): gives lens content a bottom
+            margin against the page, dropped via .full-bleed for the Map
+            lens, which is deliberately full-bleed (same `isFullLens` this
+            component already computes below). `min-w-0` lets this column
+            actually shrink when the rail opens — flex items default to a
+            min-width of their content's intrinsic width, which a
+            horizontally-scrolling day-columns row would otherwise refuse to
+            go below. */}
+        <div className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}>
+          <TripHeader tripId={tripId}>
+            <TripViewTabs />
+            {/* Task 2.3: MapRail replaces the chips row's job in map view — the
+                two side by side would be redundant, and the chips row's own
+                horizontal scroll makes no sense floating over a full-bleed map. */}
+            {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
+          </TripHeader>
+          {error !== null && (
+            <PageContainer width="full">
+              <p role="alert">{error}</p>
             </PageContainer>
           )}
+          <div inert={preview.seq !== null ? true : undefined}>
+            {isFullLens ? (
+              // px-0: Task 2.3 makes the Map lens genuinely full-bleed
+              // ("mapwrap" in the handoff) — the default px-6 gutter would
+              // leave the rail's 16px inset reading as ~40px instead.
+              <PageContainer width="full" className="px-0">
+                {/* Main's rule: a viewer does not get the jump into the stop
+                    editor, so `onSelectActivity` is withheld (ADR-031). The
+                    `readOnly` prop is the half that rule does not reach —
+                    double-click-to-create calls `openCreate` from useEditor()
+                    directly, not through this callback, so without it a viewer
+                    could still raise the editor in create mode. */}
+                {lens === "Map" && (
+                  <MapLens
+                    detail={activeTrip}
+                    onSelectActivity={readOnly ? undefined : openEdit}
+                    readOnly={readOnly}
+                  />
+                )}
+              </PageContainer>
+            ) : (
+              <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
+                {lens === "Board" && (
+                  <Board
+                    trip={activeTrip}
+                    focusedDay={focusedDay}
+                    // A viewer's board, and the demo's, show the plan and offer
+                    // nothing that changes it (ADR-031). `readOnly` comes from
+                    // the provider's own gate — the same flag that already
+                    // refuses the command — so the controls and the refusal can
+                    // never disagree about who may edit. The same reasoning
+                    // reached here independently from the M11 side
+                    // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
+                    // is the difference between an inert board and one whose
+                    // cards move and snap back.
+                    readOnly={readOnly}
+                    callbacks={{
+                      onSelectDay: setFocusedDay,
+                      onMove: moveActivity,
+                      onUnschedule: unscheduleActivity,
+                      onDragStart: () => onRackEvent({ type: "dragStart" }),
+                      onDragEnd: () => onRackEvent({ type: "dragEnd" }),
+                      onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
+                      onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
+                      onAddActivity: (value: ActivityFormValue) =>
+                        void dispatch({
+                          type: "AddActivity",
+                          tripId,
+                          activityId: crypto.randomUUID(),
+                          title: value.title,
+                          timeWindow: value.timeWindow ?? undefined,
+                          location: value.location ?? undefined,
+                          notes: value.notes ?? undefined,
+                          anchors: value.anchors,
+                          cost: value.cost ?? undefined,
+                        }),
+                      onUpdateActivity: updateActivity,
+                      onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+                      onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+                    }}
+                  />
+                )}
+                {lens === "Schedule" && (
+                  <ScheduleLens
+                    detail={activeTrip}
+                    readOnly={readOnly}
+                    onSelectActivity={readOnly ? undefined : openEdit}
+                    // The timeline raises real commands through this one seam:
+                    // UpdateActivity for the overlap warning's one-click fix,
+                    // DismissConflict for its dismissal, and — Phase 6 — AddDay
+                    // from the end-of-trip block's "Add a day". That last one is
+                    // deliberately the SAME `dispatch({ type: "AddDay", tripId,
+                    // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
+                    // above performs, just arriving pre-built (the seam carries
+                    // whole commands) rather than as a bare callback. None of
+                    // the three is ever a CreateTrip, which is the only
+                    // TripCommand dispatch doesn't take. The timeline scrolls
+                    // the appended day into view itself, via the focus effect it
+                    // already owns — see TimelineLens's `addDay`.
+                    onCommand={(command) => {
+                      // All three commands this seam carries (UpdateActivity,
+                      // DismissConflict, AddDay) are writes, so a viewer has
+                      // nothing legitimate to raise through it. Unreachable
+                      // today — the timeline withholds every affordance that
+                      // would raise one (`readOnly` above), and TripProvider's
+                      // `dispatch` refuses a viewer as well — and kept for the
+                      // same reason ActivityEditorSheet's handleSave guard is:
+                      // so the refusal does not depend on a render branch
+                      // somewhere below staying correct. The server refuses each
+                      // of them independently (accessPolicy.ts) and remains the
+                      // real gate; this is defence in depth.
+                      if (readOnly) return;
+                      if (command.type !== "CreateTrip") void dispatch(command);
+                    }}
+                  />
+                )}
+              </PageContainer>
+            )}
+          </div>
         </div>
+        {/* The assistant rail — real header/context/ask box (composeAiPlan,
+            same as the removed standalone ComposePanel used to call
+            directly). Mounted here, as the row's second flex child, so it's
+            present regardless of which lens is active and its 356px width
+            comes out of real layout (see the row's own comment above) rather
+            than a fixed-position overlay. Unmounted entirely (not just
+            visually hidden) when the user hides it, so it costs the row
+            nothing when closed. */}
+        {!isDemo && assistant.open && (
+          <AssistantRail
+            contextLine={assistantContextLine}
+            onAsk={(text) => void submitAssistantAsk(text)}
+            asking={askStatus === "loading"}
+            askError={askStatus === "error" ? askError : null}
+            simulated={askSimulated}
+            onHide={assistant.hide}
+          />
+        )}
       </div>
-      {/* The assistant rail — real header/context/ask box (composeAiPlan,
-          same as the removed standalone ComposePanel used to call directly)
-          + still-Preview suggestions/quick-asks (AssistantRail.tsx wraps
-          those two internally now, narrower than the old whole-rail wrap).
-          Mounted once here (like ActivityEditorSheet below) so it's present
-          regardless of which lens is active; it's fixed-position internally,
-          so it doesn't affect any lens's own layout. Unmounted entirely
-          (not just visually hidden) when the user hides it, so its fixed
-          scrim/aside don't linger in the DOM. */}
-      {isDemo ? null : assistant.open ? (
-        <AssistantRail
-          contextLine={assistantContextLine}
-          quickAsks={PREVIEW_QUICK_ASKS}
-          onAsk={(text) => void submitAssistantAsk(text)}
-          asking={askStatus === "loading"}
-          askError={askStatus === "error" ? askError : null}
-          simulated={askSimulated}
-          onHide={assistant.hide}
-        />
-      ) : (
+      {!isDemo && !assistant.open && (
         // Matches the design's minimized launcher (`Trip Planner Redesign
         // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
         // not the edge-tab treatment this used to have (variant="secondary",
         // rounded-r-none, vertically centered against the right edge) — the
         // design has no bordered edge-tab state for the assistant, only this
         // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
-        // same component's header).
+        // same component's header). Stays `position: fixed`, outside the row
+        // above — a closed rail costs no layout, so there is nothing for it
+        // to be a flex sibling of.
         <Button
           variant="primary"
           onClick={assistant.show}

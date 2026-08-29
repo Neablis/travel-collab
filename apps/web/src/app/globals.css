@@ -131,20 +131,6 @@
     }
   }
 
-  /* AssistantRail (Task 14, M9 preview shell): handoff README "Assistant
-     rail" — below 1180px the rail becomes a fixed overlay with a scrim
-     behind it; at/above 1180px it reads as a persistent side rail with no
-     scrim. That's a breakpoint decision, which only a real CSS rule (not an
-     inline style) can express. */
-  .assistant-rail-scrim {
-    display: none;
-  }
-  @media (max-width: 1179px) {
-    .assistant-rail-scrim {
-      display: block;
-    }
-  }
-
   /* PlaybooksStrip (Task 16, M11 preview shell): handoff README "Your
      Playbooks" grid is 4-col, collapsing to 2-col at 1180px — the same
      breakpoint number Task 14 used for the assistant rail's scrim, so this
@@ -161,53 +147,23 @@
     }
   }
 
-  /* Gate-verification fix (post-Task-18): AssistantRail's <Preview> wrapper
-     is `position: fixed; right: 0; width: 356px` at every viewport width
-     (Task 14's own choice, so the shell stays inspectable below 1180px too;
-     preview.tsx's own comment covers the Tailwind cascade-order bug that
-     used to leave it stuck at `position: relative` instead) — but only its
-     INNER children wrapper carries pointer-events:none (design-system.md's
-     Preview contract only ever shielded the shell's own content, never
-     claimed to reserve layout space). The outer wrapper itself has no
-     pointer-events override, so by default it still hit-tests across its
-     whole 356px-wide, full-height box. TripBoardScreen's real content (day
-     columns, dialogs, buttons) is laid out with no awareness of the rail and
-     can end up geometrically underneath that strip at ordinary desktop
-     widths — anything there becomes unclickable. (This is a real but
-     separate bug from the m8-make-it-real.spec.ts drag-to-day-3 timeout —
-     that one turned out to be page-height overflow pushing day columns below
-     the viewport fold, fixed in Board.tsx via autoScrollWindowForElements;
-     the rail's own wrapper was never actually position:fixed while that bug
-     was live, so it couldn't have been in the way.) Reserving the same 356px
-     as right padding on the real content — only at the same >=1180px
-     breakpoint where the rail behaves as a persistent (not overlay) panel,
-     matching the handoff's own "persistent side rail" framing — keeps real
-     content out from under it instead of trying to punch pointer-events
-     holes through a shell that has genuine visible content of its own. */
   /* Lens content needs its own clearance from the bottom of the page — a
      day-column/timeline row otherwise ends flush against the viewport edge.
      24px matches PageContainer's own px-6 gutter, so the content ends with
      the same margin it starts with horizontally. The Map lens is deliberately
      full-bleed (Task 2.3's "mapwrap") and opts out via `.full-bleed`
-     (TripBoardScreen.tsx sets it whenever the active lens is Map), the same
-     modifier-class pattern `.assistant-hidden` below uses. */
+     (TripBoardScreen.tsx sets it whenever the active lens is Map).
+     M16 Wave 1 (Task 4): this used to also reserve 356px of right padding at
+     >=1180px to keep real content out from under the Assistant rail, which
+     was `position: fixed` over the page at every width below that. Now that
+     the rail is a real flex sibling (TripBoardScreen.tsx's row wrapper), the
+     flex layout does that job directly — the reservation and its breakpoint
+     are dead weight once the thing they compensated for no longer exists. */
   .trip-board-content {
-    padding-right: 0;
     padding-bottom: 24px;
   }
   .trip-board-content.full-bleed {
     padding-bottom: 0;
-  }
-  @media (min-width: 1180px) {
-    .trip-board-content {
-      padding-right: 356px;
-    }
-    /* Hiding the rail (TripBoardScreen.tsx's real Hide toggle, M10
-       redesign-feedback follow-up) reclaims this reserved width instead of
-       leaving a dead gutter where the rail used to be. */
-    .trip-board-content.assistant-hidden {
-      padding-right: 0;
-    }
   }
 
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies
@@ -221,15 +177,16 @@
      is what actually delivers the design's intent — "a drawer pinned to the
      bottom of the plan area, present in every view" — from that DOM position.
      A named class rather than Tailwind because the right inset below needs a
-     media query and a sibling combinator, neither of which a utility class
-     (or an inline style) can express, and the color wall bans bracket values.
-     That inset mirrors `.trip-board-content`'s own 356px reservation at
-     >=1180px so the drawer stops short of the fixed Assistant rail instead of
-     running underneath it — keyed off the same `.assistant-hidden` marker
-     TripBoardScreen already sets, so hiding the rail reclaims the width here
-     too. The upward shadow is `--shadow-raised` mirrored (this is the one file
-     where a color literal may appear); z-index is the design's own 20, applied
-     as a plain `z-20` utility on the element. */
+     sibling combinator, which no utility class (or inline style) can
+     express, and the color wall bans bracket values. Being `fixed`, this
+     spans the full viewport width regardless of the flex row's own sizing
+     (M16 Wave 1, Task 4) — a fixed element ignores normal-flow siblings
+     entirely — so it needs the same 356px compensation the docked rail's
+     width calls for, independently, keyed off `.assistant-open`
+     (TripBoardScreen.tsx sets it on the row while the rail is mounted). The
+     upward shadow is `--shadow-raised` mirrored (this is the one file where
+     a color literal may appear); z-index is the design's own 20, applied as
+     a plain `z-20` utility on the element. */
   .unscheduled-rack {
     position: fixed;
     left: 0;
@@ -237,16 +194,16 @@
     bottom: 0;
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }
-  @media (min-width: 1180px) {
-    .trip-board-content:not(.assistant-hidden) ~ .unscheduled-rack {
-      right: 356px;
-    }
+  .assistant-open ~ .unscheduled-rack {
+    right: 356px;
   }
 
-  /* Radix portals render outside the React tree that holds the assistant rail
-     (a fixed z-50 aside), so overlay surfaces need an explicit layer above it.
-     Tailwind's scale stops at z-50 and the color wall bans z-[60], so this is
-     a named class. Every dialog/sheet/popover surface uses it. */
+  /* Radix portals render outside the React tree, appended to the end of
+     <body> — so an overlay surface needs an explicit layer above whatever
+     else is stacked on the page (KI-17: before this existed, sheets and
+     dialogs rendered underneath a stacked element more than once). Tailwind's
+     scale stops at z-50 and the color wall bans z-[60], so this is a named
+     class. Every dialog/sheet/popover surface uses it. */
   .overlay-layer {
     z-index: 60;
   }

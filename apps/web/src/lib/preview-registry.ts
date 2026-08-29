@@ -18,14 +18,16 @@ export const PREVIEW_REGISTRY = {
   "home-playbooks-strip": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   // The rail's chrome (header/Hide) and ask box are real as of the M10
   // redesign-feedback follow-up — composeAiPlan, the same real M7 feature
-  // the board's old ComposePanel used to expose directly. Only the quick-ask
-  // nudge chips are still M9/not-built.
+  // the board's old ComposePanel used to expose directly. The quick-ask
+  // nudge chips ("assistant-quick-asks") were deleted rather than left
+  // shelved in M16 Wave 1 (Task 4, SPEC §9's docked presentation) — Task 5
+  // reintroduces them as derived suggested questions computed from real trip
+  // state, not a wired-up copy of this same Preview shell.
   //
   // "assistant-suggestions" (the "What I noticed" shelf) was deleted rather
   // than left shelved — Mitchell, preview feedback on PR #55: the design's
   // panel has no such block, only the conversation and the ask box. Nothing
   // to wire up in M9 because there is nothing there to wire.
-  "assistant-quick-asks": { milestone: "M9", wiredUpBy: "M9 proactive suggestions" },
   "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
   "playbooks-route": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   "insert-playbook": { milestone: "M11", wiredUpBy: "M11 insert-a-Playbook" },

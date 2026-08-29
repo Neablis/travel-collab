@@ -1,5 +1,4 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
 
@@ -11,7 +10,6 @@ afterEach(cleanup);
 // the same values renderRail defaults to below.
 const baseProps: React.ComponentProps<typeof AssistantRail> = {
   contextLine: "Looking at Day 2 · Kyoto",
-  quickAsks: ["Where am I overbooked?", "Find a rainy-day swap"],
   onAsk: vi.fn(),
   onHide: vi.fn(),
 };
@@ -20,7 +18,6 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail
   return render(
     <AssistantRail
       contextLine="Looking at Day 2 · Kyoto"
-      quickAsks={["Where am I overbooked?", "Find a rainy-day swap"]}
       onAsk={vi.fn()}
       onHide={vi.fn()}
       {...overrides}
@@ -28,12 +25,12 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail
   );
 }
 
-// M10 redesign-feedback follow-up: the rail is no longer wrapped in a single
-// outer <Preview id="assistant-rail"> — its header/context line/ask box are
-// real (the same composeAiPlan feature the old standalone ComposePanel used
-// to expose directly), while the quick-ask chips stay behind their own,
-// narrower <Preview> wrap internally (still M9 — nothing generates a real
-// nudge yet).
+// M16 Wave 1 (Task 4, SPEC §9 docked presentation): the rail is a flex
+// sibling of the plan now, not a `position: fixed` overlay with a scrim in
+// front of it (KI-16, KI-17) — there is no scrim left to test. The quick-ask
+// chip row (and its <Preview> wrap) is gone with it; Task 5 reintroduces
+// suggested questions derived from real trip state, a different prop shape
+// than this hardcoded array.
 describe("AssistantRail", () => {
   it("renders the context line", () => {
     renderRail();
@@ -45,25 +42,9 @@ describe("AssistantRail", () => {
   // block either). Asserted, not merely deleted, so re-adding it is a
   // failing test rather than a silent regression.
   it("has no suggestions shelf, and holds the conversation space with the design's hint", () => {
-    const { container } = renderRail();
-    expect(container.querySelector('[data-preview-id="assistant-suggestions"]')).toBeNull();
+    renderRail();
     expect(screen.queryByText("What I noticed")).toBeNull();
     expect(screen.getByText("Ask about this trip and the conversation stays here.")).not.toBeNull();
-  });
-
-  it("renders quick-ask chips, inert inside their own Preview region", () => {
-    const { container } = renderRail();
-    const region = container.querySelector('[data-preview-id="assistant-quick-asks"]');
-    expect(region).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Where am I overbooked?" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Find a rainy-day swap" })).not.toBeNull();
-  });
-
-  it("does not call onAsk when a quick-ask chip is clicked — the shield swallows it", async () => {
-    const onAsk = vi.fn();
-    renderRail({ onAsk });
-    await userEvent.click(screen.getByRole("button", { name: "Where am I overbooked?" })).catch(() => {});
-    expect(onAsk).not.toHaveBeenCalled();
   });
 
   it("the Ask box is real: typing and submitting calls onAsk with the typed text", async () => {
@@ -129,26 +110,6 @@ describe("AssistantRail", () => {
     renderRail({ onHide });
     fireEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(onHide).toHaveBeenCalledOnce();
-  });
-
-  it("dismisses the rail when the scrim is clicked", async () => {
-    const onHide = vi.fn();
-    renderRail({ onHide });
-
-    await userEvent.click(screen.getByRole("button", { name: "Close the assistant" }));
-
-    expect(onHide).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not leave an inert pointer-blocking layer over the page", () => {
-    renderRail();
-
-    const scrim = document.querySelector(".assistant-rail-scrim");
-    expect(scrim).not.toBeNull();
-    // A blocking layer must be a real control, not an aria-hidden div — otherwise
-    // it swallows every click on the page behind it (the 1100px dead-page bug).
-    expect(scrim?.tagName).toBe("BUTTON");
-    expect(scrim?.getAttribute("aria-hidden")).toBeNull();
   });
 
   it("shows a Simulated badge when the last answer came from the server, not a model", () => {
