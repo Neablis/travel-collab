@@ -1,12 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { events, tripDetails, tripInvites, tripMemberships, tripShares, tripSummaries } from "../db/schema";
+import { tripDetails } from "../db/schema";
 import { executeTripCommand } from "../commands";
 import { createInvite, acceptInvite } from "./invites";
 import { createShare, listShares, readShare, revokeShare } from "./shares";
 
-const OWNER = "share-alice";
+// Unique per run so this file's actors cannot collide with another suite's,
+// with a developer's own dev-login identity, or with a previous run's leftovers
+// (KI-69). Every assertion below reads through a tripId or a share token this
+// test created, so a fresh actor plus a fresh trip is all the isolation needed.
+const RUN = randomUUID().slice(0, 8);
+const OWNER = `share-alice-${RUN}`;
+const GUEST = `share-bob-${RUN}`;
 
 async function seedTrip(name = "Kyoto"): Promise<string> {
   const tripId = randomUUID();
@@ -18,14 +25,16 @@ async function seedTrip(name = "Kyoto"): Promise<string> {
 const addDay = (tripId: string) =>
   executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, OWNER);
 
-beforeEach(async () => {
-  await db.delete(tripShares);
-  await db.delete(tripInvites);
-  await db.delete(tripMemberships);
-  await db.delete(tripDetails);
-  await db.delete(tripSummaries);
-  await db.delete(events);
-});
+// There is deliberately no `beforeEach` truncation here any more (KI-69).
+//
+// It used to delete every row of trip_shares, trip_invites, trip_memberships,
+// trip_details, trip_summaries and events — not the rows this file created, all
+// of them — so anything else holding a row in those tables lost it mid-run. The
+// only thing that made that safe was the policy declaring postgres an exclusive
+// resource; the database is also shared with local development. Every test here
+// creates a fresh trip (`seedTrip` mints a randomUUID) and asserts through that
+// tripId or a share token it just minted, so there is nothing to clean up
+// between tests and nothing left over that any assertion can see.
 
 describe("a pinned share is pinned", () => {
   // The milestone's whole second user story, and the exit-gate line that
@@ -90,13 +99,26 @@ describe("a pinned share is pinned", () => {
 
     // Corrupt the projection with a plausible-but-wrong day count. A read
     // that served the projection would return three days; replay returns one.
-    const stored = (await db.select().from(tripDetails))[0]!;
-    await db.update(tripDetails).set({
-      doc: {
-        ...stored.doc,
-        days: [...stored.doc.days, ...stored.doc.days, ...stored.doc.days],
-      },
-    });
+    //
+    // Both statements are scoped to this test's own trip (KI-69). They used to
+    // be `db.select().from(tripDetails)` taking `[0]!` — whichever row the heap
+    // happened to return first — followed by an `update` with NO `where`, which
+    // wrote the deliberately-corrupted doc into EVERY row of trip_details in
+    // the database. That was safe only because the beforeEach above had just
+    // emptied the table, i.e. only because this suite owned the whole database.
+    // The blast radius was real: `anchors.int.test.ts` asserts that every
+    // trip_details row re-projects identically after a rebuild, and a developer
+    // shares this DATABASE_URL with their own dev data.
+    const [stored] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+    await db
+      .update(tripDetails)
+      .set({
+        doc: {
+          ...stored!.doc,
+          days: [...stored!.doc.days, ...stored!.doc.days, ...stored!.doc.days],
+        },
+      })
+      .where(eq(tripDetails.tripId, tripId));
 
     const view = await readShare(share.value.token);
     expect(view.ok && view.value.days).toHaveLength(1);
@@ -208,7 +230,7 @@ describe("what a stranger is served", () => {
   it("names no traveller, and carries no conflicts or status", async () => {
     const tripId = await seedTrip();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    await acceptInvite(invite.token, "share-bob");
+    await acceptInvite(invite.token, GUEST);
     const share = await createShare(tripId, OWNER);
     expect(share.ok).toBe(true);
     if (!share.ok) return;
@@ -219,7 +241,7 @@ describe("what a stranger is served", () => {
 
     const serialized = JSON.stringify(view.value);
     expect(serialized).not.toContain(OWNER);
-    expect(serialized).not.toContain("share-bob");
+    expect(serialized).not.toContain(GUEST);
     expect(Object.keys(view.value)).not.toContain("members");
     expect(Object.keys(view.value)).not.toContain("conflicts");
     expect(Object.keys(view.value)).not.toContain("status");
