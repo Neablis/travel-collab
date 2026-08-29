@@ -38,6 +38,17 @@ const TIP_MOVING = [
   "git push -f origin main",
   "git push origin --force", // was missed
   "git push origin main --force-with-lease",
+  // Git's global options sit between `git` and the subcommand, so every arm
+  // keyed on `git <subcommand>` and these walked through. They move a tip
+  // exactly as far as the bare forms above.
+  "git -C . reset --hard HEAD~1",
+  "git --no-pager push --force origin main",
+  "git -c core.pager=cat rebase main",
+  "git -ccore.pager=cat rebase main", // attached value, same option
+  // No `.git` in the path on purpose: a trailing `/.git` would make even the
+  // old `\bgit\s+commit\b` pattern match, so the case would prove nothing.
+  "git --git-dir=/tmp/x/repo commit --amend --no-edit",
+  "git -c a=b -C /tmp/x push -f origin main", // several, mixed forms
 ];
 
 for (const command of TIP_MOVING) {
@@ -61,6 +72,16 @@ const HARMLESS = [
   'git commit -m "fix: leave the tip alone"',
   "git diff --name-only main...HEAD",
   "pnpm --filter web test",
+  // The global-option prefix must not turn harmless commands destructive:
+  // the subcommand still has to be one of the four, and the SEGMENT guard
+  // still has to hold across `&&`.
+  "git -C /tmp/x status",
+  "git --no-pager log --oneline -5",
+  "git -c core.pager=cat reset HEAD -- apps/web/src/app/page.tsx",
+  "git -C /tmp/x push origin claude/my-branch",
+  "git -c user.name=Test commit -m 'no amend here'",
+  "git -C . status && rm -rf --force x",
+  "git log --oneline reset", // `reset` as an argument, not the subcommand
 ];
 
 for (const command of HARMLESS) {

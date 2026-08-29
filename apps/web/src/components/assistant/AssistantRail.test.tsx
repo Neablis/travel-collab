@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
@@ -87,7 +87,20 @@ describe("AssistantRail", () => {
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-    await waitFor(() => expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?"));
+    expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
+
+    // The prompt only survives if it survives PAST the await inside submitAsk,
+    // so the flush is load-bearing and is written out rather than implied. It
+    // was implied before, by `await waitFor(() => expect(onAsk)…)`: that
+    // condition is satisfied on its first synchronous callback run, and what
+    // actually let the clear land was waitFor's own asyncWrapper draining the
+    // microtask queue inside `act`. Measured, not assumed — an unconditional
+    // `setAsk("")` fails both forms — but a test whose bite comes from a
+    // library implementation detail it never names is one refactor away from
+    // silently asserting nothing.
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect((input as HTMLInputElement).value).toBe("Where am I overbooked?");
   });
 

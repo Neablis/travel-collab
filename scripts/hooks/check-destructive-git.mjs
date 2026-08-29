@@ -27,16 +27,37 @@ try {
 // `SEGMENT` keeps each flag search inside one command, so `git status && rm
 // -rf --force x` can never read as `git push --force`.
 const SEGMENT = "[^\n;|&]*?";
+
+// Git's own global options sit BETWEEN `git` and the subcommand, and every arm
+// below keys on the subcommand — so `git -C . reset --hard HEAD~1`,
+// `git --no-pager push --force origin main` and `git -c core.pager=cat rebase
+// main` all walked past a pattern that only knew `git reset`. They move a
+// branch tip exactly as far as the bare forms do.
+//
+// An explicit allowlist rather than a generic `-\S+`: the prefix is the one
+// place a wildcard could let an unrelated command read as a destructive one,
+// and git's global option set is closed and rarely changes. Option arguments
+// exclude the SEGMENT separators so a value can never swallow a `&&`.
+const OPT_ARG = "[^\\s;|&]+";
+const GIT_GLOBAL_OPT = [
+  // Take a value, attached or as the next token: -c name=value, -C <path>.
+  `-[cC]\\s*${OPT_ARG}`,
+  `--(?:git-dir|work-tree|namespace|exec-path|config-env|attr-source)=${OPT_ARG}`,
+  "--(?:no-pager|paginate|bare|no-replace-objects|no-optional-locks|no-advice|literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs)\\b",
+  "-[pP]\\b",
+].join("|");
+const GIT = `\\bgit\\b(?:\\s+(?:${GIT_GLOBAL_OPT}))*`;
+
 const DESTRUCTIVE = new RegExp(
   [
     // A reset only rewrites history when it names a commit-ish or a mode.
     // Bare `git reset` and `git reset HEAD -- <path>` just touch the index,
     // and asking about those would train everyone to click through.
-    `\\bgit\\s+reset\\b(?=${SEGMENT}(?:--(?:hard|soft|mixed|merge|keep)\\b|\\bHEAD[~^]|\\bHEAD@\\{|\\bORIG_HEAD\\b|\\b[0-9a-f]{7,40}\\b|\\borigin/))`,
-    "\\bgit\\s+rebase\\b",
+    `${GIT}\\s+reset\\b(?=${SEGMENT}(?:--(?:hard|soft|mixed|merge|keep)\\b|\\bHEAD[~^]|\\bHEAD@\\{|\\bORIG_HEAD\\b|\\b[0-9a-f]{7,40}\\b|\\borigin/))`,
+    `${GIT}\\s+rebase\\b`,
     // --amend replaces the tip commit without the word "reset" appearing.
-    `\\bgit\\s+commit\\b(?=${SEGMENT}\\s--amend\\b)`,
-    `\\bgit\\s+push\\b(?=${SEGMENT}\\s(?:--force(?:-with-lease|-if-includes)?\\b|-f\\b))`,
+    `${GIT}\\s+commit\\b(?=${SEGMENT}\\s--amend\\b)`,
+    `${GIT}\\s+push\\b(?=${SEGMENT}\\s(?:--force(?:-with-lease|-if-includes)?\\b|-f\\b))`,
   ].join("|"),
 );
 

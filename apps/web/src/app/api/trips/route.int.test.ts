@@ -185,21 +185,24 @@ describe("GET /api/trips cost", () => {
 
     const spy = vi.spyOn(db.$client, "query");
 
+    // `solo` owns one trip and is a viewer on all five of `many`'s, so it is
+    // SOLO's grid that has six cards and MANY's that has five — the two user
+    // ids describe what each owns, not what each sees.
     currentUserId = solo;
     spy.mockClear();
-    const few = await grid();
-    const forOneTrip = spy.mock.calls.length;
+    const sixCards = await grid();
+    const forSixTrips = spy.mock.calls.length;
 
     currentUserId = many;
     spy.mockClear();
-    const lots = await grid();
-    const forSixTrips = spy.mock.calls.length;
+    const fiveCards = await grid();
+    const forFiveTrips = spy.mock.calls.length;
 
     spy.mockRestore();
 
-    expect(few.length).toBe(6); // 1 owned + 5 joined as viewer
-    expect(lots.length).toBe(5);
-    expect(forOneTrip).toBe(2); // the summaries query + one batched members read
-    expect(forSixTrips).toBe(forOneTrip);
+    expect(sixCards.length).toBe(6); // 1 owned + 5 joined as viewer
+    expect(fiveCards.length).toBe(5);
+    expect(forSixTrips).toBe(2); // the summaries query + one batched members read
+    expect(forFiveTrips).toBe(forSixTrips);
   });
 });

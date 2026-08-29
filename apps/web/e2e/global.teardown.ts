@@ -43,52 +43,62 @@ export default async function globalTeardown(): Promise<void> {
     return;
   }
 
-  const context = await request.newContext({ storageState: STORAGE_STATE });
+  // The outer catch is what makes the "deliberately never throws" above true
+  // rather than nearly true: only the session fetch carried its own `.catch`,
+  // so `newContext`, `context.get`, `listed.json()` and `context.post` could
+  // each reject — and a rejection out of globalTeardown fails the whole run.
+  // A server that died between the last spec and this hook would have turned
+  // a green suite red from cleanup code.
   try {
-    const session = await context
-      .get(`${BASE_URL}/api/auth/session`)
-      .then(async (r) => (r.ok() ? await r.json().catch(() => undefined) : undefined))
-      .catch(() => undefined);
-    const userId: unknown = session?.user?.id;
-    if (typeof userId !== "string" || userId === "") {
-      console.warn("[e2e teardown] skipped: saved session is not signed in; nothing cleaned up.");
-      return;
+    const context = await request.newContext({ storageState: STORAGE_STATE });
+    try {
+      const session = await context
+        .get(`${BASE_URL}/api/auth/session`)
+        .then(async (r) => (r.ok() ? await r.json().catch(() => undefined) : undefined))
+        .catch(() => undefined);
+      const userId: unknown = session?.user?.id;
+      if (typeof userId !== "string" || userId === "") {
+        console.warn("[e2e teardown] skipped: saved session is not signed in; nothing cleaned up.");
+        return;
+      }
+
+      const listed = await context.get(`${BASE_URL}/api/trips`);
+      if (!listed.ok()) {
+        console.warn(`[e2e teardown] skipped: GET /api/trips -> ${listed.status()}; nothing cleaned up.`);
+        return;
+      }
+      const { trips } = (await listed.json()) as {
+        trips: { tripId: string; name: string; members: { userId: string; role: string }[] }[];
+      };
+
+      const mine = trips.filter(
+        (trip) =>
+          trip.name.startsWith(`${E2E_TRIP_PREFIX} `) &&
+          trip.members.some((member) => member.userId === userId && member.role === "owner"),
+      );
+
+      let deleted = 0;
+      const failures: string[] = [];
+      for (const trip of mine) {
+        const response = await context.post(`${BASE_URL}/api/trips/${trip.tripId}/commands`, {
+          data: { type: "DeleteTrip", tripId: trip.tripId },
+        });
+        if (response.ok()) deleted += 1;
+        else failures.push(`${trip.name} -> ${response.status()}`);
+      }
+
+      console.log(
+        `[e2e teardown] deleted ${deleted}/${mine.length} "${E2E_TRIP_PREFIX}" trip(s) owned by ${userId}.`,
+      );
+      // Known residue, not an oversight: m11-clone's copies are owned by "erin",
+      // who has no saved storageState, so this pass cannot see them. They are two
+      // rows per run on a list no spec's timing depends on — the KI-28 fan-out
+      // this exists to stop is on the shared user's home grid.
+      if (failures.length > 0) console.warn(`[e2e teardown] could not delete: ${failures.join(", ")}`);
+    } finally {
+      await context.dispose();
     }
-
-    const listed = await context.get(`${BASE_URL}/api/trips`);
-    if (!listed.ok()) {
-      console.warn(`[e2e teardown] skipped: GET /api/trips -> ${listed.status()}; nothing cleaned up.`);
-      return;
-    }
-    const { trips } = (await listed.json()) as {
-      trips: { tripId: string; name: string; members: { userId: string; role: string }[] }[];
-    };
-
-    const mine = trips.filter(
-      (trip) =>
-        trip.name.startsWith(`${E2E_TRIP_PREFIX} `) &&
-        trip.members.some((member) => member.userId === userId && member.role === "owner"),
-    );
-
-    let deleted = 0;
-    const failures: string[] = [];
-    for (const trip of mine) {
-      const response = await context.post(`${BASE_URL}/api/trips/${trip.tripId}/commands`, {
-        data: { type: "DeleteTrip", tripId: trip.tripId },
-      });
-      if (response.ok()) deleted += 1;
-      else failures.push(`${trip.name} -> ${response.status()}`);
-    }
-
-    console.log(
-      `[e2e teardown] deleted ${deleted}/${mine.length} "${E2E_TRIP_PREFIX}" trip(s) owned by ${userId}.`,
-    );
-    // Known residue, not an oversight: m11-clone's copies are owned by "erin",
-    // who has no saved storageState, so this pass cannot see them. They are two
-    // rows per run on a list no spec's timing depends on — the KI-28 fan-out
-    // this exists to stop is on the shared user's home grid.
-    if (failures.length > 0) console.warn(`[e2e teardown] could not delete: ${failures.join(", ")}`);
-  } finally {
-    await context.dispose();
+  } catch (error) {
+    console.warn(`[e2e teardown] skipped: cleanup failed (${String(error)}); trips may be left behind.`);
   }
 }

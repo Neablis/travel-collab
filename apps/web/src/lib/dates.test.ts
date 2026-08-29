@@ -49,6 +49,27 @@ describe("addDaysIso", () => {
     expect(() => addDaysIso("2026-1", 1)).toThrow(RangeError);
     expect(() => addDaysIso("", 1)).toThrow(RangeError);
   });
+
+  // The half of KI-73 that lives here. Shape and calendar validity are not the
+  // same check, and `TripDate` (contracts) only does the first — so a date
+  // that passes every gate upstream could still be one the calendar does not
+  // have. "2026-02-30" was the dangerous case: it PARSED, rolling over to
+  // March 2, so adding a day returned a date three days from the input. The
+  // out-of-range forms already failed, and are pinned here so the round-trip
+  // check cannot regress them into rolling over too.
+  it("rejects a calendar-invalid date instead of rolling it over", () => {
+    expect(() => addDaysIso("2026-02-30", 1)).toThrow(RangeError); // rolled to 2026-03-03
+    expect(() => addDaysIso("2027-02-29", 0)).toThrow(RangeError); // 2027 is not a leap year
+    expect(() => addDaysIso("2026-06-31", 1)).toThrow(RangeError); // June has 30 days
+    expect(() => addDaysIso("2026-13-01", 1)).toThrow(RangeError);
+    expect(() => addDaysIso("2026-01-45", 1)).toThrow(RangeError);
+    expect(() => addDaysIso("2026-00-10", 1)).toThrow(RangeError);
+    // Still accepted: the real dates nearest each rejection above.
+    expect(addDaysIso("2026-02-28", 1)).toBe("2026-03-01");
+    expect(addDaysIso("2028-02-29", 1)).toBe("2028-03-01");
+    expect(addDaysIso("2026-06-30", 1)).toBe("2026-07-01");
+    expect(addDaysIso("2026-12-31", 1)).toBe("2027-01-01");
+  });
 });
 
 describe("dayLabel", () => {

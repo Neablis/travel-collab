@@ -17,11 +17,21 @@ describe("ActivityAdded/ActivityUpdated payload parity", () => {
     return { added, updated };
   };
 
-  it("carry the same field set apart from dayId, in the same order", () => {
+  // Sorted, deliberately. `Object.keys` on a Zod shape reflects DECLARATION
+  // order, so the previous `toEqual` also failed when two fields were merely
+  // swapped in `ActivityPayloadFields` — a diff that changes nothing either
+  // payload accepts or produces. Order is not part of this contract: event
+  // payloads are stored in `event_log.payload` as jsonb (schema.ts), which
+  // Postgres normalises rather than storing verbatim, and nothing hashes or
+  // string-compares a payload. What this test exists to catch is a
+  // `.default()` landing on one payload and not the other — a question about
+  // the field SET. Failing on key order taught a reader to fix the order and
+  // move on, which is the one reaction that can't find that bug.
+  it("carry the same field set apart from dayId", () => {
     const { added, updated } = shared();
     // dayId is Added-only: an update never relocates an activity (that is
     // ActivityMoved), so there is nothing for it to say.
-    expect(added.filter((k) => k !== "dayId")).toEqual(updated);
+    expect(added.filter((k) => k !== "dayId").sort()).toEqual([...updated].sort());
   });
 
   it("materialise identical defaults from a minimal stored payload", () => {
