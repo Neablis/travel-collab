@@ -7,11 +7,17 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M11 is the current
-milestone** (Phase 3), scheduled 2026-08-27 ahead of M18's remaining surfaces
-and M16. Whichever item carries `← current milestone` is the current work; when
-that marker and the first unchecked item disagree, the marker names a recorded
-Mitchell decision and the milestone file it cites is the evidence.
+purpose**, so read the marker, not the position: **M18's remaining surfaces
+are the current work**, per the order M11's close leaves standing —
+`M18 (surfaces) → M16 → M12 → M13 → M14 → M9`. Whichever item carries
+`← current milestone` is the current work; when that marker and the first
+unchecked item disagree, the marker names a recorded Mitchell decision and the
+milestone file it cites is the evidence.
+
+**Two items are approved but deliberately unplaced, and neither is "next"
+just because it appears unchecked:** M17 (account customization, needs a
+re-scope first) and **M11b Playbooks** (carved out of M11's gate 2026-08-28,
+needs its own scope and exit gate written before it opens).
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
@@ -68,8 +74,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       blocking a click). Retro, evidence and the promoted rules are in the
       milestone file; the phase plans were deleted in the gate-close commit per
       `docs/plans/README.md`.)*
-- [ ] **M18 A stop knows what kind of thing it is** — **PR 1 landed; the
-      surfaces are deferred behind M11**
+- [ ] **M18 A stop knows what kind of thing it is** ← **current milestone**
+      — PR 1 landed; **its surfaces are unblocked as of M11's gate close
+      (2026-08-28)**
       → `docs/milestones/M18-stop-kind.md`
       *(**PR 1, the contract change, landed 2026-08-27 via PR #63** —
       `ActivityKind` and `ActivityTag` are real fields on `AddActivity`,
@@ -121,20 +128,30 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 ## Phase 3 — Outward
 
-- [ ] **M11 Sharing, invites, and a trip you can hand to someone** ←
-      **current milestone, in flight**
+- [x] **M11 Sharing, invites, and a trip you can hand to someone** —
+      **gate closed 2026-08-28**
       → `docs/milestones/M11-sharing-and-invites.md`
       *(**Scheduled 2026-08-27 ahead of M18's remaining surfaces and ahead of
       M16**, by Mitchell's call — the explicit say-so this file's ordering rule
-      requires. It **absorbs M13's invites/roles/revocation scope** in the same
+      requires. It **absorbed M13's invites/roles/revocation scope** in the same
       decision; M13 keeps only near-real-time sync and its transport ADR.
-      Inherits trip templates from M7. **Links 1-6 landed 2026-08-28 via
-      PR #71** (users/identity, roles and access, invites, pinned shares,
-      clone-with-lineage, saved days) — but the gate has **not** been run: one
-      of nine exit-gate boxes is ticked. Four migrations (0006-0009) are merged
-      and **undispatched to production**, which is a blocker on the gate, not on
-      the code. Review findings still open against it:
-      `docs/reviews/2026-08-28-m11-pr71-review.md`.)*
+      Links 1-6 landed 2026-08-28 via PR #71 with remediation in PR #78
+      (users/identity, roles and access, invites, pinned shares,
+      clone-with-lineage, saved days); migrations 0006-0010 are dispatched to
+      production. **Playbooks/templates — inherited from M7 — was carved out of
+      this gate by Mitchell on 2026-08-28 and is its own follow-on**, so the
+      four Playbooks `<Preview>` shells stay M11-tagged in
+      `preview-registry.ts` with nothing else left in the milestone. Gate
+      evidence and retro are in the milestone file.)*
+- [ ] **M11b Playbooks / templates** — **approved, unplaced** (not "next").
+      The piece carved out of M11's gate.
+      *(Carved out 2026-08-28 when M11's gate closed: the milestone's file
+      said its Playbooks scope stayed, none of its eight exit-gate boxes tested
+      it, and none of the six links touched it. Still shelled and still
+      M11-tagged: `home-playbooks-strip`, `playbooks-route`, `insert-playbook`,
+      `wizard-playbook-panel` — plus a whole `/playbooks` route rendering mock
+      cards. Needs its own scope and exit gate written before it opens; saved
+      days (link 6) is the data model it would build on.)*
 - [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
       conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
