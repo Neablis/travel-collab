@@ -669,3 +669,117 @@ describe("TripProvider — an access read that fails is surfaced, not acted on",
     await waitFor(() => expect(screen.getByTestId("accessUnknown").textContent).toBe("false"));
   });
 });
+
+// ---------------------------------------------------------------------------
+// KI-70. `dispatch`'s history branch refuses to run while anything is pending —
+// "don't interleave undo/redo/revert with unconfirmed optimistic edits" — and
+// it reconciles with `{ confirmed, pending: [] }`, which is only safe BECAUSE
+// of that refusal. The guard used to read the render-time `pending`, so two
+// actions inside one React tick saw the PRE-enqueue value: the guard passed and
+// the reconcile threw away the unit queued a moment earlier. One user edit,
+// gone, with no error.
+//
+// `runDispatch` already solved this three lines away, and says so:
+// `optimisticRef.current` is advanced synchronously "so anything dispatched
+// later in this same tick predicts against this result rather than the
+// pre-dispatch queue". The history branch now reads the same value.
+// ---------------------------------------------------------------------------
+
+function SameTickProbe() {
+  const { activeTrip, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <button
+        // ONE handler, so both dispatches land in one React tick and the second
+        // closes over the same render's `pending`. This is the race, not a
+        // simulation of it: no timers, no fake scheduler.
+        onClick={() => {
+          void dispatch({ type: "AddDay", tripId: "x", dayId: "d-race" } as never);
+          void dispatch({ type: "UndoLastChange", tripId: "x" } as never);
+        }}
+      >
+        edit-then-undo
+      </button>
+      <button onClick={() => void dispatch({ type: "UndoLastChange", tripId: "x" } as never)}>
+        undo
+      </button>
+    </div>
+  );
+}
+
+describe("TripProvider history dispatch in the same tick as an enqueue (KI-70)", () => {
+  it("refuses the undo instead of discarding the just-queued edit", async () => {
+    // The AddDay send is held in flight, so the queued unit is unambiguously
+    // still pending when the undo is decided.
+    sendTripCommandMock.mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <TripProvider tripId="x">
+        <SameTickProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "edit-then-undo" }));
+
+    // Settled, then asserted: a guard that merely DELAYS the undo is not a
+    // guard, so this waits out every microtask rather than sampling early.
+    await act(async () => {});
+    const sentTypes = sendTripCommandMock.mock.calls.map(
+      (call) => (call[0] as { type: string }).type,
+    );
+    expect(sentTypes).toEqual(["AddDay"]);
+  });
+
+  it("keeps the optimistic edit on screen (it used to vanish with no error)", async () => {
+    // The undo, if it is allowed through, succeeds and reconciles to a trip
+    // with one day — which is what silently ate the queued second day.
+    sendTripCommandMock.mockImplementation(async (command: { type: string }) =>
+      command.type === "UndoLastChange"
+        ? { ok: true, value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") } }
+        : new Promise(() => {}),
+    );
+
+    render(
+      <TripProvider tripId="x">
+        <SameTickProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "edit-then-undo" }));
+
+    // Two days: the confirmed one plus the optimistic d-race. Asserted after a
+    // settled microtask queue, so a reconcile that clears `pending` has had
+    // every chance to land.
+    await act(async () => {});
+    expect(screen.getByTestId("dayCount").textContent).toBe("2");
+  });
+
+  it("still lets a history command through once nothing is pending", async () => {
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+
+    render(
+      <TripProvider tripId="x">
+        <SameTickProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    // Undo on its own, with an empty queue: not racing anything. Without this
+    // case the two above would pass against a provider that simply never sends
+    // a history command at all.
+    fireEvent.click(screen.getByRole("button", { name: "undo" }));
+
+    await waitFor(() => {
+      const sentTypes = sendTripCommandMock.mock.calls.map(
+        (call) => (call[0] as { type: string }).type,
+      );
+      expect(sentTypes).toContain("UndoLastChange");
+    });
+  });
+});
