@@ -48,7 +48,8 @@ const TIP_MOVING = [
   // No `.git` in the path on purpose: a trailing `/.git` would make even the
   // old `\bgit\s+commit\b` pattern match, so the case would prove nothing.
   "git --git-dir=/tmp/x/repo commit --amend --no-edit",
-  "git -c a=b -C /tmp/x push -f origin main", // several, mixed forms
+  "git -c a=b -C /tmp/x push -f origin main",
+  "git --no-lazy-fetch reset --hard HEAD~1", // several, mixed forms
 ];
 
 for (const command of TIP_MOVING) {

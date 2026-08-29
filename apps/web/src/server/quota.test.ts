@@ -45,6 +45,25 @@ describe("consumeQuota", () => {
     expect(refused).toMatchObject({ allowed: false, reason: "user" });
   });
 
+  // The reason `envCeiling` stops one below int4 max, exercised on the decision
+  // itself rather than on the configured number. `bump()` increments and the
+  // refusal is `count > ceiling`, so refusing at a ceiling of C needs the
+  // counter to reach C+1 — which at int4 max is a value the column cannot
+  // hold. Here the store is asked to return exactly the highest ceiling
+  // `envCeiling` will now accept, and the decision must be a refusal: if it
+  // were an allow, the next request would be the one that overflows.
+  it("refuses at the highest ceiling envCeiling accepts, rather than needing an unstorable +1", async () => {
+    const MAX_ACCEPTED = 2_147_483_646;
+    const atCeiling: QuotaCounters = { async bump() { return MAX_ACCEPTED + 1; } };
+    const decision = await consumeQuota(
+      [{ name: "test", windowMs: 60_000, perUser: MAX_ACCEPTED, global: MAX_ACCEPTED }],
+      "alice",
+      atCeiling,
+      T0,
+    );
+    expect(decision).toMatchObject({ allowed: false, reason: "user" });
+  });
+
   it("meters each user separately", async () => {
     const counters = fakeCounters();
     for (let i = 0; i < POLICY.perUser + 1; i += 1) {

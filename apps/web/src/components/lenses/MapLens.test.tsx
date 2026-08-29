@@ -16,6 +16,41 @@ import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
 // `vi.hoisted` because `vi.mock` factories run before the rest of the module
 // evaluates — these spies need to exist by the time the factory closure
 // captures them, and also be importable by the tests below to assert on.
+const { openCreateCalls, wrapped } = vi.hoisted(() => ({
+  openCreateCalls: [] as unknown[],
+  wrapped: new WeakMap<object, unknown>(),
+}));
+
+// The real EditorHost stays mounted — only `useEditor` is wrapped, so the
+// double-click test can assert WHAT the handler creates rather than merely
+// that it did not throw. Passthrough: every other test in this file keeps the
+// real editor behaviour.
+vi.mock("@/components/trip/context/EditorHost", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/trip/context/EditorHost")>();
+  return {
+    ...actual,
+    useEditor: () => {
+      const real = actual.useEditor();
+      // Cached on the real context value, so the wrapper keeps ONE identity for
+      // as long as the provider does. Returning a fresh object (or a fresh
+      // `openCreate`) per render changes the dep of MapLens's registration
+      // effect every time, which re-runs it and double-adds every route layer —
+      // a test-only mock silently changing the behaviour under test.
+      const cached = wrapped.get(real) as ReturnType<typeof actual.useEditor> | undefined;
+      if (cached !== undefined) return cached;
+      const value = {
+        ...real,
+        openCreate: (input: Parameters<typeof real.openCreate>[0]) => {
+          openCreateCalls.push(input);
+          return real.openCreate(input);
+        },
+      };
+      wrapped.set(real, value);
+      return value;
+    },
+  };
+});
+
 const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances } = vi.hoisted(
   () => ({
     addLayerMock: vi.fn(),
@@ -506,6 +541,7 @@ describe("MapLens — a viewer's map", () => {
     mapHandlers.clear();
     markerInstances.length = 0;
     addLayerMock.mockClear();
+    openCreateCalls.length = 0;
   });
 
   it("registers no double-click-to-create handler", async () => {
@@ -527,8 +563,16 @@ describe("MapLens — a viewer's map", () => {
     await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
     expect(mapHandlers.has("dblclick")).toBe(true);
 
-    // The handler itself, driven the way maplibre would drive it — the proof
-    // that "registered" means "creates a stop", not just "is present".
-    expect(() => mapHandlers.get("dblclick")!({ lngLat: { lng: 12.4922, lat: 41.8902 } })).not.toThrow();
+    // The handler itself, driven the way maplibre would drive it. Asserting the
+    // PAYLOAD, not merely that it did not throw: a handler that silently did
+    // nothing would satisfy "does not throw" while creating no stop, and the
+    // whole claim here is that registration means the click reaches openCreate
+    // carrying the point that was clicked.
+    mapHandlers.get("dblclick")!({ lngLat: { lng: 12.4922, lat: 41.8902 } });
+
+    expect(openCreateCalls).toHaveLength(1);
+    expect(openCreateCalls[0]).toMatchObject({
+      location: { lat: 41.8902, lng: 12.4922 },
+    });
   });
 });

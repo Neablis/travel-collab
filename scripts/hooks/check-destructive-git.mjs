@@ -43,7 +43,11 @@ const GIT_GLOBAL_OPT = [
   // Take a value, attached or as the next token: -c name=value, -C <path>.
   `-[cC]\\s*${OPT_ARG}`,
   `--(?:git-dir|work-tree|namespace|exec-path|config-env|attr-source)=${OPT_ARG}`,
-  "--(?:no-pager|paginate|bare|no-replace-objects|no-optional-locks|no-advice|literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs)\\b",
+  // `no-lazy-fetch` is here on documentation, not on observation: the git in
+  // this container predates it and answers "unknown option", so the bypass it
+  // opens is real only for a developer on a newer git — which is exactly the
+  // person this hook cannot afford to miss.
+  "--(?:no-pager|paginate|bare|no-lazy-fetch|no-replace-objects|no-optional-locks|no-advice|literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs)\\b",
   "-[pP]\\b",
 ].join("|");
 const GIT = `\\bgit\\b(?:\\s+(?:${GIT_GLOBAL_OPT}))*`;
