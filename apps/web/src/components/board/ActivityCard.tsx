@@ -15,6 +15,8 @@ import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { kindBadge } from "./activityKind";
+import { TAG_CHIP_CLASS, TAG_LABEL } from "./activityTags";
 
 export function ActivityCard({
   activity,
@@ -62,6 +64,10 @@ export function ActivityCard({
   // its own dragged source in some browsers, and "insert next to yourself"
   // is never a real position resolveDrop would produce.
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+  // Null for `planned` — see activityKind.ts. Both this and the tag chips
+  // below render for a reader too: they describe the plan, and `readOnly`
+  // withholds the controls that change it, not the plan itself.
+  const badge = kindBadge(activity.kind);
 
   useEffect(() => {
     const el = ref.current;
@@ -123,6 +129,11 @@ export function ActivityCard({
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-1.5">
           <Text as="span" className="font-medium">{activity.title}</Text>
+          {badge && (
+            <Badge variant={badge.variant} data-testid={`kind-badge-${activity.activityId}`}>
+              {badge.label}
+            </Badge>
+          )}
           {hasConflict && (
             <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
               <AlertTriangle className="size-3" aria-hidden />
@@ -144,6 +155,26 @@ export function ActivityCard({
         <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
       )}
       {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
+      {/* Tag chips (M18), below the meta row and above the cost, where the
+          handoff puts them. Deliberately spans and not buttons: SPEC §11's
+          click-a-chip-to-focus behaviour is carved out as M18b, and a chip
+          that looked pressable and did nothing would be a worse lie than one
+          that plainly reads. Rendered in the stop's own array order rather
+          than the canonical one the editor writes — the card shows the data
+          it was given, including arrays written before there was an editor. */}
+      {activity.tags.length > 0 && (
+        <div data-testid={`tag-chips-${activity.activityId}`} className="mt-2 flex flex-wrap gap-1.5">
+          {activity.tags.map((tag) => (
+            <span
+              key={tag}
+              data-testid={`tag-chip-${tag}`}
+              className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[tag])}
+            >
+              {TAG_LABEL[tag]}
+            </span>
+          ))}
+        </div>
+      )}
       {/* Task 4.1 (M10 Phase 4): the board's per-stop cost, same treatment as
           TimelineLens's card — mono, formatMoney (KI-2), honest "No cost
           yet" for the null/undefined case. `activity.cost` truthiness
