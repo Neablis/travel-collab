@@ -1,6 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
+import type { AssistantTurn } from "./Transcript";
 
 afterEach(cleanup);
 
@@ -10,27 +11,26 @@ afterEach(cleanup);
 // the same values renderRail defaults to below.
 const baseProps: React.ComponentProps<typeof AssistantRail> = {
   contextLine: "Looking at Day 2 · Kyoto",
+  turns: [],
+  suggestions: [],
   onAsk: vi.fn(),
+  onNewConversation: vi.fn(),
   onHide: vi.fn(),
 };
 
 function renderRail(overrides: Partial<React.ComponentProps<typeof AssistantRail>> = {}) {
-  return render(
-    <AssistantRail
-      contextLine="Looking at Day 2 · Kyoto"
-      onAsk={vi.fn()}
-      onHide={vi.fn()}
-      {...overrides}
-    />,
-  );
+  return render(<AssistantRail {...baseProps} onAsk={vi.fn()} onHide={vi.fn()} {...overrides} />);
 }
 
 // M16 Wave 1 (Task 4, SPEC §9 docked presentation): the rail is a flex
 // sibling of the plan now, not a `position: fixed` overlay with a scrim in
-// front of it (KI-16, KI-17) — there is no scrim left to test. The quick-ask
-// chip row (and its <Preview> wrap) is gone with it; Task 5 reintroduces
-// suggested questions derived from real trip state, a different prop shape
-// than this hardcoded array.
+// front of it (KI-16, KI-17) — there is no scrim left to test.
+//
+// M16 Wave 2 (Task 5): the chip row is back, but as `suggestions` — derived
+// from real trip state by suggestedQuestions.ts, which has its own suite for
+// the rules. What this file asserts about them is only what the rail owns:
+// that they are offered while the thread is empty, that clicking one asks it,
+// and that they get out of the way once a conversation is running.
 describe("AssistantRail", () => {
   it("renders the context line", () => {
     renderRail();
@@ -41,7 +41,7 @@ describe("AssistantRail", () => {
   // feedback on PR #55; the 2026-08-24 design's panel markup has no such
   // block either). Asserted, not merely deleted, so re-adding it is a
   // failing test rather than a silent regression.
-  it("has no suggestions shelf, and holds the conversation space with the design's hint", () => {
+  it("has no \"What I noticed\" shelf, and holds the conversation space with the design's hint", () => {
     renderRail();
     expect(screen.queryByText("What I noticed")).toBeNull();
     expect(screen.getByText("Ask about this trip and the conversation stays here.")).not.toBeNull();
@@ -120,5 +120,72 @@ describe("AssistantRail", () => {
   it("shows no badge for a real answer", () => {
     render(<AssistantRail {...baseProps} />);
     expect(screen.queryByText("Simulated")).toBeNull();
+  });
+
+  // ---- M16 Wave 2: the conversation ----
+
+  it("renders the thread when there is one, both sides of it", () => {
+    const turns: AssistantTurn[] = [
+      { id: "u1", role: "user", text: "What's the plan for day 2?" },
+      { id: "a1", role: "assistant", text: "Two stops.", tools: [], pending: false },
+    ];
+    renderRail({ turns });
+    expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("What's the plan for day 2?");
+    expect(screen.getByText("Two stops.")).not.toBeNull();
+  });
+
+  it("drops the empty hint once the conversation has started", () => {
+    renderRail({ turns: [{ id: "u1", role: "user", text: "hi" }] });
+    expect(screen.queryByText("Ask about this trip and the conversation stays here.")).toBeNull();
+  });
+
+  it("offers the derived suggestions while the thread is empty, and asks the one you click", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk, suggestions: ["What's the plan for day 3?", "Where's the most free time on day 3?"] });
+    const chips = within(screen.getByRole("list", { name: "Suggested questions" })).getAllByRole("button");
+    expect(chips.map((c) => c.textContent)).toEqual([
+      "What's the plan for day 3?",
+      "Where's the most free time on day 3?",
+    ]);
+    fireEvent.click(chips[0]!);
+    expect(onAsk).toHaveBeenCalledWith("What's the plan for day 3?");
+  });
+
+  // They exist to START a conversation. Mid-thread they would be offering
+  // questions the user may already have had answered, in the space the answers
+  // themselves need.
+  it("withdraws the suggestions once a conversation is running", () => {
+    renderRail({
+      suggestions: ["What's the plan for day 3?"],
+      turns: [{ id: "u1", role: "user", text: "hi" }],
+    });
+    expect(screen.queryByRole("list", { name: "Suggested questions" })).toBeNull();
+  });
+
+  it("renders no suggestion list at all when the trip yields none", () => {
+    renderRail({ suggestions: [] });
+    expect(screen.queryByRole("list", { name: "Suggested questions" })).toBeNull();
+  });
+
+  it("disables the suggestions while a turn is streaming", () => {
+    renderRail({ suggestions: ["How is the trip looking?"], asking: true });
+    expect((screen.getByRole("button", { name: "How is the trip looking?" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("offers New conversation only once there is a conversation to clear", () => {
+    const onNewConversation = vi.fn();
+    const { rerender } = renderRail();
+    expect(screen.queryByRole("button", { name: "New conversation" })).toBeNull();
+    rerender(
+      <AssistantRail
+        {...baseProps}
+        onNewConversation={onNewConversation}
+        turns={[{ id: "u1", role: "user", text: "hi" }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(onNewConversation).toHaveBeenCalledOnce();
   });
 });

@@ -1,22 +1,23 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // This spec's own webServer runs with AI_LIVE=false (playwright.config.ts's
-// webServer.env — see the note there), so handleAiRequest.ts's flag check
-// selects simulatedModel.ts instead of contacting a real provider: no token
-// cost, and the plan is deterministic by construction (simulatedModel.ts's
-// planCalls()). This is the "no test-mode seam" gap m7-solo-delight.spec.ts's
-// file-header note describes for the board's AI compose — now closed for the
-// simulated path specifically, which is the only path e2e is ever allowed to
-// exercise per Mitchell's hard constraint (no e2e test may make a real call
-// to the Vercel AI Gateway or any model provider).
-function waitForAiResponse(page: Page) {
-  return page.waitForResponse(
-    (r) => /\/api\/trips\/[^/]+\/ai$/.test(new URL(r.url()).pathname) && r.request().method() === "POST" && r.ok(),
-  );
-}
-
-test("a simulated AI answer is badged and still really changes the trip", async ({ page }) => {
+// webServer.env — see the note there), so `selectAiModel` hands back
+// simulatedModel.ts instead of contacting a real provider: no token cost, and
+// the answer is deterministic by construction. This is the only AI path e2e is
+// ever allowed to exercise, per Mitchell's hard constraint (no e2e test may
+// make a real call to the Vercel AI Gateway or any model provider).
+//
+// M16 Wave 2 moved the rail's ask box from POST /trips/:id/ai (the command
+// endpoint, which applies a batch and answers with a derived receipt) to POST
+// /trips/:id/ask (the streaming read-only agent). This spec follows it. The
+// half that is NOT here any more — "…and still really changes the trip" —
+// left with the endpoint: nothing in the browser applies an AI plan between
+// M16 Task 5 and Task 6, which returns it through /ask as write tools behind
+// an explicit approval. The command endpoint keeps its own integration
+// coverage in the meantime (app/api/trips/[tripId]/ai/route.int.test.ts).
+test("a simulated AI answer streams into the rail and is badged as simulated", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list (m1/m3/m6/m7/m8's comment). Deliberately
   // avoids the word "Simulated" itself: Playwright's getByText matches
@@ -24,44 +25,37 @@ test("a simulated AI answer is badged and still really changes the trip", async 
   // <h2> and in the assistant rail's "Looking at {name}" context line, either
   // of which would make the later getByText("Simulated") assertion for the
   // rail's Badge ambiguous (3-way strict-mode violation, caught while writing
-  // this spec).
+  // the first version of this spec).
   const tripName = e2eTripName("AI Kill Switch");
+  // page.request shares the context's cookies, and the context needs an
+  // origin before a relative request URL means anything.
   await page.goto("/");
-
-  await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
-  await page.getByRole("link", { name: tripName }).click();
+  const tripId = await createMappedTrip(page, tripName, 2);
+  await page.goto(`/trips/${tripId}`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  // The Assistant rail (AssistantRail.tsx) is closed until asked for, at every
-  // width (TripBoardScreen.tsx's useAssistantVisibility), so open it before
-  // reaching for its ask box — which fires the same composeAiPlan(tripId,
-  // text, "board") call the old standalone ComposePanel used to make directly.
-  await page.getByRole("button", { name: "Assistant" }).click();
-  await page.getByPlaceholder("Ask about this day…").fill("plan me a couple of days");
-  const [response] = await Promise.all([waitForAiResponse(page), page.keyboard.press("Enter")]);
+  // The Assistant rail is closed until asked for, at every width
+  // (TripBoardScreen.tsx's useAssistantVisibility), so open it first.
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.getByPlaceholder("Ask about this day…").fill("how is the trip looking?");
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
+    page.keyboard.press("Enter"),
+  ]);
 
-  // Assert the response body directly, not just the badge: playwright.config.ts's
-  // AI_LIVE: "false" only applies when Playwright starts its own server
-  // (reuseExistingServer is true outside CI), so a locally-running dev server
-  // started with AI_LIVE=true in .env.local would silently make a real model
-  // call while this test still passed on the badge/content assertions alone.
-  // Failing on `simulated` directly makes that misconfiguration loud.
-  const body = (await response.json()) as { simulated: boolean };
-  expect(body.simulated).toBe(true);
+  // The success shape is an SSE stream, not JSON — asserted on the headers
+  // because a client that stopped streaming would still pass every text
+  // assertion below while having lost the whole point.
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/event-stream");
 
-  // Marked as simulated: AssistantRail.tsx only renders this Badge when the
-  // rail's last composeAiPlan response came back with simulated: true.
+  // The kill switch itself. This sentence is emitted ONLY by
+  // simulatedModel.ts's ask branch — a real provider cannot produce it — so
+  // its presence is direct proof that no model was called, stronger than the
+  // `simulated: true` body flag the /ai version of this spec asserted (that
+  // flag was a claim the server made about itself).
+  const log = page.getByRole("log", { name: "Conversation" });
+  await expect(log).toContainText("AI is switched off on this deployment");
+  await expect(log).toContainText("how is the trip looking?");
   await expect(page.getByText("Simulated")).toBeVisible();
-
-  // …and genuinely applied, not just labeled: simulatedModel.ts's planCalls()
-  // emits exactly two AddDay calls and three AddActivity calls, executed as
-  // one atomic batch (Task 5.3) and reconciled onto the board the same way a
-  // real model's plan would be (same day-column/activity-text assertion
-  // conventions as m7/m8-make-it-real.spec.ts).
-  await expect(page.getByTestId("day-column")).toHaveCount(2);
-  await expect(page.getByText("Sample: morning walk")).toBeVisible();
-  await expect(page.getByText("Sample: long lunch")).toBeVisible();
-  await expect(page.getByText("Sample: museum in the afternoon")).toBeVisible();
 });

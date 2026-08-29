@@ -25,7 +25,18 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { composeAiPlan } from "@/lib/apiClient";
+import { toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
+import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
+import {
+  AI_NOT_ENTITLED_CODE,
+  ASK_ABORTED_CODE,
+  DEMO_TRIP_UNSUPPORTED_CODE,
+  answerIsSimulated,
+  askAssistant,
+  type ApiError,
+  type AskScope,
+  type AskWireMessage,
+} from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
@@ -48,13 +59,25 @@ import { cn } from "@/lib/cn";
 // job was deciding the default per width, and there is one default now.
 // `userChose` went for the same reason — with no automatic opening there is
 // no automatic decision left to override.
+// What the rail SAYS when an ask fails. Branches on the server's `code`, not
+// its prose: a refusal's wording is free to change, and two of these are
+// refusals rather than failures. Everything else falls through to the
+// server's own message on purpose — /ask's 400s are specific and actionable
+// ("this trip has 5 days, so day 9 is out of range", "your message must be
+// 4000 characters or fewer") and rewriting them here would throw that away.
+function askErrorMessage(error: ApiError): string {
+  if (error.code === DEMO_TRIP_UNSUPPORTED_CODE) return "The assistant isn't available on the demo trip.";
+  if (error.code === AI_NOT_ENTITLED_CODE) return "The assistant is switched off for this account.";
+  return error.message;
+}
+
 function useAssistantVisibility() {
   const [open, setOpen] = useState(false);
   return { open, show: () => setOpen(true), hide: () => setOpen(false) };
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, preview, pending, readOnly } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -67,14 +90,30 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   // The demo board (`/demo`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
-  // work: `composeAiPlan` posts to `/api/trips/:id/ai`, which needs a session
-  // and, being a write to the plan, is refused for a viewer anyway. Offering a
-  // signed-out visitor a launcher whose only outcome is an error is worse than
-  // not offering it, and this is the one control on the board with no
-  // read-only half to fall back to.
+  // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
+  // `demo-trip-unsupported` (KI-79), so a launcher offered to a signed-out
+  // visitor has no outcome but an error. This is the one control on the board
+  // with no read-only half to fall back to.
   const isDemo = isDemoTripId(tripId);
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  // The conversation itself, oldest turn first. See runAsk below for why it
+  // lives here rather than in the rail.
+  const [thread, setThread] = useState<AssistantTurn[]>([]);
+  // Turn ids only have to be unique within one thread and stable across
+  // re-renders; a counter says so and stays deterministic under test, where
+  // crypto.randomUUID would not.
+  const turnSeq = useRef(0);
+  // Held so "New conversation" can hang up on a turn that is still streaming.
+  // Without it the composer stays disabled behind an answer nobody wants.
+  const askAbort = useRef<AbortController | null>(null);
+  // The scope of every question asked from this page, and the SINGLE source
+  // the rail's context line is worded from (below). They were allowed to be
+  // two derivations of `focusedDay` and that is exactly how a rail says
+  // "Looking at Day 3" while asking the server about the whole trip.
+  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
+  // NUMBER a human reads is +1, and that conversion happens in one place.
+  const askScope: AskScope = focusedDay !== null ? { kind: "day", dayIndex: focusedDay } : { kind: "trip" };
   // Collapsed by default (Phase 3's design). The open flag is paired with who
   // opened it, because a drag auto-opens the drawer and must only re-close the
   // ones it opened itself — that rule lives in `rackDisclosure` (a pure
@@ -300,35 +339,135 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     onRackEvent({ type: "parked" });
   };
 
-  // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
-  // the same composeAiPlan("board") call the old standalone ComposePanel
-  // used to make directly, just triggered from the rail instead. The server
-  // executes the model's plan as one atomic batch (Task 5.3) and returns the
-  // resulting { detail, history } already reconciled — applyOutcome is the
-  // same reconciler ComposePanel's board surface used, no refetch needed.
+  // The Assistant rail's conversation (M16 Wave 2, Task 5). It posts to
+  // /api/trips/:id/ask — the READ-only streaming agent — not to the command
+  // endpoint the rail used to call.
+  //
+  // Why the rail stopped calling `composeAiPlan`: that endpoint answers with a
+  // derived receipt for a batch it has already applied, which is structurally
+  // the wrong channel for "have a discussion" (ADR-022 §4 says so outright).
+  // Two ask boxes side by side — one that talks, one that silently rewrites
+  // your trip — is worse than either. `composeAiPlan` itself is untouched and
+  // still exported; Task 6 brings applying a plan back through THIS endpoint,
+  // as write tools behind an explicit approval, which is the version anyone
+  // actually wanted. Until it lands, the board cannot apply an AI plan from
+  // the browser — recorded as a deliberate one-task gap, not an oversight.
+  //
+  // Conversation state is client-held (Ruling R1): there is no conversations
+  // table and no migration in this plan, so `thread` IS the conversation and
+  // the whole of it is posted back on every turn. It survives hiding the rail
+  // (this component stays mounted) and dies with the page, which is the
+  // honest lifetime for something the server keeps nothing of.
+  const nextTurnId = (prefix: string) => {
+    turnSeq.current += 1;
+    return `${prefix}${turnSeq.current}`;
+  };
+
+  const runAsk = async (text: string) => {
+    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
+    const answerId = nextTurnId("a");
+    // `thread` from this render's closure is the thread the user is looking
+    // at: only one turn can be in flight (the composer and the suggestion
+    // chips are both disabled while `asking`), so there is no newer one.
+    const posted: AskWireMessage[] = [
+      ...thread
+        // A turn that failed before it produced any text is dropped below, but
+        // a partial one is kept — and an empty `parts` array is not a message
+        // the server's validator will accept.
+        .filter((turn) => turn.text.trim() !== "")
+        .map((turn) => ({ id: turn.id, role: turn.role, parts: [{ type: "text" as const, text: turn.text }] })),
+      { id: userTurn.id, role: "user" as const, parts: [{ type: "text" as const, text }] },
+    ];
+    setThread((current) => [
+      ...current,
+      userTurn,
+      { id: answerId, role: "assistant", text: "", tools: [], pending: true },
+    ]);
+    setAskStatus("loading");
+    setAskError(null);
+    setAskSimulated(false);
+
+    const controller = new AbortController();
+    askAbort.current = controller;
+
+    // Only ever touches the one answer turn this call owns, by id — a stale
+    // stream that outlived its turn cannot write into a newer one.
+    const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
+      setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
+
+    const result = await askAssistant(
+      tripId,
+      posted,
+      askScope,
+      (event) => {
+        if (event.type === "text") {
+          patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
+        } else if (event.type === "tool") {
+          patchAnswer((turn) => ({
+            ...turn,
+            tools: [...turn.tools, { id: event.toolCallId, label: toolNoteLabel(event.toolName, event.input) }],
+          }));
+        }
+      },
+      controller.signal,
+    );
+    askAbort.current = null;
+
+    if (result.ok) {
+      // The ai-live flag is off in every Vercel environment, so this is the
+      // deployed path: a real answer, composed from real trip data by the
+      // server rather than by a model, and labelled as such.
+      setAskSimulated(answerIsSimulated(result.value.text));
+      patchAnswer((turn) => ({ ...turn, pending: false }));
+      setAskStatus("idle");
+      return;
+    }
+
+    // Abandoned by "New conversation": its turn is already gone, and the user
+    // asked for it. Not an error.
+    if (result.error.code === ASK_ABORTED_CODE) return;
+
+    // A turn that produced no text at all did not happen — drop both halves so
+    // the thread stays a conversation rather than accumulating orphan
+    // questions, and let the inline error carry the reason. A turn that got
+    // PART of an answer out keeps it: the words are on screen already, and
+    // deleting them under the user is the worse lie.
+    setThread((current) => {
+      const answer = current.find((t) => t.id === answerId);
+      if (answer !== undefined && answer.text !== "") {
+        return current.map((t) => (t.id === answerId && t.role === "assistant" ? { ...t, pending: false } : t));
+      }
+      return current.filter((t) => t.id !== answerId && t.id !== userTurn.id);
+    });
+    setAskStatus("error");
+    setAskError(askErrorMessage(result.error));
+  };
+
   const submitAssistantAsk = async (text: string) => {
-    // Refused while the optimistic queue still holds unsent work. The AI batch
-    // is decided server-side against state that does NOT include those units,
-    // and `applyOutcome` clears `pending` to take its result — so asking on
-    // top of a queued-but-unsent drag discarded that drag from the UI and the
-    // server both, silently, and the in-flight head raced the batch on
-    // optimistic concurrency (docs/reviews/2026-08-28-project-review.md §1.4).
-    // Reported through the rail's own askError surface rather than swallowed:
-    // disabling the box outright would need a new AssistantRail prop, and a
-    // control that silently does nothing is the failure mode TripProvider's
+    // A viewer's ask is refused here even though /ask itself admits a viewer
+    // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and no longer
+    // for the reason the command path had: this is now a product call about
+    // who the assistant is offered to, not a mechanical guard against a batch
+    // the server would refuse. Revisit it in Task 6, when write tools arrive
+    // and `minimumRoleFor` has an editor half to gate on.
+    // Reported through the rail's own askError surface rather than swallowed —
+    // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
-    // A viewer's ask is refused for the same reason their drag is: the AI
-    // route is editor-gated server-side, so the model would plan a batch the
-    // server then refuses wholesale. Reported through the rail's own askError
-    // surface rather than swallowed — same call the `pending` gate below makes,
-    // and for the same reason (a control that silently does nothing is the
-    // failure mode TripProvider's runDispatch comment was written about).
     if (readOnly) {
       setAskStatus("error");
       setAskError("You have view-only access to this trip.");
       setAskSimulated(false);
       return false;
     }
+    // Refused while the optimistic queue still holds unsent work. The original
+    // reason was a data-loss race — the AI batch was decided against server
+    // state that did NOT include those units, and `applyOutcome` cleared
+    // `pending` to take its result, discarding a queued-but-unsent drag from
+    // the UI and the server both (docs/reviews/2026-08-28-project-review.md
+    // §1.4). /ask applies nothing, so that race is gone; what remains is that
+    // the assistant would read the trip WITHOUT the edits on screen and
+    // confidently answer about a plan the user is not looking at. Same
+    // refusal, same copy, a reason that is still real.
     if (pending) {
       setAskStatus("error");
       setAskError("Finish saving your changes before asking the assistant.");
@@ -337,18 +476,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       // the model, so making the user retype it would read as a broken box.
       return false;
     }
-    setAskStatus("loading");
+    // Deliberately NOT awaited: the answer streams for seconds, and the rail
+    // clears its composer on whatever this resolves to. Accepting the ask is
+    // the thing the composer waits for; the answer arrives in `thread`.
+    void runAsk(text);
+    return true;
+  };
+
+  const startNewConversation = () => {
+    askAbort.current?.abort();
+    askAbort.current = null;
+    setThread([]);
+    setAskStatus("idle");
     setAskError(null);
     setAskSimulated(false);
-    const result = await composeAiPlan(tripId, text, "board");
-    if (!result.ok) {
-      setAskStatus("error");
-      setAskError(result.error.message);
-      return;
-    }
-    setAskSimulated(result.value.simulated);
-    applyOutcome(result.value);
-    setAskStatus("idle");
   };
 
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
@@ -384,11 +525,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The assistant's context line — "Looking at Day N" once a day is focused
   // (Task 4's FocusProvider, already read above for the day chips), else
   // the trip itself. Used to say "Looking at all three of your trips" (a
-  // fabricated cross-trip claim from when the whole rail was still a
-  // Preview fixture) — now that the ask box is real and scoped to this one
-  // trip's real composeAiPlan call, the fallback has to be honest about
-  // that scope too.
-  const assistantContextLine = focusedDay !== null ? `Looking at Day ${focusedDay + 1}` : `Looking at ${activeTrip.name}`;
+  // fabricated cross-trip claim from when the whole rail was still a Preview
+  // fixture); the fallback has to be honest about the scope the question is
+  // actually asked in, so it is worded FROM `askScope` rather than from a
+  // second reading of `focusedDay`.
+  const assistantContextLine =
+    askScope.kind === "day" ? `Looking at Day ${askScope.dayIndex + 1}` : `Looking at ${activeTrip.name}`;
+
+  // Derived from the trip in front of the user, never canned — the rules and
+  // the reasoning are in suggestedQuestions.ts. Recomputed per render because
+  // it is a pure walk of the days and it MUST change when the focused day
+  // does; memoising it on `activeTrip` identity would be the bug.
+  const assistantSuggestions = suggestedQuestions(activeTrip, focusedDay);
 
   return (
     <>
@@ -523,18 +671,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             )}
           </div>
         </div>
-        {/* The assistant rail — real header/context/ask box (composeAiPlan,
-            same as the removed standalone ComposePanel used to call
-            directly). Mounted here, as the row's second flex child, so it's
-            present regardless of which lens is active and its 356px width
-            comes out of real layout (see the row's own comment above) rather
-            than a fixed-position overlay. Unmounted entirely (not just
-            visually hidden) when the user hides it, so it costs the row
-            nothing when closed. */}
+        {/* The assistant rail — a real streaming conversation against
+            /api/trips/:id/ask (see runAsk above). Mounted here, as the row's
+            second flex child, so it's present regardless of which lens is
+            active and its 356px width comes out of real layout (see the row's
+            own comment above) rather than a fixed-position overlay. Unmounted
+            entirely (not just visually hidden) when the user hides it, so it
+            costs the row nothing when closed — the thread lives in this
+            component, so hiding the rail does not end the conversation. */}
         {!isDemo && assistant.open && (
           <AssistantRail
             contextLine={assistantContextLine}
-            onAsk={(text) => void submitAssistantAsk(text)}
+            turns={thread}
+            suggestions={assistantSuggestions}
+            onNewConversation={startNewConversation}
+            onAsk={(text) => submitAssistantAsk(text)}
             asking={askStatus === "loading"}
             askError={askStatus === "error" ? askError : null}
             simulated={askSimulated}

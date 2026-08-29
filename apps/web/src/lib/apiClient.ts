@@ -466,3 +466,202 @@ export async function insertSavedDay(
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
 }
+
+// ---------------------------------------------------------------------------
+// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
+//
+// Deliberately NOT `composeAiPlan`'s shape. That endpoint applies a batch and
+// answers with a derived receipt; this one answers with the model's own prose,
+// streamed, and writes nothing. Two channels have to be handled and they are
+// easy to conflate:
+//
+//   * A **non-200 only ever happens before the stream opens**, and its body is
+//     JSON. That is every row of the endpoint's error table — 400s with
+//     actionable text, 403 `demo-trip-unsupported`, 403 `ai-not-entitled`,
+//     429, 503.
+//   * Once the stream is open the status is 200 forever, and a failure arrives
+//     as an `{"type":"error","errorText":…}` frame inside it.
+//
+// A client that only checks `res.ok` reports a mid-answer provider outage as a
+// success with a truncated answer. Both are mapped onto the same ApiResult, so
+// callers do not have to know which door the failure came through.
+//
+// No `useChat`: `@ai-sdk/react` is not a dependency of this app, and the two
+// things it would buy (thread state, a transport) are the two things the rail
+// has to own itself — the thread lives in TripBoardScreen so the queued-edit
+// and viewer refusals can happen BEFORE a turn is ever appended.
+// ---------------------------------------------------------------------------
+
+/** `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server. */
+export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
+
+/** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
+export type AskWireMessage = {
+  id: string;
+  role: "user" | "assistant";
+  parts: { type: "text"; text: string }[];
+};
+
+export type AskEvent =
+  /** A tool call, seen the moment it is issued — before any answer text. */
+  | { type: "tool"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "text"; delta: string }
+  | { type: "error"; message: string };
+
+/** Set on the ApiError when the failure arrived inside an already-open stream. */
+export const ASK_STREAM_ERROR_CODE = "ask-stream-error";
+/** Set when the caller aborted the turn (New conversation, navigation). */
+export const ASK_ABORTED_CODE = "ask-aborted";
+/**
+ * The server's refusal code for the demo trip (`handleAskRequest`, KI-79).
+ * Duplicated as a literal rather than imported because the UI may not import
+ * `@/server/*` (AGENTS.md's dependency rules); branching on the code instead
+ * of the prose is the whole point of the server emitting one.
+ */
+export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
+/** The server's refusal code when the actor has no AI entitlement. */
+export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
+
+// The last sentence the simulated model appends to every answer
+// (`simulatedModel.ts`'s ask branch, and the anchor e2e already asserts on).
+// Sniffing prose is not how this should work — a response header would be —
+// but the stream carries no `simulated` flag today and adding one is a server
+// change outside this task's file scope. Recorded in the task report as the
+// thing to replace when /ask next changes.
+const SIMULATED_ANSWER_MARKER = "AI is switched off on this deployment";
+
+/** True when this answer was composed by the server because ai-live is off. */
+export function answerIsSimulated(text: string): boolean {
+  return text.includes(SIMULATED_ANSWER_MARKER);
+}
+
+// One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
+// chunk vocabulary is a wire contract, and the frames this deliberately
+// IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
+// much as the ones it reads — the stream is a superset the server may grow,
+// and an unknown part type must never break a conversation.
+export function askEventFromFrame(frame: string): AskEvent | null {
+  const payload = frame
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trimStart())
+    .join("\n");
+  if (payload === "" || payload === "[DONE]") return null;
+  let chunk: unknown;
+  try {
+    chunk = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  if (typeof chunk !== "object" || chunk === null) return null;
+  const part = chunk as Record<string, unknown>;
+  if (part.type === "text-delta" && typeof part.delta === "string") {
+    return { type: "text", delta: part.delta };
+  }
+  if (part.type === "tool-input-available" && typeof part.toolName === "string") {
+    return {
+      type: "tool",
+      toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
+      toolName: part.toolName,
+      input: part.input,
+    };
+  }
+  if (part.type === "error") {
+    return {
+      type: "error",
+      message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
+    };
+  }
+  return null;
+}
+
+/**
+ * Asks one turn. `messages` is the WHOLE thread — conversation state is
+ * client-held (Ruling R1, no migration), so turn N+1 is the same POST with a
+ * longer array and the server keeps nothing.
+ *
+ * `onEvent` fires as the stream arrives; the resolved value repeats the full
+ * answer text for callers that only want the end.
+ */
+export async function askAssistant(
+  tripId: string,
+  messages: AskWireMessage[],
+  scope: AskScope,
+  onEvent: (event: AskEvent) => void = () => {},
+  signal?: AbortSignal,
+): Promise<ApiResult<{ text: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, scope }),
+      signal,
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    if (res.body === null) {
+      return { ok: false, error: { status: res.status, message: "The assistant sent no answer." } };
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let text = "";
+    let streamError: string | null = null;
+
+    // Frames are separated by a blank line and a network read lands wherever
+    // it lands — mid-JSON as often as not — so an incomplete frame stays in
+    // the buffer until its terminator arrives. Parsing per read() instead
+    // drops deltas on exactly the connections slow enough to need streaming.
+    const drain = (final: boolean) => {
+      for (;;) {
+        const end = buffer.indexOf("\n\n");
+        if (end === -1) break;
+        const frame = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const event = askEventFromFrame(frame);
+        if (event === null) continue;
+        if (event.type === "text") text += event.delta;
+        if (event.type === "error") streamError = event.message;
+        onEvent(event);
+      }
+      // A stream that ends without a trailing blank line still owes us its
+      // last frame.
+      if (final && buffer.trim() !== "") {
+        const event = askEventFromFrame(buffer);
+        buffer = "";
+        if (event !== null) {
+          if (event.type === "text") text += event.delta;
+          if (event.type === "error") streamError = event.message;
+          onEvent(event);
+        }
+      }
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      drain(false);
+    }
+    buffer += decoder.decode();
+    drain(true);
+
+    if (streamError !== null) {
+      // 200, because that is what the server really sent. The code is how a
+      // caller tells "the answer broke half way" from "the request bounced".
+      return { ok: false, error: { status: res.status, message: streamError, code: ASK_STREAM_ERROR_CODE } };
+    }
+    return { ok: true, value: { text } };
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, error: { status: 0, message: "The answer was cancelled.", code: ASK_ABORTED_CODE } };
+    }
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}

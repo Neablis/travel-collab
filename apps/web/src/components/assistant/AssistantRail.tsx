@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { Transcript, type AssistantTurn } from "./Transcript";
 
 // M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
 // title, Hide) and its ask box are the SAME real conversational feature the
-// board's old ComposePanel already shipped in M7 — composeAiPlan against a
-// real trip — just relocated into this rail, per Mitchell's read of the
-// design ("the sidebar IS the AI agent we have today, just moved").
+// board's old ComposePanel already shipped in M7 — just relocated into this
+// rail, per Mitchell's read of the design ("the sidebar IS the AI agent we
+// have today, just moved").
 //
 // M16 Wave 1 (Task 4, SPEC §9 "The assistant — one panel, three
 // presentations"): this is the DOCKED presentation only — the other two
@@ -23,32 +24,52 @@ import { Input } from "@/components/ui/input";
 // over the page (KI-16, KI-17) — a real flex sibling has nothing to dismiss
 // past, so there is nothing left for a scrim to do.
 //
-// The quick-ask chip row (formerly wrapped in its own <Preview
-// id="assistant-quick-asks">) is deleted along with this task, not deferred
-// in place — Task 5 (M9) reintroduces suggested questions derived from real
-// trip state, which is a different prop shape than a hardcoded string array,
-// so there is nothing here for it to extend.
+// M16 Wave 2 (Task 5): the empty hint that used to hold the conversation's
+// space is now an actual conversation. `turns` is the whole thread and the
+// answers are the model's own prose streamed from POST /trips/:id/ask — the
+// channel ADR-022 says the command endpoint structurally lacks, since that
+// one can only answer with a receipt for what it already did. The chip row
+// is back too, but derived (`suggestedQuestions.ts`) rather than the
+// hardcoded `PREVIEW_QUICK_ASKS` array Task 4 deleted.
 export function AssistantRail({
   contextLine,
+  turns,
+  suggestions,
   onAsk,
+  onNewConversation,
   asking = false,
   askError = null,
   simulated = false,
   onHide,
 }: {
   contextLine: string;
+  /**
+   * The whole conversation, oldest first. Held by TripBoardScreen, not here:
+   * the refusals below (unsent edits, view-only) have to happen BEFORE a turn
+   * is appended, and the thread has to survive this rail being hidden.
+   */
+  turns: AssistantTurn[];
+  /**
+   * Derived from real trip state (`suggestedQuestions.ts`), at most four, and
+   * offered only while the thread is empty — they exist to start a
+   * conversation, and once one is running they would be suggesting questions
+   * the user may already have had answered.
+   */
+  suggestions: string[];
   // Resolves false when the ask was refused before it ever reached the model
-  // (today: unsent edits still queued). The rail keeps the typed prompt in
-  // that case — a refusal the user has to retype is a refusal that reads as
-  // the box being broken.
+  // (unsent edits still queued, or view-only access). The rail keeps the typed
+  // prompt in that case — a refusal the user has to retype is a refusal that
+  // reads as the box being broken.
   onAsk: (text: string) => void | Promise<boolean | void>;
-  /** True while a real composeAiPlan request from this rail is in flight. */
+  /** Clears the thread. Offered only once there is one to clear. */
+  onNewConversation: () => void;
+  /** True while a turn is streaming. The composer is disabled for its duration. */
   asking?: boolean;
-  /** Set when the last real ask failed — rendered inline, not a toast, so it
+  /** Set when the last ask failed — rendered inline, not a toast, so it
    * stays visible next to the box the user just submitted from. */
   askError?: string | null;
   /** True when the last answer was composed by the server because the ai-live
-   * flag is off. The change is real; the authorship is not a model. */
+   * flag is off. The answer is real; the authorship is not a model. */
   simulated?: boolean;
   onHide: () => void;
 }) {
@@ -96,6 +117,11 @@ export function AssistantRail({
             Assistant
           </Heading>
           <div className="flex-1" />
+          {turns.length > 0 && (
+            <Button variant="ghost" size="sm" aria-label="New conversation" onClick={onNewConversation}>
+              New
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onHide}>
             Hide
           </Button>
@@ -110,15 +136,36 @@ export function AssistantRail({
           markup agrees; the shelf was ours, not the design's. Docked mode
           drops the "drag the header to park it anywhere" copy the other two
           presentations use — dragging is off while docked (SPEC §9), and
-          this rail is always docked.
-
-          Nothing renders a conversation transcript yet (an answer becomes a
-          ghost proposal on the timeline, `timeline-ghost`), so this is the
-          empty hint holding the space the transcript will take. */}
+          this rail is always docked. */}
       <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3.5">
-        <p className="text-sm leading-relaxed text-slate">
-          Ask about this trip and the conversation stays here.
-        </p>
+        {turns.length === 0 ? (
+          <>
+            <p className="text-sm leading-relaxed text-slate">
+              Ask about this trip and the conversation stays here.
+            </p>
+            {suggestions.length > 0 && (
+              <ul aria-label="Suggested questions" className="flex flex-col items-start gap-1.5">
+                {suggestions.map((question) => (
+                  <li key={question}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={asking}
+                      // `text-left`/`h-auto`: a derived question is a sentence,
+                      // not a label, and wraps to two lines in a 356px rail.
+                      className="h-auto whitespace-normal text-left"
+                      onClick={() => void onAsk(question)}
+                    >
+                      {question}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <Transcript turns={turns} />
+        )}
       </div>
 
       <div className="border-t border-hairline px-4 py-3">
