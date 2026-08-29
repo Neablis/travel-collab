@@ -10,3 +10,4 @@ export * from "./trip/diff";
 export * from "./trip/history";
 export * from "./trip/costs";
 export * from "./trip/hydrate";
+export * from "./trip/freeTime";
