@@ -14,10 +14,12 @@ are the current work**, per the order M11's close leaves standing —
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
-**Two items are approved but deliberately unplaced, and neither is "next"
+**Three items are approved but deliberately unplaced, and none is "next"
 just because it appears unchecked:** M17 (account customization, needs a
-re-scope first) and **M11b Playbooks** (carved out of M11's gate 2026-08-28,
-needs its own scope and exit gate written before it opens).
+re-scope first), **M11b Playbooks** (carved out of M11's gate 2026-08-28,
+needs its own scope and exit gate written before it opens), and **M18b Tag
+focus** (carved out of M18's gate 2026-08-29 — scope and exit gate already
+written, so this one needs only a place).
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
@@ -98,6 +100,19 @@ Where the work actually stands right now: `docs/STATUS.md`.
       hero's "not booked" tile, `act.badge`, and design rules R4 and R5. Until
       it lands, surfaces that need either field ship partial by design, not by
       accident.)*
+- [ ] **M18b Tag focus** — **approved, unplaced** (not "next").
+      The piece carved out of M18's gate.
+      → `docs/milestones/M18b-tag-focus.md`
+      *(Carved out 2026-08-29 when M18's gate was amended: M18 lands both
+      fields, every surface that reads `kind`, and tag chips that render and
+      can be set — but not the behaviour the chips drive. SPEC §11's tag focus
+      dims off-tag stops to 32% across Timeline, Day columns, Calendar and Map,
+      with Calendar showing `N of M match` instead. It is the only piece of
+      M18 needing shared state above the lens switch, its Calendar rule is a
+      second design, and no M18 exit-gate box measured it — the same three
+      arguments that carved Playbooks out of M11 the day before. Note for
+      whoever opens it: the **filter row it replaced is gone**, and our own
+      KI-47 cited it for four days after SPEC §11 deleted it.)*
 - [ ] **M16 The assistant answers questions** →
       `docs/milestones/M16-assistant-read-agent.md`
       *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate

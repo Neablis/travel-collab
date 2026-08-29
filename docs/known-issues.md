@@ -1184,10 +1184,23 @@ needs action — skip this section when triaging.
   parse the milestone disqualifies. `db-seed.ts` instead carries hand-authored
   tags on all 68 stops: 33 `meal`, 11 `outdoors`, 8 `ticketed`, 4 `lodging`,
   18 untagged.
-- **Still not built (PR 2+):** the five surfaces this entry lists — chips on
-  stop cards, the tag filter row, the Add/Edit tag picker, the Notebook
-  repeater's filter, and SPEC §10's mobile column. They are unblocked, not
-  done.
+- **One of the five surfaces below no longer exists — corrected 2026-08-29.**
+  This entry was written against the 2026-08-24 handoff. **SPEC §11, dated
+  2026-08-25, deleted the tag filter row**: *"The header filter row is **gone**.
+  Tag chips on a stop are now the control: clicking 'Meal' on a stop dims
+  everything not tagged Meal to 32% opacity across Timeline, Day columns,
+  Calendar and Map… Single focus, one tag at a time — multi-select was the part
+  that earned its keep least."* So `showTagFilter` / `tagFilters` / "Show
+  everything" describe a control that was removed a day after this entry cited
+  it, and **SPEC §10's "the filter row is the only way to thin a 402px column"
+  is stale in the same way** — mobile thins a day with tag focus now. Nothing
+  should be built against either sentence. What replaced the filter row is tag
+  focus, which is **M18b**.
+- **Status after M18's PR 2+ (2026-08-29):** chips on stop cards and the
+  Add/Edit tag picker are **built**. Tag *focus* — the dimming behaviour that
+  replaced the filter row — is **M18b, approved and unplaced**. The Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7) belongs to **M14**, which
+  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18.
 
 - **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
   which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
@@ -1201,12 +1214,14 @@ needs action — skip this section when triaging.
   being re-derived per surface)
 - **Area:** `packages/contracts/src/activity.ts`
 - **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
-  builds five things on top of tags: chips on every stop card, the tag filter
-  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
-  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
-  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
-  SPEC §10's statement that on a 402px column the filter row is *the only way*
-  to thin a day.
+  builds five things on top of tags: chips on every stop card, ~~the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything")~~
+  (**deleted by SPEC §11 the next day — see the correction at the top of this
+  entry**), the Add-and-Edit-stop tag picker with its per-tag "power" hint, the
+  Notebook repeater's `Only stops tagged …` filter (SPEC §7), and — most
+  load-bearing — ~~SPEC §10's statement that on a 402px column the filter row is
+  *the only way* to thin a day~~ (**stale for the same reason; mobile thins with
+  tag focus**).
 - **Why it belongs in the registry rather than here, eventually:** this is the
   same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
   in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but
