@@ -43,7 +43,8 @@ import { getTripHistory } from "@/server/history";
 import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
-import { buildEnvelope, type AiSurface } from "@/server/ai/context";
+import { buildEnvelope, type AiCommandSurface } from "@/server/ai/context";
+import { MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
@@ -62,14 +63,6 @@ const STATUS: Record<string, number> = {
   "trip-not-found": 404,
   "concurrency-conflict": 409,
 };
-
-// Ceiling on a single prompt (security review 2026-08-28, H1). The prompt is
-// re-sent to the provider on EVERY step alongside the whole envelope, so its
-// cost is multiplied by MAX_STEPS — an unbounded prompt was an unbounded bill
-// on someone else's key. 4,000 characters is ~1k tokens: several paragraphs,
-// well past any real "plan me a week in Rome", and small enough that 32 steps
-// of it is not the dominant term next to the envelope itself.
-const MAX_PROMPT_CHARS = 4000;
 
 const AiRequest = z.object({
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS, `prompt must be ${MAX_PROMPT_CHARS} characters or fewer`),
@@ -92,7 +85,7 @@ const AiRequest = z.object({
 // which keeps the usual cost at 1–3 steps; this ceiling is only the backstop
 // for when the model insists on going one at a time. Page composition is still
 // a single compose_page call.
-const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 };
+const MAX_STEPS: Record<AiCommandSurface, number> = { page: 3, board: 32, combined: 32 };
 
 // Operator override for the planning budget, e.g. AI_MAX_STEPS=8 (security
 // review 2026-08-28, H1: 32 round-trips is the per-request blast radius, and
@@ -101,7 +94,7 @@ const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 
 // var can lower spend but never raise it, and anything that is not a positive
 // integer is ignored rather than treated as "no limit". The page surface is one
 // compose_page call and is not worth a knob.
-function maxStepsFor(surface: AiSurface): number {
+function maxStepsFor(surface: AiCommandSurface): number {
   const ceiling = MAX_STEPS[surface];
   if (surface === "page") return ceiling;
   const raw = Number(process.env.AI_MAX_STEPS);
