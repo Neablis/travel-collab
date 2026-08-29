@@ -408,7 +408,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // ("mapwrap" in the handoff) — the default px-6 gutter would
             // leave the rail's 16px inset reading as ~40px instead.
             <PageContainer width="full" className="px-0">
-              {lens === "Map" && <MapLens detail={activeTrip} onSelectActivity={openEdit} />}
+              {/* A viewer's map keeps every pin, route and rail day and loses
+                  only double-click-to-create — see MapLens's own `readOnly`
+                  note. The server refuses AddActivity from a viewer either
+                  way (accessPolicy.ts); this is defence in depth. */}
+              {lens === "Map" && (
+                <MapLens detail={activeTrip} onSelectActivity={openEdit} readOnly={readOnly} />
+              )}
             </PageContainer>
           ) : (
             <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
@@ -455,6 +461,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <ScheduleLens
                   detail={activeTrip}
                   onSelectActivity={openEdit}
+                  // The same M11 link 3 gate the Board lens above gets, for
+                  // the lens that was left out of it: a viewer's timeline
+                  // offers no per-day "Add stop", no dashed add row and no
+                  // fix or dismiss on an overlap warning. The schedule, the
+                  // days, the stops and the warnings themselves all stay —
+                  // this withholds controls, never information.
+                  readOnly={readOnly}
                   // The timeline raises real commands through this one seam:
                   // UpdateActivity for the overlap warning's one-click fix,
                   // DismissConflict for its dismissal, and — Phase 6 — AddDay
@@ -468,6 +481,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   // the appended day into view itself, via the focus effect it
                   // already owns — see TimelineLens's `addDay`.
                   onCommand={(command) => {
+                    // All three commands this seam carries (UpdateActivity,
+                    // DismissConflict, AddDay) are writes, so a viewer has
+                    // nothing legitimate to raise through it. Unreachable
+                    // today — the timeline withholds every affordance that
+                    // would raise one (`readOnly` above), and TripProvider's
+                    // `dispatch` refuses a viewer as well — and kept for the
+                    // same reason ActivityEditorSheet's handleSave guard is:
+                    // so the refusal does not depend on a render branch
+                    // somewhere below staying correct. The server refuses each
+                    // of them independently (accessPolicy.ts) and remains the
+                    // real gate; this is defence in depth.
+                    if (readOnly) return;
                     if (command.type !== "CreateTrip") void dispatch(command);
                   }}
                 />

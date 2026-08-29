@@ -20,10 +20,18 @@ export function OverlapWarning({
   overlap,
   onFix,
   onDismiss,
+  readOnly = false,
 }: {
   overlap: Overlap;
   onFix: () => void;
   onDismiss: () => void;
+  /** A viewer's warning: the sentence stays, both controls go. "Start HH:MM"
+      is an UpdateActivity and "Dismiss" is a DismissConflict, so neither is a
+      viewer's to raise — but the overlap itself is information about the
+      trip, and withholding that would hide a real problem rather than an
+      affordance. See Board.tsx's own `readOnly` note for why the client gate
+      is defence in depth rather than the security boundary. */
+  readOnly?: boolean;
 }) {
   // Assembled as one string rather than interpolated into the JSX: the copy is
   // a single sentence, and a run of sibling text nodes is exactly what
@@ -51,14 +59,16 @@ export function OverlapWarning({
         >
           {line}
         </span>
-        {overlap.suggestedEnd !== null && (
+        {!readOnly && overlap.suggestedEnd !== null && (
           <Button variant="secondary" size="sm" onClick={onFix}>
             Start {toClockLabel(overlap.suggestedStart)}
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={onDismiss}>
-          Dismiss
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="sm" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        )}
       </div>
     </div>
   );

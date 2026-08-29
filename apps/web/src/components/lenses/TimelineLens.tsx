@@ -362,6 +362,7 @@ export function TimelineLens({
   detail,
   onSelectActivity,
   onCommand,
+  readOnly = false,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
@@ -369,6 +370,19 @@ export function TimelineLens({
   // presentational and hands a real command up to whoever owns dispatch
   // (TripBoardScreen), rather than reaching into useTrip() itself.
   onCommand?: (command: TripCommand) => void;
+  /** A viewer's timeline: no per-day "Add stop", no dashed add row, and no
+      fix or dismiss on an overlap warning — every affordance that would raise
+      a command through `onCommand` or open the editor in create mode. The
+      schedule itself is untouched: the days, the stops, the legs, the day
+      badges and the overlap warnings' own copy all still render, and the
+      end-of-trip block gates itself off context (EndOfTrip). This withholds
+      controls, never information. A prop rather than a `useTrip()` read, like
+      Board.tsx's: this lens renders standalone in its own tests, and
+      TripBoardScreen already owns the context read. NOT a security boundary —
+      the server refuses every one of these commands independently
+      (accessPolicy.ts), and TripProvider's own `readOnly` gate refuses them
+      before they leave the client. */
+  readOnly?: boolean;
 }) {
   const rows = timelineRows(detail);
   // Same per-day city derivation Task 8's DayChips established (first
@@ -577,16 +591,24 @@ export function TimelineLens({
                   tripName={detail.name}
                   stops={stopsForDay(detail, row.dayId) ?? []}
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  data-testid={`timeline-add-${row.dayId}`}
-                  disabled={addSlot === null}
-                  title={addSlot === null ? NO_ROOM_LEFT : undefined}
-                  onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
-                >
-                  Add stop
-                </Button>
+                {/* Withheld for a viewer rather than disabled: `disabled`
+                    here already means "this day has no room left", and
+                    overloading it with "and also you may not" would say the
+                    wrong thing about the day. The day's other header content
+                    — its cost, its stop meter, its overlap count — is
+                    information and stays. */}
+                {!readOnly && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid={`timeline-add-${row.dayId}`}
+                    disabled={addSlot === null}
+                    title={addSlot === null ? NO_ROOM_LEFT : undefined}
+                    onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
+                  >
+                    Add stop
+                  </Button>
+                )}
               </div>
               {/* Row 2 is the day's route line. On an empty day there is no
                   route to summarise and "0 stops" is a worse thing to say than
@@ -661,6 +683,7 @@ export function TimelineLens({
                             overlap={overlap}
                             onFix={() => fixOverlap(overlap)}
                             onDismiss={() => dismissOverlap(overlap)}
+                            readOnly={readOnly}
                           />
                         ))}
                     </div>
@@ -702,8 +725,9 @@ export function TimelineLens({
                   "+ Add", which the phase file names as the reference.
                   Withheld entirely when nextSlot has no window to offer; see
                   its comment for why that is a withholding and not a
-                  degradation. */}
-              {addSlot !== null && (
+                  degradation — and equally for a viewer, whose day gets its
+                  stops and its warnings but no closing affordance. */}
+              {!readOnly && addSlot !== null && (
                 <Button
                   variant="ghost"
                   size="sm"

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
@@ -16,13 +16,18 @@ import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
 // `vi.hoisted` because `vi.mock` factories run before the rest of the module
 // evaluates — these spies need to exist by the time the factory closure
 // captures them, and also be importable by the tests below to assert on.
-const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, setPaintPropertyMock, markerInstances } = vi.hoisted(
+const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances } = vi.hoisted(
   () => ({
     addLayerMock: vi.fn(),
     addSourceMock: vi.fn(),
     fitBoundsMock: vi.fn(),
     mapConstructorMock: vi.fn(),
     mapOnLoad: vi.fn(),
+    // Every map event MapLens subscribes to, by name. The viewer gate is the
+    // *absence* of a "dblclick" subscription (MapLens registers it only for an
+    // editor), which is only observable if the stub records what it was asked
+    // for rather than swallowing everything but "load".
+    mapHandlers: new globalThis.Map<string, (e: unknown) => void>(),
     setPaintPropertyMock: vi.fn(),
     // Real maplibre's Marker#getElement() returns the *same* DOM node on
     // every call — this array of constructed instances (each with a stable
@@ -73,6 +78,7 @@ vi.mock("maplibre-gl", () => {
       mapConstructorMock(options);
     }
     on(event: string, cb: () => void) {
+      mapHandlers.set(event, cb as (e: unknown) => void);
       // Real maplibre fires "load" async, after style/tiles resolve — a
       // microtask keeps that ordering (and satisfies the `await waitFor`
       // callers below) without an unawaited real network/GL round-trip.
@@ -239,11 +245,15 @@ function detailWithEmptyDay(): TripDetail {
   });
 }
 
-function renderMap(detail: TripDetail, overrides: { focusedDay?: number | null; setFocusedDay?: (i: number | null) => void } = {}) {
+function renderMap(
+  detail: TripDetail,
+  overrides: { focusedDay?: number | null; setFocusedDay?: (i: number | null) => void } = {},
+  readOnly = false,
+) {
   useFocusMock.mockReturnValue({ focusedDay: null, setFocusedDay: vi.fn(), ...overrides });
   return render(
     <EditorHost>
-      <MapLens detail={detail} onSelectActivity={vi.fn()} />
+      <MapLens detail={detail} onSelectActivity={vi.fn()} readOnly={readOnly} />
     </EditorHost>,
   );
 }
@@ -482,5 +492,43 @@ describe("MapLens", () => {
       // all now that the map doesn't plot anything off a day.
       expect(markerInstances).toHaveLength(2);
     });
+  });
+});
+
+// CodeRabbit, PR #78: M11 link 3 viewer-gated the Board lens; the Map lens was
+// left out, and double-click-to-create is its one write affordance. Everything
+// else here is read — routes, pins, rail, legend, and the marker click that
+// opens a stop (the sheet presents read-only for a viewer, ActivityEditorSheet)
+// — so this is the only thing a viewer loses. The server refuses AddActivity
+// from a viewer independently (accessPolicy.ts); this is defence in depth.
+describe("MapLens — a viewer's map", () => {
+  beforeEach(() => {
+    mapHandlers.clear();
+    markerInstances.length = 0;
+    addLayerMock.mockClear();
+  });
+
+  it("registers no double-click-to-create handler", async () => {
+    renderMap(detailWithTwoDays(), {}, true);
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(mapHandlers.has("dblclick")).toBe(false);
+  });
+
+  it("still draws every route and pin", async () => {
+    renderMap(detailWithTwoDays(), {}, true);
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(addLayerMock).toHaveBeenCalledTimes(2);
+    expect(markerInstances).toHaveLength(4);
+    expect(screen.getByTestId("map-lens")).toBeTruthy();
+  });
+
+  it("registers it for an editor, and it opens the editor prefilled at the clicked point", async () => {
+    renderMap(detailWithTwoDays());
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(mapHandlers.has("dblclick")).toBe(true);
+
+    // The handler itself, driven the way maplibre would drive it — the proof
+    // that "registered" means "creates a stop", not just "is present".
+    expect(() => mapHandlers.get("dblclick")!({ lngLat: { lng: 12.4922, lat: 41.8902 } })).not.toThrow();
   });
 });

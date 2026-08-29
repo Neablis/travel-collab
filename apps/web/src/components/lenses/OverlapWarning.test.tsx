@@ -49,6 +49,16 @@ describe("OverlapWarning", () => {
     expect(onFix).not.toHaveBeenCalled();
   });
 
+  // A viewer keeps the sentence and loses both controls: "Start HH:MM" is an
+  // UpdateActivity and "Dismiss" is a DismissConflict, but the overlap itself
+  // is information about the trip (CodeRabbit, PR #78).
+  it("keeps the sentence and withholds both controls for a viewer", () => {
+    render(<OverlapWarning overlap={overlap} onFix={vi.fn()} onDismiss={vi.fn()} readOnly />);
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30 m on top of each other.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start 1 pm" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  });
+
   it("fixes and dismisses independently", async () => {
     const onFix = vi.fn();
     const onDismiss = vi.fn();

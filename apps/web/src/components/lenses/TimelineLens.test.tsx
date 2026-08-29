@@ -101,7 +101,7 @@ function renderLensWithFocusControl(detail = detailFixture()) {
 // conflict the domain emits for that pair. `dispatch` is the onCommand seam
 // TripBoardScreen fills with the real dispatch; the returned mock is what the
 // warning's fix and dismiss land in.
-function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
+function renderTimelineWithOverlap(over: Partial<TripDetail> = {}, readOnly = false) {
   const dispatch = vi.fn();
   const detail = tripDetailFixture({
     days: [{ dayId: "d1", activityIds: ["a", "b"], date: "2027-06-01", costSubtotal: 0 }],
@@ -124,7 +124,7 @@ function renderTimelineWithOverlap(over: Partial<TripDetail> = {}) {
   render(
     <FocusProvider>
       <EditorHost>
-        <TimelineLens detail={detail} onCommand={dispatch} />
+        <TimelineLens detail={detail} onCommand={dispatch} readOnly={readOnly} />
       </EditorHost>
     </FocusProvider>,
   );
@@ -684,5 +684,70 @@ describe("TimelineLens", () => {
     expect(screen.getByText("No days yet.")).toBeTruthy();
     expect(screen.queryByTestId("end-of-trip")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
+  });
+});
+
+// CodeRabbit, PR #78: M11 link 3 viewer-gated the Board lens and its commit
+// claimed the trip surface, but the Schedule lens was left out — a viewer on
+// the Timeline still got a per-day "Add stop", the dashed add row, and both of
+// the overlap warning's controls. What a viewer must still see is everything
+// that is *about the trip*: the days, the stops, the legs, the day badges and
+// the warnings' own copy. This withholds controls, never information.
+//
+// The server refuses each of these commands independently (accessPolicy.ts),
+// and TripBoardScreen's `onCommand` seam refuses them again before dispatch
+// (TripBoardScreen.test.tsx) — this is defence in depth and a legible
+// read-only timeline, never the boundary.
+//
+// EndOfTrip's own "Add a day" is absent from these assertions on purpose: it
+// gates itself off TripProvider, which this file stubs to an editor's answer
+// at the top, and EndOfTrip.test.tsx owns that gate.
+describe("TimelineLens — a viewer's timeline", () => {
+  function renderViewerLens(detail: TripDetail) {
+    render(
+      <FocusProvider>
+        <EditorHost>
+          <TimelineLens detail={detail} readOnly />
+        </EditorHost>
+      </FocusProvider>,
+    );
+  }
+
+  it("withholds the day header's Add stop and the dashed add row", () => {
+    renderViewerLens(detailWithDayEndingAt("21:00"));
+    expect(screen.queryByTestId("timeline-add-d1")).toBeNull();
+    expect(screen.queryByTestId("timeline-add-row-d1")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a stop after 9 pm" })).toBeNull();
+  });
+
+  it("withholds the add row on an empty day too, where it is the only affordance", () => {
+    renderViewerLens(detailWithEmptyDay());
+    expect(screen.queryByRole("button", { name: "Add the first stop" })).toBeNull();
+    // ...and the day still says what it is, rather than disappearing with it.
+    expect(screen.getByText("Nothing planned yet")).toBeTruthy();
+  });
+
+  it("still shows the schedule itself — every day, stop and time", () => {
+    renderViewerLens(detailWithTwoDays());
+    expect(screen.getByTestId("timeline-row-d1")).toBeTruthy();
+    expect(screen.getByTestId("timeline-row-d2")).toBeTruthy();
+    expect(screen.getByText("Colosseum tour")).toBeTruthy();
+    expect(screen.getByText("Roman Forum")).toBeTruthy();
+  });
+
+  it("keeps the overlap warning and its count badge, and withholds both controls", () => {
+    renderTimelineWithOverlap({}, true);
+    expect(screen.getByTestId("overlap-warning-b")).toBeTruthy();
+    expect(screen.getByText("Overlaps Nezu Museum, 10:30 am – 1 pm — 30 m on top of each other.")).toBeTruthy();
+    expect(screen.getByText("1 overlap")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Start / })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  });
+
+  it("offers every one of them to an editor", () => {
+    renderTimelineWithOverlap();
+    expect(screen.getByTestId("timeline-add-d1")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start 1 pm" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeTruthy();
   });
 });

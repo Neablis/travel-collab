@@ -37,9 +37,16 @@ function layerIdFor(dayId: string): string {
 export function MapLens({
   detail,
   onSelectActivity,
+  readOnly = false,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
+  /** A viewer's map: double-clicking the canvas creates nothing. Everything
+      else here is read — the routes, the pins, the rail, and the marker click
+      that opens a stop (the editor sheet presents read-only for a viewer —
+      ActivityEditorSheet). See Board.tsx's own `readOnly` note for why the
+      client gate is defence in depth rather than the security boundary. */
+  readOnly?: boolean;
 }) {
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay } = useFocus();
@@ -125,12 +132,19 @@ export function MapLens({
         map?.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
       });
 
-      map.on("dblclick", (e: import("maplibre-gl").MapMouseEvent) => {
-        const { lng, lat } = e.lngLat;
-        openCreate({
-          location: { name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng },
+      // Double-click-to-create is this lens's only write affordance, so a
+      // viewer's map never registers the handler at all — openCreate would
+      // otherwise raise the editor sheet in create mode, which for a viewer
+      // presents as an empty read-only panel: a control that appears to do
+      // something and does nothing.
+      if (!readOnly) {
+        map.on("dblclick", (e: import("maplibre-gl").MapMouseEvent) => {
+          const { lng, lat } = e.lngLat;
+          openCreate({
+            location: { name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng },
+          });
         });
-      });
+      }
 
       map.on("load", () => {
         if (cancelled || !map) return;
@@ -195,8 +209,12 @@ export function MapLens({
         map?.remove();
       }
     };
+    // `readOnly` is in the deps because the dblclick handler above is
+    // registered once, inside this effect: without it, a map mounted before
+    // the access read resolves would keep the editor's handler after the
+    // answer came back "viewer".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate]);
+  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate, readOnly]);
 
   // Focus-driven camera + opacity, kept separate from the creation effect
   // above so clicking a rail day never tears down and rebuilds the whole map
