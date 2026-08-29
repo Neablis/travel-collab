@@ -203,10 +203,79 @@
      900px-tall viewport (keyboard Enter still submitted, which is why it went
      unnoticed until the composer became the assistant's primary control).
      Both selectors are kept so unwrapping the rack does not silently undo
-     this a second time. Pinned by e2e (m16-assistant.spec.ts clicks Ask). */
-  .assistant-open ~ .unscheduled-rack,
-  .assistant-open ~ * .unscheduled-rack {
-    right: 356px;
+     this a second time. Pinned by e2e (m16-assistant.spec.ts clicks Ask).
+     Scoped to >=768px (KI-84 mobile fix, PR #88): below that the rail is no
+     longer a docked 356px sidebar (see `.assistant-rail` below), so
+     reserving 356px of the rack's width for one is stale and, worse,
+     misleading — the rack is fully covered by the mobile rail's own z-index
+     regardless of this rule, but a "compensate for a sidebar that doesn't
+     exist here" rule left unscoped is the exact kind of thing this ticket
+     was filed to stop leaving unhandled. */
+  @media (min-width: 768px) {
+    .assistant-open ~ .unscheduled-rack,
+    .assistant-open ~ * .unscheduled-rack {
+      right: 356px;
+    }
+  }
+
+  /* AssistantRail (KI-84 mobile fix, PR #88 preview report — Mitchell, on an
+     Android phone: "the AI assistant on mobile breaks the entire website, it
+     probably shouldn't be a modal but a full page experience"). Docked
+     (>=768px — Tailwind's own `md`, which every other breakpoint-aware rule
+     in this file already treats as the line between "narrow but still a
+     shrinkable plan" and "phone": see `.playbooks-grid`'s 1180px and the
+     hero's 1024px for wider breakpoints, and SPEC.md §13's mobile-foundations
+     framing for why phone gets its own rules rather than a squeeze of
+     desktop's) is UNCHANGED — 356px width, sticky under the header, a real
+     flex sibling per SPEC §9. e2e pins this exactly
+     (responsive.spec.ts "docked contract").
+     Below 768px the rail stops being a flex sibling with a width and becomes
+     the whole screen, per Mitchell's own direction above — not a squeeze,
+     an `<aside>` that owns the viewport with the plan behind it. Two things
+     this closes that are NOT just "the plan was crushed":
+     1. TripHeader is `sticky z-10` with `overflow-x: visible` — at the
+        crushed 356px-vs-viewport width this replaces, its own content (Share,
+        Add stop, History) didn't fit its squeezed column and painted OVER
+        the docked rail, which carried no z-index of its own (confirmed by a
+        diagnostic click landing on a day-chip link instead of the rail).
+        `z-index: 30` here clears both stacking competitors already on this
+        page — TripHeader's 10 and `.unscheduled-rack`'s 20 — so nothing can
+        paint over the rail again regardless of how tall either one's content
+        gets.
+     2. `100dvh`, not the desktop rule's `100vh`: a phone's on-screen keyboard
+        changes the visible viewport without necessarily changing `vh`, which
+        is a credible way for a fixed-height composer to sit below the
+        keyboard-adjusted visible area while still reporting itself as open —
+        one live reading of Mitchell's "the input is unselectable" that a
+        synthetic click (no real keyboard) cannot reproduce, the same reason
+        the rack/Ask-button bug above survived until someone stopped
+        submitting with Enter. `dvh` tracks the browser's actual visible
+        viewport instead.
+     A named class rather than a Tailwind `md:` variant on the element
+     because the desktop geometry (356px width, `100vh - 3.5rem` height) is
+     an inline-style computed-geometry exception (AssistantRail.tsx) and an
+     inline style beats any later Tailwind utility without `!important` — the
+     override has no effect unless both states live in the same rule, so both
+     do, here. `position`/`top` move here too (off the `sticky`/`top-14`
+     utilities the element used to carry) for the identical reason: Tailwind's
+     utilities layer always wins over this file's components layer,
+     independent of which media query matches, so a utility class on the
+     element would silently out-rank this rule's `position: fixed` at every
+     width, docked included. */
+  .assistant-rail {
+    position: sticky;
+    top: 3.5rem;
+    width: 356px;
+    height: calc(100vh - 3.5rem);
+  }
+  @media (max-width: 767px) {
+    .assistant-rail {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      z-index: 30;
+    }
   }
 
   /* Radix portals render outside the React tree, appended to the end of

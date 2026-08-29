@@ -54,6 +54,17 @@ const ASK_WARNING_AT = 3;
 // (`MAX_ASK_MESSAGES`) now exists on this side of the wire, as a warning while
 // it fills and an obvious exit when it is full. Before, the 41st message failed
 // the turn with a server 400 nobody could act on.
+//
+// Mobile fix (KI-84, PR #88 preview, 2026-08-29): the 356px docked width used
+// to be unconditional, so a phone-width viewport crushed the plan to a
+// sliver, TripHeader's overflowing content painted over the rail, and the
+// composer became genuinely unusable. Below 768px this is now a full-screen
+// surface, not a squeeze of the docked one — see `.assistant-rail`
+// (globals.css) for the geometry and why it lives there rather than in
+// Tailwind classes on this element. The launcher pill that opens it is
+// unchanged and is off-SPEC on its own terms (§13.5: "no floating action
+// button") — that is a real designed-mobile-entry-point decision this fix
+// does not make; see KI-84.
 export function AssistantRail({
   contextLine,
   scope,
@@ -153,24 +164,24 @@ export function AssistantRail({
   return (
     <aside
       aria-label="Assistant"
-      // `sticky top-14`: `top-14` is the same 56px AppHeader height
-      // TripHeader's own `top-14` uses (see that file's comment) — the rail
-      // sits under the app header rather than the fixed `inset-y-0` the
-      // old overlay used, which rendered over the top of it. `self-start`
+      // `.assistant-rail` (globals.css) carries ALL of this element's
+      // position/width/height, docked and full-screen alike — see that
+      // class's own comment (KI-84 mobile fix) for why `top-14`/`sticky`
+      // moved out of Tailwind utilities and the 356px/100vh geometry out of
+      // an inline style: a utility class here would silently outrank a
+      // media-query override in that file regardless of which query
+      // matched, and an inline style outranks it even harder. `self-start`
       // stops the flex row's default `stretch` from growing the aside to
-      // match the plan column's (usually taller) content height; the height
-      // below caps it at the viewport instead, so it reads as "full height
-      // under the header" at every scroll position rather than growing
-      // without bound. `shrink-0` holds the 356px width against the row's
-      // default flex-shrink, which would otherwise squeeze it below spec on
-      // a narrow viewport.
+      // match the plan column's (usually taller) content height while
+      // docked; irrelevant once the mobile rule takes the element out of
+      // flow with `position: fixed`, and harmless there. `shrink-0` holds
+      // the 356px width against the row's default flex-shrink while docked.
       //
       // `border-l-2 border-border-strong`, not the hairline every other
       // panel edge uses: SPEC §9 calls the docked rail's left edge "a
-      // structural wall, not a card edge."
-      className="sticky top-14 flex shrink-0 flex-col self-start border-l-2 border-border-strong bg-surface"
-      // eslint-disable-next-line no-restricted-syntax -- 356px rail width (handoff spec) and a viewport-minus-header height have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-      style={{ width: "356px", height: "calc(100vh - 3.5rem)" }}
+      // structural wall, not a card edge." Left as-is full-screen — a 2px
+      // border at the viewport's own left edge costs nothing.
+      className="assistant-rail flex shrink-0 flex-col self-start border-l-2 border-border-strong bg-surface"
     >
       <div className="border-b border-hairline px-4 py-3">
         <div className="flex items-center gap-2">
@@ -191,7 +202,18 @@ export function AssistantRail({
               New
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onHide}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onHide}
+            // Full-screen below 768px (`.assistant-rail`, globals.css) makes
+            // this the ONLY way back to the plan — SPEC §13.1's 44px target
+            // floor applies to it for the first time, and the added border
+            // reads as an exit rather than a tertiary ghost action once
+            // there is nothing else on screen to suggest one (KI-84 mobile
+            // fix).
+            className="max-md:h-11 max-md:min-w-11 max-md:border max-md:border-border-strong max-md:px-4"
+          >
             Hide
           </Button>
         </div>
