@@ -1,6 +1,7 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Db } from "../db/client";
+import { memberRole } from "../accessPolicy";
 import { tripMemberships, users } from "../db/schema";
 
 type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -168,15 +169,76 @@ export async function grantMembership(
  * Revoking an ACCEPTED invite takes the membership away too — otherwise
  * "revoke" would only stop a link being reused and leave the person it already
  * let in exactly where they were, which is not what the word means.
+ *
+ * Returns whether a row was actually deleted, the same way `grantMembership`
+ * reports whether it actually inserted one. `revokeInvite` ignores it (it
+ * re-asserts the delete unconditionally, which is what makes a second revoke
+ * the recovery path for a lost race); `removeMember` below is the caller that
+ * needs to tell "there was a membership and it is gone" from "there was never
+ * one", because those are a 200 and a 404.
  */
 export async function revokeMembership(
   tx: Queryable,
   tripId: string,
   userId: string,
-): Promise<void> {
-  await tx
+): Promise<boolean> {
+  const deleted = await tx
     .delete(tripMemberships)
-    .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, userId)));
+    .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, userId)))
+    .returning();
+  return deleted.length > 0;
+}
+
+/** What `removeMember` did, for the route to turn into a status code. */
+export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
+
+/**
+ * Take a person off a trip (KI-65).
+ *
+ * Until this existed, `revokeMembership` had exactly one production caller —
+ * `revokeInvite` — so an owner's only lever on membership was the invite that
+ * created it. That covers the case it was built for (the revoke/accept race:
+ * revoking a second time re-asserts the delete) and nothing else. A row from
+ * any OTHER cause — a direct `grantMembership`, a future non-invite join path,
+ * a bad migration, an operator's hand-written row — had no API removal at all
+ * and could only be cleared with SQL.
+ *
+ * THE POLICY, stated here rather than in the route, so a second caller cannot
+ * quietly get a different one. Three decisions the entry called out as
+ * non-mechanical, each taken the narrow way — widening later is additive,
+ * narrowing is a breaking change:
+ *
+ * 1. **Who may remove whom: the owner, and only the owner.** The route asks
+ *    `requireTripAccess(tripId, "owner")`, matching invite creation and
+ *    revocation (ADR-026) — the other two levers on who is on a trip. "May an
+ *    editor remove an editor" is deliberately answered NO for now: an editor
+ *    edits the plan, and nothing in ADR-026 puts the guest list in their hands.
+ * 2. **The owner cannot be removed, by anyone including themselves.** Their
+ *    membership is not a `trip_memberships` row at all — it comes from the
+ *    planning log's `TripCreated` (see `mergeMembers`) — so a delete here
+ *    would silently no-op while reporting success. Refused explicitly instead.
+ *    This is also what makes "leave a trip" absent rather than half-built: an
+ *    owner-only endpoint cannot express it, and self-removal for a guest is a
+ *    product surface, not a permission tweak.
+ * 3. **Removal is not in the trip's history.** Access is CRUD, not
+ *    event-sourced (ADR-003, invariant 1) — revoking an invite is not an event
+ *    either, and inventing a planning event to carry a membership change is
+ *    the boundary smell AGENTS.md names.
+ *
+ * The removed person's in-flight optimistic queue needs nothing here: their
+ * next write 403s at the access seam, and the send queue already retains,
+ * counts and surfaces a refused send rather than discarding it (KI-36).
+ *
+ * `members` is the EFFECTIVE list the caller already holds, so this does not
+ * re-read what `requireTripAccess` just computed.
+ */
+export async function removeMember(
+  tripId: string,
+  userId: string,
+  members: readonly TripMember[],
+): Promise<RemoveMemberOutcome> {
+  if (memberRole(userId, [...members]) === "owner") return "owner";
+  return (await revokeMembership(db, tripId, userId)) ? "removed" : "not-a-member";
 }
 
 /**
