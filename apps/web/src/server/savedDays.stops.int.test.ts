@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SavedDay, type SavedStop } from "@tc/contracts";
+import { SavedDay, type SavedStop, type TripDetail } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
-import { getSavedDay, listSavedDays } from "./savedDays";
+import { getSavedDay, listSavedDays, saveDay } from "./savedDays";
 
 // KI-71. `saved_days.stops` is `jsonb("stops").$type<SavedStop[]>()`, and
 // `$type` is a compile-time cast on Drizzle's side — nothing checks the bytes.
@@ -135,5 +136,78 @@ describe("saved day rows are parsed at the read boundary (KI-71)", () => {
 
     expect(await getSavedDay(savedDayId, ownerId)).toBeNull();
     expect(await listSavedDays(ownerId)).toEqual([]);
+  });
+});
+
+// The write half of the same boundary. `saveDay` parses the stops it computed
+// BEFORE inserting, and the comment there says why — PR #71 review §2 inserted
+// the library row and THEN threw at the response boundary, leaving the user a
+// 500 and a contract-violating row. A comment asserting an invariant that no
+// test enforces is this repo's named recurring defect class (CodeRabbit,
+// PR #85), so it is enforced here.
+describe("saveDay refuses a day it could not read back (KI-71, write half)", () => {
+  // A detail whose stops cannot pass `SavedStop` — the shape `stopsForDay`
+  // produced when it was handed a raw, unparsed `trip_details.doc`. Built as a
+  // cast rather than by aging a real row, because the read boundary now repairs
+  // an aged row (KI-74) and the point here is what `saveDay` does when its
+  // input is bad ANYWAY.
+  function detailWithOneStop(kind: "planned" | undefined): TripDetail {
+    const activityId = randomUUID();
+    const dayId = randomUUID();
+    return {
+      ...tripDetailFixture(),
+      days: [{ dayId, activityIds: [activityId], date: null, costSubtotal: 0 }],
+      activities: {
+        [activityId]: {
+          activityId,
+          title: "Ramen",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          // `undefined` is the value PR #71 review §2 turned up here.
+          kind,
+          tags: [],
+          cost: null,
+        } as unknown as TripDetail["activities"][string],
+      },
+    };
+  }
+
+  it("returns invalid, and writes no row", async () => {
+    const ownerId = freshOwner();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const detail = detailWithOneStop(undefined);
+
+    const result = await saveDay({ name: "A bad day", dayId: detail.days[0]!.dayId }, detail, ownerId);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error.code).toBe("invalid");
+    // The whole point: nothing was persisted. The old failure mode inserted
+    // first and threw afterwards, so asserting the error alone would pass
+    // against exactly the bug this guards.
+    expect(await listSavedDays(ownerId)).toEqual([]);
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("still saves a day whose stops are fine", async () => {
+    const ownerId = freshOwner();
+    // The SAME builder, one field apart — so a refusal that came from anything
+    // other than the bad `kind` would show up here as a failure too.
+    const detail = detailWithOneStop("planned");
+
+    const result = await saveDay(
+      { name: "A good day", dayId: detail.days[0]!.dayId },
+      detail,
+      ownerId,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(() => SavedDay.parse(result.value)).not.toThrow();
+    expect((await listSavedDays(ownerId)).map((day) => day.savedDayId)).toEqual([
+      result.value.savedDayId,
+    ]);
   });
 });

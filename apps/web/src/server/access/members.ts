@@ -229,15 +229,27 @@ export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
  * next write 403s at the access seam, and the send queue already retains,
  * counts and surfaces a refused send rather than discarding it (KI-36).
  *
- * `members` is the EFFECTIVE list the caller already holds, so this does not
- * re-read what `requireTripAccess` just computed.
+ * `projected` is the PLANNING LOG's member list — `getTripDetail(...).members`,
+ * the one `mergeMembers` calls `projected` — and NOT the effective list. That
+ * distinction is the whole of rule 2 and it was wrong here first (CodeRabbit,
+ * PR #85): checking the merged role protects anyone whose *effective* rank is
+ * owner, which includes a granted `trip_memberships` row carrying `role:
+ * "owner"`. Such a row is not the trip's owner — it is a stray row, which is
+ * the exact thing this endpoint exists to clear, and it was the one row it
+ * refused to. Nothing mints one today (`InviteRole` is `viewer | editor`), but
+ * `grantMembership` takes a full `TripRole`, and "a bad migration or an
+ * operator's hand-written row" is KI-65's own list of causes.
+ *
+ * Removing such a row cannot cost the real owner anything: their ownership
+ * comes from `TripCreated`, and `mergeMembers` gives the higher rank to
+ * whichever source names them.
  */
 export async function removeMember(
   tripId: string,
   userId: string,
-  members: readonly TripMember[],
+  projected: readonly TripMember[],
 ): Promise<RemoveMemberOutcome> {
-  if (memberRole(userId, [...members]) === "owner") return "owner";
+  if (memberRole(userId, [...projected]) === "owner") return "owner";
   return (await revokeMembership(db, tripId, userId)) ? "removed" : "not-a-member";
 }
 

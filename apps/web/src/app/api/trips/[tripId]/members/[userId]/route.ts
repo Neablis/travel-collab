@@ -1,7 +1,9 @@
 import { TripAccess } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
-import { removeMember, withProfiles } from "@/server/access/members";
+import { effectiveMembers, removeMember, withProfiles } from "@/server/access/members";
 import { listInvites } from "@/server/access/invites";
+import { getTripDetail } from "@/server/projections";
+import { db } from "@/server/db/client";
 
 /**
  * Take a person off a trip (KI-65). Owner-only; the policy itself lives in
@@ -22,7 +24,19 @@ export async function DELETE(
   const access = await requireTripAccess(tripId, "owner");
   if ("error" in access) return access.error;
 
-  const outcome = await removeMember(tripId, userId, access.detail.members);
+  // The PLANNING LOG's member list, not `access.detail.members` — that one is
+  // the effective (merged) list, and `removeMember`'s rule 2 is about who the
+  // trip's owner *is*, not about who currently ranks as one. A granted
+  // membership row carrying `role: "owner"` is a stray row, and a stray row is
+  // what this endpoint is for (CodeRabbit, PR #85).
+  const projected = await getTripDetail(tripId);
+  if (projected === null) {
+    // The trip was deleted between the access check and here. Nothing to do,
+    // and nothing to report about a trip that no longer exists.
+    return Response.json({ error: "not-found" }, { status: 404 });
+  }
+
+  const outcome = await removeMember(tripId, userId, projected.members);
   if (outcome === "owner") {
     // 409, not 403: the caller IS allowed to manage this trip's members — this
     // particular member is the one that cannot be expressed as a membership
@@ -40,13 +54,13 @@ export async function DELETE(
     return Response.json({ error: "That person is not a member of this trip." }, { status: 404 });
   }
 
-  // `access.detail.members` is the PRE-removal snapshot, so returning it would
-  // report the person still on the trip they were just taken off. Filtered
-  // rather than re-read: the delete removed exactly this user's granted row and
-  // touched nothing else, and re-running `effectiveMembers` over this already
-  // MERGED list would re-add them from the snapshot anyway (`mergeMembers`
-  // unions its two arguments — it is not a way to subtract).
-  const members = access.detail.members.filter((member) => member.userId !== userId);
+  // Re-derived AFTER the delete, from the projected list plus what the grants
+  // now say. `access.detail.members` is the pre-removal snapshot and would
+  // report the person still on the trip they were just taken off; filtering
+  // them out of it by hand would be wrong in the one case that is subtle — an
+  // owner who ALSO held a stray granted row, whose row is gone but who is
+  // still, per the log, the owner.
+  const members = await effectiveMembers(db, tripId, projected.members);
   return Response.json({
     access: TripAccess.parse({
       tripId,

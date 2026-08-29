@@ -157,6 +157,39 @@ describe("DELETE /api/trips/:tripId/members/:userId", () => {
     expect(after.error.status).toBe(403);
   });
 
+  // The stray row this endpoint exists for, in its most awkward shape. The
+  // guard used to read the MERGED effective role, so a granted row carrying
+  // `role: "owner"` looked like the trip's owner and was refused — the one row
+  // an owner would most want gone was the one they could not remove
+  // (CodeRabbit, PR #85). Nothing mints one today, which is exactly why a test
+  // has to: `grantMembership` takes a full `TripRole`, and KI-65's own list of
+  // causes is "a bad migration, or an operator's hand-written row".
+  it("removes a granted 'owner' row, which is a stray row and not the trip's owner", async () => {
+    const tripId = await seedTrip();
+    await grantMembership(db, {
+      tripId,
+      userId: GUEST,
+      role: "owner",
+      invitedBy: OWNER,
+      now: new Date().toISOString(),
+    });
+
+    const res = await remove(tripId, GUEST);
+
+    expect(res.status).toBe(200);
+    expect(await memberIds(tripId)).toEqual([OWNER]);
+  });
+
+  // The other half of the same distinction: the real owner is protected by
+  // WHERE their membership comes from (the log), not by what it outranks.
+  it("still refuses the log owner even when they also hold a granted row", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, OWNER, "viewer");
+
+    expect((await remove(tripId, OWNER)).status).toBe(409);
+    expect(await memberIds(tripId)).toEqual([OWNER]);
+  });
+
   it("leaves the other members alone", async () => {
     const tripId = await seedTrip();
     await addMember(tripId, EDITOR, "editor");
