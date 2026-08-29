@@ -15,6 +15,7 @@
     "test:int": "vitest run",
     "test:e2e": "NODE_OPTIONS=--import=./scripts/preload-dotenv.mjs playwright test",
     "test:e2e:ci-like": "pnpm build && CI=true pnpm test:e2e",
+    "walk:preview": "node scripts/walk-preview.mjs",
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
