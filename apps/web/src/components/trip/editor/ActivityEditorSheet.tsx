@@ -111,6 +111,17 @@ export function ActivityEditorSheet() {
         location: value.location,
         notes: value.notes,
         anchors: value.anchors,
+        // M18. Both branches here hand-enumerate the form's fields, so a new
+        // one is dropped silently — TypeScript does not flag the extra
+        // property on `value`, and the sheet's own tests kept passing while
+        // the user's kind and tags went nowhere. This is the third time this
+        // milestone has hit that shape: PR 1 hit it in equality/diff/hydrate/
+        // detail, and the project review found it again in Location.city
+        // (KI-54). §6.1's activity-field descriptor refactor is the standing
+        // fix; until it lands, adding a field means grepping for every
+        // enumeration of them.
+        kind: value.kind,
+        tags: value.tags,
         cost: value.cost,
       });
     } else if (state.mode === "create") {
@@ -128,6 +139,9 @@ export function ActivityEditorSheet() {
         location: value.location ?? undefined,
         notes: value.notes ?? undefined,
         anchors: value.anchors,
+        // See the UpdateActivity branch above — same enumeration, same trap.
+        kind: value.kind,
+        tags: value.tags,
         cost: value.cost ?? undefined,
       });
     }
