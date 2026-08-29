@@ -145,7 +145,9 @@ export function UnscheduledRack({
               // eslint-disable-next-line no-restricted-syntax -- 240px min width and 12.5px copy are design-fixed values with no token equivalent
               style={{ minWidth: "240px", fontSize: "12.5px" }}
             >
-              Nothing parked. Drag a stop down here to take it off the schedule without losing it.
+              {onAssign === undefined
+                ? "Nothing parked."
+                : "Nothing parked. Drag a stop down here to take it off the schedule without losing it."}
             </p>
           ) : (
             items.map((item) => (
@@ -178,23 +180,35 @@ function RackCard({
   // Same payload shape ActivityCard's draggable carries ({ activityId }), so
   // Board's monitor routes a card dragged out of the rack exactly like one
   // dragged between days — resolveDrop needs no rack-source special case.
+  // `onAssign` absent IS the viewer signal here — TripBoardScreen withholds it
+  // rather than passing a flag (ADR-031) — so it gates the drag registration
+  // too, not just the "Add to day" select below. Registering `draggable` for a
+  // viewer is the precise failure the read-only work exists to stop: the card
+  // lifts, follows the cursor, and snaps back when the server refuses the
+  // MoveActivity it produced (docs/reviews/2026-08-28-m11-pr71-review.md §5).
+  // In the dep array for the same reason: a rack rendered before the access
+  // read resolves would otherwise keep the editor's registration.
+  const canDrag = onAssign !== undefined;
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !canDrag) return;
     return draggable({
       element: el,
       getInitialData: () => ({ activityId: item.activityId }),
       onDragStart: () => setDragging(true),
       onDrop: () => setDragging(false),
     });
-  }, [item.activityId]);
+  }, [item.activityId, canDrag]);
 
   return (
     <div
       ref={ref}
       data-testid="rack-card"
       data-blstop=""
-      className="cursor-grab rounded-lg transition-opacity duration-200"
+      // Cursor follows the registration, matching ActivityCard's own
+      // `!readOnly && "cursor-grab"`: a grab cursor over a card that cannot be
+      // picked up is the same false promise the hidden controls exist to avoid.
+      className={cn(canDrag && "cursor-grab", "rounded-lg transition-opacity duration-200")}
       // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as ActivityCard's)
       style={{ flex: "0 0 208px", touchAction: "none", opacity: dragging ? 0.5 : 1 }}
     >

@@ -52,7 +52,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, readOnly } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
   const { lens } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -305,6 +305,36 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // resulting { detail, history } already reconciled — applyOutcome is the
   // same reconciler ComposePanel's board surface used, no refetch needed.
   const submitAssistantAsk = async (text: string) => {
+    // Refused while the optimistic queue still holds unsent work. The AI batch
+    // is decided server-side against state that does NOT include those units,
+    // and `applyOutcome` clears `pending` to take its result — so asking on
+    // top of a queued-but-unsent drag discarded that drag from the UI and the
+    // server both, silently, and the in-flight head raced the batch on
+    // optimistic concurrency (docs/reviews/2026-08-28-project-review.md §1.4).
+    // Reported through the rail's own askError surface rather than swallowed:
+    // disabling the box outright would need a new AssistantRail prop, and a
+    // control that silently does nothing is the failure mode TripProvider's
+    // runDispatch comment was written about.
+    // A viewer's ask is refused for the same reason their drag is: the AI
+    // route is editor-gated server-side, so the model would plan a batch the
+    // server then refuses wholesale. Reported through the rail's own askError
+    // surface rather than swallowed — same call the `pending` gate below makes,
+    // and for the same reason (a control that silently does nothing is the
+    // failure mode TripProvider's runDispatch comment was written about).
+    if (readOnly) {
+      setAskStatus("error");
+      setAskError("You have view-only access to this trip.");
+      setAskSimulated(false);
+      return false;
+    }
+    if (pending) {
+      setAskStatus("error");
+      setAskError("Finish saving your changes before asking the assistant.");
+      setAskSimulated(false);
+      // false keeps the rail's typed prompt on screen: this ask never reached
+      // the model, so making the user retype it would read as a broken box.
+      return false;
+    }
     setAskStatus("loading");
     setAskError(null);
     setAskSimulated(false);
@@ -387,11 +417,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // ("mapwrap" in the handoff) — the default px-6 gutter would
             // leave the rail's 16px inset reading as ~40px instead.
             <PageContainer width="full" className="px-0">
-              {/* The map's own card is a read surface — the pin, the place,
-                  the time, the cost. Its one write is the jump into the stop
-                  editor, which is `onSelectActivity`, and that is optional. */}
+              {/* Main's rule: a viewer does not get the jump into the stop
+                  editor, so `onSelectActivity` is withheld (ADR-031). The
+                  `readOnly` prop is the half that rule does not reach —
+                  double-click-to-create calls `openCreate` from useEditor()
+                  directly, not through this callback, so without it a viewer
+                  could still raise the editor in create mode. */}
               {lens === "Map" && (
-                <MapLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
+                <MapLens
+                  detail={activeTrip}
+                  onSelectActivity={readOnly ? undefined : openEdit}
+                  readOnly={readOnly}
+                />
               )}
             </PageContainer>
           ) : (
@@ -404,7 +441,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   // nothing that changes it (ADR-031). `readOnly` comes from
                   // the provider's own gate — the same flag that already
                   // refuses the command — so the controls and the refusal can
-                  // never disagree about who may edit.
+                  // never disagree about who may edit. The same reasoning
+                  // reached here independently from the M11 side
+                  // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
+                  // is the difference between an inert board and one whose
+                  // cards move and snap back.
                   readOnly={readOnly}
                   callbacks={{
                     onSelectDay: setFocusedDay,
@@ -450,6 +491,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   // the appended day into view itself, via the focus effect it
                   // already owns — see TimelineLens's `addDay`.
                   onCommand={(command) => {
+                    // All three commands this seam carries (UpdateActivity,
+                    // DismissConflict, AddDay) are writes, so a viewer has
+                    // nothing legitimate to raise through it. Unreachable
+                    // today — the timeline withholds every affordance that
+                    // would raise one (`readOnly` above), and TripProvider's
+                    // `dispatch` refuses a viewer as well — and kept for the
+                    // same reason ActivityEditorSheet's handleSave guard is:
+                    // so the refusal does not depend on a render branch
+                    // somewhere below staying correct. The server refuses each
+                    // of them independently (accessPolicy.ts) and remains the
+                    // real gate; this is defence in depth.
+                    if (readOnly) return;
                     if (command.type !== "CreateTrip") void dispatch(command);
                   }}
                 />

@@ -1,6 +1,7 @@
 import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
+import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Db } from "./db/client";
 import { tripDetails, tripSummaries } from "./db/schema";
@@ -80,4 +81,44 @@ export async function rebuildProjections(): Promise<void> {
 
 export async function listTripSummaries() {
   return db.select().from(tripSummaries).where(eq(tripSummaries.status, "active"));
+}
+
+/**
+ * The home grid's query: active trips this user can see, narrowed in SQL.
+ *
+ * Visibility has two independent sources and the query has to cover both, or
+ * it silently loses trips. The projection's own member list is the log talking
+ * — `TripCreated` mints the creator as the sole `owner`, and it is the ONLY
+ * record for every trip made before `trip_memberships` existed. The membership
+ * table is the Access module talking: one row per accepted invite, which is
+ * what makes a shared trip appear in the grid indistinguishable from your own
+ * (M11 exit gate, SPEC R4). An inner join over memberships would answer the
+ * second and drop the first entirely, so this is `OR` over a containment test
+ * and an EXISTS.
+ *
+ * In SQL rather than a `.filter()` over `listTripSummaries()` because the old
+ * shape loaded every trip on the instance and cost grew with total users, not
+ * with the caller's trips — and because a predicate a caller can accidentally
+ * delete is one edit away from a cross-tenant dump (project review L3, PR #71
+ * review §6). The Access half comes from `hasMembershipRow` rather than being
+ * rewritten here: Planning does not own `trip_memberships` and does not decide
+ * who is invited (AGENTS.md module map).
+ *
+ * `members @> '[{"userId": ...}]'` is role-agnostic containment, so it keeps
+ * matching if a planning event ever mints a non-owner — the JS predicate it
+ * replaces (`members.some((m) => m.userId === userId)`) was role-agnostic too.
+ */
+export async function listTripSummariesVisibleTo(userId: string) {
+  return db
+    .select()
+    .from(tripSummaries)
+    .where(
+      and(
+        eq(tripSummaries.status, "active"),
+        or(
+          sql`${tripSummaries.members} @> ${JSON.stringify([{ userId }])}::jsonb`,
+          hasMembershipRow(tripSummaries.tripId, userId),
+        ),
+      ),
+    );
 }

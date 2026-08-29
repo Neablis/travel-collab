@@ -27,8 +27,19 @@ export function InviteAcceptScreen({ token }: { token: string }) {
 
   const load = useCallback(async () => {
     const result = await fetchInvitePreview(token);
-    if (result.ok) setInvite(result.value);
-    else setError(result.error.message);
+    if (result.ok) {
+      setInvite(result.value);
+      return;
+    }
+    // Clear the invite as well as setting the error. A refused preview is the
+    // authoritative answer that this link offers nothing, and the re-read in
+    // `join()` below is the case that makes it matter: the server now refuses
+    // a spent or revoked token outright (PR #71 review §7), so a lost race
+    // comes back `!ok` rather than as a preview whose status changed. Leaving
+    // the previous preview in place would keep "Join this trip" on screen with
+    // an error line under it, offering a button that cannot work.
+    setInvite(null);
+    setError(result.error.message);
   }, [token]);
 
   useEffect(() => {
@@ -74,6 +85,10 @@ export function InviteAcceptScreen({ token }: { token: string }) {
     );
   }
 
+  // Belt and braces. `previewInvite` refuses a non-pending token before it
+  // reaches this screen unless the viewer is already a member, so with the
+  // current server this is unreachable — it stays as the fallback for a
+  // preview that reports a status the server did not gate on.
   const spent = invite.status !== "pending" && !invite.alreadyMember;
 
   return (

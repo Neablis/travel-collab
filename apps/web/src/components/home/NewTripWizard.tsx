@@ -14,6 +14,7 @@ import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { MoneyInput } from "@/components/board/MoneyInput";
+import { addDaysIso } from "@/lib/dates";
 import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
 
@@ -61,19 +62,10 @@ const TAG_CHIP_SHAPE = ["Food", "Art", "Hiking", "Nightlife", "Markets", "Archit
 // logic.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Inclusive-length day arithmetic: a chip picking N days from arrival A
-// gives endDate = A + (N-1) days. Same pure-UTC style as lib/dates.ts's
-// dayLabel (the domain never reads dates, so this stays local Date.UTC
-// arithmetic, never a bare `new Date()` parse of a date string) — no
-// packages/domain import allowed here. Callers
-// must gate on ISO_DATE.test(startIso) first (see above) — an incomplete
-// intermediate value parses to an Invalid Date, and toISOString() throws a
-// RangeError on one rather than returning garbage.
-function addDaysIso(startIso: string, days: number): string {
-  const d = new Date(`${startIso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+// Inclusive-length day arithmetic below uses lib/dates.ts's addDaysIso: a chip
+// picking N days from arrival A gives endDate = A + (N-1) days. Every call is
+// gated on ISO_DATE.test(arrive) first (see above) — addDaysIso throws on an
+// incomplete intermediate value rather than returning garbage.
 
 export type NewTripWizardProps = {
   open: boolean;

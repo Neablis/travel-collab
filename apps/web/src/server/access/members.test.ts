@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { TripMember } from "@tc/contracts";
-import { mergeMembers } from "./members";
+import { db } from "../db/client";
+import { tripSummaries } from "../db/schema";
+import { grantedMembersByTrip, hasMembershipRow, mergeMembers } from "./members";
 
 // `mergeMembers` is the whole reason M11 link 3 needed no planning event: it
 // is where the log's owner and the Access module's accepted invites become one
@@ -105,5 +107,45 @@ describe("mergeMembers — properties", () => {
     // 1823-1968 assertions (the count varies with generated array lengths).
     // Floor at ~half the observed minimum.
     expect(witness).toBeGreaterThanOrEqual(900);
+  });
+});
+
+// `hasMembershipRow` is the half of the home grid's visibility predicate that
+// the Access module owns. Building the SQL opens no connection, so its shape
+// is pinned here rather than in the integration suite — what the integration
+// suite proves is the behaviour, which is the point; this pins the *reason*
+// the behaviour holds, which is the comment on the function.
+describe("hasMembershipRow", () => {
+  const render = (userId: string) =>
+    db.select().from(tripSummaries).where(hasMembershipRow(tripSummaries.tripId, userId)).toSQL();
+
+  it("is a correlated EXISTS over trip_memberships, not a join", () => {
+    const { sql } = render("dev-bob");
+    expect(sql).toContain("exists");
+    expect(sql).toContain('"trip_memberships"');
+    // A join would put trip_memberships in the FROM list, which is exactly the
+    // shape that drops owner-only trips.
+    expect(sql).not.toContain("join");
+    expect(sql.slice(sql.indexOf("from"), sql.indexOf("where"))).not.toContain("trip_memberships");
+  });
+
+  it("parameterises the user id rather than interpolating it", () => {
+    const { sql, params } = render("dev'; drop table trip_memberships; --");
+    expect(params).toContain("dev'; drop table trip_memberships; --");
+    expect(sql).not.toContain("drop table");
+  });
+});
+
+describe("grantedMembersByTrip", () => {
+  // `inArray` with an empty list is not a query worth sending, and drizzle's
+  // rendering of it is not something to rely on. The home grid hits this every
+  // time a brand-new user loads it.
+  it("returns an empty map without touching the database for no trips", async () => {
+    const forbidden = {
+      select: () => {
+        throw new Error("grantedMembersByTrip queried for an empty id list");
+      },
+    } as never;
+    expect(await grantedMembersByTrip(forbidden, [])).toEqual(new Map());
   });
 });

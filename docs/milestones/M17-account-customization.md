@@ -1,6 +1,21 @@
 # M17 — Account customization (and a real user record)
 
-**Status:** Approved 2026-08-26, not started. Phase 2.
+**Status:** Approved 2026-08-26, not started, **and not placed in the execution
+order** — see `docs/milestones/README.md`'s Current-milestone section for the two
+facts that placement decision needs. Phase 2.
+
+**Re-scope before scheduling (noted 2026-08-28).** The deliverable below —
+*"a `users` table, and the decision of what it keys on"* — **has already been
+decided and shipped by M11 link 1** (PR #71, **ADR-025**): `users` is a real
+table (`apps/web/src/server/db/schema.ts`) keyed on the Auth.js user id
+verbatim (Google's `sub`, or `dev-<username>`), which is the same string already
+stored in `events.actor_id`, `pages.actor_id` and `TripMember.userId`, with JWT
+sessions kept rather than moving Auth.js onto a database adapter. What remains
+here is the *preferences* half — name, home airport, account-scope distance
+units, home-time-on-hover, and resolving `who` to a display name. That is a
+smaller milestone than the one approved; the identity question this file frames
+as the point is answered.
+
 **Opened by:** Mitchell, reviewing SPEC §12 — *"Skip on C5/C6/C7 and make a
 future milestone, account customization. We will need a new DB table, but i also
 think we are getting close to just wanting a user table rather than relying on

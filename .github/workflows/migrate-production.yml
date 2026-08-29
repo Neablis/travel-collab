@@ -37,6 +37,12 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    # A runaway cap only. It must never fire mid-apply — that is the same
+    # unrecoverable state `cancel-in-progress: false` above exists to avoid —
+    # so it sits far above any plausible migration (this job is checkout +
+    # install + `drizzle-kit migrate`, ~1 min in the sampled runs). Without it
+    # a wedged connection to Neon would bill the 360-minute default.
+    timeout-minutes: 15
     steps:
       # Two rails against the two ways a dispatch goes wrong: the wrong branch
       # picked in the "Run workflow" dropdown, and a stray click. `confirm` is

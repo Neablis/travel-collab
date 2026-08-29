@@ -86,6 +86,14 @@ jobs:
     # level so the check still appears (skipped, not missing) on the PR.
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # Runaway cap, not a performance budget. The default is 360 minutes: one
+    # wedged run would bill 18% of the 2,000-minute monthly cap on its own.
+    # This job averages 4.6 min of measured job time (see
+    # docs/guidelines/ci-cost-and-capacity.md) and its slowest step is
+    # `pnpm test` at ~160s, so 15 leaves >3x headroom for a slow runner or a
+    # cold pnpm store. Raise it if a real run ever gets killed; do not tune it
+    # downward toward the average — a false kill costs a whole re-run.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -106,6 +114,11 @@ jobs:
   integration-e2e:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # Same runaway cap, sized for the long pole. 4.1 min average, but the
+    # worst legitimate case is a cold run that misses both caches: pnpm
+    # install, Playwright's chromium download, and a `next build` with no
+    # `.next/cache` stack up to roughly 6 minutes. 20 keeps >3x on that.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -140,7 +153,13 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: apps/web/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**/*.[jt]s', 'apps/web/**/*.[jt]sx') }}
+          # Source trees only. This step runs after `pnpm install`, and
+          # `apps/web/**` matches `apps/web/node_modules/**` — whose pnpm
+          # symlinks `hashFiles` follows — so the old pattern walked the whole
+          # dependency graph on every run of the long-pole job to compute a
+          # key. `src` trees are the actual build inputs; `next.config.ts` is
+          # the one build input outside them worth invalidating on.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**', 'packages/*/src/**', 'apps/web/next.config.ts') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
       - run: pnpm --filter web build

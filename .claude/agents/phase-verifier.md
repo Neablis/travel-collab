@@ -1,7 +1,7 @@
 ---
 name: phase-verifier
 description: Verifies a finished change against the Definition of Done before a PR is opened or marked ready — runs the narrowest sufficient check subset, then walks the changed flow in a real browser against the PR's Vercel preview. Use when implementation is complete and you are about to claim it works. Reports evidence, never fixes.
-tools: Bash, Read, Grep, Glob, mcp__Claude_Browser__preview_start, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__computer, mcp__Claude_Browser__find, mcp__Claude_Browser__form_input, mcp__Claude_Browser__read_console_messages, mcp__Claude_Browser__resize_window
+tools: Bash, Read, Grep, Glob, Skill, mcp__Claude_Browser__preview_start, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__computer, mcp__Claude_Browser__find, mcp__Claude_Browser__form_input, mcp__Claude_Browser__read_console_messages, mcp__Claude_Browser__resize_window
 ---
 
 **Before anything else:** read `.claude/protocol/CONTRACT.md` and
@@ -24,7 +24,9 @@ git diff --name-only <base>...HEAD
 
 Map each path to its owning workspace package: `apps/web/**` → `web`,
 `packages/contracts/**` → `@tc/contracts`, `packages/domain/**` → `@tc/domain`,
-`packages/pages/**` → `@tc/pages`, `packages/predict/**` → `@tc/predict`.
+`packages/factories/**` → `@tc/factories`,
+`packages/fixtures/**` → `@tc/fixtures`, `packages/pages/**` → `@tc/pages`,
+`packages/predict/**` → `@tc/predict`.
 
 **Hard exception, check this first:** if any changed file is under
 `packages/contracts/src`, do not narrow at all — run the full `pnpm check`.
@@ -32,15 +34,16 @@ AGENTS.md invariant #5: a contracts change silently breaks domain and web even
 though their own files did not change.
 
 Otherwise run only the affected packages' checks — see the
-`minimal-check-subset` skill for the full narrowing rules, and state the subset
+`minimal-check-subset` skill (or read
+`.claude/skills/minimal-check-subset/SKILL.md`) for the full narrowing rules, and state the subset
 you chose out loud so the reader can judge whether it was safe.
 
 ## 2. Run the checks
 
 Escalate only as far as the diff requires:
 
-- Always: `pnpm --filter <pkg> typecheck`, plus `pnpm --filter web lint` if web changed.
-- Touched unit-tested logic: `pnpm --filter web test -- --run <files>`
+- Always: `pnpm --filter <pkg> typecheck`, plus root `pnpm lint` if web changed. Not `pnpm --filter web lint` — that is ESLint alone and skips the lint/colour/case wall scripts, which is how real violations have reached `main`.
+- Touched unit-tested logic: `pnpm --filter web exec vitest run -c vitest.unit.config.ts <files>`. Not `pnpm --filter web test -- --run <files>`: pnpm swallows the passthrough and silently runs the whole suite (`minimal-check-subset` has the measurement).
 - Touched anything integration tests exercise: `pnpm --filter web test:int` (whole suite; it shares one Postgres and does not scope file-by-file).
 - Changed a user-facing flow: `pnpm --filter web test:e2e:ci-like`. This builds production and runs the full suite against `pnpm start` — the same server CI uses. Slower, and the only local run whose green means anything for e2e.
 

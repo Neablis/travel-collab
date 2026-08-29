@@ -13,6 +13,118 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-72 — `process.env.BASE_URL` is `"/"` inside every Vitest worker
+
+- **Severity:** correctness, latent — nothing is known to depend on it today, which is exactly why it can sit here unnoticed
+- **Area:** `apps/web/vitest.unit.config.ts`, `apps/web/src/config.ts`, and any unit test that compares a URL
+- **What happens:** Vitest assigns Vite's resolved `env` onto `process.env`, and Vite's `env` carries its own `BASE_URL` — the public base path, which is `"/"`. So `src/config.ts`'s `BASE_URL` reads `"/"` in unit tests regardless of what the app would use at runtime. Any unit test asserting against `BASE_URL` is asserting against `"/"` and will agree with almost anything.
+- **It predates the `projects` migration**, verified against the *unmigrated* config with a probe (`[[WORKER]] process.env.BASE_URL= "/"`), and **re-verified on Vitest 4 after merging PR #77** with the same probe and the same result. Not migration fallout in either direction.
+- **Nothing works around it today.** This branch briefly carried a guard in `vitest.unit.config.ts`; PR #77's Vitest 4 migration replaced that file and the guard went with it. It is not needed for the config itself — `vitest.unit.config.ts` imports `BASE_URL` in the *parent* Node process, before Vitest assigns Vite's env, so the jsdom `url` it passes is the real one. The exposure is entirely inside workers.
+- **The real fix is in `src/config.ts`**, which should not read a variable Vite owns. Until then, a unit test asserting against `BASE_URL` is asserting against `"/"`.
+- **First noted:** 2026-08-28 (the review-remediation testing pass, while migrating off `environmentMatchGlobs`).
+
+### KI-73 — Two ISO-date parse mechanisms coexist, and they disagree on contract-valid input
+
+- **Severity:** correctness, latent — currently unreachable, and the thing making it unreachable is not written down anywhere as a requirement
+- **Area:** `packages/domain/src/trip/dates.ts`, `apps/web/src/components/lenses/calendarData.ts` (`toUtcDate`), `apps/web/src/lib/dates.ts` (`addDaysIso`)
+- **What happens:** the domain and `calendarData` parse an ISO date with `Date.UTC(y, m-1, d)`; `lib/dates.ts` parses with a template (`new Date(\`${iso}T00:00:00Z\`)`). These are not equivalent, and contracts cannot separate them because `TripDate` validates by shape only (`/^\d{4}-\d{2}-\d{2}$/`, `packages/contracts/src/trip.ts`) with no calendar-range check. Measured: `"2026-13-45"` silently rolls over to `"2027-02-14"` under `Date.UTC` and throws `RangeError` under the template parse; `"0026-01-01"` becomes `"1926-01-01"` under one and stays put under the other.
+- **Why it does not bite today:** `deriveDayDates` normalises every date through `Date.UTC` before it reaches the UI, so `detail.days[].date` is always a real four-digit-year calendar date. Proven, not assumed — an exhaustive equivalence check over 8,572 dates × 6 offsets, plus a `calendarMonths` output sweep over 75,005 calendars hashed identical before and after the 2026-08-28 `addDaysIso` unification.
+- **What would make it bite:** any surface that feeds *raw* user or import input to both mechanisms without going through `deriveDayDates` first.
+- **Related but distinct:** the project review's §1.8 (`commandsFor` mixing local and UTC arithmetic) is a different defect in the same family.
+- **The narrower half worth fixing on its own:** contracts accept calendrically impossible dates. A `.refine` on `TripDate` closes it — but that is a real contract change, with the changelog and consumer sweep that implies.
+- **A fourth copy exists.** `packages/domain/src/trip/dates.ts` carries its own add-days, which cannot import from `apps/web/src/lib`. Unifying it needs a shared location the module map does not currently have — a design call, not a cleanup.
+- **First noted:** 2026-08-28 (the §6.2 refactor, which unified three of the four copies and found the fourth).
+
+### KI-74 — `withEffectiveMembers` hands back a `TripDetail` it never parsed, and has no callers to notice
+
+- **Severity:** correctness (latent — the same species as the bug `requireTripAccess` was just fixed for, sitting one function below the fix)
+- **Filed as KI-64 on 2026-08-28 and renumbered to KI-74 on merge:** PR #79 allocated 64 concurrently on `main` and landed first. Nothing outside this file referenced the old number.
+- **Area:** `apps/web/src/server/access/trip-access.ts:60`
+- **Symptom:** `requireTripAccess` now ends with `TripDetail.parse({ ...projected, members })`, and its own doc comment explains at length why: `getTripDetail` returns `trip_details.doc` raw, a doc is only rewritten when its trip next changes, so every document written before a field existed is missing that key — and the contract's `.default()`s (`kind`, `tags`, `forkedFrom`) only apply when something actually parses. `withEffectiveMembers`, the "same member overlay, for a detail the caller already holds" sibling declared immediately below it, does `return { ...detail, members: await effectiveMembers(...) }` — a spread over whatever it was handed, with no parse. Its return type says `TripDetail`; nothing makes that true.
+- **What makes it latent rather than live:** it currently has **zero callers**. `git grep withEffectiveMembers HEAD -- apps/web/src` returns only the declaration. Its parameter is typed `TripDetail`, so *today* a caller could only reach it with something already parsed — but that is exactly the guarantee `requireTripAccess`'s comment says the type system cannot give you here, because the raw doc used to be cast to `TripDetail` and every consumer inherited the lie.
+- **Why not fixed here:** the fix is either a `TripDetail.parse` on the way out or deleting the function, and which one is right depends on whether the overlay-for-a-held-detail shape is still wanted — a question for whoever wired the last caller out of it, not for a docs pass. It is one line either way.
+- **How it went wrong before:** the unparsed-doc cast is what produced Mitchell's "500 loading any trip", and then produced it a second time through `POST /api/saved-days` handing the same doc to `stopsForDay` (PR #71 review §2), which copied `undefined` into a required `SavedStop.kind` and threw *after* the library row was already inserted.
+- **Cross-reference:** KI-53 (resolved — the other "trusted, unparsed row" in the access module), KI-71 (`saved_days.stops`, the same species still live).
+- **First noted:** 2026-08-28 (review-remediation docs pass, reading the access-layer fix).
+
+### KI-65 — There is no remove-member endpoint, so a stray membership row can only be cleared by revoking an invite twice
+
+- **Severity:** correctness (a gap in the access surface, not a defect in it)
+- **Area:** `apps/web/src/server/access/members.ts` (`revokeMembership`), `apps/web/src/server/access/invites.ts:151`, `apps/web/src/app/api/trips/[tripId]/invites/[inviteId]/route.ts`
+- **Symptom:** `revokeMembership` has exactly one production caller — `revokeInvite`. There is no `DELETE /api/trips/:id/members/:userId` and no other path that removes a `trip_memberships` row. An owner's only lever on membership is the invite that created it.
+- **What that covers, and what it does not.** It covers the case it was built for: the revoke/accept race (PR #71 review §1) could leave an invite revoked and a membership alive, and revoking *again* now re-asserts the delete rather than returning early, so the owner has a recovery path. `invites.int.test.ts`'s "a second revoke clears a membership that was left behind" pins it, and its comment states the dependency plainly: *"revoking again is the ONLY way an owner can clear a membership a lost race left behind. There is no remove-member endpoint."* It does **not** cover a membership row from any other cause — a direct `grantMembership` (which the test suite itself uses), a future non-invite join path, a bad migration, or an operator's hand-written row. For those there is no API removal at all.
+- **Why it is filed rather than built:** an endpoint means deciding who may remove whom (may an editor remove an editor? may anyone remove the log owner?), what happens to the removed person's in-flight optimistic queue, and whether removal is visible in the trip's history — none of which are mechanical, and all of which belong with M11's Travelers UI, which SPEC §8 marks *"deliberately not designed yet"*.
+- **Cross-reference:** M11 (`docs/milestones/M11-sharing-and-invites.md`), ADR-026 (invites as CRUD with link-bearer tokens), KI-74 (`withEffectiveMembers`).
+- **First noted:** 2026-08-28 (review-remediation docs pass; the dependency was noted in the invites integration test on the same day).
+
+### KI-66 — The CSP keeps `script-src 'unsafe-inline'`
+
+- **Severity:** correctness — a stated-and-accepted weakening. The "nobody has run this" half of this entry was closed on 2026-08-28; see the walk below.
+- **Area:** `apps/web/next.config.ts` (the `headers()` CSP)
+- **The weakening, and why it was taken:** the App Router streams its RSC payload through inline `<script>self.__next_f.push(...)</script>` tags on **every** page, so `script-src` cannot drop `'unsafe-inline'` as written. The supported alternative is a per-request nonce minted in middleware, which opts every page out of static rendering — a whole-app performance trade. The judgement recorded in the file is that the policy's other directives (`object-src`, `base-uri`, `form-action`, `frame-ancestors 'none'`, `frame-src 'none'`) already close the classic injection escalations, and that no third-party script loads in production. That reasoning is sound; it is recorded here so it is revisited deliberately rather than inherited.
+- **The policy HAS now been exercised by a browser, and no directive needed loosening.** Walked 2026-08-28 in Chromium 141 against a local production build of `fb51486` serving the header byte-identically. Twenty surfaces, console read on every one, zero CSP violations: landing, sign-in/up, welcome, playbooks, the trips list, the **trip board** (68 cards, drag, conflict banners), the **activity editor and trip-settings Radix sheets at 1280px and 1100px**, the share popover, the assistant rail, all three lenses, the **notebook list and TipTap editor**, the account menu, and `/s/<token>` signed out.
+- **The negatives are real, because enforcement was proved first.** A deliberate control probe from the board page returned `Refused to connect to 'https://example.com/probe' because it violates the following Content Security Policy directive: "connect-src 'self' https://tiles.openfreemap.org"`. Without that probe, "no violations" would have been indistinguishable from "the policy never loaded".
+- **The map lens threaded all three of its directives.** `connect-src` served the style JSON, six vector tiles and four glyph ranges; `img-src blob:` decoded the sprite (explicit `URL.createObjectURL` probe: `blob image loaded ok`); and `worker-src blob:` — the directive nothing had ever exercised — created a real worker, reproduced across two runs. KI-49 bit first (the container's egress blocks the tile host for Chromium, `net::ERR_ABORTED` with **no** `Refused to connect`), so the tile bytes were mirrored in through a route handler. CSP is evaluated in the renderer before a request reaches a route handler, so the policy decision was genuine even though the transport was not.
+- **What the walk still does not cover:** the Vercel preview itself was never loaded — it is behind Deployment Protection and no bypass token exists here (KI-50's neighbour), so Vercel's own `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` under `script-src 'self'` remain unobserved (they 404 locally), as does anything Vercel's edge adds to the headers. The dev-mode CSP branch (`'unsafe-eval'`, `va.vercel-scripts.com`) was not run. Google OAuth's 302 hand-off against `form-action 'self'` is still reasoning. And `frame-src`/`frame-ancestors`/`object-src`/`base-uri` were never counter-probed — nothing tried to violate them, which is weaker than proving they would block something.
+- **Related correction:** the `style-src` comment attributes the runtime `<style>` injection to *"tippy.js (the notebook's slash-command popup)"*. There is no slash-command popup — macro authoring was removed in M8 — and `tippy.js` was removed as a direct dependency on 2026-08-28 with zero importers. The injector is `@tiptap/core`, whose embedded style string happens to contain `.tippy-box` rules, which is almost certainly where the attribution came from. The directive is still needed; the reason named for it is wrong.
+- **First noted:** 2026-08-28 (security-headers work). Browser-walked the same day, which closed the unverified half and corrected the premise it rested on: this container DOES have a usable Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — see `docs/guidelines/cloud-agent-sessions.md`.
+
+### KI-67 — The AI and geocode quotas meter REQUESTS, so a 32-step answer costs the same allowance as a one-step one
+
+- **Severity:** correctness (the control does not bound the thing it exists to bound)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotaPolicies`, `geocodeQuotaPolicies`), `apps/web/src/server/ai/handleAiRequest.ts`
+- **Symptom:** every policy is a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000, geocode 300/4000. Cost is not proportional to calls. `handleAiRequest` runs a tool-using loop with a step budget, so one request can burn up to 32 model round-trips while another burns one, and both decrement the same allowance by exactly 1. An actor who wants to maximise spend under the cap simply writes prompts that provoke long tool loops; the ceiling barely moves.
+- **What it does do, and why it still shipped:** it bounds the *worst case* — 100 requests × 32 steps is a finite number and an unbounded loop is not, which is a real improvement on the nothing that preceded it, alongside the prompt-size cap landed in the same change. It is a floor, not the accounting.
+- **The data for the real fix already exists.** `handleAiRequest.ts:177` computes `totalTokens` (with `inputTokens`/`outputTokens`) off the model result and puts it in the response `meta`. Nothing reads it for enforcement. A token-metered policy would decrement by `meta.usage.totalTokens` **after** the call rather than by 1 before it, which changes the shape of the check (you cannot pre-authorise an unknown cost) — that is the design question, not the arithmetic.
+- **Why not fixed here:** post-hoc metering means deciding what happens to the request that crosses the line mid-flight (serve it and go negative, or fail after paying?), and whether the counter is per-token or per-currency once models differ in price. `TODO.md`'s "AI cost/quality tuning" candidate already says **"Watch `meta.steps` — that is the cost driver, and it is already instrumented"**; this is the same observation arriving at the enforcement layer.
+- **Cross-reference:** ADR-019 (the AI kill switch — remediation after the fact, which is why prevention was added), KI-24 (`AI_LIVE` on Vercel is warned-about, not prevented), KI-11 (no test calls a real model, so no test measures a real token cost).
+- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4).
+
+### KI-68 — `db-reset.mjs` truncates a hardcoded three-table list while the schema has ten tables
+
+- **Severity:** reliability (a "reset" that leaves state behind is worse than no reset — it produces a database that looks clean and is not)
+- **Area:** `apps/web/scripts/db-reset.mjs:23`
+- **Symptom:** `const TABLES = ["events", "trip_details", "trip_summaries"];` — a literal list, written when the schema had four tables. `apps/web/src/server/db/schema.ts` now declares **ten** — `users`, `events`, `trip_summaries`, `trip_details`, `pages`, `trip_memberships`, `trip_invites`, `trip_shares`, `saved_days`, `rate_limit_counters` — so seven are never cleared. The script already carries a comment acknowledging it misses `pages`; it now also misses every table M11 added and the `rate_limit_counters` the quota work added.
+- **What that costs:** after `db:reset` a "clean" database still holds memberships, invites, shares, saved days and rate-limit counters pointing at trips that no longer exist. `rate_limit_counters` is the sharpest one — a reset that does not clear it leaves a developer throttled with no visible cause, and the counter's own schema comment says dropping every row costs one window of over-permissiveness and nothing else, so there is no reason to keep it.
+- **The real defect is the shape, not the list.** A hardcoded array in a script cannot track a schema, and this is the second time it has fallen behind. Derive it — from the Drizzle schema module, or from `information_schema.tables` minus the migrations table — so a new table is covered the day it lands. `TRUNCATE ... CASCADE`, or one `TRUNCATE` naming every table, also avoids the ordering problem a longer list would otherwise create.
+- **Why not fixed here:** it is a script outside this pass's file scope, and the derive-vs-enumerate choice deserves a moment's thought rather than five more literals.
+- **First noted:** 2026-08-28 (review-remediation docs pass).
+
+### KI-69 — Six integration suites truncate whole shared tables in `beforeEach`, which the exclusive-postgres policy is the only thing making safe
+
+- **Severity:** reliability (a landmine, not a live failure — it detonates the first time two things share the database)
+- **Area:** `apps/web/src/server/access/invites.int.test.ts:58-65`, `access/shares.int.test.ts:21-27`, `savedDays.int.test.ts:53-`, `projections.int.test.ts:11-13`, `anchors.int.test.ts:13-15`, `quota.int.test.ts:15`
+- **Symptom:** each of these begins every test by deleting every row of the tables it touches — not the rows it created. `invites.int.test.ts` is the widest: `tripInvites`, `tripMemberships`, `tripDetails`, `tripSummaries`, `events`, **and `users`**. Anything else holding a row in those tables loses it mid-run.
+- **What holds it together today, and how thin that is:** `.claude/protocol/ADAPTER.md` declares `postgres` an exclusive resource precisely because `pnpm --filter web test:int` runs the whole suite and cannot be scoped file-by-file, and vitest runs files in one process against one database. Two units running it concurrently corrupt each other — *"the symptom is a different random subset failing each run, which reads as flakiness and burns hours."* This pattern is what makes that true. `DATABASE_URL` is also shared with local development, so a developer's own data is inside the blast radius; `invites.int.test.ts`'s own `waitForABlockedBackend` helper documents having been bitten by exactly that sharing in a different way (CodeRabbit, PR #71).
+- **Correction to how this was first reported:** it was described as `invites.int.test.ts` being alone in this while *"every sibling int test seeds per-test random UUIDs."* That is not what the tree shows — six suites truncate, and the ones that do also seed random UUIDs. The pattern is the norm here, which makes it a design question about the integration lane rather than one file to fix. `trip-access.int.test.ts` is the counter-example: its `beforeEach` resets a variable and nothing else.
+- **Fix path, if taken:** either scope teardown to the ids a test created (which is what the random UUIDs already make possible), or give each suite its own schema/database so isolation is structural instead of policy — the second is what would let `test:int` stop being an exclusive resource, which is the thing actually costing time.
+- **Cross-reference:** KI-57 (`reset-demo-data/route.int.test.ts` only passes against a fresh database — the same shared-database assumption from the other direction), `.claude/protocol/ADAPTER.md`'s exclusive-resources table.
+- **First noted:** 2026-08-28 (review-remediation docs pass).
+
+### KI-70 — A history command dispatched in the same tick as an accepted enqueue drops the just-queued unit
+
+- **Severity:** correctness (silent loss of one user edit — the KI-5 family, on a trigger none of the others cover)
+- **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` (`dispatch`'s `HISTORY_TYPES` branch, and the render-time `pending` it closes over)
+- **Symptom:** `pending` is derived at render — `const pending = (optimistic?.pending.length ?? 0) > 0` — and `dispatch` closes over that value. An undo/redo/revert clicked in the same tick as an accepted enqueue therefore reads the **pre-enqueue** `pending === false`, passes the guard, and reconciles with `{ confirmed: result.value, pending: [] }`, which discards the unit that was queued a moment earlier. The user sees an edit they made vanish with no error.
+- **The window is narrow and the guard is real** — this is not "undo is broken". It needs the two actions inside one React tick, so it is a race, not a reliable reproduction.
+- **The fix pattern already exists three lines away.** `runDispatch` maintains `optimisticRef.current` for precisely this hazard, with the comment *"tick predicts against this result rather than the pre-dispatch queue."* The history branch never adopted it: it should test `optimisticRef.current`, not the render-time `pending`. That is why this is filed as a distinct entry rather than folded into KI-5 — same loss class, different mechanism, and a fix that is a one-line change to which value is read.
+- **Not the same as the applyOutcome gap fixed on 2026-08-28.** That one was `applyOutcome`'s two ungated callers (inserting a saved day, asking the assistant) clearing a non-empty queue; those now gate their own affordance. This is the guard *inside* `dispatch` reading a stale copy of the thing it guards on.
+- **Found by:** the 2026-08-28 project review, §1.7 (PLAUSIBLE). Re-verified against the tree 2026-08-28 after the send-queue fix landed: still present.
+- **Cross-reference:** KI-5 (the hub entry for this loss class), KI-55, KI-36 (resolved).
+- **First noted:** 2026-08-28 (project review §1.7).
+
+### KI-71 — `saved_days.stops` is returned unparsed and trusted forever against a moving contract
+
+- **Severity:** correctness (latent — it becomes an opaque 400 on old rows the day `SavedStop` gains a required field)
+- **Area:** `apps/web/src/server/savedDays.ts:30-40` (`toDto`), `apps/web/src/server/db/schema.ts` (`savedDays.stops`)
+- **Symptom:** the column is `jsonb("stops").$type<SavedStop[]>()`. `$type` is a **compile-time cast on Drizzle's side, not a runtime check**, and `toDto` passes `row.stops` straight through into a `SavedDay`. Every row ever written is trusted to match today's contract. A `SavedStop` row written before a field existed keeps whatever shape it had; add a required field to `SavedStop` and those rows fail at the response boundary — as an opaque 400, at read time, on data the user already saved, with nothing naming the row or the field.
+- **Sibling of KI-53, and of the bug `requireTripAccess` was just fixed for.** The same species has now bitten this codebase three times: `trip_details.doc` cast rather than parsed (Mitchell's "500 loading any trip"), the same doc handed to `stopsForDay` so `undefined` landed in a required `SavedStop.kind` *after* the row was inserted (PR #71 review §2), and this. The fix is the one `requireTripAccess` took: parse at the read boundary, so the type is true once for every caller.
+- **Why it has not bitten yet:** `SavedStop` has not changed since M11 link 6 shipped it, so every stored row matches. That is a statement about the calendar, not about the design.
+- **Fix path:** `SavedStop.array().parse(row.stops)` in `toDto`, and a decision about the failure mode — reject the row, or drop the unparseable stops and say so. Rejecting is honest; dropping is friendlier and needs a surface to say it on. Either beats trusting.
+- **Found by:** the 2026-08-28 PR #71 review, §8 (*"trusted forever against a moving contract… Sibling of KI-53; file it"*).
+- **Cross-reference:** KI-53 (resolved — access-module timestamps in two formats), KI-74 (`withEffectiveMembers`, the unparsed sibling in the access layer).
+- **First noted:** 2026-08-28 (PR #71 review §8).
+
 ### KI-64 — The trip header still greys out "Add stop" for a viewer while the rest of the board hides its write controls
 - **Severity:** cosmetic (one inconsistent control; no wrong behaviour, nothing unreachable)
 - **Area:** `apps/web/src/components/trip/TripHeader.tsx` (`disabled={readOnly}`)
@@ -247,12 +359,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   close it, and it remains real for anyone who navigates away without
   reading it. Revisit alongside M13, where concurrent multi-actor writes
   make the silent loss more consequential.
-- **Same bug class, different trigger:** **KI-36** was the failed-send half of
-  this — `failHead` in the same `optimistic.ts` dropped the whole pending queue
-  on a failed send, not just on abrupt navigation. **Resolved 2026-08-25**: a
-  failed send now retains its queue and offers a manual retry. That does *not*
-  close this entry — the queue is still in memory, so navigating away or
-  reloading still loses it.
+- **This entry is the hub for one queue with several triggers. Trigger ledger, reconciled 2026-08-28** — read it before describing any of these as live:
+  | Trigger | State |
+  |---|---|
+  | Navigating away / reloading / closing the tab with work queued | **Open — this entry.** The queue is in memory and nothing persists it. |
+  | A send that *resolves* failed (`failHead` emptied the queue) | **Resolved 2026-08-25** — KI-36. The queue is retained and a manual retry is offered. |
+  | `confirmHead` dropping units that no longer re-predict on a *successful* send | **Resolved 2026-08-28** — KI-42 (PR #73). |
+  | A send that *rejects* (offline, DNS) wedging the sender for the life of the page | **Resolved 2026-08-28.** All 24 fetching helpers in `apiClient.ts` are total, the sender's `inFlight` reset moved into a `finally`, and a throw is converted into the `{ok:false}` the retry machinery already handles. |
+  | `applyOutcome` clearing a non-empty queue from an ungated caller — inserting a saved day, asking the assistant | **Resolved 2026-08-28.** Both callers gate their own affordance: the saved-day button disables while unsent work exists, and the assistant refuses with a reason rather than silently doing nothing. |
+  | A history command dispatched in the same tick as an accepted enqueue | **Open — KI-70.** `dispatch` still tests the render-time `pending` where `runDispatch` tests `optimisticRef.current`. |
+  | A unit queued after a KI-42 retention previewing over a base that skips the retained work | **Open — KI-55**, and no work is lost: the preview is wrong, the queue is not. |
+- **What is left of the original framing:** two open triggers (this one and KI-70) plus one preview-only inaccuracy (KI-55). Everything else on the list above is closed, so "the optimistic queue loses work on N different triggers" is no longer an accurate summary of the register — it is now one persistence gap and one same-tick race.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
 
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
@@ -1030,8 +1147,11 @@ needs action — skip this section when triaging.
 - **Four values, not the handoff's six.** `considering` and `travel` are
   deliberately absent — `ActivityKind` already carries `idea` and `transit`,
   and two settable fields that can disagree about one fact is a bug generator.
-  See the 2026-08-27 contracts changelog entry, and KI-50 for the design delta
-  this creates in the chip row.
+  See the 2026-08-27 contracts changelog entry, and **KI-52** for the design
+  delta this creates in the chip row. (This line said KI-50 until 2026-08-28 —
+  KI-50 is the Google-sign-in preview redirect URI and has nothing to do with
+  tags; KI-52 is *"The tag chip row ships four tags where the handoff designs
+  six"*, and it cross-references back here.)
 - **Where the tag data comes from:** the handoff export carries no tags on any
   of its 68 stops (its `enums` block lists only `stopStatus`), so the importer
   deliberately synthesises none — inferring them from title text is the prose
@@ -1196,6 +1316,7 @@ needs action — skip this section when triaging.
 - **Scope:** local/container only. **CI is not affected** — `.github/workflows/ci.yml:88` runs `playwright install chromium` against its own cache, so CI gets the matching build and remains the authoritative e2e signal.
 - **Workaround used (M10 Wave 2 Phase 6):** symlinked the missing `chromium-1228` / `chromium_headless_shell-1228` directories at the 1194 build. Chromium 141.0.7390.37 then drove the full 22-test suite green against a production build. The symlinks live in `/opt`, not the repo, and do not survive a new container. The sanctioned alternative is a Playwright `executablePath` pointing at `/opt/pw-browsers/chromium`.
 - **Caveat this leaves on any local e2e result:** the suite ran on a Chromium build the pinned Playwright does not target. Nothing observed suggested a behavioral difference, but a green local run is corroboration, not a substitute for CI's.
+- **RECURRED 2026-08-28, and the repair is not at fault.** A dispatched subagent's first e2e attempt died on this entry's verbatim symptom: `/opt/pw-browsers` held only build 1194 and nothing had linked 1228. Running `link_playwright_shell` from `.claude/hooks/session-start.sh` *unmodified* created and linked both directories and everything worked after — so the fix is correct, it simply had not run. The hook fires on session start; a subagent dispatched into an existing session apparently does not get one. Two consequences worth knowing: an agent that hits this may wrongly conclude the environment has no usable browser (see the browser note in `docs/guidelines/cloud-agent-sessions.md`, where two agents did exactly that on adjacent evidence), and the `/opt` symlinks do not survive a new container, so this will keep recurring per-container until the repair runs somewhere a subagent inherits it.
 - **Why it was thought unfixable, and why that was wrong:** the original entry read *"it is an image-level mismatch, not a repo one — nothing in `travel-collab` produced it and no repo change fixes it."* The premise is right and the conclusion does not follow. `.claude/hooks/session-start.sh` **is** repo-owned and **does** run inside the container, which is exactly the seam where an image-level problem can be repaired from this repo. Pinning `@playwright/test` down to the 1194-era version would still be the tail wagging the dog; that was never the only option.
 - **Fix (2026-08-26, PR #55):** `link_playwright_shell` in `.claude/hooks/session-start.sh` links any `chromium_headless_shell-*` build missing its binary at the first full `chromium-*/chrome-linux/chrome` in the image, on every remote session start. Deliberately generic — it matches on *an empty shell dir*, not on 1228 — so a Playwright bump does not silently reintroduce it. Verified by deleting the link and re-running the function: it repaired both 1194 and 1228, and `smoke` passed after. This also retires the entry's own caveat about local runs happening on an untargeted Chromium build, since the link is now applied deterministically rather than by hand.
 - **Recurrence (2026-08-27, landing-page design pass) — the 2026-08-26 fix was
@@ -1426,7 +1547,12 @@ needs action — skip this section when triaging.
 - **This session's reproduction attempts (2026-08-23, test-suite-overhaul Phase 4, Task 4.1), per `scripts/repro-ki13.sh` (saturates every core, then runs the full apps/web unit suite):** **did not reproduce**, on either the pre-Phase-1 config (jsdom for all 95 files) or the post-Phase-1 config (Phase 1's environment split, node for 35 of them) — 95/95 files, 569/569 tests green on both, every time. `environment` did rise under saturation (post-Phase-1: 105-108s vs an idle 58s median; pre-Phase-1: 165s vs its own idle baseline) — real contention, just never enough to cross a 5-second `waitFor` budget on this hardware.
 - **Task 4.4's three-times proof, all green, both conditions:** `pnpm check` **3 consecutive runs on an idle machine**, and **3 consecutive full-suite runs under `scripts/repro-ki13.sh`'s CPU saturation** — 6/6, zero failures, matching the bar this entry's own mitigation note sets ("do not trust a single `pnpm check` exit code"). **Not retested this session: the cold-install condition** (a fresh `CI=true pnpm install` with caches cleared, the 2026-07-26/07-27 trigger) — flagging this honestly rather than claiming a bar this session didn't clear; the two conditions that were retested are the ones repeatedly implicated since 2026-08-16.
 - **Disposition, per `docs/plans/test-overhaul/phase-4-ki13.md`'s own decision-rule table (row 2 — "cannot reproduce on the pre-fix config either, and all three proofs are green"):** **closed as no longer reproducible**, not as root-caused. The mechanism this entry describes (wall-clock waits starving under resource pressure) was never directly observed in this session — Phase 1's environment split (fewer jsdom worlds under contention) is a plausible contributor given it measurably lowered `environment` time under load, but that is not the same claim as "found and fixed the cause," and this entry does not make the stronger claim. Real, incidental improvements landed alongside this investigation regardless of the reproduction outcome: `MoneyInput.test.tsx` (this entry's own canonical slow file, recorded at 11,675ms in-suite vs 191ms alone) and `toast.test.tsx`/`LocationInput.test.tsx` now use `userEvent.setup({ delay: null })` instead of the default import, which removes a real per-keystroke `setTimeout` `userEvent` schedules by default — a genuine, if narrower, instance of "remove the wall-clock wait" that no longer depends on whether the broader flake ever recurs. `debounce.test.ts` and `SyncIndicator.test.tsx` (also named as candidates) were audited and found already correct (fake timers already in use; no real-clock exposure at all, respectively) — no change needed.
-- **If this recurs:** re-run `scripts/repro-ki13.sh` before assuming anything, and check `ps aux` sorted by CPU for an external consumer per this entry's own long-standing mitigation — the historical causes (cold install, an external CPU hog) are both still live possibilities this closure does not rule out.
+- **If this recurs:** the reproduction condition is
+  `scripts/repro-ki13.sh` — **deleted 2026-08-28** now that this entry is
+  closed and the script's own header records that it reproduces nothing on this
+  codebase. Retrieve it from history rather than rewriting it:
+  `git log --diff-filter=D --name-only -- scripts/repro-ki13.sh`, then
+  `git show <sha>^:scripts/repro-ki13.sh`. Re-run it before assuming anything, and check `ps aux` sorted by CPU for an external consumer per this entry's own long-standing mitigation — the historical causes (cold install, an external CPU hog) are both still live possibilities this closure does not rule out.
 - **First noted:** 2026-07-26. **Resolved:** 2026-08-23 (test-suite-overhaul Phase 4).
 
 ### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it — RESOLVED, a narrow-viewport project is now a gate condition

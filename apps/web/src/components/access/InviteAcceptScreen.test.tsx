@@ -109,8 +109,13 @@ describe("InviteAcceptScreen", () => {
   // A join that loses the race re-reads, because "already used" changes what
   // the screen should be offering. Asserting the re-read alone would prove
   // only that a fetch happened — the claim is that the OFFER changes, so the
-  // second preview comes back spent and the Join button has to be gone
-  // (CodeRabbit, PR #70).
+  // Join button has to be gone afterwards (CodeRabbit, PR #70).
+  //
+  // The second preview is mocked as a REFUSAL, not as a preview whose status
+  // flipped to "accepted". That is what `previewInvite` actually returns for a
+  // spent token now that it gates on status (PR #71 review §7); the old mock
+  // asserted a shape the server had stopped producing, so it stayed green
+  // while the screen it covers kept the dead Join button on screen.
   it("re-reads the invite when joining fails, and stops offering to join", async () => {
     acceptInviteMock.mockResolvedValue({
       ok: false,
@@ -118,20 +123,17 @@ describe("InviteAcceptScreen", () => {
     });
     fetchInvitePreviewMock
       .mockResolvedValueOnce({ ok: true, value: preview() })
-      .mockResolvedValueOnce({ ok: true, value: preview({ status: "accepted" }) });
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { status: 410, message: "This invite has already been used." },
+      });
 
     render(<InviteAcceptScreen token="tok" />);
     await userEvent.click(await screen.findByRole("button", { name: "Join this trip" }));
 
     await waitFor(() => expect(fetchInvitePreviewMock).toHaveBeenCalledTimes(2));
-    // Scoped to the spent-state paragraph: the failed join ALSO reports the
-    // same sentence in its error line, so an unscoped match is ambiguous.
-    // (That the two coincide is a small cosmetic wart, not a defect — the
-    // error explains why the button went away, and for a non-spent failure it
-    // is the only explanation there is.)
-    expect(
-      await screen.findByText("This invite has already been used.", { selector: "p" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: /doesn't work/i })).toBeTruthy();
+    expect(await screen.findByText("This invite has already been used.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Join this trip" })).toBeNull();
     expect(pushMock).not.toHaveBeenCalled();
   });

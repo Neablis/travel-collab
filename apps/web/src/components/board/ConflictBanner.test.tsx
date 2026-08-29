@@ -162,3 +162,33 @@ describe("ConflictBanner", () => {
     });
   });
 });
+// Review §5: dismissal is a real command (DismissConflict, refused for a
+// viewer server-side). The list itself is data a viewer is entitled to read —
+// AGENTS.md invariant 3 — so only the action goes.
+describe("ConflictBanner — read-only", () => {
+  function renderBanner(readOnly: boolean, onDismiss = vi.fn()) {
+    render(
+      <ConflictBanner
+        conflicts={[overlapConflict()]}
+        dismissedConflictIds={[]}
+        activities={{ [A1]: activity(A1, "Colosseum"), [A2]: activity(A2, "Vatican Museums") }}
+        onDismiss={onDismiss}
+        onSelectActivity={vi.fn()}
+        readOnly={readOnly}
+      />,
+    );
+  }
+
+  it("still lists the conflict, and still jumps, but offers no Dismiss", () => {
+    renderBanner(true);
+
+    expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Jump to Colosseum" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Dismiss:/ })).toBeNull();
+  });
+
+  it("offers Dismiss when not read-only", () => {
+    renderBanner(false);
+    expect(screen.getByRole("button", { name: /^Dismiss:/ })).toBeTruthy();
+  });
+});

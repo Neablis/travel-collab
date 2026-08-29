@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -24,6 +24,23 @@ vi.mock("@/lib/apiClient", async (orig) => {
   return {
     ...actual,
     composeAiPlan: (...args: unknown[]) => composeAiPlanMock(...args),
+  };
+});
+
+// The Map lens's own viewer gate — no double-click-to-create — is
+// MapLens.test.tsx's subject. What only this file can state is that the screen
+// hands it the same `readOnly` the Board and Schedule lenses get: without this
+// spy, deleting that one prop at the call site breaks nothing anywhere.
+// A pass-through rather than a stub, so the Map-lens tests below (tab
+// switching, `.full-bleed`, the day-chips row) still render the real lens.
+const mapLensProps = vi.fn();
+vi.mock("@/components/lenses/MapLens", async (orig) => {
+  const actual = await orig<typeof import("@/components/lenses/MapLens")>();
+  return {
+    MapLens: (props: ComponentProps<typeof actual.MapLens>) => {
+      mapLensProps(props);
+      return <actual.MapLens {...props} />;
+    },
   };
 });
 
@@ -80,6 +97,7 @@ beforeEach(() => {
   search = new URLSearchParams("");
   replaceSpy.mockClear();
   composeAiPlanMock.mockReset();
+  mapLensProps.mockClear();
   setViewportMatches({ "(min-width: 1180px)": true });
 });
 afterEach(() => {
@@ -669,5 +687,217 @@ describe("assistant rail visibility", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+  });
+});
+
+// docs/reviews/2026-08-28-project-review.md §1.4. The AI batch is decided
+// server-side against state that does not include anything still queued here,
+// and `applyOutcome` clears `pending` to take its result — so drag a card and
+// immediately ask, and the queued-but-unsent edit was discarded from the UI
+// and the server both, with nothing said. History commands have guarded
+// exactly this since M6 (`if (pending) return`); this path had no equivalent.
+describe("assistant ask — unsent work blocks the ask", () => {
+  it("refuses the ask, says why, and sends nothing while an edit is still unsent", async () => {
+    const fixture = tripDetailFixture();
+    server.use(
+      // Never settles: the head stays in flight, so `pending` stays true for
+      // the whole test rather than for the handful of microseconds a resolved
+      // handler would give us. FIRST in the list on purpose — within one
+      // `server.use` call MSW takes the earliest matching handler, so putting
+      // this after the spread would silently lose to makeTripHandlers' own
+      // commands handler and the ask would run with an empty queue.
+      http.post("/api/trips/:tripId/commands", () => new Promise<never>(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    // Queue an edit that will never be confirmed.
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+      target: { value: "Plan my afternoon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Finish saving your changes before asking the assistant.",
+      ),
+    );
+    expect(composeAiPlanMock).not.toHaveBeenCalled();
+    // The optimistic day is still on the board — the whole point of refusing.
+    expect(screen.getAllByTestId("day-column")).toHaveLength(1);
+  });
+});
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5: TripHeader was thoroughly
+// viewer-gated and this screen never read `readOnly` at all, so everything
+// below the header stayed live for a viewer. The end-to-end statement — one
+// real `myRole: "viewer"` access read, one real board — that the individual
+// component tests (board.test.tsx, UnscheduledRack.test.tsx,
+// ActivityEditorSheet.test.tsx) each make about their own surface.
+//
+// The server refuses each of these commands independently (accessPolicy.ts);
+// this is defence in depth and a legible read-only board, never the boundary.
+describe("TripBoardScreen — a viewer's board", () => {
+  it("says View only and offers no way to change the trip", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByText("View only")).toBeTruthy();
+
+    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
+    // The rack's day-assign select is the drawer's non-drag write path.
+    fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
+    expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
+  });
+
+  it("offers all of them to an owner", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
+  });
+
+  // The AI route is editor-gated server-side, so a viewer's ask would have the
+  // model plan a batch the server then refuses wholesale. Refused here with a
+  // reason, the same way the `pending` gate above reports through the rail's
+  // own error surface — a control that silently does nothing is the failure
+  // mode TripProvider's runDispatch comment was written about.
+  it("refuses the assistant ask and says why", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+      target: { value: "Plan my afternoon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
+    );
+    expect(composeAiPlanMock).not.toHaveBeenCalled();
+  });
+});
+
+// CodeRabbit, PR #78: M11 link 3's commit claimed the trip surface but gated
+// only the Board lens, so a viewer switching to Timeline got a per-day "Add
+// stop", the dashed add row, and the overlap warning's own fix and dismiss —
+// the last two dispatching UpdateActivity and DismissConflict through
+// ScheduleLens's `onCommand` seam. The end-to-end statement, with one real
+// `myRole: "viewer"` access read, that TimelineLens.test.tsx and
+// OverlapWarning.test.tsx each make about their own surface.
+//
+// What a viewer must STILL get is asserted first, and deliberately: the
+// schedule, its days, its stops and its overlap warnings are information about
+// the trip. This withholds controls, never information.
+describe("TripBoardScreen — a viewer's Schedule lens", () => {
+  // The plan's worked overlap example, so the warning and both of its controls
+  // are on screen for an editor and can be asserted absent for a viewer. Real
+  // uuids, unlike the lens's own unit fixtures: these go over MSW, and
+  // makeTripHandlers validates the payload against the TripDetail contract.
+  const DAY = "11111111-1111-4111-8111-111111111111";
+  const EARLIER = "22222222-2222-4222-8222-222222222222";
+  const LATER = "33333333-3333-4333-8333-333333333333";
+
+  function overlappingFixture() {
+    return tripDetailFixture({
+      startDate: "2027-06-01",
+      days: [{ dayId: DAY, activityIds: [EARLIER, LATER], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+      },
+      conflicts: [
+        {
+          id: `time-overlap:${DAY}:${EARLIER}:${LATER}`,
+          kind: "time-overlap",
+          severity: "warn",
+          subjects: [EARLIER, LATER],
+          description: '"Nezu Museum" and "Lunch at Kagari" overlap in time on the same day.',
+          resolutions: ["Change one activity's time window"],
+        },
+      ],
+    });
+  }
+
+  it("shows the schedule and its overlap warning, and offers no way to change either", async () => {
+    const fixture = overlappingFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToLens("Schedule");
+
+    const day = await screen.findByTestId(`timeline-row-${DAY}`);
+    expect(within(day).getByText("Nezu Museum")).toBeTruthy();
+    expect(within(day).getByText("Lunch at Kagari")).toBeTruthy();
+    expect(within(day).getByTestId(`overlap-warning-${LATER}`)).toBeTruthy();
+    expect(within(day).getByText("1 overlap")).toBeTruthy();
+
+    expect(within(day).queryByTestId(`timeline-add-${DAY}`)).toBeNull();
+    expect(within(day).queryByTestId(`timeline-add-row-${DAY}`)).toBeNull();
+    expect(within(day).queryByRole("button", { name: /^Start / })).toBeNull();
+    expect(within(day).queryByRole("button", { name: "Dismiss" })).toBeNull();
+    // EndOfTrip gates itself off the same context read; asserted here because
+    // it is the timeline's fourth command-raising affordance (AddDay).
+    expect(screen.queryByTestId("end-of-trip")).toBeNull();
+  });
+
+  it("offers every one of them to an owner", async () => {
+    const fixture = overlappingFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToLens("Schedule");
+
+    const day = await screen.findByTestId(`timeline-row-${DAY}`);
+    expect(within(day).getByTestId(`timeline-add-${DAY}`)).toBeTruthy();
+    expect(within(day).getByTestId(`timeline-add-row-${DAY}`)).toBeTruthy();
+    expect(within(day).getByRole("button", { name: "Start 1 pm" })).toBeTruthy();
+    expect(within(day).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+    expect(screen.getByTestId("end-of-trip")).toBeTruthy();
+  });
+});
+
+// The Map lens's gate is one prop wide, and it is the prop — not the lens —
+// that this file can lose without any other test noticing.
+describe("TripBoardScreen — a viewer's Map lens", () => {
+  it("hands the Map lens the same readOnly the Board and Schedule lenses get", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToLens("Map");
+
+    await waitFor(() =>
+      expect(mapLensProps).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true })),
+    );
+    expect(mapLensProps).not.toHaveBeenCalledWith(expect.objectContaining({ readOnly: false }));
+  });
+
+  it("leaves it false for an owner, so double-click-to-create stays", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToLens("Map");
+
+    await waitFor(() => expect(mapLensProps).toHaveBeenCalled());
+    expect(mapLensProps).not.toHaveBeenCalledWith(expect.objectContaining({ readOnly: true }));
   });
 });

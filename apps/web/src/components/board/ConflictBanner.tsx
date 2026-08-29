@@ -34,7 +34,8 @@ export function ConflictBanner({
   /**
    * Drops "Dismiss". The conflicts themselves stay: they are the product
    * noticing something, which is exactly what a reader should see it do —
-   * dismissing one is a command, and a viewer runs none (ADR-031).
+   * dismissing one is a command, and a viewer runs none (ADR-031). Reading
+   * them is not a write, and conflicts are data (AGENTS.md invariant 3).
    */
   readOnly?: boolean;
 }) {

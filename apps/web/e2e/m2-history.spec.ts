@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { dragCardTo, openHistory } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
 // assertions against it) update instantly from a client-side prediction,
@@ -26,7 +27,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // Distinct prefix from smoke.spec.ts's "Rome ..." — parallel workers share
   // the "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make both specs' trip names collide.
-  const tripName = `Venice ${Date.now()}`;
+  const tripName = e2eTripName("Venice");
   await page.goto("/");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --

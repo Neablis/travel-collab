@@ -17,11 +17,17 @@ import { tmpdir } from "node:os";
 
 const REPO_ROOT = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
-// Longest prefix wins, so order matters only for readability here.
+// Longest prefix wins, so order matters only for readability here. Every
+// workspace package in `pnpm-workspace.yaml` must appear: an omission costs
+// twice, silently — the package's own edits go unchecked, AND the contracts
+// fan-out below skips it, which is the exact silent break the fan-out exists
+// to catch. `@tc/factories` and `@tc/fixtures` were missing until 2026-08-28.
 const PACKAGES = [
   { prefix: "apps/web", dir: "apps/web", name: "web" },
   { prefix: "packages/contracts", dir: "packages/contracts", name: "@tc/contracts" },
   { prefix: "packages/domain", dir: "packages/domain", name: "@tc/domain" },
+  { prefix: "packages/factories", dir: "packages/factories", name: "@tc/factories" },
+  { prefix: "packages/fixtures", dir: "packages/fixtures", name: "@tc/fixtures" },
   { prefix: "packages/pages", dir: "packages/pages", name: "@tc/pages" },
   { prefix: "packages/predict", dir: "packages/predict", name: "@tc/predict" },
 ];

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { e2eTripName } from "./tripNames";
 
 // M11 link 4's exit-gate line, and the only way to prove it: "A share link
 // renders the trip AS OF the seq it was created at, proven by editing the trip
@@ -53,7 +54,7 @@ test("a share link keeps showing the trip as it was when it was shared", async (
   test.slow();
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list (m1/m3/m6's comment).
-  const tripName = `Shared ${Date.now()}`;
+  const tripName = e2eTripName("Shared");
   const tripId = await createTrip(page, tripName);
   await addDay(page, tripId);
   await addDay(page, tripId);
@@ -97,7 +98,7 @@ test("a share link keeps showing the trip as it was when it was shared", async (
 
 test("turning a share link off stops it working", async ({ page, browser }) => {
   test.slow();
-  const tripName = `Unshared ${Date.now()}`;
+  const tripName = e2eTripName("Unshared");
   const tripId = await createTrip(page, tripName);
   await page.goto(`/trips/${tripId}`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();

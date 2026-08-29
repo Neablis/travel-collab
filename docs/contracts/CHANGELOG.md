@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-28 — compose the duplicated `ActivityAdded`/`ActivityUpdated` payload block
+
+- Changed (source only): the eight-field block
+  (`title, timeWindow, location, notes, anchors, kind, tags, cost`) that
+  `ActivityAddedV1.payload` and `ActivityUpdatedV1.payload` each spelled out
+  verbatim now lives once as `ActivityPayloadFields` in
+  `packages/contracts/src/activity.ts`; both payloads `.extend()` it after
+  their own id fields
+- Why: the project review's §6.2. Two verbatim copies meant a `.default()`
+  could land on one payload and be missed on the other — which corrupts replay
+  for *updated* activities only, and would stay invisible until someone
+  replayed an old event log. That failure mode is now unrepresentable, and
+  `packages/contracts/test/activity-payload-parity.test.ts` enforces the field
+  sets and the materialised defaults still agree
+- **Wire shape unchanged — byte-identical, not merely compatible.** `.extend()`
+  is applied *after* the id fields, so the object's key order (and therefore
+  the serialised payload) is exactly what it was; the `.default()`s, the
+  nullability, every `min`/`max` and the strip behaviour are the same schema
+  objects, moved. Demonstrated rather than asserted: a throwaway probe parsed
+  both payloads' full case matrix — every `.default()` exercised, explicit
+  nulls, extra-key strip, and each invalid-input class — through the old
+  verbatim schemas and the composed ones and compared `JSON.stringify` of the
+  result (pinning key order, not just values) plus exact `z.input`/`z.output`
+  type identity. All matched; deleting one `.default()` from the old copy made
+  both the runtime and the type check fail, so the probe was not vacuous
+- Consumers updated: none needed, and that is the point — no consumer can
+  observe this. `@tc/domain` and `apps/web` are unchanged; their suites were
+  run as the check
+- Not the §6.1 descriptor refactor. That one changes the domain and ten call
+  sites and is its own reviewed PR (AGENTS.md: a contract change is its own
+  step); this is the piece the review marks safe without it
+- Breaking? no — no schema semantics changed. No migration, no event rewrite
+
 ## 2026-08-28 — KI-35: `Location.area`
 - Added: `area: z.string().min(1).max(200).optional()` on `Location`
   (`packages/contracts/src/activity.ts`) — the sub-settlement locality

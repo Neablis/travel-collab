@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // M11 link 5's exit-gate line: "A shared trip can be cloned into the
 // recipient's own trips and edited." Two contexts again, because the whole
@@ -55,7 +56,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   browser,
 }) => {
   test.slow();
-  const tripName = `Cloneable ${Date.now()}`;
+  const tripName = e2eTripName("Cloneable");
   const tripId = await createTrip(page, tripName);
   await addDay(page, tripId);
   await addDay(page, tripId);
@@ -99,7 +100,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
       .getByRole("button", { name: `${tripName} (copy) — Trip settings` })
       .click();
     await expect(erin.getByText("Where this came from")).toBeVisible();
-    await expect(erin.getByText(new RegExp(`Copied from .${tripName}`))).toBeVisible();
+    await expect(erin.getByText(new RegExp(`Copied from .${escapeForRegExp(tripName)}`))).toBeVisible();
 
     // It is hers, in her own trip list.
     await erin.goto("/");
@@ -117,7 +118,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
 
 test("duplicating your own trip records where the copy came from", async ({ page }) => {
   test.slow();
-  const tripName = `Duplicated ${Date.now()}`;
+  const tripName = e2eTripName("Duplicated");
   const tripId = await createTrip(page, tripName);
   await page.goto(`/trips/${tripId}`);
   await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
@@ -131,5 +132,5 @@ test("duplicating your own trip records where the copy came from", async ({ page
 
   await expect(page.getByRole("heading", { name: `${tripName} (copy)`, level: 2 })).toBeVisible();
   await page.getByRole("button", { name: `${tripName} (copy) — Trip settings` }).click();
-  await expect(page.getByText(new RegExp(`Copied from .${tripName}`))).toBeVisible();
+  await expect(page.getByText(new RegExp(`Copied from .${escapeForRegExp(tripName)}`))).toBeVisible();
 });

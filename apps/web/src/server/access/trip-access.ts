@@ -1,4 +1,4 @@
-import type { TripDetail, TripRole } from "@tc/contracts";
+import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
 import { db } from "../db/client";
@@ -18,6 +18,26 @@ import { isDemoTripId } from "@/lib/demoTrip";
  * rebuild-equals-stored golden test is unaffected (AGENTS.md invariant 2). The
  * overlay lives at the read boundary, which is the only place a person's
  * membership is a fact about the answer rather than a fact about the plan.
+ *
+ * It is also PARSED here, not cast. `getTripDetail` hands back the stored
+ * `trip_details.doc` raw, and a doc is only rewritten when its trip next
+ * changes — so every document written before a field existed is missing that
+ * key entirely, and the contract's `.default()`s (`kind`, `tags`,
+ * `forkedFrom`) only apply when something actually parses. Typing the raw doc
+ * as `TripDetail` made that a silent lie every consumer inherited: the trip
+ * GET route hit it as Mitchell's "500 loading any trip", and `POST
+ * /api/saved-days` hit it again by handing the same doc to `stopsForDay`,
+ * which copied `undefined` into a required `SavedStop.kind` and threw at the
+ * response boundary AFTER the library row had already been inserted (PR #71
+ * review §2). Parsing at the seam makes the type true once, for every caller.
+ *
+ * `safeParse`, not `parse`: every other failure here is a returned
+ * `{ error: Response }`, and a caller that writes `if ("error" in access)
+ * return access.error` is entitled to assume that covers every way this can
+ * fail. A doc malformed in a way the `.default()`s cannot repair is exactly
+ * the legacy-row case this parse exists for, so throwing out of the seam
+ * would reintroduce the unhandled 500 — with no logged context — for the one
+ * input it was added to handle.
  */
 /**
  * The only `minimum` the demo trip can satisfy. Written as a named constant
@@ -79,7 +99,20 @@ export async function requireTripAccess(
     // apart from an under-privileged member would confirm the trip exists.
     return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
   }
-  return { userId, role: memberRole(userId, members)!, detail: { ...projected, members } };
+  const parsed = TripDetail.safeParse({ ...projected, members });
+  if (!parsed.success) {
+    // 500, not 4xx: the request is well-formed and the actor is authorized —
+    // what is broken is a row this server wrote, and no caller can retry their
+    // way out of it. The issues are logged because the response deliberately
+    // does not carry them: the shape of a stored document is not something an
+    // API client gets to read, and the trip id is what makes the row findable.
+    console.error("trip_details doc failed TripDetail parse", {
+      tripId,
+      issues: parsed.error.issues,
+    });
+    return { error: Response.json({ error: "malformed-trip" }, { status: 500 }) };
+  }
+  return { userId, role: memberRole(userId, members)!, detail: parsed.data };
 }
 
 /** The same member overlay, for a detail the caller already holds. */

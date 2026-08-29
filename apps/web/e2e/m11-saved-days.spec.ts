@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { e2eTripName } from "./tripNames";
 
 // M11 link 6's exit-gate line: "select parts of my trip and save them for
 // reuse". One person, two trips — keep a day out of one, drop it into the
@@ -27,9 +28,8 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
   test.slow();
   // Distinct prefixes from other specs' trip names — parallel workers share
   // the "alice" dev user's trip list (m1/m3/m6's comment).
-  const stamp = Date.now();
-  const sourceName = `Kept ${stamp}`;
-  const targetName = `Reuse ${stamp}`;
+  const sourceName = e2eTripName("Kept");
+  const targetName = e2eTripName("Reuse");
   const sourceId = await buildTrip(page, sourceName, 2);
   const targetId = await buildTrip(page, targetName, 1);
 
@@ -43,7 +43,9 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
   await expect(page.getByText(/stop.*Order and gaps kept, no dates\./)).toBeVisible();
   await expect(page.getByText(/Saved days are private to you/)).toBeVisible();
 
-  const savedName = `Nakameguro ${stamp}`;
+  // A saved day, not a trip — no `[e2e]` prefix (global.teardown.ts only
+  // sweeps trips), but still timestamped for the same shared-user reason.
+  const savedName = `Nakameguro ${Date.now()}`;
   const nameField = page.getByLabel("Name");
   await nameField.fill(savedName);
   await Promise.all([
@@ -100,7 +102,7 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
 
 test("a day with nothing on it cannot be kept", async ({ page }) => {
   test.slow();
-  const tripName = `Bare ${Date.now()}`;
+  const tripName = e2eTripName("Bare");
   const created = await page.request.post("/api/trips", { data: { name: tripName } });
   const { tripId } = (await created.json()) as { tripId: string };
   await page.request.post(`/api/trips/${tripId}/commands`, {

@@ -18,6 +18,8 @@ pnpm lint && pnpm test` across every workspace package).
 2. **Map each changed path to its owning workspace package** by path prefix:
    - `packages/contracts/**` → `@tc/contracts`
    - `packages/domain/**` → `@tc/domain`
+   - `packages/factories/**` → `@tc/factories`
+   - `packages/fixtures/**` → `@tc/fixtures`
    - `packages/pages/**` → `@tc/pages`
    - `packages/predict/**` → `@tc/predict`
    - `apps/web/**` → `web`
@@ -72,10 +74,10 @@ pnpm lint && pnpm test` across every workspace package).
        integration suite shares one real Postgres instance and doesn't scope
        cleanly file-by-file — don't try to narrow further than "run the
        whole integration suite."
-     - For non-web packages (`@tc/contracts`, `@tc/domain`, `@tc/pages`),
-       there's no file-level scoping option — run `pnpm --filter <pkg> test`
-       (whole package suite) if the package defines a `test` script.
-       `@tc/predict` currently has none.
+     - For non-web packages (`@tc/contracts`, `@tc/domain`, `@tc/factories`,
+       `@tc/fixtures`, `@tc/pages`), there's no file-level scoping option —
+       run `pnpm --filter <pkg> test` (whole package suite) if the package
+       defines a `test` script. `@tc/predict` currently has none.
 
 5. **Multiple packages affected (and none is contracts):** run each
    affected package's narrowed check separately. Do not escalate to the

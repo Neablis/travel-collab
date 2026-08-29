@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createMappedTrip, dragCardTo, openHistory } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // The rack's own drag behaviour can only be tested in a real browser:
 // @atlaskit/pragmatic-drag-and-drop is driven by native HTML5 drag events, and
@@ -13,7 +14,7 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   // Drag sequences with settle waits at both ends run well past the 30s default.
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
-  const tripName = `Rack ${Date.now()}`;
+  const tripName = e2eTripName("Rack");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
 
@@ -61,7 +62,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   // ("Trip actions for <name>"), and m8-make-it-real locates the undo control
   // with getByRole("button", { name: /undo/i }) — a leftover "RackUndo ..."
   // trip matches that regex and breaks that spec with a strict-mode violation.
-  const tripName = `RackHistory ${Date.now()}`;
+  const tripName = e2eTripName("RackHistory");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
 
@@ -100,7 +101,7 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   // from the rack arrived on the day holding no time at all — while the day
   // dropdown (assignFromRack) gave the same stop a time. One action, two
   // outcomes, depending on how you performed it.
-  const name = `RackTime ${Date.now()}`;
+  const name = e2eTripName("RackTime");
   const tripId = await createMappedTrip(page, name, 2);
   await page.goto(`/trips/${tripId}?lens=Board`);
   await expect(page.getByTestId("day-column")).toHaveCount(2);

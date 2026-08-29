@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
@@ -16,13 +16,53 @@ import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
 // `vi.hoisted` because `vi.mock` factories run before the rest of the module
 // evaluates — these spies need to exist by the time the factory closure
 // captures them, and also be importable by the tests below to assert on.
-const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, setPaintPropertyMock, markerInstances } = vi.hoisted(
+const { openCreateCalls, wrapped } = vi.hoisted(() => ({
+  openCreateCalls: [] as unknown[],
+  wrapped: new WeakMap<object, unknown>(),
+}));
+
+// The real EditorHost stays mounted — only `useEditor` is wrapped, so the
+// double-click test can assert WHAT the handler creates rather than merely
+// that it did not throw. Passthrough: every other test in this file keeps the
+// real editor behaviour.
+vi.mock("@/components/trip/context/EditorHost", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/trip/context/EditorHost")>();
+  return {
+    ...actual,
+    useEditor: () => {
+      const real = actual.useEditor();
+      // Cached on the real context value, so the wrapper keeps ONE identity for
+      // as long as the provider does. Returning a fresh object (or a fresh
+      // `openCreate`) per render changes the dep of MapLens's registration
+      // effect every time, which re-runs it and double-adds every route layer —
+      // a test-only mock silently changing the behaviour under test.
+      const cached = wrapped.get(real) as ReturnType<typeof actual.useEditor> | undefined;
+      if (cached !== undefined) return cached;
+      const value = {
+        ...real,
+        openCreate: (input: Parameters<typeof real.openCreate>[0]) => {
+          openCreateCalls.push(input);
+          return real.openCreate(input);
+        },
+      };
+      wrapped.set(real, value);
+      return value;
+    },
+  };
+});
+
+const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances } = vi.hoisted(
   () => ({
     addLayerMock: vi.fn(),
     addSourceMock: vi.fn(),
     fitBoundsMock: vi.fn(),
     mapConstructorMock: vi.fn(),
     mapOnLoad: vi.fn(),
+    // Every map event MapLens subscribes to, by name. The viewer gate is the
+    // *absence* of a "dblclick" subscription (MapLens registers it only for an
+    // editor), which is only observable if the stub records what it was asked
+    // for rather than swallowing everything but "load".
+    mapHandlers: new globalThis.Map<string, (e: unknown) => void>(),
     setPaintPropertyMock: vi.fn(),
     // Real maplibre's Marker#getElement() returns the *same* DOM node on
     // every call — this array of constructed instances (each with a stable
@@ -73,6 +113,7 @@ vi.mock("maplibre-gl", () => {
       mapConstructorMock(options);
     }
     on(event: string, cb: () => void) {
+      mapHandlers.set(event, cb as (e: unknown) => void);
       // Real maplibre fires "load" async, after style/tiles resolve — a
       // microtask keeps that ordering (and satisfies the `await waitFor`
       // callers below) without an unawaited real network/GL round-trip.
@@ -239,11 +280,15 @@ function detailWithEmptyDay(): TripDetail {
   });
 }
 
-function renderMap(detail: TripDetail, overrides: { focusedDay?: number | null; setFocusedDay?: (i: number | null) => void } = {}) {
+function renderMap(
+  detail: TripDetail,
+  overrides: { focusedDay?: number | null; setFocusedDay?: (i: number | null) => void } = {},
+  readOnly = false,
+) {
   useFocusMock.mockReturnValue({ focusedDay: null, setFocusedDay: vi.fn(), ...overrides });
   return render(
     <EditorHost>
-      <MapLens detail={detail} onSelectActivity={vi.fn()} />
+      <MapLens detail={detail} onSelectActivity={vi.fn()} readOnly={readOnly} />
     </EditorHost>,
   );
 }
@@ -481,6 +526,53 @@ describe("MapLens", () => {
       // a1, a2 (day 0's stops) only — c1 (backlog-located) gets no marker at
       // all now that the map doesn't plot anything off a day.
       expect(markerInstances).toHaveLength(2);
+    });
+  });
+});
+
+// CodeRabbit, PR #78: M11 link 3 viewer-gated the Board lens; the Map lens was
+// left out, and double-click-to-create is its one write affordance. Everything
+// else here is read — routes, pins, rail, legend, and the marker click that
+// opens a stop (the sheet presents read-only for a viewer, ActivityEditorSheet)
+// — so this is the only thing a viewer loses. The server refuses AddActivity
+// from a viewer independently (accessPolicy.ts); this is defence in depth.
+describe("MapLens — a viewer's map", () => {
+  beforeEach(() => {
+    mapHandlers.clear();
+    markerInstances.length = 0;
+    addLayerMock.mockClear();
+    openCreateCalls.length = 0;
+  });
+
+  it("registers no double-click-to-create handler", async () => {
+    renderMap(detailWithTwoDays(), {}, true);
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(mapHandlers.has("dblclick")).toBe(false);
+  });
+
+  it("still draws every route and pin", async () => {
+    renderMap(detailWithTwoDays(), {}, true);
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(addLayerMock).toHaveBeenCalledTimes(2);
+    expect(markerInstances).toHaveLength(4);
+    expect(screen.getByTestId("map-lens")).toBeTruthy();
+  });
+
+  it("registers it for an editor, and it opens the editor prefilled at the clicked point", async () => {
+    renderMap(detailWithTwoDays());
+    await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
+    expect(mapHandlers.has("dblclick")).toBe(true);
+
+    // The handler itself, driven the way maplibre would drive it. Asserting the
+    // PAYLOAD, not merely that it did not throw: a handler that silently did
+    // nothing would satisfy "does not throw" while creating no stop, and the
+    // whole claim here is that registration means the click reaches openCreate
+    // carrying the point that was clicked.
+    mapHandlers.get("dblclick")!({ lngLat: { lng: 12.4922, lat: 41.8902 } });
+
+    expect(openCreateCalls).toHaveLength(1);
+    expect(openCreateCalls[0]).toMatchObject({
+      location: { lat: 41.8902, lng: 12.4922 },
     });
   });
 });

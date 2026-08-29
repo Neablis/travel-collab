@@ -17,6 +17,10 @@ const sendTripCommandBatchMock = vi.fn();
 // Defaults to owner in `beforeEach`, which is what every pre-existing test
 // here assumes.
 let myRole: "viewer" | "editor" | "owner" | null = "owner";
+// Drives the access READ itself failing, which is a different state from any
+// role: TripProvider keeps the board live and reports `accessUnknown` instead
+// (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge).
+let accessReadFails = false;
 
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
@@ -30,10 +34,11 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // Without this the spread above supplies the real `fetchTripAccess`, whose
     // fetch has no handler here — it resolves `ok:false`, `myRole` stays null,
     // and Delete is (correctly) not rendered at all.
-    fetchTripAccess: vi.fn(async () => ({
-      ok: true as const,
-      value: { tripId: "x", myRole, members: [], invites: [] },
-    })),
+    fetchTripAccess: vi.fn(async () =>
+      accessReadFails
+        ? { ok: false as const, error: { status: 500, message: "boom" } }
+        : { ok: true as const, value: { tripId: "x", myRole, members: [], invites: [] } },
+    ),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
@@ -69,6 +74,7 @@ beforeEach(() => {
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
   myRole = "owner";
+  accessReadFails = false;
   sendTripCommandMock.mockResolvedValue({
     ok: true,
     value: { detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }), history: historyFixture("x") },
@@ -307,5 +313,30 @@ describe("TripHeader viewer gating", () => {
     expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
+  });
+});
+
+// The review's §5 edge: when `fetchTripAccess` fails, `myRole` stays null and
+// the whole board goes live on an assumption rather than an answer. That is
+// the deliberate choice (TripProvider's `load` says why — a false "view only"
+// would lock an owner out of their own trip over one failed secondary read),
+// so the header states the unknown rather than acting on it: a later refusal
+// then reads as a known consequence rather than as the app breaking.
+describe("TripHeader — the access read failed", () => {
+  it("says the access is unknown, and keeps the board live", async () => {
+    accessReadFails = true;
+    await renderHeader();
+
+    expect(await screen.findByText("Access unknown")).toBeTruthy();
+    // Not "View only": an unknown role is not a viewer.
+    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("says nothing when the read succeeded", async () => {
+    await renderHeader();
+
+    expect(await screen.findByRole("button", { name: "Add stop" })).toBeTruthy();
+    expect(screen.queryByText("Access unknown")).toBeNull();
   });
 });

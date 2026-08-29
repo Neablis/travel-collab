@@ -1,0 +1,1679 @@
+# STATUS archive — the narrative moved out of `docs/STATUS.md`, 2026-08-28
+
+`docs/STATUS.md` is the file every session is told to read first. It had grown
+to **1,779 lines**, of which roughly 88% was history — including an 830-line
+block the file itself labelled *"the historical record of M10 Wave 2's
+phases … read it as history, not as current work."* A first-read file that
+costs that much to read is a first-read file people skim, and the 2026-08-28
+project review measured live instruction at ~150-200 of those lines
+(§5.1-5.2).
+
+**Nothing here was deleted; it was moved.** This file is the verbatim content
+of `docs/STATUS.md` lines 8-1651 as of commit `fb51486`, in its original order.
+Every claim in it was true when written and is dated; **none of it is current
+state.** For that, read `docs/STATUS.md` — which now carries only the live
+sections plus an index pointing back here.
+
+Where each part has a better home, that home is authoritative and this is the
+long form:
+
+| This file's content | The durable home |
+|---|---|
+| M10 Wave 2, per phase (Phases 0-8b, the gate, the landing gaps) | `docs/milestones/M10-visual-craft.md` — scope, exit gate, Wave-2 retro |
+| M15's gate | `docs/milestones/M15-front-door.md` |
+| The 2026-08-25 roadmap change (M16 added, M9 last) | `docs/architecture/ADR-022-*` |
+| Phase 1b's cancellation | `docs/milestones/M10-visual-craft.md`'s gate-scope amendments |
+| The 2026-08-23 design sync and its routing | `docs/design-feedback/2026-08-23-design-sync-review.md` |
+| The 2026-08-26 design ↔ build UI audit | `docs/design-feedback/2026-08-26-design-sync-ui-audit.md` |
+| The one-fixture change | `docs/architecture/ADR-030-*`, `docs/guidelines/fixtures-and-seed-data.md` |
+| The subagent protocol | `.claude/protocol/`, `docs/specs/2026-08-28-subagent-operating-contract-design.md` |
+| The travel-day conflict rule | `docs/known-issues.md` KI-60 |
+| M18's contract PR | `docs/milestones/M18-stop-kind.md`, `docs/contracts/CHANGELOG.md` |
+| The 2026-08-23 test-suite overhaul, Phases 0-4 | `docs/plans/2026-08-23-test-suite-overhaul.md`, `docs/testing-baseline.md` |
+
+---
+
+## The subagent protocol landed, 2026-08-28
+
+`.claude/protocol/` now carries a binding contract for every dispatched
+subagent — lifecycle, three exit states, a two-strike handback rule, a
+run-scoped board, and a mechanically checked report shape. Four fail-open
+hooks enforce it. Three no-op when no run is active; the fourth, report
+conformance, never reads the manifest and engages for any subagent whose
+final message carries an `## Exit:` heading, run or no run. `ADAPTER.md` and
+`adapter.json` hold every travel-collab-specific fact, and a test enforces
+that the other three files name nothing about this repo.
+
+Start a run with `/dispatch`. Design:
+`docs/specs/2026-08-28-subagent-operating-contract-design.md`.
+## A travel day is no longer a mistake, 2026-08-28 — KI-60
+
+**The Japan demo went from 12 conflicts to 2, and the fixture never changed.**
+Mitchell reseeded and asked why a demo meant to show one or two conflicts showed
+many, "many many around distances being too far". All ten `impossible-geography`
+warnings were false, and all sat on the two days the trip relocates: 4 on the
+Odawara → Kyoto day, 6 on the Osaka → Tokyo day. In every pair the day's own
+shinkansen was scheduled **between** the two stops.
+
+`detectConflicts` compared every same-day located pair against a flat 150km and
+never read `kind`. M18 added `ActivityKind: "transit"` for exactly this
+reasoning; `conflicts.ts` predated it. The rule now excuses a distance a transit
+stop crosses **in time** — "a distance is only a problem if nothing on the day
+accounts for crossing it."
+
+Conservative on purpose, because a false negative hides a real problem while a
+false positive is only noise: **time order, not stored order** (`activityIds` is
+display order, reorderable without changing when anything happens); **an untimed
+stop is never excused**; **an untimed transit stop excuses nothing**. It does not
+check the transit stop goes to the right *place* — nothing models a from/to
+(KI-59), so "some travel is scheduled in this interval" is the strongest signal
+available.
+
+The weaker rule — *skip a pair if either stop is transit* — was rejected with
+evidence, not taste: it clears day 7 but only 3 of day 14's 6, leaving
+"Breakfast at the hotel" vs the three Tokyo stops.
+
+**The two that remain are the ones worth showing:** "Nezu Museum" vs "Lunch at
+Kagari", and "Kiyomizu-dera and Sannenzaka" vs "Lunch at Omen Kodaiji".
+
+**Two of my own claims this corrected**, both made without checking and both
+recorded in `expectations.ts`: that the Gora Kadan check-in was a *planted*
+conflict (it is flavour text; no rule detects "check-in closes at 16:00"), and
+that ten distance warnings were "what a real six-city trip produces". Pinning an
+observed number as expected is how a defect becomes a baseline — the comment now
+names the target and says to suspect the rule before the content.
+
+**Run:** full `pnpm check` (domain **153**, web 1054/1 skipped), `test:int`
+**201**, `pnpm seed:verify` OK at 2 conflicts, and a real browser walk after
+`db:reset` + `db:seed` — hero reads "2 open conflicts", Day-columns shows two
+dismissible banners where it stacked twelve. Regression block verified
+non-vacuous: removing the exclusion turns 5 of its 7 cases red.
+
+## The Japan demo trip is one fixture now, 2026-08-28 — ADR-030
+
+**Three surfaces, one copy.** `@tc/fixtures` is a new workspace package owning
+the 14-day/68-stop Japan trip. `scripts/db-seed.ts`, the preview branch's
+`api/dev/reset-demo-data`, and a new `@tc/factories` scenario all call the same
+`japanTripCommands`. `src/lib/japanTripImporter.ts` is deleted.
+
+**The two copies that existed were identical, and that was luck.** All 68 stops
+plus 4 backlog items agreed field-for-field on title, place, area, start, end,
+status, cost, note and `who`. Nothing checked it.
+
+**Where they differed is what this fixes, and it was live on preview:**
+
+- The preview reset produced a trip with **zero tags** — the export carries
+  none. M18 PR 2 ships tag chips and a filter row that could not have been
+  reviewed on a preview deployment.
+- Coordinates were **72/72 local, 51/72 preview**, and six of the 51 were the
+  wrong venue: Hama-rikyū Gardens matched to `"Tokyo, Chiyoda"` (a city
+  centroid), Bread & Espresso to `"Cawaii Bread & Coffee"`, Yoshida-ya to
+  `"Coffee Yoshida"`, Onibus to the Setagaya branch, Sushi Yoshitake to
+  `"Sushi Wasabi, Shinjuku"`, Torishiki to a locality. Filed as **KI-58**; the
+  data is fixed, the script is not.
+- The export's dates are pinned to `2026-09-20`. Both callers now pass
+  `today + 10`, so the homepage hero always has an upcoming trip.
+
+**`pnpm seed:verify` is the thing that keeps it true.** It folds the fixture
+through the real domain — `decideTripCommand`, `evolveTrip`, `rollupCosts`,
+`detectConflicts`, no DB, no clock — and diffs against a recorded baseline. Two
+mechanisms make it grow with the product: the kind/tag histograms are typed
+`Record<ActivityKind, number>`, so a new enum value breaks the build until the
+fixture covers it; and every count must be **> 0**, so a value that exists in
+the contract but appears nowhere in the fixture is a finding. It runs inside
+`pnpm check` as well, because an unwired script rots.
+`docs/guidelines/fixtures-and-seed-data.md` is the procedure for new features.
+
+**One trap worth remembering.** `db-seed.ts` runs under plain `node` with type
+stripping. It imported `@tc/contracts` extensionlessly and got away with it only
+because that import was **type-only** and erased at load. A *value* import of a
+source-only workspace package needs the specifier to resolve for real — so every
+relative import inside `@tc/fixtures` now carries a `.ts` extension, and
+`tsconfig.base.json` sets `allowImportingTsExtensions`. This failed loudly on
+the first live `db:seed`, not in any test.
+
+**What was actually run on this branch:**
+
+- `pnpm typecheck` — green across all **7** packages (6 + the new one).
+- Root `pnpm lint` — green (ESLint, lint wall, colour wall 356 files / 0 pending
+  re-skin, case collisions 758 paths).
+- `pnpm test` — contracts 98, pages 32, domain 146, **fixtures 8**, factories
+  354, web 1054 passed / 1 skipped.
+- `pnpm --filter web test:int` — **201 passed, 20 files**, against Postgres on
+  :5433. Includes a new assertion that the preview reset seeds all four tags and
+  a coordinate on **every** stop — proven non-vacuous by stripping tags from the
+  fixture and watching it go red.
+- `pnpm seed:verify` — OK, and its report matches a live `db:seed` read back
+  through the API exactly: 14 days, 72 activities, kinds booked 13 / planned 39
+  / transit 9 / idea 6 / hold 5, tags meal 33 / outdoors 11 / ticketed 8 /
+  lodging 4 with 18 untagged, 72/72 coordinates, budget 16,400 / planned 9,085
+  USD (the export's own `plannedTotal`), 12 conflicts.
+- Browser walk at 1280px: homepage hero ("Next trip", Mon Sep 7, `$9,085.00
+  planned of $16,400.00`, 12 open conflicts, all six city chips), the trip's
+  Day-columns lens, and the Map lens with tiles and pins. No console errors.
+- Both new guards checked non-vacuous: perturbing a stop's time fails the
+  upstream-drift test; removing the last `lodging` tag fails tag coverage.
+- E2E **not** run — no UI behaviour changed, only the data behind it.
+
+**Two things found and filed rather than fixed:** KI-58 (the geocoder still
+matches the wrong venue) and KI-57 (`reset-demo-data/route.int.test.ts` only
+passes against a fresh DB — it accumulates one outsider trip per run; CI is
+unaffected).
+
+## M18 PR 1 (the contract change) is done, 2026-08-27 — PR 2+ carries the surfaces
+
+**A stop now knows what kind of thing it is.** `ActivityKind`
+(`booked|hold|idea|transit|planned`) and `ActivityTag`
+(`meal|lodging|ticketed|outdoors`) are real fields on `AddActivity`,
+`UpdateActivity`, both V1 event payloads and `ActivityView`. Nothing changes on
+screen — that is deliberate. `AGENTS.md:161` makes a contract change its own
+reviewed step, so the dependent surfaces (Calendar transit split, `N to book`,
+the home-hero tile, `act.badge`, tag chips and the filter row) are PR 2+.
+
+Three decisions, Mitchell's calls on 2026-08-27:
+
+1. **`kind` is non-nullable, default `"planned"`** — already the zero value in
+   `db-seed.ts` and `japanTripImporter.ts`'s `StopStatus`.
+2. **Four tags, not the handoff's six.** `considering` and `travel` restate
+   `kind: idea`/`transit`; two settable fields that can disagree about one fact
+   is a bug generator. Design delta recorded as **KI-52**.
+3. **Tags are hand-authored in `db-seed.ts`** — the export carries none, and
+   inferring them from title text is the prose parse M18 disqualifies.
+
+**Two things the milestone anticipated that turned out not to exist:**
+
+- **No migration.** Both fields went onto the **existing V1** payloads with Zod
+  `.default()` — the M3 `anchors` / M4 `cost` mechanism — so every stored event
+  replays as `planned` / `[]`. No V2 event, no rewrite, no backfill.
+- **No note-text parse anywhere.** `db-seed.ts` carried `status` as a typed
+  field all along and merely folded it into notes on the way out; the handoff
+  export has a typed `status` on every stop that the importer was explicitly
+  dropping. Both are field-to-field maps.
+
+**The one real trap, and it is worth remembering.** `equality.ts`, `diff.ts`,
+`hydrate.ts` and `detail.ts` each *hand-enumerate* activity fields. Adding a
+contract field without touching all four compiles cleanly and is wrong at
+runtime — and because `decide.ts` gates `UpdateActivity` on `okUnlessNoOp`,
+which calls `activityStatesEqual`, a kind-only update was **rejected as a
+no-op** until equality learned the field. The shared property generator
+(`packages/domain/test/support/tripGenerator.ts`) needed both fields too, or
+`diff.property.test.ts` would have kept passing while never generating either.
+Verified non-vacuous by removing the diff change and watching the M2 round-trip
+property fail, then restoring it.
+
+**What was actually run on this branch:**
+
+- `pnpm typecheck` — green across all 6 packages.
+- **Root** `pnpm lint` — green (ESLint, lint wall, colour wall 313 files /
+  0 pending re-skin, case collisions).
+- `pnpm test` — contracts 49, pages 32, domain 136, factories 346,
+  **web 890 passed / 1 skipped (111 files)** — the web number matches the M10
+  gate baseline exactly, so no fixture edit changed behaviour.
+- `pnpm --filter web test:int` — **85 passed, 13 files**, against Postgres on
+  :5433. This is the exit gate's projection-rebuild check; `pnpm check` does
+  **not** run it.
+- A live `db:reseed` plus an API read of the projection: 72 activities, kinds
+  booked 13 / planned 39 / transit 9 / idea 6 / hold 5; tags meal 33 /
+  outdoors 11 / ticketed 8 / lodging 4, 18 untagged; and **zero notes still
+  carrying a `(status)`**, with `who` still folded as intended. Browser walk of
+  the Japan trip: cards render clean, no console errors.
+- E2E was **not** run — no UI behaviour changed in this PR.
+
+**Next:** PR 2 — Calendar's transit split and `N to book`, then the home-hero
+tile, `act.badge`, and the tag chips/filter row.
+
+## M10's Wave-2 gate closed 2026-08-27 — M18 is the current milestone
+
+**M10 "Visual craft pass" is done.** Phase 9, its exit gate, ran on
+2026-08-27 and passed. What was actually run, on the gate branch cut from
+`main`:
+
+- `pnpm typecheck` green across all 6 packages.
+- **Root** `pnpm lint` green — ESLint plus the lint wall, the colour wall
+  (313 files, 0 pending re-skin) and the case-collision check (695 paths).
+  Root, not `pnpm --filter web lint`: the filtered script is ESLint only and
+  has let real violations through before.
+- `pnpm --filter web test` — **890 passed, 1 skipped**, 111 files.
+- `pnpm --filter web test:int` — **85 passed**, 13 files, against the native
+  Postgres cluster on :5433 (`docs/guidelines/cloud-agent-sessions.md`).
+- `pnpm --filter web test:e2e:ci-like` — **31/31, twice**, identical both
+  runs, against a production build. **`test:e2e:ci-like`, not `test:e2e`** —
+  the plan file said the latter and `CLAUDE.md` rule 1 overrides it (KI-27).
+- A manual browser walk of Home, Playbooks, Notebook and all four trip
+  lenses at **1280 / 1100 / 820px**, with the assistant rail shown and
+  hidden — 33 captures, plus programmatic overflow / coverage / inertness
+  checks at each.
+
+**The walk found one real defect, and it is fixed in the gate commit.** The
+assistant launcher never cleared the unscheduled rack: `TripBoardScreen`
+measures the rack with a `ResizeObserver`, but the effect that installed it
+ran once against a null ref (the rack's wrapper mounts below the
+`status === "loading"` early return) and, keyed on `[lens]`, never re-ran.
+`rackHeight` stayed 0 at every width, so the launcher overlapped the rack by
+15px collapsed and 212px open. Now a callback ref, with a regression spec
+verified to fail on the unfixed component. **Nothing automated could have
+caught it** — the launcher is `z-40` over the rack's `z-20`, so it never
+stopped being clickable; it was only ever wrong to look at. The full
+reasoning is in `M10-visual-craft.md`'s Wave-2 retro.
+
+**Current milestone is now M18 — "A stop knows what kind of thing it is"**
+(`docs/milestones/M18-stop-kind.md`), not started. M18 was approved and
+scheduled ahead of M16 on 2026-08-26, after ADR-022 had placed M16 first;
+that later decision governs. Order from here: **M18 → M16 → M11 → M12 → M13
+→ M14 → M9**.
+
+**The M10-delta plan files are deleted** in the gate-close commit, per
+`docs/plans/README.md`. They are in git history; the retro carries the one
+rule that lived nowhere else (currency is trip-level, never per-event).
+
+## M15 Front door's gate closed 2026-08-26, PR #56
+
+**M15 ran ahead of M10's Phase 9 gate and ahead of M16, and its own gate
+closed while M10's stayed open.** This supersedes ADR-021/ADR-022's stated
+execution order; `docs/milestones/README.md`'s roadmap table, its reorder
+notes, and its Current milestone line are all reconciled to this — see that
+file's 2026-08-26 reorder note and
+`docs/milestones/M15-front-door.md`'s decision 1 and retro for the full
+record. `TODO.md` has M15 ticked.
+
+What M15 shipped: the landing page at `/welcome` (with `/` redirecting to it
+server-side via `apps/web/src/proxy.ts`'s own Auth.js instance,
+ADR-024), custom sign-in/sign-up screens replacing NextAuth's default,
+designed states for sign-in failure/a denied Google grant/a network failure
+during trip creation, and Home's empty-state first-run moment via the
+existing `NewTripWizard`'s "Create empty" (the designed one-field first-run
+screen was dropped — it duplicated a capability that already existed). The
+last outstanding gate item — a real Google sign-in verified end to end — was
+done manually by Mitchell on 2026-08-26 against PR #56's Vercel preview, from
+both `/signin` and `/signup` and the dev-login path. An earlier attempt on
+that same preview had failed; the cause was a missing redeploy after the
+Google OAuth env vars were added to Vercel's Preview environment, not a code
+defect — see `docs/known-issues.md` KI-50 for the durable follow-up
+(`AUTH_REDIRECT_PROXY_URL`, so one registered redirect URI covers every
+preview). CI evidence: GitHub Actions run `33023719009` on PR #56 —
+`unit-tests`, `static-checks` and `integration-e2e` all green, `build` then
+`test:e2e` with no `--project` filter, so `setup`, `desktop` and `narrow` all
+ran against a production build.
+
+## Design ↔ build UI audit, 2026-08-26 — the walk it fed happened 2026-08-27
+
+The 2026-08-24 design handoff (`.design-sync/handoff/`, commit `9b8681a`) has
+been compared against the running app, screen by screen, at 1440 / 1100 / 402
+px. **The report is `docs/design-feedback/2026-08-26-design-sync-ui-audit.md`**
+and it is the build-side counterpart to the handoff's own `DRIFT.md`. Phase 9's
+gate makes a manual browser walk blocking; this is that walk, done once and
+written down, so the gate can spend its time deciding rather than discovering.
+
+**Verdict: the trip surfaces are close.** Timeline, Calendar, the day-chip
+rail, the map rail, the trip header, Trip settings (its start-only date editor
+matches SPEC §3 word for word, hint copy included), the Playbooks route, the
+New-trip wizard, the Unscheduled rack and the End-of-trip block all read as
+designed. Three things are not close, and only one of them touches M10:
+
+1. **The Day-columns lens.** `Board.tsx:201` stacks one full-width `Banner` per
+   conflict above the columns — 12 on the Japan seed, ~700px, the board below
+   the fold — and the design puts conflicts *inside* the card, which
+   `Column.tsx` already does. **KI-43.**
+2. **Notebook / Pages** was designed in this handoff (SPEC §7) and the build has
+   not moved. Its cheapest piece is a plain bug: `.tc-page-editor` is applied to
+   every page and **defined nowhere in the repo**, so page prose renders with no
+   typography at all (**KI-44** — *fixed 2026-08-26 by the KI sweep; the rule is
+   now defined in `globals.css`. The rest of item 2, the unbuilt SPEC §7
+   redesign, still stands*).
+3. **Mobile** is the desktop layout at 402px; the handoff's mobile file is a
+   different product (SPEC §10). **KI-46.** At 1100px the app is fine — the gap
+   is entirely between those widths.
+
+**One fix landed with the audit**: `db-seed.ts` moved every seeded stop with
+`position: 0`, so each day was stored in reverse. Timeline hid it (it sorts);
+Day columns and the calendar cells render `activityIds` verbatim, so both read
+9 pm first. Fixed at the seed and re-verified. **The preview was never
+affected** — its demo-data reset goes through `japanTripImporter.ts`, which
+emits `AddActivity` with a `dayId` and so appends (`evolve.ts:90`); the bug was
+local dev and e2e fixtures only. **Whether a day column should sort by start
+time the way the design does is a separate, still-open product question**
+(audit D3) — the seed fix does not answer it.
+
+**Six known issues filed**: KI-43 (conflict wall), KI-44 (`.tc-page-editor`),
+KI-45 (`Preview size="container"` covers host content — including a currency
+amount in Trip settings), KI-46 (small screens), KI-47 (no `tags` field, which
+blocks five separate designed surfaces), KI-48 (six one-file cosmetics,
+including `1 travellers`).
+
+**KI-44 and KI-45 of those six are now closed** (2026-08-26 KI sweep, together
+with KI-23 and KI-41 from elsewhere in the backlog). KI-43 is half-closed — the
+summary collapse landed in PR #55, the in-card half is still open. KI-46 and
+KI-47 are untouched by the sweep on purpose: KI-46's own entry says building the
+designed mobile companion is a milestone rather than a fix, and KI-47 is carried
+by `docs/milestones/M18-stop-kind.md`. **The sweep did not drive a browser**, so
+the visual read of the Notebook surface and of the `size="container"` Preview
+hosts was left to Phase 9's manual walk. **That walk ran 2026-08-27** and
+covered both: the Notebook list and a page render correctly at 1280 / 1100 /
+820px (`.tc-page-editor` now resolves — 14px/20.3px body, 24px headings, KI-44's
+fix confirmed live), and no Preview chip covers host content at any of the three
+widths (KI-45's fix confirmed). See the gate section at the top of this file.
+
+**Two decisions the audit surfaced that are not code:**
+- **SPEC §7 contradicts `packages/pages/src/templates.ts:15-18`.** The spec's
+  whole premise is that pages are prose with live macro chips; the build
+  deliberately removed macro authoring in M8 and seeds templates with no macro
+  nodes. Settle that before anyone builds to §7.
+- **`TripSummary` still carries no dates** (`contracts/src/trip.ts:238-244`), so
+  the home grid cards say "Created Aug 26" where the design wants trip dates,
+  and the "next trip" is still `visibleTrips[0]`. This is `DRIFT.md` D6, still
+  open. The *hero* no longer needs it — it already fetches the TripDetail.
+- **The handoff dates the Japan trip three different ways**, and no seed in the
+  repo produces the two-month calendar SPEC §4 was written to protect: SPEC §4
+  says Sep 20 – Oct 3; `data/japan-trip-seed.json` (what the preview's demo
+  reset imports) says Oct 3 – 16, entirely inside October; the mobile design
+  agrees with the JSON. `db-seed.ts` uses `isoDateInDays(10)`, so locally it
+  straddles a boundary only by luck. Send back to design (audit §E).
+
+Nothing in the audit was a reason to hold M10's gate, and it did not — the gate
+closed 2026-08-27 with the audit's three open items (KI-43's in-card half,
+KI-46, KI-47) deliberately carried, not fixed. `DRIFT.md` §3's "extra
+lenses" bullet is stale and can be struck: those three lenses no longer exist.
+
+## Phase 1b is cancelled, 2026-08-26 — M10's gate narrows, Phase 9 is next
+
+**Mitchell's decision, no code changed.** Phase 1b ("the header adopts the
+focus-scope model") is **cancelled unbuilt**, and `SPEC.md` §1's
+account → trip → day focus-scope model is **rejected as a whole** rather than
+deferred. His rule: *"top bar is for functionality larger than a trip, and the
+elements below the top bar are trip scoped actions"*, and on the header's Quick
+add, *"Only 'Add stop' where it is now"*.
+
+**This reverts the 2026-08-23 design sync's §4.1 decision** and restores what the
+code already said: `AppHeader.tsx:6-9`'s Phase 1 comment and `DRIFT.md` D3
+(*"Code is right to omit Quick add"*). The sync's review had originally
+recommended keeping the code; that recommendation now stands. Recorded in
+`docs/milestones/M10-visual-craft.md` (2026-08-26 gate-scope amendment),
+`docs/design-feedback/2026-08-23-design-sync-review.md` §4.1, and on the plan
+file itself.
+
+**Phase order to the gate is now 5, 6, 7, 8, 8b, 9.** All of 5-8b are merged, so
+**Phase 9 — M10's exit gate — is the next work**
+(`docs/plans/M10-delta/phase-9-gate.md`). Its checklist covers Phase 8b but not
+1b.
+
+**Two plan claims were found false while scoping the cancellation**, and are
+recorded on the cancelled plan file so nothing downstream inherits them:
+`FocusProvider` does **not** distinguish scope from the day-chip ring (it holds
+one field, `focusedDay`), and there is **no** `MapRail._railLock` — `MapRail`
+has a leading+trailing scroll *throttle*, which cannot tell a programmatic
+scroll from a user one. Task 1b.4 would have built both from scratch.
+
+**§1's one non-header rule was checked and deliberately not adopted:** that
+Calendar drops the unscheduled rack the way Map does.
+`TripBoardScreen.tsx:409-414` gates the rack on `lens !== "Map"` for a
+documented reason — its day-assign `NativeSelect` is a real scheduling path in
+Timeline and Calendar, and Map only loses it because drag is Board-only. Hiding
+it would delete working functionality.
+
+> **Reversed 2026-08-26 (Mitchell), PR #55.** `RULES.md` 2 restated this as a
+> binding project rule — "don't render the bottom drawer on a page where
+> activities can't be dragged onto or out of the schedule" — and Mitchell
+> decided for the rule: **remove the drawer from Timeline and Calendar now, and
+> add it back per lens as that lens gains real page interactions.** The
+> dropdown is still a real scheduling path, but it is reachable from the Board
+> drawer, so keeping a `position: fixed` overlay mounted on two lenses for it
+> alone is the "purposeless UI" the rule names.
+>
+> The general rule he set, in his words: *"If the drawer element has page
+> interactions (almost always a drag / drop onto the page) then add it back."*
+> Designs for dropping onto a timeline and a calendar exist and are deferred,
+> not dropped — see `TODO.md`'s "Unscheduled rack: drag support is
+> Board-view-only" entry.
+>
+> Encoded as `board/lensAcceptsDrops.ts` rather than a lens list, so the drawer
+> returns to those lenses by changing that one function when their drop targets
+> land. The old gate is what this paragraph describes; the live gate is that
+> function.
+
+**Also corrected in this change: the "Next action" section below had gone
+stale** — it still said "Review and merge PR #46" and "`main` is at `c630152`".
+PR #46 merged 2026-08-25 and `main` has moved twice since (PR #52, then PR #53).
+
+## Roadmap changed 2026-08-25 — M16 added, M9 moved to last (ADR-022)
+
+Decided by Mitchell in a scoping conversation, not by a code change: **M9 is not
+next.** A new milestone **M16 "The assistant answers questions"** runs right
+after M10's Wave-2 gate and ahead of M15; **M9 moves to last, after M14**. New
+order: `M10 → M16 → M15 → M11 → M12 → M13 → M14 → M9`. Numbers unchanged —
+placement only, same shape as ADR-018/ADR-021.
+
+The finding that shaped it, and the reason M16 is not a styling task: **the AI
+endpoint is a command endpoint and structurally cannot answer a question.**
+`handleAiRequest` derives its reply from the *committed commands*
+(`planSummary.ts`, deliberately, so it can never claim an edit it did not make),
+so a turn resolving to zero commands returns the fixed string *"I couldn't turn
+that into any changes, so nothing was applied."* And `summarizeTrip` puts no
+activity time windows in the envelope at all — so "where is the most free time"
+is unanswerable twice over, before any model is involved.
+
+M16's shape: the sidebar styled to `SPEC.md` §9's *docked* presentation (a flex
+sibling rather than a fixed overlay, deleting the scrim that produced the
+already-resolved KI-16 and KI-17; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on a new
+`POST /api/trips/[tripId]/ask` endpoint — `ToolLoopAgent`, three read tools,
+`{tripId, userId}` injected via `toolsContext` so another trip is not
+expressible — then per-ask tool-call analytics and a fixed eval set. **The
+existing command path is untouched and is not deleted**; M9's write tools wrap
+it later. Detail: `docs/milestones/M16-assistant-read-agent.md`, decision and
+tool rule: `docs/architecture/ADR-022-read-only-assistant-agent.md`.
+
+**ADR-019 gained an amendment the same day**, on Mitchell's decision that AI
+must be controllable per user (a paid tier, later). The kill switch's chokepoint
+— `gateway.ts#aiModel` constructs the client, `modelSelection.ts#selectAiModel`
+decides whether it is used — is real today but held only by convention, and M16
+adds the *second* AI entry point, which is when convention breaks. M16 therefore
+owes: a lint wall making `@/server/ai/gateway` importable only from
+`modelSelection.ts`; an actor-aware `selectAiModel({ surface, userId })`; and a
+**three-way** outcome `live` / `simulated` / `denied`, because "off" today means
+*simulated* and a simulated answer that mutates the trip is the wrong response to
+"you don't have access". `denied` stays typed and unreachable until an
+entitlement source exists.
+
+Nothing starts until M10's Wave-2 gate passes. Phase 8b below is still the
+in-flight work.
+
+**Last updated: 2026-08-25 — Phase 8b is open as PR #46 and has grown well
+past its plan.** The branch `claude/m10-wave2-phase8b` now carries **25
+commits / ~75 files**, not the six Phase 8b's plan describes. What was added
+after the phase tasks, in order: a **preview-only demo-data reset** endpoint
+and account-menu action (dev tooling, not plan scope — see its own section
+below), **geocoded coordinates** for the Japan seed, a **full calendar-cell
+rebuild** after the first attempt was reported wrong, five **CodeRabbit**
+fixes, and **20 preview-review comments** from Mitchell across three rounds.
+CI is green on the branch head `111caac` — `static-checks`, `unit-tests`,
+`integration-e2e`, `Vercel`, `Vercel Preview Comments` and `CodeRabbit` all
+pass, `migrate-production` correctly skipped. All 20 preview threads are
+resolved, and CodeRabbit's final pass posted **nothing new**.
+
+**CodeRabbit over three passes: 16 findings — 12 fixed, 2 declined on the
+merits (it later conceded both), 2 were its own replies.** Its best catch was
+a bug this session caused: after the loop that *drew* backlog markers was
+removed, `activityPins` still fed the map's initial centre, so the map could
+centre on an activity it deliberately does not plot, and a backlog-only trip
+rendered a blank canvas instead of the empty state (`111caac`). It also named
+two wrong seed pins nobody had spotted — see KI-39 below.
+
+**Three known issues were filed off this branch besides KI-36:** **KI-37**
+(`commandsFor` emits a malformed `TimeWindow.start` for the second activity on
+a day), **KI-38** (`uuidFrom` silently returns malformed UUIDs) and **KI-39**
+(the seed geocoder's city-box acceptance test). KI-37 and KI-38 were both in
+`@tc/factories` and were surfaced by accident; both are **now fixed and
+resolved** in the 2026-08-25 KI sweep, on their own branch rather than this
+one, since `packages/` was off-limits here. KI-38 turned out to be worse than
+filed: its "latent, not a live bug" bounds claim was false — the overflow is
+on `sequence + salt * 97`, and `trip.ts` salts activity ids from 1000, so
+every activity and backlog id `tripDetailFactory` ever built was a non-UUID.
+Nothing caught it because `TripDetail`'s `z.string().uuid()` fields are never
+`.parse()`d at runtime. KI-39 remains open.
+
+**KI-36 is resolved (2026-08-25), which supersedes two claims made below.**
+A failed send no longer discards the pending queue: `failHead` retains it and
+records a `failure { at, message }`, the sequential sender is gated on that
+failure (without the gate a retained queue re-sends the failing command in a
+hot loop — measured at **41 resends in 300ms**, the probe's safety cap, and
+2,677 with the gate mutated back out), and `retry()` clears it so the queue
+drains. The save indicator therefore **does** now ship its third state, and
+the `@ts-expect-error` pin holding `pending` to `boolean | number` has been
+deliberately removed — the two "Previously" blocks below that describe both
+as descoped are accurate as of 2026-08-24 and are left as written.
+**Task 8b.4's sync-failure banner is still not shipped** and is still
+descoped; this change makes it possible, it does not build it. The indicator's
+copy reads **"Couldn't save"**, not the handoff's "Couldn't save — retrying",
+because retry is manual and "retrying" would be false the instant it rendered
+— a test asserts that string never appears.
+
+**Two new known issues came out of that work:** **KI-42** (`confirmHead`
+silently drops queued units on a *successful* send when they no longer
+predict cleanly — the same silent-loss class as KI-5/KI-36 on the happy path,
+and its code comment's claim that the loss "will be reported via `failHead`
+semantics" is false) and **KI-41** (`commandsFor` has no override surface, the
+root cause behind KI-37 and its follow-on patches).
+
+**Read this before the Phase 9 gate: the "presentational only" gate box is
+under real strain.** This branch contains a route that soft-deletes user
+data, a new env gate, a JSON importer, and two behavioural changes (conflict
+alerts are now clickable; the unscheduled rack is hidden on the Map lens).
+The whole-branch reviewer's position, recorded verbatim in PR #46, was that
+the demo-data work should have been its own PR: *"the five reviewed tasks and
+the one unreviewed destructive endpoint now carry the same approval stamp."*
+Mitchell merged it in deliberately, to test the phase UI against rich data on
+one preview URL. Whoever runs Phase 9 should decide consciously whether this
+still counts as a presentational wave, rather than inheriting the assumption.
+
+**A CI gotcha this cost time on:** `Vercel Preview Comments` is a **one-shot
+snapshot** posted by the Vercel app when a deployment completes — `started_at
+== completed_at`. Resolving threads does **not** re-evaluate it, and GitHub's
+re-run button does nothing because Actions doesn't own that check. It only
+recomputes on a **new deployment**. If it reads red while the threads are
+demonstrably resolved, push a commit; do not go hunting for unresolved
+feedback. (Separately: 16 unresolved threads still sit on the long-dead
+`m5-design-foundations` branch, two of them saying a fix never landed. They
+do not affect this check — it is branch-scoped — but nobody has closed them.)
+
+**Previously (2026-08-24): Phase 8b implemented, awaiting a PR.** `main` is
+at `c630152` with no open PRs. Three PRs merged after Phase 8 was written up
+below:
+**PR #35** (M10 Wave 2 Phase 8 — correctness and polish, the branch this
+file previously described as "open awaiting merge"), **PR #44** (a KI backlog
+pass: closed KI-6, KI-20, KI-29 and KI-31, re-scoped KI-28, and fixed the
+`minimal-check-subset` skill), and **PR #45** (hardened the
+`/cleanup-orphans` skill after its first real run). **The next work is
+opening Phase 8b's PR** — see "Phase 8b" under "In flight" and "Next action"
+below. One of Phase 8b's five design items, the sync-failure banner (Task
+8b.4), was **deliberately not shipped** — see that section and **KI-36**.
+The save indicator's third (error) state was **descoped by Mitchell on
+2026-08-25** for the same root cause and tracked by the same KI: two states
+ship, and `pending` is pinned to `boolean | number` by a `@ts-expect-error`
+assertion so it cannot quietly grow a third without that decision being
+revisited.
+
+**CI on `main` at `c630152` is green** — run `32785947175`, all four jobs:
+`static-checks`, `unit-tests`, `integration-e2e` and `migrate-production`.
+That is the verified state of `main` as of this entry; nothing else in this
+session was re-run locally.
+
+**Previously (2026-08-24): M10 Wave 2 Phase 8 (correctness and polish)
+implemented on `claude/m10-wave2-phase8-polish-nuhu7q`, branched from `main`
+at `39ccea1` (post-PR #32 and PR #33). All seven tasks done, each its own
+commit, in phase-file order; merged to `main` via PR #35 — see "Phase 8"
+under "In flight" below for the full record, including a from-scratch local
+environment setup that let that session get a genuine local
+`test:e2e:ci-like` signal for the first time since KI-33 started blocking it
+(Phase 7), and a real (not fabricated) fix for KI-18, the accent-collision
+bug that phase exists to close.**
+
+**Previously (2026-08-24): a dev-speed and quality pass landed on
+`claude/dev-speed-quality-57205c`, merged to `main` via PR #36. It does not
+move any milestone gate; it changes how the work gets verified.** Six things,
+all evidence-driven rather than speculative:
+
+1. **KI-33 fixed** — `unscheduledRack.ts` → `fitIntoDay.ts` (and its test).
+   This is the big one: `next build` now **succeeds on macOS**, so
+   `pnpm --filter web test:e2e:ci-like` is runnable on a dev machine again
+   rather than being blocked outright, and the unit suite is 668/668 instead
+   of 640/665. Local verification had degraded to the point where CI was the
+   only trustworthy signal — PR #32 took four CI runs to land, two of them red.
+2. **CodeRabbit polling documented and configured.** CodeRabbit is a
+   *registered status check*, so `gh pr checks <n> --watch --fail-fast` blocks
+   on it — no session had ever used `--watch`, and hand-polling was a real
+   time sink (its verdict lands 2-11 min after the PR opens, vs ~30s for its
+   summary comment). Also adds `.coderabbit.yaml`: chill profile, `docs/**`
+   and generated SQL filtered out, and per-path instructions pointing it at
+   this repo's actual invariants. It stays a required check.
+3. **A PR template** (`.github/PULL_REQUEST_TEMPLATE.md`) carrying the DoD
+   checklist plus a **Verification actually performed** section with an
+   explicit "Not run, and why" line. Phases 5, 6 and 3 each shipped with a
+   verification step skipped and nothing on the PR recording it; Phase 7 ran
+   the browser walk and immediately found a crash. This makes a skip visible.
+4. **A PostToolUse typecheck hook** — typechecks only the package owning each
+   edited `.ts`/`.tsx` file (~1.6s warm, incremental), same narrowing rules as
+   `minimal-check-subset`, including the contracts hard-exception.
+5. **Three repo subagents** in `.claude/agents/` — `phase-implementer`,
+   `phase-verifier` (runs the check subset *and* the browser walk against the
+   PR's Vercel preview, so it works from a container with no local infra), and
+   `ki-fixer` (one KI each, parallel-safe since KIs are independent of the
+   phase chain).
+6. **CI uploads Playwright traces on failure.** `trace: "on-first-retry"` was
+   already set, so traces were being generated and thrown away; remote e2e
+   failures had to be diagnosed from job logs. Also: the SessionStart hook now
+   reconciles deps on *local* sessions too — worktrees don't share
+   `node_modules`, and one was found 16 days stale, failing typecheck with
+   TS2307s that read like real type errors.
+
+**Previously (2026-08-24): M10 Wave 2 Phase 7 (add-stop and new-trip forms)
+implemented on `claude/m10-wave2-phase7-forms`, branched from `main` at
+`624a0db` (post-PR #31); merged via PR #32.** Both tasks' own manual browser
+checks were actually performed that session — a real interactive browser,
+unlike Phases 5/6 — and that walkthrough caught and fixed a real crash bug
+(`RangeError: Invalid time value`) in the wizard's date arithmetic that no
+unit test surfaced. CI then caught two more, neither visible from a local
+run blocked by KI-33: a wizard navigation race CodeRabbit flagged
+(dates/budget/currency dispatched fire-and-forget, then navigated regardless
+of whether they'd confirmed — fixed with an awaited, retry-safe submit), and
+a broader one CI found on its own — "Create empty" had started navigating
+straight to the new trip like the full wizard does, when it's supposed to
+keep the old single-field dialog's actual behavior (stay, refresh the list);
+nine pre-Phase-7 e2e specs are built on exactly that and all failed until it
+was fixed. Also filed **KI-33**, a pre-existing (Phase 3) filesystem-casing
+bug that blocks `next build` outright on macOS/Windows and degrades local
+test signal, though not CI. Since that update, PR #32 merged and a small
+follow-up PR #33 removed the "or drop a stop from Unscheduled" hint from day
+columns.
+
+**Previously (2026-08-24): M10 Wave 2 Phase 6 (growing the trip) merged to
+`main` via PR #30**; see "Phase 6" under "In flight" below. It closes **KI-30** and
+files **KI-31** and **KI-32** rather than absorbing them. Its Step 4 (the manual
+browser walk) was not performed — no interactive browser in the container — but
+the phase's gate is scripted as `e2e/m10-growth.spec.ts` instead, which is a
+narrower claim than a human walking it; the PR's Vercel preview is how that gets
+genuinely ticked.
+
+**Previously (2026-08-23): a design sync landed in the repo, was reviewed and
+routed, and Mitchell's calls are recorded — see "Design sync" below. No code
+changed. **It does widen M10's gate**, by two approved phases (8b and 1b), and
+it adds **M15 Front door** between M10 and M9 (ADR-021). Same day: a test-suite overhaul, Phases 0-4, landed as an
+off-roadmap insert — see "Where we are" below; does not move M10's gate.
+Same day: M10 Wave 2 Phase 3 — the unscheduled rack — landed, PR #26; it had
+been built and verified since 2026-08-22 but was never opened as a PR, see
+"Known gap" below for how that happened. KI-26 and KI-27, both filed during
+Phase 4's CI diagnosis, are closed in the same PR. Also same day: M10 Wave 2
+Phase 5 — overlap warnings — **merged to `main` via PR #29**; the phase file's
+Step 4, the manual browser pass, is the one thing still not done. Two known issues
+were filed from that PR's review rather than absorbed — KI-29 and KI-30. See
+"In flight" below.)**
+
+## Where we are
+
+**M0–M8, M10 and M15 are complete. M18 is the current milestone, not started.**
+M10's Wave-2 gate closed 2026-08-27 — see this file's top section for what was
+run and what the gate walk found. M8 ("Make it real") closed its gate
+2026-08-08. M10 ("Visual craft pass", brought forward
+ahead of M9 per ADR-018) closed a **Wave-1** gate 2026-08-10 on branch
+`claude/m10-trip-planner-visual-7bbacf` (PR #23). **PR #23 merged to `main`
+2026-08-17**, carrying Wave 1 plus Wave-2 Phases 0-2 (blockers, structure,
+map) — the PR had grown to 79 commits / 161 files and was split rather than
+held open until the full Wave-2 gate closed; see the milestone file's "PR #23
+merged as a partial delta" section for why, and note that **that merge did not
+close M10's gate** — Phase 9 did, on 2026-08-27. Wave-2 Phases 3-9 landed on
+follow-up branches.
+
+**M10's gate was reopened 2026-08-14** after an external design review Mitchell
+requested. Two findings, neither of which the Wave-1 gate could have caught:
+
+1. **The design handoff had moved two generations.** Wave 1 was built against a
+   1,412-line prototype; `~/Downloads/design_handoff_update/` contains a
+   2,048-line version (688 changed lines — this is the one that added the **Map
+   view**) and a 2,623-line current version (+612/−37 — the **unscheduled rack**,
+   **budget and per-stop costs**, **overlap warnings**, the **Trip settings
+   sheet**, **add-a-day**, and the **header meta pill**).
+2. **Three blocking defects in Wave 1's own new assistant rail.** The worst: the
+   rail's scrim (`fixed inset-0 z-40`, pointer events on, no click handler) makes
+   the entire trip page inert below 1180px. The e2e suite is structurally blind
+   to it — `apps/web/playwright.config.ts` sets no `viewport`, so all 11 specs
+   run at Playwright's 1280px default, above the 1179px breakpoint where the
+   scrim turns on. That is why the gate passed 11/11 against a production build
+   while the page was dead at 1100px.
+
+**The Phase 1 gate review with Mitchell is done (2026-08-08).**
+
+**Current milestone is M18 — "A stop knows what kind of thing it is."**
+Nothing has started on it. Order from here: `M18 (now) → M16 → M11 → M12 →
+M13 → M14 → M9`.
+
+**How the order got here**, since three decisions moved it and only the last
+of each pair governs: ADR-021 (2026-08-23) inserted M15 after M10; ADR-022
+(2026-08-25) added M16 and put it ahead of M15, moving M9 to last; M15 then
+closed its own gate first, on 2026-08-26, while M10's was still open; and on
+that same day M18 was approved and scheduled **between M10's gate and M16**.
+M10's gate closed 2026-08-27. So M18 is next, then M16.
+`docs/milestones/README.md`'s roadmap table, reorder notes and Current
+milestone line are all reconciled to this.
+
+**2026-08-19: feature flagging and an AI kill switch landed as a deliberate
+off-roadmap insert, ahead of M10 Wave 2 Phase 3.** `AGENTS.md` requires scope
+creep past the current milestone's gate to be called out rather than
+silently absorbed — this is that call-out. The driving need was external to
+the roadmap: the app is about to be shared publicly, and
+`AI_GATEWAY_API_KEY` (ADR-015) sat behind `/api/trips/:id/ai` with nothing
+stopping an authenticated visitor from calling it in a loop. The Flags SDK
+(Vercel adapter) is now the project's first flag mechanism; its first and
+only consumer is an `ai-live` flag that swaps the injected model rather than
+branching the handler, so "off" still exercises the real pipeline and marks
+the response `simulated: true`. See ADR-019
+(`docs/architecture/ADR-019-feature-flags-and-simulated-model-seam.md`) and
+the design spec
+(`docs/specs/2026-08-19-feature-flags-and-ai-kill-switch-design.md`). **This
+does not reopen or move M10's gate** — M10 Wave 2 Phase 3 (the unscheduled
+rack) remains exactly the resume-from-here point described below.
+
+**This insert closed 2026-08-22, PR #24.** Task-by-task implementation review
+plus a final whole-branch security review (no kill-switch bypass found) both
+passed; a fix wave addressed 2 Important findings (a fail-closed gap in
+`aiLive()` when the Flags service errors before `decide()` runs, and the
+flag-on/no-gateway-key case returning a bare 500 instead of the handler's
+standard error envelope) and several Minor ones (a11y, lint-wall scoping,
+doc accuracy). Mitchell manually verified the deployed behavior end to end
+before merge. Two items were deliberately left open rather than folded in —
+see `docs/known-issues.md` KI-23 and KI-24. The plan
+(`docs/plans/2026-08-19-feature-flags-and-ai-kill-switch.md`) is removed in
+this same commit per `docs/plans/README.md`'s staging-area rule; its durable
+content lives in ADR-019, this file, and the known-issues entries above.
+
+**2026-08-23: a test-suite overhaul, Phases 0-4, landed as a second
+deliberate off-roadmap insert, ahead of M10 Wave 2 Phase 5.** Per
+`AGENTS.md`'s scope-creep rule, called out rather than silently absorbed —
+this is that call-out. **This does not reopen or move M10's gate** — M10
+Wave 2 Phase 5 remains exactly the resume-from-here point (below).
+
+The driving need: the `apps/web` unit suite had grown to 95 files / 569
+tests spending more wall time constructing jsdom worlds than running
+assertions (`environment` 58.7s vs `tests` 22.5s on a 43.1s run), plus four
+open test-reliability known issues (KI-13, KI-19, KI-21, KI-25) making a
+red run untrustworthy — exactly the condition that let KI-1 (a real
+correctness bug) hide behind a "probably flake" label for two weeks. The
+full plan, evidence, and phase-by-phase execution record live in
+`docs/plans/2026-08-23-test-suite-overhaul.md`,
+`docs/testing-inventory.md` (the keep/cut inventory Phase 5 will execute),
+and `docs/testing-baseline.md` (before/after numbers for every phase).
+
+**Phases 0-4 delivered:** a measured baseline (`docs/testing-baseline.md`);
+an environment split cutting the unit suite's `environment` time 33.5%
+(88.29s → 58.73s median) with zero test content changed; `@tc/factories`
+(ADR-020), a new workspace package collapsing four independent test-data
+vocabularies (`src/mocks/fixtures.ts`, e2e's `createMappedTrip`, `db-seed`,
+and every component test's own hand-built literals) into one, typed
+against `@tc/contracts`, with rollups computed via `@tc/domain`'s
+`rollupCosts` rather than kept consistent by hand; e2e sign-in-once via
+Playwright storageState (24 `signInAsDevUser` calls down to 1); a
+narrow-viewport gate project (`e2e/responsive.spec.ts`); a rewritten
+`dragCardTo` that removes KI-21's auto-scroll race instead of widening its
+timing window; and an unauthenticated `/api/health/ai-mode` endpoint plus
+Playwright `globalSetup` that makes the simulated-AI e2e guarantee
+(KI-25) unconditional. **KI-19, KI-21, and KI-25 are closed** in
+`docs/known-issues.md`. **KI-13 is closed as no longer reproducible**,
+explicitly not as root-caused — see its entry for the honest scope of what
+this session's reproduction attempts did and didn't establish.
+
+**Phases 5-7 (pruning, de-brittling, testing guidelines) are deliberately
+not part of this insert** — they are gated on M10 Wave 2's own gate closing,
+because M10 Wave 2 Phases 5-8 are about to rewrite eight of the components
+whose tests those phases would otherwise prune or rewrite twice
+(`TimelineLens`, `ActivityEditor`, `DayChips`, `CalendarLens`, `TripHeader`,
+`NextTripHero`, `Board`/`app/page.tsx` — see the plan's Sequencing section
+for the full collision table). Resume them once M10 Wave 2 Phase 9's gate
+closes and this branch is merged to `main`; re-run the Phase 0 inventory
+against the post-M10 tree first, since Wave 2 Phases 5-8 will have added
+tests of their own that the current inventory doesn't know about.
+
+## Design sync (2026-08-23) — reviewed and routed, nothing built
+
+A design bundle is committed in-repo for the first time, at
+`.design-sync/handoff/`: `design/Trip Planner Redesign.dc.html` (3,524 lines),
+`SPEC.md`, `DRIFT.md`, and a Japan seed export. It arrived in two commits —
+`8c2d11e` (2026-08-22, the bundle) and `e0964bc` (2026-08-23, +401 lines: the
+Notebook design). **This changes no code and does not reopen or move M10's
+gate.** The full reconciliation, the drift questions, and the per-item milestone
+routing are in `docs/design-feedback/2026-08-23-design-sync-review.md`.
+
+Three things a fresh session needs from it:
+
+1. **The design source of truth moved.** It is the in-repo file above. The
+   `~/Downloads/design_handoff_update/` path this file and the M10 plan used to
+   name exists in no session — generations 1-3 (1,412 / 2,048 / 2,623) are
+   unreadable, so generation-diffing is over. Reconcile design against *code*,
+   with `apps/web/src/lib/preview-registry.ts` as the spine for "not built yet".
+2. **The in-repo file is newer than what M10 Wave 2's phases were written
+   against**, and most of what it adds is **not M10's**. Net-new: a landing
+   page, sign-in/sign-up screens, a first-run screen, a header account menu, a
+   full Notebook redesign, and the product renamed **Caesura**. Routing:
+   **M15 Front door** (proposed) takes landing/auth/first-run/account menu;
+   **M14** takes the Notebook redesign and needs a **repeaters ADR** before it
+   opens; **M11** takes the landing page's "Look around a real trip" CTA (it
+   needs unauthenticated read of a real trip); `TripSummary.startDate` is its
+   own reviewed contract step. **Do not widen an M10 phase to absorb any of it.**
+3. **M10's gate got two approved additions, and M15 got approved** (Mitchell,
+   2026-08-23 — the review's §8 carries all the calls):
+   - **Phase 8b** (`docs/plans/M10-delta/phase-8b-design-sync.md`) — the Caesura
+     rename, a working **sign out** (nothing in `apps/web/src` calls the
+     `signOut` that `server/auth.ts` exports today), a three-state save
+     indicator, the sync-failure banner, calendar month blocks, and **the trip
+     start picked with the end derived** (Task 8b.6, after Phase 6). Runs after
+     Phase 8.
+   - **Phase 1b** (`docs/plans/M10-delta/phase-1b-header-scope.md`) — the header
+     adopts `SPEC.md` §1's focus-scope model, as an explicit revisit of the
+     merged Phase 1. Runs after Phase 7 and 8b. `AppHeader` stays a server
+     component; the actions portal into a client slot.
+   - Both recorded as gate-scope amendments in
+     `docs/milestones/M10-visual-craft.md`. **Phase 9's checklist now covers
+     them.** Phase order to the gate: 5, 6, 7, 8, **8b**, **1b**, 9.
+   - **M15 Front door** is approved and executes **after M10's gate, before M9**
+     (**ADR-021**, `docs/milestones/M15-front-door.md`).
+
+   - **Trip dates are start-only** (Mitchell, 2026-08-23): *"the end date will
+     always be start date + number of days in trip"*. Smaller than it looked —
+     `endDate` is stored nowhere (not on `TripState`, not on `TripDetail`) and
+     `TripHeader.tsx:228` already derives it from the plan's last day, so this
+     is a UI-only diff with **no contract, command or domain change**. That is
+     why it sits inside M10 as Task 8b.6 rather than after the gate. Phase 7's
+     wizard step 2 loses its "Leave" input in the same decision, and `TODO.md`'s
+     end-date-drift item is closed — its diagnosis was wrong, there was never a
+     stored field to drift.
+
+   **Two questions stay open**, both carried into M15's milestone file: whether
+   the one-field first-run screen is meant to differ from Phase 7's four-step
+   wizard, and whether the landing copy may sell M11/M12 before they exist.
+
+## In flight
+
+**Nothing is in flight.** M10's Wave-2 gate closed 2026-08-27 and M18 has not
+started. Everything below this line is the **historical record of M10 Wave 2's
+phases** — kept because it carries per-phase detail (what each shipped, what it
+deliberately did not, and the landing gaps that cost time) that the retro
+summarises rather than repeats. Read it as history, not as current work.
+
+---
+
+**M10 Wave 2 — Phases 0, 1, 2, 3, 4 and 5 all merged to `main`** (Phase 5 via
+PR #29, 2026-08-23; its branch is deleted). Phase 3
+(the unscheduled rack) landed 2026-08-23 via PR #26, once `main` was merged
+into its branch and everything re-verified — see "Known gap: Phase 3 built but
+unmerged (RESOLVED 2026-08-23)" below for the full story and what the
+landing PR did. Phases 6 and 7, which depend on Phase 3's code being on
+`main` rather than just on a branch, are now unblocked. Phase 8 remains
+independent and untouched; Phase 5 is described in its own section below.
+
+Progress below was reconstructed 2026-08-17 from the code and commit
+history, not from a task-by-task log kept during the work — this file had
+not been updated since the plan was written, so treat this section as the
+source of truth over anything phase-status-shaped said earlier in this file.
+
+**Between that reconstruction (2026-08-17) and now, three things happened:**
+feature flags and the AI kill switch (2026-08-19, `5c5379e`..`b865537`, PR
+#24 — see "Where we are" above and ADR-019; an off-roadmap insert, touched
+none of Phases 0-9); **Phase 3 (rack) — built and verified 2026-08-22 on
+`claude/m10-phase-3-rack`, but never merged** (see below); and **Phase 4
+(budget) — done and merged, out of the plan's documented phase order**
+(2026-08-22/23, PR #25, branch `claude/m10-phase-4-budget`). The plan's own
+file (`phase-4-budget.md`) correctly noted Phase 4 is independent of Phase 3
+and could go in parallel; a separate session picked it up directly rather
+than waiting on Phase 3, without checking whether Phase 3's own branch was
+already finished and awaiting a PR. Phase 4 delivered: per-stop/per-day/
+per-trip cost surfaced (`TimelineLens`, `ActivityCard`, home hero/cards,
+routed through the single `formatMoney` formatter), `daySpend` reading the
+server-computed `costSubtotal` instead of a client re-sum (closes **KI-2**
+against the current design), the Trip settings sheet rebuilt to the redesign
+(budget + currency inputs, real `BudgetMeter`, over-budget banner), and the
+Dates row restored as a real, clickable control opening `TripDateControl` in
+a popover (closes **D-2** — the prior "dormant, no mount point" read was a
+genuine capability-loss bug, not a deliberate deferral; corrected on
+discovery). Also filed **KI-26** (a cosmetic `@vercel/flags-definitions`
+build warning noticed while diagnosing CI) and **KI-27** (local e2e against
+`pnpm dev` gave two false signals during this phase's CI diagnosis — a real
+regression initially masked, and a fixed bug that looked uncertain —
+because CI actually runs against a production build). Both closed
+2026-08-23 in the Phase 3 landing PR — see `docs/known-issues.md`'s
+Resolved section for what each turned out to be and what fixed it.
+
+### Known gap: Phase 3 built but unmerged (RESOLVED 2026-08-23, PR #26)
+
+`claude/m10-phase-3-rack` (also pushed to origin) had Phase 3 fully done:
+`lib/time.ts` (`toMinutes`/`toTimeString`, moved out of `TimelineLens.tsx`),
+`unscheduledRack.ts` (`fitIntoDay`), `UnscheduledRack.tsx` (the sticky
+bottom drawer, mounted once in `TripBoardScreen` outside the lens switch),
+`board/resolveDrop.ts` and `trip/rackDisclosure.ts` (pure logic extracted
+for real unit coverage, since jsdom has no `DataTransfer`/`DragEvent`), a
+dedicated `e2e/m10-unscheduled-rack.spec.ts`, and selector updates to five
+other e2e specs. Verified on that branch 2026-08-22 by walking the exit
+checklist in a real browser, plus unit/int/e2e all green, but **never opened
+as a PR** — discovered late, by a fresh session's own stale task list still
+claiming Phase 3 "done" days after the fact. See `AGENTS.md`'s Workstreams
+section for the process rule this added to prevent a repeat.
+
+**Landed 2026-08-23 via PR #26.** `main` was merged into the branch;
+conflicts turned out to be in `Board.tsx` (Phase 3's removal of the old
+full-width Backlog column superseded Phase 4's untouched copy — not an
+additive merge, kept Phase 3's side), `preview-registry.ts` (additive — kept
+both phases' registry entries), and `STATUS.md` itself (kept `main`'s more
+current narrative) — **not** `TimelineLens.tsx`, which auto-merged cleanly
+despite both phases touching it (Phase 3's `lib/time.ts` extraction, Phase
+4's per-day cost display both survived). Re-verified after merge: unit
+(568/568), int (79/79, real Postgres), and the full e2e suite against a
+production build with `CI=true` per KI-27 — 14/15, with `m1-board.spec.ts`'s
+drag-to-day-2 assertion confirmed (via a control run against the original,
+unmerged `claude/m10-phase-3-rack` branch) to fail identically there too —
+pre-existing, unrelated to the merge, same KI-21 flakiness class.
+
+### Phase 5 (overlap warnings) — merged to `main` 2026-08-23 via PR #29
+
+Seven commits, based on `main` at `fcb22b5`; the branch is deleted. The
+first three were the phase itself; the last four came out of PR #29's review:
+
+- `d7a274b` — **Phase 5 proper.** New
+  `apps/web/src/components/lenses/overlapData.ts` and `OverlapWarning.tsx`;
+  `TimelineLens.tsx` renders the design's inline, never-blocking warning inside
+  the existing `92px 1fr` grid, attached to the later-starting stop — which has
+  to be worked out from the two `timeWindow`s, because a `time-overlap`
+  conflict's `subjects` is sorted by activityId, not by time. The one-click fix
+  moves the later stop to begin when the earlier one ends, keeping its
+  duration; Dismiss sends `DismissConflict` for the pair's id and changes no
+  trip data. Day headers get an overlap count badge, day columns the compact
+  chip. `lib/time.ts` gained `toClockLabel`, and `formatDuration` was hoisted in
+  from `TimelineLens` rather than copied. **Zero diff to `packages/`** —
+  presentational only, as the phase requires.
+- `4060a1e` — the phase file's "a time-overlap shows the rich warning and not
+  also a bare triangle" rule had only been applied in `TimelineLens`, so
+  day-column cards rendered both the generic conflict badge and the new chip.
+  The exclusion is now one shared helper, `badgeableConflictSubjects()` in
+  `overlapData.ts`, called from both `TimelineLens` and `Board`.
+  `board.test.tsx`'s badge coverage split into two tests so non-overlap badging
+  stays independently proven.
+- `2b97b80` — `apps/web/e2e/m1-board.spec.ts`'s three day-column assertions
+  retargeted from bare `getByText` substrings to the card-scoped locator the
+  spec already used elsewhere. The chip renders the *other* stop's title inside
+  the same day column, so the old locators passed only by assertion ordering —
+  one line-reorder from a strict-mode violation. Defensive hardening, not a bug
+  fix: both the old and the new locators resolve uniquely today.
+
+Verified on the branch: unit 595/595 (98 files); `pnpm --filter web typecheck`
+clean; `pnpm --filter web lint` clean (note that is `eslint src` only, so it
+does **not** cover `e2e/`); `node scripts/check-color-wall.mjs` OK; and the
+full e2e suite run three times against a production build
+(`test:e2e:ci-like`, per KI-27) with a locally-provisioned Postgres — 21/21
+clean twice, plus one earlier run with a single KI-28-class flake on
+`m8-make-it-real.spec.ts` that passed on retry and touches no board code.
+
+**Not done: Step 4 of the phase file — the manual browser walk of the exit
+checklist.** There is no interactive browser in this container, so that step
+was skipped outright, not approximated. Phase 5's exit checklist otherwise
+holds, on the evidence of the runs above: the warning renders on the later
+stop, the stated duration is the true intersection, the fix keeps duration and
+never blocks, dismissal is per pair and changes no trip data, the count badge
+and the compact chip both appear, and the `packages/` diff is empty.
+
+Per `AGENTS.md`'s Workstreams rule, a phase branch is **not "done" until its
+PR is open** — the same rule Phase 3's landing gap added; see "Known gap"
+above. **PR #29 was opened 2026-08-23** and CI went green on it (all three
+jobs; `migrate-production` skipped, as it is on any PR).
+
+**What the review then found.** CodeRabbit raised two Major findings, both
+verified against the code before acting rather than taken at face value, and
+both real:
+
+- `f517e07` — this section, recording the phase before the PR was opened.
+- `69c93c8` — **KI-29 filed**, not fixed. A stop can be the later half of more
+  than one crossing pair, and `Board`'s `overlapsByActivity` keys one `Overlap`
+  per `laterActivityId`, so the rest are dropped; because `4060a1e` also
+  stopped badging time-overlap conflicts, the dropped pair now has no
+  day-column surface at all. Bounded — the conflict banner and the Timeline
+  lens both still reach every conflict — but real. Not folded in because what a
+  card shows when a stop has N overlaps is a design question and the handoff
+  specifies a single chip; it goes to the Phase 9 gate with three options
+  ranked by cost.
+- `37f2c13` — **the truncation fix.** `toTimeString` clamps to 23:59, so the
+  repair silently shortened any move running past midnight (a 30-minute stop
+  repaired to 23:45 was dispatched as 23:45–23:59, a 14-minute stop) — which
+  breaks the phase's own "keeping its duration". `Overlap` now carries
+  `suggestedEnd: string | null`, computed once in `overlapData.ts`; when it is
+  null the fix is simply not offered, and `fixOverlap` guards too, so the
+  missing button and the missing command are one rule. `DAY_END_MIN` moved into
+  `lib/time.ts` beside the clamp it derives from, and `unscheduledRack.ts`'s
+  identical private copy now points at it. Still zero diff to `packages/`.
+- `f718e45` — **KI-30 filed**, not fixed. The same clamp has a second,
+  pre-existing instance: `nextSlot()` prefills the add-a-stop editor with start
+  and end both clamped to 23:59 on a day already running to midnight, which
+  `TimeWindow`'s `start < end` refinement rejects. The honest fix is an audit of
+  every arithmetic caller of `toTimeString` plus a decision about what the
+  affordance should do at the end of a day — Phase 6 territory, since it
+  rewrites those rows.
+
+Re-verified after the fix: unit **600/600** (98 files), typecheck, lint and the
+colour wall clean, and the full e2e suite **21/21** against a production build.
+Both review threads are answered and resolved.
+
+### Phase 6 (growing the trip) — merged to `main` 2026-08-24 via PR #30
+
+Two commits on `claude/m10-wave2-phase6-8s0713`, branched from `main` at
+`df1b05f` (post-PR #29). Presentational only: **zero diff to `packages/` and to
+`apps/web/src/server`**, no new commands, no new contract fields, no new
+`<Preview>` registry entries.
+
+- `5ce3759` — **the Timeline half.** New `components/trip/EndOfTrip.tsx` (the
+  design's end-of-trip block: a real "Add a day", plus an inert "Add a saved
+  day" and three Playbook shortcuts inside the Wave-1 `insert-playbook`
+  Preview). `TimelineLens` renders it after the last day, gives every day a
+  dashed add-a-stop row, and renders an empty day honestly in both the day's
+  route line and its body. `AddDay` is raised through the **existing**
+  `onCommand` seam `ScheduleLens` already forwards, reaching the same
+  `dispatch` the Board lens's `onAddDay` uses — no new prop. The appended day
+  is scrolled to via the focus effect the lens already owned.
+- `9540d55` — **the Board / Calendar / Map half**, plus the gate script. The
+  trailing dashed "One more day?" column replaces the loose `+ Add day`
+  button; `Column` gains the "or drop a stop from Unscheduled" hint; Calendar
+  and Map get their empty-day copy. `MapDay` gained an `isEmpty` flag because
+  the copy table gives the map's two surfaces **different** strings for the
+  same empty day (rail "Nothing planned yet", focus card "No stops yet"), and
+  one shared pre-rendered `flagText` could not serve both.
+
+**KI-30 is closed here** — it was Phase 6's to fix and the entry named the two
+things it wanted. The audit: `overlapData.ts`'s `repairedEnd()` was already
+guarded (and is the pattern this fix copies); `unscheduledRack.ts`'s two
+`toTimeString` calls are safe by construction and unchanged; `nextSlot` was the
+bug. The decision: at the end of a day the add affordance is **withheld, not
+degraded** — a shorter real slot is offered wherever one exists (a day with 29
+minutes left gets those 29 minutes), and only a day already running to 23:59
+withholds, mirroring how a null `suggestedEnd` makes `OverlapWarning` render no
+fix button. Full reasoning in `docs/known-issues.md`'s Resolved section.
+
+**Two findings were filed rather than absorbed**, per `AGENTS.md`:
+**KI-31** (the Preview registry's orphan guard is structurally unable to see
+that `add-saved-day` is orphaned, because its only "usage" is the unrendered
+`AddSavedDayButton.tsx` the phase file explicitly says to keep) and **KI-32**
+(the container image ships Chromium build 1194 while the pinned
+`@playwright/test` wants 1228 — local e2e needs a workaround; **CI is
+unaffected** and remains the authoritative signal).
+
+**Deliberately not built:** the phase file's Step 3 bullet 4, the gap-fill row
+(`Add something at {time}`). It hangs off Phase 8 Task 8.1's 150-minute
+"Nothing planned" threshold, which has not landed, and the phase file itself
+says to skip it in that case rather than invent a second threshold.
+
+**Not done: Step 4, the manual browser walk** — same reason as Phase 5, no
+interactive browser in this container. Instead the phase's own gate
+("adding a day appends it, scrolls to it, and it renders correctly in Timeline,
+Day columns, Calendar and Map") is scripted end to end as
+`apps/web/e2e/m10-growth.spec.ts`, running against a production build. That is
+a real check but a narrower one than a human walking the checklist, and it is
+recorded as such rather than ticked.
+
+Verified on the branch: `pnpm --filter web typecheck` clean; `pnpm --filter web
+lint` clean (note that is `eslint src` only, so it does **not** cover `e2e/`);
+`node scripts/check-color-wall.mjs` OK (283 files); unit **646/646** (99 files,
+up from 600/98); and the full e2e suite **22/22** against a production build
+(`test:e2e:ci-like`, per KI-27) with a locally-provisioned Postgres. KI-28 did
+not fire. All copy was verified byte-identical to the phase file's table with
+`grep -F`, not by eye.
+
+### Phase 7 (add-stop and new-trip forms) — merged to `main` 2026-08-24 via PR #32 (plus follow-up PR #33)
+
+Two tasks, two commits, on a branch cut from `main` at `624a0db` (post-PR #31).
+**Zero diff to `packages/` or `apps/web/src/server`** — the phase's own
+presentational-only boundary — though the forms this phase rebuilds do
+dispatch real commands (`AddActivity`, `UpdateActivity`, `SetTripDates`,
+`SetTripBudget`, `SetTripCurrency`), so "presentational" describes the diff's
+scope, not the feature's effect (CodeRabbit, PR #32, on an earlier draft of
+this section that conflated the two). Delegated to two sequential
+subagents (Task 7.1 then Task 7.2, same working tree, never concurrent), each
+briefed on the phase file plus the two known traps below; both reviewed by the
+orchestrating session afterward rather than trusted on the subagent's own
+report.
+
+- `61de98c` — **Task 7.1, the add-stop sheet.** `ActivityEditor.tsx` rebuilt
+  to the design's field order: "What or where" (title, relabeled), a
+  Preview'd suggested-matches shell (`add-stop-suggestions`, M9), the
+  existing `LocationInput`, a 3-up Day/Start/How-long grid (new
+  `activityDuration.ts`: `DURATION_OPTIONS`, `closestDurationLabel` for the
+  prefill-duration reverse mapping), a live `Banner variant="success"`
+  computed via `fitIntoDay`, Cost (`MoneyInput`, gained an optional
+  `placeholder` prop), a Preview'd "Who is in" shell (`add-stop-who`, M13),
+  Notes, and the hairline footer. The nested `Card` is gone — the `Sheet` is
+  the surface. Edit mode swaps "How long" for a real "End time" input and
+  disables the Day select (`UpdateActivity` carries no `dayId`; cross-day
+  moves stay `MoveActivity`'s job). `ActivityFormValue` gained a `dayId`
+  field so the form's own Day selection — not just the `openCreate()`
+  prefill — decides where a new stop lands.
+  **`TimelineLens.tsx` and `EditorHost.tsx` are untouched** (confirmed via
+  `git diff`) — the reverse mapping from a prefilled `TimeWindow` (e.g.
+  `nextSlot()`'s output) to an initial Start + closest-duration selection
+  happens entirely inside `ActivityEditor`, exactly as briefed, so
+  TimelineLens's two `openCreate({ dayId, timeWindow: nextSlot(row) })` call
+  sites needed no changes.
+- `1e8ac07` — **Task 7.2, the new-trip wizard.** New
+  `components/home/NewTripWizard.tsx`, a `Sheet`-hosted 4-step wizard (Where
+  / When / Who & Money / Shape — "Who" and "Money" share one step, per the
+  phase file's own table). Step 1: real trip-name input, Preview'd
+  destination chips and Playbook panel. Step 2: real Arrive date + four real
+  length chips (Long weekend=4, A week=7, 10 days=10, 2 weeks=14) computing
+  the end date locally; **no Leave/end-date input exists anywhere** (the
+  2026-08-23 amendment). Step 3: Preview'd invite list + real budget/currency,
+  staged locally and dispatched only at final submit (can't dispatch against
+  a `tripId` that doesn't exist yet). Step 4: Preview'd pace/tags and
+  assistant-draft panel. Sequence on submit matches the plan exactly:
+  `createTrip({ name })` → `SetTripDates`/`SetTripBudget`/`SetTripCurrency`
+  against the returned `tripId`, each only if the user actually touched that
+  field → navigate to the new trip. "Create empty" stays reachable from step
+  1, dispatching only `CreateTrip`. `apiClient.ts` gained an exported
+  `createTrip` helper; `app/page.tsx`'s old single-field `Dialog` is gone,
+  replaced by `<NewTripWizard>`.
+
+**The `Longer` chip question** (the phase file flags it as a value the design
+never specifies) **was put to Mitchell before Task 7.2 started, not guessed:**
+ship the four specified chips as real, wrap `Longer` in an inert
+`<Preview size="compact">` badge with no day count and no click handler
+(`wizard-longer-chip`, M11). That is what shipped.
+
+**A real bug, found only by the manual browser check, not by either
+subagent's test run:** walking the wizard's Step 2 in a real browser (this
+session had one — see below) crashed with `RangeError: Invalid time value`
+while typing into the Arrive date field with a length chip already selected.
+Root cause: a native `<input type="date">` briefly emits a non-empty,
+not-yet-complete value while a segment is mid-edit; `addDaysIso()` parsed
+that into an Invalid Date and `toISOString()` threw rather than returning
+garbage. Fixed in `4a383ee`: both the live banner and the final
+`SetTripDates` dispatch now gate on a `YYYY-MM-DD` regex before treating
+`arrive` as usable. Re-verified in the browser (identical keystroke sequence,
+no crash, correct derived date range) and the full unit suite re-run with no
+*additional* failures beyond KI-33's pre-existing 25 (CodeRabbit, PR #32: the
+first draft of this line said "re-run clean," which reads as contradicting
+the 640/665 figure a few paragraphs below — both describe the same run,
+neither is wrong, but only this phrasing says so without a reader having to
+reconcile the two). This is exactly the "a green suite won't tell you" class of bug
+`AGENTS.md`'s testing philosophy warns about — neither given nor
+subagent-written test happened to type a date one keystroke at a time with a
+chip already selected.
+
+**KI-33 filed, not fixed** (`docs/known-issues.md`): `UnscheduledRack.tsx`
+and `unscheduledRack.ts` (both Phase 3, unmodified by Phase 7) collide by
+name on a case-insensitive filesystem. Confirmed pre-existing via a
+throwaway worktree against `main` at `624a0db` before either Phase 7 task
+started. Locally this breaks 25 unit tests (`TripBoardScreen.test.tsx`,
+`UnscheduledRack.test.tsx`) **and blocks `next build` outright** — meaning
+`pnpm --filter web test:e2e:ci-like` could not be run in this session at all,
+not just degraded. CI (case-sensitive) is unaffected and remains the
+authoritative signal for both the unit suite and e2e, same reasoning as
+KI-27/KI-32. The fix is a one-file rename touching Phase 3's files, out of
+Phase 7's scope; flagged for priority pickup given it now blocks building the
+app, not just two test files.
+
+**Manual browser checks — both actually performed, not skipped.** Unlike
+Phases 5 and 6, this session had a real interactive browser (Phase
+5/6's "no interactive browser in this container" note does not apply
+universally — it was true of those specific sessions/environments, not a
+standing constraint). Walked both: (1) Task 7.1's checklist — at 1280px with
+the assistant rail open, the Add-a-stop sheet opens fully visible and usable
+on top of it; created a stop with Day 3 / Start 09:00 / How long 1.5 hours
+and confirmed it landed on Day 3 at 09:00–10:30; opened it in edit mode and
+confirmed the End-time field and disabled Day select. (2) Task 7.2's wizard
+walk — all 4 steps, length chip + Arrive date, budget + currency, submitted
+via "Create trip", landed on the new trip's page with the correct derived
+date range (Sat Oct 3 – Mon Oct 12, 10 days) and budget ($2,500.00) applied.
+Both used `next dev` (Turbopack), not a production build — KI-33 blocks
+`next build` on this machine, so a genuine production-mode manual check
+wasn't possible here; CI's own build remains the production-mode signal.
+
+Verified on the branch before the first push:
+`pnpm --filter web typecheck` — clean except KI-33's pre-existing casing
+error; `pnpm --filter web lint` — clean; `node scripts/check-color-wall.mjs`
+— clean (288 files); `pnpm --filter web test` — **640/665**, the 25 failures
+are exactly KI-33's two files, confirmed by name, nothing else newly broken.
+`pnpm --filter web test:e2e:ci-like` **could not be run locally** — KI-33
+blocks the `pnpm build` step it depends on; CI is authoritative for e2e on
+this PR.
+
+**Two rounds of fixes followed, once PR #32 opened and CI ran for real —
+exactly the local-vs-CI gap KI-33 predicted, playing out concretely:**
+
+**Round 1 (CI's first run, before any human or CodeRabbit review):**
+`unit-tests` and `integration-e2e` both failed, `static-checks` passed. Root
+cause: Task 7.1's own new UI (relabelled fields, a renamed submit button)
+was never checked against the *existing* e2e suite and unit tests that
+predate Phase 7 — TripBoardScreen.test.tsx (2 tests) and nine e2e specs
+(m1-board, m2-history, m3-place-and-time, m4-money-and-lenses, m6-optimistic
+×2, m7-solo-delight ×3, m8-make-it-real, smoke) all still drove the old
+"Activity title"/"Start time"/"End time"/"Save" shape or the old
+single-field "Trip name" → "Create trip" dialog. Investigating this also
+surfaced a real, separate regression: Task 7.1's Day-select default had
+started falling back to the trip's first day whenever the sheet opened with
+no prefill at all — but that's exactly TripHeader's own bare "Add stop"
+trigger, which `AGENTS.md`'s "real" feature list and those same e2e specs
+document as creating an **unscheduled** stop. Fixed (commits `2dda3b6`,
+`003c209`, `00aea06`): relabelled every stale test assertion, restored the
+create-unscheduled default with a new regression test, and along the way
+addressed all eight of CodeRabbit's review findings on the same push
+(logged in the commit body and replied to on each thread) — the two
+substantive ones being the wizard's dates/budget/currency dispatch running
+fire-and-forget with no error surfaced on failure (now awaited, checked,
+and retry-safe against minting a duplicate trip) and the availability
+Banner describing a different window than what actually gets saved (now
+computed from the real start+duration).
+
+**Round 2 (after Round 1's push):** `unit-tests`, `static-checks` and
+`CodeRabbit` all went green, but `integration-e2e` still failed — now on 12
+specs, including four (`m10-growth`, `m10-map-rail`,
+`m10-unscheduled-rack`, `responsive`) that don't touch the wizard or
+activity editor at all and had passed in the very first CI run. Root cause:
+Round 1's relabelling fixed the *selectors*, but a separate bug in the
+wizard's own navigation meant `NewTripWizard`'s `onCreated` had started
+firing on **every** successful create, including "Create empty" — which the
+phase doc frames as the old single-field dialog's exact escape hatch, and
+that dialog never navigated (it closed and left the user on the trip list).
+Nine specs click "Create empty" (or its pre-Phase-7 equivalent) and then
+click the new trip's own list-card link to navigate there — a version that
+navigates first leaves the page (and that link) before the click ever runs.
+The four unrelated specs almost certainly failed as collateral: nine
+30s-timeout-plus-retry failures add roughly 9 minutes to a single-worker,
+22-test sequential run, which is consistent with the *whole job* running
+long enough to affect specs queued after them, not a defect in those specs
+themselves — supported by integration-e2e dropping from ~15 minutes to
+under 5 once this was fixed. Fixed in `36944a2`: `onCreated` now carries a
+`{ navigate }` flag, true only for the full wizard's final "Create trip"
+step (matching the phase doc's own "create... apply dates and budget...
+then navigate" sequence); "Create empty" reloads the trip list and stays,
+exactly reproducing the dialog it replaced. New `page.test.tsx` coverage
+locks in the no-navigate path.
+
+**Final state, all four required jobs green:** `unit-tests` (2m32s),
+`static-checks` (1m2s), `integration-e2e` (4m47s, 22/22), `CodeRabbit`
+(no further findings — its reply on the reworded "presentational" line
+confirmed the correction). `pnpm --filter web test` locally: **644/669**,
+the same 25 KI-33 failures and nothing else, confirmed identical across
+every round above. `migrate-production` correctly skips on a PR (only runs
+on merge to `main`).
+
+### Phase 8 (correctness and polish) — merged to `main` 2026-08-24 via PR #35
+
+Seven independent tasks, seven commits, on a branch cut from `main` at
+`39ccea1` (post-PR #32/#33 — confirmed no stray `claude/*` branch already
+existed for this phase, per `AGENTS.md`'s Workstreams check). Executed
+sequentially in one working tree via subagent-driven-development (one
+subagent per task, never concurrent, each reviewed by the orchestrating
+session before the next started), per `AGENTS.md`'s delegation default and
+the phase file's own "keep it sequential" instruction.
+
+- `ef59a8e` — **Task 8.1.** `TimelineLens.tsx`'s `Leg` no longer invents a
+  straight-line distance (`haversineKm` stays in `lib/geo.ts` for Phase 2's
+  map, just dropped from the timeline's own import) or a 30-minute "Long gap"
+  pill. Copy is now `{duration} until next stop` / `Back to back` / an
+  additional `Nothing planned` pill at 150+ minutes, matching the handoff
+  verbatim. `formatDuration` (`lib/time.ts`, shared by the leg line, the
+  day-header "out" total, and `OverlapWarning`) now emits space-separated
+  units (`"1 h 15 m"`) to match the design copy, adjusted in place rather
+  than adding a second formatter — this rippled into three existing tests'
+  string assertions.
+- `0ad8db2` — **Task 8.2, KI-18.** The actual bug this phase exists to fix.
+  `lib/dayAccent.ts`'s `dayAccentFor` (one city at a time, hash-only, no
+  collision handling) is replaced by `dayAccents(cities)`, resolving a whole
+  trip's cities at once via a two-pass hash + linear-probe over the five
+  semantic families (sorted distinct cities claim home buckets first,
+  collisions probe forward and wrap, more than 5 distinct cities degrades to
+  the raw hash rather than throwing), with an explicit `"neutral"` family for
+  a day with no known city rather than a hashed-in real one. Every caller
+  updated: five "one trip's days together" callers (`DayChips`,
+  `TimelineLens`, `Board`, `CalendarLens`, `mapRailData`) now batch one
+  `dayAccents()` call per trip and index by day, which is what actually
+  enables cross-day probing; three "one independent item" callers
+  (`TripCard`, `PlaybookCard`, `PlaybooksStrip`, which color unrelated cards
+  in a grid, not days within one trip) call `dayAccents([x])[0]` unchanged in
+  behavior. `neutral` added to 9 static `Record<AccentFamily, string>` maps
+  across 10 files (`bg-moss`/`text-slate`/`bg-slate`, all existing tokens).
+  `dayAccent.test.ts` replaced wholesale — the old suite's "spreads distinct
+  cities across families" assertion passed at 7-of-13 real-city collisions,
+  which is exactly the false-confidence problem the entry called out; the
+  new suite asserts Tokyo/Kyoto/Osaka land on three distinct families, same
+  city same family throughout a trip, order-independence, and no-throw past
+  5 distinct cities. **KI-18 moved to Resolved.**
+- `11dfbd0` — **Task 8.3.** `DayChips.tsx`'s combined `"5 Rochester"` string
+  split into two separately-queryable elements (a mono date number, a
+  truncated city span), and the day-of-week label now uses the day's real
+  ink colour (a new `INK_TEXT` map, same pattern as `TimelineLens`/
+  `KeepDayFlag`) instead of a hardcoded `text-ink`.
+- `0310eaf` — **Task 8.4.** `Preview`'s badge no longer hangs outside the
+  host's corner (which had started covering the Share/Ask labels and the
+  keep-day flag for `size="compact"`, and the hero's third stat tile for
+  `size="container"`) — compact now reserves a `pr-6` gutter and pins the
+  badge inside it; container insets to the dotted border instead of hanging
+  past it. The existing rationale comment for the prior (outside-hang)
+  approach is kept and extended, not deleted. Added the previously-missing
+  test for the conditional-`relative` branch (`preview.tsx`'s
+  `callerSetsPosition` logic).
+- `8efda6a` — **Task 8.5.** Home page rhythm (`PageContainer width="content"`,
+  new named `.home-rhythm`/`.home-stack` classes in `globals.css` for the
+  30px/60px/34px values, none of which sit on Tailwind's scale), a
+  `data-testid="page-date-line"` date line, a real `"All trips"` heading plus
+  a singularized trip-count line, and `NextTripHero`'s traveler-count label
+  singularized to match its own aria-label. **Both honesty points resolved
+  for real, not papered over:** the third stat tile now reads
+  `TripDetail.conflicts.length` (already-fetched real data) instead of a
+  hardcoded `"2"` — the `<Preview id="home-decisions">` wrap that had been
+  covering it is gone, and so is its now-orphaned registry entry; and
+  **KI-34** records that `TripSummary` has no start date (so "next trip" is
+  list-order not date-order, and trip cards show `createdAt`), fix path a
+  contract change, out of scope for this presentational-only plan. One
+  deliberate test skip: the phase doc's own "shows the trip's dates rather
+  than its creation date" test cannot pass without exactly the contract
+  change KI-34 defers — `it.skip` with a comment pointing at KI-34, not a
+  fabricated date.
+- `fdaf232` — **Task 8.6.** `CalendarLens.tsx`'s in-trip cell is now two
+  nested elements: an outer `bg-surface` cell holding the 116px min-height,
+  and an inner real `<button>` carrying the tint background — matching the
+  design's "tinted button inside a surface cell", not a tinted cell itself.
+- `2a01d02` — **Task 8.7.** New `lib/place.ts` (`shortPlace`): prefers the
+  geocoder's structured `location.city`, falls back to the first
+  comma-segment of `location.name`, `null` for no location. Used in
+  `TimelineLens.tsx`'s day-route line and `ActivityRow`'s place line in place
+  of the raw full geocoded label. The "no dangling `·` separator" behavior
+  was already correct going in (verified, not assumed); added the missing
+  `data-testid="day-meta-{dayId}"` and a regression test. **KI-35** records
+  that neither this nor `DayChips.tsx`'s `cityFor` has a true "area" field to
+  read — both are a city-or-first-segment approximation — fix path a
+  contract change, out of scope.
+
+**Phase 8 exit checklist verified against the branch as it stands** (Task
+8.7's own subagent did this read-only pass across all seven commits before
+reporting done): leg copy, accent distinctness + KI-18 Resolved, day-chip
+typography, Preview badge non-overlap plus the new test, home rhythm/heading/
+singularization/real-stat-tile, calendar inner button, and both new
+known-issues entries all confirmed present — no gap found needing a fix
+before the PR.
+
+**Verification, orchestrating session, after all seven commits (not just
+each task's own local check):**
+
+- `pnpm typecheck` (repo root, all workspaces) — clean.
+- `pnpm --filter web lint` — clean.
+- `node scripts/check-color-wall.mjs` — OK, 290 files scanned, 0 pending.
+- `pnpm --filter web test` — **103 files, 686 passed, 1 deliberately skipped**
+  (the Task 8.5 TripCard-dates test, per KI-34).
+- `pnpm --filter web test:e2e:ci-like` — **got a real local signal this
+  time**, unlike Phase 7 (KI-33 blocked `next build` outright there). This
+  session's environment had neither a running Postgres nor a matching
+  Playwright browser build out of the box; both were fixed locally rather
+  than skipped:
+  - `DATABASE_URL` wasn't set and no `.env.local` existed, so `pnpm build`
+    failed collecting page data for `/api/health/ai-mode` (needs a live DB
+    connection to build, not just to run). A system-installed
+    `postgresql-16` (not started by default; no `docker` daemon available in
+    this container to run the repo's own `docker-compose.yml`) was started
+    via `pg_ctlcluster`, a `travel` database created, the `postgres` role's
+    password set to match `.env.example`, and a local `apps/web/.env.local`
+    written pointing at it (port 5432, the system cluster's default, not
+    5433 — `.env.local` is gitignored, this doesn't touch the repo).
+    `pnpm db:migrate` applied cleanly. Rebuild then succeeded (still with
+    the long-standing, unrelated, already-root-caused KI-26
+    `@vercel/flags-definitions` build warning — cosmetic, expected).
+  - **KI-32 in a slightly worse form than its entry describes:** the image's
+    Chromium build (1194) didn't match `@playwright/test`'s wanted build
+    (1228) for *either* browser flavor, and — unlike KI-32's own symlink
+    workaround, which was written against the plain `chromium` build — the
+    `chromium_headless_shell` package's internal layout actually **renamed**
+    between the two versions (1194: `chrome-linux/headless_shell`; 1228:
+    `chrome-headless-shell-linux64/chrome-headless-shell`), so a single
+    top-level directory symlink (KI-32's documented fix) wasn't sufficient
+    for the headless-shell flavor Playwright actually launches by default —
+    it needed a nested directory built from individual file symlinks,
+    including one renaming the binary itself. Done in `/opt`, not the repo,
+    same as KI-32's own workaround — doesn't survive a new container, and
+    KI-32's entry is accurate enough as the pointer to reach for; not
+    updating the entry itself over one extra wrinkle in the same class of
+    fix.
+  - With both fixed: **21/22 e2e tests passed.** The one failure is
+    `m8-make-it-real.spec.ts`'s delete-trip step, and it is **exactly**
+    KI-28's documented symptom and mechanism verbatim — `getByRole("menuitem",
+    { name: /delete/i }).click()` timing out with "element is outside of the
+    viewport" after the automatic CI retry — a known, pre-existing,
+    already-filed flake (2026-08-23) about the trip list accumulating cards
+    across a suite run and pushing a late card's popover out of room to
+    flip. Not re-diagnosed further here: this session's local DB had
+    *already* accumulated trip cards from an earlier failed attempt at this
+    same verification pass (the build/browser fixes above took two more
+    full-suite attempts to reach a real run), which plausibly makes KI-28
+    easier to hit locally right now than on a fresh CI run — consistent
+    with, not evidence of, Phase 8 worsening it. Phase 8's own diff doesn't
+    touch the trip-actions `Popover` or its trigger's positioning; Task 8.5
+    does add page content above the grid (a date line, an "All trips"
+    heading), which could in principle push cards further down and interact
+    with KI-28's mechanism, but one flake on a DB already primed for exactly
+    KI-28's failure mode isn't enough evidence either way. Left exactly as
+    documented in KI-28 (not re-scoped, not "fixed") rather than guessed at.
+
+- **Phase 0 (blockers) — done.** The assistant-rail scrim is a real dismiss
+  control (`fe6c0f7`), sheets/dialogs stack above the rail (`d473cb2`,
+  `d0b1f32`), the rail auto-hides below its overlay breakpoint (`7fb872a`).
+  KI-16 and KI-17 are marked RESOLVED in `docs/known-issues.md` accordingly
+  (2026-08-17, closing a doc-lag from this same review — the fixes had landed
+  2026-08-14 but the entries weren't updated at the time).
+- **Phase 1 (structure) — done.** Global `AppHeader` with Trips/Playbooks nav
+  (`6308440`), four peer view tabs replacing the "More" popover (`7bac066`),
+  tabs and day chips pinned inside the sticky header (`47c83ba`), header meta
+  pill and budget chip wired to real trip data (`5d91917`).
+- **Phase 2 (map) — done, plus more.** `MapRail`, `MapFocusCard` and
+  `mapRailData` all shipped (`5c099ae`, `6123cfb`, `2701db1`, `3ebaa7d`). This
+  grew into its own sub-effort beyond the phase file's scope — map-rail
+  scroll-focus tracking got a dedicated design doc, plan and retro
+  (`7ab4387`, `2f15cb7`, `04311b3` … `3251ea3`), landing 2026-08-14 through
+  2026-08-16 and closing with two process amendments adopted into `AGENTS.md`
+  (`6708fb3`). It also filed **KI-21** (intermittent `dragCardTo` flakiness
+  under load, confirmed unrelated to any branch's code — see the entry).
+- **On `main` right now: Phases 0-4 done and merged, Phases 5-9 not
+  started.** Verified by presence/absence in `main`'s tree, not just by an
+  unchecked plan file (the phase files' own `- [ ]` step markers are never
+  checked regardless of completion, so they aren't a reliable signal on
+  their own) — but "absent from `main`" is not the same claim as "not
+  started": check `claude/*` branches too before assuming a phase with
+  nothing on `main` is untouched.
+  - **Phase 3 (rack) — done, merged to `main`** (PR #26, 2026-08-23; see
+    "Known gap" above for the full landing story).
+  - **Phase 4 (budget) — done, merged to `main`** (PR #25, 2026-08-22/23).
+  - **Phase 5 (overlaps) — done, merged to `main`** (PR #29, 2026-08-23).
+    `OverlapWarning.tsx`, `overlapData.ts` and `time-overlap` handling in
+    `TimelineLens` are all on `main` — see the Phase 5 section above. Its
+    Step 4 manual browser pass is still outstanding.
+
+  - **Phases 8b and 1b (2026-08-23 design sync) — approved, not started.**
+    `docs/plans/M10-delta/phase-8b-design-sync.md` and
+    `phase-1b-header-scope.md`; both are gate-scope amendments recorded in
+    `docs/milestones/M10-visual-craft.md`.
+  - **Phase 6 (add-a-day, empty states) — done, merged to `main`** (PR #30,
+    2026-08-24). See the Phase 6 section under "In flight" for what landed and
+    what it deliberately did not.
+  - **Phase 7 (forms) — done, merged to `main`** via PR #32 (plus a small
+    follow-up PR #33 removing a stray hint). See the "Phase 7" section under
+    "In flight" above for what shipped, the crash bug found via manual
+    browser verification, two rounds of CI/CodeRabbit fixes, and KI-33.
+  - **Phase 8 (polish, incl. home) — done, merged to `main`** via PR #35.
+    See the "Phase 8" section under "In flight"
+    above: leg-line
+    copy, KI-18 closed for real (collision-probed day accents), day-chip
+    typography, Preview badge non-overlap, home rhythm/heading/
+    singularization/real-conflict-count stat tile plus KI-34, calendar
+    inner-button cells, and shortened route/place lines plus KI-35.
+  - **Phase 9 (gate):** not run.
+
+The plan itself:
+
+- **Index:** `docs/plans/2026-08-14-M10-redesign-delta.md` — goal, global
+  constraints, file map, phase order. **Read this first.**
+- **Phases:** `docs/plans/M10-delta/phase-N-*.md`, ten files, 28 tasks. Execute
+  one file at a time, in order. Each is self-contained, carries its own literal
+  design values, and includes real test code — written so a smaller model can
+  run it without re-deriving anything.
+- **Findings it came from:**
+  `docs/design-feedback/2026-08-14-M10-redesign-external-review.md`.
+- **Design source of truth (moved in-repo 2026-08-23):**
+  `.design-sync/handoff/design/Trip Planner Redesign.dc.html` (3,524 lines),
+  with `.design-sync/handoff/SPEC.md` and `DRIFT.md` beside it. The
+  `~/Downloads/design_handoff_update/` path this line used to name exists in no
+  session and never will; generations 1-3 (1,412 / 2,048 / 2,623) are
+  unreadable, so **generation-diffing is over** — reconcile design against
+  *code*, using `apps/web/src/lib/preview-registry.ts` as the spine for "not
+  built yet", the way `DRIFT.md` does.
+  The in-repo file is **newer than what Phases 0-9 were written against**: it
+  adds a landing page, sign-in/sign-up, a first-run screen, an account menu and
+  a full Notebook redesign, and renames the product to **Caesura**. That delta
+  is reviewed, questioned and routed in
+  `docs/design-feedback/2026-08-23-design-sync-review.md` — headline: **M15**
+  takes landing/auth/first-run/account menu (approved, executes after M10 and
+  before M9 — ADR-021), **M14** takes the Notebook redesign and a repeaters
+  ADR, **M11** takes the landing page's "Look around a real trip" CTA, and the
+  M10-scoped items became **Phases 8b and 1b**, both approved into M10's gate.
+  The "Design sync" section above has the detail; two questions remain open,
+  both carried into `docs/milestones/M15-front-door.md`.
+
+**Phases 3, 5 and 6 are merged; Phase 7 is implemented with its PR open, not
+yet merged — pick up Phase 8 next**, which is independent of everything else
+and could go in parallel across sessions (`docs/plans/M10-delta/phase-8-*.md`)
+— but check for its own stray branch first (see `AGENTS.md`'s Workstreams
+section) before assuming it is untouched; the exact same landing gap that
+happened to Phase 3 is why that check exists. Then **8b** and **1b** (the
+design sync's approved gate additions — 1b depends on Phase 7 being *merged*,
+not just PR-open), then 9. Phase 9 (gate) is last, after all of 5-8 land —
+which for a phase worked in its own session means after its PR is opened
+*and merged*, not merely after the branch was verified (Phase 3's own landing
+gap is exactly this lesson). Branch any
+genuinely new phase work from current `main`, not from PR #23's or PR #26's
+old branches (both merged, empty diff against `main` now) or from any other
+stale branch without checking it first.
+
+**The scoping rule for all of Wave 2** (Mitchell, 2026-08-14): *build on what
+exists in the data model; implement the UI for things we can't build today and
+wrap those in the under-construction `<Preview>` treatment.* Reviewing the
+contracts against the design showed most of what it needs is already modelled —
+`ActivityView.cost`, `trip.budget`/`currency`, `TripDetail.tripCostTotal` and
+`.budgetRemaining` (**server-computed; never re-sum them client-side**),
+`trip.backlog`, `Location.lat/lng`, and the `time-overlap` / `over-budget`
+conflict rules. Only confirmed-vs-estimate cost state, "was on day N"
+provenance, and invite roles are genuinely missing, and those get Previews
+rather than contract changes.
+
+**PR #23 merged to `main` 2026-08-17** (see "Where we are" above). The Wave-1
+record in `docs/milestones/M10-visual-craft.md` stands as written — it was
+true against the handoff generation available then — with "Gate reopened" and
+"PR #23 merged as a partial delta" sections appended rather than the closed
+record being rewritten.
+
+**Wave 1's own plan** (`docs/plans/2026-08-08-M10-redesign-incorporation.md`) was
+deleted at its gate close per `docs/plans/README.md`'s staging-area rule.
+
+**One approved, intentional exception to M10's presentational-only rule:**
+KI-2's fix required a `packages/domain` change (`conflicts.ts`'s `fmt`,
+grouped to match the UI's money formatting) — Mitchell explicitly chose "fix
+it anyway, escalate the diff" over re-deferring when this was raised mid-build.
+Recorded in the M10 retro and in `docs/known-issues.md`.
+
+M8 is fully closed: Wave A (trip lifecycle, PR #21, merged 2026-08-07), Wave B
+(anchors-UI retirement, `ConflictContext.timezone` removal, Notebook
+macro-authoring pullback — merged 2026-08-07, commit `bc2295e`), and Wave C/D's
+kept tasks — **C4** (the KI-5 sync indicator, `SyncIndicator.tsx` in
+`TripHeader`) and **D3** (the M8 e2e gate script,
+`apps/web/e2e/m8-make-it-real.spec.ts`) — are all done and merged to this
+branch. C1–C3 (quick-add, search-to-add, move-via-menu) and D1–D2 (first-run
+state, empty states) remain **deferred** per the 2026-08-07 scope trim; do
+not start them without Mitchell's explicit say-so. Full reasoning:
+`docs/milestones/M8-make-it-real.md`'s "Scope trim" section and `TODO.md`'s
+Candidate ideas.
+
+**Found and fixed while closing the gate, not introduced by C4/D3:** Wave B's
+own UI removals (anchors editor, macro autocomplete) had left two prior
+milestones' e2e scripts red since 2026-08-07 — `m3-place-and-time.spec.ts`
+drove the deleted anchor-editing UI, and `m7-solo-delight.spec.ts` asserted
+macro nodes the seeded Notebook templates no longer plant by default. Neither
+had been re-run since Wave B merged (its own final review checked
+typecheck/lint/vitest but not e2e). Both are rewritten to match current
+behavior — see the "What changed" section of the M8 retro for exactly what
+each now covers and what coverage moved to unit/int level instead. This is
+recorded here, not just in the commit message, because it's the kind of
+"e2e went stale and nobody noticed" gap `docs/milestones/README.md`'s gate
+discipline is supposed to prevent — worth watching for at the next wave/
+milestone boundary too.
+
+Verified clean at gate close: `pnpm typecheck`, `pnpm lint`, `@tc/contracts`
++ `@tc/domain` + `apps/web` unit vitest (all green, including the two
+previously-flaky KI-13 tests — `PageScreen.test.tsx`, `TripHeader.test.tsx`
+— passing in this run), `apps/web` int vitest (real Postgres), and the full
+e2e suite (8 spec files / 11 tests) — twice in a row, against a production
+build (`pnpm build && pnpm start`) to match CI rather than dev-mode Turbopack
+(whose cold-compile delay on first navigation is otherwise easy to
+mistake for a real failure locally).
+
+`docs/plans/2026-07-28-M8-make-it-real.md` (the implementation plan referenced
+in prior updates to this file) is deleted as of this gate close, per
+`docs/plans/README.md`'s "plans are staging-area artifacts" rule — its durable
+content is now in this file, the M8 milestone file's retro, and
+`docs/known-issues.md`.
+
+**One still-open item from Wave B's B1 (anchors retirement):** its production
+safety check (confirm no live trip already carries an anchor, via a `psql`
+count against `PRODUCTION_DATABASE_URL`) was explicitly skipped on Mitchell's
+instruction — `PRODUCTION_DATABASE_URL` isn't available outside CI. If it's
+ever run and returns non-zero, clear those anchors with an `UpdateActivity`
+command (`anchors: []`) per activity, never by writing the projection
+directly (Invariant 1); until then an activity with a pre-existing anchor
+would keep firing an anchor-violation conflict with no UI surface to explain
+or clear it (the dormancy the rest of B1 relies on).
+
+### KI backlog pass and skill hardening — merged to `main` 2026-08-24 via PR #44 and PR #45
+
+Not milestone work and it moves no gate; recorded here so the next session
+does not re-open closed issues. **PR #44** ran `ki-fixer` subagents in parallel
+worktrees (KIs are independent of the phase chain, so they parallelize safely):
+**KI-6** (`listPages` race), **KI-20** (retire lenses), **KI-29** (double
+overlap) and **KI-31** (orphan guard) are closed and moved to Resolved in
+`docs/known-issues.md`; **KI-28** was re-scoped rather than fixed — its
+trip-actions "Delete"-outside-the-viewport symptom in `m8-make-it-real.spec.ts`
+is still the documented, expected e2e flake, so seeing it is not a new finding.
+It also fixed the `minimal-check-subset` skill. **PR #45** hardened the
+`/cleanup-orphans` skill after its first real run against this repo.
+
+Fourteen known issues remain open (KI-3, 5, 9, 10, 11, 12, 15, 22, 23, 24, 28,
+32, 34, 35); most are M9/AI scope. `docs/known-issues.md` is authoritative.
+
+### Earlier-gate reconciliation and orphan cleanup — 2026-08-24, on `claude/reload-skills-d51dc6`
+
+Bookkeeping only; no product code touched, no gate moved.
+
+**M2's gate was never recorded.** `TODO.md` showed M2 ticked, but
+`docs/milestones/M2-history-time-travel.md` had **all nine exit-gate boxes
+unticked and no retro** — the exact drift `docs/milestones/README.md`'s
+gate-close checklist opens by naming. On Mitchell's instruction to assume the
+earlier gates were done, the boxes are now ticked and a retro appended. **The
+retro is explicitly marked retroactive** and splits its claims: five boxes
+(property tests, golden rebuild, the projection boundary, the concurrency
+conflict, and the contracts-changelog entries) were **verified from artifacts
+still in the tree**; three (preview/Neon infra, the deployed-URL demo, "all
+M0+M1 gates still green") are **assumed, not verified** — point-in-time checks
+from July 2026 that nothing preserves. Do not cite M2's boxes as evidence
+without reading that split.
+
+**M3** had one unticked box, the deployed-Vercel demo. Ticked on the same
+basis, with a note in its retro recording that it was ticked late and on
+inference rather than a re-run.
+
+**Orphan cleanup:** seven merged worktrees removed (all clean, all confirmed
+ancestors of `origin/main`), seven stale `.claude/launch.json` entries pruned
+(that file is gitignored and local-only), and eight provably-merged local
+branches deleted with `git branch -d`.
+
+**Three unmerged local branches were checked and then deleted** —
+`claude/m10-wave2-phase3-onward` (1 commit), `claude/next-milestone-388cd0`
+(59, last 2026-07-26) and `claude/trip-builder-agent-7905a3` (29, last
+2026-08-02). `-d` refused all three, so each was spot-checked against `main`
+before `-D`, and every headline marker was found already landed:
+
+- **phase3-onward's** only commit adds a `STATUS.md` paragraph naming itself
+  as Phase 3's resume point (2026-08-17). Phase 3 merged via PR #26 on
+  2026-08-23 and this file has been rewritten repeatedly since — pure
+  obsolete self-reference.
+- **next-milestone-388cd0** — `main` has M7's `## Post-gate retro (2026-07-21
+  → 2026-07-26)`, KI-11, KI-12 and KI-13, and the AI step-budget code
+  (`handleAiRequest.ts`).
+- **trip-builder-agent-7905a3** — `main` has KI-15, `geocodeEnrichment.ts` and
+  `geocodeRegion.ts` (the server-side geocoding), `TripHeader.tsx`'s
+  render-from-`activeTrip` optimism fix, and `page.tsx`'s `deletingIds`
+  optimistic delete.
+
+This was a spot-check of headline markers, not a file-by-file audit; the
+branches are recoverable from the reflog for now if something was missed.
+
+**Remote branches: all eleven deleted** — the nine merged into `origin/main`,
+plus `origin/claude/m10-wave2-phase3-onward` and
+`origin/claude/next-milestone-388cd0`, the counterparts of two of the three
+above. `origin/main` is now the only remote branch.
+
+### Phase 8b (design sync presentational items) — implemented on `claude/m10-wave2-phase8b`, awaiting a PR
+
+Six commits (`9174e06`..`97b1539`), per
+`docs/plans/M10-delta/phase-8b-design-sync.md`. Five of six tasks shipped:
+the product is renamed **Caesura** (`9174e06`); a header account menu with a
+working **sign out** (`7d3b6c8`, plus `86ec93f` for a color-wall fix); the
+calendar renders one trimmed block per month (`cae8fa7`); and the trip
+start is picked with the end derived, no end-date input anywhere
+(`97b1539`).
+
+**Task 8b.4 (the persistent sync-failure banner) was deliberately not
+shipped**, per the plan's own instruction to stop and report rather than
+fabricate a trigger: `optimistic.ts`'s `failHead` discards the entire
+pending queue on a failed send (no retry, no on-device persistence, no
+failure timestamp, no retained count), so the design's copy — a live count
+of unsent changes, a real `(since <time>)`, and a **Retry now** action —
+would be false in every clause. Filed as **KI-36** (same bug class as KI-5:
+silent loss from an in-memory optimistic queue, different trigger). The same
+gap forced Task 8b.3's save indicator (`e37cc20`) to ship only the
+saved/saving states, dropping the error state the design also specifies.
+`docs/design-feedback/2026-08-23-design-sync-review.md` §6 and
+`docs/known-issues.md` carry the full record. Milestone routing for the
+banner is not decided here — blocked on KI-36, to be routed at the Phase 9
+gate.
+

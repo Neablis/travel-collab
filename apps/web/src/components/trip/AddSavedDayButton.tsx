@@ -20,7 +20,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 // history, so the board reconciles from the response with no refetch — the
 // same path the AI planning batch and undo/redo already take.
 export function AddSavedDayButton() {
-  const { tripId, applyOutcome, readOnly } = useTrip();
+  const { tripId, applyOutcome, readOnly, pending } = useTrip();
   const [open, setOpen] = useState(false);
 
   // A viewer cannot add a day to someone else's trip, and the server refuses
@@ -30,7 +30,22 @@ export function AddSavedDayButton() {
 
   return (
     <>
-      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+      {/* Disabled while the optimistic queue still holds unsent work. The
+          insert is decided server-side and comes back as an authoritative
+          outcome, and `applyOutcome` clears `pending` to take it — so an
+          insert on top of a queued-but-unsent drag discarded that drag from
+          the UI and the server both, silently
+          (docs/reviews/2026-08-28-m11-pr71-review.md §4). Disabling rather
+          than refusing on click keeps the reason visible; it mirrors
+          UndoRedoControls' own `isBusy={pending}` gate, which exists for the
+          same "don't interleave with unconfirmed edits" reason. */}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => setOpen(true)}
+        disabled={pending}
+        title={pending ? "Saving your changes — available in a moment" : undefined}
+      >
         Add a saved day
       </Button>
       <SavedDaysDialog

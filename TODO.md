@@ -6,6 +6,13 @@ Check items off only when the milestone's exit gate passes (not when code
 merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
+**Right now that say-so has been given and the list is out of order on
+purpose**, so read the marker, not the position: **M11 is the current
+milestone** (Phase 3), scheduled 2026-08-27 ahead of M18's remaining surfaces
+and M16. Whichever item carries `← current milestone` is the current work; when
+that marker and the first unchecked item disagree, the marker names a recorded
+Mitchell decision and the milestone file it cites is the evidence.
+
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
 checklist only — deliberately not a second copy of the scope, because two
@@ -61,9 +68,18 @@ Where the work actually stands right now: `docs/STATUS.md`.
       blocking a click). Retro, evidence and the promoted rules are in the
       milestone file; the phase plans were deleted in the gate-close commit per
       `docs/plans/README.md`.)*
-- [ ] **M18 A stop knows what kind of thing it is** ← **current milestone**
+- [ ] **M18 A stop knows what kind of thing it is** — **PR 1 landed; the
+      surfaces are deferred behind M11**
       → `docs/milestones/M18-stop-kind.md`
-      *(Approved 2026-08-26, **scheduled 2026-08-26** — Mitchell: *"i dont want
+      *(**PR 1, the contract change, landed 2026-08-27 via PR #63** —
+      `ActivityKind` and `ActivityTag` are real fields on `AddActivity`,
+      `UpdateActivity`, both V1 event payloads and `ActivityView`, with no
+      migration (the payload additions default). What is left is PR 2+: the
+      Calendar transit split and `N to book`, the home-hero tile, `act.badge`,
+      and the tag chips/filter row. **Mitchell scheduled M11 ahead of those on
+      2026-08-27**, which is the "without Mitchell's explicit say-so" exemption
+      in this file's own rule — see M11 below.
+      Approved 2026-08-26, **scheduled 2026-08-26** — Mitchell: *"i dont want
       to do KIND and TAGS right now, but we can put it in a soon milestone."*
       **Unblocked 2026-08-27** when M10's Wave-2 gate closed; runs **before
       M16**. Widened on the same call
@@ -79,8 +95,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       `docs/milestones/M16-assistant-read-agent.md`
       *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
       and ahead of M15 — but M15 in fact closed its own gate first (2026-08-26),
-      and M18 was then scheduled ahead of M16 (2026-08-26). So M16 now runs
-      **after M18**. Three waves: the sidebar styled to `SPEC.md` §9's docked
+      M18 was then scheduled ahead of M16 (2026-08-26), and **M11 was scheduled
+      ahead of both on 2026-08-27**. So M16 now runs after M11 and M18.
+      Three waves: the sidebar styled to `SPEC.md` §9's docked
       presentation with both `<Preview>` blocks deleted; a **read-only
       tool-using agent** on a new `/ask` endpoint — one question, one answer,
       scoped to the selected day or the whole trip; then analytics on which
@@ -88,12 +105,41 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
+- [ ] **M17 Account customization** — **approved, not placed in the order**
+      → `docs/milestones/M17-account-customization.md`
+      *(Approved 2026-08-26 out of SPEC §12 and **never scheduled**. It was
+      absent from this file entirely until 2026-08-28, which in a file whose
+      rule is "first unchecked item = current work" meant an approved milestone
+      nobody could see. It is listed here so it is visible, **not** to claim a
+      slot: placing it is Mitchell's call. Two facts that call needs — its
+      central deliverable, *"a `users` table, and the decision of what it keys
+      on"*, was **already decided and shipped by M11 link 1** (ADR-025), leaving
+      only the preferences half (name, home airport, account-scope distance
+      units via one `kmLabel`, home-time-on-hover, and resolving `who` to a
+      display name); and nothing downstream is blocked on it, so it can go
+      anywhere. Re-scope it before scheduling it.)*
 
 ## Phase 3 — Outward
 
-- [ ] **M11 Fork & remix** *(inherits trip templates from M7)*
+- [ ] **M11 Sharing, invites, and a trip you can hand to someone** ←
+      **current milestone, in flight**
+      → `docs/milestones/M11-sharing-and-invites.md`
+      *(**Scheduled 2026-08-27 ahead of M18's remaining surfaces and ahead of
+      M16**, by Mitchell's call — the explicit say-so this file's ordering rule
+      requires. It **absorbs M13's invites/roles/revocation scope** in the same
+      decision; M13 keeps only near-real-time sync and its transport ADR.
+      Inherits trip templates from M7. **Links 1-6 landed 2026-08-28 via
+      PR #71** (users/identity, roles and access, invites, pinned shares,
+      clone-with-lineage, saved days) — but the gate has **not** been run: one
+      of nine exit-gate boxes is ticked. Four migrations (0006-0009) are merged
+      and **undispatched to production**, which is a blocker on the gate, not on
+      the code. Review findings still open against it:
+      `docs/reviews/2026-08-28-m11-pr71-review.md`.)*
 - [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
-- [ ] **M13 Collaboration** — invites, roles, realtime transport ADR.
+- [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
+      conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
+      into M11, because they are the same `AccessPolicy` change as share links
+      and opening that boundary twice costs twice.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
       *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
       `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
@@ -182,9 +228,10 @@ Captured so they aren't lost; not committed to a milestone yet.
     this field.
   - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23, landed 2026-08-24.**
     The end is always start + day count; there is no end-date input anywhere.
-    Shipped as **Task 8b.6** (`docs/plans/M10-delta/phase-8b-design-sync.md`),
-    with Phase 7's wizard already matching (its length chips predate this
-    task). It turned out to be UI-only: `endDate` is stored nowhere — not on
+    Shipped as **Task 8b.6** of M10 Wave 2 — its plan file was deleted at the
+    gate close per `docs/plans/README.md`; the durable record is
+    `docs/milestones/M10-visual-craft.md`'s Wave-2 retro. Phase 7's wizard
+    already matched (its length chips predate this task). It turned out to be UI-only: `endDate` is stored nowhere — not on
     `TripState`, not on `TripDetail` — and `TripHeader.tsx:228` already
     derives it from the plan's last day, so no contract, command or domain
     change was involved. **This also closed the "trip end-date picker may
@@ -353,6 +400,28 @@ Captured so they aren't lost; not committed to a milestone yet.
      calendar lens itself (nothing under `apps/web/src/components/lenses/`
      does today, per the gap above) and reuses `MoveActivity`, the same
      command Board's `ActivityCard` drag already dispatches.
+
+## Deferred work with a resume condition that has already fired
+
+Not a milestone, and not a candidate idea — work that was consciously paused
+behind a named trigger, where the trigger has since happened. Listed here
+because the only thing that recorded it was a paragraph in `docs/STATUS.md`
+marked "history", so nothing live surfaced it and nobody resumed.
+
+- **Test-suite overhaul, Phases 5-7** (`docs/plans/2026-08-23-test-suite-overhaul.md`
+  and `docs/plans/test-overhaul/phase-5-prune.md`, `-6-debrittle.md`,
+  `-7-guidelines.md`). Phases 0-4 landed 2026-08-23; 5-7 were gated on **M10
+  Wave 2's gate closing**, because Wave 2 Phases 5-8 were about to rewrite eight
+  of the components whose tests Phase 5 would otherwise prune or rewrite twice.
+  **That gate closed 2026-08-27 and nothing resumed.** Measured 2026-08-28: the
+  web unit suite is **111 files / 894 tests** against the overhaul's own
+  baseline of 95 / 569 — +16 files, +325 tests, +4,603 test LOC, and an
+  `environment` cost now *worse* than the number the overhaul was launched to
+  fix. `TimelineLens.test.tsx`, flagged then as the canonical brittleness case,
+  grew 15 → 41 tests.
+  **Re-run the Phase 0 inventory first**, as the plan itself requires — the
+  current `docs/testing-inventory.md` predates Wave 2 Phases 5-8 and does not
+  know about the tests they added. Its own PR, not a remediation-wave task.
 
 ## Standing tasks (every milestone)
 

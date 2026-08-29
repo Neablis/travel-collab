@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { dragCardTo, openHistory } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide.
-  const tripName = `Kyoto ${Date.now()}`;
+  const tripName = e2eTripName("Kyoto");
 
   // Stub the geocoder: e2e has no real LOCATIONIQ_API_KEY, so intercept the
   // app's own /api/geocode route before it reaches the Next.js server (which

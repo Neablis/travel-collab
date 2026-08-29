@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type {
   CreateInviteInput,
   TripDetail,
@@ -96,6 +96,25 @@ export async function listInvites(tripId: string): Promise<TripInvite[]> {
  * Revoke: the link stops working, and if it has already been used, the
  * membership it created goes with it. Both halves in one transaction so a
  * revoked invite can never leave a live membership behind.
+ *
+ * The order is the load-bearing part. The guarded UPDATE goes FIRST and the
+ * membership is deleted from the `acceptedBy` that UPDATE *returns*, never
+ * from a prior SELECT. Reading first is exactly what broke the invariant
+ * above: under READ COMMITTED the SELECT saw `pending` / `acceptedBy: null`
+ * while a concurrent accept was still in flight, so revoke skipped the
+ * delete; the accept then committed its membership row; and an unguarded
+ * `SET status = 'revoked'` wrote straight over that new row version. The
+ * invite read "Revoked", the membership lived, and nothing could take it
+ * away — re-revoking returned early and there is no remove-member endpoint,
+ * so the person the owner was trying to lock out kept editor access
+ * permanently (PR #71 review §1). RETURNING reports the row as it stands
+ * after this statement took its lock, so a racing accept's `acceptedBy` is
+ * visible here.
+ *
+ * `status <> 'revoked'` is what keeps the write idempotent, and the
+ * already-revoked path falls through to the same delete rather than returning
+ * early — so revoking a second time is the recovery for any membership an
+ * earlier lost race left behind.
  */
 export async function revokeInvite(
   tripId: string,
@@ -103,25 +122,35 @@ export async function revokeInvite(
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<TripInvite>> {
   return db.transaction(async (tx): Promise<AccessResult<TripInvite>> => {
-    const rows = await tx
-      .select()
-      .from(tripInvites)
-      .where(and(eq(tripInvites.id, inviteId), eq(tripInvites.tripId, tripId)));
-    const row = rows[0];
+    const claimed = await tx
+      .update(tripInvites)
+      .set({ status: "revoked", revokedAt: new Date(now) })
+      .where(
+        and(
+          eq(tripInvites.id, inviteId),
+          eq(tripInvites.tripId, tripId),
+          ne(tripInvites.status, "revoked"),
+        ),
+      )
+      .returning();
+    let row: InviteRow | undefined = claimed[0];
+    if (row === undefined) {
+      // Nothing matched: either this invite does not exist (or belongs to
+      // another trip), or it was already revoked. Re-read to tell those
+      // apart — the second case still has a membership to re-assert.
+      const rows = await tx
+        .select()
+        .from(tripInvites)
+        .where(and(eq(tripInvites.id, inviteId), eq(tripInvites.tripId, tripId)));
+      row = rows[0];
+    }
     if (row === undefined) {
       return { ok: false, error: { code: "not-found", message: "This invite does not exist." } };
     }
-    if (row.status === "revoked") return { ok: true, value: toDto(row) };
     if (row.acceptedBy !== null) {
       await revokeMembership(tx, tripId, row.acceptedBy);
     }
-    const revokedAt = new Date(now);
-    const updated: InviteRow = { ...row, status: "revoked", revokedAt };
-    await tx
-      .update(tripInvites)
-      .set({ status: "revoked", revokedAt })
-      .where(eq(tripInvites.id, inviteId));
-    return { ok: true, value: toDto(updated) };
+    return { ok: true, value: toDto(row) };
   });
 }
 
@@ -134,6 +163,23 @@ async function findByToken(token: string): Promise<InviteRow | undefined> {
  * What the accept screen renders. Deliberately readable by someone who is not
  * a member — that is the entire point of an invite — and deliberately thin:
  * a trip name, the role on offer, and nothing about who else is on the trip.
+ *
+ * A spent or revoked token now discloses nothing at all. This never gated on
+ * `status`, so revoking a link stopped it being *usable* but left it
+ * answering with the trip's name, the role and the inviter's name forever, to
+ * whoever still held it (PR #71 review §7).
+ *
+ * The refusal borrows `acceptInvite`'s wording for the same two situations
+ * rather than the unknown-token wording. Accept already tells a holder which
+ * of the two happened, so repeating it here reveals nothing new, and the
+ * accept screen has no other way to explain why the Join button went away —
+ * `e2e/m11-invites.spec.ts` ("a revoked link stops working") asserts exactly
+ * that sentence.
+ *
+ * The one exception is a viewer who is already on the trip: the name and the
+ * roles are readable through the trip itself, so there is nothing left to
+ * withhold, and gating them would turn "follow your own link twice" — which
+ * this screen answers with "Open the trip" — into a dead end.
  */
 export async function previewInvite(
   token: string,
@@ -147,10 +193,22 @@ export async function previewInvite(
   if (detail === null || detail.status === "deleted") {
     return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
   }
-  const inviter = await db.select().from(users).where(eq(users.id, row.invitedBy));
   const granted = await grantedMembers(db, row.tripId);
   const alreadyMember =
     detail.members.some((m) => m.userId === viewerId) || granted.some((m) => m.userId === viewerId);
+  if (row.status !== "pending" && !alreadyMember) {
+    return {
+      ok: false,
+      error: {
+        code: "gone",
+        message:
+          row.status === "revoked"
+            ? "This invite has been revoked."
+            : "This invite has already been used.",
+      },
+    };
+  }
+  const inviter = await db.select().from(users).where(eq(users.id, row.invitedBy));
   return {
     ok: true,
     value: {

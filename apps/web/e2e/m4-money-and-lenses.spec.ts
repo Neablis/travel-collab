@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { dragCardTo, openHistory } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
   // Distinct prefix from other specs' trip names — see m3-place-and-time.spec.ts's
   // comment for why parallel workers need this.
-  const tripName = `Porto ${Date.now()}`;
+  const tripName = e2eTripName("Porto");
   await page.goto("/");
 
   await page.getByRole("button", { name: "New trip" }).click();

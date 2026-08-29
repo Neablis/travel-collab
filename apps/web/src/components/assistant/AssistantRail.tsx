@@ -29,7 +29,11 @@ export function AssistantRail({
 }: {
   contextLine: string;
   quickAsks: string[];
-  onAsk: (text: string) => void;
+  // Resolves false when the ask was refused before it ever reached the model
+  // (today: unsent edits still queued). The rail keeps the typed prompt in
+  // that case — a refusal the user has to retype is a refusal that reads as
+  // the box being broken.
+  onAsk: (text: string) => void | Promise<boolean | void>;
   /** True while a real composeAiPlan request from this rail is in flight. */
   asking?: boolean;
   /** Set when the last real ask failed — rendered inline, not a toast, so it
@@ -42,10 +46,10 @@ export function AssistantRail({
 }) {
   const [ask, setAsk] = useState("");
 
-  const submitAsk = () => {
+  const submitAsk = async () => {
     if (ask.trim() === "" || asking) return;
-    onAsk(ask);
-    setAsk("");
+    const accepted = await onAsk(ask);
+    if (accepted !== false) setAsk("");
   };
 
   return (
@@ -156,11 +160,11 @@ export function AssistantRail({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  submitAsk();
+                  void submitAsk();
                 }
               }}
             />
-            <Button variant="primary" size="sm" onClick={submitAsk} disabled={asking || ask.trim() === ""}>
+            <Button variant="primary" size="sm" onClick={() => void submitAsk()} disabled={asking || ask.trim() === ""}>
               {asking ? "Asking…" : "Ask"}
             </Button>
           </div>

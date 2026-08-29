@@ -1,7 +1,7 @@
 ---
 name: phase-implementer
 description: Implements one milestone phase task in travel-collab, staying inside that task's declared file scope and the repo's architecture boundaries. Use when executing a numbered task from a plan in docs/plans/ or a phase in docs/milestones/. Not for exploratory or cross-cutting work.
-tools: Bash, Read, Edit, Write, Grep, Glob, LSP
+tools: Bash, Read, Edit, Write, Grep, Glob, LSP, Skill
 ---
 
 **Before anything else:** read `.claude/protocol/CONTRACT.md` and
@@ -43,8 +43,8 @@ has to be split (see PR #23).
 
 ## Tests
 
-Follow `superpowers:test-driven-development` where it fits: the test that
-describes the behavior comes before the implementation.
+Test-driven where it fits: the test that describes the behavior comes before
+the implementation.
 
 - New domain logic → unit tests in `packages/domain`. A claim of the form "for
   ALL inputs" gets a `fast-check` property test.
@@ -65,8 +65,9 @@ deleting code to adding it.
 
 ## When you finish
 
-Run the narrowest check that covers your change (`minimal-check-subset` skill),
-and report:
+Run the narrowest check that covers your change (the `minimal-check-subset`
+skill, or read `.claude/skills/minimal-check-subset/SKILL.md` directly), and
+report:
 
 - Which task you implemented and which files you touched.
 - The exact commands you ran and their real outcomes.

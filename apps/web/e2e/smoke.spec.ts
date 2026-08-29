@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eTripName } from "./tripNames";
 
 // This is the one spec that still covers the login UI end to end — every
 // other spec runs pre-authenticated via the "desktop"/"narrow" projects'
@@ -7,7 +8,7 @@ import { expect, test } from "@playwright/test";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test("sign in, create a trip, see it in the list", async ({ page }) => {
-  const tripName = `Rome ${Date.now()}`;
+  const tripName = e2eTripName("Rome");
 
   await page.goto("/");
   await page.getByRole("link", { name: "Sign in" }).click();

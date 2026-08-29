@@ -45,11 +45,12 @@ beforeEach(() => {
 });
 
 function Probe() {
-  const { activeTrip, error, dispatch } = useTrip();
+  const { activeTrip, error, dispatch, accessUnknown } = useTrip();
   return (
     <div>
       <span data-testid="trip">{activeTrip?.name}</span>
       <span data-testid="error">{error ?? "none"}</span>
+      <span data-testid="accessUnknown">{String(accessUnknown)}</span>
       <button
         onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d9" } as never)}
       >
@@ -550,5 +551,121 @@ describe("TripProvider retained-unit sender (KI-42)", () => {
       activityId: "act-1",
       dayId: "d-a",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The send-queue wedge (docs/reviews/2026-08-28-project-review.md §1.1).
+//
+// `inFlight` used to be reset on the line AFTER an unprotected `await`, so a
+// throw anywhere in the send path skipped it and the sequential sender was
+// gated for the life of the page: no failure recorded, no retry offered, the
+// header saying "Saving…" forever and every queued edit lost on navigation.
+// apiClient's helpers all resolve rather than reject now (its own totality
+// suite pins that), so this is the second line of defence — and the one that
+// matters, because it is the only place the cost of being wrong is silent
+// data loss rather than a visible error.
+// ---------------------------------------------------------------------------
+
+describe("TripProvider sender — a throw in the send path never gates the queue", () => {
+  it("records the throw as an ordinary failed send, and retry still drains", async () => {
+    sendTripCommandMock.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    render(
+      <TripProvider tripId="x">
+        <SyncProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+
+    // Reported through KI-36's existing surface rather than vanishing: the
+    // edit is retained, the failure is dated, and the user is told.
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+    expect(screen.getByTestId("failureMessage").textContent).toBe("Failed to fetch");
+    expect(screen.getByTestId("unsent").textContent).toBe("1");
+    expect(screen.getByTestId("dayCount").textContent).toBe("2");
+
+    // The load-bearing assertion. If `inFlight` leaked, the sender's effect
+    // returns early forever and this retry sends nothing — `unsent` would
+    // stay at 1 and the call count at 1.
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: twoDayDetail(), history: historyFixture("x") },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("0"));
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("failedAt").textContent).toBe("none");
+  });
+});
+
+// The same class at the other site: a throwing initial read used to leave
+// `status` on "loading" forever — a permanent spinner with nothing on screen
+// to say why (project review §1.1, second site).
+function StatusProbe() {
+  const { status, error } = useTrip();
+  return (
+    <div>
+      <span data-testid="status">{status}</span>
+      <span data-testid="error">{error ?? "none"}</span>
+    </div>
+  );
+}
+
+describe("TripProvider load — a throwing read is an error state, not a spinner", () => {
+  it("leaves status on error with the reason, not on loading", async () => {
+    fetchTripDetailMock.mockRejectedValue(new Error("Failed to fetch"));
+
+    render(
+      <TripProvider tripId="x">
+        <StatusProbe />
+      </TripProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("error"));
+    expect(screen.getByTestId("error").textContent).toBe("Failed to fetch");
+  });
+});
+
+// docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge: a failed
+// access read leaves `myRole` null, so a real VIEWER gets a fully live board
+// and every send 403s into a retained queue whose retry can never succeed.
+// The decision (reasoned in `load`) is to keep the failure non-fatal — a false
+// "view only" would lock an OWNER out of their own trip over one 500 on a
+// secondary read, which is both worse and commoner — and to stop it being
+// SILENT instead. `accessUnknown` is what the header says out loud.
+describe("TripProvider — an access read that fails is surfaced, not acted on", () => {
+  it("reports accessUnknown and still lets the board through", async () => {
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: oneDayTripDetailFixture(), history: historyFixture("x") },
+    });
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    await waitFor(() => expect(screen.getByTestId("accessUnknown").textContent).toBe("true"));
+    // Deliberately NOT read-only: the server is the boundary, and this is the
+    // half of the decision that would be silently wrong if it flipped.
+    fireEvent.click(screen.getByText("dispatch"));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("stays false when the read succeeds", async () => {
+    fetchTripAccessMock.mockResolvedValue(accessAs("viewer"));
+    render(
+      <TripProvider tripId="x">
+        <Probe />
+      </TripProvider>,
+    );
+    await screen.findByText(tripDetailFixture().name);
+
+    await waitFor(() => expect(screen.getByTestId("accessUnknown").textContent).toBe("false"));
   });
 });

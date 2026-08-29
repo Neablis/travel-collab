@@ -1,4 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { createMappedTrip } from "./helpers";
+import { e2eTripName } from "./tripNames";
 
 // M11 link 3's exit-gate line: "An invited person can open the trip and modify
 // it." Two real browser contexts, because that is the only way to prove it —
@@ -79,7 +81,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   test.slow();
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list (m1/m3/m6's comment).
-  const tripName = `Invites ${Date.now()}`;
+  const tripName = e2eTripName("Invites");
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
 
@@ -137,8 +139,16 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   browser,
 }) => {
   test.slow();
-  const tripName = `Viewer ${Date.now()}`;
-  await createTrip(page, tripName);
+  const tripName = e2eTripName("Viewer");
+  // Seeded with a real day and a real stop, unlike the other tests here: the
+  // point of this one is what a viewer can and cannot DO to existing content,
+  // and an empty trip has no card to withhold a drag handle from. One day is
+  // the smallest shape that carries both a day column and a stop; the same
+  // command-API idiom the file already prefers to re-walking a wizard.
+  const tripId = await createMappedTrip(page, tripName, 1);
+  const stopTitle = "Stop on day 1";
+  await page.goto(`/trips/${tripId}`);
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can view");
 
@@ -150,6 +160,46 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
 
     await expect(carol.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     await expect(carol.getByText("View only")).toBeVisible();
+
+    // The badge was the whole of this assertion until
+    // docs/reviews/2026-08-28-m11-pr71-review.md §5: it passed while the board
+    // underneath was fully live, so a viewer could drag a card (it moved and
+    // snapped back), open the editor and type into it. Every write is refused
+    // by the server regardless — this asserts the UI stops OFFERING them.
+
+    // The plan itself is readable: gating hides affordances, never content.
+    const card = carol.locator('[data-testid^="activity-card-"]');
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText(stopTitle);
+
+    // pdnd's `draggable()` is what sets this attribute, so its absence is the
+    // drag registration genuinely missing rather than a styling difference.
+    await expect(card).not.toHaveAttribute("draggable", "true");
+
+    // Nothing that would dispatch a command is on offer. Counted rather than
+    // asserted "not visible": a locator that matches nothing is what we want,
+    // and toHaveCount is strict-mode-safe where getBy* would throw on 0 or 2.
+    await expect(carol.getByTestId("one-more-day-column")).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: "Add a day" })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: /^Add activity to / })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: /^Remove Day / })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: `Remove ${stopTitle}` })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: "Share" })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: "Add stop" })).toBeDisabled();
+
+    // The card carries no way into the stop editor at all. This asserted a
+    // relabelled "View" button until 2026-08-29: this branch had kept the
+    // control and made the sheet present read-only, while ADR-031 — which
+    // landed first — treats opening the editor as a write and withholds it
+    // outright. ADR-031 won on merge, so the check is for absence, and BOTH
+    // names are asserted: "Edit" alone would pass against the relabel this
+    // spec used to describe.
+    await expect(carol.getByRole("button", { name: `Edit ${stopTitle}` })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: `View ${stopTitle}` })).toHaveCount(0);
+    // Nothing opened it, so nothing to close — and the sheet's own read-only
+    // presentation stays covered by ActivityEditorSheet.test.tsx, where it is
+    // reachable, rather than being asserted through a door that is now shut.
+    await expect(carol.getByRole("heading", { name: "Activity", level: 3 })).toHaveCount(0);
   } finally {
     await carol.context().close();
   }
@@ -157,7 +207,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
 
 test("a revoked link stops working", async ({ page, browser }) => {
   test.slow();
-  const tripName = `Revoked ${Date.now()}`;
+  const tripName = e2eTripName("Revoked");
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can edit");

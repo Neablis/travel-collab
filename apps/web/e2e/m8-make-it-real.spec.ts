@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { dragCardTo } from "./helpers";
+import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
 // confirming round-trip before firing the next one (same pattern as
@@ -15,7 +16,7 @@ function waitForCommand(page: Page) {
 test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list (m1/m3/m6's comment).
-  const tripName = `Rochester ${Date.now()}`;
+  const tripName = e2eTripName("Rochester");
 
   // e2e has no real LOCATIONIQ_API_KEY — stub the app's own /api/geocode
   // route, same approach as m3-place-and-time.spec.ts.
@@ -136,7 +137,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // `plannedOfBudgetLine` (lib/cost.ts) proves the fetch resolved.
   const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
   await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
-  await page.getByRole("button", { name: new RegExp(`trip actions for ${renamedTripName}`, "i") }).click();
+  await page.getByRole("button", { name: new RegExp(`trip actions for ${escapeForRegExp(renamedTripName)}`, "i") }).click();
   await page.getByRole("menuitem", { name: /delete/i }).click();
   await page.getByRole("button", { name: /^delete$/i }).click();
   // getByRole("heading", ..., level: 3), not getByText: same substring
@@ -171,7 +172,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 // already open, then releases it and asserts nothing moved. Deterministic —
 // it fails on the un-fixed build every run, not one run in twenty.
 test("an open trip-actions menu does not drift when the cost lines land", async ({ page }) => {
-  const tripName = `Anchor ${Date.now()}`;
+  const tripName = e2eTripName("Anchor");
 
   await page.goto("/");
   await page.getByRole("button", { name: "New trip" }).click();
@@ -198,7 +199,7 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
   await expect(card).toBeVisible();
   const cardBefore = (await card.boundingBox())!;
 
-  await page.getByRole("button", { name: new RegExp(`trip actions for ${tripName}`, "i") }).click();
+  await page.getByRole("button", { name: new RegExp(`trip actions for ${escapeForRegExp(tripName)}`, "i") }).click();
   const deleteItem = page.getByRole("menuitem", { name: /delete/i });
   await expect(deleteItem).toBeVisible();
   const menuBefore = (await deleteItem.boundingBox())!;

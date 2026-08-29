@@ -1,4 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
+import { addDaysIso } from "@/lib/dates";
 
 // A rendered calendar cell. `blank` cells are pure padding (a week's lead-in
 // before a month's first real date, or trailing pad to a multiple of 7) and
@@ -30,8 +31,11 @@ const MONTH_NAMES = [
   "December",
 ];
 
-// Pure ISO-date math. NO wall-clock reads — dates are built only from explicit
-// YYYY-MM-DD components via Date.UTC (deterministic), never `new Date()`.
+// Pure ISO-date math. NO wall-clock reads — every Date here is built from an
+// explicit YYYY-MM-DD, in UTC, never from a bare `new Date()`. Add-days is the
+// shared lib/dates.ts helper rather than a local copy; it agrees with the
+// `Date.UTC` parse below for every date the domain can emit (`deriveDayDates`
+// normalises through `Date.UTC` before a day date ever reaches here).
 function parseIso(iso: string): { y: number; m: number; d: number } {
   const [y, m, d] = iso.split("-").map(Number);
   return { y: y!, m: m!, d: d! };
@@ -44,12 +48,6 @@ function toUtcDate(iso: string): Date {
 
 function toIso(dt: Date): string {
   return dt.toISOString().slice(0, 10);
-}
-
-function addDays(dt: Date, n: number): Date {
-  const next = new Date(dt.getTime());
-  next.setUTCDate(next.getUTCDate() + n);
-  return next;
 }
 
 // Sunday-start week index (SPEC.md §4 / the handoff design): 0 = Sunday ...
@@ -95,8 +93,8 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
   const lastDate = toUtcDate(sortedDates[sortedDates.length - 1]!);
 
   // Rule 1: the grid's own start/end, walked out to whole weeks.
-  const gridStart = addDays(firstDate, -sundayWeekday(firstDate));
-  const gridEnd = addDays(lastDate, 6 - sundayWeekday(lastDate));
+  const gridStart = toUtcDate(addDaysIso(sortedDates[0]!, -sundayWeekday(firstDate)));
+  const gridEnd = toUtcDate(addDaysIso(sortedDates[sortedDates.length - 1]!, 6 - sundayWeekday(lastDate)));
 
   const byDate = new Map<string, { ordinal: number; activityIds: string[] }>();
   detail.days.forEach((day, index) => {
@@ -119,8 +117,10 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
     const cells: CalendarCell[] = [];
     for (let i = 0; i < sundayWeekday(winStart); i++) cells.push({ blank: true });
 
-    for (let cursor = winStart; cursor.getTime() <= winEnd.getTime(); cursor = addDays(cursor, 1)) {
-      const iso = toIso(cursor);
+    // Walked as ISO strings, which compare chronologically for YYYY-MM-DD, so
+    // the one add-days implementation covers the cursor too.
+    const winEndIso = toIso(winEnd);
+    for (let iso = toIso(winStart); iso <= winEndIso; iso = addDaysIso(iso, 1)) {
       const match = byDate.get(iso);
       cells.push(
         match
