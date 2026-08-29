@@ -249,7 +249,13 @@ const EXPECTATIONS: Expectation[] = [
   { chip: /^There(?:'s 1 conflict| are \d+ conflicts) on day \d+ — how should I fix (?:it|them)\?$/, answer: /conflicts? on this day: .+/ },
 
   // Booking, at both scopes. Both were answered by silence.
-  { chip: /^(?:1 stop still needs|\d+ stops still need) booking — which (?:is it|should I sort out first)\?$/, answer: /stops? still need booking: day \d+ \(\d+\)/ },
+  // The answer alternates the VERB the same way the chip does, rather than the
+  // looser `still needs? booking` that would match either. It was the loose
+  // form, and the `exactly one stop left to book` state below renders the
+  // singular — so the pattern was quietly covering for "1 stop still need
+  // booking" (re-review, 2026-08-29). A pattern that tolerates the sentence
+  // being wrong is not covering the sentence.
+  { chip: /^(?:1 stop still needs|\d+ stops still need) booking — which (?:is it|should I sort out first)\?$/, answer: /(?:1 stop still needs|\d+ stops still need) booking: day \d+ \(\d+\)/ },
   { chip: /^What on day \d+ still needs booking\?$/, answer: /Still to book: .+/ },
 ];
 

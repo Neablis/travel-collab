@@ -253,6 +253,10 @@ function askQuestions(scope: AskScope): ToolCall[] {
 const SIMULATED_ASK_NOTICE =
   "AI is switched off on this deployment, so I answered from your trip data rather than from a model.";
 
+// A noun phrase, and only that — the caller owns any verb that has to agree
+// with it. Stated because forgetting is exactly what happened: `toBookSentences`
+// read "1 stop still need booking" until the re-review caught it, while the
+// sentence two lines below had inflected its verb correctly all along.
 function pluralStops(n: number): string {
   return `${n} stop${n === 1 ? "" : "s"}`;
 }
@@ -279,7 +283,7 @@ function toBookSentences(trip: TripReadout): string[] {
     .join(", ");
   const rest = days.length - Math.min(MAX_NAMED_DAYS, days.length);
   const tail = rest > 0 ? `, and ${rest} more day${rest === 1 ? "" : "s"}` : "";
-  return [`${pluralStops(total)} still need booking: ${shown}${tail}.`];
+  return [`${pluralStops(total)} still ${total === 1 ? "needs" : "need"} booking: ${shown}${tail}.`];
 }
 
 /**

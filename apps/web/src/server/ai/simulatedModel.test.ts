@@ -314,6 +314,32 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("3 stops still need booking: day 1 (2), day 3 (1).");
   });
 
+  // The singular, pinned on its own: only the plural was asserted, and the
+  // sentence read "1 stop still need booking" for a fortnight of this branch.
+  // It is prose a user reads in the assistant's own answer, on the only path a
+  // deployment runs (re-review, 2026-08-29).
+  it("agrees with itself when exactly one stop is left to book", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "trip" }, [
+          {
+            toolName: "read_trip",
+            value: {
+              ...TRIP_READOUT,
+              days: [
+                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 1, costSubtotal: 500 },
+              ],
+            },
+          },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).toContain("1 stop still needs booking: day 2 (1).");
+    expect(answer).not.toContain("1 stop still need booking");
+  });
+
   it("stays quiet about booking when nothing is outstanding", async () => {
     const answer = textOf(
       await probe("ask").doGenerate(
