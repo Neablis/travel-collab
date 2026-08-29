@@ -75,6 +75,21 @@ describe("findFreeGaps", () => {
     expect(gaps.every((g) => g.durationMinutes > 0)).toBe(true);
   });
 
+  it("full-containment overlap merges to the containing block, not the inner one", () => {
+    // B (10:00-11:00) is entirely inside A (09:00-17:00). A naive merge that
+    // overwrites the block's end with the later-processed activity's end
+    // (`last[1] = block[1]`) rather than taking the max would truncate the
+    // merged block to 11:00, turning 11:00-17:00 into phantom free time.
+    const d = detail([day("d1", ["a1", "a2"])], {
+      a1: activity("a1", { start: "09:00", end: "17:00" }),
+      a2: activity("a2", { start: "10:00", end: "11:00" }),
+    });
+    expect(findFreeGaps(d)).toEqual([
+      { dayIndex: 0, startMinutes: 0, endMinutes: 540, durationMinutes: 540 },
+      { dayIndex: 0, startMinutes: 1020, endMinutes: 1440, durationMinutes: 420 },
+    ]);
+  });
+
   it("a day with no timed activities is one gap spanning the whole window", () => {
     const d = detail([day("d1", ["a1"])], { a1: activity("a1", null) });
     expect(findFreeGaps(d, { dayIndex: 0 })).toEqual([
@@ -112,6 +127,16 @@ describe("findFreeGaps", () => {
       [0, 540],
       [1, 600],
     ]);
+  });
+
+  it("gaps on the same day are sorted by startMinutes (the tiebreaker actually fires)", () => {
+    // One activity in the middle of the day produces two gaps at the same
+    // dayIndex; asserts they come back in start order, not creation order.
+    const d = detail([day("d1", ["a1"])], {
+      a1: activity("a1", { start: "12:00", end: "13:00" }),
+    });
+    const gaps = findFreeGaps(d);
+    expect(gaps.map((g) => g.startMinutes)).toEqual([0, 780]);
   });
 
   it("afterMinutes/beforeMinutes clip a full-free day rather than filtering it", () => {

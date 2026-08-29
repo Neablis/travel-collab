@@ -51,7 +51,16 @@ function busyIntervalsFor(detail: TripDetail, activityIds: readonly string[]): A
   const merged: Array<[number, number]> = [];
   for (const block of raw) {
     const last = merged[merged.length - 1];
+    // `<=`, not `<`: two blocks that exactly touch (one ends where the next
+    // starts) merge too. Deliberately slightly broader than "overlapping" —
+    // it costs nothing (a zero-width gap between touching blocks would be
+    // dropped by the zero-length rule regardless) and keeps this the only
+    // merge branch to reason about.
     if (last && block[0] <= last[1]) {
+      // max(), not overwrite: `block` may be entirely CONTAINED in `last`
+      // (e.g. a 10:00-11:00 stop inside a 09:00-17:00 one) and end earlier
+      // than it. Overwriting the end with `block[1]` would truncate the
+      // merged block and silently turn real busy time into a reported gap.
       last[1] = Math.max(last[1], block[1]);
     } else {
       merged.push(block);
