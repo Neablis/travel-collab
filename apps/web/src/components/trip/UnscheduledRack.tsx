@@ -205,7 +205,10 @@ function RackCard({
       ref={ref}
       data-testid="rack-card"
       data-blstop=""
-      className="cursor-grab rounded-lg transition-opacity duration-200"
+      // Cursor follows the registration, matching ActivityCard's own
+      // `!readOnly && "cursor-grab"`: a grab cursor over a card that cannot be
+      // picked up is the same false promise the hidden controls exist to avoid.
+      className={cn(canDrag && "cursor-grab", "rounded-lg transition-opacity duration-200")}
       // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as ActivityCard's)
       style={{ flex: "0 0 208px", touchAction: "none", opacity: dragging ? 0.5 : 1 }}
     >

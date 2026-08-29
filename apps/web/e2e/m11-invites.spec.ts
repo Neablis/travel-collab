@@ -187,14 +187,19 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     await expect(carol.getByRole("button", { name: "Share" })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Add stop" })).toBeDisabled();
 
-    // The one control a viewer keeps: the sheet is the only surface that shows
-    // a stop's notes, so it opens — read-only, titled "Activity" rather than
-    // "Edit activity", with no field and no Save.
+    // The card carries no way into the stop editor at all. This asserted a
+    // relabelled "View" button until 2026-08-29: this branch had kept the
+    // control and made the sheet present read-only, while ADR-031 — which
+    // landed first — treats opening the editor as a write and withholds it
+    // outright. ADR-031 won on merge, so the check is for absence, and BOTH
+    // names are asserted: "Edit" alone would pass against the relabel this
+    // spec used to describe.
     await expect(carol.getByRole("button", { name: `Edit ${stopTitle}` })).toHaveCount(0);
-    await carol.getByRole("button", { name: `View ${stopTitle}` }).click();
-    await expect(carol.getByRole("heading", { name: "Activity", level: 3 })).toBeVisible();
-    await expect(carol.getByLabel("What or where")).toHaveCount(0);
-    await expect(carol.getByRole("button", { name: "Save" })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: `View ${stopTitle}` })).toHaveCount(0);
+    // Nothing opened it, so nothing to close — and the sheet's own read-only
+    // presentation stays covered by ActivityEditorSheet.test.tsx, where it is
+    // reachable, rather than being asserted through a door that is now shut.
+    await expect(carol.getByRole("heading", { name: "Activity", level: 3 })).toHaveCount(0);
   } finally {
     await carol.context().close();
   }
