@@ -19,7 +19,7 @@ changelog entry. Doing them in two passes pays that cost twice and puts two
 migrations through the event store where one would do.
 
 Between them they are the largest single unblocker on the board — the two
-fields gate the Calendar's travel-day split and `N to book`, the home hero's
+fields gate the Calendar's `N to book`, the home hero's
 "not booked" tile, `act.badge`, and design rules R4 and R5. **Everything below
 about `kind` applies to `tags` in the same shape**; KI-47 holds the detail on
 which five surfaces want tags and why a filter control cannot be built without
@@ -47,7 +47,7 @@ This began as one cosmetic tile and is now load-bearing in three places:
 | Surface | Needs | Design |
 |---|---|---|
 | Calendar city cards | `N to book` — "every stop whose kind is neither `booked` nor `transit`" | SPEC §12 |
-| Calendar travel days | Split at the **LAST `transit` stop** — departing city becomes a one-line strip, arriving city the full card | SPEC §12 |
+| ~~Calendar travel days~~ | ~~Split at the **LAST `transit` stop**~~ — **built and removed 2026-08-29**, see below | ~~SPEC §12~~ |
 | Home hero | The "7 not booked" tile | `NextTripHero.tsx:188-191` |
 | Stop cards | `act.badge` (Booked / Hold / Idea) | handoff |
 
@@ -76,8 +76,9 @@ Two reasons, both fatal:
   `japan-trip-seed.json` export both carry it as `(status)` prose; a backfill
   that parses those **once, at import** is legitimate in a way a render-time
   parse is not.
-- Then, and only then: Calendar's transit split and `N to book`, the home hero
-  tile, and `act.badge`.
+- Then, and only then: Calendar's `N to book`, the home hero tile, and
+  `act.badge`. *(The transit split was in this list, built, and removed —
+  see "The transit split, built and removed" below.)*
 
 ## Exit gate
 

@@ -193,7 +193,7 @@ describe("NextTripHero", () => {
   // Regression: Sparkline used to key its accent by day index, so the same
   // real city landed on two different colors depending on which day it fell
   // on (e.g. a 3-day Rochester trip). This exercises the real wiring
-  // (cityFor, sourced from each day's first located activity) end to end,
+  // (cityFor, sourced from each day's LAST located activity) end to end,
   // not just Sparkline's own color assignment in isolation.
   it("gives two days in the same real city the same sparkline block color", async () => {
     const trip = tripSummaryFixture();
