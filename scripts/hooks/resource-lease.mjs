@@ -31,6 +31,19 @@ for (const entry of adapter.exclusiveCommands) {
   // into an ask on every single Bash command instead of failing open.
   if (!entry || typeof entry !== "object" || typeof entry.pattern !== "string") continue;
 
+  // KI-63: `resource` and `symptom` are interpolated into the `ask` message
+  // below, and `resource` is also used as a key into `leases`. Both were
+  // previously unvalidated, so an adapter entry whose `resource` or `symptom`
+  // is an object with a non-callable `toString`/`valueOf` threw a TypeError
+  // ("Cannot convert object to primitive value") straight out of a PreToolUse
+  // hook — which breaks every Bash command in the repo until someone finds
+  // the adapter file. A merely missing field is harmless (it coerces to
+  // "undefined"), which is why this needs a deliberately pathological input
+  // and was judged safe to leave; it is still the wrong failure direction for
+  // a library whose whole contract is to fail open on shapes it cannot read.
+  if (typeof entry.resource !== "string" || !entry.resource) continue;
+  if (typeof entry.symptom !== "string") continue;
+
   let pattern;
   try {
     pattern = new RegExp(entry.pattern);

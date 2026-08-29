@@ -47,6 +47,31 @@ describe("the Postgres counter", () => {
     expect(await db.select().from(rateLimitCounters)).toHaveLength(1);
   });
 
+  // KI-67 gave `bump` an `amount`, so the upsert now has to carry a charge
+  // bigger than one through both of its branches. These are the SQL half of
+  // that; the policy half is in quota.test.ts.
+  it("adds a multi-unit charge to an existing window", async () => {
+    const counters = pgCounters();
+    await counters.bump("a", T0);
+    expect(await counters.bump("a", T0, 31)).toBe(32);
+  });
+
+  it("starts a NEW window at the charge, not at one", async () => {
+    // The branch that discards the previous window must not also discard the
+    // charge being applied — that would make a 32-step request free whenever it
+    // happened to be the first of its window.
+    const counters = pgCounters();
+    await counters.bump("a", T0, 5);
+    expect(await counters.bump("a", new Date(T0.getTime() + 60_000), 12)).toBe(12);
+    expect(await db.select().from(rateLimitCounters)).toHaveLength(1);
+  });
+
+  it("refuses to let a caller decrement a counter", async () => {
+    const counters = pgCounters();
+    await counters.bump("a", T0, 10);
+    expect(await counters.bump("a", T0, -5)).toBe(11);
+  });
+
   // Skewed clocks across instances must not hand an attacker a free reset.
   it("never rewinds to an older window", async () => {
     const counters = pgCounters();

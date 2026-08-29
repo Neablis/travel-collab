@@ -13,6 +13,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-77 — The AI handler's server-side geocoding spends the LocationIQ key without consulting the geocode quota at all
+- **Severity:** correctness (a spend gate with a second, unmetered door into the same vendor key)
+- **Area:** `apps/web/src/server/ai/handleAiRequest.ts` (the `enrichCommandLocations` call), `apps/web/src/server/ai/geocodeEnrichment.ts`, `apps/web/src/server/quota.ts` (`geocodeQuota`)
+- **Symptom:** `geocodeQuota()` has exactly one caller — `apps/web/src/app/api/geocode/route.ts`. The AI handler geocodes through a completely separate path: after the model's commands are resolved, `enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder(), …)` performs a LocationIQ lookup **per unverified location in the batch**, and nothing on that path reads or charges the geocode policy. So the daily ceilings that exist to protect `LOCATIONIQ_API_KEY` — per-user 300, global 4000, the global one deliberately set below LocationIQ's 5,000/day free tier — bound the proxy endpoint only.
+- **Why it matters more than it looks:** the AI path is the one that geocodes in *bulk*. A single planning request can resolve many new activities, each needing a lookup, and `server/ai/rateLimit.ts` exists precisely because one AI request can otherwise breach LocationIQ's **per-second** limit. That module paces the lookups; nothing counts them. The result is that the endpoint a user drives one button-press at a time is capped at 300 lookups a day, while the endpoint that can emit dozens per call is capped at nothing.
+- **Not the same defect as KI-67, which is why it is filed separately.** KI-67 was a wrong *denominator* — the AI request policies metered calls when cost varied per call. This is a missing *call site*: the denominator for geocoding is already right (one request, one lookup), the policy simply is not consulted on the path that spends the most. Fixing KI-67 does not touch this.
+- **Fix path, if taken:** charge `geocodeQuota()` for the lookups an AI request actually performs. The count is available — `enrichCommandLocations` already returns a `LocationEnrichmentReport` — so the mechanism KI-67 added (`settleAiSteps`'s post-hoc, never-refusing settlement) generalises to it directly: pre-authorise nothing, settle the real lookup count after enrichment. The open question is the same one KI-67 answered for steps and would want answering again here: enrichment is explicitly best-effort and *never fails the request*, so a geocode ceiling reached mid-batch should almost certainly stop *further lookups* rather than refuse the AI request, which means the check belongs inside the enrichment loop rather than around it.
+- **Why not fixed here:** found while fixing KI-67, and outside that change's declared scope. It also needs a decision about mid-batch behaviour that is a product call, not a mechanical one, and `docs/guidelines/` has no stated policy on partial enrichment under a quota ceiling.
+- **Cross-reference:** KI-67 (resolved — the AI step metering, and the mechanism this would reuse), ADR-007 (server-side geocode enrichment), KI-15 (the region-agreement rule enrichment applies), KI-24.
+- **First noted:** 2026-08-29, while fixing KI-67.
+
 ### KI-76 — `pnpm check` exits 0 while running zero integration tests, because the probe is `pg_isready` and that binary need not exist
 - **Severity:** reliability, and it undermines the Definition of Done directly — `AGENTS.md` names `pnpm check` as the bar for every change, and on a machine like this one it silently clears a lower bar than it appears to
 - **Area:** `package.json` → `test:int:if-db`
@@ -71,6 +82,13 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 - **Severity:** correctness — a stated-and-accepted weakening. The "nobody has run this" half of this entry was closed on 2026-08-28; see the walk below.
 - **Area:** `apps/web/next.config.ts` (the `headers()` CSP)
+- **STILL OPEN, and now open for a measured reason rather than a reasoned one (2026-08-29).** A pass over this entry set out to remove the keyword and could not, so the premise was tested in a browser instead of re-argued. Against a production build of this tree served by `next start` on Chromium, with the CSP rewritten in-flight (Playwright `page.route` → `route.fulfill`) to drop **only** `'unsafe-inline'` from `script-src` and leave every other directive byte-identical:
+  - **Every inline script on every page tested is an RSC payload chunk.** `/welcome` 15 inline `<script>` tags, `/demo` 6, `/signin` 6 — **27 of 27** containing `self.__next_f.push`. The premise below is exactly right.
+  - **Removing the keyword blocks all 27**, one violation each: `Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-OBTN3RiyCV4Bq7dFqZ5a2pAXjnCcCYeTJMO2I/LYKeo='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.` (Chromium 141's current wording; the older "Refused to execute inline script because it violates…" no longer appears.)
+  - **Hydration then dies on every page** with `Minified React error #412` (the streaming-suspense bail-out). `/welcome` and `/signin` keep their server-rendered markup as a dead photograph — React root keys go 2 → 0, no client router, no interactivity — and `/demo` loses its content outright, body text collapsing 6848 → 228 chars as the board's Suspense fallback never resolves: *"Opening the example trip…"*.
+  - **The control arm is clean.** Same three pages, unmodified served header: **zero** CSP violations, zero page errors, React hydrated. The only console output is a local-only `/_vercel/insights/script.js` **404 + MIME** refusal (`its MIME type ('text/plain') is not executable`) — not a CSP refusal; that path only exists on Vercel.
+  - Per-chunk `sha256-` hashes are not an alternative: the payload is per-page and per-build, so the hash set is not stable.
+  - **Conclusion:** `'unsafe-inline'` cannot be dropped from `script-src` by any change confined to `next.config.ts`. Closing this needs the nonce-in-middleware migration described below — a new `apps/web/src/middleware.ts` (none exists today), the CSP moving out of `headers()` into a per-request response header, the nonce threaded into the root layout, and every page opting out of static rendering. That is an app-wide change with a whole-app performance trade inside it, and it is deliberately **not** being shipped as a half-migration alongside unrelated fixes. It wants its own reviewed step, and probably its own ADR.
 - **The weakening, and why it was taken:** the App Router streams its RSC payload through inline `<script>self.__next_f.push(...)</script>` tags on **every** page, so `script-src` cannot drop `'unsafe-inline'` as written. The supported alternative is a per-request nonce minted in middleware, which opts every page out of static rendering — a whole-app performance trade. The judgement recorded in the file is that the policy's other directives (`object-src`, `base-uri`, `form-action`, `frame-ancestors 'none'`, `frame-src 'none'`) already close the classic injection escalations, and that no third-party script loads in production. That reasoning is sound; it is recorded here so it is revisited deliberately rather than inherited.
 - **The policy HAS now been exercised by a browser, and no directive needed loosening.** Walked 2026-08-28 in Chromium 141 against a local production build of `fb51486` serving the header byte-identically. Twenty surfaces, console read on every one, zero CSP violations: landing, sign-in/up, welcome, playbooks, the trips list, the **trip board** (68 cards, drag, conflict banners), the **activity editor and trip-settings Radix sheets at 1280px and 1100px**, the share popover, the assistant rail, all three lenses, the **notebook list and TipTap editor**, the account menu, and `/s/<token>` signed out.
 - **The negatives are real, because enforcement was proved first.** A deliberate control probe from the board page returned `Refused to connect to 'https://example.com/probe' because it violates the following Content Security Policy directive: "connect-src 'self' https://tiles.openfreemap.org"`. Without that probe, "no violations" would have been indistinguishable from "the policy never loaded".
@@ -82,17 +100,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   - **A cloud-session walk runs at TLS 1.2** (the egress tunnel cannot carry Chromium's TLS 1.3 ClientHello), so it is not evidence about anything TLS-version-dependent. A laptop walk has no such limit.
 - **Related correction:** the `style-src` comment attributes the runtime `<style>` injection to *"tippy.js (the notebook's slash-command popup)"*. There is no slash-command popup — macro authoring was removed in M8 — and `tippy.js` was removed as a direct dependency on 2026-08-28 with zero importers. The injector is `@tiptap/core`, whose embedded style string happens to contain `.tippy-box` rules, which is almost certainly where the attribution came from. The directive is still needed; the reason named for it is wrong.
 - **First noted:** 2026-08-28 (security-headers work). Browser-walked the same day, which closed the unverified half and corrected the premise it rested on: this container DOES have a usable Chromium under `$PLAYWRIGHT_BROWSERS_PATH` — and `chromium.launch()` finds it with no `executablePath`. Do not copy a pinned path from anywhere: the revision and the directory layout have both already changed once (`chromium-1194/chrome-linux/` → `chromium-1228/chrome-linux64/`). See `docs/guidelines/cloud-agent-sessions.md`.
-
-### KI-67 — The AI and geocode quotas meter REQUESTS, so a 32-step answer costs the same allowance as a one-step one
-
-- **Severity:** correctness (the control does not bound the thing it exists to bound)
-- **Area:** `apps/web/src/server/quota.ts` (`aiQuotaPolicies`, `geocodeQuotaPolicies`), `apps/web/src/server/ai/handleAiRequest.ts`
-- **Symptom:** every policy is a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000, geocode 300/4000. Cost is not proportional to calls. `handleAiRequest` runs a tool-using loop with a step budget, so one request can burn up to 32 model round-trips while another burns one, and both decrement the same allowance by exactly 1. An actor who wants to maximise spend under the cap simply writes prompts that provoke long tool loops; the ceiling barely moves.
-- **What it does do, and why it still shipped:** it bounds the *worst case* — 100 requests × 32 steps is a finite number and an unbounded loop is not, which is a real improvement on the nothing that preceded it, alongside the prompt-size cap landed in the same change. It is a floor, not the accounting.
-- **The data for the real fix already exists.** `handleAiRequest.ts:177` computes `totalTokens` (with `inputTokens`/`outputTokens`) off the model result and puts it in the response `meta`. Nothing reads it for enforcement. A token-metered policy would decrement by `meta.usage.totalTokens` **after** the call rather than by 1 before it, which changes the shape of the check (you cannot pre-authorise an unknown cost) — that is the design question, not the arithmetic.
-- **Why not fixed here:** post-hoc metering means deciding what happens to the request that crosses the line mid-flight (serve it and go negative, or fail after paying?), and whether the counter is per-token or per-currency once models differ in price. `TODO.md`'s "AI cost/quality tuning" candidate already says **"Watch `meta.steps` — that is the cost driver, and it is already instrumented"**; this is the same observation arriving at the enforcement layer.
-- **Cross-reference:** ADR-019 (the AI kill switch — remediation after the fact, which is why prevention was added), KI-24 (`AI_LIVE` on Vercel is warned-about, not prevented), KI-11 (no test calls a real model, so no test measures a real token cost).
-- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4).
 
 ### KI-68 — `db-reset.mjs` truncates a hardcoded three-table list while the schema has ten tables
 
@@ -148,64 +155,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Found by:** noticed while walking `/demo` in a browser, 2026-08-28.
 - **Cross-reference:** ADR-031, ADR-026 (roles), KI-61.
 
-### KI-62 — Report-conformance may check the wrong unit's report when units run concurrently
-
-- **Severity:** unknown-until-observed (could make the hook inert exactly where the protocol is used)
-- **Area:** `scripts/hooks/subagent-report-conformance.mjs`
-- **Symptom:** the hook walks backwards through `transcript_path` for the last
-  assistant text block. If Claude Code records subagent sidechains into the
-  parent session's transcript, then with 2-4 concurrent units their entries
-  interleave, and the last text block at a given `SubagentStop` may belong to a
-  *different* unit — yielding a silent no-op (no `## Exit:` heading found) or a
-  conformance check against the wrong unit's report.
-- **Scope:** only bites with concurrent units. Every test uses a synthetic
-  single-agent transcript, and the real-transcript check that was run was
-  against a single-session file.
-- **Why not fixed here:** the transcript-path semantics for concurrent
-  subagents could not be established without a real multi-unit run, and
-  guessing at a fix would be worse than recording the question.
-- **How to settle it:** on the first real `/dispatch` run, dispatch two units,
-  let both finish, and confirm the hook engaged for each. If it did not, the
-  backstop is `/dispatch` step 4's "confirm `reports/<unit-id>.md` exists",
-  which is already the only thing catching a report that was never written.
-- **First noted:** 2026-08-28, final review of the subagent protocol branch.
-
-### KI-63 — Small subagent-protocol defects found in review and consciously left
-
-- **Severity:** cleanup
-- **Area:** `scripts/hooks/resource-lease.mjs`,
-  `scripts/hooks/subagent-report-conformance.mjs`,
-  `scripts/hooks/lib/run-context.mjs`,
-  `docs/specs/2026-08-28-subagent-operating-contract-design.md`,
-  `.claude/protocol/ADAPTER.md`
-- **What was left, and why each was judged safe:**
-  - `resource-lease.mjs` does not validate `entry.resource` / `entry.symptom`.
-    An adapter entry containing an object with non-callable `toString`/`valueOf`
-    would throw on coercion. Requires deliberately pathological JSON — a merely
-    missing field coerces to `"undefined"` harmlessly — and the portability
-    test now asserts `typeof entry.pattern === "string"`, which catches the
-    realistic shape at source.
-  - `subagent-report-conformance.mjs`: a catch comment overstates its trigger
-    (claims non-UTF8 content, which `readFileSync` does not throw on); a
-    redundant `raw ? … : []` branch; and with two `## Exit:` headings the first
-    governs. Worst case for the last is one wasted round trip.
-  - The `## Exit:` trigger will false-positive on a subagent that merely
-    *quotes* the protocol — plausible in this repo now. Bounded to one blocked
-    stop by the `stop_hook_active` guard. If it becomes annoying, require the
-    heading within the first few lines rather than anywhere in the message.
-  - The `mainCheckout` / `worktreeRoot` divergence comment sits above
-    `worktreeRoot` with no forward pointer from `mainCheckout`.
-  - The design spec's hook-1 description names neither the worktree-boundary
-    branch nor the run-directory allowance; `CONTRACT.md` and the code comments
-    both carry the behaviour.
-  - `ADAPTER.md` lists `ci-minutes` as an exclusive resource with no
-    `adapter.json` entry. Now marked as a human-observed policy rather than a
-    hook-enforced lease; no fake entry was invented for it.
-- **Why not fixed here:** each is cosmetic or needs an unrealistic input, and
-  the branch already ran two fix waves. Recorded rather than dropped because
-  the ledger holding them was deleted at teardown — which is exactly the
-  failure this protocol's promotion gate exists to prevent.
-- **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
@@ -694,6 +643,58 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-67 — The AI quota metered REQUESTS, so a 32-step answer cost the same allowance as a one-step one — RESOLVED, by settling the real round-trip cost after the call
+- **Severity (as filed):** correctness (the control did not bound the thing it exists to bound)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas`, new `aiStepQuotas`, new `settleAiSteps`, `pgCounters`), `apps/web/src/server/ai/handleAiRequest.ts` (the quota charge and the two `buildAiMeta` sites)
+- **Symptom (as filed):** every policy was a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000. `handleAiRequest` runs a tool-using loop with a 32-step budget, so one request could burn 32 model round-trips while another burned one, and both decremented the same allowance by exactly 1.
+- **Reproduced before fixing**, against the unmodified module:
+  ```
+  1-step  request charged ai-hourly: 1
+  32-step request charged ai-hourly: 1
+  per-user hourly ceiling (requests): 30
+  model round-trips that ceiling actually permits: 960
+  ```
+  The nominal ceiling of 30 was really a ceiling of **960**, and an actor maximising spend under it only had to write prompts that provoked long tool loops.
+- **Fix (2026-08-29):** a second, **additive** layer of policies metered in model round-trips — `ai-steps-hourly` / `ai-steps-daily`, per-user 240/800 and global 2400/8000, all four operator-overridable via `AI_STEP_LIMIT_*`. The request policies keep their numbers and their meaning, so no operator's configured value silently changed unit, and a request is refused if it exceeds **either** layer — this can only tighten the ceiling, never loosen it. Measured effect: the most expensive loop an actor can drive now buys **240** round-trips an hour instead of 960, a 4× cut in maximum spend, while ordinary use (most answers finish in one to three steps) stays nowhere near the ceiling.
+- **The shape change the entry identified, resolved explicitly.** You cannot pre-authorise an unknown cost — the step count does not exist until `generateText` returns. So admission charges 1 (enough to refuse an actor already over), and `settleAiSteps` charges the remainder afterwards from `meta.steps`. Two consequences, both deliberate and both stated in the code:
+  - **The request that crosses the line mid-flight is served, and its debt lands on the actor's counter.** Failing after the provider has already been paid burns the money *and* withholds the answer. Enforcement therefore lands on the **next** request, and the ceiling can be overshot by at most one request's step budget. Bounded overshoot on a spend ceiling is the right trade; an unbounded one would not be.
+  - **Settlement never refuses and never throws.** The work is done, so there is no decision left, and a counter write must not turn a successful answer into an error the caller sees. A failed settlement loses that request's excess from the ledger — one window of under-counting, the same magnitude the counter table's schema comment already accepts — and it is also what makes an int4 overflow at the top of the range harmless.
+- **Steps, not tokens, and why.** `meta.usage.totalTokens` is the truer cost signal and the entry named it, but a token budget has to answer "per token or per currency?" the moment two models differ in price — a product decision. Steps are the driver `TODO.md` already names (*"Watch `meta.steps` — that is the cost driver, and it is already instrumented"*), are bounded and model-independent, and are within a small constant factor of tokens for this handler's fixed-size envelope. Changing the denominator later is a change to four numbers and one argument, not to the mechanism.
+- **Geocode was named in this entry and deliberately left alone.** One request to `/api/geocode` is exactly one LocationIQ lookup, so calls and cost are the same quantity there and a cost-proportional charge would be `1` every time. The geocode key's real unmetered exposure is a different defect and is filed separately as **KI-77**: the AI handler's own server-side enrichment geocodes without consulting the geocode policy at all. A missing call site, not a wrong denominator.
+- **Verified:** 15 new unit cases in `quota.test.ts` (including the 960 → 240 loop, the bounded-overshoot-then-refuse sequence, and clamping of a nonsensical step count) and 3 new integration cases in `quota.int.test.ts` covering the upsert's new multi-unit charge through both branches — a new window must start **at** the charge, not at 1, or a 32-step request would be free whenever it happened to open its window. `apps/web` server unit suite 246/246, `quota.int.test.ts` 10/10, AI + geocode route integration 36/36.
+- **Not changed, on purpose:** `packages/contracts/src` is untouched (invariant #5), and the AI request pipeline is not refactored — M16 rebuilds the AI read path on a new endpoint, so this is confined to quota accounting.
+- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4). **Resolved:** 2026-08-29.
+
+### KI-62 — Report-conformance checked the wrong unit's report when units ran concurrently — RESOLVED, and the real mechanism was worse than filed
+- **Severity (as filed):** unknown-until-observed (could make the hook inert exactly where the protocol is used)
+- **Area:** `scripts/hooks/subagent-report-conformance.mjs`
+- **Symptom (as filed):** the hook walked backwards through `transcript_path` for the last assistant text block; with concurrent units their entries were expected to interleave, so the block found at a given `SubagentStop` might belong to a different unit.
+- **Settled by measurement, which is what the entry asked for.** Two subagents were dispatched concurrently with the hook instrumented to log its payload and its selection. Both ran real multi-step work; one finished while the other was still going, so their stops genuinely interleaved. At **both** `SubagentStop` events:
+  - `transcript_path` was the **parent session's** transcript — the identical path for both units;
+  - the last assistant text block in it was an unrelated message from the orchestrator's own earlier turn (`"Five cloud agents running, 19 of 34 open KIs, five PRs…"`);
+  - `/^##\s*Exit:/m` therefore did not match, and the hook **silently exited 0. Twice.**
+- **So the hypothesis was close but wrong in the way that matters.** The units' entries were not in the parent transcript to interleave at all — each unit gets its own file. The hook was not checking the wrong unit's report; **it was not checking any report at all**, and had not been since it landed. The entry's severity guess ("could make the hook inert exactly where the protocol is used") was exactly right; its mechanism was not.
+- **The payload already carried the answer, in two fields nothing read:** `last_assistant_message` — the stopping unit's final message, verbatim, as a string — and `agent_transcript_path`, that unit's own transcript (`<session>/subagents/agent-<id>.jsonl`), distinct per unit. Both were present on both stops.
+- **Fix (2026-08-29):** prefer `last_assistant_message` (no file read, no backwards walk, no way to pick up a neighbour's text), fall back to `agent_transcript_path`, and keep `transcript_path` only as a last resort for a Claude Code build supplying neither. It is known to select the wrong text when subagents are involved, so it is tried last, never first.
+- **Verified:** 5 new cases in `scripts/hooks/__tests__/subagent-report-conformance.test.mjs` built from the reproduction's exact shape — one parent transcript, two units, one conforming report and one not, each judged on its own. Confirmed red-then-green: with the fix stashed, 4 of the new cases fail; with it applied, the file is 18/18 and the whole hook suite is 122/122 → 132/132.
+- **The backstop named in the entry is still there** — `/dispatch` step 4's "confirm `reports/<unit-id>.md` exists" — and is now a second line rather than the only one.
+- **First noted:** 2026-08-28, final review of the subagent protocol branch. **Resolved:** 2026-08-29.
+
+### KI-63 — Small subagent-protocol defects found in review and consciously left — RESOLVED
+- **Severity:** cleanup
+- **Area:** `scripts/hooks/resource-lease.mjs`, `scripts/hooks/subagent-report-conformance.mjs`, `scripts/hooks/lib/run-context.mjs`, `docs/specs/2026-08-28-subagent-operating-contract-design.md`, `.claude/protocol/ADAPTER.md`
+- **What was fixed (2026-08-29), item by item, in the order the entry listed them:**
+  - **`resource-lease.mjs` did not validate `entry.resource` / `entry.symptom`.** Both are interpolated into the `ask` message and `resource` also indexes `leases`, so an adapter entry whose value is an object with `toString` **and** `valueOf` shadowed by non-callables — expressible in plain JSON — threw `Cannot convert object to primitive value` out of a `PreToolUse` hook, breaking every Bash command in the repo until someone found the adapter file. Both are now type-checked, and the loop `continue`s rather than crashing. Three new cases pin it, including one proving a **well-formed sibling entry is still enforced** after a malformed one is skipped — failing open on a bad entry must not disarm the rest of the list. Red-then-green confirmed: 3 of 3 fail with the fix stashed.
+  - **The catch comment overstated its trigger.** It claimed "non-UTF8 content", which `readFileSync(…, "utf8")` does not throw on — it substitutes U+FFFD. Corrected to the two things that do throw.
+  - **The redundant `raw ? … : []` branch is gone.** `"".split("\n")` yields `[""]`, whose `JSON.parse` throws into the loop's own `continue`, so an empty transcript never needed a special case.
+  - **With two `## Exit:` headings the first governed, silently.** A report that quoted the template's `## Exit: DONE` above its own `## Exit: BLOCKED` validated as DONE and was never asked for the two extra sections BLOCKED requires. Every heading is now collected: one is the normal case, several that agree is harmless, several that **disagree** is named as a real ambiguity for the unit to resolve — and if BLOCKED appears at all, its sections are required. Two new cases pin both halves.
+  - **The `mainCheckout` / `worktreeRoot` divergence comment had no pointer from the `mainCheckout` end**, so whichever resolver you landed on first told you nothing about the choice. `mainCheckout` now carries its own doc comment pointing at the long one.
+  - **The design spec's hook-1 description named neither the worktree-boundary branch nor the run-directory allowance.** Both are now described, including why the allowance is narrowed to the unit's *own* report plus `notes/` (permitting the whole run directory let one unit overwrite another's report) and why both checks are `sep`-terminated rather than bare prefixes. Hook 3's description, which said it "Reads `transcript_path`", is corrected in the same pass — see KI-62.
+  - **`ADAPTER.md`'s `ci-minutes` row** already reads *"Human-observed policy, not a hook-enforced lease"* with no invented `adapter.json` entry, which is what the entry said it wanted. No change needed; verified rather than assumed.
+- **Deliberately still not fixed, and why.** The `## Exit:` trigger can still false-positive on a subagent that merely *quotes* the protocol. The entry itself scopes that fix as conditional (*"If it becomes annoying, require the heading within the first few lines"*), it is bounded to one blocked stop by the `stop_hook_active` guard, and tightening the trigger risks making the hook inert again — which, per KI-62, is exactly what it has just been rescued from. Left as filed, on purpose.
+- **Verified:** `node --test "scripts/**/__tests__/**/*.test.mjs"` — 132/132, up from 122, with every new case confirmed failing against the unfixed code first.
+- **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch. **Resolved:** 2026-08-29.
 
 ### KI-75 — `m10-map-rail.spec.ts` skips a day about half the time, and a different day each time — RESOLVED, the scan was asserting an unthrottled model of a throttled feature
 - **Severity:** reliability (no product impact — the rail behaves as designed; it made "the full e2e suite is green" an unreliable signal, which is what a milestone gate rests on)
