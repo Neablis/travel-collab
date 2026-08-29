@@ -7,9 +7,10 @@ import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
 import { useFocus } from "../trip/context/FocusProvider";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
-import { calendarCityCards } from "./calendarCityCards";
+import { calendarCityCards, type CityCard } from "./calendarCityCards";
 import { formatMoney } from "./formatMoney";
-import { toClockRange } from "@/lib/time";
+import { formatTripDate } from "@/lib/formatDate";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
 
@@ -122,6 +123,36 @@ function DayGrip({ accent }: { accent: AccentFamily }) {
   );
 }
 
+/**
+ * The cell's accessible name.
+ *
+ * `aria-label` on a button REPLACES its content for assistive technology, so
+ * everything the cell renders — the date, every city card, its stop count, cost,
+ * window and `N to book`, and the untitled bucket — was announced as nothing at
+ * all. The label used to be just "Day 8, Kyoto", which was survivable when a
+ * cell showed one city and no numbers, and stopped being so when M18 gave it
+ * several cards and a flag. Found by CodeRabbit on PR #89.
+ *
+ * Built rather than dropped: removing the label would let the button fall back
+ * to its text content, which reads the day number, "Day N" and every card's
+ * text as one unpunctuated run. The commas here are what make it a sentence.
+ */
+function cellLabel(ordinal: number, date: string, cards: CityCard[], currency: string): string {
+  const head = `Day ${ordinal}, ${formatTripDate(date)}`;
+  if (cards.length === 0) return `${head}. Nothing planned yet`;
+  const parts = cards.map((card) => {
+    const bits = [
+      card.city ?? "No place set",
+      `${card.stops} stop${card.stops === 1 ? "" : "s"}`,
+      card.costMinor !== null ? formatMoney(card.costMinor, currency) : null,
+      card.window ? `${toClockLabel(card.window.start)} to ${toClockLabel(card.window.end)}` : null,
+      card.toBook > 0 ? `${card.toBook} to book` : null,
+    ].filter((b): b is string => b !== null);
+    return bits.join(", ");
+  });
+  return `${head}. ${parts.join(". ")}`;
+}
+
 export function CalendarLens({
   detail,
   // Restyle only: the prop stays in the signature for API consistency with
@@ -192,7 +223,6 @@ export function CalendarLens({
     }
 
     const ordinal = cell.ordinal;
-    const day = days[ordinal - 1];
     const accent = accents[ordinal - 1] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
     // Calendar no longer lists activities. A cell carries one card per city the
     // day touches, each summarising its own stops, plus a final untitled bucket
@@ -224,7 +254,7 @@ export function CalendarLens({
         variant="ghost"
         data-testid="calendar-cell"
         data-in-trip={true}
-        aria-label={`Day ${ordinal}${day?.city ? `, ${day.city}` : ""}`}
+        aria-label={cellLabel(ordinal, cell.date, cityCards, detail.currency)}
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
         className={cn(
@@ -433,7 +463,22 @@ export function CalendarLens({
               aria-label={`Trip calendar, ${month.label}`}
               className="grid gap-px overflow-hidden border border-hairline bg-hairline"
               // eslint-disable-next-line no-restricted-syntax -- dc.html:663's 10px grid radius has no token equivalent, and the 144px column floor is measured from the widest line a cell renders
-              style={{ ...GRID_RADIUS, gridTemplateColumns: "repeat(7, minmax(144px, 1fr))" }}
+              style={{
+                ...GRID_RADIUS,
+                gridTemplateColumns: "repeat(7, minmax(144px, 1fr))",
+                // The grid must claim its own intrinsic width, or the floor
+                // above does nothing: a grid is sized by its container, so the
+                // element stayed 363px wide while its tracks needed 1008px, and
+                // `overflow-hidden` (which is here for the 10px radius) CLIPPED
+                // the last four columns instead of overflowing them — the
+                // wrapper's scrollWidth equalled its clientWidth, so there was
+                // nothing to scroll and Thursday through Saturday were simply
+                // unreachable on a phone. Found by CodeRabbit on PR #89; the
+                // browser check that missed it had only measured cell width and
+                // that the page body did not scroll, never that a later column
+                // could actually be reached.
+                minWidth: "calc(7 * 144px + 6 * 1px)",
+              }}
             >
               {WEEKDAY_LABELS.map((label) => (
                 <div

@@ -121,7 +121,7 @@ describe("CalendarLens", () => {
   // (dc.html:663-696) — it does not replace them (that was 8b.5's gap).
   it("shows Day N, city, and the stop-count/time-range summary on an in-trip cell", () => {
     renderLens(detailFixture());
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
     expect(cell.textContent).toContain("Day 1");
     expect(cell.textContent).toContain("Rome");
     // TWO cards, not one: Rome's two stops, and the unlocated flight home in
@@ -144,7 +144,7 @@ describe("CalendarLens", () => {
   // naming individual stops here is the thing the redesign removed.
   it("names no individual stop — the cell summarises, it does not list", () => {
     renderLens(detailFixture());
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
 
     expect(within(cell).queryAllByTestId("calendar-chip")).toHaveLength(0);
     expect(cell.textContent).not.toContain("Colosseum tour");
@@ -171,7 +171,7 @@ describe("CalendarLens", () => {
         ),
       }),
     );
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
 
     expect(cell.textContent).toContain("9 stops");
     expect(cell.textContent).not.toContain("Stop 1");
@@ -211,7 +211,7 @@ describe("CalendarLens", () => {
       },
     });
     renderLens(detail);
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
     expect(cell.textContent).toContain("9 am – 5 pm");
     expect(cell.textContent).not.toContain("11 am");
   });
@@ -235,7 +235,7 @@ describe("CalendarLens", () => {
       },
     });
     renderLens(detail);
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
     expect(cell.textContent).toContain("1 stop");
     expect(cell.textContent).not.toContain("1 stops");
     expect(cell.textContent).not.toContain("·");
@@ -243,7 +243,7 @@ describe("CalendarLens", () => {
 
   it("clicking an in-trip cell calls setFocusedDay with the 0-based day index", async () => {
     renderLens(detailFixture());
-    await userEvent.click(screen.getByRole("button", { name: /Day 1, Rome/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Day 1,/ }));
     // cell.ordinal is 1 (1-based) → setFocusedDay(0).
     expect(screen.getByTestId("focused-day").textContent).toBe("0");
   });
@@ -301,7 +301,7 @@ describe("CalendarLens", () => {
 
   it("puts the day tint on the inner card, not the cell button", () => {
     renderLens(detailFixture());
-    const button = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const button = screen.getByRole("button", { name: /^Day 1,/ });
     expect(button.className).toMatch(/bg-surface/);
     expect(button.className).not.toMatch(/-tint\b/);
     // Several cards per cell now (one per city, plus the untitled bucket), so
@@ -323,7 +323,7 @@ describe("CalendarLens", () => {
   // wired to the visible markup either.
   it("shows the city in the day card header", () => {
     renderLens(detailFixture());
-    const cell = screen.getByRole("button", { name: /Day 1, Rome/ });
+    const cell = screen.getByRole("button", { name: /^Day 1,/ });
     const [romeCard, bucketCard] = within(cell).getAllByTestId("calendar-day-card");
     expect(within(romeCard!).getByTestId("calendar-day-header").textContent).toContain("Rome");
     // The untitled bucket's header carries the grip and NO city text — an
@@ -340,9 +340,9 @@ describe("CalendarLens", () => {
   // independently of whatever actually renders inside it — this assertion
   // could never fail even if the visible "Day N" span were deleted entirely.
   // Query the visible label element itself instead.
-  it("renders Day N on the right for in-trip days only, never for out-of-trip days", () => {
+  it("renders the Day N label for in-trip days only, never for out-of-trip days", () => {
     renderLens(detailWithEmptyDay());
-    const day1Cell = screen.getByRole("button", { name: /^Day 1$/ });
+    const day1Cell = screen.getByRole("button", { name: /^Day 1,/ });
     expect(within(day1Cell).getByTestId("calendar-day-label").textContent).toBe("Day 1");
     const outOfTrip = screen
       .getAllByTestId("calendar-cell")
@@ -446,6 +446,36 @@ describe("CalendarLens", () => {
       renderLens(detail);
       // Rome is settled, so only Florence's card carries a flag.
       expect(screen.getAllByTestId("calendar-to-book").map((f) => f.textContent)).toEqual(["1 to book"]);
+    });
+
+    // aria-label on a button REPLACES its content for assistive technology, so
+    // everything these cards render has to be in the label or it is announced as
+    // nothing at all. Found by CodeRabbit on PR #89, after M18 gave a cell
+    // several cards and a flag where it previously had one city and no numbers.
+    it("puts every card's content into the cell's accessible name", () => {
+      renderLens(travelDayDetail());
+      const cell = screen.getByRole("button", { name: /^Day 1,/ });
+      const label = cell.getAttribute("aria-label") ?? "";
+      // Both cities, not just the day's own — a multi-city day used to announce
+      // one of them and silently drop the rest.
+      expect(label).toContain("Rome");
+      expect(label).toContain("Florence");
+      expect(label).toContain("2 stops");
+      expect(label).toContain("1 to book");
+    });
+
+    it("names the unplaced bucket in the accessible name rather than omitting it", () => {
+      renderLens(detailFixture());
+      const label = screen.getByRole("button", { name: /^Day 1,/ }).getAttribute("aria-label") ?? "";
+      expect(label).toContain("Rome");
+      // The bucket has no city, so it needs words rather than a blank.
+      expect(label).toContain("No place set");
+    });
+
+    it("says a day is empty rather than announcing only its number", () => {
+      renderLens(detailWithEmptyDay());
+      const label = screen.getByRole("button", { name: /^Day 1,/ }).getAttribute("aria-label") ?? "";
+      expect(label).toContain("Nothing planned yet");
     });
 
     it("gives an unplaced stop its own card with no city in the header", () => {
