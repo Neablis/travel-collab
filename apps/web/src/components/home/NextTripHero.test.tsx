@@ -346,7 +346,7 @@ describe("NextTripHero", () => {
   // uses, so the hero and the Calendar can never disagree about one trip.
   it("counts the trip's unbooked stops in the second stat tile", async () => {
     const trip = tripSummaryFixture();
-    const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit") => ({
+    const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit", tags: ("meal" | "lodging" | "ticketed" | "outdoors")[] = []) => ({
       activityId: id,
       title: id,
       timeWindow: null,
@@ -354,29 +354,40 @@ describe("NextTripHero", () => {
       notes: null,
       anchors: [],
       kind,
-      tags: [],
+      tags,
       cost: null,
     });
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
       value: tripDetailFixture({
         tripId: trip.tripId,
-        days: [{ dayId: "d1", activityIds: ["a", "b", "c", "d"], date: "2027-06-01", costSubtotal: 0 }],
+        // Every one of the five kinds, so a regression that stops counting any
+        // single one fails here. `hold` in particular was missing while the
+        // expected value was 2, and dropping it would still have read 2.
+        days: [{ dayId: "d1", activityIds: ["a", "b", "c", "d", "e", "f"], date: "2027-06-01", costSubtotal: 0 }],
         activities: {
           a: stop("a", "booked"),
           b: stop("b", "transit"),
           c: stop("c", "idea"),
+          // A plain `planned` stop does NOT count — the default is not a
+          // decision. Tagged `ticketed`, it does.
           d: stop("d", "planned"),
+          e: stop("e", "hold"),
+          f: stop("f", "planned", ["ticketed"]),
         },
       }),
     });
     render(<NextTripHero trip={trip} />);
 
-    const tiles = await screen.findAllByTestId("stat-tile");
+    // The tiles exist on the FIRST render, before the fetch resolves, so
+    // findAllByTestId returns while `notBooked` is still null and the tile
+    // reads "—". Wait for the resolved count itself, not for the tile.
+    const tiles = screen.getAllByTestId("stat-tile");
     const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
     expect(bookingTile).toBeTruthy();
-    // c and d only: `booked` is done and `transit` is not a thing you book here.
-    expect(within(bookingTile!).getByText("2")).toBeTruthy();
+    // c (idea), e (hold) and f (planned + ticketed). Not a (booked),
+    // not b (transit), and not d — a plain `planned` stop owes nothing.
+    await waitFor(() => expect(within(bookingTile!).getByText("3")).toBeTruthy());
     expect(tiles.some((tile) => /days planning/i.test(tile.textContent ?? ""))).toBe(false);
   });
 
@@ -385,7 +396,7 @@ describe("NextTripHero", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     render(<NextTripHero trip={trip} />);
 
-    const tiles = await screen.findAllByTestId("stat-tile");
+    const tiles = screen.getAllByTestId("stat-tile");
     const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
     expect(within(bookingTile!).getByText("—")).toBeTruthy();
   });

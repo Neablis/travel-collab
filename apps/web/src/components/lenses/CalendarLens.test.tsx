@@ -414,7 +414,7 @@ describe("CalendarLens", () => {
         startDate: "2027-06-01",
         days: [{ dayId: day1, activityIds: [rome, forum, flight], date: "2027-06-01", costSubtotal: 0 }],
         activities: {
-          [rome]: activity(rome, "Breakfast", "Rome", { start: "07:00", end: "07:40" }, "planned"),
+          [rome]: activity(rome, "Dinner", "Rome", { start: "07:00", end: "07:40" }, "hold"),
           [forum]: activity(forum, "Train to Florence", "Florence", { start: "08:20", end: "10:35" }, "transit"),
           [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "idea"),
         },
@@ -434,8 +434,9 @@ describe("CalendarLens", () => {
     it("counts what needs booking per city card, excluding transit", () => {
       renderLens(travelDayDetail());
       const flags = screen.getAllByTestId("calendar-to-book");
-      // Rome: breakfast (planned). Florence: the Uffizi (idea) — the train is
-      // transit, which SPEC §12 excludes from the count.
+      // Rome: the dinner on hold. Florence: the Uffizi (idea). The train is
+      // transit and is excluded. See lib/needsBooking.ts — a plain `planned`
+      // stop would count for neither.
       expect(flags.map((f) => f.textContent)).toEqual(["1 to book", "1 to book"]);
     });
 

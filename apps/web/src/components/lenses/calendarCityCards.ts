@@ -23,9 +23,10 @@ export type CityCard = {
   /** The group's first start time. */
   firstStart: string | null;
   /**
-   * Stops in this group whose kind is neither `booked` nor `transit` — SPEC
-   * §12's `N to book`. Always a number; `CalendarLens` renders the flag only
-   * when it is > 0, so "nothing to book" is 0 rather than null.
+   * Stops in this group that still need booking — SPEC §12's `N to book`, by
+   * the narrower rule in `needsBooking` (hold, idea, and ticketed-but-unbooked;
+   * NOT every `planned` stop). Always a number; `CalendarLens` renders the flag
+   * only when it is > 0, so "nothing to book" is 0 rather than null.
    */
   toBook: number;
 };
@@ -111,9 +112,9 @@ export function calendarCityCards(
   return groups.map((g) => summarise(g.city, g.stops));
 }
 
-/** SPEC §12: "every stop whose kind is neither `booked` nor `transit`". */
+/** See `needsBooking` — narrower than SPEC §12's literal wording, and why. */
 function unbookedCount(stops: ActivityView[]): number {
-  return stops.filter((s) => needsBooking(s.kind)).length;
+  return stops.filter((s) => needsBooking(s)).length;
 }
 
 /** One group of a day's stops, reduced to the card `CalendarLens` draws. */

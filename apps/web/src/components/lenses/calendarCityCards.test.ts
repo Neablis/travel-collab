@@ -8,6 +8,7 @@ function stop(
   window: { start: string; end: string } | null,
   costMinor?: number,
   kind: ActivityView["kind"] = "planned",
+  tags: ActivityView["tags"] = [],
 ): ActivityView {
   return {
     activityId: id,
@@ -17,7 +18,7 @@ function stop(
     notes: null,
     anchors: [],
     kind,
-    tags: [],
+    tags,
     cost: costMinor === undefined ? null : { amountMinor: costMinor, currency: "USD" },
   };
 }
@@ -52,7 +53,7 @@ describe("calendarCityCards", () => {
         window: { start: "09:00", end: "14:30" },
         span: { from: expect.closeTo(0.125, 3), to: expect.closeTo(0.469, 3) },
         firstStart: "09:00",
-        toBook: 2,
+        toBook: 0,
       },
     ]);
   });
@@ -78,21 +79,52 @@ describe("calendarCityCards", () => {
     expect(cards[1]!.window).toEqual({ start: "11:00", end: "16:00" });
   });
 
-  // SPEC §12: "Counted as unbooked: every stop whose kind is neither `booked`
-  // nor `transit`." Per card, not per day — the flag lives in the city card.
+  // The `N to book` rule, narrower than SPEC §12's literal "every stop whose
+  // kind is neither `booked` nor `transit`" — that wording flagged 50 of the
+  // Japan fixture's 72 stops, including every coffee and every free shrine.
+  // Mitchell, 2026-08-29. See `lib/needsBooking.ts` for the full reasoning.
   describe("the unbooked count", () => {
-    it("counts stops that are neither booked nor transit", () => {
+    it("counts hold and idea, which a user set deliberately to mean unsettled", () => {
       const { day, activities } = dayOf([
         stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
         stop("maybe", "Kyoto", { start: "17:00", end: "18:00" }, undefined, "idea"),
         stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }, undefined, "hold"),
-        stop("walk", "Kyoto", { start: "21:30", end: "22:00" }),
       ]);
 
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(3);
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(2);
     });
 
-    it("is zero, not null, when every stop is booked or transit", () => {
+    it("does NOT count a plain `planned` stop — the default is not a decision", () => {
+      // A morning coffee and a walk through a shrine are `planned` because
+      // nothing said otherwise. Neither owes anyone a booking.
+      const { day, activities } = dayOf([
+        stop("coffee", "Kyoto", { start: "08:00", end: "08:30" }),
+        stop("shrine", "Kyoto", { start: "09:00", end: "11:00" }, undefined, "planned", ["outdoors"]),
+      ]);
+
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+    });
+
+    it("DOES count a `planned` stop tagged `ticketed` — the tag's own designed power", () => {
+      // The handoff's TAGS table: "Ticketed — Wants a booking date. The
+      // assistant keeps asking until there is one."
+      const { day, activities } = dayOf([
+        stop("museum", "Kyoto", { start: "10:00", end: "12:00" }, undefined, "planned", ["ticketed"]),
+        stop("coffee", "Kyoto", { start: "13:00", end: "13:30" }, undefined, "planned", ["meal"]),
+      ]);
+
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(1);
+    });
+
+    it("does not count a ticketed stop that is already booked", () => {
+      const { day, activities } = dayOf([
+        stop("museum", "Kyoto", { start: "10:00", end: "12:00" }, undefined, "booked", ["ticketed"]),
+      ]);
+
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+    });
+
+    it("is zero, not null, when nothing on the day needs booking", () => {
       const { day, activities } = dayOf([
         stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
         transit("bus", "Kyoto", { start: "14:00", end: "14:40" }),

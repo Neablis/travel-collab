@@ -93,11 +93,11 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // (Task 6) — now that it's backed by real data, it renders for real, not
   // as a preview.
   const [conflictCount, setConflictCount] = useState<number | null>(null);
-  // The second stat tile's "not booked" count, off the same TripDetail fetch —
-  // stops whose kind is neither `booked` nor `transit`, via the one shared
-  // `needsBooking` predicate the Calendar's per-day `N to book` flag also uses,
-  // so the two never disagree about the same trip. `null` is the same "nothing
-  // honest to say yet" as its neighbours above.
+  // The second stat tile's "not booked" count, off the same TripDetail fetch,
+  // via the one shared `needsBooking` predicate the Calendar's per-day
+  // `N to book` flag also uses — so the two never disagree about the same trip.
+  // That predicate is narrower than SPEC §12's literal wording and says why.
+  // `null` is the same "nothing honest to say yet" as its neighbours above.
   const [notBooked, setNotBooked] = useState<number | null>(null);
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         setStartDate(detail.startDate);
         setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
         setConflictCount(detail.conflicts.length);
-        setNotBooked(Object.values(activities).filter((a) => needsBooking(a.kind)).length);
+        setNotBooked(Object.values(activities).filter((a) => needsBooking(a)).length);
       } else {
         setSparkline({ status: "error" });
       }
