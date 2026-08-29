@@ -63,8 +63,30 @@ export default [
     // the threat this closes is a second SERVER-SIDE entry point (M16's `/ask`
     // endpoint) constructing its own gateway client and bypassing the
     // ai-live flag, not a UI import.
+    //
+    // `src/proxy.ts` and `src/lib/authConfig.ts` are ALSO in `ignores` here —
+    // not because either would ever import the gateway, but because ESLint
+    // flat config REPLACES a rule's options for the last matching block
+    // rather than merging them (the AUTH-CONFIG WALL block below documents
+    // this same mechanic, for the same reason). Both files are ignored by
+    // that block, which means IT never re-asserts the domain/server wall for
+    // them — block 1 above is what does, and this block sits between block 1
+    // and it. Left unignored here, this block would become the last one to
+    // match those two files and its gateway-only pattern would silently
+    // replace, not add to, block 1's domain/server restriction — exactly
+    // the regression a review caught: `proxy.ts` and `authConfig.ts` losing
+    // the `@tc/domain`/`@/server/*` wall entirely, invisible because nothing
+    // fixtured either path. ADR-024 requires `proxy.ts` held to the same
+    // standard as any other UI file; this ignore is what keeps that true
+    // once a block sits between the wall that sets it and the block that
+    // deliberately skips re-asserting it.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/server/ai/modelSelection.ts", "src/server/ai/modelSelection.test.ts"],
+    ignores: [
+      "src/server/ai/modelSelection.ts",
+      "src/server/ai/modelSelection.test.ts",
+      "src/proxy.ts",
+      "src/lib/authConfig.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",

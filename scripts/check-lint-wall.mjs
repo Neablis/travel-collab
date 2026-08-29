@@ -72,29 +72,60 @@ if (gateway.passed) {
   console.log("lint wall OK: @/server/ai/gateway import outside modelSelection.ts correctly rejected");
 }
 
+// Some assertions below check "this exact real file's effective config",
+// which a fixture cannot express — a fixture is, by construction, a file at
+// some OTHER path. `--print-config` reports the no-restricted-imports rule
+// ESLint would actually apply to a given real file; this reads its
+// `patterns` array (or `[]` if the rule doesn't apply to that file at all —
+// several blocks ignore all of src/server/**, so absence is a valid "not
+// restricted" answer, not a script bug).
+function noRestrictedImportPatterns(relativePath) {
+  const printed = execSync(`pnpm --filter web exec eslint --print-config ${relativePath}`, {
+    cwd: "apps/web",
+    stdio: "pipe",
+  }).toString();
+  const resolvedConfig = JSON.parse(printed);
+  const restrictedImports = resolvedConfig.rules?.["no-restricted-imports"];
+  return Array.isArray(restrictedImports?.[1]?.patterns) ? restrictedImports[1].patterns : [];
+}
+
+function restricts(patterns, importPath) {
+  return patterns.some((p) => (p.group ?? []).some((g) => g === importPath || g.includes(importPath)));
+}
+
 // The positive half of the gateway wall: modelSelection.ts itself must stay
-// importable. A fixture can't cover this — a fixture is, by construction, a
-// file at some OTHER path, and the exemption is keyed on this exact path
-// (apps/web/eslint.config.mjs's `ignores`). So this asserts against ESLint's
-// own resolved config for that real file instead: `--print-config` reports
-// the no-restricted-imports rule ESLint would actually apply to it, and the
-// exemption holds iff that rule (if present at all — the domain/UI walls
-// also ignore all of src/server/**, so it may be entirely absent) carries no
-// pattern matching @/server/ai/gateway. Without this half, "wall rejects the
-// forbidden fixture" alone can't distinguish a scoped chokepoint from a
-// blanket ban on the import everywhere — the same gap the @tc/predict case
-// above exists to close for the domain wall.
-const printed = execSync("pnpm --filter web exec eslint --print-config src/server/ai/modelSelection.ts", {
-  cwd: "apps/web",
-  stdio: "pipe",
-}).toString();
-const resolvedConfig = JSON.parse(printed);
-const restrictedImports = resolvedConfig.rules?.["no-restricted-imports"];
-const patterns = Array.isArray(restrictedImports?.[1]?.patterns) ? restrictedImports[1].patterns : [];
-const stillRestricted = patterns.some((p) => (p.group ?? []).some((g) => g.includes("@/server/ai/gateway")));
-if (stillRestricted) {
+// importable. Without this half, "wall rejects the forbidden fixture" alone
+// can't distinguish a scoped chokepoint from a blanket ban on the import
+// everywhere — the same gap the @tc/predict case above exists to close for
+// the domain wall.
+const modelSelectionPatterns = noRestrictedImportPatterns("src/server/ai/modelSelection.ts");
+if (restricts(modelSelectionPatterns, "@/server/ai/gateway")) {
   console.error("LINT WALL TOO STRICT: modelSelection.ts is restricted from importing its own gateway");
   process.exitCode = 1;
 } else {
   console.log("lint wall OK: modelSelection.ts (the sole exempt file) is not restricted from importing the gateway");
+}
+
+// Regression coverage for a Critical caught in review: the gateway wall block
+// sits between the domain/UI wall and the auth-config wall in
+// eslint.config.mjs. Both `src/proxy.ts` and `src/lib/authConfig.ts` are
+// ignored by the auth-config wall (so it never re-asserts the domain wall for
+// them) and were, briefly, NOT ignored by the gateway wall block sitting
+// between them and it — meaning the gateway wall's gateway-only pattern
+// became the last (and only) no-restricted-imports config ESLint resolved
+// for those two files, silently REPLACING rather than adding to the
+// domain/server wall block 1 sets (flat config does not merge two blocks'
+// options for the same rule key — see eslint.config.mjs's own comments on
+// this). Fixtures can't be `proxy.ts` or `authConfig.ts` by definition, so
+// this checks the same real-file resolved config the fix depends on staying
+// correct.
+for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
+  const patterns = noRestrictedImportPatterns(path);
+  const hasDomainWall = restricts(patterns, "@tc/domain") && restricts(patterns, "@/server/*");
+  if (!hasDomainWall) {
+    console.error(`LINT WALL BREACHED: ${path} lost the @tc/domain / @/server/* wall`);
+    process.exitCode = 1;
+  } else {
+    console.log(`lint wall OK: ${path} still carries the @tc/domain / @/server/* wall`);
+  }
 }
