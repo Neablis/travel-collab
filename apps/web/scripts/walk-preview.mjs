@@ -157,16 +157,31 @@ const browser = await chromium.launch({
   ...(fallbackChromium ? { executablePath: fallbackChromium } : {}),
 });
 
-const context = await browser.newContext(
-  bypass
-    ? {
-        extraHTTPHeaders: {
-          "x-vercel-protection-bypass": bypass,
-          "x-vercel-set-bypass-cookie": "true",
-        },
-      }
-    : {},
-);
+const context = await browser.newContext();
+
+// The bypass secret goes on requests to the preview origin and nowhere else.
+//
+// The obvious spelling — `newContext({ extraHTTPHeaders })` — is a credential
+// leak, and not a theoretical one: Playwright applies context headers to EVERY
+// request the context makes, and the pages walked here fetch from
+// tiles.openfreemap.org, vercel.live and fonts. All of them would have received
+// a secret that unlocks every protected deployment this project has. `path` also
+// accepts an absolute URL, so one argument was enough to hand it to any host.
+// Routing per request is the fix; it is also why `paths` are origin-checked
+// below rather than trusted.
+const previewOrigin = new URL(target).origin;
+await context.route("**/*", async (route) => {
+  if (!bypass) return route.continue();
+  if (new URL(route.request().url()).origin !== previewOrigin) return route.continue();
+  return route.continue({
+    headers: {
+      ...route.request().headers(),
+      "x-vercel-protection-bypass": bypass,
+      // Covers subresources on this origin without re-signing each one.
+      "x-vercel-set-bypass-cookie": "true",
+    },
+  });
+});
 
 const page = await context.newPage();
 const consoleErrors = [];
@@ -190,7 +205,22 @@ if (isShareUrl) {
 }
 
 for (const path of paths) {
-  const url = new URL(path, target).toString();
+  // An absolute URL is accepted for convenience, but only onto the deployment
+  // being walked. Navigating elsewhere is refused rather than silently walked:
+  // this script exists to look at one deployment, and the routing above is the
+  // only thing keeping the bypass secret off other hosts.
+  let url;
+  try {
+    const resolved = new URL(path, target);
+    if (resolved.origin !== previewOrigin) {
+      throw new Error(`refusing to leave ${previewOrigin} for ${resolved.origin}`);
+    }
+    url = resolved.toString();
+  } catch (e) {
+    console.log(`FAIL ${path}   ${e.message}`);
+    failed += 1;
+    continue;
+  }
   try {
     const res = await page.goto(url, { waitUntil: "domcontentloaded" });
     const status = res?.status() ?? 0;

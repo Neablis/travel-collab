@@ -128,9 +128,21 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
     expect(directive(await cspFor(undefined), "frame-src")).toBe("frame-src 'none'");
   });
 
-  it("an unset VERCEL_ENV (local, CI) is treated as not-preview", async () => {
-    const csp = await cspFor(undefined);
-    expect(csp).not.toContain("vercel.live");
-    expect(csp).not.toContain("pusher.com");
+  // This asserted only that `vercel.live` and `pusher.com` were absent, which
+  // left `https://vercel.com` and `https://assets.vercel.com` free to appear in
+  // a local or CI policy with the test still green (CodeRabbit, PR #80).
+  // Naming all four would fix that case and keep the shape that caused it —
+  // a hand-maintained list of things to check for. Asserting the whole policy
+  // is identical to production cannot fall behind: any origin, on any
+  // directive, in either direction, fails it.
+  it("an unset VERCEL_ENV (local, CI) produces exactly the production policy", async () => {
+    expect(await cspFor(undefined)).toBe(await cspFor("production"));
   });
+
+  it.each(["preview-", "PREVIEW", "prod", "development", " preview"])(
+    "%s is not preview — only the exact value is",
+    async (value) => {
+      expect(await cspFor(value)).toBe(await cspFor("production"));
+    },
+  );
 });
