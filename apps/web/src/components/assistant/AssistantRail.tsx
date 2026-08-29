@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -35,6 +35,7 @@ export function AssistantRail({
   contextLine,
   turns,
   suggestions,
+  restoreDraft = null,
   onAsk,
   onNewConversation,
   asking = false,
@@ -56,6 +57,15 @@ export function AssistantRail({
    * the user may already have had answered.
    */
   suggestions: string[];
+  /**
+   * A question to put back in the composer, or `null`. Set when a turn was
+   * rolled back after being accepted — the two synchronous refusals below keep
+   * the typed prompt by resolving `false`, and this is the same promise kept
+   * for a refusal that arrives from the server a moment later. The board
+   * clears it to `null` before each ask, so the same text rolled back twice
+   * still lands.
+   */
+  restoreDraft?: string | null;
   // Resolves false when the ask was refused before it ever reached the model
   // (unsent edits still queued, or view-only access). The rail keeps the typed
   // prompt in that case — a refusal the user has to retype is a refusal that
@@ -74,6 +84,10 @@ export function AssistantRail({
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
+
+  useEffect(() => {
+    if (restoreDraft !== null) setAsk(restoreDraft);
+  }, [restoreDraft]);
 
   const submitAsk = async () => {
     if (ask.trim() === "" || asking) return;

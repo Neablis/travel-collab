@@ -104,16 +104,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // re-renders; a counter says so and stays deterministic under test, where
   // crypto.randomUUID would not.
   const turnSeq = useRef(0);
-  // Held so "New conversation" can hang up on a turn that is still streaming.
-  // Without it the composer stays disabled behind an answer nobody wants.
+  // Held so "New conversation" — and unmounting — can hang up on a turn that
+  // is still streaming. Without it the composer stays disabled behind an
+  // answer nobody wants, and navigating away mid-answer leaves the read
+  // running and its setState firing into a tree that is gone.
   const askAbort = useRef<AbortController | null>(null);
-  // The scope of every question asked from this page, and the SINGLE source
-  // the rail's context line is worded from (below). They were allowed to be
-  // two derivations of `focusedDay` and that is exactly how a rail says
-  // "Looking at Day 3" while asking the server about the whole trip.
-  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
-  // NUMBER a human reads is +1, and that conversion happens in one place.
-  const askScope: AskScope = focusedDay !== null ? { kind: "day", dayIndex: focusedDay } : { kind: "trip" };
+  // Runs on unmount only, so it must not be keyed on anything that changes.
+  useEffect(() => () => askAbort.current?.abort(), []);
+  // The text of a turn that was rolled back, handed to the rail to put back in
+  // its composer. See the rollback in runAsk for why.
+  const [restoredDraft, setRestoredDraft] = useState<string | null>(null);
   // Collapsed by default (Phase 3's design). The open flag is paired with who
   // opened it, because a drag auto-opens the drawer and must only re-close the
   // ones it opened itself — that rule lives in `rackDisclosure` (a pure
@@ -227,6 +227,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       </PageContainer>
     );
   }
+
+  // THE focused day, clamped to a day that still exists — and the single
+  // value the assistant's scope, its context line and its suggested questions
+  // are all derived from below.
+  //
+  // `focusedDay` outlives the day it points at: FocusProvider holds a bare
+  // index and nothing resets it when a day is removed. Before this clamp the
+  // three consumers disagreed about what a stale index meant — the scope sent
+  // it verbatim, the context line said "Looking at Day N" for a day that no
+  // longer existed, and `suggestedQuestions` (correctly) read it as no focus
+  // at all. The visible result of focusing the last day and then deleting it
+  // was trip-shaped chips that every returned
+  // `this trip has N days, so day N+1 is out of range`, with no way back.
+  //
+  // Clamping to `null` is the same "wider reading is the safer one" call
+  // `parseAskScope` makes server-side for a scope line it cannot parse.
+  const scopedDay = focusedDay !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
+  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
+  // NUMBER a human reads is +1, and that conversion happens in one place.
+  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
 
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
     void dispatch({
@@ -386,6 +406,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     setAskStatus("loading");
     setAskError(null);
     setAskSimulated(false);
+    // Cleared so a second rollback of the SAME text still re-fires the rail's
+    // restore effect — the value has to change for the effect to see it.
+    setRestoredDraft(null);
 
     const controller = new AbortController();
     askAbort.current = controller;
@@ -395,12 +418,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
       setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
 
+    // Accumulated here as well as in the turn, because the `simulated` verdict
+    // has to be readable on the FAILURE path too: a simulated turn that dies
+    // mid-stream leaves a partial answer on screen, and an unbadged partial
+    // answer claims a model wrote it. `askAssistant` only returns the text
+    // when it succeeds, so the stream is the only place both paths can read.
+    let streamed = "";
     const result = await askAssistant(
       tripId,
       posted,
       askScope,
       (event) => {
         if (event.type === "text") {
+          streamed += event.delta;
           patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
         } else if (event.type === "tool") {
           patchAnswer((turn) => ({
@@ -413,11 +443,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     );
     askAbort.current = null;
 
+    // The ai-live flag is off in every Vercel environment, so this is the
+    // deployed path: a real answer, composed from real trip data by the server
+    // rather than by a model, and labelled as such. Read from what the stream
+    // actually revealed, so a half-written simulated answer is still badged.
+    setAskSimulated(answerIsSimulated(streamed));
+
     if (result.ok) {
-      // The ai-live flag is off in every Vercel environment, so this is the
-      // deployed path: a real answer, composed from real trip data by the
-      // server rather than by a model, and labelled as such.
-      setAskSimulated(answerIsSimulated(result.value.text));
       patchAnswer((turn) => ({ ...turn, pending: false }));
       setAskStatus("idle");
       return;
@@ -427,18 +459,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // asked for it. Not an error.
     if (result.error.code === ASK_ABORTED_CODE) return;
 
+
     // A turn that produced no text at all did not happen — drop both halves so
     // the thread stays a conversation rather than accumulating orphan
     // questions, and let the inline error carry the reason. A turn that got
     // PART of an answer out keeps it: the words are on screen already, and
     // deleting them under the user is the worse lie.
-    setThread((current) => {
-      const answer = current.find((t) => t.id === answerId);
-      if (answer !== undefined && answer.text !== "") {
-        return current.map((t) => (t.id === answerId && t.role === "assistant" ? { ...t, pending: false } : t));
-      }
-      return current.filter((t) => t.id !== answerId && t.id !== userTurn.id);
-    });
+    if (streamed !== "") {
+      patchAnswer((turn) => ({ ...turn, pending: false }));
+    } else {
+      setThread((current) => current.filter((t) => t.id !== answerId && t.id !== userTurn.id));
+      // ...and the question goes back in the composer with it. The two
+      // refusals above keep the typed prompt on screen for the reason
+      // AssistantRail's own comment gives — a refusal the user has to retype
+      // reads as the box being broken — and a rolled-back turn is the same
+      // thing arriving later. It is the actionable 400s ("your message must be
+      // 4000 characters or fewer") that make this more than a nicety: being
+      // told to shorten a message you can no longer see is not actionable.
+      setRestoredDraft(text);
+    }
     setAskStatus("error");
     setAskError(askErrorMessage(result.error));
   };
@@ -490,6 +529,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     setAskStatus("idle");
     setAskError(null);
     setAskSimulated(false);
+    setRestoredDraft(null);
   };
 
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
@@ -527,16 +567,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the trip itself. Used to say "Looking at all three of your trips" (a
   // fabricated cross-trip claim from when the whole rail was still a Preview
   // fixture); the fallback has to be honest about the scope the question is
-  // actually asked in, so it is worded FROM `askScope` rather than from a
-  // second reading of `focusedDay`.
+  // actually asked in, so it is worded FROM `askScope` — which is worded from
+  // `scopedDay` — rather than from a second reading of `focusedDay`.
   const assistantContextLine =
     askScope.kind === "day" ? `Looking at Day ${askScope.dayIndex + 1}` : `Looking at ${activeTrip.name}`;
 
   // Derived from the trip in front of the user, never canned — the rules and
   // the reasoning are in suggestedQuestions.ts. Recomputed per render because
   // it is a pure walk of the days and it MUST change when the focused day
-  // does; memoising it on `activeTrip` identity would be the bug.
-  const assistantSuggestions = suggestedQuestions(activeTrip, focusedDay);
+  // does; memoising it on `activeTrip` identity would be the bug. Fed
+  // `scopedDay`, the same value the scope carries, so a question can never be
+  // offered in one scope and asked in another.
+  const assistantSuggestions = suggestedQuestions(activeTrip, scopedDay);
 
   return (
     <>
@@ -684,6 +726,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             contextLine={assistantContextLine}
             turns={thread}
             suggestions={assistantSuggestions}
+            restoreDraft={restoredDraft}
             onNewConversation={startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
             asking={askStatus === "loading"}

@@ -597,3 +597,25 @@ describe("POST /api/trips/:id/ask", () => {
     });
   });
 });
+
+// The UI may not import `@/server/*` (AGENTS.md's dependency rules), so
+// `apiClient.ts` hand-writes these two codes as literals in order to branch on
+// the code rather than on the prose. This file is on the exempt side of that
+// wall and can hold both ends, so a server-side rename fails here instead of
+// silently degrading every client that branches on it back to raw server prose.
+//
+// It asserts the codes are equal AND that they are the strings the deployed
+// clients already parse — equality alone would survive both sides being
+// renamed together, which is exactly the change that breaks a client mid-roll.
+describe("the refusal codes the browser branches on", () => {
+  it("are the same strings on both sides of the UI/server wall", async () => {
+    const client = await import("@/lib/apiClient");
+    const { DEMO_TRIP_UNSUPPORTED_CODE } = await import("@/server/ai/handleAskRequest");
+    const { AI_NOT_ENTITLED_CODE } = await import("@/server/ai/modelSelection");
+
+    expect(client.DEMO_TRIP_UNSUPPORTED_CODE).toBe(DEMO_TRIP_UNSUPPORTED_CODE);
+    expect(client.AI_NOT_ENTITLED_CODE).toBe(AI_NOT_ENTITLED_CODE);
+    expect(DEMO_TRIP_UNSUPPORTED_CODE).toBe("demo-trip-unsupported");
+    expect(AI_NOT_ENTITLED_CODE).toBe("ai-not-entitled");
+  });
+});

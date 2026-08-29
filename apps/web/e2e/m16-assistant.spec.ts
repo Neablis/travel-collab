@@ -70,9 +70,13 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   // Turn 2. The whole thread goes back up, which is what gives a follow-up
   // something to refine (Ruling R1 — conversation state is client-held).
   await page.getByPlaceholder("Ask about this day…").fill("and where is the free time?");
+  // Deliberately the BUTTON, not Enter. The unscheduled rack is `position:
+  // fixed` across the bottom of the viewport and its right-inset compensation
+  // silently matched nothing, so its bar covered the Ask button while the
+  // keyboard path kept working — a defect only a real click can catch.
   const [secondAsk] = await Promise.all([
     page.waitForRequest((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
-    page.keyboard.press("Enter"),
+    page.getByRole("button", { name: "Ask" }).click(),
   ]);
   const secondBody = JSON.parse(secondAsk.postData() ?? "{}") as {
     messages: { role: string; parts: { text: string }[] }[];
@@ -88,4 +92,22 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   await page.getByRole("button", { name: "New conversation" }).click();
   await expect(page.getByRole("log", { name: "Conversation" })).toHaveCount(0);
   await expect(suggestions).toContainText("What's the plan for day 2?");
+
+  // Back to the whole trip. Half of M16's gate is "no day selected, same
+  // question", so this has to be reachable from the UI and not only on a fresh
+  // load — clicking the already-focused chip clears it.
+  const dayTwoChip = page.getByRole("group", { name: "Days" }).getByRole("button").nth(1);
+  await expect(dayTwoChip).toHaveAttribute("aria-pressed", "true");
+  await dayTwoChip.click();
+  await expect(dayTwoChip).toHaveAttribute("aria-pressed", "false");
+  await expect(rail).toContainText(`Looking at ${tripName}`);
+  await expect(suggestions).toContainText("How is the trip looking?");
+
+  await page.getByPlaceholder("Ask about this day…").fill("how is the trip looking?");
+  const [tripAsk] = await Promise.all([
+    page.waitForRequest((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
+    page.keyboard.press("Enter"),
+  ]);
+  expect((JSON.parse(tripAsk.postData() ?? "{}") as { scope: unknown }).scope).toEqual({ kind: "trip" });
+  await expect(log).toContainText("runs to 3 days");
 });

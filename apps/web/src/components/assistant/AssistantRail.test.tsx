@@ -188,4 +188,19 @@ describe("AssistantRail", () => {
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     expect(onNewConversation).toHaveBeenCalledOnce();
   });
+
+  // The board sets this when a turn it had already accepted was rolled back.
+  // Same promise the `false` refusal above keeps, kept a moment later.
+  it("puts a rolled-back question back in the composer", () => {
+    const { rerender } = renderRail();
+    const input = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    expect(input.value).toBe("");
+    rerender(<AssistantRail {...baseProps} restoreDraft="a very long question" />);
+    expect(input.value).toBe("a very long question");
+  });
+
+  it("leaves the composer alone while there is nothing to restore", () => {
+    renderRail({ restoreDraft: null });
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("");
+  });
 });

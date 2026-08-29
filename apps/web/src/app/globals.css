@@ -194,7 +194,18 @@
     bottom: 0;
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }
-  .assistant-open ~ .unscheduled-rack {
+  /* Both forms, because the rack is mounted inside a wrapper <div> (it needs
+     one for the launcher's height measurement, TripBoardScreen's
+     rackWrapperRef) and is therefore the row's sibling's CHILD, not its
+     sibling. The direct-sibling selector alone silently matched nothing: the
+     rack stayed full-width and its bar covered the bottom ~20px of the docked
+     rail — including the Ask button, which could not be clicked at all at a
+     900px-tall viewport (keyboard Enter still submitted, which is why it went
+     unnoticed until the composer became the assistant's primary control).
+     Both selectors are kept so unwrapping the rack does not silently undo
+     this a second time. Pinned by e2e (m16-assistant.spec.ts clicks Ask). */
+  .assistant-open ~ .unscheduled-rack,
+  .assistant-open ~ * .unscheduled-rack {
     right: 356px;
   }
 

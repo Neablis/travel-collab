@@ -649,6 +649,71 @@ describe("TripBoardScreen", () => {
     expect(askCall(0).messages[0]!.parts[0]!.text).toBe("Day 2 is empty — what could I do with it?");
   });
 
+  // THE reproduction for the stale-focus bug. `focusedDay` is a bare index and
+  // nothing resets it when its day is removed, so before the clamp the rail
+  // said "Looking at Day 2" for a day that no longer existed and every ask
+  // came back `this trip has 1 days, so day 2 is out of range` — and with the
+  // chips' toggle also gone, there was no way back short of a reload.
+  it("stops scoping to a focused day once that day is deleted", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(screen.getByText("Looking at Day 2")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Remove Day 2/ }));
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+
+    // All three consumers agree that a stale index is no focus at all.
+    expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
+    expect(
+      within(screen.getByRole("list", { name: "Suggested questions" })).getAllByRole("button").map((b) => b.textContent),
+    ).toContain("How is the trip looking?");
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "What's planned?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "trip" });
+  });
+
+  // Half of M16's gate is "no day selected, same question", so trip scope has
+  // to be reachable from the UI rather than only on a fresh page load.
+  it("clicking the focused day chip again returns the assistant to trip scope", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Here?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "day", dayIndex: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "And now?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).scope).toEqual({ kind: "trip" });
+  });
+
   it("clears a stale Simulated badge when a follow-up ask fails", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
@@ -751,6 +816,79 @@ describe("TripBoardScreen", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("The assistant isn't available on the demo trip."),
     );
+  });
+
+  // A partial answer with no badge claims a model wrote it. The verdict has to
+  // come from what the stream revealed, not only from a successful return.
+  it("badges a simulated answer that died half way through", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
+      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. AI is switched off on this deployment, so " });
+      args[3]!({ type: "error", message: "model call failed: upstream 500" });
+      return {
+        ok: false as const,
+        error: { status: 200, message: "model call failed: upstream 500", code: "ask-stream-error" },
+      };
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "How is it looking?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByText("Simulated")).toBeTruthy();
+  });
+
+  // The same promise the two synchronous refusals keep, kept for a refusal
+  // that arrives a moment later: being told your message is too long is not
+  // actionable if the message is gone.
+  it("puts the question back in the composer when its turn is rolled back", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "your message must be 4000 characters or fewer" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "a very long question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("your message must be 4000 characters or fewer"),
+    );
+    await waitFor(() => expect(box.value).toBe("a very long question"));
+  });
+
+  // Navigating away mid-answer used to leave the read running and its
+  // setState firing into a tree that is gone.
+  it("hangs up on a turn that is still streaming when the screen unmounts", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    let signal: AbortSignal | undefined;
+    askAssistantMock.mockImplementation(
+      (...args: AskArgs) =>
+        new Promise(() => {
+          signal = args[4];
+        }),
+    );
+    const view = renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Slow one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(signal!.aborted).toBe(false);
+
+    view.unmount();
+    expect(signal!.aborted).toBe(true);
   });
 
   it("the Assistant rail can be hidden and shown again, reclaiming the reserved layout width", async () => {
