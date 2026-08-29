@@ -35,6 +35,41 @@ function directive(csp: string, name: string): string {
   return found;
 }
 
+/** Directive name → its source expressions, split on whitespace. */
+function sourcesByDirective(csp: string): Map<string, string[]> {
+  const entries: Array<[string, string[]]> = csp.split("; ").map((d) => {
+    const [name = "", ...sources] = d.trim().split(/\s+/);
+    return [name, sources];
+  });
+  return new Map(entries);
+}
+
+/**
+ * Exactly what the preview policy adds and removes relative to production,
+ * compared as whole source expressions. Directives that are identical in both
+ * do not appear, so the assertion against this is total: any origin appearing
+ * anywhere it should not shows up here, and so does a directive quietly losing
+ * a keyword like `'none'`.
+ */
+async function previewDelta(): Promise<{
+  added: Record<string, string[]>;
+  removed: Record<string, string[]>;
+}> {
+  const preview = sourcesByDirective(await cspFor("preview"));
+  const production = sourcesByDirective(await cspFor("production"));
+  const added: Record<string, string[]> = {};
+  const removed: Record<string, string[]> = {};
+  for (const name of new Set([...preview.keys(), ...production.keys()])) {
+    const before = production.get(name) ?? [];
+    const after = preview.get(name) ?? [];
+    const gained = after.filter((s) => !before.includes(s));
+    const lost = before.filter((s) => !after.includes(s));
+    if (gained.length) added[name] = gained;
+    if (lost.length) removed[name] = lost;
+  }
+  return { added, removed };
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -51,7 +86,7 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
     ["font-src", "https://vercel.live"],
     ["font-src", "https://assets.vercel.com"],
     ["connect-src", "https://vercel.live"],
-    ["connect-src", "wss://ws-us3.pusher.com"],
+    ["connect-src", "wss://*.pusher.com"],
     ["frame-src", "https://vercel.live"],
   ];
 
@@ -63,22 +98,29 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
     expect(directive(await cspFor("production"), name)).not.toContain(origin);
   });
 
-  it("only the toolbar's own origins are added, and only on preview", async () => {
-    const added = (await cspFor("preview"))
-      .split(/[;\s]+/)
-      .filter((t) => t.includes("vercel.live") || t.includes("pusher.com") || t.includes("vercel.com"));
-    // va.vercel-scripts.com is the dev-only analytics debug script and must not
-    // appear here; NODE_ENV is "test" under vitest, which is not "production",
-    // so the isDev branch is live and this assertion is the one that would
-    // catch a preview/dev mix-up.
-    expect(new Set(added)).toEqual(
-      new Set([
-        "https://vercel.live",
-        "https://vercel.com",
-        "https://assets.vercel.com",
-        "wss://ws-us3.pusher.com",
-      ]),
-    );
+  // The first version of this test picked the added origins out with
+  // `token.includes("vercel.com")`, which CodeQL flagged twice as incomplete
+  // URL substring sanitization — correctly, and it was wrong for a second
+  // reason it did not mention: `https://assets.vercel.com` *contains*
+  // `vercel.com`, so the filter's three substrings overlapped and the "closed
+  // set" it claimed to pin was not the set it actually computed. Diffing whole
+  // source tokens per directive needs no matching at all.
+  it("preview adds exactly these origins to exactly these directives, and nothing else", async () => {
+    expect(await previewDelta()).toEqual({
+      added: {
+        "script-src": ["https://vercel.live"],
+        "style-src": ["https://vercel.live"],
+        "img-src": ["https://vercel.live", "https://vercel.com"],
+        "font-src": ["https://vercel.live", "https://assets.vercel.com"],
+        "connect-src": ["https://vercel.live", "wss://*.pusher.com"],
+        "frame-src": ["https://vercel.live"],
+      },
+      // The only thing preview takes away: frame-src stops being 'none' so the
+      // Toolbar can frame itself. Asserted rather than ignored, because a diff
+      // that only reports additions would call a directive silently dropping
+      // 'none' — or `object-src` losing it — no change at all.
+      removed: { "frame-src": ["'none'"] },
+    });
   });
 
   it("frame-src stays 'none' anywhere but preview", async () => {

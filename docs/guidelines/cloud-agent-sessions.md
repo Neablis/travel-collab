@@ -68,15 +68,25 @@ a known-issues entry as fact. Both checks were wrong in the same way: they
 looked for `chromium`/`chrome` on `PATH` and at `~/.cache/ms-playwright`
 (empty), and took `playwright install` failing as confirmation. It fails
 because the proxy 403s `cdn.playwright.dev` (see below), not because
-nothing is installed. A working Chromium is on disk:
+nothing is installed. A working Chromium is on disk, under
+`$PLAYWRIGHT_BROWSERS_PATH` (`/opt/pw-browsers`).
 
-    /opt/pw-browsers/chromium-1194/chrome-linux/chrome    # 141.0.7390.37
+**Do not hardcode a path to it, and do not copy one out of this file.** This
+paragraph used to name `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+and say `playwright-core` wants a newer revision than the one present, so an
+explicit `executablePath` was required. Both halves have since gone stale, and
+a script written from them was wrong in two ways at once: the image now also
+carries `chromium-1228` — the revision `playwright-core` actually asks for —
+and it uses a **different layout**, `chrome-linux64/chrome` rather than
+`chrome-linux/chrome`, so bumping the number alone would still have missed it.
+The pin quietly selected the older build.
 
-`playwright-core` asks for a newer build number than the one present and
-errors with "run npx playwright install" unless you pass `executablePath`
-explicitly. Do that instead of concluding the walk is impossible:
+    ls "$PLAYWRIGHT_BROWSERS_PATH"       # what is actually here, today
 
-    chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" })
+`chromium.launch()` with no `executablePath` resolves and launches correctly
+now. Let it. If you need a fallback for an image where it does not, scan for
+the highest `chromium-<revision>` and accept either layout — see
+`resolveFallbackChromium()` in `apps/web/scripts/walk-preview.mjs`.
 
 This matters more than it sounds. A CSP, a focus ring and a layout bug are
 all enforced or visible only in a renderer — "no browser available" is the

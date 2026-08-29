@@ -83,7 +83,15 @@ const contentSecurityPolicy = [
   // Vector tiles, glyphs and the style JSON, all fetched by maplibre. The
   // geocode and AI calls go through our own /api routes, not the vendor.
   // ws: in dev is the HMR socket.
-  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  // `wss://*.pusher.com` rather than the `wss://ws-us3.pusher.com` Vercel's
+  // Toolbar CSP documentation names. The `ws-us3` segment is a Pusher cluster
+  // Vercel picked and can move without telling us, and the failure mode if it
+  // does is precisely the one this whole change exists to fix: a CSP silently
+  // refusing a Vercel-side URL, client-side, on a surface no lane loads. We
+  // are not going to notice that twice. The widening buys nothing an attacker
+  // wants — it is preview-only, `connect-src` only, and confined to hosts
+  // under a domain we already have to trust for the Toolbar to work at all.
+  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${toolbar("https://vercel.live", "wss://*.pusher.com")}`,
 
   // maplibre spawns its tile-decoding workers from a blob: URL.
   "worker-src 'self' blob:",

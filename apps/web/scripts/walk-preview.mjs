@@ -53,11 +53,11 @@
  */
 import { chromium } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const CA_DIR = "/usr/local/share/ca-certificates";
-const CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const PW_BROWSERS = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";
 
 /**
  * SPKI hashes for the CAs the container installed for its egress gateway.
@@ -85,6 +85,39 @@ function gatewayCaSpkiHashes() {
   return hashes.join(",");
 }
 
+/**
+ * `undefined` when Playwright's own resolution points at a binary that exists —
+ * the normal case, and the one to prefer, because Playwright knows which
+ * revision its client speaks to. Otherwise the newest `chromium-*` build under
+ * the browsers directory, accepting either the `chrome-linux/` layout older
+ * revisions use or the `chrome-linux64/` newer ones do.
+ */
+function resolveFallbackChromium() {
+  try {
+    if (existsSync(chromium.executablePath())) return undefined;
+  } catch {
+    // executablePath() throws when the registry has no entry at all; scan.
+  }
+  let candidates;
+  try {
+    candidates = readdirSync(PW_BROWSERS).filter((d) => /^chromium-\d+$/.test(d));
+  } catch {
+    return undefined;
+  }
+  const byRevisionDesc = candidates.sort(
+    (a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]),
+  );
+  for (const dir of byRevisionDesc) {
+    for (const layout of ["chrome-linux64", "chrome-linux"]) {
+      const exe = join(PW_BROWSERS, dir, layout, "chrome");
+      if (existsSync(exe)) return exe;
+    }
+  }
+  return undefined;
+}
+
+const fallbackChromium = resolveFallbackChromium();
+
 const [target, ...paths] = process.argv.slice(2);
 if (!target) {
   console.error("usage: walk-preview.mjs <preview-url> [path ...]");
@@ -107,14 +140,21 @@ const spki = gatewayCaSpkiHashes();
 if (spki) args.push(`--ignore-certificate-errors-spki-list=${spki}`);
 
 const browser = await chromium.launch({
-  executablePath: CHROMIUM,
-  // playwright-core wants a newer build number than the one on disk here, so
-  // the path is explicit rather than resolved. `playwright install` cannot fix
-  // that — the proxy 403s cdn.playwright.dev.
+  // No `executablePath`. An earlier version of this file pinned
+  // /opt/pw-browsers/chromium-1194/chrome-linux/chrome, copied from a
+  // guideline written when that was the only build present. By the time this
+  // script was reviewed the image also carried chromium-1228 — the revision
+  // playwright-core actually asks for — under a *different* layout
+  // (chrome-linux64/, not chrome-linux/). So the pin was wrong twice over: it
+  // selected the stale build, and a version-only fix would still have missed
+  // it. Playwright resolves the right binary by itself, which is what it is
+  // for; `resolveFallbackChromium()` above steps in only when that resolution
+  // points at nothing, which is the case the pin was originally written for.
   proxy: process.env.HTTPS_PROXY
     ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" }
     : undefined,
   args,
+  ...(fallbackChromium ? { executablePath: fallbackChromium } : {}),
 });
 
 const context = await browser.newContext(
