@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TripAccess } from "@tc/contracts";
 import { db } from "@/server/db/client";
+import { tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { effectiveMembers, grantMembership } from "@/server/access/members";
 
@@ -188,6 +190,15 @@ describe("DELETE /api/trips/:tripId/members/:userId", () => {
 
     expect((await remove(tripId, OWNER)).status).toBe(409);
     expect(await memberIds(tripId)).toEqual([OWNER]);
+    // The ROW, not the effective list (CodeRabbit, PR #85). The owner is on
+    // `memberIds` because the LOG says so, so that assertion holds whether or
+    // not the delete ran — it cannot tell a refusal from a deletion that made
+    // no visible difference. A 409 must mean nothing was written.
+    const rows = await db
+      .select()
+      .from(tripMemberships)
+      .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, OWNER)));
+    expect(rows).toHaveLength(1);
   });
 
   it("leaves the other members alone", async () => {

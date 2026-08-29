@@ -187,7 +187,15 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
     // The whole point: nothing was persisted. The old failure mode inserted
     // first and threw afterwards, so asserting the error alone would pass
     // against exactly the bug this guards.
-    expect(await listSavedDays(ownerId)).toEqual([]);
+    //
+    // Asserted against the TABLE, not against `listSavedDays` (CodeRabbit,
+    // PR #85). `listSavedDays` now drops rows it cannot parse — that is the
+    // read half of this very fix — so an inserted-but-unreadable row is
+    // invisible to it, and `expect(list).toEqual([])` would have passed
+    // whether or not the row was written. The only witness that tells the two
+    // apart is the row count.
+    const rows = await db.select().from(savedDays).where(eq(savedDays.ownerId, ownerId));
+    expect(rows).toEqual([]);
     expect(error).toHaveBeenCalledOnce();
   });
 
