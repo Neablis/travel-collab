@@ -4,6 +4,7 @@ import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
 
 const ACTOR_ID = "ask-owner";
@@ -37,7 +38,9 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
 // Imported after the mocks so the handler picks them up. Only
 // `handleAskRequest` is exercised directly, never `POST` — which is the one
 // path that could construct a real gateway model.
-const { handleAskRequest, ASK_MINIMUM_ROLE, minimumRoleFor } = await import("@/server/ai/handleAskRequest");
+const { handleAskRequest, ASK_MINIMUM_ROLE, DEMO_TRIP_UNSUPPORTED_CODE, minimumRoleFor } = await import(
+  "@/server/ai/handleAskRequest"
+);
 const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
@@ -100,12 +103,31 @@ function userMessage(text: string, id = "m1") {
   return { id, role: "user", parts: [{ type: "text", text }] };
 }
 
-function req(tripId: string, body: unknown) {
+function req(tripId: string, body: unknown, signal?: AbortSignal) {
   return new Request(`http://test/api/trips/${tripId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
+}
+
+// A model that fails the way a provider outage does: the stream opens and then
+// errors. Typed structurally for the same reason simulatedModel is — the
+// LanguageModelV4 interface lives in a package apps/web does not depend on.
+function failingModel(message: string) {
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/failing",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error(message);
+    },
+    doStream: async () => {
+      throw new Error(message);
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
 }
 
 /** The SSE body as the chunks a browser client parses out of it. */
@@ -180,6 +202,39 @@ describe("POST /api/trips/:id/ask", () => {
       // means once the stream has been drained.
       await res.text();
       expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+    });
+
+    // `requireTripAccess` answers the demo trip as a viewer with NO session, so
+    // this endpoint's (correct) viewer minimum would otherwise have made /ask
+    // an unauthenticated LLM proxy the moment `ai-live` is switched on. See
+    // KI-79 for what would have to be decided to open it up.
+    it("403s the demo trip, signed in or not", async () => {
+      currentUserId = "";
+      const anonymous = await ask(DEMO_TRIP_ID, {
+        messages: [userMessage("what is this trip?")],
+        scope: { kind: "trip" },
+      });
+      expect(anonymous.status).toBe(403);
+      expect(await anonymous.json()).toEqual({
+        error: "The assistant isn't available on the demo trip.",
+        code: DEMO_TRIP_UNSUPPORTED_CODE,
+      });
+
+      currentUserId = ACTOR_ID;
+      const signedIn = await ask(DEMO_TRIP_ID, {
+        messages: [userMessage("what is this trip?")],
+        scope: { kind: "trip" },
+      });
+      expect(signedIn.status).toBe(403);
+    });
+
+    // Refused BEFORE the quota, so anonymous traffic cannot burn the shared
+    // `demo-visitor` bucket — and before anything that would put a write on a
+    // path `demoTrip.ts` keeps free of the database.
+    it("charges nothing and writes nothing for a demo-trip ask", async () => {
+      currentUserId = "";
+      await ask(DEMO_TRIP_ID, { messages: [userMessage("hi")], scope: { kind: "trip" } });
+      expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
     });
 
     // The rule, not the current answer: a write tool joining the set moves the
@@ -384,6 +439,52 @@ describe("POST /api/trips/:id/ask", () => {
       expect(answer).not.toMatch(/day 2|day 3/i);
     });
 
+    // The thread is client-held (Ruling R1), so turn 2 arrives carrying turn 1's
+    // ASSISTANT message — tool parts and all. `convertToModelMessages` turns
+    // those back into tool-result messages, so a server that decided "have I
+    // called my tools yet?" by scanning the whole prompt would see turn 1's
+    // readouts on turn 2's FIRST step and answer from them: no tool call at
+    // all, the wrong day after a scope change, stale data after an edit.
+    //
+    // The server must not be hostage to the client choosing not to resend
+    // them — Task 5 writes that client.
+    it("calls its tools again on turn 2, even when turn 1's tool parts are resent", async () => {
+      const tripId = await seedTrip();
+      const chunks = await chunksOf(
+        await ask(tripId, {
+          messages: [
+            userMessage("how does this trip look?", "m1"),
+            {
+              id: "m2",
+              role: "assistant",
+              parts: [
+                {
+                  type: "tool-read_trip",
+                  toolCallId: "call-1",
+                  state: "output-available",
+                  input: {},
+                  output: { name: "STALE", currency: "USD", startDate: null, dayCount: 99, tripCostTotal: 0, days: [], conflicts: [] },
+                },
+                { type: "text", text: "Kyoto 2027 runs to 3 days." },
+              ],
+            },
+            userMessage("and what's on day 2?", "m3"),
+          ],
+          scope: { kind: "day", dayIndex: 1 },
+        }),
+      );
+
+      // Fresh reads, not an answer assembled from the resent readout.
+      expect(chunks.filter((c) => c.type === "tool-input-available").map((c) => c.toolName)).toEqual([
+        "read_trip",
+        "read_day",
+        "find_free_time",
+      ]);
+      const answer = textOf(chunks);
+      expect(answer).toContain("Day 2 (2027-04-02) of Kyoto 2027");
+      expect(answer).not.toContain("STALE");
+    });
+
     // Multi-turn: the thread is client-held (Ruling R1, no migration in this
     // plan), so a second turn arrives as a longer `messages` array and must be
     // answered the same way.
@@ -399,6 +500,52 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(res.status).toBe(200);
       expect(textOf(await chunksOf(res))).toContain("The biggest open stretch");
+    });
+  });
+
+  // The two turns most worth measuring are the failed one and the abandoned
+  // one, and neither reaches `onEnd`. Before this they wrote nothing at all.
+  describe("turns that do not finish", () => {
+    it("records a failed turn, and tells the client what actually broke", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
+        tripId,
+        failingModel("provider exploded"),
+        (r) => records.push(r),
+      );
+
+      // The stream opens before the model is reached, so a mid-turn failure is
+      // an error CHUNK, not a non-200 — see the report's stream section.
+      expect(res.status).toBe(200);
+      const chunks = await chunksOf(res);
+      const error = chunks.find((c) => c.type === "error");
+      expect(error).toBeDefined();
+      // Not the SDK's default "An error occurred.", which is indistinguishable
+      // from a network failure in the rail.
+      expect(JSON.stringify(error)).toContain("provider exploded");
+
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({ finishReason: "error", answered: false, toolCallCount: 0 });
+    });
+
+    it("records an abandoned turn", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const controller = new AbortController();
+      controller.abort();
+
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }, controller.signal),
+        tripId,
+        simulatedModel("ask"),
+        (r) => records.push(r),
+      );
+      await res.text().catch(() => "");
+
+      expect(records).toHaveLength(1);
+      expect(records[0]!.finishReason).toBe("abort");
     });
   });
 

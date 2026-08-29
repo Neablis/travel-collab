@@ -263,6 +263,47 @@ describe("simulatedModel — the ask surface", () => {
     ]);
   });
 
+  // The window, not just the reading. Turn 2 of a client-held thread carries
+  // turn 1's tool results; counting those as "already asked" made every turn
+  // after the first answer from stale readouts without calling a tool.
+  it("ignores a previous turn's tool results and asks again", async () => {
+    const stale = { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } };
+    const priorTurn = askPrompt({ kind: "trip" }, [stale]).prompt;
+    const secondTurn = {
+      prompt: [...priorTurn, { role: "user", content: [{ type: "text", text: "and now?" }] }],
+    };
+
+    const calls = callsOf(await probe("ask").doGenerate(secondTurn));
+    expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "find_free_time"]);
+  });
+
+  it("answers turn 2 from turn 2's results, never the ones before its question", async () => {
+    const priorTurn = askPrompt({ kind: "trip" }, [
+      { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } },
+    ]).prompt;
+    const answer = textOf(
+      await probe("ask").doGenerate({
+        prompt: [
+          ...priorTurn,
+          { role: "user", content: [{ type: "text", text: "and now?" }] },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool-result",
+                toolCallId: "fresh",
+                toolName: "read_trip",
+                output: { type: "json", value: { ...TRIP_READOUT, name: "FRESH" } },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(answer).toContain("FRESH runs to 3 days");
+    expect(answer).not.toContain("STALE");
+  });
+
   // Reading the CONVERSATION rather than a counter is what makes this correct
   // across retries: a re-issued first step must ask again, not answer with
   // nothing to answer from.

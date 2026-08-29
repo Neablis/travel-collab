@@ -20,8 +20,9 @@
 // chokepoint covers both entry points, so nothing can spend without the flag
 // (ADR-019's 2026-08-25 amendment).
 import { z } from "zod";
-import { createAgentUIStreamResponse, isStepCount, ToolLoopAgent, type LanguageModel } from "ai";
+import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent, type LanguageModel } from "ai";
 import type { TripRole } from "@tc/contracts";
+import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
@@ -59,6 +60,11 @@ export function minimumRoleFor(toolNames: readonly string[]): TripRole {
 }
 
 export const ASK_MINIMUM_ROLE = minimumRoleFor(OFFERED_TOOL_NAMES);
+
+// The refusal code for the demo trip. Kebab-case and named after the reason,
+// matching `ai-not-entitled` (modelSelection.ts) and the `STATUS` codes on the
+// command endpoint — a client can branch on it without matching prose.
+export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 
 // Only the fields this handler enforces caps on. The authoritative validation
 // is `validateUIMessages` inside `createAgentUIStreamResponse`, which knows the
@@ -111,6 +117,31 @@ export async function handleAskRequest(
   model?: LanguageModel,
   sink?: AskAnalyticsSink,
 ): Promise<Response> {
+  // The demo trip is refused, and it is refused FIRST — before the guard,
+  // before model selection, before the quota.
+  //
+  // `requireTripAccess` answers `isDemoTripId` as a **viewer with no session**
+  // (ADR-031), which is what makes /demo public. Combined with this endpoint's
+  // (correct) `viewer` minimum, that would have made /ask an internet-facing,
+  // unauthenticated LLM proxy on the operator's key the moment `ai-live` is
+  // switched on — up to 30 attacker-authored turns an hour, all of them
+  // sharing the single `demo-visitor` quota bucket, so one visitor exhausting
+  // it denies every other visitor. It would also have put a Postgres write
+  // (the quota counter) on a path `demoTrip.ts` deliberately keeps free of the
+  // database, which is an architecture regression rather than a missing
+  // feature.
+  //
+  // Refusing here rather than inside `guard()` keeps the rule where its
+  // reasoning is, and keeps `requireTripAccess` answering the demo the same
+  // way for every other route. `docs/known-issues.md` (KI-79) records what
+  // would have to be decided to open it up.
+  if (isDemoTripId(tripId)) {
+    return Response.json(
+      { error: "The assistant isn't available on the demo trip.", code: DEMO_TRIP_UNSUPPORTED_CODE },
+      { status: 403 },
+    );
+  }
+
   const g = await guard(tripId, ASK_MINIMUM_ROLE);
   if ("error" in g) return g.error;
   const { userId, detail } = g;
@@ -207,20 +238,68 @@ export async function handleAskRequest(
     onEnd: (end) => recorder.finish(end),
   });
 
+  // Validated HERE rather than left to throw inside
+  // `createAgentUIStreamResponse`, which validates it again: this is the one
+  // failure the caller's BODY is responsible for, and it has to be
+  // distinguishable from a model failure. Catching both at one `catch` meant
+  // reporting a broken provider as "malformed thread", 400, caller's fault.
+  const validated = await safeValidateUIMessages({
+    messages,
+    // The same cast the SDK makes at its own `validateUIMessages` call site
+    // (`createAgentUIStream`, ai/dist/index.js): "tools are compatible; the
+    // casting is required because the context param is not available in ui
+    // messages". Our tool set is context-typed, UI messages are not.
+    tools: tools as unknown as Parameters<typeof safeValidateUIMessages>[0]["tools"],
+  });
+  if (!validated.success) return badRequest(`malformed thread: ${validated.error.message}`);
+
   try {
-    return await createAgentUIStreamResponse({
-      agent,
-      uiMessages: messages,
-      // The client sees the real reason rather than "An error occurred.",
-      // which is the SDK's default and is indistinguishable from a network
-      // failure in the rail.
-      onError: (error) => errorMessage(error),
+    // `createAgentUIStreamResponse` would do these three steps for us, and it
+    // is what this used to call — but it forwards only `onStepEnd` to
+    // `agent.stream`, so there is no way to reach `onAbort` or to hand the
+    // agent the request's own `AbortSignal` through it. Both matter: without
+    // the signal a client that disconnects mid-answer leaves the loop running
+    // to completion on the operator's key, and without the callback that turn
+    // is never measured. The three lines are the SDK's own, in the same order.
+    // A turn the user walked away from still spent steps and still made tool
+    // calls, and it is one of the two turns most worth measuring. Wired to the
+    // request's own signal rather than to an SDK callback: `ToolLoopAgent`
+    // exposes `onStepEnd`/`onEnd` but no `onAbort` on its call parameters, and
+    // the signal IS the event — no plumbing in between to be wrong about.
+    const noteAbandoned = () => recorder.abandon("abort");
+    if (request.signal.aborted) noteAbandoned();
+    else request.signal.addEventListener("abort", noteAbandoned, { once: true });
+
+    const modelMessages = await convertToModelMessages(validated.data, { tools });
+    const result = await agent.stream({
+      prompt: modelMessages,
+      // Without this the loop runs to completion on the operator's key after
+      // the client has already hung up.
+      abortSignal: request.signal,
+    });
+    return result.toUIMessageStreamResponse({
+      originalMessages: validated.data,
+      onError: (error) => {
+        // The turn failed. Record it before the message goes out — `onEnd`
+        // will not fire, and the tool-call trace of a failed turn is the
+        // whole reason to keep one.
+        recorder.abandon("error");
+        // The client sees the real reason rather than "An error occurred.",
+        // which is the SDK's default and is indistinguishable from a network
+        // failure in the rail.
+        return errorMessage(error);
+      },
     });
   } catch (err) {
-    // Reachable when `validateUIMessages` rejects a part shape this handler's
-    // own schema does not model (a malformed tool part, say). A 400 rather
-    // than a 500: the body is what is wrong.
-    return badRequest(`malformed thread: ${errorMessage(err)}`);
+    // Nothing in the body is left to be wrong — the messages validated above
+    // and the caps passed. What remains is the agent failing to start, which
+    // is the same 503 shape `handleAiRequest` returns for a model that could
+    // not be reached.
+    recorder.abandon("error");
+    return Response.json(
+      { error: `model call failed: ${errorMessage(err)}`, simulated: selected.simulated },
+      { status: 503 },
+    );
   }
 }
 

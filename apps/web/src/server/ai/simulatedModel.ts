@@ -148,15 +148,40 @@ function systemTextOf(options: CallOptionsLike): string {
 }
 
 /**
- * Every tool result already in the prompt — which is how this model knows
- * whether it has asked its questions yet. State lives in the conversation, not
- * in a counter on the instance: streamText re-calls `doStream` per step with
- * the accumulated prompt, so reading it is both simpler and correct across
- * retries.
+ * The tool results for THIS TURN — everything after the newest user message.
+ *
+ * State lives in the conversation rather than in a counter on the instance,
+ * because streamText re-calls `doStream` once per step with the accumulated
+ * prompt; reading it is correct across retries, where a counter is not.
+ *
+ * The window matters as much as the reading. Conversation state is client-held
+ * (plan Ruling R1), so turn 2 arrives carrying turn 1's assistant message —
+ * tool parts included — and `convertToModelMessages` turns those back into
+ * tool-result messages. Scanning the WHOLE prompt therefore made every turn
+ * after the first answer immediately from the PREVIOUS turn's readouts: no
+ * tool call at all, the wrong day after a scope change, stale numbers after an
+ * edit. Slicing at the last user message is what makes "have I asked my
+ * questions about the question I was just asked?" the actual question.
+ *
+ * Deliberately not "trust the client to drop tool parts": Task 5 writes that
+ * client, and a server whose correctness depends on what a client chooses to
+ * resend has no correctness at all.
  */
 function toolResultsOf(options: CallOptionsLike): ToolResultLike[] {
+  const prompt = options.prompt ?? [];
+  // `findLastIndex` over roles, written as a loop so this file keeps no
+  // assumptions about the target's lib level. -1 (no user message at all)
+  // starts the scan at 0, which is the same "nothing asked yet" answer.
+  let turnStart = 0;
+  for (let i = prompt.length - 1; i >= 0; i--) {
+    if (prompt[i]!.role === "user") {
+      turnStart = i + 1;
+      break;
+    }
+  }
+
   const results: ToolResultLike[] = [];
-  for (const message of options.prompt ?? []) {
+  for (const message of prompt.slice(turnStart)) {
     if (!Array.isArray(message.content)) continue;
     for (const part of message.content as { type?: string; toolName?: string; output?: unknown }[]) {
       if (part.type !== "tool-result" || typeof part.toolName !== "string") continue;

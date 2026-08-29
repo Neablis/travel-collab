@@ -33,7 +33,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { TripDetail } from "@tc/contracts";
-import { findFreeGaps } from "@tc/domain";
+import { findFreeGaps, minutesOf } from "@tc/domain";
 import { activeConflicts, type AiConflictSummary, type AskScope } from "@/server/ai/context";
 
 export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time"] as const;
@@ -69,27 +69,22 @@ const ReadContextSchema = z.object({
   scope: z.custom<AskScope>((v) => typeof v === "object" && v !== null),
 });
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-// The user/domain translation this file exists to own. `TimeWindow`'s regex
-// (packages/contracts/src/activity.ts) already guarantees the shape on the way
-// in; the tool schema re-states it because a model's "21:00" is not a
-// TimeWindow and nothing else would check it.
+// The times this boundary accepts and emits: 00:00-23:59, PLUS "24:00".
 //
-// `freeTime.ts` has its own private copy of this conversion, which is the one
-// KI-73 is about (a second time parser). It stays private there because
-// `packages/domain` speaks minutes at its boundary and this file is the only
-// place that speaks HH:mm to it — but if a third caller ever needs it, export
-// the domain's rather than writing a third.
-function minutesOf(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h! * 60 + m!;
-}
+// 24:00 is load-bearing in both directions and the schema and the emitter have
+// to agree on it. `hhmmOf(1440)` renders end-of-day as "24:00" rather than
+// "00:00" so a model told a gap runs "18:30-24:00" does not have to guess
+// which midnight — and a model that then passes that same string straight back
+// as `before` must not get a validation failure for its trouble, which is a
+// wasted step and an error message that reads like its fault.
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 
-// The inverse, for gap boundaries on the way out. 1440 renders as "24:00" —
-// deliberately outside `HHMM`, because it is the exclusive end of a day and
-// "00:00" would read as the start of one. A model told a gap runs "18:30–24:00"
-// answers correctly; told "18:30–00:00" it has to guess which midnight.
+// The conversion itself is `@tc/domain`'s `minutesOf` — the one
+// minutes-since-midnight parser in the repo (KI-73). It does not validate, so
+// everything that reaches it here has been through `HHMM` first: `parseTime`
+// below is the only door.
+//
+// The inverse, for gap boundaries on the way out.
 function hhmmOf(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -252,6 +247,11 @@ export interface FindFreeTimeInput {
  * day-scoped question that forgot to repeat the day number is still about that
  * day. See `scopeNarrowing` in handleAskRequest.ts.
  */
+function parseTime(value: string | undefined, fallback: number): number | null {
+  if (value === undefined) return fallback;
+  return HHMM.test(value) ? minutesOf(value) : null;
+}
+
 export function findFreeTime(
   detail: TripDetail,
   scope: AskScope,
@@ -263,8 +263,18 @@ export function findFreeTime(
       error: `This trip has ${detail.days.length} day${detail.days.length === 1 ? "" : "s"}, so there is no day ${dayIndex + 1}.`,
     };
   }
-  const afterMinutes = input.after !== undefined ? minutesOf(input.after) : 0;
-  const beforeMinutes = input.before !== undefined ? minutesOf(input.before) : 1440;
+  // Checked, not assumed. The tool schema enforces `HHMM` for a MODEL's call,
+  // but this function is exported and unit-tested directly, and `minutesOf`
+  // answers nonsense with NaN — which propagated silently into
+  // `window: { after: "NaN:NaN" }` and an empty gap list. A confidently
+  // well-formed wrong answer is the exact failure class this milestone exists
+  // to remove, so a bad time is refused out loud instead.
+  const after = parseTime(input.after, 0);
+  if (after === null) return { error: `"${input.after}" is not a 24-hour time like "09:00" or "21:30".` };
+  const before = parseTime(input.before, 1440);
+  if (before === null) return { error: `"${input.before}" is not a 24-hour time like "09:00" or "21:30".` };
+  const afterMinutes = after;
+  const beforeMinutes = before;
   const gaps = findFreeGaps(detail, {
     dayIndex,
     afterMinutes,

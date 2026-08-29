@@ -80,8 +80,22 @@ export interface AskRecorderParams {
 export interface AskRecorder {
   /** Wire to the agent's `onStepEnd`. Safe to call zero times. */
   observeStep(step: AskStepLike): void;
-  /** Wire to the agent's `onEnd`. Writes the record. Idempotent — a run that both ends and aborts writes once. */
+  /** Wire to the agent's `onEnd`. Writes the record. */
   finish(final: AskStepLike): void;
+  /**
+   * Wire to the agent's `onAbort` and to the stream's `onError`. Writes what
+   * was accumulated before the run stopped, under the given finish reason.
+   *
+   * The two turns most worth measuring are the failed one and the abandoned
+   * one — a turn nobody waited for and a turn that broke are exactly the
+   * turns you want a tool-call trace of. Neither reaches `onEnd`, so without
+   * this they wrote nothing at all, and `answered: false` had no production
+   * trigger.
+   *
+   * First writer wins: an errored run fires `onError` before `onEnd`, so the
+   * record carries "error" rather than the tidier reason that follows it.
+   */
+  abandon(finishReason: "abort" | "error"): void;
 }
 
 /**
@@ -110,37 +124,45 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       if (step.text) text += step.text;
     },
     finish(final) {
-      if (written) return;
-      written = true;
-      const called = new Set(toolCalls.map((c) => c.name));
-      // `final.text` is the FINAL step's text, which `observeStep` has already
-      // seen — read it only when no step was observed at all, so `answered`
-      // cannot be decided by counting the same sentence twice.
-      if (steps === 0 && final.text) text += final.text;
-      sink({
-        event: "ai.ask",
-        tripId: params.tripId,
-        userId: params.userId,
-        scope: params.scope,
-        simulated: params.simulated,
-        model: params.model,
-        // `onEnd` fires once after the last step, so the steps this counted are
-        // the run's own round-trips; `final` is that run's summary, not an
-        // extra step.
-        steps,
-        toolCalls,
-        toolCallCount: toolCalls.length,
-        offeredTools: [...params.offeredTools],
-        uncalledTools: params.offeredTools.filter((name) => !called.has(name)),
-        answered: text.trim().length > 0,
-        finishReason: final.finishReason ?? "unknown",
-        usage: {
-          inputTokens: final.usage?.inputTokens ?? null,
-          outputTokens: final.usage?.outputTokens ?? null,
-          totalTokens: final.usage?.totalTokens ?? null,
-        },
-        latencyMs: now() - startedAt,
-      });
+      write(final);
+    },
+    abandon(finishReason) {
+      write({ finishReason });
     },
   };
+
+  // One writer, one latch — a run that both errors and ends still logs once.
+  function write(final: AskStepLike): void {
+    if (written) return;
+    written = true;
+    const called = new Set(toolCalls.map((c) => c.name));
+    // `final.text` is the FINAL step's text, which `observeStep` has already
+    // seen — read it only when no step was observed at all, so `answered`
+    // cannot be decided by counting the same sentence twice.
+    if (steps === 0 && final.text) text += final.text;
+    sink({
+      event: "ai.ask",
+      tripId: params.tripId,
+      userId: params.userId,
+      scope: params.scope,
+      simulated: params.simulated,
+      model: params.model,
+      // `onEnd` fires once after the last step, so the steps this counted are
+      // the run's own round-trips; `final` is that run's summary, not an
+      // extra step.
+      steps,
+      toolCalls,
+      toolCallCount: toolCalls.length,
+      offeredTools: [...params.offeredTools],
+      uncalledTools: params.offeredTools.filter((name) => !called.has(name)),
+      answered: text.trim().length > 0,
+      finishReason: final.finishReason ?? "unknown",
+      usage: {
+        inputTokens: final.usage?.inputTokens ?? null,
+        outputTokens: final.usage?.outputTokens ?? null,
+        totalTokens: final.usage?.totalTokens ?? null,
+      },
+      latencyMs: now() - startedAt,
+    });
+  }
 }

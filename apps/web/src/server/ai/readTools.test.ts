@@ -7,6 +7,7 @@ import {
   findFreeTime,
   readDay,
   readTrip,
+  FindFreeTimeInputSchema,
   READ_TOOL_INPUT_SCHEMAS,
   READ_TOOL_NAMES,
   type DayReadout,
@@ -143,6 +144,38 @@ describe("find_free_time", () => {
     }
     const openEnded = findFreeTime(japan, wholeTrip, { after: "23:00" }) as FreeTimeReadout;
     for (const gap of openEnded.gaps) expect(gap.end).toBe("24:00");
+  });
+
+  // The emitter says "24:00"; the schema must accept it back. A model that
+  // reads `end: "24:00"` and passes `before: "24:00"` was getting a validation
+  // failure for using the tool's own vocabulary, which costs it a step and
+  // reads like the model's mistake.
+  it("accepts back every boundary it emits, 24:00 included", () => {
+    const emitted = new Set(
+      (findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout).gaps.flatMap((gap) => [gap.start, gap.end]),
+    );
+    expect(emitted.has("24:00")).toBe(true);
+    for (const time of emitted) {
+      expect(FindFreeTimeInputSchema.safeParse({ before: time }).success, `before: ${time}`).toBe(true);
+      expect(FindFreeTimeInputSchema.safeParse({ after: time }).success, `after: ${time}`).toBe(true);
+    }
+    // And it means end-of-day, not the start of one.
+    const wholeDay = findFreeTime(japan, wholeTrip, { before: "24:00" }) as FreeTimeReadout;
+    expect(wholeDay.window.before).toBe("24:00");
+    expect(wholeDay.gaps.length).toBeGreaterThan(0);
+  });
+
+  // A malformed time used to yield `window: { after: "NaN:NaN" }` and zero
+  // gaps — a confidently well-formed wrong answer, which is the failure class
+  // this milestone exists to remove.
+  it("refuses a malformed time out loud instead of answering NaN", () => {
+    for (const bad of ["9pm", "25:00", "09:60", "9:00", "", "0900", "24:01"]) {
+      const readout = findFreeTime(japan, wholeTrip, { after: bad });
+      expect(readout, `after: ${JSON.stringify(bad)}`).toHaveProperty("error");
+      expect(JSON.stringify(readout)).not.toContain("NaN");
+      expect(FindFreeTimeInputSchema.safeParse({ after: bad }).success, `schema: ${bad}`).toBe(false);
+    }
+    expect(findFreeTime(japan, wholeTrip, { before: "half past nine" })).toHaveProperty("error");
   });
 
   it("drops gaps shorter than minMinutes", () => {

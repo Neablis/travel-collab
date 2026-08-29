@@ -19,11 +19,22 @@ export interface FindFreeGapsOptions {
   minMinutes?: number; // default 0; gaps shorter than this are dropped
 }
 
-// HH:mm -> minutes past midnight. `TimeWindow`'s regex (packages/contracts/
-// src/activity.ts) already guarantees the shape, so no re-validation here.
-// This is the one minutes-since-midnight conversion in the domain — reuse it
-// rather than growing a second time parser (KI-73).
-function minutesOf(hhmm: string): number {
+// HH:mm -> minutes past midnight, and the ONLY minutes-since-midnight
+// conversion anywhere — reuse it rather than growing a second time parser
+// (KI-73).
+//
+// Exported for the AI read-tool boundary (`apps/web/src/server/ai/readTools.ts`),
+// which is where a user's "after 9pm" becomes the minutes this module speaks.
+// It does NOT validate: inside the domain `TimeWindow`'s regex
+// (packages/contracts/src/activity.ts) already guarantees the shape, and at
+// the tool boundary the tool's own input schema does. A caller with neither
+// guarantee must check before calling — this returns NaN on nonsense, and NaN
+// arithmetic is silent.
+//
+// Accepts "24:00" (= 1440) as well, which `TimeWindow` does not: an exclusive
+// end-of-day is a real bound for a free-time query even though it is not a
+// real start time.
+export function minutesOf(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h! * 60 + m!;
 }

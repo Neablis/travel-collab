@@ -13,6 +13,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-79 — `/ask` deliberately refuses the demo trip, because a viewer-gated assistant on a session-less trip is an open LLM proxy
+- **Severity:** correctness of a security boundary — currently *closed* by the refusal this entry documents; recorded so the decision is visible rather than buried in a guard clause
+- **Area:** `apps/web/src/server/ai/handleAskRequest.ts` (the `isDemoTripId` refusal), `apps/web/src/server/access/trip-access.ts` (`requireTripAccess`'s demo branch), ADR-031
+- **What the collision is:** `requireTripAccess` answers `isDemoTripId(tripId)` **before `auth()`**, returning `{ userId: "demo-visitor", role: "viewer" }` — that is what makes `/demo` public, and it is correct for every read route. `/ask` guards on `viewer` on purpose too (ADR-022: a viewer may ask about a trip they can see, unlike `/ai`, which is editor-gated because every surface it serves writes). Both decisions are right on their own. Composed, they would have made `POST /api/trips/<demo-id>/ask` an **unauthenticated, internet-facing LLM endpoint on the operator's key**.
+- **What it would have cost, with `ai-live` on:** up to 30 attacker-authored turns an hour and 100 a day (`aiQuotas()`), all of them sharing the single `demo-visitor` bucket — so one visitor exhausting it denies every other visitor, and the global ceiling is reachable by anyone with a URL. It would also have put a Postgres write (the quota counter) on a request path `demoTrip.ts` deliberately keeps free of the database, which is an architecture regression, not a missing feature. `ai-live` is off in every environment today, so nothing was ever spendable; the exposure was the shape, not a live bill.
+- **What was done:** `handleAskRequest` refuses `isDemoTripId(tripId)` with **403 `{ error, code: "demo-trip-unsupported" }`**, first thing — before the guard, before model selection, before the quota. Two integration tests cover it: the refusal signed in and signed out, and that nothing is written to `rate_limit_counters`. The rail does not render on `/demo` today (`TripBoardScreen`: `isDemo ? null`), but that is a client condition and the server no longer depends on it.
+- **What would have to be decided to open it up** (all three, not any one):
+  1. **Who pays.** A per-IP or per-session quota bucket, because `demo-visitor` is one bucket for the whole internet. `quota.ts` is keyed by actor id and has no notion of an anonymous caller.
+  2. **Whether the demo path may touch Postgres.** ADR-031's guarantee is that `/demo` needs no trip row, no stream and no share row; a quota counter is a write. Either the guarantee is narrowed deliberately or the assistant needs a counter that is not the database.
+  3. **What an anonymous prompt may reach.** Today the read tools are bounded by `toolsContext` to one fixed fixture, which is the strongest argument *for* opening it — but M9's write tools land on this same endpoint, and `minimumRoleFor` would then move the guard to `editor`, which the demo visitor is not. The order those two changes land in matters.
+- **Found by:** the Task 3 implementer, 2026-08-29, while reading `requireTripAccess` for the guard choice; escalated and ruled on in review.
+- **Cross-reference:** ADR-022 §3, ADR-031, KI-61 (the `DEMO_SHARE_TOKEN` problem the demo trip replaced).
+- **First noted:** 2026-08-29.
+
 ### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
 - **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
 - **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
