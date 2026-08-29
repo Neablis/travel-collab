@@ -65,9 +65,19 @@ export function parseLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-// The first scheduled activity's location.city (packages/contracts'
+// The LAST scheduled activity's location.city (packages/contracts'
 // Location.city — the geocoder's own structured city/town/village, distinct
 // from the full place-name label).
+//
+// Last, not first (Mitchell, 2026-08-29): the day label compares yesterday's
+// last activity city with today's, because where you END a day is where you
+// start the next one — SPEC §12's own framing is that the day belongs to
+// where you end up. On the Japan fixture first and last coincide (whole days
+// sit in one city) so nothing rendered differently when this flipped; the
+// case it fixes is a day that genuinely spans two cities, which is the only
+// case the "Tokyo → Kyoto" transition line exists for. Reading the first stop
+// there named the travel day by the city it was leaving and pushed the arrow
+// onto the FOLLOWING day, which never moved.
 //
 // `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
 // with `area`. This value names the day and drives the day accent and the
@@ -85,10 +95,11 @@ export function parseLocalDate(iso: string): Date {
 // So a day whose stops carry neither city nor area has no city, and says so
 // by returning null — the callers all handle that.
 //
-// Falls through subsequent activityIds if the first has no location; null if
+// Walks back through earlier activityIds if the last has no location; null if
 // none of the day's activities name a city or an area.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
-  for (const activityId of day.activityIds) {
+  for (let index = day.activityIds.length - 1; index >= 0; index--) {
+    const activityId = day.activityIds[index]!;
     const location = activities[activityId]?.location;
     const place = location?.city ?? location?.area;
     if (place !== undefined && place !== "") return place;
