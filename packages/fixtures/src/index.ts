@@ -20,6 +20,7 @@ export {
   JAPAN_TRIP_CURRENCY,
   JAPAN_TRIP_DAY_COUNT,
   JAPAN_TRIP_NAME,
+  JAPAN_TRIP_TRAVELLERS,
   type JapanBacklogItem,
   type JapanStop,
 } from "./japan/trip.ts";
@@ -27,6 +28,7 @@ export {
 export {
   addDays,
   buildNotes,
+  deterministicMintId,
   japanTripCommands,
   japanTripCommandGroups,
   locationName,

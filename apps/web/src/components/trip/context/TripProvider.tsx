@@ -23,6 +23,7 @@ import {
   type OptimisticState,
   type SendFailure,
 } from "./optimistic";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
@@ -250,9 +251,19 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // a card visibly move and then jump back.
   const readOnly = myRole === "viewer";
 
+  // Both refusals below say the same thing, but not in the same words: on the
+  // demo board (`/demo`, ADR-031) the reader is a stranger who was invited to
+  // poke at it, and "you have view-only access to this trip" reads as a
+  // permissions problem they did something wrong to hit. It is neither — it is
+  // the answer to "what would happen if I could edit this", and the honest
+  // reply names the way to find out.
+  const refusal = isDemoTripId(tripId)
+    ? "This is an example trip, so nothing here changes. Make it yours and every part of it becomes editable."
+    : "You have view-only access to this trip.";
+
   const runDispatch = useCallback((commands: BatchableCommand[]) => {
     if (readOnly) {
-      setError("You have view-only access to this trip.");
+      setError(refusal);
       return;
     }
     // Predicted OUTSIDE the updater, against `optimistic` from this render.
@@ -283,12 +294,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     optimisticRef.current = result.state;
     setError(null);
     setOptimistic(result.state);
-  }, [readOnly]);
+  }, [readOnly, refusal]);
 
   const dispatch = useCallback(
     async (command: BoardCommand) => {
       if (readOnly) {
-        setError("You have view-only access to this trip.");
+        setError(refusal);
         return;
       }
       if (HISTORY_TYPES.has(command.type)) {
@@ -305,7 +316,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       }
       runDispatch([command as BatchableCommand]);
     },
-    [runDispatch, pending, exit, readOnly],
+    [runDispatch, pending, exit, readOnly, refusal],
   );
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the

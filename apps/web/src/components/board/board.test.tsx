@@ -482,86 +482,51 @@ describe("selecting a day from its column", () => {
   });
 });
 
-// docs/reviews/2026-08-28-m11-pr71-review.md §5: the header was thoroughly
-// viewer-gated and the board underneath it was not, so a viewer could drag a
-// card (it moved and snapped back), open the editor and edit fields — every
-// attempt refused at dispatch, which is graceful but reads as a broken board
-// rather than a read-only one. NOT a security boundary: the server refuses
-// each of these commands independently. Every absence below is paired with its
-// owner mirror, so these are statements about the ROLE and not about a control
-// that never rendered.
-describe("Board — a viewer's board offers no writes", () => {
-  const cardOf = (id: string) => screen.getByTestId(`activity-card-${id}`);
-
-  it("makes no card draggable", () => {
-    renderBoard(fixture(), noopCallbacks(), null, true);
-    // pdnd's `draggable()` is what sets this attribute (element-adapter's
-    // addAttribute), so its absence is the real drag registration missing,
-    // not a styling difference.
-    expect(cardOf(A1).getAttribute("draggable")).toBeNull();
-    expect(cardOf(A2).getAttribute("draggable")).toBeNull();
-  });
-
-  it("makes every card draggable for an editor", () => {
-    renderBoard(fixture(), noopCallbacks());
-    expect(cardOf(A1).getAttribute("draggable")).toBe("true");
-    expect(cardOf(A2).getAttribute("draggable")).toBe("true");
-  });
-
-  it("withholds Add a day, + Add, Remove day and Remove stop", () => {
+// A viewer's board, and the public demo's (ADR-031). The rule is one line —
+// show the plan, offer nothing that changes it — and the reason it is tested
+// per control is that each one is dropped at a different level: the card's own
+// buttons in ActivityCard, the day's two in Column (via props Board withholds),
+// the trailing column and the banner's actions in Board itself. A control added
+// at any of those levels without a `readOnly` clause reaches a reader.
+describe("a read-only board", () => {
+  it("shows every stop, and no control that would change one", () => {
     renderBoard(fixture(), noopCallbacks(), null, true);
 
-    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove Colosseum" })).toBeNull();
-  });
-
-  it("offers all four to an editor", () => {
-    renderBoard(fixture(), noopCallbacks());
-
-    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /^Add activity to / }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /^Remove Day / }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Remove Colosseum" })).toBeTruthy();
-  });
-
-  // Dismissal is a real command (DismissConflict) — the conflicts themselves
-  // stay, because conflicts are data a viewer is entitled to read (AGENTS.md
-  // invariant 3) and reading is not a write.
-  it("keeps the conflicts readable but withholds every dismissal", () => {
-    renderBoard(fixture(), noopCallbacks(), null, true);
-
+    // The plan is all still here.
+    expect(screen.getByText("Colosseum")).toBeTruthy();
+    expect(screen.getByText("Vatican Museums")).toBeTruthy();
+    // …and so is the conflict, which is the product noticing something.
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
-    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Dismiss:/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
+
+    for (const name of [
+      /^Edit Colosseum$/,
+      /^Remove Colosseum$/,
+      /^Remove Day 1$/,
+      /^Add activity to Day 1$/,
+      /^Dismiss:/,
+      /^Dismiss overlap warning$/,
+    ]) {
+      expect(screen.queryAllByRole("button", { name })).toHaveLength(0);
+    }
+    expect(screen.queryByTestId("one-more-day-column")).toBeNull();
   });
 
-  it("offers both dismissals to an editor", () => {
-    renderBoard(fixture(), noopCallbacks());
-
-    expect(screen.getByRole("button", { name: /^Dismiss:/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Dismiss overlap warning" })).toBeTruthy();
+  it("does not make its cards draggable, so nothing can move and snap back", () => {
+    renderBoard(fixture(), noopCallbacks(), null, true);
+    const card = screen.getByTestId(`activity-card-${A1}`);
+    // pragmatic-drag-and-drop marks what it has registered; an unregistered
+    // card carries neither the attribute nor the grab cursor.
+    expect(card.getAttribute("draggable")).not.toBe("true");
+    expect(card.className).not.toContain("cursor-grab");
   });
 
-  // The one control a viewer keeps, relabelled: the sheet it raises is the
-  // only place a stop's notes are legible, and it presents read-only for a
-  // viewer (ActivityEditorSheet). "Edit" would be a promise it does not keep.
-  it("relabels the card's pencil as View, and still opens the sheet", async () => {
-    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null, true);
-
-    expect(screen.queryByRole("button", { name: "Edit Colosseum" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "View Colosseum" }));
-
-    expect(getEditorState()).toEqual({ mode: "edit", activityId: A1 });
-  });
-
-  it("labels it Edit for an editor", () => {
+  it("still offers all of it when it is not read-only", () => {
+    // The negative half: without this the block above passes just as well
+    // against a board that renders no controls at all.
     renderBoard(fixture(), noopCallbacks());
     expect(screen.getByRole("button", { name: "Edit Colosseum" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "View Colosseum" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove Colosseum" })).toBeTruthy();
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0);
   });
 });

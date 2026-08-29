@@ -12,6 +12,8 @@ import { Toast } from "@/components/ui/toast";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
+import { isDemoTripId } from "@/lib/demoTrip";
+import { cn } from "@/lib/cn";
 import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
@@ -101,20 +103,42 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
 
   return (
-    <header aria-label="Trip" className="sticky top-14 z-10 border-b border-hairline bg-surface px-6 pt-3.5">
+    <header
+      aria-label="Trip"
+      // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
+      // sits above this one on every `(app)` route. `/demo` draws
+      // FrontDoorHeader instead, which does not stick — so there, offsetting by
+      // 56px pins this header 56px down from the top and leaves a see-through
+      // strip of scrolled content above it (Mitchell, preview comment on
+      // `/demo`). Nothing is sticky above it there, so it pins to the top.
+      className={cn(
+        "sticky z-10 border-b border-hairline bg-surface px-6 pt-3.5",
+        isDemoTripId(tripId) ? "top-0" : "top-14",
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <nav className="flex items-center gap-3">
-            <Link href="/" className="text-xs text-slate hover:text-ink">
-              ← Your trips
-            </Link>
-            {/* Notebook is a separate route subtree, not a lens (design spec
-                decision 11, refined 2026-07-20) — a nav link here, not a
-                TabStrip entry, keeps the lens system projection-only. */}
-            <Link href={`/trips/${tripId}/pages`} className="text-xs text-slate hover:text-ink">
-              Notebook
-            </Link>
-          </nav>
+          {/* Both links go to `(app)` routes behind middleware, so on the
+              demo board (`/demo`, ADR-031) — whose visitor has no session —
+              each one is a trip to /signin. The whole nav row drops rather
+              than the links being disabled: a disabled control still says
+              "there is something here for you", and there is not, until they
+              have an account. `DemoTripScreen` renders the front door's own
+              header above this one, which is where a signed-out reader's way
+              onward belongs. */}
+          {!isDemoTripId(tripId) && (
+            <nav className="flex items-center gap-3">
+              <Link href="/" className="text-xs text-slate hover:text-ink">
+                ← Your trips
+              </Link>
+              {/* Notebook is a separate route subtree, not a lens (design spec
+                  decision 11, refined 2026-07-20) — a nav link here, not a
+                  TabStrip entry, keeps the lens system projection-only. */}
+              <Link href={`/trips/${tripId}/pages`} className="text-xs text-slate hover:text-ink">
+                Notebook
+              </Link>
+            </nav>
+          )}
           {/* The title IS the way into Trip settings, and the only way:
               Mitchell, preview feedback on PR #55 — "In the designs, removed
               the pencil, and made the trip title clickable to open the Trip

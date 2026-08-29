@@ -22,6 +22,21 @@ import {
 /** Mints a fresh uuid. Injectable so the verifier can be deterministic. */
 export type MintId = () => string;
 
+/**
+ * Counter-derived uuids, so two runs produce byte-identical commands.
+ *
+ * Lives here rather than in `verify.ts` because it has two callers now: the
+ * verifier, and the app's built-in demo trip (`apps/web/src/server/demoTrip.ts`,
+ * ADR-031), which folds this fixture in memory and needs the ids on the page to
+ * be the same ones on every render and every instance. `verify.ts` imports
+ * @tc/domain and is deliberately off this package's public surface, so a shared
+ * helper could not live there.
+ */
+export function deterministicMintId(): MintId {
+  let n = 0;
+  return () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+}
+
 export type JapanTripOptions = {
   /**
    * The trip's first day, `YYYY-MM-DD`. Required, never defaulted from the

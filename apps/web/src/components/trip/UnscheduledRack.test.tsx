@@ -86,16 +86,21 @@ describe("UnscheduledRack", () => {
 // UpdateActivity pairs the server refuses. What is parked STAYS listed: that is
 // content, and reading it is not a write. Each absence is paired with its
 // editor mirror above, so these are statements about the role.
+//
+// A viewer is expressed as `onAssign: undefined`, not a `readOnly` flag:
+// TripBoardScreen withholds the callback rather than passing a flag (ADR-031),
+// so absent-callback IS the signal the component has to read. Passing a flag
+// here would test a mechanism the parent never uses.
 describe("UnscheduledRack — a viewer's drawer", () => {
   it("still lists what is parked", () => {
-    renderRack({ open: true, readOnly: true });
+    renderRack({ open: true, onAssign: undefined });
 
     expect(screen.getByText("Souvenir shopping")).toBeTruthy();
     expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
   });
 
   it("makes no card draggable", () => {
-    renderRack({ open: true, readOnly: true });
+    renderRack({ open: true, onAssign: undefined });
     // pdnd's `draggable()` sets this attribute; its absence is the missing
     // registration, not a styling difference.
     for (const card of screen.getAllByTestId("rack-card")) {
@@ -111,14 +116,14 @@ describe("UnscheduledRack — a viewer's drawer", () => {
   });
 
   it("withholds Add to day", () => {
-    renderRack({ open: true, readOnly: true });
+    renderRack({ open: true, onAssign: undefined });
     expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
   });
 
   // The empty state's instruction ("Drag a stop down here…") is only true for
   // someone who can drag, so a viewer gets the state without the instruction.
   it("drops the drag instruction from the empty state", () => {
-    renderRack({ open: true, items: [], readOnly: true });
+    renderRack({ open: true, items: [], onAssign: undefined });
 
     expect(screen.getByText("Nothing parked.")).toBeTruthy();
     expect(screen.queryByText(/Drag a stop down here/)).toBeNull();

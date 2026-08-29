@@ -25,12 +25,11 @@ export function OverlapWarning({
   overlap: Overlap;
   onFix: () => void;
   onDismiss: () => void;
-  /** A viewer's warning: the sentence stays, both controls go. "Start HH:MM"
-      is an UpdateActivity and "Dismiss" is a DismissConflict, so neither is a
-      viewer's to raise — but the overlap itself is information about the
-      trip, and withholding that would hide a real problem rather than an
-      affordance. See Board.tsx's own `readOnly` note for why the client gate
-      is defence in depth rather than the security boundary. */
+  /**
+   * Keeps the warning, drops its two actions. Both are commands, and a reader
+   * runs none — but the warning itself is the product noticing something,
+   * which is exactly what a reader should see it do (ADR-031).
+   */
   readOnly?: boolean;
 }) {
   // Assembled as one string rather than interpolated into the JSX: the copy is

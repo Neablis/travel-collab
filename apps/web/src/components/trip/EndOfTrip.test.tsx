@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
 // M11 link 6 made "Add a saved day" real, and it reads TripProvider. These
 // tests render the block bare; the button's own behaviour is
@@ -9,20 +9,9 @@ vi.mock("@/components/trip/AddSavedDayButton", () => ({
   AddSavedDayButton: () => <button type="button">Add a saved day</button>,
 }));
 
-// EndOfTrip reads `readOnly` from TripProvider itself (M11 link 3 follow-up,
-// review §5) rather than taking it as a prop, so these bare renders need the
-// hook stubbed — the same one-value mock AddSavedDayButton.test.tsx uses.
-const useTripMock = vi.fn();
-vi.mock("@/components/trip/context/TripProvider", () => ({
-  useTrip: () => useTripMock(),
-}));
-
 import { EndOfTrip } from "./EndOfTrip";
 
 afterEach(cleanup);
-beforeEach(() => {
-  useTripMock.mockReset().mockReturnValue({ readOnly: false });
-});
 
 describe("EndOfTrip", () => {
   // The phase file's own Step 1 test, verbatim in intent: the title, the body
@@ -59,23 +48,6 @@ describe("EndOfTrip", () => {
     // PR #71). What the click was meant to show, that the shield does not
     // swallow it, is exactly what `region.contains` already establishes; the
     // real button's behaviour is covered in AddSavedDayButton.test.tsx.
-  });
-
-  // Review §5: the whole block is affordance — "Add a day", "Add a saved day"
-  // and the shelled Playbook shortcuts — so a viewer gets none of it rather
-  // than a heading offering a day they cannot add. The server refuses AddDay
-  // from a viewer regardless; this is what stops them finding that out by
-  // clicking. Asserted against the owner case in the tests above, so this is a
-  // statement about the role and not about a block that never rendered.
-  it("renders nothing at all for a viewer", () => {
-    useTripMock.mockReturnValue({ readOnly: true });
-    const onAddDay = vi.fn();
-    render(<EndOfTrip onAddDay={onAddDay} />);
-
-    expect(screen.queryByTestId("end-of-trip")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add a saved day" })).toBeNull();
-    expect(document.querySelector('[data-preview-id="insert-playbook"]')).toBeNull();
   });
 
   it("shows at most three Playbook shortcuts, from the existing preview fixture", () => {

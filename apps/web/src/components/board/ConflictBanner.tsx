@@ -26,16 +26,18 @@ export function ConflictBanner({
   dismissedConflictIds: string[];
   activities: Record<string, ActivityView>;
   onDismiss: (conflictId: string) => void;
-  /** A viewer reads the conflicts but cannot dismiss them — DismissConflict is
-      a real command the server refuses for a viewer. The list itself stays:
-      conflicts are data (AGENTS.md invariant 3), and reading them is not a
-      write. Only the Dismiss action goes. */
-  readOnly?: boolean;
   // Same openEdit path Board already wires as onSelectActivity for every
   // other surface (TimelineLens, MapLens) — not a second navigation
   // mechanism. Optional so a caller with no jump target (none today) still
   // renders a plain, non-interactive banner.
   onSelectActivity?: (activityId: string) => void;
+  /**
+   * Drops "Dismiss". The conflicts themselves stay: they are the product
+   * noticing something, which is exactly what a reader should see it do —
+   * dismissing one is a command, and a viewer runs none (ADR-031). Reading
+   * them is not a write, and conflicts are data (AGENTS.md invariant 3).
+   */
+  readOnly?: boolean;
 }) {
   const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
   const collapsible = visible.length > COLLAPSE_ABOVE;

@@ -8,7 +8,6 @@ import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
-import { useTrip } from "@/components/trip/context/TripProvider";
 
 // Phase 6's end-of-trip block: the plan's terminal affordance. "Add a day" is
 // a real command (contracts' AddDay) — the caller raises it — while "Add a
@@ -33,18 +32,6 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 const SHORTCUT_COUNT = 3;
 
 export function EndOfTrip({ onAddDay }: { onAddDay: () => void }) {
-  const { readOnly } = useTrip();
-
-  // Nothing in this block is content — it is the "grow the trip" affordance
-  // and its shelled Playbook shortcuts — so a viewer gets no block at all
-  // rather than a heading promising a day they cannot add
-  // (docs/reviews/2026-08-28-m11-pr71-review.md §5). Read from context rather
-  // than taken as a prop, the same call AddSavedDayButton (mounted below)
-  // already makes: the caller is TimelineLens, and threading a prop through
-  // it would put the gate a layer further from the thing it gates. The server
-  // refuses AddDay from a viewer either way — this is defence in depth.
-  if (readOnly) return null;
-
   return (
     <section
       data-testid="end-of-trip"

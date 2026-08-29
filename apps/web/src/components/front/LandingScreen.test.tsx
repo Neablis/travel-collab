@@ -31,14 +31,14 @@ describe("LandingScreen", () => {
   // `landing-see-finished`). They are now two ordinary links to the same
   // place — and it stays an ordinary link, not a fetch: SPEC §14 says this
   // page runs on nothing, so the CTA does not go looking for a trip to peek
-  // at. `/s/featured` decides that, on its own page.
-  it("sends both peek-at-a-trip CTAs to a real, public share page", () => {
+  // at. `/demo` decides that, on its own page (ADR-031).
+  it("sends both peek-at-a-trip CTAs to the public demo board", () => {
     const { container } = render(<LandingScreen />);
     expect(container.querySelectorAll("[data-preview-id]")).toHaveLength(0);
     const peek = screen.getByRole("link", { name: "Look around a real trip" });
     const finished = screen.getByRole("link", { name: "See a finished one" });
-    expect(peek.getAttribute("href")).toBe("/s/featured");
-    expect(finished.getAttribute("href")).toBe("/s/featured");
+    expect(peek.getAttribute("href")).toBe("/demo");
+    expect(finished.getAttribute("href")).toBe("/demo");
   });
 
   it("carries the Early access footnote", () => {

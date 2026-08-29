@@ -50,6 +50,23 @@ and M15 (gate closed 2026-08-26, PR #56).
 `docs/milestones/README.md`. Re-scope it before scheduling it: M11 link 1
 already shipped the `users` table its file frames as the deliverable.
 
+**`/demo` is the real board, read-only, 2026-08-28 (PR #79) — ADR-031, closes
+KI-61.** The demo trip is now the Japan fixture folded in memory and served
+through the ordinary trip endpoints, rendered by the ordinary `TripBoardScreen`;
+`DEMO_SHARE_TOKEN`, `readFeaturedShare` and `GET /api/shares/featured` are gone,
+so a preview branch validates its own front door with no manual step. One seam
+did it: `requireTripAccess` answers the demo before `auth()`, as a viewer, so
+all four read routes serve it publicly and none of them changed.
+
+It also gated the invited-viewer board on the way past — `readOnly` threads from
+`TripProvider`'s gate into Board, Column, ActivityCard, TimelineLens,
+OverlapWarning, ConflictBanner and UnscheduledRack. That work arrived
+independently of this branch's own gating of the same components (PR #71 review
+§5) and won on merge, being the browser-walked one; what this branch adds on top
+is `MapLens` (double-click-to-create calls `openCreate` directly, so no
+`onSelectActivity` withholding reaches it), the `onCommand` seam, and the rack's
+drag registration, which #79's message lists as covered but does not gate.
+
 **Next 16 and Vitest 4 landed 2026-08-28 (PR #77)**, closing the postcss and
 sharp advisories that a `next@15` pin was holding open. Two things every session
 needs from it: `src/middleware.ts` is now `src/proxy.ts` (Next 16's name; the
