@@ -40,15 +40,22 @@ test.describe("the demo trip", () => {
 
     await page.getByRole("tab", { name: "Calendar" }).click();
     await expect(page).toHaveURL(/view=Calendar/);
-    // The calendar lays days out as dated cells, not stop titles. A cell's
+    // The calendar lays days out as dated cells, not stop titles, and a cell's
     // accessible name carries its ordinal, its date, and every card it renders
-    // — "Day 1, Tue, Sep 8. Tokyo, 4 stops, $990.00, …" — because an aria-label
-    // replaces a button's content for assistive technology, so anything left
-    // out of it is announced as nothing at all (M18; see CalendarLens's
-    // `cellLabel`). Asserting the city separately from the ordinal is what
-    // keeps this honest about the whole name rather than just its head.
-    await expect(page.getByLabel(/^Day 1,.*\bTokyo\b/)).toBeVisible();
-    await expect(page.getByLabel(/^Day 14,/)).toBeVisible();
+    // (M18; see CalendarLens's `cellLabel`). An aria-label REPLACES a button's
+    // content for assistive technology, so anything missing from the name is
+    // announced as nothing at all — which is why this asserts the whole string
+    // rather than its head. A regex requiring only "Day 1," and "Tokyo" still
+    // passes with the date, stop count, cost, window or booking count dropped.
+    //
+    // Only the date is a pattern: the fixture is dated relative to today
+    // (ADR-030), so the weekday and month move while the rest is fixed.
+    await expect(
+      page.getByLabel(
+        /^Day 1, \w{3}, \w{3} \d{1,2}\. Tokyo, 4 stops, \$990\.00, 2:30 pm to 10:30 pm, 2 to book$/,
+      ),
+    ).toBeVisible();
+    await expect(page.getByLabel(/^Day 14, \w{3}, \w{3} \d{1,2}\. Tokyo, /)).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
     await expect(page).toHaveURL(/lens=Map/);

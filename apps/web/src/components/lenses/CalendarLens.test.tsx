@@ -398,6 +398,7 @@ describe("CalendarLens", () => {
         city: string | null,
         window: { start: string; end: string },
         kind: "planned" | "booked" | "hold" | "idea" | "transit",
+        costMinor: number | null = null,
       ) => ({
         activityId: id,
         title,
@@ -407,7 +408,7 @@ describe("CalendarLens", () => {
         anchors: [],
         kind,
         tags: [],
-        cost: null,
+        cost: costMinor === null ? null : { amountMinor: costMinor, currency: "USD" },
       });
 
       return tripDetailFixture({
@@ -416,7 +417,8 @@ describe("CalendarLens", () => {
         activities: {
           [rome]: activity(rome, "Dinner", "Rome", { start: "07:00", end: "07:40" }, "hold"),
           [forum]: activity(forum, "Train to Florence", "Florence", { start: "08:20", end: "10:35" }, "transit"),
-          [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "idea"),
+          // Priced so the accessible name's money segment is enforced, not merely claimed.
+          [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "idea", 2500),
         },
       });
     }
@@ -454,14 +456,18 @@ describe("CalendarLens", () => {
     // several cards and a flag where it previously had one city and no numbers.
     it("puts every card's content into the cell's accessible name", () => {
       renderLens(travelDayDetail());
-      const cell = screen.getByRole("button", { name: /^Day 1,/ });
-      const label = cell.getAttribute("aria-label") ?? "";
-      // Both cities, not just the day's own — a multi-city day used to announce
-      // one of them and silently drop the rest.
-      expect(label).toContain("Rome");
-      expect(label).toContain("Florence");
-      expect(label).toContain("2 stops");
-      expect(label).toContain("1 to book");
+      const label = screen.getByRole("button", { name: /^Day 1,/ }).getAttribute("aria-label");
+      // The WHOLE name, not a sample of it. Asserting fragments let a
+      // regression drop the date, either window or the cost and still pass —
+      // which is the "comment claims an invariant no test enforces" class this
+      // repo tracks as KI-1 / KI-14. Every segment `cellLabel` can emit appears
+      // here: the ordinal, the formatted date, both cities, both stop counts,
+      // a cost, both time windows, and the to-book flag.
+      expect(label).toBe(
+        "Day 1, Tue, Jun 1. " +
+          "Rome, 1 stop, 7 am to 7:40 am, 1 to book. " +
+          "Florence, 2 stops, $25.00, 8:20 am to 4 pm, 1 to book",
+      );
     });
 
     it("names the unplaced bucket in the accessible name rather than omitting it", () => {
