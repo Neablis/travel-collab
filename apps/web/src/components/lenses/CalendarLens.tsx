@@ -302,14 +302,18 @@ export function CalendarLens({
                 style={CITY_SIZE}
               >
                 <span className="flex-none truncate font-semibold">{card.city}</span>
-                {card.firstStart !== null && (
+                {/* The DEPARTURE when a transit stop closed this group, and only
+                    then the group's first start. SPEC §12 asks for the transit
+                    stop's start, which on a day that begins before you leave is
+                    not the same time — breakfast at 7:00, train at 8:20. */}
+                {(card.departsAt ?? card.firstStart) !== null && (
                   <DataText
                     size="xs"
                     className="min-w-0 flex-shrink truncate"
                     // eslint-disable-next-line no-restricted-syntax -- dc.html:686's 9.5px time has no token equivalent
                     style={CHIP_TIME_SIZE}
                   >
-                    {toClockLabel(card.firstStart)}
+                    {toClockLabel(card.departsAt ?? card.firstStart!)}
                   </DataText>
                 )}
               </div>
@@ -383,6 +387,22 @@ export function CalendarLens({
                     style={MORE_STYLE}
                   >
                     {toClockRange(arriving.window.start, arriving.window.end)}
+                  </DataText>
+                )}
+
+                {/* SPEC §12's flag — "the one actionable thing at this zoom".
+                    Only when > 0: a card that says "0 to book" is telling you
+                    about the absence of work, which at a month's zoom is noise
+                    on every settled day. */}
+                {arriving.toBook > 0 && (
+                  <DataText
+                    data-testid="calendar-to-book"
+                    size="xs"
+                    className="mt-1.5 block truncate text-warning-ink"
+                    // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
+                    style={MORE_STYLE}
+                  >
+                    {arriving.toBook} to book
                   </DataText>
                 )}
               </div>

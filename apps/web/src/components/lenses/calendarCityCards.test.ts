@@ -7,6 +7,7 @@ function stop(
   city: string | null,
   window: { start: string; end: string } | null,
   costMinor?: number,
+  kind: ActivityView["kind"] = "planned",
 ): ActivityView {
   return {
     activityId: id,
@@ -15,10 +16,15 @@ function stop(
     location: city === null ? null : { name: city, city, lat: 0, lng: 0 },
     notes: null,
     anchors: [],
-    kind: "planned" as const,
+    kind,
     tags: [],
     cost: costMinor === undefined ? null : { amountMinor: costMinor, currency: "USD" },
   };
+}
+
+/** A transit stop, filed under the city it travels TO — as the fixture does. */
+function transit(id: string, toCity: string, window: { start: string; end: string }): ActivityView {
+  return stop(id, toCity, window, undefined, "transit");
 }
 
 function dayOf(stops: ActivityView[]): {
@@ -46,6 +52,8 @@ describe("calendarCityCards", () => {
         window: { start: "09:00", end: "14:30" },
         span: { from: expect.closeTo(0.125, 3), to: expect.closeTo(0.469, 3) },
         firstStart: "09:00",
+        toBook: 2,
+        departsAt: null,
       },
     ]);
   });
@@ -68,6 +76,128 @@ describe("calendarCityCards", () => {
     // The last group is the one that gets the full card — where the day ends.
     expect(cards[1]!.stops).toBe(2);
     expect(cards[1]!.window).toEqual({ start: "11:00", end: "16:00" });
+  });
+
+  // SPEC §12: "Travel days split at the LAST transit stop. Stops up to and
+  // including it belong to the city you leave; everything after to the city you
+  // arrive in." The split is binary on purpose — it is what keeps cell heights
+  // even across a week instead of doubling on travel days.
+  describe("the transit split", () => {
+    it("splits at the transit stop, taking the departing city from a non-transit stop", () => {
+      // The shinkansen is filed under Kyoto (where it goes), so the departing
+      // card cannot read its city off the transit stop itself.
+      const { day, activities } = dayOf([
+        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }),
+        transit("shinkansen", "Kyoto", { start: "08:20", end: "10:35" }),
+        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }),
+        stop("temple", "Kyoto", { start: "15:00", end: "17:00" }),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards.map((c) => c.city)).toEqual(["Tokyo", "Kyoto"]);
+      // The transit stop belongs to the city you LEAVE — "up to and including".
+      expect(cards[0]!.stops).toBe(2);
+      expect(cards[1]!.stops).toBe(2);
+    });
+
+    it("shows the departure, not the departing group's first stop, as departsAt", () => {
+      // A Tokyo morning with breakfast at 07:00 and a train at 08:20 departs at
+      // 08:20. `firstStart` is still 07:00 — the two are different questions.
+      const { day, activities } = dayOf([
+        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }),
+        transit("shinkansen", "Kyoto", { start: "08:20", end: "10:35" }),
+        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards[0]!.departsAt).toBe("08:20");
+      expect(cards[0]!.firstStart).toBe("07:00");
+      // The arriving card was not closed by a transit stop, so it has no departure.
+      expect(cards[1]!.departsAt).toBeNull();
+    });
+
+    it("splits at the LAST transit stop, not the first", () => {
+      // Tokyo → Nagoya → Kyoto in one day is two cards, not three. Nagoya is
+      // deliberately not its own card: the day belongs to where you end up.
+      const { day, activities } = dayOf([
+        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }),
+        transit("leg1", "Nagoya", { start: "08:20", end: "10:00" }),
+        stop("castle", "Nagoya", { start: "10:30", end: "11:30" }),
+        transit("leg2", "Kyoto", { start: "12:00", end: "12:45" }),
+        stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards.map((c) => c.city)).toEqual(["Nagoya", "Kyoto"]);
+      expect(cards[0]!.departsAt).toBe("12:00");
+      expect(cards[0]!.stops).toBe(4);
+      expect(cards[1]!.stops).toBe(1);
+    });
+
+    it("does not split when the departing side has no nameable non-transit stop", () => {
+      // Leaving first thing, with nothing before the train. The departing city
+      // is unknowable from this day alone — the transit stop names where it is
+      // GOING. A split here would render the empty label and bare timestamp
+      // that folding unlocated stops was introduced to kill, so we don't split.
+      const { day, activities } = dayOf([
+        transit("shinkansen", "Kyoto", { start: "08:20", end: "10:35" }),
+        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards.map((c) => c.city)).toEqual(["Kyoto"]);
+      expect(cards[0]!.stops).toBe(2);
+      expect(cards[0]!.departsAt).toBeNull();
+    });
+
+    it("leaves a day with no transit stop on the consecutive-city grouping", () => {
+      const { day, activities } = dayOf([
+        stop("a", "Tokyo", { start: "09:00", end: "10:00" }),
+        stop("b", "Nikkō", { start: "12:00", end: "13:00" }),
+        stop("c", "Tokyo", { start: "20:00", end: "21:00" }),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards.map((c) => c.city)).toEqual(["Tokyo", "Nikkō", "Tokyo"]);
+      expect(cards.every((c) => c.departsAt === null)).toBe(true);
+    });
+  });
+
+  // SPEC §12: "Counted as unbooked: every stop whose kind is neither `booked`
+  // nor `transit`." Per card, not per day — the flag lives in the city card.
+  describe("the unbooked count", () => {
+    it("counts stops that are neither booked nor transit", () => {
+      const { day, activities } = dayOf([
+        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
+        stop("maybe", "Kyoto", { start: "17:00", end: "18:00" }, undefined, "idea"),
+        stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }, undefined, "hold"),
+        stop("walk", "Kyoto", { start: "21:30", end: "22:00" }),
+      ]);
+
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(3);
+    });
+
+    it("is zero, not null, when every stop is booked or transit", () => {
+      const { day, activities } = dayOf([
+        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
+        transit("bus", "Kyoto", { start: "14:00", end: "14:40" }),
+      ]);
+
+      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+    });
+
+    it("counts per card, so a travel day's two cities each carry their own", () => {
+      const { day, activities } = dayOf([
+        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }, undefined, "idea"),
+        transit("shinkansen", "Kyoto", { start: "08:20", end: "10:35" }),
+        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }, undefined, "booked"),
+        stop("temple", "Kyoto", { start: "15:00", end: "17:00" }, undefined, "hold"),
+      ]);
+
+      const cards = calendarCityCards(day, activities);
+      expect(cards[0]!.toBook).toBe(1);
+      expect(cards[1]!.toBook).toBe(1);
+    });
   });
 
   it("groups consecutively, so returning to a city is a third card, not a merge", () => {

@@ -381,4 +381,62 @@ describe("CalendarLens", () => {
     expect(screen.getByText("November 2022")).toBeDefined();
     expect(screen.getByText("December 2022")).toBeDefined();
   });
+
+  // SPEC §12's two travel-day rules, at the render level. The grouping itself
+  // is covered exhaustively in calendarCityCards.test.ts; these pin that the
+  // lens actually shows what the helper computed.
+  describe("stop kind (M18)", () => {
+    function travelDayDetail() {
+      const activity = (
+        id: string,
+        title: string,
+        city: string | null,
+        window: { start: string; end: string },
+        kind: "planned" | "booked" | "hold" | "idea" | "transit",
+      ) => ({
+        activityId: id,
+        title,
+        timeWindow: window,
+        location: city === null ? null : { name: city, city },
+        notes: null,
+        anchors: [],
+        kind,
+        tags: [],
+        cost: null,
+      });
+
+      return tripDetailFixture({
+        startDate: "2027-06-01",
+        days: [{ dayId: day1, activityIds: [rome, forum, flight], date: "2027-06-01", costSubtotal: 0 }],
+        activities: {
+          [rome]: activity(rome, "Breakfast", "Rome", { start: "07:00", end: "07:40" }, "planned"),
+          [forum]: activity(forum, "Train to Florence", "Florence", { start: "08:20", end: "10:35" }, "transit"),
+          [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "idea"),
+        },
+      });
+    }
+
+    it("splits the travel day, showing the departure time rather than the day's first stop", () => {
+      renderLens(travelDayDetail());
+      const strip = screen.getByTestId("calendar-city-strip");
+      // Rome, at 8:20 — the train's start. NOT 7:00, when breakfast began.
+      expect(within(strip).getByText("Rome")).toBeDefined();
+      expect(within(strip).getByText("8:20 am")).toBeDefined();
+      expect(within(screen.getByTestId("calendar-day-card")).getByText("Florence")).toBeDefined();
+    });
+
+    it("flags the unbooked stops on the arriving card", () => {
+      renderLens(travelDayDetail());
+      // Only the Uffizi: breakfast is on the departing card, and the train is
+      // transit, which SPEC §12 excludes from the count.
+      expect(screen.getByTestId("calendar-to-book").textContent).toBe("1 to book");
+    });
+
+    it("renders no flag at all when nothing on the day needs booking", () => {
+      const detail = travelDayDetail();
+      detail.activities[flight]!.kind = "booked";
+      renderLens(detail);
+      expect(screen.queryByTestId("calendar-to-book")).toBeNull();
+    });
+  });
 });
