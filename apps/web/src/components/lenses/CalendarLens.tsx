@@ -250,7 +250,12 @@ export function CalendarLens({
         // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
         style={CELL_STYLE}
       >
-        <div className="flex items-center justify-between">
+        {/* Two lines, not one (Mitchell, on the preview: "day of trip, and day
+            of month should be on separate lines"). dc.html:668 puts "Day N" on
+            the cell's top-right, opposite the date; side by side they read as
+            one run-together number — "8Day 1" — which is what a screen reader
+            gets from them too. A recorded delta from the handoff. */}
+        <div className="flex flex-col">
           <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
           <span
             data-testid="calendar-day-label"
@@ -402,13 +407,33 @@ export function CalendarLens({
             {/* dc.html:663: 7-column grid, 1px hairline gaps drawing the grid
                 lines (gap-px is a stock Tailwind utility, not an arbitrary
                 bracket value) over a hairline background, ringed by a
-                hairline border and clipped to a 10px radius. */}
+                hairline border and clipped to a 10px radius.
+
+                Each column has a MINIMUM width and the whole grid scrolls
+                sideways inside this wrapper below it. Seven equal fractions of
+                a 411px phone is a 51px cell (Mitchell, on the preview from an
+                Android at 411px: "the cards are totally unreadable on mobile
+                even when there's only one day, it might need to grow in some
+                way") — at that width "Tokyo" truncated to "T" and "4 stops ·
+                $990.00" to "4…", so the cell rendered nothing a person could
+                read.
+
+                144px is measured, not chosen: the widest line a cell renders
+                ("2:30 pm – 10:30 pm") needs 108px, plus the cell's own 9px
+                side padding and the card's 8px — 142px, rounded up. Below that
+                something in every cell truncates to an ellipsis.
+
+                Scrolling rather than restacking into a list, because the week
+                shape is what this view is FOR — "what cities are on what days
+                of the week". A vertical list of days would be readable and
+                would no longer be a calendar. */}
+            <div className="-mx-1 overflow-x-auto px-1">
             <div
               role="grid"
               aria-label={`Trip calendar, ${month.label}`}
-              className="grid grid-cols-7 gap-px overflow-hidden border border-hairline bg-hairline"
-              // eslint-disable-next-line no-restricted-syntax -- dc.html:663's 10px grid radius has no token equivalent
-              style={GRID_RADIUS}
+              className="grid gap-px overflow-hidden border border-hairline bg-hairline"
+              // eslint-disable-next-line no-restricted-syntax -- dc.html:663's 10px grid radius has no token equivalent, and the 144px column floor is measured from the widest line a cell renders
+              style={{ ...GRID_RADIUS, gridTemplateColumns: "repeat(7, minmax(144px, 1fr))" }}
             >
               {WEEKDAY_LABELS.map((label) => (
                 <div
@@ -421,6 +446,7 @@ export function CalendarLens({
                 </div>
               ))}
               {month.cells.map((cell, cellIndex) => renderCell(cell, cellIndex))}
+            </div>
             </div>
           </div>
         ))}
