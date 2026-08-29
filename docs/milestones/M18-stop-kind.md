@@ -1,6 +1,6 @@
 # M18 — A stop knows what kind of thing it is
 
-**Status:** Approved 2026-08-26, **in flight**. PR 1 (the contract change) is
+**Status:** **Done, gate closed 2026-08-29.** PR 1 (the contract change) is
 done — see "PR 1" below; PR 2+ carries the dependent surfaces. Phase 2, after
 M10's Wave-2 gate and **before M16**.
 **Opened by:** Mitchell, reviewing SPEC §12 — *"Keep Stop Kind as a future
@@ -109,21 +109,21 @@ because a gate definition changes only by explicit decision
       **Removed 2026-08-29 by Mitchell — replaced by the two boxes below.**
       It was built, walked, and withdrawn the same day; see "The transit split,
       built and removed" below for why.
-- [ ] Calendar groups a day by **city alone** — one equal full card per city,
+- [x] Calendar groups a day by **city alone** — one equal full card per city,
       no strips — plus a single untitled bucket card for stops with no city.
-- [ ] A day's label reads `<yesterday's last placed city> → <today's last
+- [x] A day's label reads `<yesterday's last placed city> → <today's last
       placed city>` when they differ, and just the city when they don't.
-- [ ] `N to book` counts stops whose kind is neither `booked` nor `transit`,
+- [x] `N to book` counts stops whose kind is neither `booked` nor `transit`,
       per card, and renders only when > 0.
-- [ ] `act.badge` renders from `kind` — Booked / Holding / Idea / Travel — and
+- [x] `act.badge` renders from `kind` — Booked / Holding / Idea / Travel — and
       renders **nothing** for `planned`, per the handoff's own map
       (`dc.html:3740`, which falls through to an empty string).
-- [ ] Tag chips render on stop cards, four values not the handoff's six (KI-52).
-- [ ] **A kind and a tag can be set from the stop editor, on a trip you created
+- [x] Tag chips render on stop cards, four values not the handoff's six (KI-52).
+- [x] **A kind and a tag can be set from the stop editor, on a trip you created
       yourself** — not only on seeded data.
-- [ ] The home hero's "not booked" tile replaces "days planning", counted off
+- [x] The home hero's "not booked" tile replaces "days planning", counted off
       the live `TripDetail` the hero already fetches.
-- [ ] No surface reads a kind out of `notes`, and the seed stops folding it in.
+- [x] No surface reads a kind out of `notes`, and the seed stops folding it in.
       *Seed half done in PR 1* — `buildNotes` no longer folds `(status)`, and a
       live reseed shows zero notes carrying one. The "no surface reads" half
       can only be asserted once PR 2 builds the surfaces that would have.
@@ -215,3 +215,97 @@ kind-only update was rejected as a no-op until equality learned the field. The
 shared property generator needed the fields too, or `diff.property.test.ts`
 would have kept passing while never generating either (verified non-vacuous by
 removing the diff change and watching the M2 round-trip property fail).
+
+## Retro — what we learned, what changed (gate closed 2026-08-29)
+
+**Evidence.** Full Definition of Done green: `pnpm typecheck` 0 errors across 7
+packages; root `pnpm lint` clean including all four walls; `pnpm test` 1,211
+passed in `apps/web` plus domain/fixtures/factories/contracts; **`pnpm --filter
+web test:int` run directly** — 242 passed, 25 files, including the
+projection-rebuild golden test this gate names; `pnpm --filter web
+test:e2e:ci-like` **46/46** against a production build. The two flows only a
+browser can prove were walked on a real trip created from scratch through the
+UI: a stop saved with `kind: "hold"` and `tags: ["meal"]` came back from
+`GET /api/trips/:id` carrying both, and its card rendered the **Holding** badge
+and the **Meal** chip. The home hero showed **0 not booked** where "days
+planning" used to be.
+
+**KI-76 was live on this machine and is exactly as described.** `pg_isready` is
+absent while Postgres runs in Docker on :5433, so `pnpm check` would have
+reported success having run zero integration tests. Running `test:int` directly
+is not a nicety here; it is the difference between 242 tests and none.
+
+### The lesson worth keeping: a rule that reads the data's shape is not a rule
+
+SPEC §12's travel-day split was built exactly as specified, and it was wrong —
+not in its logic, which was correct and unit-tested nine ways, but in its
+dependence on how the fixture happened to tag cities. It fired on **one** of
+seven travel days and got that one wrong. The unit tests all passed, because
+they encoded the same assumption the implementation did.
+
+**What caught it was walking `/demo`, not the test suite.** This is the same
+shape as M10's Wave-2 gate ("the walk found and fixed one defect the automated
+suites are structurally blind to") and M11's. Three milestones running, the
+browser walk has found something no test could. It is not a formality at the
+end of a gate; it is the step that tests the assumptions the tests share with
+the code.
+
+Mitchell's framing when shown it: *"I don't think the shape of the fixture
+should drive functionality, that's how we get drift."* The replacement rule —
+compare yesterday's last placed city with today's — reads no `kind` and depends
+on no tagging convention. Full account above in "The transit split, built and
+removed"; the underlying data question stays open as **KI-59**, now escalated,
+with the note that **KI-60 had already removed its stated reason for staying
+open** the day before.
+
+### A field enumerated by hand is a field that will be dropped
+
+`ActivityEditorSheet.handleSave` builds its commands by listing fields, so the
+editor's new pickers wrote to nothing: a user chose "Holding" and "Lodging",
+hit Save, and the choice vanished. TypeScript cannot see it — an unread extra
+property on the value object is not an error — and every test in that file
+passed throughout.
+
+That is the **third** time this milestone met the same shape: PR 1 hit it in
+`equality.ts` / `diff.ts` / `hydrate.ts` / `detail.ts`, the 2026-08-28 project
+review found it in `Location.city` (KI-54), and now the sheet. A fourth and
+fifth enumeration exist and are currently harmless only because they are dead
+(`TripBoardScreen.tsx`'s `updateActivity` and its inline `AddActivity`, wired to
+`BoardCallbacks` props `Board` never invokes). **§6.1's activity-field
+descriptor refactor is the standing fix and has now earned its place**; the
+dead pair should be wired or deleted before it lands, because they sit directly
+in its path.
+
+The test that pins it asserts on the *dispatched command*, not on the form —
+the only level at which the bug is visible.
+
+### Two smaller things
+
+**A test fixture that gives every stop its own city hides a real coupling.**
+`MapLens.test.tsx` defaulted each stop's city to its own id, so a day's accent
+depended on which stop `cityFor` happened to read. Invisible while the rule said
+"first"; a failure the moment it said "last". Fixtures should look like the data
+they stand in for — a day's stops share a city.
+
+**A jsdom "bug" that was the guard working.** Interactions in the editor sheet
+appeared to discard each other, which looked like user-visible data loss. It was
+the `pending → loaded` key remount from PR #32 firing at the first `await`,
+because the test rendered before the trip fetch resolved. In the app the sheet
+renders below `TripBoardScreen`'s loading gate, so the branch is unreachable —
+confirmed by the browser walk, where kind and tag both held. Worth recording
+because the symptom was indistinguishable from a serious defect, and the
+resolution came from instrumenting mount/unmount rather than from reasoning.
+
+### What was carved out
+
+**M18b Tag focus**, approved and unplaced — SPEC §11's cross-lens dimming, the
+behaviour behind the chips this milestone made settable. Carved on the same
+three grounds as M11b Playbooks the day before: it is the only part needing
+shared state above the lens switch, its Calendar rule is a second design, and no
+gate box measured it. Unlike M11b its scope and exit gate are written, so it
+needs only a place.
+
+Also corrected here: **KI-47 cited a tag filter row that SPEC §11 deleted** a
+day after the handoff KI-47 was written against, and SPEC §10's mobile claim
+rests on the same dead control. Four days of our own documentation pointing at
+something that no longer existed — and it was in the plan, about to be built.
