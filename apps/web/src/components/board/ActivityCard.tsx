@@ -126,14 +126,12 @@ export function ActivityCard({
           style={closestEdge === "top" ? { top: "-3px" } : { bottom: "-3px" }}
         />
       )}
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex items-center gap-1.5">
+      {/* `items-center`, not `items-start` (Mitchell, on the preview: "The icon
+          is aligned to the top of the title text, not the middle of the title
+          text"). The kind badge has left this row entirely — see the footer. */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
           <Text as="span" className="font-medium">{activity.title}</Text>
-          {badge && (
-            <Badge variant={badge.variant} data-testid={`kind-badge-${activity.activityId}`}>
-              {badge.label}
-            </Badge>
-          )}
           {hasConflict && (
             <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
               <AlertTriangle className="size-3" aria-hidden />
@@ -155,35 +153,61 @@ export function ActivityCard({
         <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
       )}
       {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
-      {/* Tag chips (M18), below the meta row and above the cost, where the
-          handoff puts them. Deliberately spans and not buttons: SPEC §11's
-          click-a-chip-to-focus behaviour is carved out as M18b, and a chip
-          that looked pressable and did nothing would be a worse lie than one
-          that plainly reads. Rendered in the stop's own array order rather
-          than the canonical one the editor writes — the card shows the data
-          it was given, including arrays written before there was an editor. */}
-      {activity.tags.length > 0 && (
-        <div data-testid={`tag-chips-${activity.activityId}`} className="mt-2 flex flex-wrap gap-1.5">
-          {activity.tags.map((tag) => (
-            <span
-              key={tag}
-              data-testid={`tag-chip-${tag}`}
-              className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[tag])}
-            >
-              {TAG_LABEL[tag]}
+      {/* One footer row carries every status the card shows — kind, tags, cost
+          (Mitchell, on the preview: the kind badge was "kinda floating in
+          middle of card… really messing with the card spacing", and the cost
+          "really blends in, lets find a better way to style this so it better
+          uses the space on the card").
+
+          What changed and why. The kind badge used to sit inline after the
+          title, so on a short title it stopped mid-width with nothing to align
+          to — the floating Mitchell saw. Tags then took a row of their own and
+          the cost a third, so a card was four stacked rows of which two held a
+          single short item each. Grouping them into one `justify-between` row
+          anchors the badge to the card's left edge, gives the cost the right
+          edge, and returns a row's worth of height to every card.
+
+          The cost is `text-ink` rather than the muted slate the meta line uses:
+          it was the same colour and weight as the place it sat under, so it
+          read as one more line of metadata rather than as the number.
+
+          Tag chips are deliberately spans and not buttons: SPEC §11's
+          click-a-chip-to-focus behaviour is carved out as M18b, and a chip that
+          looked pressable and did nothing would be a worse lie than one that
+          plainly reads. Rendered in the stop's own array order rather than the
+          canonical one the editor writes — the card shows the data it was
+          given, including arrays written before there was an editor. */}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {badge && (
+            <Badge variant={badge.variant} data-testid={`kind-badge-${activity.activityId}`}>
+              {badge.label}
+            </Badge>
+          )}
+          {activity.tags.length > 0 && (
+            <span data-testid={`tag-chips-${activity.activityId}`} className="flex flex-wrap gap-1.5">
+              {activity.tags.map((tag) => (
+                <span
+                  key={tag}
+                  data-testid={`tag-chip-${tag}`}
+                  className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[tag])}
+                >
+                  {TAG_LABEL[tag]}
+                </span>
+              ))}
             </span>
-          ))}
-        </div>
-      )}
-      {/* Task 4.1 (M10 Phase 4): the board's per-stop cost, same treatment as
-          TimelineLens's card — mono, formatMoney (KI-2), honest "No cost
-          yet" for the null/undefined case. `activity.cost` truthiness
-          already covers both. */}
-      {activity.cost ? (
-        <DataText size="xs" className="block">{formatMoney(activity.cost.amountMinor, currency)}</DataText>
-      ) : (
-        <DataText size="xs" className="block">No cost yet</DataText>
-      )}
+          )}
+        </span>
+        {/* Task 4.1 (M10 Phase 4): the board's per-stop cost — mono, formatMoney
+            (KI-2), honest "No cost yet" for the null/undefined case. */}
+        {activity.cost ? (
+          <DataText size="xs" className="shrink-0 font-semibold text-ink">
+            {formatMoney(activity.cost.amountMinor, currency)}
+          </DataText>
+        ) : (
+          <DataText size="xs" className="shrink-0">No cost yet</DataText>
+        )}
+      </div>
       {/* The design's day-column overlap treatment (M10 Phase 5): the same
           warning the timeline shows in full, compressed to what fits a 268px
           column — the other stop's title, truncated, and a bare dismiss. The
