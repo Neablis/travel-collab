@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/cn";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
@@ -69,6 +68,38 @@ export function toolNoteLabel(toolName: string, input: unknown): string {
   }
 }
 
+/**
+ * What a screen reader is told, and when.
+ *
+ * The transcript itself is NOT a live region. It used to be: `role="log"
+ * aria-live="polite"` wrapped text that mutates on every streamed delta, with a
+ * nested `role="status"` interleaved among the turns. A polite region
+ * re-announces its changed contents, so a growing answer was read out again
+ * from the top on every token — worse than no live region at all, because it
+ * buries whatever the user was actually listening to (final branch review,
+ * 2026-08-29, finding 4, rated above where it was first filed).
+ *
+ * So: announce turn BOUNDARIES and completion, never deltas. This returns one
+ * of a small set of strings, and — the load-bearing part — the two "in
+ * progress" strings are CONSTANTS. A turn that has streamed nine words and one
+ * that has streamed nine hundred produce the same announcement, so nothing is
+ * re-announced while it is still arriving. The finished answer is announced
+ * exactly once, when it is finished and worth hearing.
+ */
+function announcementFor(turns: readonly AssistantTurn[]): string {
+  const last = turns[turns.length - 1];
+  if (last === undefined || last.role !== "assistant") return "";
+  if (last.pending) {
+    return last.text === "" && last.tools.length === 0 ? "Thinking…" : "Writing the answer…";
+  }
+  if (last.text === "") return "";
+  const proposal =
+    last.proposal != null && last.proposal.status === "pending"
+      ? " A proposed change is waiting for your review below."
+      : "";
+  return `Answer: ${last.text}${proposal}`;
+}
+
 export function Transcript({
   turns,
   onApproveProposal = () => {},
@@ -101,7 +132,12 @@ export function Transcript({
   }, [turns]);
 
   return (
-    <div role="log" aria-label="Conversation" aria-live="polite" className="flex flex-col gap-3">
+    <>
+      {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
+          an IMPLICIT polite live region, so leaving the attribute off would
+          not turn the announcements off — only stop saying so. The one region
+          that does announce is below, outside the mutating content. */}
+      <div role="log" aria-label="Conversation" aria-live="off" className="flex flex-col gap-3">
       {turns.map((turn) =>
         turn.role === "user" ? (
           <div key={turn.id} className="flex justify-end">
@@ -139,15 +175,25 @@ export function Transcript({
                 disabledReason={approvalBlockedReason}
               />
             )}
-            {turn.pending && (
-              <p className={cn("text-xs text-slate", turn.text !== "" && "sr-only")} role="status">
-                {turn.text === "" && turn.tools.length === 0 ? "Thinking…" : "Still writing…"}
+            {/* Visible only, and no `role` — a second live region nested
+                inside the log is what finding 4 was about. Once text is
+                arriving the text IS the progress indicator, so this drops away
+                rather than becoming an `sr-only` duplicate of it. */}
+            {turn.pending && turn.text === "" && (
+              <p className="text-xs text-slate">
+                {turn.tools.length === 0 ? "Thinking…" : "Still writing…"}
               </p>
             )}
           </div>
         ),
       )}
       <div ref={endRef} />
-    </div>
+      </div>
+      {/* The one live region. `sr-only` because everything it says is already
+          on screen — its job is timing, not content a sighted user is missing. */}
+      <p role="status" aria-atomic className="sr-only">
+        {announcementFor(turns)}
+      </p>
+    </>
   );
 }

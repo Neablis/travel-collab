@@ -5,7 +5,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
+import type { AskScope } from "@/lib/apiClient";
 import { Transcript, type AssistantTurn } from "./Transcript";
+
+/**
+ * How close to the ceiling the warning appears, in questions still available.
+ *
+ * Three, so it arrives with room to finish the thought you are in the middle of
+ * — a warning that fires on the last possible turn is an error message wearing a
+ * warning's clothes.
+ */
+const ASK_WARNING_AT = 3;
 
 // M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
 // title, Hide) and its ask box are the SAME real conversational feature the
@@ -36,10 +47,19 @@ import { Transcript, type AssistantTurn } from "./Transcript";
 // as a ProposalCard. The rail owns none of it — it forwards two callbacks and
 // one blocked-reason string, because approving reconciles authoritative server
 // state onto the board and only the board can do that.
+//
+// Two fixes from the final branch review (2026-08-29). The composer's
+// placeholder follows the SCOPE rather than saying "this day" under a context
+// line that says "Looking at <trip>"; and the thread's 40-message ceiling
+// (`MAX_ASK_MESSAGES`) now exists on this side of the wire, as a warning while
+// it fills and an obvious exit when it is full. Before, the 41st message failed
+// the turn with a server 400 nobody could act on.
 export function AssistantRail({
   contextLine,
+  scope,
   turns,
   suggestions,
+  asksRemaining,
   restoreDraft = null,
   onAsk,
   onApproveProposal,
@@ -53,6 +73,13 @@ export function AssistantRail({
 }: {
   contextLine: string;
   /**
+   * What this turn is about. The composer's placeholder is worded from it, for
+   * the same reason `contextLine` is: a box that says "Ask about this day…"
+   * under "Looking at Rome 2027" contradicts the line directly above it (final
+   * branch review, 2026-08-29, finding 3).
+   */
+  scope: AskScope;
+  /**
    * The whole conversation, oldest first. Held by TripBoardScreen, not here:
    * the refusals below (unsent edits, view-only) have to happen BEFORE a turn
    * is appended, and the thread has to survive this rail being hidden.
@@ -65,6 +92,13 @@ export function AssistantRail({
    * the user may already have had answered.
    */
   suggestions: string[];
+  /**
+   * How many more questions this thread has room for before the server's
+   * `MAX_ASK_MESSAGES` cap refuses the turn. Counted by the board, which owns
+   * the thread and builds the array that is actually posted — counting it here
+   * from `turns` would be a second copy of that rule and would drift from it.
+   */
+  asksRemaining: number;
   /**
    * A question to put back in the composer, or `null`. Set when a turn was
    * rolled back after being accepted — the two synchronous refusals below keep
@@ -108,8 +142,10 @@ export function AssistantRail({
     if (restoreDraft !== null) setAsk(restoreDraft);
   }, [restoreDraft]);
 
+  const threadFull = asksRemaining <= 0;
+
   const submitAsk = async () => {
-    if (ask.trim() === "" || asking) return;
+    if (ask.trim() === "" || asking || threadFull) return;
     const accepted = await onAsk(ask);
     if (accepted !== false) setAsk("");
   };
@@ -217,23 +253,59 @@ export function AssistantRail({
             {askError}
           </p>
         )}
-        <div className="flex gap-1.5">
-          <Input
-            placeholder="Ask about this day…"
-            value={ask}
-            onChange={(e) => setAsk(e.target.value)}
-            disabled={asking}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void submitAsk();
-              }
-            }}
-          />
-          <Button variant="primary" size="sm" onClick={() => void submitAsk()} disabled={asking || ask.trim() === ""}>
-            {asking ? "Asking…" : "Ask"}
-          </Button>
-        </div>
+        {threadFull ? (
+          // The composer is REPLACED, not disabled beside a warning: at this
+          // point there is exactly one thing to do, and the only previous signal
+          // was a server 400 that rolled the question back into a box which
+          // still looked ready to take it. Nothing is trimmed — the thread the
+          // user can see is the thread that exists, and starting a new one is
+          // their call to make, not something done under them.
+          <div role="status" className="flex flex-col items-start gap-1.5">
+            <p className="text-xs text-slate">
+              This conversation has reached its limit of {MAX_ASK_MESSAGES} messages. Start a new one to keep asking —
+              this one stays on screen until you do.
+            </p>
+            <Button variant="primary" size="sm" onClick={onNewConversation}>
+              Start a new conversation
+            </Button>
+          </div>
+        ) : (
+          <>
+            {asksRemaining <= ASK_WARNING_AT && (
+              <p role="status" className="mb-1.5 text-xs text-slate">
+                {asksRemaining === 1
+                  ? "Room for 1 more question in this conversation."
+                  : `Room for ${asksRemaining} more questions in this conversation.`}
+              </p>
+            )}
+            <div className="flex gap-1.5">
+              <Input
+                // Worded from the scope the question is actually asked in, the
+                // same source `contextLine` is worded from — see the `scope`
+                // prop. It used to say "this day" unconditionally, directly
+                // under a context line reading "Looking at <trip>".
+                placeholder={scope.kind === "day" ? "Ask about this day…" : "Ask about this trip…"}
+                value={ask}
+                onChange={(e) => setAsk(e.target.value)}
+                disabled={asking}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void submitAsk();
+                  }
+                }}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void submitAsk()}
+                disabled={asking || ask.trim() === ""}
+              >
+                {asking ? "Asking…" : "Ask"}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );

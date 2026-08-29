@@ -32,9 +32,10 @@
 // `day` for the same row is how off-by-one answers get written.
 import { tool } from "ai";
 import { z } from "zod";
-import type { TripDetail } from "@tc/contracts";
+import type { ActivityKind, TripDetail } from "@tc/contracts";
 import { findFreeGaps, minutesOf } from "@tc/domain";
-import { activeConflicts, type AiConflictSummary, type AskScope } from "@/server/ai/context";
+import { needsBooking } from "@/lib/booking";
+import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
 
 export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time"] as const;
 export type ReadToolName = (typeof READ_TOOL_NAMES)[number];
@@ -96,6 +97,16 @@ export interface TripDayReadout {
   day: number;
   date: string | null;
   stopCount: number;
+  /**
+   * How many of those stops still need booking — kind neither `booked` nor
+   * `transit` (`@/lib/booking`).
+   *
+   * Here, and not left for the model to work out from `read_day`, because a
+   * TRIP-scoped question about booking has no day to read: the rail offers
+   * "3 stops still need booking — which should I sort out first?" from the
+   * whole trip, and without this the only honest answer was "I can't see".
+   */
+  toBook: number;
   /** Integer minor units, same convention as `TripDetail.days[].costSubtotal`. */
   costSubtotal: number;
 }
@@ -130,6 +141,10 @@ export function readTrip(detail: TripDetail): TripReadout {
       day: index + 1,
       date: day.date,
       stopCount: day.activityIds.length,
+      toBook: day.activityIds.filter((id) => {
+        const activity = detail.activities[id];
+        return activity !== undefined && needsBooking(activity.kind);
+      }).length,
       costSubtotal: day.costSubtotal,
     })),
     // The raw content-derived `id` embeds UUIDs and is stripped for the same
@@ -144,7 +159,7 @@ export interface StopReadout {
   timeWindow: { start: string; end: string } | null;
   location: { name: string; city: string | null; countryCode: string | null } | null;
   notes: string | null;
-  kind: string;
+  kind: ActivityKind;
   tags: string[];
   cost: { amountMinor: number; currency: string } | null;
 }
@@ -154,6 +169,17 @@ export interface DayReadout {
   date: string | null;
   costSubtotal: number;
   stops: StopReadout[];
+  /**
+   * The active conflicts that touch this day, by the same trip-wide `ref`
+   * `read_trip` reports (`conflictsOnDay`).
+   *
+   * On the day rather than left to a cross-reference against `read_trip`:
+   * `TripReadout.conflicts` carries no day, so "how should I fix the conflict
+   * on day 3?" was answerable only by matching stop titles out of a
+   * description — which is guesswork for a real model and was nothing at all
+   * for the simulated one.
+   */
+  conflicts: AiConflictSummary[];
 }
 
 /** What a tool hands back when the model asked something the trip cannot answer. */
@@ -186,6 +212,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
     day,
     date: record.date,
     costSubtotal: record.costSubtotal,
+    conflicts: conflictsOnDay(detail, index),
     // An id listed on the day but missing from `detail.activities` is dropped
     // rather than rendered as a placeholder stop — the same rule
     // `busyIntervalsFor` applies in the domain, so the two never disagree
@@ -343,14 +370,14 @@ export function buildReadTools() {
     tools: {
       read_trip: tool({
         description:
-          "Read this trip's shape: name, currency, start date, how many days, each day's date, stop count and cost subtotal, the trip cost total, and any active conflicts.",
+          "Read this trip's shape: name, currency, start date, how many days, each day's date, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts.",
         inputSchema: ReadTripInput,
         contextSchema: ReadContextSchema,
         execute: async (_input, { context }) => readTrip(context.detail),
       }),
       read_day: tool({
         description:
-          "Read one day in full: every stop with its time window, location, notes, kind, tags and cost. Use this whenever the question is about what happens on a day, or when a stop's time matters.",
+          "Read one day in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch it. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about that day's conflicts or what it still needs booked.",
         inputSchema: ReadDayInput,
         contextSchema: ReadContextSchema,
         execute: async (input, { context }) => {

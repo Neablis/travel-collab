@@ -11,8 +11,10 @@ afterEach(cleanup);
 // the same values renderRail defaults to below.
 const baseProps: React.ComponentProps<typeof AssistantRail> = {
   contextLine: "Looking at Day 2 · Kyoto",
+  scope: { kind: "day", dayIndex: 1 },
   turns: [],
   suggestions: [],
+  asksRemaining: 20,
   onAsk: vi.fn(),
   onApproveProposal: vi.fn(),
   onRejectProposal: vi.fn(),
@@ -204,5 +206,72 @@ describe("AssistantRail", () => {
   it("leaves the composer alone while there is nothing to restore", () => {
     renderRail({ restoreDraft: null });
     expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("");
+  });
+});
+
+// Finding 3 of the final branch review: the composer said "this day" under a
+// context line that said "Looking at <trip>". Both are worded from the same
+// scope now, so they cannot contradict each other.
+describe("AssistantRail — the composer follows the scope", () => {
+  it("asks about the day when the turn is day-scoped", () => {
+    renderRail({ scope: { kind: "day", dayIndex: 1 } });
+    expect(screen.getByPlaceholderText("Ask about this day…")).not.toBeNull();
+    expect(screen.queryByPlaceholderText("Ask about this trip…")).toBeNull();
+  });
+
+  it("asks about the trip when the turn is trip-scoped", () => {
+    renderRail({ scope: { kind: "trip" }, contextLine: "Looking at Kyoto 2027" });
+    expect(screen.getByPlaceholderText("Ask about this trip…")).not.toBeNull();
+    expect(screen.queryByPlaceholderText("Ask about this day…")).toBeNull();
+  });
+});
+
+// Finding 2: `MAX_ASK_MESSAGES` was a server 400 with no counterpart here, so
+// the 41st message failed the turn and nothing said New conversation was the
+// way out. `asksRemaining` is counted by the board (it owns the thread and
+// builds what is posted); the rail owns what to do about it.
+describe("AssistantRail — the thread's ceiling", () => {
+  const someThread: AssistantTurn[] = [
+    { id: "u1", role: "user", text: "How is the trip looking?" },
+    { id: "a1", role: "assistant", text: "Three days.", tools: [], pending: false },
+  ];
+
+  it("says nothing while the thread has room", () => {
+    renderRail({ turns: someThread, asksRemaining: 4 });
+    expect(screen.queryByText(/room for/i)).toBeNull();
+    expect(screen.getByPlaceholderText(/ask about this/i)).not.toBeNull();
+  });
+
+  it("warns as the thread fills, in questions rather than messages", () => {
+    renderRail({ turns: someThread, asksRemaining: 3 });
+    expect(screen.getByText("Room for 3 more questions in this conversation.")).not.toBeNull();
+    // Still usable — a warning, not a wall.
+    expect(screen.getByPlaceholderText(/ask about this/i)).not.toBeNull();
+  });
+
+  it("counts the last one in the singular", () => {
+    renderRail({ turns: someThread, asksRemaining: 1 });
+    expect(screen.getByText("Room for 1 more question in this conversation.")).not.toBeNull();
+  });
+
+  it("replaces the composer with the way out once it is full", () => {
+    const onNewConversation = vi.fn();
+    renderRail({ turns: someThread, asksRemaining: 0, onNewConversation });
+    // The composer is gone rather than sitting there looking ready.
+    expect(screen.queryByPlaceholderText(/ask about this/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(screen.getByText(/reached its limit of 40 messages/)).not.toBeNull();
+
+    // And the exit is a real control, clicked rather than typed at.
+    fireEvent.click(screen.getByRole("button", { name: "Start a new conversation" }));
+    expect(onNewConversation).toHaveBeenCalledTimes(1);
+  });
+
+  // Nothing is dropped behind the user's back: the thread they can see is the
+  // thread that exists until they say otherwise.
+  it("still shows the whole conversation when it is full", () => {
+    renderRail({ turns: someThread, asksRemaining: 0 });
+    expect(screen.getByText("How is the trip looking?")).not.toBeNull();
+    expect(screen.getByText("Three days.")).not.toBeNull();
   });
 });

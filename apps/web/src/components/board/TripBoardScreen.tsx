@@ -40,6 +40,7 @@ import {
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
+import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 
 // Closed until asked for, at every width (Mitchell, walking the #71 preview:
 // "Can we default the assistant to minimized? Its a better experience").
@@ -691,6 +692,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // offered in one scope and asked in another.
   const assistantSuggestions = suggestedQuestions(activeTrip, scopedDay);
 
+  // How many more questions this thread has room for.
+  //
+  // `runAsk` posts the whole thread plus the new question, and the server
+  // refuses a body over `MAX_ASK_MESSAGES` with a 400 (`handleAskRequest`).
+  // Until this existed the rail had no idea: at message 41 every turn failed
+  // with "a thread may hold at most 40 messages", the question rolled back into
+  // a composer that still looked ready, and nothing said New conversation was
+  // the only way out (final branch review, 2026-08-29, finding 2).
+  //
+  // Counted from the SAME filter `runAsk` applies when it builds `posted` — a
+  // turn with no text is not on the wire — so the two cannot disagree about
+  // what the server will see. Each answered question adds two messages, so
+  // `(cap − posted + 1) / 2` is what is left: at 39 posted, one more question
+  // fits (40) and none after it.
+  const postedThreadLength = thread.filter((turn) => turn.text.trim() !== "").length;
+  const asksRemaining = Math.max(0, Math.floor((MAX_ASK_MESSAGES - postedThreadLength + 1) / 2));
+
   return (
     <>
       {/* M16 Wave 1 (Task 4, SPEC §9 docked presentation): the Assistant rail
@@ -835,8 +853,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         {!isDemo && assistant.open && (
           <AssistantRail
             contextLine={assistantContextLine}
+            scope={askScope}
             turns={thread}
             suggestions={assistantSuggestions}
+            asksRemaining={asksRemaining}
             restoreDraft={restoredDraft}
             onNewConversation={startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}

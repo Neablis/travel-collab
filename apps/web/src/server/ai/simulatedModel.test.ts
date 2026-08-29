@@ -68,9 +68,9 @@ const TRIP_READOUT = {
   dayCount: 3,
   tripCostTotal: 1000,
   days: [
-    { day: 1, date: "2026-09-08", stopCount: 2, costSubtotal: 500 },
-    { day: 2, date: "2026-09-09", stopCount: 1, costSubtotal: 500 },
-    { day: 3, date: "2026-09-10", stopCount: 0, costSubtotal: 0 },
+    { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
+    { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
+    { day: 3, date: "2026-09-10", stopCount: 0, toBook: 0, costSubtotal: 0 },
   ],
   conflicts: [{ ref: 1, kind: "time-overlap", description: "\"A\" and \"B\" overlap on day 2." }],
 };
@@ -80,6 +80,7 @@ const DAY_READOUT = {
   date: "2026-09-10",
   costSubtotal: 0,
   stops: [{ title: "Museum", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, kind: "planned", tags: [], cost: null }],
+  conflicts: [],
 };
 
 const FREE_READOUT = {
@@ -224,6 +225,105 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("Day 3 (2026-09-10) of Japan has 1 stop.");
     expect(answer).toContain("Museum at 10:00");
     expect(answer).not.toMatch(/day 1|day 2|overlap/i);
+  });
+
+  // The four chips the final branch review found were dead ends on the only
+  // path anyone deploys (ai-live is off in every Vercel environment). Each one
+  // is asserted here as prose; `askChipCoverage.test.ts` is what stops the
+  // chip and the answer drifting apart again.
+  it("answers what a day still needs booked, from the stops' own kinds", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "day", dayIndex: 2 }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          {
+            toolName: "read_day",
+            value: {
+              ...DAY_READOUT,
+              stops: [
+                { ...DAY_READOUT.stops[0]!, title: "Museum", kind: "planned" },
+                { ...DAY_READOUT.stops[0]!, title: "Ryokan", kind: "booked" },
+                { ...DAY_READOUT.stops[0]!, title: "Shinkansen", kind: "transit" },
+                { ...DAY_READOUT.stops[0]!, title: "Dinner", kind: "hold" },
+              ],
+            },
+          },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).toContain("Still to book: Museum, Dinner.");
+  });
+
+  it("says so when a day has nothing left to book, rather than staying silent", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "day", dayIndex: 2 }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          { toolName: "read_day", value: { ...DAY_READOUT, stops: [{ ...DAY_READOUT.stops[0]!, kind: "booked" }] } },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).toContain("Everything on it is either booked or in transit.");
+  });
+
+  // Was the fourth dead end: the trip-wide conflict list carries no day, so a
+  // day-scoped answer had nothing to say about "the 1 conflict on day 3".
+  it("reports the conflicts on the day it was asked about", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "day", dayIndex: 2 }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          {
+            toolName: "read_day",
+            value: {
+              ...DAY_READOUT,
+              conflicts: [{ ref: 2, kind: "time-overlap", description: '"Museum" and "Lunch" overlap in time on the same day.' }],
+            },
+          },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).toContain('1 conflict on this day: "Museum" and "Lunch" overlap in time on the same day.');
+    // M16's gate still holds: the trip's OWN conflict list (day 2's, in this
+    // fixture) is not what was read.
+    expect(answer).not.toMatch(/day 1|day 2/i);
+  });
+
+  it("names the days that still have stops to book on a trip-scoped turn", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "trip" }, [
+          {
+            toolName: "read_trip",
+            value: {
+              ...TRIP_READOUT,
+              days: [
+                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 2, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
+                { day: 3, date: "2026-09-10", stopCount: 1, toBook: 1, costSubtotal: 0 },
+              ],
+            },
+          },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).toContain("3 stops still need booking: day 1 (2), day 3 (1).");
+  });
+
+  it("stays quiet about booking when nothing is outstanding", async () => {
+    const answer = textOf(
+      await probe("ask").doGenerate(
+        askPrompt({ kind: "trip" }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          { toolName: "find_free_time", value: FREE_READOUT },
+        ]),
+      ),
+    );
+    expect(answer).not.toMatch(/need booking/);
   });
 
   it("says so rather than inventing one when the trip has no open time", async () => {
@@ -398,6 +498,34 @@ describe("simulatedModel — proposing a change", () => {
     "What on day 2 still needs booking?",
     "There are 2 conflicts still open — what should I do about them?",
   ])("answers %s without proposing anything", async (question) => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
+    );
+    expect(callsOf(result)).toEqual([]);
+  });
+
+  // The two chips that ask for IDEAS rather than for a fact. Neither carries a
+  // change VERB, so both used to fall through to "the trip runs to 0 days… no
+  // open time" — the empty-trip one being literally the first step of "plan a
+  // trip from start to finish" (final branch review, finding 1).
+  it.each([
+    "There are no days yet — how should I start planning this trip?",
+    "Day 3 is empty — what could I do with it?",
+  ])("drafts a proposal for %s", async (question) => {
+    const result = await probe("ask").doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
+    );
+    expect(callsOf(result).map((c) => c.toolName)).toContain("AddActivity");
+  });
+
+  // The near miss the object anchor in PLANNING_PROMPTS exists for: "…do with"
+  // is the empty-day chip, "…do about" is the conflict chip, and the second is
+  // a question the assistant answers rather than a change it drafts.
+  it.each([
+    "There's 1 conflict still open — what should I do about it?",
+    "There's 1 conflict on day 3 — how should I fix it?",
+    "What on day 3 still needs booking?",
+  ])("answers %s without drafting anything", async (question) => {
     const result = await probe("ask").doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
     );

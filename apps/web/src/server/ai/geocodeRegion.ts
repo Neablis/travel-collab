@@ -6,6 +6,7 @@
 // The geo vocabulary lives on the geocoder seam (it appears in
 // `Geocoder.forward`'s options), and is re-exported here so callers of these
 // predicates need only one import.
+import type { TripDetail } from "@tc/contracts";
 import type { BoundingBox, LatLng } from "@/server/geocoding";
 export type { BoundingBox, LatLng };
 
@@ -22,12 +23,18 @@ const NULL_ISLAND_DEGREES = 0.5;
 /**
  * Padding on the box drawn around a trip's existing activities, in km.
  *
- * Lives here because THREE callers need the same number and nothing pinned that
- * they agreed: `handleAiRequest` (the command path), `writeTools.commitProposal`
- * (the approval path) and `geocodeEnrichment`'s own fallback. KI-15 parity —
- * "an approved batch is enriched on exactly the command path's terms" — is a
- * claim about this value being identical, so it is stated once and asserted
- * against the remaining copies in `writeTools.test.ts`.
+ * Lives here because THREE callers need the same number: `handleAiRequest` (the
+ * command path), `writeTools.commitProposal` (the approval path) and
+ * `geocodeEnrichment`'s own fallback. KI-15 parity — "an approved batch is
+ * enriched on exactly the command path's terms" — is a claim about this value
+ * being identical in all three, so all three import it.
+ *
+ * They used to declare their own `= 150` and the agreement was checked by a
+ * regex over their source text, on the reading that ADR-022 §4 ("the command
+ * path is not modified") forbade the import. It does not: adding an import for
+ * a number that is already the same number changes no behaviour. Mitchell
+ * authorised it explicitly on 2026-08-29, and the regex test went with the
+ * duplication it was covering for.
  *
  * Loose on purpose: a trip legibly spans a region. The per-place hint margin is
  * much tighter, because it describes one place.
@@ -108,4 +115,25 @@ export function withinBox(box: BoundingBox, point: LatLng): boolean {
     point.lng >= box.minLng &&
     point.lng <= box.maxLng
   );
+}
+
+/**
+ * The region a trip already occupies: the padded box around every activity
+ * whose location carries believable coordinates, or `null` when none does.
+ *
+ * The trip's own already-geocoded activities are the only region signal that
+ * does not come from the model. A brand-new trip planned in one prompt has
+ * none — that is expected, and enrichment falls back to per-place hints and its
+ * own within-batch bootstrapping.
+ *
+ * Here rather than at either call site because `handleAiRequest` (the command
+ * path) and `writeTools.commitProposal` (the approval path) had a verbatim copy
+ * each, which is the same KI-15 parity claim as the margin above and drifts the
+ * same way.
+ */
+export function tripRegionOf(detail: TripDetail): BoundingBox | null {
+  const points = Object.values(detail.activities)
+    .map((a) => (a.location ? plausibleCoords(a.location) : null))
+    .filter((p): p is LatLng => p !== null);
+  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
 }

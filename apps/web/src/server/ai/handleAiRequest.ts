@@ -37,7 +37,7 @@
 // test needs LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
-import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
+import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
 import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
@@ -54,7 +54,7 @@ import {
   hasUnverifiedLocations,
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
-import { boundingBoxAround, plausibleCoords } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
@@ -427,23 +427,6 @@ export async function handleAiRequest(
     resolutionErrors,
     locationReport,
   });
-}
-
-// Padding on the region drawn from a trip's existing activities. Matches
-// TRIP_REGION_MARGIN_KM in geocodeEnrichment — kept here rather than exported
-// because this is the caller's decision about how loosely to read "the trip is
-// around here", not the enricher's.
-const TRIP_REGION_MARGIN_KM = 150;
-
-// The trip's own already-geocoded activities are the only region signal that
-// does not come from the model. A brand-new trip planned in one prompt has
-// none — that is expected, and enrichment falls back to per-place hints and
-// its own within-batch bootstrapping.
-function tripRegionOf(detail: TripDetail) {
-  const points = Object.values(detail.activities)
-    .map((a) => (a.location ? plausibleCoords(a.location) : null))
-    .filter((p): p is NonNullable<typeof p> => p !== null);
-  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
 }
 
 // Turn the enrichment report into one sentence, or nothing. Named places beat

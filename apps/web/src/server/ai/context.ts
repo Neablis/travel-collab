@@ -133,6 +133,33 @@ export function activeConflicts(detail: TripDetail): (AiConflictSummary & { id: 
     .map((c, i) => ({ ref: i + 1, id: c.id, kind: c.kind, description: c.description }));
 }
 
+/**
+ * The active conflicts that touch ONE day, keeping the trip-wide `ref` numbers
+ * `activeConflicts` assigns — a conflict is "conflict 2" wherever it is read,
+ * or a day-scoped answer and the command envelope would name the same clash by
+ * two different numbers.
+ *
+ * Membership is `subjects` intersecting the day's `activityIds`, which is
+ * exactly the filter `suggestedQuestions.ts` applies to decide whether to OFFER
+ * "there's 1 conflict on day N — how should I fix it?". The two agree by
+ * construction, which is the point: the chip existed and the answer did not
+ * (final branch review, 2026-08-29, finding 1).
+ *
+ * The over-budget conflict's subject is the tripId, so it belongs to no day and
+ * never appears here. That is right — a budget overrun is not a fact about
+ * day 3 — and it is also what keeps a day-scoped answer from naming days it was
+ * not asked about (M16's gate).
+ */
+export function conflictsOnDay(detail: TripDetail, dayIndex: number): AiConflictSummary[] {
+  const day = detail.days[dayIndex];
+  if (!day) return [];
+  const onThisDay = new Set(day.activityIds);
+  const subjectsById = new Map(detail.conflicts.map((c) => [c.id, c.subjects]));
+  return activeConflicts(detail)
+    .filter(({ id }) => (subjectsById.get(id) ?? []).some((s) => onThisDay.has(s)))
+    .map(({ id: _id, ...rest }) => rest);
+}
+
 export interface AiEnvelope {
   surface: AiCommandSurface;
   tripSummary: TripSummary;

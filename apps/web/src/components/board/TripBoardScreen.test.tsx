@@ -546,7 +546,7 @@ describe("TripBoardScreen", () => {
     // The rail is closed until asked for now, so open it before reaching for
     // anything inside it.
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "How is it looking?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     const log = await screen.findByRole("log", { name: "Conversation" });
@@ -568,7 +568,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    const box = screen.getByPlaceholderText(/ask about this day/i);
+    const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i);
     fireEvent.change(box, { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy());
@@ -599,14 +599,14 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "What's planned?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText("Five stops.")).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Fresh start" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Fresh start" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["Fresh start"]);
@@ -629,14 +629,18 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "What's planned?" } });
+    // The composer says the same thing the context line does — it used to say
+    // "this day" here regardless (final branch review, finding 3).
+    expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "trip" });
 
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
     expect(screen.getByText("Looking at Day 2")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "And here?" } });
+    expect(screen.getByPlaceholderText("Ask about this day…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And here?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).scope).toEqual({ kind: "day", dayIndex: 1 });
@@ -702,7 +706,7 @@ describe("TripBoardScreen", () => {
       within(screen.getByRole("list", { name: "Suggested questions" })).getAllByRole("button").map((b) => b.textContent),
     ).toContain("How is the trip looking?");
 
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "What's planned?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "trip" });
@@ -724,17 +728,86 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Here?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Here?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "day", dayIndex: 1 });
 
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
     expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "And now?" } });
+    expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And now?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).scope).toEqual({ kind: "trip" });
+  });
+
+  // Finding 2 of the final branch review. `MAX_ASK_MESSAGES` was a server 400
+  // with no counterpart here: at message 41 every turn failed with "a thread
+  // may hold at most 40 messages", the question rolled back into a composer
+  // that still looked ready, and nothing said New conversation was the way out.
+  // Twenty exchanges is reachable in one "plan a trip start to finish" session.
+  //
+  // This drives the whole thread rather than poking a number, because the thing
+  // that can drift is the ARITHMETIC — the client's count has to land on exactly
+  // the turn the server would refuse.
+  it("stops at the thread's ceiling instead of letting the server refuse the turn", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Two days."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+
+    const ask = async (n: number) => {
+      fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+        target: { value: `question ${n}` },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
+    };
+
+    // 40 messages is 20 exchanges, and the 20th ask is the last that fits: it
+    // posts 19 answered exchanges plus the new question, 39 messages. A 21st
+    // would post 41 and be refused. A posted thread is always odd, so 39 is the
+    // real ceiling here rather than the client stopping short of the server's.
+    for (let n = 1; n <= 20; n++) await ask(n);
+    expect(askCall(19).messages).toHaveLength(39);
+    await waitFor(() => expect(screen.getByText(/reached its limit of 40 messages/)).toBeTruthy());
+
+    // The composer is gone, so there is no 21st ask to make…
+    expect(screen.queryByPlaceholderText(/ask about this (?:day|trip)/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    // …and nothing was trimmed out from under the user: the first question is
+    // still on screen.
+    expect(screen.getByText("question 1")).toBeTruthy();
+
+    // The way out is a control, and it works.
+    fireEvent.click(screen.getByRole("button", { name: "Start a new conversation" }));
+    await waitFor(() => expect(screen.queryByText("question 1")).toBeNull());
+    expect(screen.getByPlaceholderText(/ask about this (?:day|trip)/i)).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(20);
+  });
+
+  it("warns before the thread is full, not only once it is", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Two days."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+
+    for (let n = 1; n <= 17; n++) {
+      fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+        target: { value: `question ${n}` },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
+    }
+    // 34 messages posted-so-far leaves room for three more questions, which is
+    // where the warning starts — with room to finish the thought you are in.
+    await waitFor(() => expect(screen.getByText("Room for 3 more questions in this conversation.")).toBeTruthy());
+    expect(screen.getByPlaceholderText(/ask about this (?:day|trip)/i)).toBeTruthy();
   });
 
   it("clears a stale Simulated badge when a follow-up ask fails", async () => {
@@ -746,7 +819,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "First ask" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "First ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
 
@@ -757,7 +830,7 @@ describe("TripBoardScreen", () => {
       ok: false,
       error: { status: 503, message: "The model is unavailable right now." },
     });
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Second ask" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Second ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
@@ -778,7 +851,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Day nine?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Day nine?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     // The 400's own words, verbatim: they are the actionable part.
@@ -788,7 +861,7 @@ describe("TripBoardScreen", () => {
     expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
 
     askAssistantMock.mockImplementationOnce(answers("Two days."));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "How many days?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How many days?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);
@@ -809,7 +882,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "How is it looking?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() =>
@@ -831,7 +904,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Anything" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Anything" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() =>
@@ -861,7 +934,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "How is it looking?" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
@@ -882,7 +955,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
     fireEvent.change(box, { target: { value: "a very long question" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
@@ -908,7 +981,7 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Slow one" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Slow one" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(signal).toBeDefined());
     expect(signal!.aborted).toBe(false);
@@ -1073,7 +1146,7 @@ describe("assistant ask — unsent work blocks the ask", () => {
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -1140,7 +1213,7 @@ describe("TripBoardScreen — a viewer's board", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -1209,7 +1282,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "add a coffee stop" },
     });
     // Deliberately the BUTTON, not Enter: the Ask control has been covered by

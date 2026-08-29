@@ -26,7 +26,7 @@ import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
-import { boundingBoxAround, plausibleCoords, TRIP_REGION_MARGIN_KM } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
@@ -282,13 +282,6 @@ export async function commitProposal(
       history: batch.history,
     },
   };
-}
-
-function tripRegionOf(detail: TripDetail) {
-  const points = Object.values(detail.activities)
-    .map((a) => (a.location ? plausibleCoords(a.location) : null))
-    .filter((p): p is NonNullable<typeof p> => p !== null);
-  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
 }
 
 /**

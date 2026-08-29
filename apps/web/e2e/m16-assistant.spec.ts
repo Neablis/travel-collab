@@ -69,6 +69,8 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
 
   // Turn 2. The whole thread goes back up, which is what gives a follow-up
   // something to refine (Ruling R1 — conversation state is client-held).
+  // Day 2 is focused, so the composer says so — it used to say "this day"
+  // in every scope, contradicting the context line above it.
   await page.getByPlaceholder("Ask about this day…").fill("and where is the free time?");
   // Deliberately the BUTTON, not Enter. The unscheduled rack is `position:
   // fixed` across the bottom of the viewport and its right-inset compensation
@@ -103,11 +105,59 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   await expect(rail).toContainText(`Looking at ${tripName}`);
   await expect(suggestions).toContainText("How is the trip looking?");
 
-  await page.getByPlaceholder("Ask about this day…").fill("how is the trip looking?");
+  // …and back at trip scope it follows.
+  await page.getByPlaceholder("Ask about this trip…").fill("how is the trip looking?");
   const [tripAsk] = await Promise.all([
     page.waitForRequest((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
     page.keyboard.press("Enter"),
   ]);
   expect((JSON.parse(tripAsk.postData() ?? "{}") as { scope: unknown }).scope).toEqual({ kind: "trip" });
   await expect(log).toContainText("runs to 3 days");
+});
+
+// The four chips the final branch review found were dead ends. Every one is
+// derived from real trip state, and every one used to be answered by something
+// that ignored the question — on the ONLY path a deployment runs, since
+// `ai-live` is off in every Vercel environment.
+//
+// `askChipCoverage.test.ts` enumerates the chips and pins the answers. What only
+// a browser can add is that the chip is a control you can CLICK: the Ask button
+// has been covered by the fixed unscheduled rack before, and every test that
+// used the keyboard missed it.
+test("the chips that used to be dead ends are clickable and answered", async ({ page }) => {
+  const tripName = e2eTripName("Chips");
+  await page.goto("/");
+  // Zero days: the empty-trip chip is the whole of the rail's opening offer,
+  // and it is literally the first step of "plan a trip from start to finish".
+  const tripId = await createMappedTrip(page, tripName, 0);
+  await page.goto(`/trips/${tripId}`);
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  const rail = page.getByRole("complementary", { name: "Assistant" });
+  const suggestions = rail.getByRole("list", { name: "Suggested questions" });
+  const log = page.getByRole("log", { name: "Conversation" });
+
+  await suggestions
+    .getByRole("button", { name: "There are no days yet — how should I start planning this trip?" })
+    .click();
+  // A draft, not "the trip runs to 0 days and has no open time" — which is what
+  // it said before, and which is the assistant refusing the question it offered.
+  await expect(log).toContainText("Nothing is applied yet");
+  const card = page.getByRole("region", { name: "Proposed change" });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Sample: coffee stop");
+  await page.getByRole("button", { name: "Approve" }).click();
+
+  // Now the trip has a day with stops on it. Focus it, and the day-scoped chips
+  // are the other three.
+  await page.getByRole("button", { name: "New conversation" }).click();
+  await page.getByRole("group", { name: "Days" }).getByRole("button").first().click();
+  await expect(rail).toContainText("Looking at Day 1");
+
+  await suggestions.getByRole("button", { name: "What on day 1 still needs booking?" }).click();
+  // Names the stops, from their own `kind` — the answer used to list times and
+  // never mention booking at all.
+  await expect(log).toContainText("Still to book:");
+  await expect(log).toContainText("Sample: coffee stop");
 });

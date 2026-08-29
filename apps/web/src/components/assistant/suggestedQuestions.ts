@@ -1,4 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
+import { needsBooking } from "@/lib/booking";
 
 /**
  * Four, because the rail is 356px wide: a fifth chip turns a suggestion list
@@ -39,12 +40,13 @@ export function suggestedQuestions(trip: TripDetail, focusedDay: number | null):
   const activeConflicts = trip.conflicts.filter((c) => !dismissed.has(c.id));
 
   // M18's contract fields are merged and readable; this reads `kind` and
-  // builds none of M18's surfaces. "Still needs booking" is everything that is
-  // neither `booked` nor `transit` — the same count the calendar's "N to book"
-  // uses, so two surfaces cannot disagree about what the number means.
-  const needsBooking = (activityId: string): boolean => {
+  // builds none of M18's surfaces. The rule itself is `@/lib/booking`'s
+  // `needsBooking`, shared with `readTools.ts` so the half that OFFERS this
+  // question and the half that ANSWERS it cannot disagree about what the number
+  // means (final branch review, 2026-08-29, finding 1).
+  const stopNeedsBooking = (activityId: string): boolean => {
     const activity = trip.activities[activityId];
-    return activity !== undefined && activity.kind !== "booked" && activity.kind !== "transit";
+    return activity !== undefined && needsBooking(activity.kind);
   };
 
   if (trip.days.length === 0) {
@@ -79,7 +81,7 @@ export function suggestedQuestions(trip: TripDetail, focusedDay: number | null):
       questions.push(`There are ${dayConflicts.length} conflicts on day ${n} — how should I fix them?`);
     }
 
-    if (day.activityIds.some(needsBooking)) {
+    if (day.activityIds.some(stopNeedsBooking)) {
       questions.push(`What on day ${n} still needs booking?`);
     }
 
@@ -99,7 +101,7 @@ export function suggestedQuestions(trip: TripDetail, focusedDay: number | null):
     questions.push(`There are ${activeConflicts.length} conflicts still open — what should I do about them?`);
   }
 
-  const toBook = scheduled.filter(needsBooking).length;
+  const toBook = scheduled.filter(stopNeedsBooking).length;
   if (toBook === 1) {
     questions.push("1 stop still needs booking — which is it?");
   } else if (toBook > 1) {

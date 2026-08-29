@@ -17,6 +17,21 @@ const THREAD: AssistantTurn[] = [
   { id: "a2", role: "assistant", text: "", tools: [], pending: true },
 ];
 
+const PROPOSAL = {
+  proposalId: "p1",
+  changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+  commands: [
+    {
+      type: "AddActivity" as const,
+      tripId: "11111111-1111-4111-8111-111111111111",
+      activityId: "22222222-2222-4222-8222-222222222222",
+      dayId: "22222222-2222-4222-8222-222222222222",
+      title: "Coffee",
+    },
+  ],
+  skipped: [],
+};
+
 describe("Transcript", () => {
   it("renders both sides of the conversation, in order", () => {
     render(<Transcript turns={THREAD} />);
@@ -50,7 +65,7 @@ describe("Transcript", () => {
   // A conversation that silently pauses reads as broken.
   it("shows a pending turn as thinking until any text or tool call arrives", () => {
     render(<Transcript turns={THREAD} />);
-    expect(within(screen.getByRole("log")).getByRole("status").textContent).toBe("Thinking…");
+    expect(within(screen.getByRole("log")).getByText("Thinking…")).not.toBeNull();
   });
 
   it("keeps the streamed text visible once it starts, without a second visible status line", () => {
@@ -60,12 +75,80 @@ describe("Transcript", () => {
       />,
     );
     expect(screen.getByText("Day 3 ha")).not.toBeNull();
-    expect(screen.getByRole("status").className).toContain("sr-only");
+    // The visible progress line drops away: the arriving text is the indicator.
+    expect(within(screen.getByRole("log")).queryByText(/Still writing…|Thinking…/)).toBeNull();
   });
 
   it("renders nothing but the log when the thread is empty", () => {
     render(<Transcript turns={[]} />);
     expect(screen.getByRole("log").textContent).toBe("");
+  });
+});
+
+// Finding 4 of the final branch review, rated ABOVE where it was first filed:
+// `role="log" aria-live="polite"` around text that mutates per streamed delta,
+// with a nested `role="status"` among the turns, makes a screen reader
+// re-announce the whole growing answer on every token. That is worse than no
+// live region at all. What replaces it announces turn boundaries and completion.
+describe("Transcript — what a screen reader is told", () => {
+  const announcer = () => screen.getByRole("status").textContent;
+
+  it("does not make the transcript itself a live region", () => {
+    render(<Transcript turns={THREAD} />);
+    const log = screen.getByRole("log", { name: "Conversation" });
+    // Explicit, because role="log" is implicitly polite — absent is not off.
+    expect(log.getAttribute("aria-live")).toBe("off");
+    // …and exactly one region that does announce, outside the log.
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(within(log).queryAllByRole("status")).toHaveLength(0);
+  });
+
+  it("announces the boundary of a turn that has not started arriving", () => {
+    render(<Transcript turns={[{ id: "a1", role: "assistant", text: "", tools: [], pending: true }]} />);
+    expect(announcer()).toBe("Thinking…");
+  });
+
+  // The one that matters. Two renders, two very different amounts of text, one
+  // unchanged announcement — which is what stops the re-announce-per-token.
+  it("says the same thing however much of the answer has streamed", () => {
+    const partial = (text: string): AssistantTurn[] => [
+      { id: "a1", role: "assistant", text, tools: [{ id: "t1", label: "Read the trip" }], pending: true },
+    ];
+    const { rerender } = render(<Transcript turns={partial("Kyoto")} />);
+    const early = announcer();
+    rerender(<Transcript turns={partial("Kyoto runs to 3 days, starting 2027-04-01. There are 6 stops.")} />);
+    expect(announcer()).toBe(early);
+    expect(early).toBe("Writing the answer…");
+  });
+
+  it("announces the finished answer once, when it is finished", () => {
+    render(
+      <Transcript turns={[{ id: "a1", role: "assistant", text: "Kyoto runs to 3 days.", tools: [], pending: false }]} />,
+    );
+    expect(announcer()).toBe("Answer: Kyoto runs to 3 days.");
+  });
+
+  it("says a proposal is waiting, because the card below is the next thing to do", () => {
+    render(
+      <Transcript
+        turns={[
+          {
+            id: "a1",
+            role: "assistant",
+            text: "I've drafted 2 changes.",
+            tools: [],
+            pending: false,
+            proposal: { proposal: PROPOSAL, status: "pending", note: null },
+          },
+        ]}
+      />,
+    );
+    expect(announcer()).toContain("A proposed change is waiting for your review below.");
+  });
+
+  it("says nothing at all about an empty thread", () => {
+    render(<Transcript turns={[]} />);
+    expect(announcer()).toBe("");
   });
 });
 
@@ -107,21 +190,6 @@ describe("toolNoteLabel", () => {
 // answer's turn id — so a second proposal later in the thread cannot be
 // approved by clicking the first.
 describe("Transcript proposals", () => {
-  const PROPOSAL = {
-    proposalId: "p1",
-    changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
-    commands: [
-      {
-        type: "AddActivity" as const,
-        tripId: "11111111-1111-4111-8111-111111111111",
-        activityId: "22222222-2222-4222-8222-222222222222",
-        dayId: "22222222-2222-4222-8222-222222222222",
-        title: "Coffee",
-      },
-    ],
-    skipped: [],
-  };
-
   const threadWithTwo: AssistantTurn[] = [
     { id: "u1", role: "user", text: "add a coffee stop" },
     {

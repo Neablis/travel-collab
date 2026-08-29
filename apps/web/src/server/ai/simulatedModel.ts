@@ -27,6 +27,7 @@
 // and stream-part shapes below are structural for the same reason.
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
+import { needsBooking } from "@/lib/booking";
 import { parseAskScope, type AiSurface, type AskScope } from "@/server/ai/context";
 import type { DayReadout, FreeTimeReadout, ReadToolProblem, TripReadout } from "@/server/ai/readTools";
 
@@ -256,6 +257,31 @@ function pluralStops(n: number): string {
   return `${n} stop${n === 1 ? "" : "s"}`;
 }
 
+// How many days to name before an answer stops being a sentence. Same "first
+// three, then a count" shape `locationNotice` uses on the command path — a
+// 14-day trip should not produce a fourteen-clause list.
+const MAX_NAMED_DAYS = 3;
+
+/**
+ * The trip-wide booking answer, from `read_trip`'s per-day `toBook` counts.
+ *
+ * Empty when nothing is outstanding, rather than a cheerful "all booked!" on
+ * every unrelated question — and the rail only offers the booking chip when
+ * something IS outstanding, so the chip is never left unanswered by the silence.
+ */
+function toBookSentences(trip: TripReadout): string[] {
+  const days = trip.days.filter((day) => day.toBook > 0);
+  if (days.length === 0) return [];
+  const total = days.reduce((sum, day) => sum + day.toBook, 0);
+  const shown = days
+    .slice(0, MAX_NAMED_DAYS)
+    .map((day) => `day ${day.day} (${day.toBook})`)
+    .join(", ");
+  const rest = days.length - Math.min(MAX_NAMED_DAYS, days.length);
+  const tail = rest > 0 ? `, and ${rest} more day${rest === 1 ? "" : "s"}` : "";
+  return [`${pluralStops(total)} still need booking: ${shown}${tail}.`];
+}
+
 /**
  * Step 2: the answer, written from what the tools actually returned.
  *
@@ -286,12 +312,33 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
           .map((stop) => (stop.timeWindow ? `${stop.title} at ${stop.timeWindow.start}` : `${stop.title} (no set time)`))
           .join("; ")}.`,
       );
+      // "What on day N still needs booking?" is a chip the rail offers whenever
+      // this day has one (suggestedQuestions.ts), so it has to be a question
+      // this model answers. `needsBooking` is the shared rule both halves read.
+      const unbooked = day.stops.filter((stop) => needsBooking(stop.kind));
+      sentences.push(
+        unbooked.length === 0
+          ? "Everything on it is either booked or in transit."
+          : `Still to book: ${unbooked.map((stop) => stop.title).join(", ")}.`,
+      );
+    }
+    // Day-scoped, from `read_day`'s own conflict list — NOT from the trip's,
+    // which spans every day. `conflictsOnDay` already filtered to this one, and
+    // the domain's descriptions say "on the same day" rather than naming a
+    // number, so this cannot wander onto another day (M16's gate).
+    if (day.conflicts.length > 0) {
+      sentences.push(
+        `${day.conflicts.length} conflict${day.conflicts.length === 1 ? "" : "s"} on this day: ${day.conflicts
+          .map((conflict) => conflict.description)
+          .join(" ")}`,
+      );
     }
   } else if (trip) {
     const started = trip.startDate ? `, starting ${trip.startDate}` : "";
     sentences.push(`${trip.name} runs to ${trip.dayCount} day${trip.dayCount === 1 ? "" : "s"}${started}.`);
     const stops = trip.days.reduce((total, d) => total + d.stopCount, 0);
     sentences.push(`There ${stops === 1 ? "is" : "are"} ${pluralStops(stops)} scheduled across it.`);
+    sentences.push(...toBookSentences(trip));
   }
 
   if (free && !("error" in free)) {
@@ -335,6 +382,25 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
 // (suggestedQuestions.ts). Word boundaries matter for the same reason: "What
 // still needs booking?" must not match `book`.
 const CHANGE_VERBS = /\b(add|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
+
+// The other half of "asked for a change": a question that asks for IDEAS rather
+// than for a fact. `CHANGE_VERBS` is imperative-only by design, which left the
+// two chips that most need a proposal — "There are no days yet — how should I
+// start planning this trip?" and "Day 3 is empty — what could I do with it?" —
+// answered with "it runs to 0 days… no open time." The empty-trip chip is
+// literally the start of "plan a trip from start to finish" (final branch
+// review, 2026-08-29, finding 1).
+//
+// Anchored on the OBJECT, not just the verb, because the near miss is real: the
+// trip-scoped conflict chip asks "what should I do about them?" and must stay a
+// question. "…do with" is the day chip, "…do about" is the conflict chip.
+// `askChipCoverage.test.ts` is what keeps that boundary honest as either chip is
+// reworded.
+const PLANNING_PROMPTS = /\bhow should i start\b|\bwhat (?:could|should) i do with\b/i;
+
+function asksForAChange(text: string): boolean {
+  return CHANGE_VERBS.test(text) || PLANNING_PROMPTS.test(text);
+}
 
 /** The newest user message's text — the question this turn is answering. */
 function latestUserText(options: CallOptionsLike): string {
@@ -426,8 +492,8 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * One ask step. Three shapes, in order:
  *
  *   1. Nothing read yet → read.
- *   2. Read, the user asked for a CHANGE, write tools are offered, and nothing
- *      has been queued yet → propose.
+ *   2. Read, the user asked for a CHANGE or for IDEAS (`asksForAChange`), write
+ *      tools are offered, and nothing has been queued yet → propose.
  *   3. Otherwise → speak.
  *
  * Step 2 is skipped entirely for a question, and unreachable for a viewer.
@@ -439,7 +505,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   const proposed = results.some(isQueued);
-  if (!proposed && canPropose(options) && CHANGE_VERBS.test(latestUserText(options))) {
+  if (!proposed && canPropose(options) && asksForAChange(latestUserText(options))) {
     return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   const sentences = proposed ? proposalAnswer(scope, results) : askAnswer(scope, results);

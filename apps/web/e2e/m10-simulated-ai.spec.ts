@@ -38,7 +38,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
   // The Assistant rail is closed until asked for, at every width
   // (TripBoardScreen.tsx's useAssistantVisibility), so open it first.
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByPlaceholder("Ask about this day…").fill("how is the trip looking?");
+  await page.getByPlaceholder("Ask about this trip…").fill("how is the trip looking?");
   const [response] = await Promise.all([
     page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
     page.keyboard.press("Enter"),
@@ -76,7 +76,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByPlaceholder("Ask about this day…").fill("add a coffee stop to day 1");
+  await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   // Deliberately the BUTTON, not Enter. The Ask control has been covered by
   // the fixed unscheduled rack before, and every keyboard-driven test missed
   // it — a defect only a real click can catch.
@@ -131,7 +131,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   const before = await (await page.request.get(`/api/trips/${tripId}`)).text();
 
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByPlaceholder("Ask about this day…").fill("add a coffee stop to day 1");
+  await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   await page.getByRole("button", { name: "Ask" }).click();
 
   const card = page.getByRole("region", { name: "Proposed change" });

@@ -1,10 +1,8 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
-import { TRIP_REGION_MARGIN_KM } from "./geocodeRegion";
 import {
   buildProposal,
   buildWriteTools,
@@ -247,23 +245,6 @@ describe("describeProposedChange", () => {
     const all = BatchableCommand.options.map((o) => o.shape.type.value as string).sort();
     expect(covered).toEqual(all);
     for (const [command] of PHRASES) expect(BatchableCommand.safeParse(command).success).toBe(true);
-  });
-});
-
-// KI-15 parity — "an approved batch is enriched on exactly the command path's
-// terms" — is a claim about ONE number being the same in three places. Two of
-// those files are pinned by ADR-022 §4 and cannot import the shared constant,
-// so the agreement is asserted rather than assumed. If a copy drifts, this
-// fails and names the file.
-describe("the trip-region margin is one number", () => {
-  it.each([
-    "src/server/ai/handleAiRequest.ts",
-    "src/server/ai/geocodeEnrichment.ts",
-  ])("%s agrees with geocodeRegion's TRIP_REGION_MARGIN_KM", (file) => {
-    const source = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
-    const match = /const TRIP_REGION_MARGIN_KM = (\d+)/.exec(source);
-    expect(match, `${file} no longer declares TRIP_REGION_MARGIN_KM`).not.toBeNull();
-    expect(Number(match![1])).toBe(TRIP_REGION_MARGIN_KM);
   });
 });
 
