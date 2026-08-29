@@ -106,6 +106,31 @@ describe("calendarMonths uses the one parser (KI-73)", () => {
     expect(months).toHaveLength(1);
     expect(months[0]!.label).toBe("January 26");
     const dated = months[0]!.cells.filter((c) => !c.blank);
+    // Witness floor: `every` is vacuously true on an empty array, so without
+    // this the assertion below would still pass for a month with no dated
+    // cells at all while claiming they are all in 0026.
+    expect(dated.length).toBeGreaterThan(0);
     expect(dated.every((c) => !c.blank && c.date.startsWith("0026-"))).toBe(true);
+  });
+
+  // Regression guard for a defect this file's own KI-73 fix introduced and
+  // review caught (PR #84). `utcFromParts` used to re-set the year AFTER
+  // `Date.UTC` had already rolled the month into the next year, so
+  // `addMonths(Dec 0026, +1)` returned 0026-01-01 instead of 0027-01-01 — a
+  // month cursor moving BACKWARD, and `calendarMonths`' `while` loop never
+  // terminating. A trip crossing a December in years 0-99 is the trigger.
+  //
+  // The timeout is the assertion: before the fix this test does not fail, it
+  // hangs. Keep it small so a regression is a fast red, not a stuck suite.
+  it("terminates across a year boundary below year 100 (PR #84 review)", { timeout: 5000 }, () => {
+    const months = calendarMonths(detailWith(["0026-12-30", "0026-12-31", "0027-01-01", "0027-01-02"]));
+    expect(months.map((m) => m.label)).toEqual(["December 26", "January 27"]);
+  });
+
+  // The same arithmetic on ordinary years, so the year shift cannot be
+  // "correct below 100, wrong everywhere else" without this going red.
+  it("still crosses an ordinary year boundary correctly", () => {
+    const months = calendarMonths(detailWith(["2026-12-30", "2026-12-31", "2027-01-01"]));
+    expect(months.map((m) => m.label)).toEqual(["December 2026", "January 2027"]);
   });
 });

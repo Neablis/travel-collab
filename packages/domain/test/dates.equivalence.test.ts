@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { daySpan, deriveDayDates } from "../src/trip/dates";
+import { daySpan, deriveDayDates, isCalendarDate } from "../src/trip/dates";
+import { decideTripCommand } from "../src/trip/decide";
+import { evolveTrip } from "../src/trip/evolve";
 
 // KI-73. `packages/domain/src/trip/dates.ts` and `apps/web/src/lib/dates.ts`
 // are the same ISO-date parser written twice — they must be, because
@@ -95,5 +97,74 @@ describe("ISO date parsing agrees with apps/web/src/lib/dates.ts (KI-73)", () =>
   it("keeps a four-digit year below 100 instead of remapping it to 19xx", () => {
     expect(deriveDayDates("0026-01-01", 1)).toEqual(["0026-01-01"]);
     expect(daySpan("0026-01-01", "0026-01-31")).toBe(31);
+  });
+
+  it("isCalendarDate is the same check as a predicate", () => {
+    for (const [input, expected] of CORPUS) {
+      expect(isCalendarDate(input)).toBe(expected !== REJECT);
+    }
+  });
+});
+
+// The decider must REJECT an impossible date, not let the parser throw past
+// it. Raised in review on PR #84: the parsers going strict (KI-73) turned a
+// silently-wrong trip into an unloadable one, because `SetTripStartDate`
+// persisted the bad value and `deriveDayDates` then threw on every projection.
+// Rejecting at the command boundary is what keeps that from being reachable.
+// The contract-level close is still KI-77.
+describe("SetTripStartDate / SetTripDates reject a non-calendar date (KI-77)", () => {
+  const ctx = { actorId: "u1" };
+  const tripId = "11111111-1111-4111-8111-111111111111";
+  const d1 = "aaaaaaaa-1111-4111-8111-111111111111";
+
+  const tripWithOneDay = () => {
+    const created = evolveTrip(null, {
+      type: "TripCreated",
+      version: 1,
+      payload: { tripId, name: "T", createdBy: "u1", forkedFrom: null },
+    });
+    return evolveTrip(created, { type: "DayAdded", version: 1, payload: { tripId, dayId: d1 } });
+  };
+
+  it.each(["2026-02-30", "2027-02-29", "2026-13-45", "2026-00-10"])(
+    "SetTripStartDate rejects %s instead of persisting it",
+    (startDate) => {
+      const d = decideTripCommand(tripWithOneDay(), { type: "SetTripStartDate", tripId, startDate }, ctx);
+      expect(d.ok).toBe(false);
+      expect(d.ok === false && d.rejection.code).toBe("invalid-dates");
+    },
+  );
+
+  it("SetTripDates rejects a non-calendar date rather than throwing out of daySpan", () => {
+    const d = decideTripCommand(
+      tripWithOneDay(),
+      { type: "SetTripDates", tripId, startDate: "2026-02-30", endDate: "2026-03-05", newDayIds: [] },
+      ctx,
+    );
+    expect(d.ok).toBe(false);
+    expect(d.ok === false && d.rejection.code).toBe("invalid-dates");
+  });
+
+  it("still accepts the real dates nearest those rejections", () => {
+    const d = decideTripCommand(
+      tripWithOneDay(),
+      { type: "SetTripStartDate", tripId, startDate: "2026-02-28" },
+      ctx,
+    );
+    expect(d.ok).toBe(true);
+  });
+
+  // `null` means "undated", which is a legitimate trip state — the new guard
+  // must not treat it as a bad date. Cleared from a trip that HAS a start
+  // date, because clearing an already-null one is a no-op and would prove
+  // nothing about the guard.
+  it("still accepts clearing the start date", () => {
+    const dated = evolveTrip(tripWithOneDay(), {
+      type: "TripStartDateSet",
+      version: 1,
+      payload: { tripId, startDate: "2026-07-07" },
+    });
+    const d = decideTripCommand(dated, { type: "SetTripStartDate", tripId, startDate: null }, ctx);
+    expect(d.ok).toBe(true);
   });
 });

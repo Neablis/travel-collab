@@ -60,6 +60,21 @@ function parseIsoDateUtc(iso: string): Date {
   return dt;
 }
 
+// The same check as a predicate, for callers that must REJECT rather than
+// throw. `decide.ts` is the one that matters: `TripDate` validates shape and
+// not the calendar (KI-77), so without this a shape-valid impossible date
+// reaches `daySpan` — which throws past the decider's own `reject` path — or,
+// worse, gets PERSISTED by `SetTripStartDate` and then throws every time
+// `deriveDayDates` runs during projection, leaving the trip unloadable.
+export function isCalendarDate(iso: string): boolean {
+  try {
+    parseIsoDateUtc(iso);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function addDaysIso(iso: string, n: number): string {
   const dt = parseIsoDateUtc(iso);
   dt.setUTCDate(dt.getUTCDate() + n);

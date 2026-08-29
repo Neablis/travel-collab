@@ -52,16 +52,31 @@ function toIso(dt: Date): string {
 // rather than a string and deliberately relies on `Date.UTC`'s rollover
 // (month 12 -> next January, day 0 -> the previous month's last day).
 //
-// The `setUTCFullYear` fix-up is the other half of KI-73's two-digit-year
-// trap: `Date.UTC(26, 0, 1)` means 1926, so once `parseIsoDateUtc` started
+// The year shift is the other half of KI-73's two-digit-year trap:
+// `Date.UTC(26, 0, 1)` means 1926, so once `parseIsoDateUtc` started
 // (correctly) admitting year 26, feeding `getUTCFullYear()` back into
 // `Date.UTC` would have thrown the century away again — and this file would
-// have disagreed with ITSELF, cell dates in year 26 and month headers in
-// 1926. Re-setting the year afterwards keeps the intended rollover in month
-// and day while restoring the real year.
+// have disagreed with ITSELF, cell dates in year 26 and month headers in 1926.
+//
+// It shifts OUT of the 0-99 window before constructing rather than re-setting
+// the year afterwards, and that distinction is load-bearing. Re-setting after
+// the fact cannot tell an input year from a year the construction rolled
+// into: `addMonths(Dec 0026, +1)` builds `Date.UTC(26, 12, 1)` = 1927-01-01,
+// and pinning the year back to 26 yields 0026-01-01 — a cursor that moves
+// BACKWARD a year, which makes `calendarMonths`' `while` loop below
+// non-terminating for any trip crossing a December in years 0-99. (Caught in
+// review on PR #84, not in testing.)
+//
+// 400 years is exactly one Gregorian cycle — 146,097 days — so leap-year and
+// weekday behaviour at `year + 400` are identical to `year`, and shifting back
+// afterwards is lossless. Month and day rollover (month 12 -> next January,
+// day 0 -> the previous month's last day) keep working untouched, because the
+// arithmetic now happens where `Date.UTC` does not remap anything.
+const YEAR_SHIFT = 400;
+
 function utcFromParts(year: number, monthIndex: number, day: number): Date {
-  const dt = new Date(Date.UTC(year, monthIndex, day));
-  if (year >= 0 && year <= 99) dt.setUTCFullYear(year);
+  const dt = new Date(Date.UTC(year + YEAR_SHIFT, monthIndex, day));
+  dt.setUTCFullYear(dt.getUTCFullYear() - YEAR_SHIFT);
   return dt;
 }
 

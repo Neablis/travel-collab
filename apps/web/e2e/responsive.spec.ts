@@ -88,6 +88,108 @@ test.describe("responsive (narrow viewport)", () => {
       .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
     expect(columns).toBe(1);
   });
+
+  // KI-56, and the reason it needs its own narrow assertion: KI-28 reserves
+  // room for the "{planned} planned of {budget}" line so a card cannot change
+  // height when its TripDetail lands, and an open trip-actions menu cannot
+  // drift off its target. That reservation was one line, which holds only
+  // while the string FITS on one line — in a narrow card it wraps and the
+  // card grows again. `m8-make-it-real.spec.ts` guards the same invariant at
+  // 1280px, where the slot is wide enough that nothing ever wraps, so it
+  // cannot see this. .coderabbit.yaml's components rule asks for exactly this:
+  // breakpoint-gated layout exercised below the default e2e viewport.
+  //
+  // The widths are chosen from measured slot WIDTHS, not from the breakpoints
+  // — a card's slot does not widen monotonically, because the grid adds a
+  // column at `sm` and narrows every card again:
+  //
+  //   viewport   360  500  640  768  1024  1440
+  //   card slot   265  426  263  327   290   322
+  //
+  // The widest figure needs 277px to stay on one line, so most widths do not
+  // wrap at all and an assertion there proves nothing. Both widths below were
+  // confirmed RED against a deliberately reverted build (20.19px of growth);
+  // earlier drafts using 500, 700 and even 360 all passed against that same
+  // broken build and were dropped for it. 320 is the narrowest real phone;
+  // 640 is the band where the extra column shrinks the card, which is why
+  // TripCard reserves to `md` and not `sm`.
+  for (const width of [320, 640]) {
+    test(`a long money figure cannot change a card's height at ${width}px (KI-56)`, async ({ page }) => {
+      const { tripId } = await page.request
+        .post("/api/trips", { data: { name: e2eTripName("Narrow cost") } })
+        .then((r) => r.json());
+      for (const command of commandsFor("threeDayTrip", tripId)) {
+        await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+      }
+
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      const card = page.getByTestId("trip-card").first();
+      await expect(card).toBeVisible();
+      // The line has actually landed — otherwise this would measure the
+      // reserved slot against itself and pass for the wrong reason.
+      await expect(card.getByText(/planned of|No budget yet/)).toBeVisible();
+
+      // Swap the real line for one long enough to wrap at this width and
+      // measure the CARD, which is what an anchored menu follows. Injecting
+      // the string is what makes this deterministic: it does not depend on a
+      // seeded trip happening to carry a large-figure currency.
+      const growth = await card.evaluate((el) => {
+        const slot = el.querySelector('div[class*="min-h-"]');
+        const line = slot?.firstElementChild;
+        if (!line) return null;
+        const height = () => el.getBoundingClientRect().height;
+        const original = line.textContent;
+        const before = height();
+        line.textContent = "¥12,345,678 planned of ¥50,000,000";
+        const after = height();
+        line.textContent = original;
+        return after - before;
+      });
+
+      expect(growth, "the card's cost-line slot was not found").not.toBeNull();
+      // 1px, not 3: this compares one rendered state against another in the
+      // same layout pass, with none of the reserved-vs-filled line-box
+      // residue the 1280px guard has to absorb. The defect is 20px.
+      expect(Math.abs(growth!)).toBeLessThan(1);
+    });
+  }
+
+  // The hero's own reservation, which is `sm` rather than `md` because its
+  // slot IS monotonic below `lg` (235px at 360, 402px at 500, 542px at 640).
+  // Only 360 is narrow enough to wrap, so unlike the card there is one width
+  // worth asserting. The hero sits ABOVE the trip grid, so any height it
+  // gains pushes every card and every menu anchored to one.
+  test("a long money figure cannot change the hero's height at 360px (KI-56)", async ({ page }) => {
+    const { tripId } = await page.request
+      .post("/api/trips", { data: { name: e2eTripName("Narrow hero") } })
+      .then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto("/");
+    const hero = page.locator(".hero-grid");
+    await expect(hero).toBeVisible();
+    await expect(hero.getByText(/planned of|No budget yet/)).toBeVisible();
+
+    const growth = await hero.evaluate((el) => {
+      const slot = el.querySelector('div[class*="min-h-"]');
+      const line = slot?.firstElementChild;
+      if (!line) return null;
+      const height = () => el.getBoundingClientRect().height;
+      const original = line.textContent;
+      const before = height();
+      line.textContent = "¥12,345,678 planned of ¥50,000,000";
+      const after = height();
+      line.textContent = original;
+      return after - before;
+    });
+
+    expect(growth, "the hero's cost-line slot was not found").not.toBeNull();
+    expect(Math.abs(growth!)).toBeLessThan(1);
+  });
 });
 
 // The landing page is the one surface a signed-out phone actually reaches, and
