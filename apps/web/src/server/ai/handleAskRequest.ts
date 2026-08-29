@@ -43,6 +43,7 @@ import {
   buildProposal,
   buildWriteTools,
   commitProposal,
+  droppedWriteCalls,
   parseApprovedCommands,
   WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
@@ -225,9 +226,16 @@ export async function handleAskRequest(
 
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   if (!lastUser) return badRequest("the thread must end with a question from the user");
-  if (textOf(lastUser).length > MAX_PROMPT_CHARS) {
+  const question = textOf(lastUser);
+  if (question.length > MAX_PROMPT_CHARS) {
     return badRequest(`your message must be ${MAX_PROMPT_CHARS} characters or fewer`);
   }
+  // A thread of length 1 is just this question — nothing has been answered
+  // yet. Any longer thread already holds at least one prior turn, so this
+  // question is a follow-up: it reads back over answers already given, and
+  // (Design note in askAnalytics.ts) its tool-call shape is genuinely
+  // different from an opening question's.
+  const turn: "opening" | "follow-up" = messages.length > 1 ? "follow-up" : "opening";
 
   // A scope pointing past the end of the trip is a client bug, not a question:
   // answering it "about the whole trip" would silently widen a narrowing the
@@ -281,6 +289,8 @@ export async function handleAskRequest(
     tripId,
     userId,
     scope,
+    question,
+    turn,
     simulated: selected.simulated,
     model: modelIdOf(selected.model),
     // What was actually handed to the agent, not what a constant says was —
@@ -298,7 +308,18 @@ export async function handleAskRequest(
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
     onStepEnd: (step) => recorder.observeStep(step),
-    onEnd: (end) => recorder.finish(end),
+    // `writeTools` is the SAME collection `messageMetadata`'s `buildProposal`
+    // reads below — `onEnd` just runs first, before the stream's `finish`
+    // part exists to build the actual proposal from. A second, cheap
+    // `resolveBatch` dry run (`droppedWriteCalls`) is how the drop reaches
+    // THIS record instead of only the client-facing proposal — see the
+    // comment on `droppedWriteCalls` in writeTools.ts for why it isn't
+    // shared with the call below instead.
+    onEnd: (end) =>
+      recorder.finish(
+        end,
+        writeTools ? droppedWriteCalls(writeTools.getCollected(), detail, { tripId, actorId: userId }) : [],
+      ),
   });
 
   // Validated HERE rather than left to throw inside

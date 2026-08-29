@@ -28,6 +28,8 @@ import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTool
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
+import { REF_PARAM_NAMES } from "@/server/ai/idFields";
+import type { AskDroppedCall } from "@/server/ai/askAnalytics";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
 
@@ -216,6 +218,51 @@ export function buildProposal(
     commands: honest,
     skipped: errors.filter((e) => e.code !== "no-op").map((e) => e.message),
   };
+}
+
+/**
+ * The same `resolveBatch` dry run `buildProposal` runs, reduced to what a
+ * tuning log needs: which write calls were dropped, and why — never the
+ * commands or the prose, which is `buildProposal`'s job.
+ *
+ * A second `resolveBatch` pass over the same intents, not a reuse of
+ * `buildProposal`'s: the analytics recorder's `finish()` fires from the
+ * agent's `onEnd`, which runs before the stream's `finish` part does — the
+ * moment `handleAskRequest`'s `messageMetadata` builds the actual proposal
+ * (see the comment there). `resolveBatch` is a pure, in-memory dry run with
+ * no I/O, so running it twice costs nothing worth avoiding; threading one
+ * proposal object backward through a callback that fires first would cost
+ * more than it saves.
+ *
+ * `no-op` is filtered out, the same way `buildProposal`'s `skipped` filters
+ * it: a no-op is the domain correctly declining to do nothing, not a failure
+ * to explain (the same rule `handleAiRequest` applies to its own
+ * `resolutionErrors`).
+ */
+export function droppedWriteCalls(
+  intents: RawToolIntent[],
+  detail: TripDetail,
+  opts: { tripId: string; actorId: string },
+): AskDroppedCall[] {
+  const { errors } = resolveBatch(intents, detail, opts);
+  return errors
+    .filter((e) => e.code !== "no-op")
+    .map((e) => ({
+      type: e.type,
+      code: e.code,
+      refs: refsOf(intents[e.index]),
+      message: e.message,
+    }));
+}
+
+// The human ref(s) the model supplied for one intent — e.g. `{ activityRef:
+// "Nope" }` — as opposed to its literal fields (title, position, …). Reads
+// `REF_PARAM_NAMES` rather than a hand-picked field list for the same reason
+// `batchResolver` does: a new ref-bearing command joins this for free.
+function refsOf(intent: RawToolIntent | undefined): Record<string, unknown> | null {
+  if (!intent) return null;
+  const entries = Object.entries(intent.args).filter(([key]) => REF_PARAM_NAMES.has(key));
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 export interface ProposalCommitResult {

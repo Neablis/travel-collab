@@ -8,6 +8,7 @@ import {
   buildWriteTools,
   commitProposal,
   describeProposedChange,
+  droppedWriteCalls,
   parseApprovedCommands,
   withoutFabricatedCost,
   WRITE_TOOL_NAMES,
@@ -194,6 +195,72 @@ describe("buildProposal", () => {
     // (617) is ~308, so 300 — well clear of fast-check's size variance, and
     // far above the ~0 a vacuous run would produce.
     w.atLeast(300);
+  });
+});
+
+describe("droppedWriteCalls", () => {
+  // The exact distinction the tuning log exists to make: a ref nothing on the
+  // trip matches is a bug worth looking at, a no-op is the resolver correctly
+  // declining to repeat an already-applied change — and lumping them together
+  // would make every harmless no-op look like a failure.
+  it("reports a real drop with its type, code, ref and message", () => {
+    const dropped = droppedWriteCalls(
+      [{ type: "RemoveActivity", args: { activityRef: "A stop that isn't here" } }],
+      detail,
+      { tripId: TRIP_ID, actorId: ACTOR },
+    );
+    expect(dropped).toEqual([
+      {
+        type: "RemoveActivity",
+        code: "unresolved-ref",
+        refs: { activityRef: "A stop that isn't here" },
+        message: expect.stringContaining("No activity named"),
+      },
+    ]);
+  });
+
+  it("excludes a no-op — the domain having nothing to do is not a drop worth flagging", () => {
+    // `detail`'s currency is already USD (costedTripDetailFixture), so this
+    // sets nothing — the same scenario batchResolver.test.ts pins for
+    // `resolveBatch` itself.
+    const dropped = droppedWriteCalls([{ type: "SetTripCurrency", args: { currency: "USD" } }], detail, {
+      tripId: TRIP_ID,
+      actorId: ACTOR,
+    });
+    expect(dropped).toEqual([]);
+  });
+
+  it("distinguishes the two in the same batch, rather than lumping them", () => {
+    const dropped = droppedWriteCalls(
+      [
+        { type: "SetTripCurrency", args: { currency: "USD" } },
+        { type: "RemoveActivity", args: { activityRef: "Nope" } },
+      ],
+      detail,
+      { tripId: TRIP_ID, actorId: ACTOR },
+    );
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]!.type).toBe("RemoveActivity");
+    expect(dropped[0]!.code).not.toBe("no-op");
+  });
+
+  it("reports no ref for a command that took none", () => {
+    const dropped = droppedWriteCalls([{ type: "AddActivity", args: {} }], detail, {
+      tripId: TRIP_ID,
+      actorId: ACTOR,
+    });
+    // AddActivity with no title fails contract parsing (invalid-command), not
+    // ref resolution — its args carry no `*Ref` key at all.
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]!.refs).toBeNull();
+  });
+
+  it("reports nothing dropped when every call resolves", () => {
+    const dropped = droppedWriteCalls([{ type: "AddActivity", args: { title: "Gelato", dayRef: "day 1" } }], detail, {
+      tripId: TRIP_ID,
+      actorId: ACTOR,
+    });
+    expect(dropped).toEqual([]);
   });
 });
 

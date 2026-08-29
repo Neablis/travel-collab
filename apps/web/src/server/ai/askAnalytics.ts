@@ -22,11 +22,59 @@ export interface AskToolCallRecord {
   input: unknown;
 }
 
+/** One request's worth of token counts — the shape both the whole-run total and a single step use. */
+export interface AskUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
+/**
+ * A write call `resolveBatch` dropped, kept for tuning rather than for the
+ * user — the proposal card already renders `AssistantProposal.skipped` as
+ * prose (writeTools.ts); this is the same drop in a shape a log line can
+ * filter and count.
+ *
+ * `no-op` is never in here — the same filter `handleAiRequest` applies to its
+ * own `resolutionErrors` (the domain correctly declining to do nothing is not
+ * a bug), so what's left is exactly the "was this a real drop" question
+ * Mitchell asked for.
+ */
+export interface AskDroppedCall {
+  /** The command type the model tried to emit — "MoveActivity", "RemoveActivity", … */
+  type: string;
+  /** The domain's own rejection code, or a resolver code (`unresolved-ref`, `invalid-command`). Never `no-op`. */
+  code: string;
+  /** The human ref(s) the model supplied — e.g. `{ activityRef: "Nope" }` — or null for a command that took none. */
+  refs: Record<string, unknown> | null;
+  /** The resolver's or domain's own explanation, e.g. `No activity named "Nope".` */
+  message: string;
+}
+
 export interface AskAnalyticsRecord {
   event: "ai.ask";
   tripId: string;
   userId: string;
   scope: AskScope;
+  /**
+   * The user's own text for this turn, truncated (see `MAX_LOGGED_QUESTION_CHARS`)
+   * — not the whole thread, and not the assistant's replies.
+   *
+   * This is user-authored content going into a retained structured log.
+   * That's a deliberate call, made once, for Mitchell's own product on his
+   * own explicit request — logging the ask is the only way to tune which
+   * tools it needs — not a default any deployment should inherit silently if
+   * this module is ever lifted into a different product.
+   */
+  question: string;
+  /**
+   * Whether this is the first question in the thread or a later one. A
+   * follow-up's tool-call behaviour (what it re-reads, how many steps it
+   * takes) is genuinely different from an opening question's, so counting the
+   * two as the same turn shape would average away exactly the signal tuning
+   * needs.
+   */
+  turn: "opening" | "follow-up";
   /** True when no provider was contacted — the answer came from simulatedModel. */
   simulated: boolean;
   model: string;
@@ -41,17 +89,46 @@ export interface AskAnalyticsRecord {
   /** False when the run produced no assistant text — a turn that spent steps and said nothing. */
   answered: boolean;
   finishReason: string;
-  usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null };
+  /** The whole run's token spend. */
+  usage: AskUsage;
+  /**
+   * The same counts, one entry per step, in step order. `usage` alone hides
+   * where the spend comes from — a growing envelope re-sent on every step
+   * reads identically to one big first call until it's broken out per step.
+   */
+  usageByStep: AskUsage[];
+  /** Real drops only — see `AskDroppedCall`. Empty on a turn with no write tools, or none dropped. */
+  droppedCalls: AskDroppedCall[];
   latencyMs: number;
 }
 
 export type AskAnalyticsSink = (record: AskAnalyticsRecord) => void;
 
-// `console.info` with a message + one object, matching the shape
-// `trip-access.ts` already logs errors in. Vercel captures it as a structured
-// log line; nothing else has to exist for these to be queryable.
+// A question long enough to hit this is rare — `MAX_PROMPT_CHARS` already caps
+// the wire input at 4000 — but the log's job is tuning at a glance across many
+// records, not verbatim reproduction of one: an unclipped 4000-character
+// question would drown a page of log lines for the sake of the one turn that
+// pasted a whole itinerary in.
+const MAX_LOGGED_QUESTION_CHARS = 300;
+
+function truncateForLog(text: string): string {
+  return text.length > MAX_LOGGED_QUESTION_CHARS ? `${text.slice(0, MAX_LOGGED_QUESTION_CHARS)}…` : text;
+}
+
+// `console.info` with a message + the record, JSON-serialized rather than
+// handed to `console.info` as a live object.
+//
+// `toolCalls` is an array of `{ name, input }`, and `input` is itself an
+// object — depth 3 from the top of `record` — so `console.info("ai.ask",
+// record)` renders every tool's input as `[Object]`: Node's `util.inspect`
+// (what `console.info` formats a non-string argument with) defaults to depth
+// 2, and the WHOLE point of this record is seeing what a tool was actually
+// asked with (`AskToolCallRecord.input`'s own comment). `JSON.stringify` has
+// no depth limit and produces one self-contained line, which is also the
+// friendlier shape for a log platform that greps or parses JSON out of a
+// line rather than re-running Node's own formatter on it.
 export const logAskAnalytics: AskAnalyticsSink = (record) => {
-  console.info("ai.ask", record);
+  console.info("ai.ask", JSON.stringify(record));
 };
 
 // The step shape this module reads. Structural rather than the SDK's
@@ -69,6 +146,10 @@ export interface AskRecorderParams {
   tripId: string;
   userId: string;
   scope: AskScope;
+  /** The user's own text for this turn, verbatim — truncated for the log at write time, not here. */
+  question: string;
+  /** Whether this is the thread's first question or a later one — see `AskAnalyticsRecord.turn`. */
+  turn: "opening" | "follow-up";
   simulated: boolean;
   model: string;
   offeredTools: readonly string[];
@@ -80,8 +161,16 @@ export interface AskRecorderParams {
 export interface AskRecorder {
   /** Wire to the agent's `onStepEnd`. Safe to call zero times. */
   observeStep(step: AskStepLike): void;
-  /** Wire to the agent's `onEnd`. Writes the record. */
-  finish(final: AskStepLike): void;
+  /**
+   * Wire to the agent's `onEnd`. Writes the record.
+   *
+   * `dropped` is optional because a turn with no write tools (a viewer's) or
+   * with nothing dropped has none — the caller computes it once, from
+   * `resolveBatch`'s own errors, and hands it in rather than this module
+   * reaching into the write-tool machinery itself (see `writeTools.ts`'s
+   * `droppedWriteCalls`).
+   */
+  finish(final: AskStepLike, dropped?: readonly AskDroppedCall[]): void;
   /**
    * Wire to the agent's `onAbort` and to the stream's `onError`. Writes what
    * was accumulated before the run stopped, under the given finish reason.
@@ -111,6 +200,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   const now = params.now ?? Date.now;
   const startedAt = now();
   const toolCalls: AskToolCallRecord[] = [];
+  const usageByStep: AskUsage[] = [];
   let steps = 0;
   let text = "";
   let written = false;
@@ -122,17 +212,21 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         toolCalls.push({ name: call.toolName, input: call.input });
       }
       if (step.text) text += step.text;
+      // Collected even when the model gave nothing (all-null entry) so this
+      // array's length always equals `steps` — a reader can zip it against
+      // `toolCalls`' emission order without doing arithmetic first.
+      usageByStep.push(usageOf(step));
     },
-    finish(final) {
-      write(final);
+    finish(final, dropped) {
+      write(final, dropped ?? []);
     },
     abandon(finishReason) {
-      write({ finishReason });
+      write({ finishReason }, []);
     },
   };
 
   // One writer, one latch — a run that both errors and ends still logs once.
-  function write(final: AskStepLike): void {
+  function write(final: AskStepLike, dropped: readonly AskDroppedCall[]): void {
     if (written) return;
     written = true;
     const called = new Set(toolCalls.map((c) => c.name));
@@ -145,6 +239,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       tripId: params.tripId,
       userId: params.userId,
       scope: params.scope,
+      question: truncateForLog(params.question),
+      turn: params.turn,
       simulated: params.simulated,
       model: params.model,
       // `onEnd` fires once after the last step, so the steps this counted are
@@ -162,7 +258,17 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         outputTokens: final.usage?.outputTokens ?? null,
         totalTokens: final.usage?.totalTokens ?? null,
       },
+      usageByStep,
+      droppedCalls: [...dropped],
       latencyMs: now() - startedAt,
     });
   }
+}
+
+function usageOf(step: AskStepLike): AskUsage {
+  return {
+    inputTokens: step.usage?.inputTokens ?? null,
+    outputTokens: step.usage?.outputTokens ?? null,
+    totalTokens: step.usage?.totalTokens ?? null,
+  };
 }
