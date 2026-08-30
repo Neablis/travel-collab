@@ -104,6 +104,19 @@ describe("publishing a saved day", () => {
     expect((await unpublish(savedDayId)).status).toBe(404);
     expect((await publish(randomUUID())).status).toBe(404);
 
+    // Somebody else's PRIVATE day — the nondisclosure case, and the one the
+    // title claimed ("published or not") while nothing exercised it. It must
+    // be indistinguishable from the nonexistent id above: a different status
+    // here would let anyone probe ids for days people deliberately kept back.
+    // Raised in review on pull request 101.
+    currentUserId = AUTHOR;
+    const privateDayId = await saveOwnDay("Not yours");
+    currentUserId = READER;
+    expect((await publish(privateDayId)).status).toBe(404);
+    expect((await unpublish(privateDayId)).status).toBe(404);
+    currentUserId = AUTHOR;
+    expect(await publishedAtOf(privateDayId)).toBeNull();
+
     currentUserId = AUTHOR;
     const after = (await (await read(savedDayId)).json()) as { savedDay: { visibility: string } };
     expect(after.savedDay.visibility).toBe("public");

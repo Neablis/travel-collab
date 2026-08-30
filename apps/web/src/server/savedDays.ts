@@ -302,7 +302,22 @@ export async function setSavedDayVisibility(
     })
     .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId)))
     .returning();
-  return updated[0] === undefined ? null : fromRow(updated[0]);
+  if (updated[0] === undefined) return null;
+  const day = fromRow(updated[0]);
+  if (day === null) {
+    // `null` from here means "no such row of yours", and the route turns it
+    // into a 404. It must not also mean "the row is unreadable", because by
+    // this point the UPDATE has ALREADY COMMITTED — the author would be told
+    // the day does not exist while it sits published. `fromRow` returns null
+    // for a row whose `stops` or `visibility` fail their schema, and both
+    // columns are compile-time `$type` casts with no runtime guarantee, so
+    // that is reachable for a row written before the contract moved.
+    //
+    // Failing loudly keeps the reported state and the stored state agreeing.
+    // Raised in review on pull request 101.
+    throw new Error(`saved day ${savedDayId} is unreadable after a committed visibility change`);
+  }
+  return day;
 }
 
 export async function deleteSavedDay(savedDayId: string, ownerId: string): Promise<boolean> {

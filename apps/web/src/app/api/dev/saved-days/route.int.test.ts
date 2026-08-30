@@ -1,10 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { citiesOfStops } from "@tc/domain";
 import { JAPAN_SAVED_DAYS } from "@tc/fixtures";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
+
+// The cities each fixture day covers, read off its stops by hand. The seeder
+// derives these through the domain's rule; this table is the independent
+// answer that makes the comparison mean something.
+const EXPECTED_CITIES: Record<string, string[]> = {
+  "Kyoto temples on foot": ["Kyoto"],
+  "Tokyo to Hakone, slowly": ["Tokyo", "Hakone"],
+  "Nakameguro, unhurried": ["Tokyo"],
+  "Kyoto, then an evening in Osaka": ["Kyoto", "Osaka"],
+  "Naoshima in one day": ["Naoshima"],
+};
 
 // The demo library's seeder — what `pnpm --filter web db:seed` calls so the
 // demo DATABASE carries the same saved days the demo FIXTURE declares.
@@ -71,9 +81,17 @@ describe("POST /api/dev/saved-days", () => {
       expect(row, `no row for ${fixture.name}`).toBeDefined();
       expect(row!.ownerId).toBe(fixture.ownerId);
       expect(row!.visibility).toBe(fixture.visibility);
-      // The point of seeding through the real write path: `cities` is what the
-      // domain's one rule says about these stops, not a list beside them.
-      expect(row!.cities).toEqual(citiesOfStops(fixture.stops));
+      // Written out, NOT computed with `citiesOfStops`. Deriving the expected
+      // value with the same function the seeder uses makes the assertion a
+      // tautology: get the rule wrong and both sides move together while the
+      // test stays green. These are the answers a person read off the stops.
+      //
+      // The interesting ones are the last two. "Kyoto, then an evening in
+      // Osaka" has an un-citied Shinkansen stop in the middle, which must be
+      // skipped rather than ending the list; and every day here must be in
+      // TIME order with duplicates collapsed to first occurrence.
+      // Raised in review on pull request 101.
+      expect(row!.cities, `cities for ${fixture.name}`).toEqual(EXPECTED_CITIES[fixture.name]);
       // A public day carries a publish time; a private one does not.
       expect(row!.publishedAt === null).toBe(fixture.visibility === "private");
     }

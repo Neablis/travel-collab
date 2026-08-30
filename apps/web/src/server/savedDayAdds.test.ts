@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { addCounts } from "./savedDayAdds";
 
@@ -42,7 +43,11 @@ describe("addCounts", () => {
 // `preview-registry.test.ts`: a source scan, kept narrow enough to name what it
 // found.
 describe("the counter has exactly one writer", () => {
-  const SERVER_DIR = path.resolve(__dirname);
+  // `import.meta.url`, not `__dirname`: the web package is `"type": "module"`.
+  // Vitest's runner does shim `__dirname` today, so the old form ran — flagged
+  // in review as though it threw, which it did not. It is still the wrong form
+  // to depend on, because nothing here needs the shim to keep existing.
+  const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
   const OWNER = "savedDayAdds.ts";
 
   function tsFilesUnder(dir: string): string[] {
@@ -53,14 +58,31 @@ describe("the counter has exactly one writer", () => {
     });
   }
 
+  // A Drizzle `.set({ adds: ... })` on the saved-days table. `newSavedDayRow`
+  // in savedDays.ts writes `adds: 0` on a row that has no ledger at all, which
+  // is the zero value and not a move — hence `set(`, not the field name alone.
+  const writesAdds = (file: string) => /\.set\(\s*\{[^}]*\badds\b/s.test(readFileSync(file, "utf8"));
+
   it("is only assigned in savedDayAdds.ts", () => {
-    const offenders = tsFilesUnder(SERVER_DIR)
+    const files = tsFilesUnder(SERVER_DIR);
+
+    // The witness floor. `offenders === []` alone passes vacuously in three
+    // ways, none of which involve anyone fixing anything: renaming the owner
+    // leaves OWNER matching no file; rewriting the increment as `.set(patch)`
+    // defeats the regex everywhere INCLUDING the owner; and moving the write
+    // out of `src/server` puts it beyond SERVER_DIR. In each case the test
+    // reports "exactly one writer" without having found one.
+    //
+    // So assert the positive side first: the one legitimate writer must still
+    // be visible to this scan for its negative result to mean anything.
+    // Raised in review on pull request 101.
+    const owner = files.find((file) => path.basename(file) === OWNER);
+    expect(owner).toBeDefined();
+    expect(writesAdds(owner!)).toBe(true);
+
+    const offenders = files
       .filter((file) => path.basename(file) !== OWNER && !file.endsWith(".test.ts"))
-      // A Drizzle `.set({ adds: ... })` on the saved-days table. `newSavedDayRow`
-      // in savedDays.ts writes `adds: 0` on a row that has no ledger at all,
-      // which is the zero value and not a move — hence `set(`, not the field
-      // name alone.
-      .filter((file) => /\.set\(\s*\{[^}]*\badds\b/s.test(readFileSync(file, "utf8")));
+      .filter(writesAdds);
     expect(offenders.map((f) => path.relative(SERVER_DIR, f))).toEqual([]);
   });
 });
