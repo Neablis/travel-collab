@@ -166,6 +166,21 @@ describe("ActivityEditorSheet", () => {
   // SILENTLY — an extra property on `value` is not read and not flagged, and
   // every test in this file passed while the user's kind and tags went
   // nowhere. Only an assertion on the dispatched command catches it.
+  // Mitchell, 2026-08-29: a stop being created is more likely to need booking
+  // than not, so the picker preselects "hold" rather than an empty control or
+  // the contract's "planned" zero value — and a save that never touches the
+  // control still carries that choice.
+  it("preselects Holding for a new stop, and saves it untouched", async () => {
+    const dispatch = renderEditorSheet({ mode: "create" });
+
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("hold");
+
+    await userEvent.type(screen.getByLabelText("What or where"), "Gora Kadan");
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "hold" }));
+  });
+
   it("carries the chosen kind and tags into AddActivity", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
 

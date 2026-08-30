@@ -184,6 +184,33 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
 }
 
 /**
+ * A created stop the model said nothing about defaults to `hold`, not the
+ * domain's `planned` zero value (KI-86 addendum, Mitchell 2026-08-29 — "a new
+ * activity is more likely to need booking than one that's already booked").
+ *
+ * **Why here and not `decide.ts` or the `AddActivity` contract schema.** Both
+ * are shared with `@tc/fixtures`, which builds the canonical Japan trip
+ * through these same commands — but always states `kind` explicitly per stop
+ * (`commands.ts`), so a default placed upstream of resolution would recolor
+ * every fixture stop the model never asked about into `hold` and undo KI-86's
+ * tuning (3 of 14 Calendar days flagged, not 14). Defaulting here, on the
+ * RESOLVED command, only reaches a real assistant-authored creation.
+ *
+ * `resolveBatch` (`batchResolver.ts`) is pinned to its current behaviour on
+ * this branch, so this cannot live there either even though it is the one
+ * seam both `/ask` and the older `/ai` command endpoint share — see this
+ * module's own note on `buildProposal` for where that leaves `/ai`.
+ *
+ * `UpdateActivity` is untouched: an omitted `kind` there means "unchanged"
+ * (activity.ts), not "nothing was ever stated" — defaulting it would silently
+ * flip an edit that never mentioned kind into one that does.
+ */
+export function withDefaultKind(command: BatchableCommand): BatchableCommand {
+  if (command.type !== "AddActivity" || command.kind !== undefined) return command;
+  return { ...command, kind: "hold" };
+}
+
+/**
  * Resolve what the turn collected into a reviewable proposal. Writes nothing.
  *
  * `resolveBatch` is used exactly as the command endpoint uses it — same
@@ -195,6 +222,14 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * Returns `null` when the turn asked for nothing that survived resolution:
  * there is no proposal to review, so the client renders no card and the answer
  * stands on its own prose.
+ *
+ * Also where a created stop with no stated `kind` becomes `hold` rather than
+ * `planned` — see `withDefaultKind`. That makes `/ask` and the older `/ai`
+ * command endpoint (`handleAiRequest.ts`, which calls `resolveBatch` directly
+ * and never reaches this function) disagree about the default for the same
+ * model behaviour. Recorded rather than fixed: `/ai` doesn't run
+ * `withoutFabricatedCost` either, for the same reason — it predates this
+ * wrapper and this task does not touch it.
  */
 export function buildProposal(
   intents: RawToolIntent[],
@@ -208,10 +243,10 @@ export function buildProposal(
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
   });
   if (commands.length === 0) return null;
-  // Enforced, not requested — see `withoutFabricatedCost`. Applied after
-  // resolution so it sees the parsed command, and before `changes` so the card
-  // and the batch describe the same thing.
-  const honest = commands.map(withoutFabricatedCost);
+  // Enforced, not requested — see `withoutFabricatedCost` and `withDefaultKind`.
+  // Applied after resolution so each sees the parsed command, and before
+  // `changes` so the card and the batch describe the same thing.
+  const honest = commands.map(withoutFabricatedCost).map(withDefaultKind);
   return {
     proposalId: opts.proposalId ?? randomUUID(),
     changes: honest.map((command) => describeProposedChange(command, detail)),
@@ -351,9 +386,11 @@ export async function commitProposal(
  * commands to `/trips/:id/commands/batch`, so nothing here grants authority
  * they lack.
  *
- * Costs are put through `withoutFabricatedCost` on the way in, so the honest-
- * unknowns guarantee holds at this door too and not only at the one that built
- * the proposal.
+ * Costs and kinds are put through `withoutFabricatedCost` and `withDefaultKind`
+ * on the way in, so both guarantees hold at this door too and not only at the
+ * one that built the proposal. A round-trip through `buildProposal` already
+ * carries a stated `kind`, so this is defense in depth rather than the usual
+ * path — the same relationship `withoutFabricatedCost` has here.
  */
 export function parseApprovedCommands(
   value: unknown,
@@ -372,7 +409,7 @@ export function parseApprovedCommands(
     if (parsed.data.tripId !== tripId) {
       return { ok: false, error: "a command tripId does not match the URL" };
     }
-    commands.push(withoutFabricatedCost(parsed.data));
+    commands.push(withDefaultKind(withoutFabricatedCost(parsed.data)));
   }
   return { ok: true, commands };
 }

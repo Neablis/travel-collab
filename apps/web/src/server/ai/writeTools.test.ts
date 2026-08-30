@@ -10,6 +10,7 @@ import {
   describeProposedChange,
   droppedWriteCalls,
   parseApprovedCommands,
+  withDefaultKind,
   withoutFabricatedCost,
   WRITE_TOOL_NAMES,
   type RawToolIntent,
@@ -104,6 +105,7 @@ describe("buildProposal", () => {
         activityId: "00000000-0000-4000-8000-000000000001",
         dayId: DAY_ID,
         title: "Gelato",
+        kind: "hold",
       },
       { type: "MoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, toDayId: null, position: 0 },
     ]);
@@ -165,6 +167,30 @@ describe("buildProposal", () => {
     ]);
     const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
     expect(command.cost).toEqual({ amountMinor: 450, currency: "EUR" });
+  });
+
+  // KI-86 addendum, Mitchell 2026-08-29: a created stop the model said
+  // nothing about defaults to `hold`, not the domain's `planned` zero value.
+  it("defaults an AddActivity with no stated kind to hold", () => {
+    const proposal = propose([{ type: "AddActivity", args: { title: "Gelato", dayRef: "day 1" } }]);
+    const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(command.kind).toBe("hold");
+  });
+
+  it("keeps a kind the model DID state, rather than overriding it to hold", () => {
+    const proposal = propose([
+      { type: "AddActivity", args: { title: "Gelato", dayRef: "day 1", kind: "idea" } },
+    ]);
+    const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(command.kind).toBe("idea");
+  });
+
+  it("never defaults kind on an UpdateActivity — omitted there means unchanged, not unstated", () => {
+    const proposal = propose([
+      { type: "UpdateActivity", args: { activityRef: "Colosseum tour", title: "Colosseum tour (updated)" } },
+    ]);
+    const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "UpdateActivity" }>;
+    expect("kind" in command).toBe(false);
   });
 
   it("for ANY set of costless stops, no command in the proposal carries a cost", () => {
@@ -368,6 +394,41 @@ describe("withoutFabricatedCost", () => {
   });
 });
 
+describe("withDefaultKind", () => {
+  it("defaults an AddActivity with no kind key at all to hold", () => {
+    const command = {
+      type: "AddActivity",
+      tripId: TRIP_ID,
+      activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+      dayId: DAY_ID,
+      title: "Gelato",
+    } as BatchableCommand;
+    expect(withDefaultKind(command)).toMatchObject({ kind: "hold" });
+  });
+
+  it("leaves a stated kind alone", () => {
+    const command = {
+      type: "AddActivity",
+      tripId: TRIP_ID,
+      activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+      dayId: DAY_ID,
+      title: "Gelato",
+      kind: "booked",
+    } as BatchableCommand;
+    expect(withDefaultKind(command)).toEqual(command);
+  });
+
+  it("does not default UpdateActivity — omitted means unchanged there", () => {
+    const command = { type: "UpdateActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, title: "Renamed" } as BatchableCommand;
+    expect(withDefaultKind(command)).toBe(command);
+  });
+
+  it("leaves every other command type alone", () => {
+    const command = { type: "AddDay", tripId: TRIP_ID, dayId: DAY_ID } as BatchableCommand;
+    expect(withDefaultKind(command)).toBe(command);
+  });
+});
+
 describe("parseApprovedCommands", () => {
   it("accepts commands whose tripId matches the URL", () => {
     const parsed = parseApprovedCommands([{ type: "AddDay", tripId: TRIP_ID, dayId: DAY_ID }], TRIP_ID);
@@ -403,6 +464,24 @@ describe("parseApprovedCommands", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect((parsed.commands[0] as { cost?: unknown }).cost).toBeUndefined();
+  });
+
+  it("defaults a kindless AddActivity to hold at this door too", () => {
+    const parsed = parseApprovedCommands(
+      [
+        {
+          type: "AddActivity",
+          tripId: TRIP_ID,
+          activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+          dayId: DAY_ID,
+          title: "Gelato",
+        },
+      ],
+      TRIP_ID,
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
   });
 
   it("refuses an empty approval", () => {
