@@ -98,7 +98,7 @@ export interface AssistantProposal {
  * (`commitProposal`). The duplication is real and deliberate —
  * `planSummary.ts`'s behaviour is pinned (ADR-022 §4, plan Constraint 1), so
  * the shared `describeCommand(command, detail, mood)` that would collapse the
- * two cannot be written from here. Recorded in docs/known-issues.md.
+ * two cannot be written from here. Recorded in docs/known-issues/.
  *
  * The switch is exhaustive over `BatchableCommand["type"]` with no `default`,
  * so a thirteenth command fails to compile until someone words it.

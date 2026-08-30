@@ -11,7 +11,7 @@ import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 // bug can be reproduced against rich data without a terminal. Preview only —
 // isDemoDataResetEnabled() fails closed to a 404 (not a 403) so the route's
 // existence isn't advertised outside preview+SEED_DEMO_DATA=true (see
-// docs/known-issues.md KI-24 for the shape this deliberately avoids: a
+// docs/known-issues/ KI-24 for the shape this deliberately avoids: a
 // bypassable env check with only a log line as evidence).
 //
 // The seed batches ~70 commands into one executeTripCommandBatch call (see

@@ -164,7 +164,7 @@ describe("optimistic state machine", () => {
     // prediction (and therefore `activeDetail`) omits work that IS still
     // queued and WILL still be sent. This pins that behaviour so a change to
     // it is a visible test change and not a silent one; it is not an
-    // endorsement. See docs/known-issues.md KI-55 for the trade-off.
+    // endorsement. See docs/known-issues/ KI-55 for the trade-off.
     it("predicts a newly queued unit over a base that skips the retained ones (KI-55)", () => {
       const retained = confirmHead(queued(), authoritative());
       expect(retained.pending.every((u) => u.predictedDetail === null)).toBe(true);

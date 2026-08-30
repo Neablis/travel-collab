@@ -56,10 +56,12 @@ already merged — both are signs work has been left behind.
 Also count what is outstanding:
 
 ```
-grep -c '^### KI-' docs/known-issues.md
+ls docs/known-issues/open/ | wc -l       # still open
+ls docs/known-issues/resolved/ | wc -l   # closed to date
 ```
 
-…and how many of those sit in the `## Open` section specifically.
+The directory listing is the index — `docs/known-issues/` has no committed
+index file, deliberately (see its README, and KI-95).
 
 ## Step 4 — Report
 

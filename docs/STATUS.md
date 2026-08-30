@@ -3,7 +3,7 @@
 Updated at every milestone boundary and whenever in-flight work changes hands.
 Read this first on a fresh session; it is the resume-from-here file. Roadmap is
 `TODO.md`, scope is `docs/milestones/README.md`, known breakage is
-`docs/known-issues.md`.
+`docs/known-issues/`.
 
 **This file is live instruction only, and it is kept short on purpose.** It hit
 1,779 lines on 2026-08-28, ~88% of it history, in the one file every session is
@@ -303,7 +303,7 @@ narrative is in `docs/retros/2026-08-28-status-archive.md`.
   stops. The rule now excuses a distance a transit stop crosses **in time**, on
   time order rather than stored order, and never excuses an untimed stop. Full
   reasoning, including the weaker rule that was rejected with evidence:
-  `docs/known-issues.md` KI-60.
+  `docs/known-issues/` KI-60.
 - **One canonical Japan fixture, 2026-08-28 — ADR-030 (PR #74).**
   `@tc/fixtures` owns the 14-day/68-stop trip; the seed script, the preview
   branch's demo reset and `@tc/factories` all call the same commands, and
@@ -344,4 +344,4 @@ narrative is in `docs/retros/2026-08-28-status-archive.md`.
 | The 2026-08-23 design sync, its routing, and the 2026-08-26 UI audit | `docs/design-feedback/` |
 | The feature-flag / AI-kill-switch insert (PR #24) | ADR-019 and `docs/specs/2026-08-19-feature-flags-and-ai-kill-switch-design.md` |
 | The test-suite overhaul, Phases 0-4 | `docs/plans/2026-08-23-test-suite-overhaul.md`, `docs/testing-baseline.md`, `docs/testing-inventory.md` |
-| Which known issues are open, and which were closed when | `docs/known-issues.md` — authoritative, and the only place that list should be kept |
+| Which known issues are open, and which were closed when | `docs/known-issues/` — authoritative, and the only place that list should be kept |

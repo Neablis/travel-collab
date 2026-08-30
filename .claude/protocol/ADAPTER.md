@@ -38,13 +38,13 @@ the lease hook reads. A row marked otherwise below is yours to observe.
 ## Environment probe
 
 Run these before concluding that anything is environmental, flaky, or
-infrastructural — and **grep `docs/known-issues.md` for the symptom first.**
+infrastructural — and **grep `docs/known-issues/` for the symptom first.**
 Both times the dev-lane trap was hit here, the entry describing it (KI-27)
 already existed and went unread; the second time cost a day and still
 reached the wrong answer.
 
 ```bash
-grep -in "<your symptom>" docs/known-issues.md
+grep -rin "<your symptom>" docs/known-issues/
 docker ps
 ps aux | grep -E 'node|vitest|playwright' | grep -v grep
 pg_isready -h localhost -p 5433
@@ -59,7 +59,7 @@ At teardown, every board entry is promoted or explicitly discarded:
 
 | Kind of fact | Goes to |
 |---|---|
-| Known-broken behaviour, with a reproduction | `docs/known-issues.md` |
+| Known-broken behaviour, with a reproduction | a new file in `docs/known-issues/open/` |
 | An irreversible decision and its rationale | `docs/architecture/` (a new ADR) |
 | A durable tooling or repo fact | this file, or `adapter.json` |
 | True only for this run | discarded, with a one-line reason |

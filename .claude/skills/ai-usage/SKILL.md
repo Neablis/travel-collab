@@ -196,7 +196,7 @@ still useful for tool-call-shape questions, just not for cost.
 user exhaust the per-user AI quota (`aiQuotas()` in `quota.ts`) and produce a
 run of `outcome: "error"`, `cause.statusCode: 429` records. That's the quota
 working as designed against one shared test account, not a live failure rate
-— see `docs/known-issues.md` before reading a 429 cluster as a real incident,
+— see `docs/known-issues/` before reading a 429 cluster as a real incident,
 especially one that lines up with a local test run rather than real traffic.
 
 ## Always sample a window

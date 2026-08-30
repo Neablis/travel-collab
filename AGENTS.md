@@ -331,7 +331,7 @@ these out immediately:
   or a claim made to Mitchell. A failing local run now prints this at you
   (`e2e/laneReporter.ts`); it is in the manual too because the reporter only
   fires once you have already run the wrong thing.
-- **Before attributing any failure to the environment, grep `docs/known-issues.md`
+- **Before attributing any failure to the environment, grep `docs/known-issues/`
   for the symptom.** Both times the dev-lane trap has been hit, the entry
   describing it (KI-27) already existed and was not read — the second time it
   cost a day and still reached the wrong answer, reported to Mitchell as a

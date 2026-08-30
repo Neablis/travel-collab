@@ -265,8 +265,8 @@ describe("TripBoardScreen", () => {
     // Task 4.2's redesign shipped the sheet's Dates row read-only, leaving
     // TripDateControl (the only way to actually change a trip's dates) with
     // no mount point anywhere in the app — an unintentional capability loss
-    // (product-owner ruling, 2026-08-22; see docs/known-issues.md's former
-    // D-2 entry). This test confirms the real integration once restored:
+    // (product-owner ruling, 2026-08-22; see the former D-2 entry in
+    // docs/known-issues/). This test confirms the real integration once restored:
     // opening Trip settings and clicking the Dates row opens a Popover
     // containing TripDateControl, pre-filled with the trip's real dates.
     // TripDateControl's own dispatch logic (SetTripStartDate, clearing)
@@ -329,7 +329,7 @@ describe("TripBoardScreen", () => {
         // Task 4.2: the settings sheet's Dates row is read-only now, and
         // TripDateControl (the only UI that used to resolve this conflict by
         // changing the start date) no longer mounts anywhere in the app —
-        // see docs/known-issues.md. What this test actually verifies (a
+        // see docs/known-issues/. What this test actually verifies (a
         // conflict badge clearing once the server-confirmed detail resolves
         // it) doesn't depend on which command triggered that refetch, so
         // this drives it through Undo, a still-real, always-present control,

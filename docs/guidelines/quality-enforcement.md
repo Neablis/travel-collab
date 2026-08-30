@@ -47,7 +47,7 @@ cold, 0.2s warm) that's easy to mistake for a genuine failure — a "stuck on
 Loading…" timeout that isn't code-caused. Two real bugs during M10 Phase 4
 produced false signals this way in the same session (a fixed bug that
 looked possibly-still-broken; a real regression initially masked by
-unrelated dev-server noise) — see KI-27 in `known-issues.md` for the full
+unrelated dev-server noise) — see KI-27 in `docs/known-issues/` for the full
 story.
 
 Reach for `pnpm --filter web test:e2e:ci-like` instead of plain `test:e2e`
@@ -77,7 +77,7 @@ already opened this file is not a control:
 
 Recognise the shape: **a failure whose location moves between runs is a
 timeout; a real defect fails in the same place every time.** And before
-recording a failure as environmental anywhere, grep `docs/known-issues.md` for
+recording a failure as environmental anywhere, grep `docs/known-issues/` for
 the symptom — see `cloud-agent-sessions.md`.
 
 ## Definition of done (restated from AGENTS.md — the checklist)

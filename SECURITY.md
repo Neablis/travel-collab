@@ -36,7 +36,7 @@ Documented, deliberate behaviours, so they don't get reported as findings:
   demo-data reset (`SEED_DEMO_DATA`) require both an operator opt-in *and* a
   non-production `VERCEL_ENV`, which is set by the platform and cannot be set
   by us. If you can reach either on production, that is a real finding.
-- **Known, recorded gaps** live in `docs/known-issues.md`. A finding already
+- **Known, recorded gaps** live in `docs/known-issues/`. A finding already
   filed there is not news, though a working exploit for one is.
 
 Trust boundaries, the module map and the invariants that hold them are in

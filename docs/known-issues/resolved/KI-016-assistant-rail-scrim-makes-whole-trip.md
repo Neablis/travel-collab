@@ -1,0 +1,8 @@
+### KI-16 — The assistant rail's scrim makes the whole trip page inert below 1180px — RESOLVED
+- **Severity:** correctness (the page does not respond to input at all)
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx` (the scrim div), `apps/web/src/app/globals.css:101-108`
+- **Symptom:** on any viewport narrower than 1180px, every control on `/trips/[tripId]` is dead — tabs, day chips, activity cards, Add stop, edit, remove, drag and drop. Measured live at 1100x800: `document.elementFromPoint(200, 500)` returns `div.assistant-rail-scrim` over a day column, and clicking the "Timeline" tab does nothing.
+- **Why it happens:** the rail always rendered `<div aria-hidden className="assistant-rail-scrim fixed inset-0 z-40 bg-ink/32" />` with `pointer-events: auto` and **no click handler**. `globals.css` turns it on at `max-width: 1179px`. In the design prototype the scrim is `onClick={{ closeAsst }}` — dismissing the rail is its only purpose. Ours blocked and dismissed nothing.
+- **Why the gate missed it:** see KI-19.
+- **Fix (2026-08-14, `fe6c0f7`):** the scrim is now a real `<button type="button" aria-label="Close the assistant" onClick={onHide}>`, same visual layer, but it dismisses the rail on click instead of just sitting over the page. Follow-up (`d0b1f32`) added the `no-restricted-syntax` eslint-disable the raw-`<button>` lint rule requires outside `components/ui`, with a comment explaining why the `Button` primitive doesn't fit an invisible full-viewport click-catcher.
+- **First noted:** 2026-08-14 (external design review of PR #23). **Resolved:** 2026-08-14 (M10 Wave 2, Phase 0, Task 0.1).
