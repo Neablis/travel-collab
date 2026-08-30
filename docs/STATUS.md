@@ -22,6 +22,68 @@ general setup.
 
 ## Where the work is right now
 
+**M11a and M11b are built and in review as a three-PR stack, 2026-08-30.**
+None of their gates has closed; nothing below is ticked anywhere yet.
+
+| PR | What | Base | State |
+|---|---|---|---|
+| #99 | **M11a** — the invite gate | `main` | `pnpm check` + **two `test:e2e:ci-like` runs**, all exit 0. 3/3 review threads resolved |
+| #100 | **M11b PR1** — `cities`, visibility, the adds ledger, migration `0012` | #99 | `pnpm check` exit 0. 2/2 threads resolved |
+| #101 | **M11b PR2** — publishing, `GET /cities`, the ledger write path, migration `0013` | #100 | `pnpm check` exit 0, 402 integration tests |
+| — | **M11b PR3** — the four routes | #101 | in flight on `claude/m11b-routes` |
+
+**Each branch contains its base** — the bases were merged forward deliberately.
+Do not skip that when adding to the stack: PR2's implementer read
+`playwright.config.ts` from a checkout cut before M11a's Unit C landed and
+correctly reported `INVITE_SUPER_CODE` missing, which was true of that
+checkout and false of M11a's branch.
+
+**Five things are Mitchell's before any of this can close**, and the first two
+block the M11a gate outright:
+
+1. **`INVITE_SUPER_CODE` in Vercel Preview *and* Production**, a CSPRNG value.
+   Absent means closed — an unset variable refuses every new account — and
+   Vercel injects env at build, so **rotation needs a redeploy**.
+2. **KI-50.** The gate's three "walked in a browser" boxes need a real Google
+   round trip, which no CI lane can drive from an unregistered preview host.
+   Either register that branch's callback URI or set `AUTH_REDIRECT_PROXY_URL`
+   on Preview once, for every future branch.
+3. **Three migrations dispatched after merge** — `0011`, `0012`, `0013` — plus
+   `pnpm --filter web db:backfill-cities`. Merging applies none of them.
+4. **The colour wall now rejects any PR reference from #100 up** in a comment;
+   see the known-issue entry for three ranked fixes. Not fixed unilaterally,
+   because a wall that blocks you is a finding to report.
+5. **Two `/signup` copy strings await design sign-off**
+   (`ADMISSION_FIELD_COPY`), and the handoff's own `sub` line — *"Your account
+   takes about four seconds to make"* — is now false with the gate in place.
+
+**One gate box cannot be satisfied as written and needs a decision.** M11b's
+*"no M11-tagged entry remains"* in `preview-registry.ts` was written believing
+the four Playbooks shells were the only ones. There are **nine**. The other
+five (`rack-provenance`, `cost-estimate-state`, `budget-breakdown`,
+`wizard-destination-chips`, `wizard-longer-chip`) are each blocked on a
+contract field nobody has built, so M11b was never going to wire them and
+there is no milestone to retag them to. Narrowing the box to *"no M11-tagged
+**Playbooks** entry remains"* is a gate-definition change, which is Mitchell's
+alone.
+
+**Three defects this work found in its own shipped code**, all the same
+species — a test that passes while proving nothing — and none visible to a
+local run, because all three were green: a smoke spec that filled an invite
+code then signed in as a *returning* user, so the code was dead; two saved-day
+tests asserting on the in-memory object rather than the stored row; and a
+property test witnessing that it ran rather than that it reached its named
+path. All three now proven load-bearing by mutation probe. **CodeRabbit found
+all three**, which is the argument for triggering it on drafts rather than
+waiting — it does not review drafts by default.
+
+**M11a also broke `pnpm db:reseed` and it was fixed in the same PR.**
+`db:reset` derives its table list from the schema, so it truncates `users`;
+the seed then signs in for real and the gate refuses a brand-new account. It
+stayed invisible because with `users` intact the seed succeeds with no code at
+all — the returning-user path again.
+
+
 **M18b's gate closed 2026-08-30. M17 is the current work**, and the order is
 now `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
 2026-08-30** off the new design handoff, and **M11a was created the same day and
