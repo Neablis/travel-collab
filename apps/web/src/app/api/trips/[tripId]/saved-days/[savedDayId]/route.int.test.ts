@@ -204,7 +204,12 @@ describe("an add that does not count", () => {
     const savedDayId = await publishedDay();
     currentUserId = TAKER;
     const tripId = await undatedTrip();
-    await insert(tripId, savedDayId);
+    // Asserted, not discarded. The two assertions at the end hold just as well
+    // for an insert that 404'd or 500'd — so without this, a regression that
+    // broke inserting into an undated trip would pass a test whose whole claim
+    // is that the add SUCCEEDED and simply was not credited.
+    // Raised in review on pull request 101.
+    expect((await insert(tripId, savedDayId)).status).toBe(200);
 
     await executeTripCommand(
       {
