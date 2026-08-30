@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/authConfig";
+import {
+  PENDING_ADMISSION_COOKIE,
+  normalizePendingAdmission,
+  pendingAdmissionCookieOptions,
+} from "@/lib/pendingAdmission";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
 // deprecated the `middleware` file convention in favour of `proxy` (the
@@ -58,10 +63,55 @@ export default auth((req) => {
       return NextResponse.redirect(new URL("/welcome", req.nextUrl));
     }
     const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
-    return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl));
+    const response = NextResponse.redirect(
+      new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl),
+    );
+    // M11a link 5. `callbackUrl` alone brings them back to the invite screen,
+    // but the gate runs *during* the sign-in in between and by then the URL
+    // they arrived on is gone — so the token is banked here, on the redirect
+    // that already exists, and read out of the cookie by `recordSignIn`.
+    const token = tripInviteToken(pathname);
+    if (token !== null) {
+      response.cookies.set(
+        PENDING_ADMISSION_COOKIE,
+        token,
+        pendingAdmissionCookieOptions(req.headers.get("host")),
+      );
+    }
+    return response;
   }
   return NextResponse.next();
 });
+
+/**
+ * The token in `/invite/<token>`, or null for anything else this file matches.
+ *
+ * **Stores, never validates** — deliberately (ADR-024, and the milestone's own
+ * trap list). This runs in the Edge runtime with no database, so whether the
+ * token names a pending invite is not a question that can be asked here;
+ * `server/admission.ts` owns that, reached from `recordSignIn`. Importing it
+ * from this file would fail lint and would be wrong before it failed.
+ *
+ * Exactly one path segment: `/invite` on its own and `/invite/<token>/anything`
+ * are both matched by the `/invite/:path*` matcher below and neither is an
+ * invite link. `normalizePendingAdmission` then applies the shared bound, so a
+ * hand-crafted megabyte-long path cannot push that much into a `Set-Cookie`
+ * header on an unauthenticated request.
+ */
+function tripInviteToken(pathname: string): string | null {
+  const segment = /^\/invite\/([^/]+)\/?$/.exec(pathname)?.[1];
+  if (segment === undefined) return null;
+  // `pathname` keeps its percent-encoding; a real token is base64url
+  // (`access/invites.ts` `mintToken`) and never carries any, so this only
+  // matters for junk. `decodeURIComponent` throws on a malformed escape, and a
+  // throw here would take down the redirect for a signed-out visitor — the
+  // undecoded string is stored instead, which simply fails to validate later.
+  try {
+    return normalizePendingAdmission(decodeURIComponent(segment));
+  } catch {
+    return normalizePendingAdmission(segment);
+  }
+}
 
 // An explicit matcher list, not a catch-all negative-lookahead: a broad
 // `"/((?!api|_next).*)"` pattern risks guarding API routes, static assets,

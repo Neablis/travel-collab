@@ -1,19 +1,36 @@
 import { expect, test } from "@playwright/test";
+import { E2E_SUPER_CODE } from "./admission";
 import { e2eTripName } from "./tripNames";
 
-// This is the one spec that still covers the login UI end to end — every
-// other spec runs pre-authenticated via the "desktop"/"narrow" projects'
-// shared storageState (Task 3.1). Override it here so this test starts
-// genuinely signed out.
+// This is the one spec that still covers the front door end to end from the
+// landing page — every other spec runs pre-authenticated via the
+// "desktop"/"narrow" projects' shared storageState (Task 3.1). Override it
+// here so this test starts genuinely signed out.
+//
+// M11a moved the walk from `/signin` to `/signup`: a brand-new account is
+// what this test signs in as, and that is now the screen a brand-new account
+// belongs on (it is the one carrying the invite-code field). `/signin`'s own
+// dev-login form stays covered by m11a-invite-gate.spec.ts, for the person it
+// is actually for — someone who already has a `users` row and needs no code.
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test("sign in, create a trip, see it in the list", async ({ page }) => {
   const tripName = e2eTripName("Rome");
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Sign in" }).click();
+  // `/signup`, not `/signin`: M11a's gate refuses anyone with no `users` row
+  // and no credential, and the invite-code field the credential goes in exists
+  // on the signup screen only. `.first()` because the landing page repeats
+  // this CTA in the header and the closing band — same link, three places.
+  await page.getByRole("link", { name: "Start a trip" }).first().click();
 
-  // Auth.js built-in sign-in page: Dev Login credentials form.
+  // The invite gate (M11a). Dev login goes through admission like every other
+  // way in — the build plan's decision 3 — so the code is presented here
+  // before the sign-in dispatch, which is what puts it in the
+  // `pending_admission` cookie the gate reads on the way back.
+  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+
+  // Dev Login credentials form.
   await page.fill('input[name="username"]', "alice");
 
   // Wait for the post-sign-in page's first authenticated /api/trips fetch to
