@@ -50,6 +50,13 @@ export function ActivityEditorSheet() {
   // existing initial-value mapping (ActivityView shape) can be reused unchanged.
   // Its timeWindow (e.g. TimelineLens's nextSlot) is also what ActivityEditor
   // reverse-maps into an initial "How long" selection (closestDurationLabel).
+  //
+  // `kind: "hold"`, not the contract's `"planned"` zero value: a stop a person
+  // creates through this form is more likely to need booking than not, and the
+  // picker should preselect that rather than an empty-reading default (Mitchell,
+  // 2026-08-29). This is a UI default, not the domain's — a command that omits
+  // `kind` still resolves to `planned` (decide.ts), and the fixture always
+  // states a kind explicitly, so neither is touched by this.
   const createInitial: ActivityView | null =
     state.mode === "create" && state.prefill !== undefined
       ? {
@@ -59,7 +66,7 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: null,
           anchors: [],
-          kind: "planned" as const,
+          kind: "hold" as const,
           tags: [],
           cost: null,
         }
@@ -111,6 +118,17 @@ export function ActivityEditorSheet() {
         location: value.location,
         notes: value.notes,
         anchors: value.anchors,
+        // M18. Both branches here hand-enumerate the form's fields, so a new
+        // one is dropped silently — TypeScript does not flag the extra
+        // property on `value`, and the sheet's own tests kept passing while
+        // the user's kind and tags went nowhere. This is the third time this
+        // milestone has hit that shape: PR 1 hit it in equality/diff/hydrate/
+        // detail, and the project review found it again in Location.city
+        // (KI-54). §6.1's activity-field descriptor refactor is the standing
+        // fix; until it lands, adding a field means grepping for every
+        // enumeration of them.
+        kind: value.kind,
+        tags: value.tags,
         cost: value.cost,
       });
     } else if (state.mode === "create") {
@@ -128,6 +146,9 @@ export function ActivityEditorSheet() {
         location: value.location ?? undefined,
         notes: value.notes ?? undefined,
         anchors: value.anchors,
+        // See the UpdateActivity branch above — same enumeration, same trap.
+        kind: value.kind,
+        tags: value.tags,
         cost: value.cost ?? undefined,
       });
     }

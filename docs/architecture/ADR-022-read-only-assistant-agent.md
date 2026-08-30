@@ -148,6 +148,7 @@ M16 is the part of M9 that does not need to wait.
   (`SearchPlaces`, `placeRef`) becomes a fourth read tool under this ADR's rule.
 - `toolApproval: 'user-approval'` (AI SDK v7) is the mechanism M9's approval step
   should be built on. Recorded here so M9 does not invent a second one.
+  **Amended 2026-08-29 — see the Amendment below; M9 did not use it, and why.**
 - Observability starts in M16, not M9. Per-ask tool-call records and a fixed eval
   set begin closing **KI-11**; M9 inherits the harness instead of building it.
 - **KI-23** (the simulated model's `combined` surface never composes a page) is
@@ -182,3 +183,48 @@ M16 is the part of M9 that does not need to wait.
   floating and docked with dragging and viewport clamping. Deferred by Mitchell
   in favour of the docked rail alone; recorded as owned by M16's file so it stays
   routed. It is interaction work, not a prerequisite for answering a question.
+
+## Amendment (2026-08-29) — how M9's approval step was actually built
+
+The Consequences above name `toolApproval: 'user-approval'` as the mechanism
+M9 should build on. **M9 did not use it.** Recording the reason here, in the
+ADR that made the recommendation, so the next reader does not "fix" the
+deviation back.
+
+`toolApproval: 'user-approval'` works as advertised: the SDK emits
+`tool-approval-request` parts instead of executing, the client replays a
+`tool-approval-response`, and the resumed run executes the approved calls
+(`ai@7.0.34`, `resolveToolApproval` / `processToolApprovals`). Three things
+about this repo's shape made it the wrong fit, and none of them is a defect in
+the SDK:
+
+1. **It guards `execute`, and `execute` is not what commits.** The write tools
+   are the derived planning tools, whose `execute` only records a raw intent
+   (`{ queued: true }`). The commit is `resolveBatch` → `enrichCommandLocations`
+   → `flushPlanningBatch`, which the harness owns. Gating `execute` would have
+   protected the one step that was already harmless.
+2. **It puts the commit after a second model turn, inside a stream.** On
+   resumption the tools execute, the loop continues, and the model speaks —
+   then the batch would commit, in `onEnd`, after the answer is already on
+   screen. A refused batch (a stale ref, a lost race) would arrive after a
+   confident sentence describing it, which inverts `planSummary.ts`'s design
+   guarantee that the message is derived from what committed. It also puts a
+   Postgres write after the response is flushed, which is the classic
+   serverless dropped-write shape.
+3. **Approval per tool call is not the decision being made.** ADR-013 says an
+   approved plan is ONE batch, one history entry, one undo. `user-approval`
+   issues one request per call, which the client would have to re-aggregate
+   into the single yes/no the user is actually being asked for.
+
+**What was built instead** (the fallback this task's plan pre-authorised): the
+write tools stay collect-only, the turn's final stream chunk carries a resolved
+`AssistantProposal` as message metadata, and the client posts the reviewed
+commands to `POST /api/trips/:id/ask/apply`, which runs enrichment and commits
+one batch. Nothing commits without approval because `commitProposal` has
+exactly one caller and it is that endpoint; rejecting is that endpoint not being
+called, so the no-op path has no code that could get it wrong.
+
+If `SearchPlaces` grounding (KI-81) or a future turn ever needs the model to
+*continue* after an approval — "approve this, then keep planning" — that is the
+case `toolApproval` is genuinely for, and this amendment is the note to
+re-read.

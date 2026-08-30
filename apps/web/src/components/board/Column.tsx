@@ -77,7 +77,8 @@ export function Column({
   /** True when this day is the one the day-chips row has ringed. */
   isFocused?: boolean;
   /** Selects this day, exactly as clicking its chip above does. */
-  onSelect?: () => void;
+  /** Receives `true` when the click should CLEAR the focus (see the header). */
+  onSelect?: (clearing: boolean) => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
   /** Passed to every card: hide what writes, keep what reads (ADR-031). */
@@ -126,13 +127,15 @@ export function Column({
             select the day here, and it syncs to the day card above." The chips
             row was the only way to focus a day; the column you are already
             looking at is the more obvious place to click. Same call as the
-            chip's (`setFocusedDay(index)`), same `aria-pressed`, and
-            deliberately no toggle-off — matching the chips beats inventing a
-            second selection idiom on the same state. */}
+            chip's, same `aria-pressed`, and — since M16 Wave 2 gave the chips
+            a toggle-off — the same toggle-off, because matching the chips
+            beats inventing a second selection idiom on the same state. It
+            reports WHETHER it is clearing rather than what to focus, so the
+            index stays where it already lived (Board.tsx). */}
         {onSelect ? (
           <Button
             variant="ghost"
-            onClick={onSelect}
+            onClick={() => onSelect(isFocused)}
             aria-pressed={isFocused}
             className="h-auto p-0 text-sm font-semibold text-ink hover:bg-transparent hover:underline"
           >

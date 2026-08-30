@@ -471,6 +471,18 @@ describe("selecting a day from its column", () => {
     expect(callbacks.onSelectDay).toHaveBeenCalledWith(1);
   });
 
+  // The chips gained a toggle-off in M16 Wave 2 because `focusedDay` is now
+  // the assistant's scope; the column header follows them rather than becoming
+  // a second selection idiom on the same state (Column.tsx's header comment).
+  it("clears the focus when the already-focused column header is clicked again", async () => {
+    const callbacks = noopCallbacks();
+    renderBoard(twoDays(), callbacks, 1);
+
+    await userEvent.click(headerOf(screen.getAllByTestId("day-column")[1]!));
+
+    expect(callbacks.onSelectDay).toHaveBeenCalledWith(null);
+  });
+
   it("rings the focused column and marks it pressed, so the two agree", () => {
     renderBoard(twoDays(), noopCallbacks(), 1);
     const columns = screen.getAllByTestId("day-column");
