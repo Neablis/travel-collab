@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { backfillSavedDayCities } from "../../scripts/backfill-saved-day-cities.mjs";
 import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
 import { db } from "./db/client";
 import { savedDayAdds, savedDays } from "./db/schema";
-import { saveDay } from "./savedDays";
+import { getSavedDay, listSavedDays, saveDay } from "./savedDays";
 
 // Fresh identities per TEST (KI-69) — these tests read rows back by owner and
 // by id, and a sibling process writing `saved_days` must not be able to change
@@ -123,7 +123,7 @@ describe("saveDay's new columns", () => {
   // than trusting `saveDay`'s return value. `toDto` builds that value from the
   // same in-memory object the insert was built from, so asserting on it would
   // pass even if the column were dropped from the insert or renamed — while
-  // the test title still claimed persistence. Caught in review on PR #100.
+  // the test title still claimed persistence. Caught in review on pull request 100.
   async function storedRow(savedDayId: string) {
     const [row] = await db.select().from(savedDays).where(eq(savedDays.id, savedDayId));
     return row;
@@ -251,6 +251,34 @@ describe("the 0012 cities backfill", () => {
     // behind is inert, but this one makes `pnpm --filter web db:backfill-cities`
     // exit non-zero for anyone who runs it on a machine that has run the
     // integration suite — a real failure signal, spent on a fixture.
+    await db.delete(savedDays).where(eq(savedDays.id, id));
+  });
+});
+
+// A `text` column with a `$type<SavedDayVisibility>()` cast is typed at compile
+// time and unconstrained at runtime, so the only thing standing between a bad
+// stored value and a typed contract value is `fromRow`'s parse. Written with
+// raw SQL because every write path in the app goes through the enum — the row
+// this guards against is one the app cannot currently create, which is exactly
+// why a test has to make one.
+describe("a saved day whose stored visibility is not a visibility", () => {
+  it("is dropped on read rather than handed out as a typed value", async () => {
+    const { tripId, dayId } = await tripWithCities();
+    const detail = await getTripDetail(tripId);
+    const saved = await saveDay({ name: "A Kansai day", dayId }, detail!, OWNER);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    const id = saved.value.savedDayId;
+
+    // Readable while the stored value is legitimate — so the assertion below
+    // is about the corruption, not about the row being unreachable anyway.
+    expect(await getSavedDay(id, OWNER)).not.toBeNull();
+
+    await db.execute(sql`update saved_days set visibility = 'everyone' where id = ${id}`);
+
+    expect(await getSavedDay(id, OWNER)).toBeNull();
+    expect((await listSavedDays(OWNER)).map((d) => d.savedDayId)).not.toContain(id);
+
     await db.delete(savedDays).where(eq(savedDays.id, id));
   });
 });

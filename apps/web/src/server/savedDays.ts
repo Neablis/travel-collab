@@ -85,6 +85,24 @@ function fromRow(row: SavedDayRow): SavedDay | null {
     });
     return null;
   }
+  // `visibility` gets the same treatment as `stops`, and for the same reason.
+  // The column is `text` with a `$type<SavedDayVisibility>()` cast, which is
+  // compile-time only — nothing stops a row holding any other string, and
+  // without this parse `toDto` would hand that string out as a typed contract
+  // value. Once M11b link 3 makes visibility decide who can READ a day, a row
+  // that is neither "private" nor "public" is a value no caller has a branch
+  // for; dropping it is the same fail-closed choice `stops` already makes.
+  //
+  // Raised independently by PR1's implementer and by review on pull request 100 — two
+  // readers finding the same hole is not a coincidence to leave open.
+  const visibility = SavedDayVisibility.safeParse(row.visibility);
+  if (!visibility.success) {
+    console.error("saved_days.visibility is not a SavedDayVisibility", {
+      savedDayId: row.id,
+      value: row.visibility,
+    });
+    return null;
+  }
   return toDto(row, stops.data);
 }
 
