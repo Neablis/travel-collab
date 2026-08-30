@@ -93,6 +93,21 @@ const SEED_PREFIX = "[Seed] ";
 // NextAuth major-version bump renamed its cookies (currently the `authjs.*`
 // prefix, v5's convention — v4 used `next-auth.*`) before assuming the rest
 // of this script is broken.
+//
+// SINCE M11a, this needs one more thing: the invite gate. `recordSignIn`
+// evaluates admission for anyone with no `users` row, and `db:reset` truncates
+// `users` — it derives its table list from the schema, so every table lands
+// there the day it does. The very first sign-in after a reset is therefore a
+// brand-new account every time, and it is refused with `MISSING_INVITE_CODE`
+// unless a credential is presented. A browser carries one in the
+// `pending_admission` cookie across the OAuth round trip (`server/admission.ts`);
+// there is no round trip here, so the cookie is simply sent with the callback
+// POST. Same cookie, same name, same reader — deliberately NOT a
+// seeding-only path through the gate, which would be a second admission rule
+// nothing tests.
+const PENDING_ADMISSION_COOKIE = "pending_admission";
+const SUPER_CODE = process.env.INVITE_SUPER_CODE;
+
 async function devSignIn(baseUrl: string, username: string): Promise<string> {
   const csrfRes = await fetch(`${baseUrl}/api/auth/csrf`);
   const csrfCookie = readSetCookie(csrfRes, "authjs.csrf-token");
@@ -103,14 +118,29 @@ async function devSignIn(baseUrl: string, username: string): Promise<string> {
   }
   const { csrfToken } = await csrfRes.json();
 
+  const cookies = [csrfCookie];
+  if (SUPER_CODE) cookies.push(`${PENDING_ADMISSION_COOKIE}=${encodeURIComponent(SUPER_CODE)}`);
+
   const callbackRes = await fetch(`${baseUrl}/api/auth/callback/dev-login`, {
     method: "POST",
     redirect: "manual", // a successful sign-in 302s; we only need its Set-Cookie
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: csrfCookie },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookies.join("; ") },
     body: new URLSearchParams({ username, csrfToken, callbackUrl: baseUrl, json: "true" }),
   });
   const sessionCookie = readSetCookie(callbackRes, "authjs.session-token");
   if (!sessionCookie) {
+    // The gate's refusal is a redirect carrying a typed code, so it can be told
+    // apart from "dev login is off" — worth the extra branch, because the two
+    // need completely different fixes and both present as "no cookie".
+    const refusal = callbackRes.headers.get("location")?.match(/error=([A-Z_]+)/)?.[1];
+    if (refusal) {
+      throw new Error(
+        `the invite gate refused dev-login as "${username}" (${refusal}). ` +
+          `db:reset truncates \`users\`, so the seed user is a brand-new account every time. ` +
+          `Set INVITE_SUPER_CODE in apps/web/.env.local (any value; it is compared against the ` +
+          `server's own, so the dev server must be restarted after adding it) and re-run.`,
+      );
+    }
     throw new Error(
       `dev-login didn't return a session cookie (status ${callbackRes.status}) — check AUTH_DEV_LOGIN is "true" on the running server`,
     );
