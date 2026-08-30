@@ -328,6 +328,13 @@ export async function classifyAskIntent(
       output: INTENT_OUTPUT,
       maxOutputTokens: MAX_VERDICT_TOKENS,
       abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      // Names this call in Sentry's AI Agents view (ADR-032). It matters more
+      // here than anywhere else in the app: this is a SECOND round-trip on
+      // every editor turn, possibly on a different model id
+      // (`AI_CLASSIFIER_MODEL`), and unnamed it is indistinguishable from the
+      // turn it is supposed to be saving money on — which makes the one
+      // comparison this whole file exists to enable impossible to draw.
+      telemetry: { functionId: "classify_intent" },
     });
     emitted = result.text.trim();
     usage = usageOf(result);

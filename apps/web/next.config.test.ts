@@ -23,11 +23,20 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 // current `=== "preview"` gate treats them alike, which is exactly why the
 // gap was invisible: it costs nothing today and would hide the regression the
 // day the gate becomes a truthiness or `startsWith` check.
-async function cspFor(vercelEnv: string | undefined): Promise<string> {
+async function headersFor(
+  vercelEnv: string | undefined,
+): Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> {
   vi.resetModules();
   vi.stubEnv("VERCEL_ENV", vercelEnv);
   const { default: config } = await import("./next.config");
-  const routes = await config.headers!();
+  return (await config.headers!()) as Array<{
+    source: string;
+    headers: Array<{ key: string; value: string }>;
+  }>;
+}
+
+async function cspFor(vercelEnv: string | undefined): Promise<string> {
+  const routes = await headersFor(vercelEnv);
   const global = routes.find((r) => r.source === "/:path*");
   const csp = global?.headers.find((h) => h.key === "Content-Security-Policy");
   if (!csp) throw new Error("no Content-Security-Policy header on the global route");
@@ -158,4 +167,35 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
       expect(await cspFor(value)).toBe(await cspFor("production"));
     },
   );
+});
+
+/**
+ * Sentry's browser profiling is two things that have to agree, in two files.
+ *
+ * `instrumentation-client.ts` adds `browserProfilingIntegration()`; this header
+ * is what lets the page construct a `Profiler` at all. Without it the
+ * integration initialises, fails, and disables profiling for the rest of the
+ * session — silently, outside a debug build. So "browser profiling is enabled"
+ * is a claim about BOTH, and deleting either one leaves a config that looks
+ * complete and collects nothing. These cases are the tripwire.
+ */
+describe("the js-profiling document policy", () => {
+  it("is served on every route, so a profile can start on any page", async () => {
+    const global = (await headersFor("production")).find((r) => r.source === "/:path*");
+    expect(global?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
+  });
+
+  // Share and invite pages get a different Referrer-Policy and otherwise the
+  // same header set. A `filter` there that removed more than it meant to would
+  // quietly turn profiling off for exactly the pages a reviewer walks.
+  it("is served on the share and invite routes too", async () => {
+    const secrets = (await headersFor("production")).find((r) => r.source === "/:prefix(s|invite)/:path*");
+    expect(secrets?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
+  });
+
+  it.each(["production", "preview", undefined])("is not environment-gated (%o)", async (env) => {
+    for (const route of await headersFor(env)) {
+      expect(route.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
+    }
+  });
 });

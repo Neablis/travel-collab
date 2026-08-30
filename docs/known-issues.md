@@ -13,6 +13,48 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-95 — `docs/known-issues.md` has two hot insertion points, so every pair of parallel branches conflicts and the cost is quadratic
+- **Severity:** cleanup (no user impact) — but it is the most expensive process defect measured so far, and `/ki-sweep` is built to trigger it
+- **Area:** `docs/known-issues.md` itself, `.claude/commands/ki-sweep.md`, `.claude/agents/ki-fixer.md` (its contract requires each unit to move its own entry to Resolved)
+- **What happens:** every agent writes to the same two anchors — the top of `## Open` for a new entry, the top of `## Resolved` for a fixed one. Git cannot merge two inserts at one anchor, so **any two branches that file or resolve an issue conflict, always**, even when their entries are about entirely unrelated code. Worse, resolving the conflict on one branch does not help the others: each merge to `main` moves both anchors again, invalidating every remaining branch's resolution.
+- **Measured on the 2026-08-29 sweep (PRs #82-#86), not estimated:** four cluster branches, each semantically an independent append. Landing them took **10 conflict resolutions (4+3+2+1) and 4 extra CI cycles**. Zero of those conflicts were about overlapping subject matter; every one was two inserts at the same anchor. The same run also produced a **five-way collision on the number KI-77** — five branches independently allocated it the same night, plus a two-way on KI-78 — because a sequential id needs an allocator and parallel agents have none.
+- **The tooling manufactures it.** `/ki-sweep` exists to fan out N agents over independent issues; `ki-fixer`'s contract then requires each of them to edit this one file in the same two places. The more the parallel workflow is used as designed, the more the cost grows — as N², not N.
+- **File pressure, for scale:** 2,209 lines, 94 entries, **78 commits in the 30 days to 2026-08-30** (~2.6/day). This is the most frequently written document in the repo.
+- **Two fixes, deliberately not taken here** (Mitchell's call, 2026-08-30 — recorded rather than actioned):
+  1. **Workflow, free and structural-change-free:** merge a sweep's branches into one integration branch, resolve once, run CI once, merge once. O(N) instead of O(N²). On the 2026-08-29 sweep that is 1 resolution and 1 CI cycle instead of 10 and 4.
+  2. **Structural:** one file per issue (`docs/known-issues/KI-095-....md`), with Open/Resolved as frontmatter or a directory, plus a generated index. Two agents filing entries then create two *different files*, which git merges with no conflict at all. This is the standard remedy for the standard problem — towncrier's news fragments and changesets both exist for exactly this. Pair it with a non-sequential id (`KI-<date>-<slug>`, or PR-derived) so no allocator is needed and the KI-77 collision cannot recur.
+- **Migration cost was checked rather than assumed:** **nothing parses this file.** `.claude/protocol/adapter.json:17` names it as a protected filename and `apps/web/src/server/ai/writeTools.ts:101` mentions it in a prose comment; the other ~49 references are prose pointers in markdown. All mechanical. `CLAUDE.md`'s rule 2 ("grep `docs/known-issues.md` for the symptom") survives verbatim, since `grep -r docs/known-issues/` is equivalent.
+- **What this costs while it is open:** every parallel sweep pays the quadratic tax again, and every one risks another number collision. It does not corrupt anything and it is always resolvable — it is purely wasted time, which is why it is filed as cleanup rather than reliability.
+- **First noted:** 2026-08-30, landing the 2026-08-29 sweep's four remaining PRs.
+
+### KI-93 — The AI handler's server-side geocoding spends the LocationIQ key without consulting the geocode quota at all
+- **Severity:** correctness (a spend gate with a second, unmetered door into the same vendor key)
+- **Area:** `apps/web/src/server/ai/handleAiRequest.ts` (the `enrichCommandLocations` call), `apps/web/src/server/ai/geocodeEnrichment.ts`, `apps/web/src/server/quota.ts` (`geocodeQuota`)
+- **Symptom:** `geocodeQuota()` has exactly one caller — `apps/web/src/app/api/geocode/route.ts`. The AI handler geocodes through a completely separate path: after the model's commands are resolved, `enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder(), …)` performs a LocationIQ lookup **per unverified location in the batch**, and nothing on that path reads or charges the geocode policy. So the daily ceilings that exist to protect `LOCATIONIQ_API_KEY` — per-user 300, global 4000, the global one deliberately set below LocationIQ's 5,000/day free tier — bound the proxy endpoint only.
+- **Why it matters more than it looks:** the AI path is the one that geocodes in *bulk*. A single planning request can resolve many new activities, each needing a lookup, and `server/ai/rateLimit.ts` exists precisely because one AI request can otherwise breach LocationIQ's **per-second** limit. That module paces the lookups; nothing counts them. The result is that the endpoint a user drives one button-press at a time is capped at 300 lookups a day, while the endpoint that can emit dozens per call is capped at nothing.
+- **Not the same defect as KI-67, which is why it is filed separately.** KI-67 was a wrong *denominator* — the AI request policies metered calls when cost varied per call. This is a missing *call site*: the denominator for geocoding is already right (one request, one lookup), the policy simply is not consulted on the path that spends the most. Fixing KI-67 does not touch this.
+- **Fix path, if taken:** charge `geocodeQuota()` for the lookups an AI request actually performs. The count is available — `enrichCommandLocations` already returns a `LocationEnrichmentReport` — so the mechanism KI-67 added (`settleAiSteps`'s post-hoc, never-refusing settlement) generalises to it directly: pre-authorise nothing, settle the real lookup count after enrichment. The open question is the same one KI-67 answered for steps and would want answering again here: enrichment is explicitly best-effort and *never fails the request*, so a geocode ceiling reached mid-batch should almost certainly stop *further lookups* rather than refuse the AI request, which means the check belongs inside the enrichment loop rather than around it.
+- **Why not fixed here:** found while fixing KI-67, and outside that change's declared scope. It also needs a decision about mid-batch behaviour that is a product call, not a mechanical one, and `docs/guidelines/` has no stated policy on partial enrichment under a quota ceiling.
+- **Cross-reference:** KI-67 (resolved — the AI step metering, and the mechanism this would reuse), ADR-007 (server-side geocode enrichment), KI-15 (the region-agreement rule enrichment applies), KI-24.
+- **First noted:** 2026-08-29, while fixing KI-67.
+
+- **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77 the same night. Renumbered to 93 on merge. Nothing outside this file references it.
+### KI-94 — The AI step quota's admission charge is one step, so concurrent requests can overshoot the global ceiling together
+- **Severity:** correctness (a burst-window hole in a spend ceiling that is otherwise sound; not a sustained bypass)
+- **Area:** `apps/web/src/server/quota.ts` (`settleAiSteps`, `consumeQuota`, `QuotaCounters.bump`), `apps/web/src/server/ai/handleAiRequest.ts` (the admission charge)
+- **Symptom:** KI-67's step metering pre-authorises **one** round-trip and settles the rest after `generateText` returns, because the real step count does not exist until then. Every request still in flight has therefore charged only 1. N requests admitted before any of them settles can together overshoot by up to `N × (budget − 1)` — with a 32-step budget, 31 per in-flight request. The global bucket is where this bites: with distinct users, enough concurrent 32-step requests can all pass the global step ceiling before any of them settles, and the ceiling is only re-asserted once they land.
+- **Scale, honestly:** the per-user ceiling is barely affected — one actor issuing requests in sequence overshoots by at most one request's budget, which is the bounded trade KI-67 accepted deliberately. It is the *concurrent, multi-actor* case against `ai-steps-hourly:global` / `ai-steps-daily:global` that is not bounded the way KI-67's own comment originally claimed. That claim has been corrected in place rather than left standing.
+- **What still bounds the burst today:** the request-count layer (`aiQuotas`) is charged in the same admission call and caps concurrent admissions independently — global 300/hour, 1000/day. So the worst concurrent burst is bounded by the *old* effective ceiling rather than by the new one; the step layer's improvement degrades under concurrency instead of disappearing. Sustained abuse is still caught, because the settled debt lands and the next request is refused.
+- **Fix path, if taken (the reviewer's own proposal):** reserve the maximum in-flight cost — the full step budget — atomically for both buckets at admission, then reconcile the unused part after the call. That bounds in-flight exposure exactly. It needs a **refund primitive this module deliberately does not have**, and the two hazards a refund has to survive are why it was not added in the same pass:
+  - `bump` clamps its `amount` to a positive integer specifically so a caller cannot decrement someone's usage. A refund path reopens that, and a refund larger than the reservation would let an actor *drain* their own counter — a worse hole than the one being closed.
+  - The fixed window can roll between reserve and refund, so a naive refund subtracts from a fresh window's count. The refund has to be conditional on the row still being in the window that was reserved against, which is a second piece of careful SQL in the same statement family as the existing `greatest(...)` monotonicity guard.
+  Reserving without reconciling is not an acceptable shortcut: it would charge every one-step answer the full 32, which re-creates KI-67's defect in reverse.
+- **A regression test should come with it:** a concurrent `Promise.all` of distinct users against the global bucket, which no current test covers — every quota test issues requests in sequence.
+- **Found by:** CodeRabbit, PR #83 §1 (Security & Privacy, Major), reviewing the KI-67 fix. Recorded rather than fixed because the refund primitive is a security-sensitive addition that wants its own reviewed step, not an unattended one appended to a four-issue branch.
+- **Cross-reference:** KI-67 (resolved — the step metering this refines), KI-24, ADR-019 (the AI kill switch).
+- **First noted:** 2026-08-29 (PR #83 review).
+
+- **Numbering:** filed as 78 on 2026-08-29, when several sibling branches each filed a different KI-78 the same night. Renumbered to 94 on merge. Nothing outside this file references it.
 ### KI-92 — `TripDate` accepts calendrically impossible dates, so the date parsers can only reject them by throwing
 - **Severity:** correctness (a validation gap; its symptom today is a 500 where a 400 belongs)
 - **Area:** `packages/contracts/src/trip.ts` (`TripDate`), `packages/domain/src/trip/decide.ts` (`SetTripDates`)
@@ -247,75 +289,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Related correction:** the `style-src` comment attributes the runtime `<style>` injection to *"tippy.js (the notebook's slash-command popup)"*. There is no slash-command popup — macro authoring was removed in M8 — and `tippy.js` was removed as a direct dependency on 2026-08-28 with zero importers. The injector is `@tiptap/core`, whose embedded style string happens to contain `.tippy-box` rules, which is almost certainly where the attribution came from. The directive is still needed; the reason named for it is wrong.
 - **First noted:** 2026-08-28 (security-headers work). Browser-walked the same day, which closed the unverified half and corrected the premise it rested on: this container DOES have a usable Chromium under `$PLAYWRIGHT_BROWSERS_PATH` — and `chromium.launch()` finds it with no `executablePath`. Do not copy a pinned path from anywhere: the revision and the directory layout have both already changed once (`chromium-1194/chrome-linux/` → `chromium-1228/chrome-linux64/`). See `docs/guidelines/cloud-agent-sessions.md`.
 
-### KI-67 — The AI and geocode quotas meter REQUESTS, so a 32-step answer costs the same allowance as a one-step one
-
-- **Severity:** correctness (the control does not bound the thing it exists to bound)
-- **Area:** `apps/web/src/server/quota.ts` (`aiQuotaPolicies`, `geocodeQuotaPolicies`), `apps/web/src/server/ai/handleAiRequest.ts`
-- **Symptom:** every policy is a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000, geocode 300/4000. Cost is not proportional to calls. `handleAiRequest` runs a tool-using loop with a step budget, so one request can burn up to 32 model round-trips while another burns one, and both decrement the same allowance by exactly 1. An actor who wants to maximise spend under the cap simply writes prompts that provoke long tool loops; the ceiling barely moves.
-- **What it does do, and why it still shipped:** it bounds the *worst case* — 100 requests × 32 steps is a finite number and an unbounded loop is not, which is a real improvement on the nothing that preceded it, alongside the prompt-size cap landed in the same change. It is a floor, not the accounting.
-- **The data for the real fix already exists.** `handleAiRequest.ts:177` computes `totalTokens` (with `inputTokens`/`outputTokens`) off the model result and puts it in the response `meta`. Nothing reads it for enforcement. A token-metered policy would decrement by `meta.usage.totalTokens` **after** the call rather than by 1 before it, which changes the shape of the check (you cannot pre-authorise an unknown cost) — that is the design question, not the arithmetic.
-- **Why not fixed here:** post-hoc metering means deciding what happens to the request that crosses the line mid-flight (serve it and go negative, or fail after paying?), and whether the counter is per-token or per-currency once models differ in price. `TODO.md`'s "AI cost/quality tuning" candidate already says **"Watch `meta.steps` — that is the cost driver, and it is already instrumented"**; this is the same observation arriving at the enforcement layer.
-- **Cross-reference:** ADR-019 (the AI kill switch — remediation after the fact, which is why prevention was added), KI-24 (`AI_LIVE` on Vercel is warned-about, not prevented), KI-11 (no test calls a real model, so no test measures a real token cost).
-- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4).
-
-### KI-62 — Report-conformance may check the wrong unit's report when units run concurrently
-
-- **Severity:** unknown-until-observed (could make the hook inert exactly where the protocol is used)
-- **Area:** `scripts/hooks/subagent-report-conformance.mjs`
-- **Symptom:** the hook walks backwards through `transcript_path` for the last
-  assistant text block. If Claude Code records subagent sidechains into the
-  parent session's transcript, then with 2-4 concurrent units their entries
-  interleave, and the last text block at a given `SubagentStop` may belong to a
-  *different* unit — yielding a silent no-op (no `## Exit:` heading found) or a
-  conformance check against the wrong unit's report.
-- **Scope:** only bites with concurrent units. Every test uses a synthetic
-  single-agent transcript, and the real-transcript check that was run was
-  against a single-session file.
-- **Why not fixed here:** the transcript-path semantics for concurrent
-  subagents could not be established without a real multi-unit run, and
-  guessing at a fix would be worse than recording the question.
-- **How to settle it:** on the first real `/dispatch` run, dispatch two units,
-  let both finish, and confirm the hook engaged for each. If it did not, the
-  backstop is `/dispatch` step 4's "confirm `reports/<unit-id>.md` exists",
-  which is already the only thing catching a report that was never written.
-- **First noted:** 2026-08-28, final review of the subagent protocol branch.
-
-### KI-63 — Small subagent-protocol defects found in review and consciously left
-
-- **Severity:** cleanup
-- **Area:** `scripts/hooks/resource-lease.mjs`,
-  `scripts/hooks/subagent-report-conformance.mjs`,
-  `scripts/hooks/lib/run-context.mjs`,
-  `docs/specs/2026-08-28-subagent-operating-contract-design.md`,
-  `.claude/protocol/ADAPTER.md`
-- **What was left, and why each was judged safe:**
-  - `resource-lease.mjs` does not validate `entry.resource` / `entry.symptom`.
-    An adapter entry containing an object with non-callable `toString`/`valueOf`
-    would throw on coercion. Requires deliberately pathological JSON — a merely
-    missing field coerces to `"undefined"` harmlessly — and the portability
-    test now asserts `typeof entry.pattern === "string"`, which catches the
-    realistic shape at source.
-  - `subagent-report-conformance.mjs`: a catch comment overstates its trigger
-    (claims non-UTF8 content, which `readFileSync` does not throw on); a
-    redundant `raw ? … : []` branch; and with two `## Exit:` headings the first
-    governs. Worst case for the last is one wasted round trip.
-  - The `## Exit:` trigger will false-positive on a subagent that merely
-    *quotes* the protocol — plausible in this repo now. Bounded to one blocked
-    stop by the `stop_hook_active` guard. If it becomes annoying, require the
-    heading within the first few lines rather than anywhere in the message.
-  - The `mainCheckout` / `worktreeRoot` divergence comment sits above
-    `worktreeRoot` with no forward pointer from `mainCheckout`.
-  - The design spec's hook-1 description names neither the worktree-boundary
-    branch nor the run-directory allowance; `CONTRACT.md` and the code comments
-    both carry the behaviour.
-  - `ADAPTER.md` lists `ci-minutes` as an exclusive resource with no
-    `adapter.json` entry. Now marked as a human-observed policy rather than a
-    hook-enforced lease; no fake entry was invented for it.
-- **Why not fixed here:** each is cosmetic or needs an unrealistic input, and
-  the branch already ran two fix waves. Recorded rather than dropped because
-  the ledger holding them was deleted at teardown — which is exactly the
-  failure this protocol's promotion gate exists to prevent.
-- **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
 - **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
   Two sessions reached this entry from opposite ends on the same day; this
@@ -794,6 +767,58 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-62 — Report-conformance checked the wrong unit's report when units ran concurrently — RESOLVED, and the real mechanism was worse than filed
+- **Severity (as filed):** unknown-until-observed (could make the hook inert exactly where the protocol is used)
+- **Area:** `scripts/hooks/subagent-report-conformance.mjs`
+- **Symptom (as filed):** the hook walked backwards through `transcript_path` for the last assistant text block; with concurrent units their entries were expected to interleave, so the block found at a given `SubagentStop` might belong to a different unit.
+- **Settled by measurement, which is what the entry asked for.** Two subagents were dispatched concurrently with the hook instrumented to log its payload and its selection. Both ran real multi-step work; one finished while the other was still going, so their stops genuinely interleaved. At **both** `SubagentStop` events:
+  - `transcript_path` was the **parent session's** transcript — the identical path for both units;
+  - the last assistant text block in it was an unrelated message from the orchestrator's own earlier turn (`"Five cloud agents running, 19 of 34 open KIs, five PRs…"`);
+  - `/^##\s*Exit:/m` therefore did not match, and the hook **silently exited 0. Twice.**
+- **So the hypothesis was close but wrong in the way that matters.** The units' entries were not in the parent transcript to interleave at all — each unit gets its own file. The hook was not checking the wrong unit's report; **it was not checking any report at all**, and had not been since it landed. The entry's severity guess ("could make the hook inert exactly where the protocol is used") was exactly right; its mechanism was not.
+- **The payload already carried the answer, in two fields nothing read:** `last_assistant_message` — the stopping unit's final message, verbatim, as a string — and `agent_transcript_path`, that unit's own transcript (`<session>/subagents/agent-<id>.jsonl`), distinct per unit. Both were present on both stops.
+- **Fix (2026-08-29):** prefer `last_assistant_message` (no file read, no backwards walk, no way to pick up a neighbour's text), fall back to `agent_transcript_path`, and keep `transcript_path` only as a last resort for a Claude Code build supplying neither. It is known to select the wrong text when subagents are involved, so it is tried last, never first.
+- **Verified:** 5 new cases in `scripts/hooks/__tests__/subagent-report-conformance.test.mjs` built from the reproduction's exact shape — one parent transcript, two units, one conforming report and one not, each judged on its own. Confirmed red-then-green: with the fix stashed, 4 of the new cases fail; with it applied, the file is 18/18 and the whole hook suite is 122/122 → 132/132.
+- **The backstop named in the entry is still there** — `/dispatch` step 4's "confirm `reports/<unit-id>.md` exists" — and is now a second line rather than the only one.
+- **First noted:** 2026-08-28, final review of the subagent protocol branch. **Resolved:** 2026-08-29.
+
+### KI-63 — Small subagent-protocol defects found in review and consciously left — RESOLVED
+- **Severity:** cleanup
+- **Area:** `scripts/hooks/resource-lease.mjs`, `scripts/hooks/subagent-report-conformance.mjs`, `scripts/hooks/lib/run-context.mjs`, `docs/specs/2026-08-28-subagent-operating-contract-design.md`, `.claude/protocol/ADAPTER.md`
+- **What was fixed (2026-08-29), item by item, in the order the entry listed them:**
+  - **`resource-lease.mjs` did not validate `entry.resource` / `entry.symptom`.** Both are interpolated into the `ask` message and `resource` also indexes `leases`, so an adapter entry whose value is an object with `toString` **and** `valueOf` shadowed by non-callables — expressible in plain JSON — threw `Cannot convert object to primitive value` out of a `PreToolUse` hook, breaking every Bash command in the repo until someone found the adapter file. Both are now type-checked, and the loop `continue`s rather than crashing. Three new cases pin it, including one proving a **well-formed sibling entry is still enforced** after a malformed one is skipped — failing open on a bad entry must not disarm the rest of the list. Red-then-green confirmed: 3 of 3 fail with the fix stashed.
+  - **The catch comment overstated its trigger.** It claimed "non-UTF8 content", which `readFileSync(…, "utf8")` does not throw on — it substitutes U+FFFD. Corrected to the two things that do throw.
+  - **The redundant `raw ? … : []` branch is gone.** `"".split("\n")` yields `[""]`, whose `JSON.parse` throws into the loop's own `continue`, so an empty transcript never needed a special case.
+  - **With two `## Exit:` headings the first governed, silently.** A report that quoted the template's `## Exit: DONE` above its own `## Exit: BLOCKED` validated as DONE and was never asked for the two extra sections BLOCKED requires. Every heading is now collected: one is the normal case, several that agree is harmless, several that **disagree** is named as a real ambiguity for the unit to resolve — and if BLOCKED appears at all, its sections are required. Two new cases pin both halves.
+  - **The `mainCheckout` / `worktreeRoot` divergence comment had no pointer from the `mainCheckout` end**, so whichever resolver you landed on first told you nothing about the choice. `mainCheckout` now carries its own doc comment pointing at the long one.
+  - **The design spec's hook-1 description named neither the worktree-boundary branch nor the run-directory allowance.** Both are now described, including why the allowance is narrowed to the unit's *own* report plus `notes/` (permitting the whole run directory let one unit overwrite another's report) and why both checks are `sep`-terminated rather than bare prefixes. Hook 3's description, which said it "Reads `transcript_path`", is corrected in the same pass — see KI-62.
+  - **`ADAPTER.md`'s `ci-minutes` row** already reads *"Human-observed policy, not a hook-enforced lease"* with no invented `adapter.json` entry, which is what the entry said it wanted. No change needed; verified rather than assumed.
+- **Deliberately still not fixed, and why.** The `## Exit:` trigger can still false-positive on a subagent that merely *quotes* the protocol. The entry itself scopes that fix as conditional (*"If it becomes annoying, require the heading within the first few lines"*), it is bounded to one blocked stop by the `stop_hook_active` guard, and tightening the trigger risks making the hook inert again — which, per KI-62, is exactly what it has just been rescued from. Left as filed, on purpose.
+- **Verified:** `node --test "scripts/**/__tests__/**/*.test.mjs"` — 132/132, up from 122, with every new case confirmed failing against the unfixed code first.
+- **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch. **Resolved:** 2026-08-29.
+
+### KI-67 — The AI quota metered REQUESTS, so a 32-step answer cost the same allowance as a one-step one — RESOLVED, by settling the real round-trip cost after the call
+- **Severity (as filed):** correctness (the control did not bound the thing it exists to bound)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas`, new `aiStepQuotas`, new `settleAiSteps`, `pgCounters`), `apps/web/src/server/ai/handleAiRequest.ts` (the quota charge and the two `buildAiMeta` sites)
+- **Symptom (as filed):** every policy was a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000. `handleAiRequest` runs a tool-using loop with a 32-step budget, so one request could burn 32 model round-trips while another burned one, and both decremented the same allowance by exactly 1.
+- **Reproduced before fixing**, against the unmodified module:
+  ```
+  1-step  request charged ai-hourly: 1
+  32-step request charged ai-hourly: 1
+  per-user hourly ceiling (requests): 30
+  model round-trips that ceiling actually permits: 960
+  ```
+  The nominal ceiling of 30 was really a ceiling of **960**, and an actor maximising spend under it only had to write prompts that provoked long tool loops.
+- **Fix (2026-08-29):** a second, **additive** layer of policies metered in model round-trips — `ai-steps-hourly` / `ai-steps-daily`, per-user 240/800 and global 2400/8000, all four operator-overridable via `AI_STEP_LIMIT_*`. The request policies keep their numbers and their meaning, so no operator's configured value silently changed unit, and a request is refused if it exceeds **either** layer — this can only tighten the ceiling, never loosen it. Measured effect: the most expensive loop an actor can drive now buys **240** round-trips an hour instead of 960, a 4× cut in maximum spend, while ordinary use (most answers finish in one to three steps) stays nowhere near the ceiling.
+- **The shape change the entry identified, resolved explicitly.** You cannot pre-authorise an unknown cost — the step count does not exist until `generateText` returns. So admission charges 1 (enough to refuse an actor already over), and `settleAiSteps` charges the remainder afterwards from `meta.steps`. Two consequences, both deliberate and both stated in the code:
+  - **The request that crosses the line mid-flight is served, and its debt lands on the actor's counter.** Failing after the provider has already been paid burns the money *and* withholds the answer. Enforcement therefore lands on the **next** request. For one actor in sequence the overshoot is at most one request's step budget — the bounded trade this entry accepted. It is **not** bounded that way under concurrency, because every in-flight request has charged only its admission step; that gap is filed as **KI-78** (found by CodeRabbit reviewing this fix) and the claim is corrected here rather than left standing.
+  - **Settlement never refuses and never throws.** The work is done, so there is no decision left, and a counter write must not turn a successful answer into an error the caller sees. A failed settlement loses that request's excess from the ledger — one window of under-counting, the same magnitude the counter table's schema comment already accepts — and it is also what makes an int4 overflow at the top of the range harmless.
+- **Steps, not tokens, and why.** `meta.usage.totalTokens` is the truer cost signal and the entry named it, but a token budget has to answer "per token or per currency?" the moment two models differ in price — a product decision. Steps are the driver `TODO.md` already names (*"Watch `meta.steps` — that is the cost driver, and it is already instrumented"*), are bounded and model-independent, and are within a small constant factor of tokens for this handler's fixed-size envelope. Changing the denominator later is a change to four numbers and one argument, not to the mechanism.
+- **Geocode was named in this entry and deliberately left alone.** One request to `/api/geocode` is exactly one LocationIQ lookup, so calls and cost are the same quantity there and a cost-proportional charge would be `1` every time. The geocode key's real unmetered exposure is a different defect and is filed separately as **KI-77**: the AI handler's own server-side enrichment geocodes without consulting the geocode policy at all. A missing call site, not a wrong denominator.
+- **Verified:** 15 new unit cases in `quota.test.ts` (including the 960 → 240 loop, the bounded-overshoot-then-refuse sequence, and clamping of a nonsensical step count) and 3 new integration cases in `quota.int.test.ts` covering the upsert's new multi-unit charge through both branches — a new window must start **at** the charge, not at 1, or a 32-step request would be free whenever it happened to open its window. `apps/web` server unit suite 246/246, `quota.int.test.ts` 10/10, AI + geocode route integration 36/36.
+- **Not changed, on purpose:** `packages/contracts/src` is untouched (invariant #5), and the AI request pipeline is not refactored — M16 rebuilds the AI read path on a new endpoint, so this is confined to quota accounting.
+- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4). **Resolved:** 2026-08-29.
 
 ### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again — RESOLVED by reserving two lines below the width where the slot is wide enough for one
 - **Severity (as filed):** reliability (the KI-28 defect, reintroduced at narrow widths only)
@@ -1924,6 +1949,7 @@ needs action — skip this section when triaging.
   codebase. Retrieve it from history rather than rewriting it:
   `git log --diff-filter=D --name-only -- scripts/repro-ki13.sh`, then
   `git show <sha>^:scripts/repro-ki13.sh`. Re-run it before assuming anything, and check `ps aux` sorted by CPU for an external consumer per this entry's own long-standing mitigation — the historical causes (cold install, an external CPU hog) are both still live possibilities this closure does not rule out.
+- **Recurrence observed 2026-08-30 (Sentry telemetry branch), recorded rather than reopened.** Across **five** `pnpm check` runs on a 4-CPU cloud container, two failed and three passed — and the two failures were in **different files**: `TripBoardScreen.test.tsx > rolls the question back out of the thread when the turn produced no answer at all` (jsdom; `waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2))` resolved on a call carrying the *previous* question), and `reset-demo-data/route.int.test.ts > clears only the caller's own trips…` (Postgres). Neither reproduced: `TripBoardScreen.test.tsx` alone 3/3 green, the full `apps/web` unit suite 4/4 green, `test:int` 2/2 green, and `pnpm check` green on the runs either side of each failure. The location moving between runs is this repo's own discriminator for a timeout rather than a defect (`AGENTS.md`, KI-27's amendment), and the load condition — three back-to-back `pnpm check` runs, `pnpm -r` package parallelism, a shared reused database CI does not have — is the one this entry describes. **Not reopened**, per the same decision rule that closed it: a non-reproducing observation is not a reproduction. Recorded so the next person who sees it has a second data point and the exact two files, instead of starting from zero.
 - **First noted:** 2026-07-26. **Resolved:** 2026-08-23 (test-suite-overhaul Phase 4).
 
 ### KI-19 — The e2e suite runs at exactly one viewport, so responsive bugs are invisible to it — RESOLVED, a narrow-viewport project is now a gate condition
