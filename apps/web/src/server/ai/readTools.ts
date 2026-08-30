@@ -34,7 +34,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ActivityKind, TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
-import { needsBooking } from "@/lib/booking";
+import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
 
 export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time"] as const;
@@ -109,8 +109,8 @@ export interface TripDayReadout {
   cities: string[];
   stopCount: number;
   /**
-   * How many of those stops still need booking — kind neither `booked` nor
-   * `transit` (`@/lib/booking`).
+   * How many of those stops still need booking, by `@/lib/needsBooking`'s rule
+   * (narrower than "kind neither `booked` nor `transit`" — see KI-86).
    *
    * Here, and not left for the model to work out from `read_day`, because a
    * TRIP-scoped question about booking has no day to read: the rail offers
@@ -155,7 +155,7 @@ export function readTrip(detail: TripDetail): TripReadout {
       stopCount: day.activityIds.length,
       toBook: day.activityIds.filter((id) => {
         const activity = detail.activities[id];
-        return activity !== undefined && needsBooking(activity.kind);
+        return activity !== undefined && needsBooking(activity);
       }).length,
       costSubtotal: day.costSubtotal,
     })),

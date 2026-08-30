@@ -13,6 +13,7 @@ const day3 = "33333333-3333-4333-8333-333333333333";
 const tokyoActivity = "44444444-4444-4444-8444-444444444444";
 const osakaActivity = "55555555-5555-4555-8555-555555555555";
 const noLocationActivity = "66666666-6666-4666-8666-666666666666";
+const kyotoActivity = "77777777-7777-4777-8777-777777777777";
 
 describe("chipModel", () => {
   it("emits one entry per day, with stops derived from activityIds.length", () => {
@@ -130,9 +131,62 @@ describe("chipModel", () => {
     expect(chips[1]!.transitionTo).toBeNull();
   });
 
-  it("falls through to a later activity's location when an earlier one has none", () => {
+  // The day's city comes from its LAST located stop, so a two-city day hands
+  // the NEXT day a "from" of the city it actually ended in. Under the old
+  // first-stop rule this same fixture labelled the move a day late: day 2 read
+  // "Tokyo" (its first stop) and the Tokyo → Kyoto arrow landed on day 3,
+  // which never went anywhere.
+  it("takes a travel day's transition from the previous day's LAST city", () => {
     const detail = tripDetailFixture({
-      days: [{ dayId: day1, activityIds: [noLocationActivity, tokyoActivity], date: "2027-06-01", costSubtotal: 0 }],
+      days: [
+        { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 },
+        // Breakfast in Tokyo, then the shinkansen lands the day in Kyoto.
+        { dayId: day2, activityIds: [tokyoActivity, kyotoActivity], date: "2027-06-02", costSubtotal: 0 },
+        { dayId: day3, activityIds: [kyotoActivity], date: "2027-06-03", costSubtotal: 0 },
+      ],
+      activities: {
+        [tokyoActivity]: {
+          activityId: tokyoActivity,
+          title: "Shibuya crossing",
+          timeWindow: null,
+          location: { name: "Tokyo", city: "Tokyo" },
+          notes: null,
+          anchors: [],
+          kind: "planned" as const,
+          tags: [],
+          cost: null,
+        },
+        [kyotoActivity]: {
+          activityId: kyotoActivity,
+          title: "Gion at dusk",
+          timeWindow: null,
+          location: { name: "Kyoto", city: "Kyoto" },
+          notes: null,
+          anchors: [],
+          kind: "planned" as const,
+          tags: [],
+          cost: null,
+        },
+      },
+    });
+
+    const chips = chipModel(detail);
+    expect(chips[0]!.city).toBe("Tokyo");
+    // The travel day belongs to where it ends up, and carries the move.
+    expect(chips[1]!.city).toBe("Kyoto");
+    expect(chips[1]!.transitionFrom).toBe("Tokyo");
+    expect(chips[1]!.transitionTo).toBe("Kyoto");
+    // Day 3 stayed in Kyoto, so it claims no move of its own.
+    expect(chips[2]!.city).toBe("Kyoto");
+    expect(chips[2]!.transitionTo).toBeNull();
+  });
+
+  it("skips a stop with no location, whichever end of the day it sits at", () => {
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: day1, activityIds: [noLocationActivity, tokyoActivity], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: day2, activityIds: [tokyoActivity, noLocationActivity], date: "2027-06-02", costSubtotal: 0 },
+      ],
       activities: {
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -159,7 +213,9 @@ describe("chipModel", () => {
       },
     });
 
-    expect(chipModel(detail)[0]!.city).toBe("Tokyo");
+    const chips = chipModel(detail);
+    expect(chips[0]!.city).toBe("Tokyo");
+    expect(chips[1]!.city).toBe("Tokyo");
   });
 
   it("falls back to a sensible label instead of crashing when date is null", () => {
@@ -283,6 +339,49 @@ describe("cityFor", () => {
     cost: null,
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
+  const twoStopDay = {
+    dayId: day1,
+    activityIds: [tokyoActivity, kyotoActivity],
+    date: "2027-06-01",
+    costSubtotal: 0,
+  };
+
+  // Mitchell, 2026-08-29: the day label compares "yesterday's last activity
+  // city" with "today's last activity city". Where you END a day is where you
+  // start the next one, which is SPEC §12's own framing — the day belongs to
+  // where you end up. This used to take the FIRST city-bearing stop; on the
+  // Japan fixture first and last coincide (whole days sit in one city) so no
+  // fixture output moved, but a day that genuinely spans two cities is exactly
+  // the case the transition label exists for, and first was wrong for it.
+  it("names the day by its LAST city-bearing stop, not its first", () => {
+    const activities = {
+      [tokyoActivity]: activityWith({ name: "Shibuya crossing, Tokyo, Japan", city: "Tokyo" }),
+      [kyotoActivity]: { ...activityWith({ name: "Gion, Kyoto, Japan", city: "Kyoto" }), activityId: kyotoActivity },
+    };
+    expect(cityFor(twoStopDay, activities)).toBe("Kyoto");
+  });
+
+  it("walks back past a trailing stop with no location to the last one that has a city", () => {
+    const activities = {
+      [tokyoActivity]: activityWith({ name: "Shibuya crossing, Tokyo, Japan", city: "Tokyo" }),
+      [kyotoActivity]: {
+        ...activityWith({ name: "Somewhere at sea" }),
+        activityId: kyotoActivity,
+        location: null,
+      },
+    };
+    expect(cityFor(twoStopDay, activities)).toBe("Tokyo");
+  });
+
+  // The last stop names a venue and nothing structured, so it names no place
+  // at all (KI-35) — the day falls back past it rather than down to `name`.
+  it("walks back past a trailing venue-only stop rather than falling back to its name", () => {
+    const activities = {
+      [tokyoActivity]: activityWith({ name: "Shibuya crossing, Tokyo, Japan", city: "Tokyo" }),
+      [kyotoActivity]: { ...activityWith({ name: "Kiyomizu-dera" }), activityId: kyotoActivity },
+    };
+    expect(cityFor(twoStopDay, activities)).toBe("Tokyo");
+  });
 
   it("keeps the city ahead of the area, so a ward never splits a city's own days", () => {
     const activities = {

@@ -159,6 +159,17 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   expect(applied.status()).toBe(200);
   await expect(card).toContainText("Applied");
 
+  // M18 landed on `main` while this spec was in flight: a freshly-added
+  // stop's default `kind` is `planned`, and `needsBooking` (KI-86) does not
+  // count a `planned`/untagged stop as outstanding — only `hold`/`idea`, or a
+  // `ticketed` `planned` one. So the AI's own "Sample: coffee stop" no longer
+  // offers the booking chip on its own; mark it `hold` (a user setting it
+  // deliberately "not settled yet") so the chip below has something real to
+  // answer.
+  await page.getByRole("button", { name: "Edit Sample: coffee stop" }).click();
+  await page.getByLabel("Kind").selectOption("hold");
+  await page.getByRole("button", { name: "Save" }).click();
+
   // Now the trip has a day with stops on it. Focus it, and the day-scoped chips
   // are the other three.
   await page.getByRole("button", { name: "New conversation" }).click();

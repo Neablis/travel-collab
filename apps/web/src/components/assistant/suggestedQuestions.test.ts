@@ -72,11 +72,18 @@ describe("suggestedQuestions", () => {
       expect(suggestedQuestions(withConflicts, 0).some((q) => q.includes("conflict"))).toBe(false);
     });
 
-    // M18's `kind` is merged and readable. "N to book" counts everything that
-    // is neither `booked` nor `transit` — the same rule the calendar uses.
+    // M18's `kind`/`tags` are merged and readable. `needsBooking` (KI-86) is
+    // narrower than "kind neither `booked` nor `transit`" — the factory's
+    // default `planned`/untagged stop does not count, so this sets one to
+    // `hold`, one of the kinds a user sets deliberately to mean "not settled".
     it("asks what still needs booking when the day holds an unbooked stop", () => {
       const trip = tripWith({ dayCount: 2, activitiesPerDay: 2 });
-      expect(suggestedQuestions(trip, 0)).toContain("What on day 1 still needs booking?");
+      const [a] = trip.days[0]!.activityIds;
+      const withHold: TripDetail = {
+        ...trip,
+        activities: { ...trip.activities, [a!]: { ...trip.activities[a!]!, kind: "hold" } },
+      };
+      expect(suggestedQuestions(withHold, 0)).toContain("What on day 1 still needs booking?");
     });
 
     it("says nothing about booking when every stop on the day is booked or transit", () => {
@@ -128,7 +135,16 @@ describe("suggestedQuestions", () => {
 
     it("names the unbooked-stop count", () => {
       const trip = tripWith({ dayCount: 2, activitiesPerDay: 2 });
-      expect(suggestedQuestions(trip, null)).toContain(
+      // The default fixture's stops are `planned`/untagged, which
+      // `needsBooking` (KI-86) does not count — set all four to `hold` so all
+      // four are genuinely outstanding.
+      const allHeld: TripDetail = {
+        ...trip,
+        activities: Object.fromEntries(
+          Object.entries(trip.activities).map(([id, activity]) => [id, { ...activity, kind: "hold" as const }]),
+        ),
+      };
+      expect(suggestedQuestions(allHeld, null)).toContain(
         "4 stops still need booking — which should I sort out first?",
       );
     });

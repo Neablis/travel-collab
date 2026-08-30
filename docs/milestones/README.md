@@ -51,7 +51,8 @@ for collaboration later landing on a product people already want to join.
 | M10 | Visual craft pass | **Done, Wave-2 gate closed 2026-08-27.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). Wave 2 closed the delta across Phases 0-8 plus 8b; Phase 1b was cancelled unbuilt. The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces. Retro and gate evidence: `M10-visual-craft.md` |
 | M16 | The assistant answers questions | **Approved 2026-08-25 — ADR-022.** Originally placed right after M10's gate and before M15; **M15 in fact closed its own gate first (2026-08-26), ahead of both M10's Phase 9 gate and M16** — see the 2026-08-26 reorder note below. M16 still runs before M11-M14. The sidebar styled to `SPEC.md` §9's *docked* presentation (a flex sibling, not a scrim overlay; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on its own endpoint — one question, one answer, scoped to the selected day or the trip — then analytics on which tools get called and how many calls an answer costs. The command path is untouched. Exists because the AI endpoint today is a *command* endpoint and structurally cannot answer a question: `M16-assistant-read-agent.md` |
 | M17 | Account customization | **Approved 2026-08-26.** Opened by Mitchell reviewing SPEC §12: *"Skip on C5/C6/C7 and make a future milestone, account customization. We will need a new DB table, but i also think we are getting close to just wanting a user table rather than relying on the google auth jwt."* Account settings Sheet (name, email, home airport), distance units at **account** scope through one `kmLabel`, and home-time-on-hover. All three land on the same absence: the schema is `events`/`trip_summaries`/`trip_details`/`pages` — there is no user row. The real question is whether the product should own its identity rather than lean on the provider token: `M17-account-customization.md` |
-| M18 | A stop knows what kind of thing it is | **Approved 2026-08-26; scheduled 2026-08-26** — after M10's Wave-2 gate, before M16. **Widened to carry `tags` (KI-47) as well as `kind`**, on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put it in a soon milestone"* — because the two are one contract change, one migration and one backfill decision. A stop has no `kind` — `booked`/`hold`/`idea`/`transit` lives in **note text** (`db-seed.ts` folds it there and says so). Began as one cosmetic tile; SPEC §12 made it load-bearing, since the new Calendar splits a travel day at the last `transit` stop and flags `N to book` from stops that are neither booked nor transit. M10 ships the city cards without those two rules by Mitchell's call — *"lets just ship what we can for now"* — grouping on `location.city` instead: `M18-stop-kind.md` |
+| M18 | A stop knows what kind of thing it is | **Done, gate closed 2026-08-29.** Ran after M10's Wave-2 gate and M11, before M16. **Widened to carry `tags` (KI-47) as well as `kind`**, on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put it in a soon milestone"* — because the two are one contract change, one migration and one backfill decision. A stop has no `kind` — `booked`/`hold`/`idea`/`transit` lives in **note text** (`db-seed.ts` folds it there and says so). Began as one cosmetic tile; SPEC §12 made it load-bearing. **At the gate, that same SPEC §12 travel-day split was built, walked and removed** — it depended on how the fixture tagged cities, so the Calendar groups by city alone and the transition moved to the day label. Shipped: `act.badge`, tag chips, both editor pickers, the home-hero tile, `N to book`. Tag focus carved out as M18b: `M18-stop-kind.md` |
+| M18b | Tag focus | **Approved 2026-08-29, unplaced.** Carved out of M18's gate on the same terms M11b left M11's: M18 lands both fields, every surface that reads `kind`, and tag chips that render and can be set — M18b lands the behaviour the chips drive. SPEC §11's focus dims off-tag stops to 32% across Timeline, Day columns, Calendar and Map (Calendar instead shows `N of M match`, dimming a no-match card to 0.28). It was the only part of M18 needing shared state above the lens switch, its Calendar rule is a second design, and no M18 gate box measured it. Scope and exit gate are already written, so unlike M11b it needs only a place: `M18b-tag-focus.md` |
 | M9 | AI as a planning partner | **Moved to last, after M14 — ADR-022 (2026-08-25).** Thread contract, streaming, propose→review→approve before commit, a refine turn, and grounding (`SearchPlaces`). The substrate from M7 is sound; the interaction is what is missing. **Conversation design lives here.** M16 now builds the read half first, so this milestone adds write tools and conversation *to a working agent* and inherits its eval harness rather than building one |
 
 ## Phase 3 — Outward
@@ -184,14 +185,20 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M18 — A stop knows what kind of thing it is**
-(`M18-stop-kind.md`), its remaining surfaces. PR 1, the contract change, landed
-2026-08-27 (PR #63) — `ActivityKind` and `ActivityTag` are real fields on the
-commands, both V1 event payloads and `ActivityView`. What is left is PR 2+: the
-Calendar transit split, `N to book`, the home-hero tile, `act.badge`, tag chips
-and the filter row. Those sat behind M11 by the 2026-08-27 call and are
-**unblocked by M11's gate closing 2026-08-28**. Order from here:
-`M18 (surfaces) → M16 → M12 → M13 → M14 → M9`.
+Current milestone: **M16 — The assistant answers questions**
+(`M16-assistant-read-agent.md`). Order from here:
+`M16 → M12 → M13 → M14 → M9`.
+
+**M18's gate closed 2026-08-29** — eight of eight boxes, the full Definition of
+Done green, e2e 46/46 against a production build, and both fields set on a trip
+created from scratch through the UI and read back off the API. Its headline
+Calendar rule changed at the gate: SPEC §12's travel-day transit split was
+built, walked, and **removed the same day** on Mitchell's call, because its
+output depended on how the fixture tagged cities — *"I don't think the shape of
+the fixture should drive functionality, that's how we get drift."* The Calendar
+now groups by city alone, equal cards plus an untitled bucket, and the day-to-day
+transition moved to the day label. **Tag focus was carved out as M18b, approved
+and unplaced.** Retro and gate evidence: `M18-stop-kind.md`.
 
 **M11's gate closed 2026-08-28** — all eight exit-gate boxes, the full Definition
 of Done green, the e2e suite 46/46 twice against a production build, and the two
@@ -209,8 +216,10 @@ none of its six links touched it; the four shells (`home-playbooks-strip`,
 `playbooks-route`, `insert-playbook`, `wizard-playbook-panel`) stay M11-tagged
 in `preview-registry.ts`. It needs its own scope and exit gate before it opens.
 
-**Two milestones are approved and unplaced:** M17 (see above — re-scope it
-first) and M11b. Neither is "next" merely by being unchecked.
+**Three milestones are approved and unplaced:** M17 (see above — re-scope it
+first), M11b, and **M18b Tag focus** (carved out of M18's gate 2026-08-29;
+scope and exit gate written, so it needs only a place). None is "next" merely
+by being unchecked.
 
 **M10's Wave-2 gate closed 2026-08-27** — the full Definition of Done green, the
 e2e suite 31/31 twice against a production build, and every surface walked at

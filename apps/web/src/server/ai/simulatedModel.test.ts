@@ -231,7 +231,7 @@ describe("simulatedModel — the ask surface", () => {
   // path anyone deploys (ai-live is off in every Vercel environment). Each one
   // is asserted here as prose; `askChipCoverage.test.ts` is what stops the
   // chip and the answer drifting apart again.
-  it("answers what a day still needs booked, from the stops' own kinds", async () => {
+  it("answers what a day still needs booked, from the stops' own kinds and tags", async () => {
     const answer = textOf(
       await probe("ask").doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
@@ -241,7 +241,10 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...DAY_READOUT,
               stops: [
-                { ...DAY_READOUT.stops[0]!, title: "Museum", kind: "planned" },
+                // `planned` + `ticketed`: needsBooking's one exception to "planned
+                // never counts" (KI-86) — an unbooked ticketed museum genuinely
+                // owes an action.
+                { ...DAY_READOUT.stops[0]!, title: "Museum", kind: "planned", tags: ["ticketed"] },
                 { ...DAY_READOUT.stops[0]!, title: "Ryokan", kind: "booked" },
                 { ...DAY_READOUT.stops[0]!, title: "Shinkansen", kind: "transit" },
                 { ...DAY_READOUT.stops[0]!, title: "Dinner", kind: "hold" },

@@ -22,90 +22,67 @@ general setup.
 
 ## Where the work is right now
 
-**M11's gate closed 2026-08-28. M18's remaining surfaces are the current work.**
+**M18's gate closed 2026-08-29. M16 is the current work.**
 
-M11 shipped links 1-6 (users/identity ADR-025, roles and access, invites
-ADR-026, pinned share links ADR-027, clone-with-lineage ADR-028, saved days
-ADR-029) via PR #71, with both 2026-08-28 reviews remediated in PR #78. All
-eight exit-gate boxes are ticked. **The narrative, the evidence and the retro
-are in `docs/milestones/M11-sharing-and-invites.md`** — per this file's own
-rule, that is their durable home and this is the pointer. The three things a
-future session is most likely to need from it:
+M18 gave a stop two real fields and then made the app act on them: `act.badge`
+(Booked / Holding / Idea / Travel, and nothing for `planned`), tag chips, a kind
+picker and a tag picker in the stop editor, the home hero's "not booked" tile,
+`N to book` on the Calendar, and the Calendar's city grouping. **The narrative,
+the evidence and the retro are in `docs/milestones/M18-stop-kind.md`** — that is
+their durable home and this is the pointer. Four things a future session is most
+likely to need:
 
-- **KI-75** — `m10-map-rail.spec.ts` was skipping a day about half the time.
-  Same failing line every run, *different* day each run. The repo's written
-  heuristic is a failure whose **location** wanders; this one's location was
-  fixed and its **value** wandered, and it is the same diagnosis. Read the
-  whole failure for movement, not just the line number.
-- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
-  where `pg_isready` is not installed (Postgres in Docker, no host client).
-  The Definition of Done names `pnpm check` as the bar, so run `pnpm test:int`
-  directly until this is fixed, and do not read a green `pnpm check` on a
-  laptop as covering integration.
-- **KI-66's remaining gap — the Vercel preview — is now walked.** Its
-  "nobody has run this" half was already closed 2026-08-28 by a local
-  production-build walk of twenty surfaces; what that walk explicitly could
-  not reach was the preview itself, behind Deployment Protection. M11's gate
-  reached it, and a cloud session reached it again a day later by a different
-  route, finding the same thing. One preview-only behaviour to know before it
-  is mistaken for a defect: when Deployment Protection re-challenges an
-  in-flight XHR, the blocked `vercel.com/sso-api` redirect reaches the app as
-  a bare "Failed to fetch". The other one the gate recorded — the CSP blocking
-  Vercel's feedback script on every preview page — **was a real defect and is
+- **SPEC §12's travel-day transit split was built and removed the same day.**
+  It fired on one of seven travel days and got that one wrong, because every
+  stop on a travel day carries the DESTINATION city (KI-59) and five travel days
+  open with the train. Mitchell: *"I don't think the shape of the fixture should
+  drive functionality, that's how we get drift."* The Calendar now groups by
+  city alone — equal cards, no strips, plus an untitled bucket for stops with no
+  city — and the day-to-day transition is the day label's job, from yesterday's
+  and today's **last** placed activity. Do not rebuild the split from SPEC §12
+  without reading the milestone file first.
+- **`cityFor` now reads a day's LAST city-bearing stop, not its first.** It
+  drives day accents, the day chips and the hero sparkline.
+- **A hand-enumerated field list dropped the editor's pickers on the floor.**
+  `ActivityEditorSheet.handleSave` builds commands by listing fields, so the new
+  ones went nowhere and TypeScript could not see it. Third occurrence this
+  milestone — §6.1's activity-field descriptor refactor has earned its place,
+  and `TripBoardScreen`'s two dead command builders sit in its path.
+- **KI-76 is real on this laptop.** `pg_isready` is absent while Postgres runs in
+  Docker on :5433, so `pnpm check` would have run **zero** integration tests and
+  exited 0. `pnpm --filter web test:int` directly gave 242.
+- **KI-66's CSP finding, from a cloud session the same day** — the CSP blocking
+  Vercel's feedback script on every preview page **was a real defect and is
   fixed**, not a behaviour to tolerate: that script is the Vercel Toolbar, and
-  the Toolbar is the Flags Explorer. A preview console should be clean now.
+  the Toolbar is the Flags Explorer. A preview console should be clean now. The
+  one preview-only behaviour that remains: a Deployment Protection re-challenge
+  of an in-flight XHR reaches the app as a bare "Failed to fetch".
 
-**Playbooks was carved out of M11's gate by Mitchell on 2026-08-28** and is its
-own follow-on: **M11b in `TODO.md`, approved and unplaced**, needing its own
-scope and exit gate. Its four `<Preview>` shells stay M11-tagged.
+**Tag focus was carved out as M18b, approved and unplaced** — SPEC §11's
+cross-lens dimming, the behaviour behind the chips M18 made settable. Its scope
+and exit gate are written, so unlike M11b it needs only a place.
 
-**M18 is now current.** Its contract PR landed 2026-08-27 (PR #63):
-`ActivityKind` and `ActivityTag` are real fields on the commands, both V1 event
-payloads and `ActivityView`, with no migration — the payload additions default,
-so every stored event replays as `planned` / `[]`. The dependent surfaces
-(Calendar transit split, `N to book`, the home-hero tile, `act.badge`, tag chips
-and the filter row) are PR 2+ and are **the current work** — M11's gate close
-unblocked them.
+**M16 is now current** — the assistant answers questions (ADR-022). Three waves:
+the sidebar styled to SPEC §9's docked presentation with both `<Preview>` blocks
+deleted; a read-only tool-using agent on its own `/ask` endpoint; then analytics
+on which tools get called and what an answer costs. The command path is
+untouched. It exists because `/ai` derives its reply from committed commands and
+the envelope carries no time windows, so "where is the most free time" is
+unanswerable twice over.
 
-**Done:** M0-M8, the Phase 1 gate review, M10 (Wave-2 gate closed 2026-08-27)
-and M15 (gate closed 2026-08-26, PR #56).
+**Done:** M0-M8, the Phase 1 gate review, M10 (2026-08-27), M15 (2026-08-26),
+M11 (2026-08-28) and M18 (2026-08-29).
 
-**M17 "Account customization" is approved and deliberately unplaced** — see
-`docs/milestones/README.md`. Re-scope it before scheduling it: M11 link 1
-already shipped the `users` table its file frames as the deliverable.
+**Three milestones are approved and unplaced, none of them "next":** M17
+(re-scope it first — M11 link 1 already shipped the `users` table its file
+frames as the deliverable), **M11b Playbooks**, and **M18b Tag focus**.
 
 **`/demo` is the real board, read-only, 2026-08-28 (PR #79) — ADR-031, closes
-KI-61.** The demo trip is now the Japan fixture folded in memory and served
-through the ordinary trip endpoints, rendered by the ordinary `TripBoardScreen`;
-`DEMO_SHARE_TOKEN`, `readFeaturedShare` and `GET /api/shares/featured` are gone,
-so a preview branch validates its own front door with no manual step. One seam
-did it: `requireTripAccess` answers the demo before `auth()`, as a viewer, so
-all four read routes serve it publicly and none of them changed.
-
-It also gated the invited-viewer board on the way past — `readOnly` threads from
-`TripProvider`'s gate into Board, Column, ActivityCard, TimelineLens,
-OverlapWarning, ConflictBanner and UnscheduledRack. That work arrived
-independently of this branch's own gating of the same components (PR #71 review
-§5) and won on merge, being the browser-walked one; what this branch adds on top
-is `MapLens` (double-click-to-create calls `openCreate` directly, so no
-`onSelectActivity` withholding reaches it), the `onCommand` seam, and the rack's
-drag registration, which #79's message lists as covered but does not gate.
-
-**Next 16 and Vitest 4 landed 2026-08-28 (PR #77)**, closing the postcss and
-sharp advisories that a `next@15` pin was holding open. Two things every session
-needs from it: `src/middleware.ts` is now `src/proxy.ts` (Next 16's name; the
-ADR-024 lint wall and the preview-registry entry-point regex moved with it), and
-the node/jsdom test split is expressed as vitest `projects` — Vitest 4 removed
-`environmentMatchGlobs` entirely, and dropping the split rather than migrating
-it would have silently cost the whole Phase 0 saving with nothing red.
-
-**The 2026-08-28 review remediation landed via PR #78** (plan:
-`docs/plans/2026-08-28-review-remediation.md`) — the revoke/accept race and
-invite-metadata leak, the rejected-fetch send-queue wedge, dev-login
-environment gating plus security headers, the AI prompt cap and AI/geocode
-spend meters, and the repo's own tooling no longer teaching what the repo bans.
-Its commit message recorded the M11 e2e lane as **not run**; M11's gate ran it,
-and every M11 spec passed.
+KI-61.** The demo trip is the Japan fixture folded in memory and served through
+the ordinary trip endpoints, rendered by the ordinary `TripBoardScreen`. One
+seam does it: `requireTripAccess` answers the demo before `auth()`, as a viewer.
+**It needs no database**, which makes it the cheapest way to walk a real trip in
+a fresh worktree — M18's gate used it to catch the transit split.
 
 ## Blocking / broken right now
 
@@ -173,30 +150,30 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Open M18's remaining surfaces** — `docs/milestones/M18-stop-kind.md`, PR 2+:
-the Calendar transit split and `N to book`, the home-hero tile, `act.badge`,
-and the tag chips plus filter row. PR 1's contract fields are merged and inert,
-and M11's gate close (2026-08-28) removed the only thing in front of them.
-Read that milestone file's own preflight first: per
-`docs/milestones/README.md`, the next milestone's plan re-checks the gate-close
-checklist, and M11's close is the one being re-checked.
+**Open M16 — the assistant answers questions** —
+`docs/milestones/M16-assistant-read-agent.md`. Read that file's own preflight
+first: per `docs/milestones/README.md`, the next milestone's plan re-checks the
+gate-close checklist, and **M18's close (2026-08-29) is the one being
+re-checked**.
 
-**Two things from M11's gate that will bite the next session if unread**, both
-now in `docs/known-issues.md`, which is authoritative:
+**Three things from M18's gate that will bite the next session if unread:**
 
-- **KI-76** — `pnpm check` exits 0 while running **zero** integration tests
-  wherever `pg_isready` is absent (Postgres in Docker, no host client — which
-  is Mitchell's laptop). Run `pnpm test:int` directly until it is fixed. The
-  Definition of Done names `pnpm check` as the bar, so this is a false green
-  against the bar itself.
-- **KI-75** — the diagnostic rule this repo teaches is a failure whose
-  *location* wanders. M11's gate hit one whose location was fixed and whose
-  *value* wandered, and it was the same thing: a sampling race, not a defect.
-  Read the whole failure for movement.
+- **KI-76 is not theoretical.** `pnpm check` exits 0 having run zero
+  integration tests wherever `pg_isready` is absent — which is this laptop, with
+  Postgres in Docker on :5433. Run `pnpm --filter web test:int` directly. M18's
+  gate got 242 tests that way and would have got none from `pnpm check`.
+- **Walk the thing in a browser before believing the suite.** M18's headline
+  Calendar rule passed nine unit tests and was wrong, because the tests shared
+  the implementation's assumption about the fixture. `/demo` needs no database
+  and renders the real Japan trip, so this is cheap. Three gates running, the
+  walk has found what no test could.
+- **Adding a field means grepping for every place fields are enumerated by
+  hand.** Not just the contract. M18 hit this three times; the sheet's version
+  silently discarded a user's input with a green suite and a clean typecheck.
 
-**Approved and unplaced, neither of them "next":** M17 (re-scope it first) and
-**M11b Playbooks**, carved out of M11's gate by Mitchell on 2026-08-28 — it
-needs its own scope and exit gate written before it opens.
+**Approved and unplaced, none of them "next":** M17 (re-scope it first),
+**M11b Playbooks** (needs its own scope and exit gate), and **M18b Tag focus**
+(scope and exit gate already written — it needs only a place).
 
 **Deliberately deferred, each recorded where it belongs rather than dropped:**
 

@@ -1,5 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
-import { needsBooking } from "@/lib/booking";
+import { needsBooking } from "@/lib/needsBooking";
 
 /**
  * Four, because the rail is 356px wide: a fifth chip turns a suggestion list
@@ -40,13 +40,13 @@ export function suggestedQuestions(trip: TripDetail, focusedDay: number | null):
   const activeConflicts = trip.conflicts.filter((c) => !dismissed.has(c.id));
 
   // M18's contract fields are merged and readable; this reads `kind` and
-  // builds none of M18's surfaces. The rule itself is `@/lib/booking`'s
-  // `needsBooking`, shared with `readTools.ts` so the half that OFFERS this
-  // question and the half that ANSWERS it cannot disagree about what the number
-  // means (final branch review, 2026-08-29, finding 1).
+  // `tags` and builds none of M18's surfaces. The rule itself is
+  // `@/lib/needsBooking`'s `needsBooking`, shared with `readTools.ts` (and
+  // with the Calendar lens and home hero) so no two surfaces can disagree
+  // about what the number means (final branch review, 2026-08-29, finding 1).
   const stopNeedsBooking = (activityId: string): boolean => {
     const activity = trip.activities[activityId];
-    return activity !== undefined && needsBooking(activity.kind);
+    return activity !== undefined && needsBooking(activity);
   };
 
   if (trip.days.length === 0) {

@@ -1,4 +1,5 @@
 import type { ActivityView, TripDetail } from "@tc/contracts";
+import { needsBooking } from "@/lib/needsBooking";
 import { toMinutes } from "@/lib/time";
 
 /** 7am–11pm, the fixed track SPEC §12 draws every span bar against. */
@@ -19,32 +20,44 @@ export type CityCard = {
    * midnight one ends at 1 rather than overflowing the bar.
    */
   span: { from: number; to: number } | null;
-  /** The group's first start time — what a departing-city strip shows. */
+  /** The group's first start time. */
   firstStart: string | null;
+  /**
+   * Stops in this group that still need booking — SPEC §12's `N to book`, by
+   * the narrower rule in `needsBooking` (hold, idea, and ticketed-but-unbooked;
+   * NOT every `planned` stop). Always a number; `CalendarLens` renders the flag
+   * only when it is > 0, so "nothing to book" is 0 rather than null.
+   */
+  toBook: number;
 };
 
 /**
  * A day's stops grouped into one card per city it touches, in the order the day
  * moves through them (SPEC §12, "Calendar stopped competing with Day columns").
  *
- * The last group is where the day ends, and gets the full card; earlier groups
- * render as one-line strips. That is the design's own framing — "the day
- * belongs to where you end up" — and it is what keeps cell heights even across
- * a week instead of doubling on travel days.
+ * Every group renders as a full card of equal weight, plus a final bucket for
+ * stops with no city. There are no strips and no transit rule here — both were
+ * built in M18 and removed the same day, by Mitchell's call on 2026-08-29:
  *
- * **What this deliberately does not do yet.** SPEC §12 splits a travel day at
- * the *last `transit` stop*, and flags `N to book` from "every stop whose kind
- * is neither `booked` nor `transit`". A stop has no `kind` — it lives in note
- * prose (`db-seed.ts` folds it there and says so), so neither rule is
- * computable without parsing text a user can edit. Deferred to M18, by
- * Mitchell's call on 2026-08-26: "Keep Stop Kind as a future milestone, lets
- * just ship what we can for now with the city level cards, and the activities
- * in that city summerized."
+ *   > I kinda always pictured the calendar page a zoomed out trip, what cities
+ *   > are on what days of the week, it doesn't really concern itself with the
+ *   > day of activities, which is what transit is about. Timeline view and map
+ *   > view is how I zoom in and see a specific day, how I get around.
  *
- * Grouping on `location.city` instead is right for every day in the current
- * seed, because the seed files a travel stop under the city it travels TO — so
- * the arriving city already owns the whole travel day. When M18 lands, the
- * transit rule refines *this function* and the cards do not change shape.
+ * So `kind` never reaches the grouping. **`N to book` is the one thing here
+ * that reads `kind`**, and it is a count rather than a layout decision.
+ *
+ * Why SPEC §12's travel-day split is gone, recorded because the design still
+ * specifies it: it split a day at the last `transit` stop and labelled the
+ * departing card from the stops before it. Walked against the canonical
+ * fixture it fired on **one** of seven travel days, and got that one wrong —
+ * because five travel days open with the train (nothing before it names an
+ * origin) and every stop on a travel day is tagged with the DESTINATION city
+ * (KI-59). The rule's output therefore depended on how the fixture happened to
+ * tag cities, which is the drift Mitchell objected to. The day-to-day
+ * transition it was trying to express is now the *day label's* job
+ * (`DayChips.cityFor`), derived from yesterday's and today's last placed
+ * activity, and needs no `kind` at all.
  *
  * Consecutive grouping, not distinct: a day that returns to a city it left
  * earlier gets three groups, which is what happened rather than a tidier lie.
@@ -79,52 +92,57 @@ export function calendarCityCards(
     else cityGroups.push({ city, stops: [activity] });
   }
 
-  // City-less stops FOLD INTO the day's last city rather than forming a group
-  // of their own (Mitchell, walking the #71 preview: "Whats with the time above
-  // the card?"). They used to be appended as a `city: null` group, and
-  // CalendarLens renders every group except the arriving one as a one-line
-  // strip of "<city> <time>" — so a nameless group rendered an empty label and
-  // a bare timestamp hanging above the card, which says nothing to anyone.
+  // City-less stops get their OWN bucket card, last — Mitchell's standing
+  // instruction from the #71 preview, restored 2026-08-29: "Never fall back to
+  // name, if you have absolutely no city, then make a new bucket with no city
+  // in title."
   //
-  // Folding is better than dropping the strip: those stops really did happen
-  // that day, so their count, cost and time still belong in the day's numbers.
-  // They join the LAST city group because that is the day's arriving card —
-  // where the day ends up, and the card that carries the day's totals.
+  // They were folded into the day's last city for a while instead, because
+  // CalendarLens used to render every group but the last as a one-line
+  // "<city> <time>" strip — so a nameless group showed an empty label above a
+  // naked timestamp ("Whats with the time above the card?"). M18 dropped strips
+  // and every group is now a full card, which a missing city heading survives.
   //
-  // A day with no city ANYWHERE still yields one untitled group, which is the
-  // honest "we don't know where this was" and keeps the day's numbers visible.
+  // ONE bucket per day, not one per stop, so a day never fragments into several
+  // anonymous places — and it does not donate its count, cost or window to a
+  // city the stop was never in.
   const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
-  if (unplaced.length > 0) {
-    const arriving = groups[groups.length - 1];
-    if (arriving === undefined) groups.push({ city: null, stops: unplaced });
-    else arriving.stops = [...arriving.stops, ...unplaced];
-  }
+  if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
 
-  return groups.map(({ city, stops }) => {
-    const windows = stops
-      .map((s) => s.timeWindow)
-      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
+  return groups.map((g) => summarise(g.city, g.stops));
+}
 
-    const costs = stops.map((s) => s.cost?.amountMinor).filter((c): c is number => c !== undefined);
+/** See `needsBooking` — narrower than SPEC §12's literal wording, and why. */
+function unbookedCount(stops: ActivityView[]): number {
+  return stops.filter((s) => needsBooking(s)).length;
+}
 
-    const window =
-      windows.length === 0
-        ? null
-        : {
-            start: windows.reduce((a, w) => (toMinutes(w.start) < toMinutes(a) ? w.start : a), windows[0]!.start),
-            end: windows.reduce((a, w) => (toMinutes(w.end) > toMinutes(a) ? w.end : a), windows[0]!.end),
-          };
+/** One group of a day's stops, reduced to the card `CalendarLens` draws. */
+function summarise(city: string | null, stops: ActivityView[]): CityCard {
+  const windows = stops
+    .map((s) => s.timeWindow)
+    .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
 
-    const clamp = (min: number) =>
-      Math.min(1, Math.max(0, (min - SPAN_TRACK_START_MIN) / (SPAN_TRACK_END_MIN - SPAN_TRACK_START_MIN)));
+  const costs = stops.map((s) => s.cost?.amountMinor).filter((c): c is number => c !== undefined);
 
-    return {
-      city,
-      stops: stops.length,
-      costMinor: costs.length === 0 ? null : costs.reduce((a, c) => a + c, 0),
-      window,
-      span: window === null ? null : { from: clamp(toMinutes(window.start)), to: clamp(toMinutes(window.end)) },
-      firstStart: window?.start ?? null,
-    };
-  });
+  const window =
+    windows.length === 0
+      ? null
+      : {
+          start: windows.reduce((a, w) => (toMinutes(w.start) < toMinutes(a) ? w.start : a), windows[0]!.start),
+          end: windows.reduce((a, w) => (toMinutes(w.end) > toMinutes(a) ? w.end : a), windows[0]!.end),
+        };
+
+  const clamp = (min: number) =>
+    Math.min(1, Math.max(0, (min - SPAN_TRACK_START_MIN) / (SPAN_TRACK_END_MIN - SPAN_TRACK_START_MIN)));
+
+  return {
+    city,
+    stops: stops.length,
+    costMinor: costs.length === 0 ? null : costs.reduce((a, c) => a + c, 0),
+    window,
+    span: window === null ? null : { from: clamp(toMinutes(window.start)), to: clamp(toMinutes(window.end)) },
+    firstStart: window?.start ?? null,
+    toBook: unbookedCount(stops),
+  };
 }

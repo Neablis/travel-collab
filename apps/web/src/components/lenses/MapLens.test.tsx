@@ -210,6 +210,16 @@ function locatedActivity(id: string, lat: number, lng: number, city = id) {
   };
 }
 
+// Both stops on a day share that day's city, which is what a day normally
+// looks like and what the accent tests here actually mean to set up.
+//
+// They used to fall through to `locatedActivity`'s `city = id` default, giving
+// day 2 the two cities "b1" and "b2" — so the day's accent depended on WHICH of
+// its stops `cityFor` happened to read. That was invisible until `cityFor`
+// moved from the day's first city-bearing stop to its last (M18, Mitchell's
+// day-label rule), which flipped day 2 from "b1" to "b2" and with it the accent
+// this file asserts. Naming the city once per day makes these tests independent
+// of that choice rather than pinned to one side of it.
 function detailWithTwoDays(): TripDetail {
   return tripDetailFixture({
     days: [
@@ -217,10 +227,17 @@ function detailWithTwoDays(): TripDetail {
       { dayId: "d2", activityIds: ["b1", "b2"], date: "2027-06-02", costSubtotal: 0 },
     ],
     activities: {
-      a1: locatedActivity("a1", 41.89, 12.49),
-      a2: locatedActivity("a2", 41.9, 12.48),
-      b1: locatedActivity("b1", 43.15, -77.6),
-      b2: locatedActivity("b2", 43.16, -77.62),
+      // "a1"/"b1" rather than real city names on purpose: `dayAccents` picks a
+      // family from the city STRING, and this file stubs only --color-danger,
+      // --color-success and --color-slate. Renaming the cities silently moves
+      // day 2 onto an unstubbed family and the assertion reads "". Keeping the
+      // strings the old first-stop rule produced holds the accents these tests
+      // were written against; the change here is that both stops on a day now
+      // agree, so the rule no longer decides the colour.
+      a1: locatedActivity("a1", 41.89, 12.49, "a1"),
+      a2: locatedActivity("a2", 41.9, 12.48, "a1"),
+      b1: locatedActivity("b1", 43.15, -77.6, "b1"),
+      b2: locatedActivity("b2", 43.16, -77.62, "b1"),
     },
   });
 }
