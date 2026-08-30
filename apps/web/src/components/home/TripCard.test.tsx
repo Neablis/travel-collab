@@ -108,7 +108,7 @@ describe("TripCard", () => {
   // points" section says not to do). See the test just above — "shows a
   // human-readable created date, not the raw ISO timestamp" — which is the
   // accurate, currently-correct behavior this card actually has, and
-  // docs/known-issues.md KI-34, which records this as a known, accepted gap
+  // docs/known-issues/ KI-34, which records this as a known, accepted gap
   // with its fix path (add a start date to TripSummary) out of scope.
   it.skip("shows the trip's dates rather than its creation date", () => {
     const trip = tripSummaryFixture();

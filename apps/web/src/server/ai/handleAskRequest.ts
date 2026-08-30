@@ -204,7 +204,7 @@ export async function handleAskRequest(
   //
   // Refusing here rather than inside `guard()` keeps the rule where its
   // reasoning is, and keeps `requireTripAccess` answering the demo the same
-  // way for every other route. `docs/known-issues.md` (KI-79) records what
+  // way for every other route. `docs/known-issues/` (KI-79) records what
   // would have to be decided to open it up.
   if (isDemoTripId(tripId)) {
     return Response.json(

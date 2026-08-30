@@ -129,7 +129,7 @@ next quarter:
   and `rebase-strategy: disabled` so a moving `main` does not force-push a
   re-run per merge. The file's header comment carries the full accounting.
 - **CircleCI / GitLab → unpriced switching cost.** The `ci-triage` skill,
-  `docs/known-issues.md` KI-27, and `CLAUDE.md`'s `test:e2e:ci-like` rule are all
+  `docs/known-issues/` KI-27, and `CLAUDE.md`'s `test:e2e:ci-like` rule are all
   built on `gh run` semantics. Migrating CI means rewriting the repo's triage
   tooling too.
 - **Self-hosted runner on the Mac → blocked by a hard constraint.** GitHub

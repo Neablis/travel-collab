@@ -1,6 +1,6 @@
 ---
 name: ki-fixer
-description: Fixes exactly one open known issue from docs/known-issues.md end to end — reproduce, fix, prove, then move the entry to Resolved. Use when clearing KI backlog items, especially several in parallel worktrees since they are independent of the milestone phase chain.
+description: Fixes exactly one open known issue from docs/known-issues/open/ end to end — reproduce, fix, prove, then move the entry to Resolved. Use when clearing KI backlog items, especially several in parallel worktrees since they are independent of the milestone phase chain.
 tools: Bash, Read, Edit, Write, Grep, Glob, LSP, Skill
 ---
 
@@ -17,8 +17,9 @@ inside one entry's blast radius.
 
 ## Procedure
 
-**1. Read the entry** in `docs/known-issues.md`. Each carries Severity, Area,
-Symptom, Scope, "Why not fixed here", and First noted. The "Why not fixed here"
+**1. Read the entry** — one file, `docs/known-issues/open/KI-0XX-….md`. Each
+carries Severity, Area, Symptom, Scope, "Why not fixed here", and First noted.
+The "Why not fixed here"
 line usually names the intended fix and the constraint that deferred it —
 read it before choosing an approach.
 
@@ -43,11 +44,22 @@ passes. Then run the narrowest sufficient check subset
 `.claude/skills/minimal-check-subset/SKILL.md` directly). Where the bug class allows it, add a
 regression test — a KI that can silently come back was not fully closed.
 
-**5. Move the entry to Resolved.** In `docs/known-issues.md`, move it from
-`## Open` to `## Resolved`, append ` — RESOLVED` to its heading, and add a line
+**5. Move the entry to Resolved.** Status is carried by the directory, so this
+is a rename plus an edit inside the renamed file — it touches no other entry and
+therefore conflicts with no other branch:
+
+```bash
+git mv docs/known-issues/open/KI-0XX-<slug>.md docs/known-issues/resolved/
+```
+
+Then, inside that file, append ` — RESOLVED` to its heading and add a line
 saying what the fix was and how it was proven. Match the format of the entries
-already in Resolved. If it turned out to be harmless, `— DOWNGRADED` with the
-evidence is also a valid close (see KI-26).
+already in `resolved/`. If it turned out to be harmless, ` — DOWNGRADED` with
+the evidence is also a valid close (see KI-26).
+
+**Do not create, edit, or delete any other file under `docs/known-issues/`**,
+and do not add an index — the absence of a shared file is the whole reason
+parallel fixers no longer collide (`docs/known-issues/README.md`, KI-95).
 
 ## Constraints
 
@@ -55,7 +67,8 @@ evidence is also a valid close (see KI-26).
   to report, not a rule to bend.
 - Do not weaken or delete a test to make a KI go away. If a test is wrong,
   say so explicitly and explain why.
-- Some entries are `## Dormant by decision` — those are not yours to fix.
+- Entries under `docs/known-issues/dormant/` are dormant by decision — those
+  are not yours to fix.
 
 ## Report
 

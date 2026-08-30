@@ -45,7 +45,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // and friends already use, not the removed end-date field). --
   // TripDateControl is reached via the Settings sheet's Dates row, which
   // opens a popover mounting it (restored, M10 Phase 4 — see
-  // docs/known-issues.md's former D-2 entry).
+  // the former D-2 entry in docs/known-issues/).
   await page.getByRole("button", { name: /trip settings/i }).click();
   await page.getByRole("button", { name: /dates/i }).click();
   // TripDateControl commits on selection, not on Done (feedback fix,

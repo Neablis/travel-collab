@@ -11,9 +11,10 @@ Requested KIs (empty means auto-select): **$ARGUMENTS**
 
 ## Step 1 — Read the ground truth
 
-Read `AGENTS.md` and the `## Open` section of `docs/known-issues.md`. Note each
-open entry's **Area** field — that is the file scope you will use to decide what
-can run in parallel.
+Read `AGENTS.md` and every entry in `docs/known-issues/open/` (that directory
+is the list — there is deliberately no index file). Note each open entry's
+**Area** field — that is the file scope you will use to decide what can run in
+parallel.
 
 Then check what the current milestone is:
 
@@ -97,16 +98,25 @@ If agents report a **different random subset** of failures each run, that is
 resource contention, not bugs. Stop, check `ps aux` sorted by CPU for an
 external consumer, and tell the user — do not silently retry.
 
-## Step 6 — Land the work serially
+## Step 6 — Land the work
+
+Ask whether the user wants **one PR per KI** (independent review and revert) or
+**all of them on one branch** (a single review and a single CI cycle). Default
+to one per KI. The two answers have different mechanics — 6a and 6b below.
+
+For either answer, first confirm each agent resolved its entry properly:
+`git mv docs/known-issues/open/KI-0XX-….md docs/known-issues/resolved/`, ` — RESOLVED`
+appended to the heading inside that file, and the proof line present, per the
+`ki-fixer` definition. If it did not, do it.
+
+### 6a — One PR per KI (default)
 
 In the main session, one KI at a time:
 
-1. Confirm the agent moved its entry to `## Resolved` in `docs/known-issues.md`
-   with the proof, per the `ki-fixer` definition. If it did not, do it.
-2. Run the **full `pnpm check`** once — serially, never concurrently.
-3. Open a PR using `.github/PULL_REQUEST_TEMPLATE.md`. Fill in **Verification
+1. Run the **full `pnpm check`** once — serially, never concurrently.
+2. Open a PR using `.github/PULL_REQUEST_TEMPLATE.md`. Fill in **Verification
    actually performed** honestly, including what was *not* run and why.
-4. Wait on checks in the correct order — straight after a push, `--watch` can
+3. Wait on checks in the correct order — straight after a push, `--watch` can
    return in a second with the *previous* commit's green results:
 
 ```
@@ -114,15 +124,38 @@ gh run list --commit "$(git rev-parse HEAD)" --limit 1
 gh pr checks <n> --watch --fail-fast
 ```
 
-Ask whether the user wants one PR per KI (independent review and revert) or all
-of them on one branch (a single review and CI cycle). Default to one per KI.
+### 6b — One integration branch (the "all on one branch" answer)
+
+Do **not** merge the sweep's branches into `main` one at a time. Cut one
+integration branch off `main` and merge the sweep into it, then land that once:
+
+```
+git switch main && git pull
+git switch -c claude/ki-sweep-<date>-integration
+for b in <sweep branches>; do git merge --no-ff "$b" || break; done   # resolve here, once
+pnpm check                                                            # one full run
+gh pr create --draft ...                                              # one PR, one CI cycle
+```
+
+O(N) instead of O(N²): on the 2026-08-29 sweep, landing four branches serially
+cost **10 conflict resolutions (4+3+2+1) and 4 extra CI cycles**, because every
+merge to `main` invalidated every remaining branch's resolution.
+
+**Since 2026-08-30 this is a cost optimisation, not a conflict remedy.**
+`docs/known-issues/` is one file per entry (KI-95), so filing is a new file and
+resolving is a `git mv` plus an edit inside the moved file — parallel branches no
+longer collide there at all. What 6b still buys is **one review and one CI cycle
+instead of N**, which matters against the 2,000-minute GitHub Free-plan budget
+`AGENTS.md` and `docs/guidelines/ci-cost-and-capacity.md` flag. Choose it when
+the sweep's fixes are small and independently reviewable in one pass; choose 6a
+when any single fix deserves its own review or its own revert boundary.
 
 ## Step 7 — Prove nothing was stranded
 
 **This step exists because it has already gone wrong.** A sweep on 2026-08-24
 produced three good fixes — KI-6, KI-29, KI-31 — on local branches
 (`ki-6-listpages-race`, `ki-29-double-overlap`, `ki-31-orphan-guard`), and none
-were ever pushed. All three entries stayed open in `docs/known-issues.md` while
+were ever pushed. All three entries stayed in `docs/known-issues/open/` while
 the work sat finished on disk. A fix nobody can see is not a fix.
 
 Before reporting, verify every branch this sweep created:

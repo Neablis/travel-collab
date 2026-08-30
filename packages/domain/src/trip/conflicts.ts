@@ -36,8 +36,8 @@ export const DEFAULT_CONFLICT_CONTEXT: ConflictContext = {
   isPublicHoliday: () => true,
 };
 
-// DORMANT BY DECISION (Mitchell, 2026-07-28) — known-issues.md § "Dormant by
-// decision", D-1. No UI reaches anchors: AnchorEditor and its entry points were
+// DORMANT BY DECISION (Mitchell, 2026-07-28) — docs/known-issues/dormant/,
+// entry D-1. No UI reaches anchors: AnchorEditor and its entry points were
 // removed in M8 because anchors were never made legible (and `publicHoliday`
 // had a permissive stub oracle, so it could never fire at all).
 //

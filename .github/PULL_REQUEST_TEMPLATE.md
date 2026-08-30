@@ -50,7 +50,7 @@ Not run, and why:
 ## Known issues
 
 <!-- New KIs filed by this PR, and any existing KI it closes. A defect found
-     and consciously left is fine — file it in docs/known-issues.md and name
+     and consciously left is fine — file it in docs/known-issues/ and name
      it here. A defect found and left unrecorded is not. -->
 
 Files:

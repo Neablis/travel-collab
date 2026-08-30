@@ -74,7 +74,7 @@ For each remaining branch, classify:
   a small number of real commits and no PR is the signature of a session that
   finished the fix and never pushed — this has already happened here, with
   three KI fixes sitting on local branches while their entries stayed open in
-  `docs/known-issues.md`. For each unmerged branch, report its commit subjects
+  `docs/known-issues/`. For each unmerged branch, report its commit subjects
   and whether a PR exists, and say plainly whether the work looks finished. A
   branch like this needs a PR, not a deletion.
 

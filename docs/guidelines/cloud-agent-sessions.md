@@ -42,7 +42,7 @@ Three things now make this harder to get wrong:
 timeout. A real defect fails in the same place every time. Chasing a wandering
 failure as if it were a defect is what cost the day.
 
-Full story: **KI-27** in `docs/known-issues.md`, including both recurrences.
+Full story: **KI-27** in `docs/known-issues/`, including both recurrences.
 
 ## Postgres
 
@@ -190,7 +190,7 @@ Writable disk is a fixed allowance, so `df` misleads: "Avail" at 0 with low
 ## The rule that matters
 
 **Before attributing a failure to the environment, grep
-`docs/known-issues.md` for the symptom.**
+`docs/known-issues/` for the symptom.**
 
 Every claim in this guide was already written down somewhere before it was
 learned the hard way a second time. KI-27 described the e2e lane trap in full,

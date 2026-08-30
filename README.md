@@ -64,7 +64,7 @@ docs/architecture/     ADRs (decision records)
 docs/milestones/       Milestone scopes M0–M18 and exit gates
 docs/guidelines/       How to build, connect, validate, and enforce quality
 docs/contracts/        Contract change log
-docs/known-issues.md   Known issues & tech debt (unfixed-but-known)
+docs/known-issues/     Known issues & tech debt (one file per entry; open/ is the list)
 packages/contracts/    Zod schemas — the shared language between all layers
 packages/domain/       Pure domain core: event sourcing, conflict engine, projections
 packages/predict/      Client-side optimistic prediction over the same domain core

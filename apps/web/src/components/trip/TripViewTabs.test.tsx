@@ -5,7 +5,7 @@ import type { Lens, ScheduleView } from "./context/LensRouter";
 
 // M10 redesign-feedback follow-up: TripViewTabs went from 3 primary tabs + a
 // "More" popover (6 lenses total) down to exactly 4 peer tabs; the three lenses
-// that popover carried were then retired outright (KI-20, docs/known-issues.md).
+// that popover carried were then retired outright (KI-20, docs/known-issues/).
 // Mocking useLens directly (rather than driving it through LensRouter's real
 // URL-search-param plumbing, as this file used to) lets each test set an
 // arbitrary lens/view and assert on setLens/setLensAndView calls directly —

@@ -188,7 +188,7 @@ function explain(
 // Activities are deliberately NOT hoisted: an AddActivity's title changes which
 // activity a later title ref matches, and its day/position placement depends on
 // the state at its emission point. Backward TITLE refs therefore stay dropped —
-// see docs/known-issues.md KI-10. Reordering everything (a phase sort) or
+// see docs/known-issues/ KI-10. Reordering everything (a phase sort) or
 // retrying to a fixpoint both reintroduce silent wrong targets; the gap-review
 // section of this plan records why, and the tests above pin it.
 //

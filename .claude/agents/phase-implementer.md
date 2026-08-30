@@ -72,7 +72,7 @@ report:
 - Which task you implemented and which files you touched.
 - The exact commands you ran and their real outcomes.
 - Anything you found but deliberately left alone, so it can be filed in
-  `docs/known-issues.md` rather than lost.
+  `docs/known-issues/` rather than lost.
 - Any invariant that got in your way.
 
 Do not claim something passes that you did not run.

@@ -40,7 +40,7 @@
 // reads, just without the unrelated config module in between. `locationiq.ts`
 // and the `Geocoder`/`GeocodeOptions` interfaces are untouched, per the task.
 //
-// Method (KI-15's lesson — docs/known-issues.md — reproduced at this call
+// Method (KI-15's lesson — docs/known-issues/ — reproduced at this call
 // site, not by loosening the shared seam):
 //   1. Query = "<place>, <area>, <city>, Japan" for a scheduled stop — the
 //      seed's own fields, the same shape @tc/fixtures's `locationName()`

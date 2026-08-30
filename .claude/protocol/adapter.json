@@ -14,6 +14,6 @@
   "portabilityForbiddenTokens": [
     "travel-collab", "pnpm", "apps/web", "packages/domain", "packages/contracts",
     "Postgres", "postgres", "Drizzle", "Vercel", "Playwright",
-    "AGENTS.md", "known-issues.md"
+    "AGENTS.md", "known-issues"
   ]
 }
