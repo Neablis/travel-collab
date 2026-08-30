@@ -13,6 +13,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-79 — `N to book` counts a narrower set than SPEC §12's wording, deliberately
+- **Severity:** cleanup (a recorded design delta, not a defect — the same class as KI-52)
+- **Area:** `apps/web/src/lib/needsBooking.ts`, `packages/fixtures/src/japan/kindOverrides.ts`
+- **What differs:** SPEC §12 says *"Counted as unbooked: every stop whose kind is neither `booked` nor `transit`."* The build counts `hold`, `idea`, and `planned` **only when tagged `ticketed`**.
+- **Why:** taken literally, SPEC's rule flagged **50 of the Japan fixture's 72 stops**, so all fourteen Calendar days carried a flag at once — for a line the same SPEC calls *"the one actionable thing at this zoom"*. The cause is that `planned` is the contract's zero value: a stop gets it for free, so counting it reads intent into the *absence* of intent, and every morning coffee and free shrine became outstanding work. `hold` and `idea` are the kinds a user sets deliberately to mean "not settled", which is exactly the outstanding work. The `ticketed` exception uses the tag's own designed power from the handoff's `TAGS` table — *"Wants a booking date. The assistant keeps asking until there is one."* — so the one `planned` stop that genuinely owes an action still counts. Mitchell's call, 2026-08-29.
+- **What this costs:** a user who leaves a genuinely unbooked restaurant on the default `planned` gets no nudge for it. The counter-argument, and why it was accepted: they get no nudge *today* either, because the nudge was on every stop and therefore meant nothing. A stop someone actually cares about booking is one they will mark `hold`, which is what that kind is for.
+- **Landed with a fixture pass, and the two are separable.** Five stops were re-profiled (three dinners `hold` → `booked`, two ticketed museums `planned` → `booked`) so the demo reads like a trip someone has worked on. Those diverge from the design export's own `status`, which `upstreamDrift.test.ts` guards — so they are declared in `kindOverrides.ts` with a reason each, and a further test asserts every override names a real stop, records the true upstream value, actually applies, and is not a no-op. A stale entry cannot quietly switch the drift guard off one id at a time. **Net effect on the demo: 3 of 14 days carry a flag instead of 14 of 14.**
+- **If it should be revisited:** the honest alternative is a sixth kind, or a `needsBooking` flag on the activity, so "this needs booking" is stated rather than inferred from `kind` × `tags`. That is a contract change and its own reviewed step; nothing today wants it badly enough.
+- **Cross-reference:** KI-52 (four tags not six — the same "recorded design delta" shape), KI-47 (the tags field), `docs/milestones/M18-stop-kind.md`.
+- **First noted:** 2026-08-29 (M18's gate, walking `/demo`).
+
 ### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
 - **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
 - **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
@@ -235,6 +246,35 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   failure this protocol's promotion gate exists to prevent.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+- **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
+  Two sessions reached this entry from opposite ends on the same day; this
+  paragraph reconciles them.** The other session corrected all seven rows,
+  measured the result as a regression, and reverted it — see "ATTEMPTED AND
+  REVERTED" below. Its stated prerequisite was: *"a day's city must come from
+  where the day **ends**, not from its first stop… `cityFor()` can take the
+  day's last stop instead of its first. Correct these seven rows in the **same**
+  change as that, never before it."* **`cityFor()` now reads a day's LAST
+  city-bearing stop** (M18, Mitchell's day-label rule). So the specific
+  regression that was measured — every corrected first-stop retagging its whole
+  day, Nikkō vanishing from the chips — should no longer occur, because a day's
+  label now comes from where it ends. **That is a prediction from the mechanism,
+  not a measurement: nobody has re-run the correction since `cityFor` changed.**
+  Re-run it before believing it.
+- **One half of that prerequisite did NOT land, and deliberately so.** The same
+  paragraph also expected `calendarCityCards.ts` to split a travel day at its
+  last `transit` stop. That split was built, walked, and **removed** at M18's
+  gate: it fired on one of seven travel days and got that one wrong, and its
+  output depended on this very entry's tagging convention — *"I don't think the
+  shape of the fixture should drive functionality, that's how we get drift"*
+  (Mitchell, 2026-08-29). The Calendar now groups by city alone. So a correction
+  here no longer has a transit rule to coordinate with; it only has to not break
+  day accents and the city cards, which is a smaller question than the entry has
+  carried until now. Full account: `docs/milestones/M18-stop-kind.md`.
+- **Also worth carrying forward:** KI-60 already removed the conflict-baseline
+  obstacle this entry was originally filed against, and `upstreamDrift.test.ts`
+  is the newer one — it asserts `JapanStop.city` equals the export's
+  `days[].city`, so any correction must also declare that `city` is no longer
+  carried verbatim from upstream.
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
 - **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
@@ -1234,10 +1274,23 @@ needs action — skip this section when triaging.
   parse the milestone disqualifies. `db-seed.ts` instead carries hand-authored
   tags on all 68 stops: 33 `meal`, 11 `outdoors`, 8 `ticketed`, 4 `lodging`,
   18 untagged.
-- **Still not built (PR 2+):** the five surfaces this entry lists — chips on
-  stop cards, the tag filter row, the Add/Edit tag picker, the Notebook
-  repeater's filter, and SPEC §10's mobile column. They are unblocked, not
-  done.
+- **One of the five surfaces below no longer exists — corrected 2026-08-29.**
+  This entry was written against the 2026-08-24 handoff. **SPEC §11, dated
+  2026-08-25, deleted the tag filter row**: *"The header filter row is **gone**.
+  Tag chips on a stop are now the control: clicking 'Meal' on a stop dims
+  everything not tagged Meal to 32% opacity across Timeline, Day columns,
+  Calendar and Map… Single focus, one tag at a time — multi-select was the part
+  that earned its keep least."* So `showTagFilter` / `tagFilters` / "Show
+  everything" describe a control that was removed a day after this entry cited
+  it, and **SPEC §10's "the filter row is the only way to thin a 402px column"
+  is stale in the same way** — mobile thins a day with tag focus now. Nothing
+  should be built against either sentence. What replaced the filter row is tag
+  focus, which is **M18b**.
+- **Status after M18's PR 2+ (2026-08-29):** chips on stop cards and the
+  Add/Edit tag picker are **built**. Tag *focus* — the dimming behaviour that
+  replaced the filter row — is **M18b, approved and unplaced**. The Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7) belongs to **M14**, which
+  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18.
 
 - **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
   which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
@@ -1251,12 +1304,14 @@ needs action — skip this section when triaging.
   being re-derived per surface)
 - **Area:** `packages/contracts/src/activity.ts`
 - **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
-  builds five things on top of tags: chips on every stop card, the tag filter
-  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
-  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
-  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
-  SPEC §10's statement that on a 402px column the filter row is *the only way*
-  to thin a day.
+  builds five things on top of tags: chips on every stop card, ~~the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything")~~
+  (**deleted by SPEC §11 the next day — see the correction at the top of this
+  entry**), the Add-and-Edit-stop tag picker with its per-tag "power" hint, the
+  Notebook repeater's `Only stops tagged …` filter (SPEC §7), and — most
+  load-bearing — ~~SPEC §10's statement that on a 402px column the filter row is
+  *the only way* to thin a day~~ (**stale for the same reason; mobile thins with
+  tag focus**).
 - **Why it belongs in the registry rather than here, eventually:** this is the
   same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
   in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but

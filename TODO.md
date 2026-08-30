@@ -7,17 +7,19 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M18's remaining surfaces
-are the current work**, per the order M11's close leaves standing —
-`M18 (surfaces) → M16 → M12 → M13 → M14 → M9`. Whichever item carries
+purpose**, so read the marker, not the position: **M16 is the current work**,
+per the order M18's close leaves standing —
+`M16 → M12 → M13 → M14 → M9`. Whichever item carries
 `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
-**Two items are approved but deliberately unplaced, and neither is "next"
+**Three items are approved but deliberately unplaced, and none is "next"
 just because it appears unchecked:** M17 (account customization, needs a
-re-scope first) and **M11b Playbooks** (carved out of M11's gate 2026-08-28,
-needs its own scope and exit gate written before it opens).
+re-scope first), **M11b Playbooks** (carved out of M11's gate 2026-08-28,
+needs its own scope and exit gate written before it opens), and **M18b Tag
+focus** (carved out of M18's gate 2026-08-29 — scope and exit gate already
+written, so this one needs only a place).
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
@@ -74,31 +76,38 @@ Where the work actually stands right now: `docs/STATUS.md`.
       blocking a click). Retro, evidence and the promoted rules are in the
       milestone file; the phase plans were deleted in the gate-close commit per
       `docs/plans/README.md`.)*
-- [ ] **M18 A stop knows what kind of thing it is** ← **current milestone**
-      — PR 1 landed; **its surfaces are unblocked as of M11's gate close
-      (2026-08-28)**
+- [x] **M18 A stop knows what kind of thing it is** — **gate closed 2026-08-29**
       → `docs/milestones/M18-stop-kind.md`
-      *(**PR 1, the contract change, landed 2026-08-27 via PR #63** —
-      `ActivityKind` and `ActivityTag` are real fields on `AddActivity`,
-      `UpdateActivity`, both V1 event payloads and `ActivityView`, with no
-      migration (the payload additions default). What is left is PR 2+: the
-      Calendar transit split and `N to book`, the home-hero tile, `act.badge`,
-      and the tag chips/filter row. **Mitchell scheduled M11 ahead of those on
-      2026-08-27**, which is the "without Mitchell's explicit say-so" exemption
-      in this file's own rule — see M11 below.
-      Approved 2026-08-26, **scheduled 2026-08-26** — Mitchell: *"i dont want
-      to do KIND and TAGS right now, but we can put it in a soon milestone."*
-      **Unblocked 2026-08-27** when M10's Wave-2 gate closed; runs **before
-      M16**. Widened on the same call
-      to carry **both** missing activity fields — `kind` and `tags` (KI-47) —
-      because they are one contract change, one migration decision and one
-      backfill question, and splitting them would pay that cost twice. This is
-      the single largest unblocker on the board: between them the two fields
-      gate the Calendar's travel-day split and its `N to book` flag, the home
-      hero's "not booked" tile, `act.badge`, and design rules R4 and R5. Until
-      it lands, surfaces that need either field ship partial by design, not by
-      accident.)*
-- [ ] **M16 The assistant answers questions** →
+      *(Two PRs. **PR 1, the contract change, landed 2026-08-27 via PR #63** —
+      `ActivityKind` and `ActivityTag` real on both commands, both V1 event
+      payloads and `ActivityView`, with no migration. **PR 2+ landed the
+      surfaces 2026-08-29**: `act.badge`, tag chips, a kind picker and a tag
+      picker in the stop editor, the home hero's "not booked" tile, `N to book`,
+      and the Calendar's city grouping. Gate closed the same day — eight of
+      eight boxes, e2e 46/46 against a production build, and both fields set on
+      a trip created from scratch and read back off the API.
+      **The Calendar rule changed at the gate.** SPEC §12's travel-day transit
+      split was built, walked, and removed the same day: it fired on one of
+      seven travel days and got that one wrong, because its output depended on
+      how the fixture tagged cities — *"I don't think the shape of the fixture
+      should drive functionality, that's how we get drift."* Grouping is by city
+      alone now, equal cards plus an untitled bucket, and the day-to-day
+      transition moved to the day label. **Tag focus was carved out as M18b.**
+      Retro and evidence in the milestone file.)*
+- [ ] **M18b Tag focus** — **approved, unplaced** (not "next").
+      The piece carved out of M18's gate.
+      → `docs/milestones/M18b-tag-focus.md`
+      *(Carved out 2026-08-29 when M18's gate was amended: M18 lands both
+      fields, every surface that reads `kind`, and tag chips that render and
+      can be set — but not the behaviour the chips drive. SPEC §11's tag focus
+      dims off-tag stops to 32% across Timeline, Day columns, Calendar and Map,
+      with Calendar showing `N of M match` instead. It is the only piece of
+      M18 needing shared state above the lens switch, its Calendar rule is a
+      second design, and no M18 exit-gate box measured it — the same three
+      arguments that carved Playbooks out of M11 the day before. Note for
+      whoever opens it: the **filter row it replaced is gone**, and our own
+      KI-47 cited it for four days after SPEC §11 deleted it.)*
+- [ ] **M16 The assistant answers questions** ← **current milestone** →
       `docs/milestones/M16-assistant-read-agent.md`
       *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
       and ahead of M15 — but M15 in fact closed its own gate first (2026-08-26),
