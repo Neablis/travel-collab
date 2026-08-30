@@ -45,21 +45,31 @@ export const COORDINATE_GAPS: Readonly<Record<string, string>> = {
     '404 on "Giro Giro Hitoshina, Shimogyō, Kyoto, Japan" (2026-08-30). Riverside kaiseki counter; unmapped.',
   "d9-s4-tea-at-ippodo-kaboku":
     '404 on "Ippodo Kaboku, Nakagyō, Kyoto, Japan" (2026-08-30). The tearoom annexe of Ippodo; the parent shop may exist, the annexe does not.',
-  // The one entry here that is known to be WRONG rather than merely
-  // uncorroborated, which is the distinction this whole file exists to draw
-  // and the reason it is not enough on its own. Mitchell, 2026-08-30, looking
-  // at the Map lens: the pin renders in the sea. Its stored 34.4565,134.008
-  // sits INSIDE Naoshima's viewbox and ~1.2km from the nearest other stop, so
-  // neither the box nor cityGeography.test.ts could ever have flagged it —
-  // being in the right city is not the same as being on land.
+  // Still a gap — the VENUE is uncorroborated — but its coordinate is now the
+  // right village rather than the sea, and the distinction is the point.
   //
-  // The real address, supplied by Mitchell: 761-1, Naoshima, Kagawa District,
-  // Kagawa 761-3110, Japan. Recorded here rather than converted, because
-  // turning it into a lat/lng needs a geocoder and inventing one is exactly
-  // the failure the note at the top of this file forbids. Whoever has the
-  // LOCATIONIQ_API_KEY should run that address, or paste the coordinate.
+  // Mitchell, 2026-08-30, on the Map lens: the pin rendered in the water. The
+  // stored 34.4565,134.008 sat INSIDE Naoshima's viewbox and ~1.2km from the
+  // nearest other stop, so neither the box nor cityGeography.test.ts could
+  // ever have flagged it — being in the right city is not the same as being
+  // on land. That is the hole this file does not close on its own, and a
+  // human looking at the map is what found it.
+  //
+  // He then ran two keyed lookups. The real address he supplied — 761-1,
+  // Naoshima, Kagawa District, Kagawa 761-3110 — does NOT resolve: LocationIQ
+  // returned the town, `Naoshima, Kagawa County, Kagawa Prefecture`, with no
+  // street or building, confirming this entry's original diagnosis. Querying
+  // the village instead returned `Honmura, Naoshima, Kagawa County, Kagawa
+  // Prefecture, 761-3199` at 34.4602827,133.9951957, which is what ./trip.ts
+  // now carries.
+  //
+  // **That is a village centroid, not Aisunao.** It is ~143m from the Chichū
+  // Art Museum pin, because a village-level point is all the vendor has for
+  // this part of the island. It is on land, it matches the stop's `area`
+  // ("Honmura"), and it is 1.25km better than what it replaces — but nobody
+  // should later read it as a surveyed position for the restaurant.
   "d13-s3-lunch-at-aisunao":
-    '404 on "Aisunao, Honmura, Naoshima, Japan" (2026-08-30). A house-restaurant on an island of 3,000 people. STORED COORDINATE IS WRONG — renders in the sea; real address 761-1, Naoshima, Kagawa District, Kagawa 761-3110, Japan, awaiting a lookup.',
+    'Venue 404s on "Aisunao, Honmura, Naoshima, Japan" (2026-08-30), and the postal address 761-1 / 761-3110 resolves only to the town. trip.ts carries the Honmura VILLAGE centroid (34.4602827,133.9951957, LocationIQ 2026-08-30) — on land and in the right village, but not the venue.',
   "d14-s3-last-lunch-at-maisen":
     '404 on "Tonkatsu Maisen, Omotesandō, Tokyo, Japan" (2026-08-30). Well known to visitors, absent from OSM under this name.',
 };
