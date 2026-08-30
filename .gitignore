@@ -48,3 +48,5 @@ package-lock.json
 
 # SDD scratch workspace (superpowers:subagent-driven-development)
 .superpowers/
+
+.env.sentry-build-plugin
