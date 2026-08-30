@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
@@ -126,6 +127,14 @@ export const authConfig: NextAuthConfig = {
     },
     session: ({ session, token }) => {
       session.user.id = (token.userId as string | undefined) ?? token.sub ?? "";
+      // Overrides `sendDefaultPii: false` deliberately (Mitchell, 2026-08-30):
+      // this is the one seam every `auth()` call in both runtimes passes
+      // through, so it's the single place to attach identity to whatever
+      // Sentry client is live for that invocation rather than repeating the
+      // call at every route.
+      if (session.user.id) {
+        Sentry.setUser({ id: session.user.id, email: session.user.email ?? undefined });
+      }
       return session;
     },
   },

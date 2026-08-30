@@ -26,6 +26,7 @@ body > div[role="dialog"] { z-index: 320; }
 body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 @keyframes popIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes om-spin { to { transform: rotate(360deg); } }
 @keyframes pbPop { 0% { transform: scale(0.72); } 55% { transform: scale(1.1); } 100% { transform: scale(1); } }
 @keyframes pbBurst { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
 @keyframes pbSpark { 0% { transform: translate(0, 0) scale(0.3); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; } }
@@ -1099,71 +1100,455 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
       <sc-if value="{{ isPlaybooks }}" hint-placeholder-val="{{ false }}">
         <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
-          <div style="padding: 30px 0 70px; display: flex; flex-direction: column; gap: 22px;">
+          <div style="padding: 30px 0 70px; display: flex; flex-direction: column; gap: 18px;">
             <div>
               <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Playbooks</x-import>
-              <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 620px; text-wrap: pretty;">A Playbook is one good day, saved on its own — the stops, the order, the timings, the notes. Drop it into any trip and the times reflow around it. Send one to a friend without sharing your whole trip.</div>
+              <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 640px; text-wrap: pretty;">One good day, saved whole — the stops, the order, the timings, the notes. Search a city to find days other people have already run, read what they thought of them, and drop one into your trip.</div>
             </div>
-            <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">Playbooks keep places and gaps, not dates. Insert one and every stop shifts to the day you chose.</x-import>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ pbFilter }}" onValueChange="{{ setPbFilter }}" options="{{ pbFilters }}" aria-label="Filter"></x-import>
-              <div style="flex: 1;"></div>
-              <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="170px,36px" value="{{ pbCity }}" onChange="{{ setPbCity }}">
-                <option>All cities</option>
-                <option>Kyoto</option>
-                <option>Tokyo</option>
-                <option>New Orleans</option>
-                <option>Naoshima</option>
-              </x-import>
-            </div>
-            <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-              <sc-for list="{{ playbooks }}" as="pb" hint-placeholder-count="5">
-                <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="flex flex-col gap-4 rounded-lg p-5">
-                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                    <span style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; color: {{ pb.ink }}; background: {{ pb.tint }}; border-radius: 999px; padding: 4px 11px;">{{ pb.city }}</span>
-                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="{{ pb.originVariant }}">{{ pb.origin }}</x-import>
-                  </div>
-                  <div>
-                    <div style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink); line-height: 1.25;">{{ pb.name }}</div>
-                    <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); margin-top: 6px;">{{ pb.spanLine }}</div>
-                  </div>
-                  <div style="display: flex; gap: 4px; align-items: flex-end; height: 72px; background: {{ pb.tint }}; border-radius: 12px; padding: 12px;">
-                    <sc-for list="{{ pb.shape }}" as="b" hint-placeholder-count="5">
-                      <span style="flex: 1; border-radius: 3px; background: {{ pb.solid }}; height: {{ b.h }}; margin-left: {{ b.brk }};"></span>
-                    </sc-for>
-                  </div>
-                  <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <sc-for list="{{ pb.preview }}" as="s" hint-placeholder-count="3">
-                      <div style="display: flex; gap: 10px; font-size: 13px;">
-                        <span style="font-family: var(--font-next-mono); font-size: 11px; padding-top: 2px; color: var(--color-slate); width: 62px; flex: 0 0 auto;">{{ s.t }}</span>
-                        <span style="color: var(--color-ink);">{{ s.n }}</span>
-                      </div>
-                    </sc-for>
-                    <sc-if value="{{ pb.rest }}" hint-placeholder-val="{{ false }}">
-                      <button onClick="{{ pb.insert }}" style="align-self: flex-start; font-size: 12px; color: var(--color-slate); background: none; border: 0; padding: 2px 0; cursor: pointer; font-family: inherit; text-decoration: underline; text-underline-offset: 3px;">{{ pb.rest }}</button>
-                    </sc-if>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    <sc-for list="{{ pb.shownTags }}" as="tg" hint-placeholder-count="2">
-                      <span style="font-size: 11px; color: var(--color-slate); background: var(--color-moss); padding: 3px 10px; border-radius: 999px;">{{ tg }}</span>
-                    </sc-for>
-                  </div>
-                  <div style="flex: 1;"></div>
-                  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; padding-top: 16px; border-top: 1px solid var(--color-hairline);">
-                    <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ pb.meta }}</span>
-                    <div style="display: flex; gap: 6px; flex: 0 0 auto;">
-                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ copyLink }}">Share</x-import>
-                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ pb.insert }}">Add to trip</x-import>
+
+            <div style="position: relative; display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 14px; z-index: 20;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Search a city — Kyoto, Lisbon, New Orleans…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
+                <sc-if value="{{ hasCities }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ clearCities }}">Clear</x-import>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ hasCities }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-right: 2px;">Days that include</span>
+                  <sc-for list="{{ qChips }}" as="c" hint-placeholder-count="1">
+                    <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: {{ c.ink }}; background: {{ c.tint }}; border-radius: 999px; padding: 4px 6px 4px 12px;">
+                      {{ c.name }}
+                      <button onClick="{{ c.remove }}" aria-label="{{ c.removeLabel }}" style="border: 0; background: none; cursor: pointer; font-family: inherit; font-size: 13px; line-height: 1; color: {{ c.ink }}; padding: 2px 5px; border-radius: 999px;" style-hover="background: var(--color-surface);">×</button>
+                    </span>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ hasQ }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 6px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; box-shadow: 0 14px 34px rgba(31, 41, 33, 0.14); overflow: hidden;">
+                  <sc-if value="{{ hitsLoading }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 14px; font-size: 13px; color: var(--color-slate);">
+                      <span style="width: 13px; height: 13px; border-radius: 999px; border: 2px solid var(--color-hairline); border-top-color: var(--color-brand); animation: om-spin 620ms linear infinite;"></span>
+                      Searching cities…
                     </div>
+                  </sc-if>
+                  <sc-if value="{{ hitsError }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px;">
+                      <span style="flex: 1; font-size: 13px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach city search. Filters below still work on the days already loaded.</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ retrySearch }}">Retry</x-import>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ hitsEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 13px 14px; font-size: 13px; color: var(--color-slate);">No city matches “{{ q }}”. Try the nearest big city — days that pass through it will still show up.</div>
+                  </sc-if>
+                  <sc-for list="{{ hits }}" as="h" hint-placeholder-count="0">
+                    <button onClick="{{ h.pick }}" style="display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--color-hairline); padding: 10px 14px; cursor: pointer; font-family: inherit;" style-hover="background: var(--color-moss);">
+                      <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ h.name }}</span>
+                      <span style="font-size: 12px; color: var(--color-slate);">{{ h.region }}</span>
+                      <span style="flex: 1;"></span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ h.count }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ hasSiblings }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px;">
+                <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-right: 2px;">These days also pass through</span>
+                <sc-for list="{{ siblings }}" as="c" hint-placeholder-count="3">
+                  <button onClick="{{ c.pick }}" style="font-size: 12.5px; color: {{ c.ink }}; background: var(--color-surface); border: 1px dashed {{ c.ink }}; border-radius: 999px; padding: 4px 12px; cursor: pointer; font-family: inherit;" style-hover="background: {{ c.tint }};">+ {{ c.name }} <span style="font-family: var(--font-next-mono); font-size: 11px; opacity: 0.75;">{{ c.count }}</span></button>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <div data-r="row" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+              <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ scope }}" onValueChange="{{ setScope }}" options="{{ scopes }}" aria-label="Whose days"></x-import>
+              <div style="flex: 1 1 auto; min-width: 8px;"></div>
+              <sc-for list="{{ pbFilterMenus }}" as="fm" hint-placeholder-count="4">
+                <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ fm.open }}" onOpenChange="{{ fm.setOpen }}" align="start" contentClassName="w-56 p-1" collisionPadding="{{ 12 }}" trigger="{{ fm.trigger }}">
+                  <div style="display: flex; flex-direction: column; max-height: calc(var(--radix-popover-content-available-height, 420px) - 24px); overflow-y: auto;">
+                    <sc-for list="{{ fm.items }}" as="op" hint-placeholder-count="4">
+                      <button onClick="{{ op.pick }}" style="display: flex; align-items: center; gap: 9px; background: {{ op.bg }}; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                        <span style="width: 14px; flex: none; font-size: 12px; line-height: 1; color: var(--color-brand);">{{ op.tick }}</span>
+                        <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: {{ op.weight }}; color: var(--color-ink);">{{ op.label }}</span>
+                      </button>
+                    </sc-for>
                   </div>
                 </x-import>
               </sc-for>
-              <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; justify-content: center; gap: 8px; text-align: center;">
-                <div style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Community Playbooks</div>
-                <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Browse days from people who have already been where you are going. Coming after link sharing.</div>
-                <div style="display: flex; justify-content: center; padding-top: 4px;">
-                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ waitlist }}">Notify me</x-import>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-top: 4px; border-top: 1px solid var(--color-hairline);">
+              <span style="font-size: 13.5px; color: var(--color-ink);">{{ resultLine }}</span>
+              <div style="flex: 1;"></div>
+              <button onClick="{{ goBoard }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px;">Who shares the most →</button>
+              <sc-if value="{{ filtersOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ clearFilters }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px;">Clear filters</button>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="warning">You are offline. These are the days already on this device — ratings and new reviews will be a few hours stale until you reconnect.</x-import>
+            </sc-if>
+
+            <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
+              <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                <sc-for list="{{ skeletons }}" as="sk" hint-placeholder-count="3">
+                  <div style="height: 292px; border: 1px solid var(--color-hairline); border-radius: 12px; background: var(--color-surface); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+                    <span style="width: 84px; height: 20px; border-radius: 999px; background: var(--color-moss);"></span>
+                    <span style="width: 78%; height: 20px; border-radius: 5px; background: var(--color-moss);"></span>
+                    <span style="width: 46%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
+                    <span style="height: 72px; border-radius: 12px; background: var(--color-moss);"></span>
+                    <span style="width: 90%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
+                    <span style="width: 70%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showDays }}" hint-placeholder-val="{{ true }}">
+              <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                <sc-for list="{{ pbResults }}" as="pb" hint-placeholder-count="6">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="flex flex-col gap-3 rounded-lg p-5 cursor-pointer hover:border-border-strong" onClick="{{ pb.open }}">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+                      <sc-for list="{{ pb.cityChips }}" as="c" hint-placeholder-count="2">
+                        <span style="font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 10px;">{{ c.name }}</span>
+                      </sc-for>
+                      <div style="flex: 1;"></div>
+                      <sc-if value="{{ pb.yours }}" hint-placeholder-val="{{ false }}">
+                        <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="brand">Yours</x-import>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ pb.matchNote }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-brand-pressed);">{{ pb.matchNote }}</div>
+                    </sc-if>
+                    <div>
+                      <div style="font-family: var(--font-next-display); font-size: 18.5px; font-weight: 600; color: var(--color-ink); line-height: 1.25;">{{ pb.name }}</div>
+                      <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); margin-top: 5px;">{{ pb.spanLine }}</div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;">
+                      <sc-if value="{{ pb.rated }}" hint-placeholder-val="{{ true }}">
+                        <span style="display: inline-flex; align-items: center; gap: 3px;">
+                          <sc-for list="{{ pb.stars }}" as="st" hint-placeholder-count="5">
+                            <span style="position: relative; display: inline-block; font-size: 13px; line-height: 1; color: var(--color-hairline);">★<span style="position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; width: {{ st.w }}; color: var(--color-warning);">★</span></span>
+                          </sc-for>
+                        </span>
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ pb.ratingLabel }}</span>
+                        <span style="font-size: 12px; color: var(--color-slate);">{{ pb.reviewLabel }}</span>
+                      </sc-if>
+                      <sc-if value="{{ pb.unrated }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 12px; color: var(--color-slate);">No reviews yet</span>
+                      </sc-if>
+                    </div>
+                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 60px; background: {{ pb.tint }}; border-radius: 12px; padding: 10px;">
+                      <sc-for list="{{ pb.shape }}" as="b" hint-placeholder-count="5">
+                        <span style="flex: 1; border-radius: 3px; background: {{ pb.solid }}; height: {{ b.h }}; margin-left: {{ b.brk }};"></span>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                      <sc-for list="{{ pb.preview }}" as="s" hint-placeholder-count="3">
+                        <div style="display: flex; gap: 10px; font-size: 13px;">
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; padding-top: 2px; color: var(--color-slate); width: 62px; flex: 0 0 auto;">{{ s.t }}</span>
+                          <span style="color: var(--color-ink);">{{ s.n }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; padding-top: 14px; border-top: 1px solid var(--color-hairline);">
+                      <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ pb.footMeta }}</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ pb.add }}">Add to trip</x-import>
+                    </div>
+                  </x-import>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+              <div style="border: 1px dashed var(--color-border-strong); border-radius: 12px; padding: 26px 22px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+                <div style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">{{ emptyTitle }}</div>
+                <div style="font-size: 13.5px; color: var(--color-slate); max-width: 52ch; text-wrap: pretty;">{{ emptyBody }}</div>
+                <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding-top: 4px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,34px" variant="secondary" size="sm" onClick="{{ clearFilters }}">Drop the filters</x-import>
+                  <sc-if value="{{ hasCities }}" hint-placeholder-val="{{ false }}">
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,34px" variant="ghost" size="sm" onClick="{{ clearCities }}">Search everywhere</x-import>
+                  </sc-if>
                 </div>
+              </div>
+            </sc-if>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <sc-if value="{{ isDay }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div style="padding: 22px 0 80px; display: flex; flex-direction: column; gap: 18px;">
+            <button onClick="{{ backToDiscover }}" style="align-self: flex-start; white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; font-size: 12.5px; color: var(--color-slate); font-family: inherit;">← Playbooks{{ day.backSuffix }}</button>
+
+            <sc-if value="{{ day.conflict }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="warning">{{ day.conflictText }}</x-import>
+            </sc-if>
+
+            <div data-r="grid3col" style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; align-items: start;">
+              <div style="display: flex; flex-direction: column; gap: 22px; min-width: 0;">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+                    <sc-for list="{{ day.cityChips }}" as="c" hint-placeholder-count="2">
+                      <span style="font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 10px;">{{ c.name }}</span>
+                    </sc-for>
+                  </div>
+                  <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">{{ day.name }}</x-import>
+                  <div style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ day.meta }}</div>
+                  <div style="font-size: 14.5px; color: var(--color-ink); max-width: 62ch; text-wrap: pretty;">{{ day.blurb }}</div>
+                </div>
+
+                <button onClick="{{ day.author.open }}" style="display: flex; align-items: center; gap: 12px; text-align: left; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 12px 14px; cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-border-strong);">
+                  <span style="width: 38px; height: 38px; flex: 0 0 auto; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ day.author.initials }}</span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ day.author.name }}</div>
+                    <div style="font-size: 12.5px; color: var(--color-slate);">{{ day.author.line }}</div>
+                  </div>
+                  <span style="font-size: 12.5px; color: var(--color-brand); flex: none;">{{ day.author.cta }}</span>
+                </button>
+
+                <div style="display: flex; flex-direction: column; gap: 0;">
+                  <div style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 10px;">The day, as they ran it</div>
+                  <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="5">
+                    <div style="display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-hairline);">
+                      <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding-top: 2px;">{{ s.t }}</span>
+                      <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                          <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ s.n }}</span>
+                          <sc-if value="{{ s.showCity }}" hint-placeholder-val="{{ false }}">
+                            <span style="font-size: 11px; color: {{ s.ink }}; background: {{ s.tint }}; border-radius: 999px; padding: 2px 9px;">{{ s.city }}</span>
+                          </sc-if>
+                        </div>
+                        <sc-if value="{{ s.note }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ s.note }}</span>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  <sc-for list="{{ day.tags }}" as="tg" hint-placeholder-count="3">
+                    <span style="font-size: 11.5px; color: var(--color-slate); background: var(--color-moss); padding: 4px 11px; border-radius: 999px;">{{ tg }}</span>
+                  </sc-for>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 6px; border-top: 1px solid var(--color-hairline);">
+                  <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,28px" level="{{ 3 }}">What people said</x-import>
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ day.reviewMeta }}</span>
+                  </div>
+
+                  <div style="display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 14px;">
+                    <sc-if value="{{ day.mineDone }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                        <span style="font-size: 13.5px; color: var(--color-ink);">{{ day.mineDoneText }}</span>
+                        <button onClick="{{ day.undoReview }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px;">Change it</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ day.canReview }}" hint-placeholder-val="{{ true }}">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                        <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">Rate this day</span>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                          <sc-for list="{{ day.starInput }}" as="si" hint-placeholder-count="5">
+                            <button onClick="{{ si.set }}" aria-label="{{ si.label }}" style="background: none; border: 0; cursor: pointer; padding: 2px 1px; font-size: 22px; line-height: 1; color: {{ si.color }}; font-family: inherit;">★</button>
+                          </sc-for>
+                        </div>
+                        <span style="font-size: 12.5px; color: var(--color-slate);">{{ day.starWord }}</span>
+                      </div>
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" className="w-full" maxLength="{{ 140 }}" placeholder="One line, if you have one — what would you tell the next person?" aria-label="Your note" value="{{ day.note }}" onChange="{{ day.setNote }}"></x-import>
+                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ day.noteCount }}</span>
+                        <div style="flex: 1;"></div>
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,34px" variant="primary" size="sm" disabled="{{ day.postDisabled }}" onClick="{{ day.post }}">{{ day.postLabel }}</x-import>
+                      </div>
+                      <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size: 12.5px; color: var(--color-warning-ink);">You are offline — this will be held on your device and posted when you reconnect.</div>
+                      </sc-if>
+                    </sc-if>
+                  </div>
+
+                  <sc-if value="{{ day.hasReviews }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: flex; flex-direction: column; gap: 0;">
+                      <sc-for list="{{ day.reviews }}" as="r" hint-placeholder-count="3">
+                        <div style="display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 13px 0; border-top: 1px solid var(--color-hairline);">
+                          <span style="width: 34px; height: 34px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; color: var(--color-ink);">{{ r.initials }}</span>
+                          <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                              <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ r.who }}</span>
+                              <span style="display: inline-flex; align-items: center; gap: 2px;">
+                                <sc-for list="{{ r.stars }}" as="st" hint-placeholder-count="5">
+                                  <span style="position: relative; display: inline-block; font-size: 12px; line-height: 1; color: var(--color-hairline);">★<span style="position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; width: {{ st.w }}; color: var(--color-warning);">★</span></span>
+                                </sc-for>
+                              </span>
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ r.when }}</span>
+                              <sc-if value="{{ r.mine }}" hint-placeholder-val="{{ false }}">
+                                <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="{{ r.badgeVariant }}">{{ r.badge }}</x-import>
+                              </sc-if>
+                            </div>
+                            <sc-if value="{{ r.note }}" hint-placeholder-val="{{ true }}">
+                              <span style="font-size: 13.5px; color: var(--color-ink); text-wrap: pretty;">{{ r.note }}</span>
+                            </sc-if>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ day.noReviews }}" hint-placeholder-val="{{ false }}">
+                    <div style="border: 1px dashed var(--color-border-strong); border-radius: 12px; padding: 18px; font-size: 13.5px; color: var(--color-slate); text-wrap: pretty;">No one has rated this day yet. If you run it, come back and say how it went — that is the only thing this list is built on.</div>
+                  </sc-if>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 14px; position: sticky; top: 18px;">
+                <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="flex flex-col gap-4 rounded-lg p-5">
+                  <div style="display: flex; align-items: flex-end; gap: 10px;">
+                    <sc-if value="{{ day.rated }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-family: var(--font-next-display); font-size: 38px; font-weight: 600; line-height: 1; color: var(--color-ink);">{{ day.ratingLabel }}</span>
+                      <div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 3px;">
+                        <span style="display: inline-flex; gap: 2px;">
+                          <sc-for list="{{ day.stars }}" as="st" hint-placeholder-count="5">
+                            <span style="position: relative; display: inline-block; font-size: 14px; line-height: 1; color: var(--color-hairline);">★<span style="position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; width: {{ st.w }}; color: var(--color-warning);">★</span></span>
+                          </sc-for>
+                        </span>
+                        <span style="font-size: 12px; color: var(--color-slate);">{{ day.reviewLabel }}</span>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ day.unrated }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size: 13.5px; color: var(--color-slate); text-wrap: pretty;">Unrated so far — nobody has run it and come back.</span>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ day.rated }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                      <sc-for list="{{ day.bars }}" as="b" hint-placeholder-count="5">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); width: 16px;">{{ b.n }}</span>
+                          <span style="flex: 1; height: 6px; border-radius: 999px; background: var(--color-moss); overflow: hidden;"><span style="display: block; height: 100%; width: {{ b.w }}; background: var(--color-warning); border-radius: 999px;"></span></span>
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); width: 24px; text-align: right;">{{ b.c }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <div style="display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--color-hairline);">
+                    <sc-for list="{{ day.facts }}" as="ft" hint-placeholder-count="4">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-size: 12.5px; color: var(--color-slate);">{{ ft.k }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ ft.v }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ day.add }}">Add to a trip</x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,36px" variant="secondary" className="w-full" onClick="{{ day.save }}">{{ day.saveLabel }}</x-import>
+                  </div>
+                  <div style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Times reflow to the day you drop it on. Nothing is copied to the author.</div>
+                </x-import>
+              </div>
+            </div>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div style="padding: 22px 0 80px; display: flex; flex-direction: column; gap: 18px; max-width: 760px;">
+            <button onClick="{{ backToDiscover }}" style="align-self: flex-start; white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; font-size: 12.5px; color: var(--color-slate); font-family: inherit;">← Playbooks</button>
+            <div>
+              <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Who shares the most</x-import>
+              <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 60ch; text-wrap: pretty;">Ranked by how many times their days were added to someone's real trip — not by ratings, and not by how much they post.</div>
+            </div>
+            <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="warning">You are offline — this ranking is as of your last sync and may be a few hours behind.</x-import>
+            </sc-if>
+            <div style="display: flex; flex-direction: column;">
+              <sc-for list="{{ board }}" as="b" hint-placeholder-count="6">
+                <button onClick="{{ b.open }}" style="display: grid; grid-template-columns: 34px 40px minmax(0, 1fr) auto; gap: 14px; align-items: center; text-align: left; background: {{ b.bg }}; border: 0; border-top: 1px solid var(--color-hairline); padding: 14px 10px; cursor: pointer; font-family: inherit;" style-hover="background: var(--color-moss);">
+                  <span style="font-family: var(--font-next-mono); font-size: 15px; font-weight: 600; color: {{ b.rankInk }};">{{ b.rank }}</span>
+                  <span style="width: 40px; height: 40px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.initials }}</span>
+                  <span style="min-width: 0;">
+                    <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                      <span style="font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ b.name }}</span>
+                    </span>
+                    <span style="display: block; font-size: 12.5px; color: var(--color-slate); margin-top: 2px;">{{ b.line }}</span>
+                  </span>
+                  <span style="text-align: right;">
+                    <span style="display: block; font-family: var(--font-next-mono); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ b.adds }}</span>
+                    <span style="display: block; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">added to trips</span>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty; padding-top: 4px; border-top: 1px solid var(--color-hairline);">An add only counts once per trip, and only after the trip has dates. Copying your own day into your own trip does not count.</div>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div style="padding: 22px 0 80px; display: flex; flex-direction: column; gap: 20px;">
+            <button onClick="{{ prof.back }}" style="align-self: flex-start; white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; font-size: 12.5px; color: var(--color-slate); font-family: inherit;">{{ prof.backLabel }}</button>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px;">
+              <span style="width: 60px; height: 60px; flex: none; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ prof.initials }}</span>
+              <div style="min-width: 0;">
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,36px" level="{{ 1 }}">{{ prof.name }}</x-import>
+                <div style="font-size: 13.5px; color: var(--color-slate); margin-top: 4px;">{{ prof.sub }}</div>
+              </div>
+            </div>
+            <div data-r="row" style="display: flex; flex-wrap: wrap; gap: 10px;">
+              <sc-for list="{{ prof.stats }}" as="st" hint-placeholder-count="4">
+                <div style="flex: 1 1 150px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 13px 15px;">
+                  <div style="font-family: var(--font-next-mono); font-size: 21px; font-weight: 600; color: var(--color-ink);">{{ st.v }}</div>
+                  <div style="font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate); margin-top: 3px;">{{ st.k }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px;">
+              <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-right: 2px;">Knows</span>
+              <sc-for list="{{ prof.cities }}" as="c" hint-placeholder-count="3">
+                <button onClick="{{ c.pick }}" style="display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; font-size: 12.5px; color: {{ c.ink }}; background: {{ c.tint }}; border: 0; border-radius: 999px; padding: 4px 12px; cursor: pointer; font-family: inherit;">{{ c.name }}<span style="font-family: var(--font-next-mono); font-size: 11px; opacity: 0.75;">{{ c.count }}</span></button>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 4px; border-top: 1px solid var(--color-hairline);">
+              <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,28px" level="{{ 3 }}">{{ prof.daysTitle }}</x-import>
+              <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                <sc-for list="{{ prof.days }}" as="pb" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,190px" raised="{{ true }}" className="flex flex-col gap-3 rounded-lg p-5 cursor-pointer hover:border-border-strong" onClick="{{ pb.open }}">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+                      <sc-for list="{{ pb.cityChips }}" as="c" hint-placeholder-count="2">
+                        <span style="font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 10px;">{{ c.name }}</span>
+                      </sc-for>
+                    </div>
+                    <div>
+                      <div style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink); line-height: 1.25;">{{ pb.name }}</div>
+                      <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); margin-top: 5px;">{{ pb.spanLine }}</div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;">
+                      <sc-if value="{{ pb.rated }}" hint-placeholder-val="{{ true }}">
+                        <span style="display: inline-flex; align-items: center; gap: 3px;">
+                          <sc-for list="{{ pb.stars }}" as="st" hint-placeholder-count="5">
+                            <span style="position: relative; display: inline-block; font-size: 13px; line-height: 1; color: var(--color-hairline);">★<span style="position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; width: {{ st.w }}; color: var(--color-warning);">★</span></span>
+                          </sc-for>
+                        </span>
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ pb.ratingLabel }}</span>
+                        <span style="font-size: 12px; color: var(--color-slate);">{{ pb.reviewLabel }}</span>
+                      </sc-if>
+                      <sc-if value="{{ pb.unrated }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 12px; color: var(--color-slate);">No reviews yet</span>
+                      </sc-if>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; padding-top: 12px; border-top: 1px solid var(--color-hairline);">
+                      <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ pb.footMeta }}</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ pb.add }}">Add to trip</x-import>
+                    </div>
+                  </x-import>
+                </sc-for>
               </div>
             </div>
           </div>
@@ -1781,55 +2166,66 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
-  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ insOpen }}" onOpenChange="{{ setInsOpen }}" title="Add a saved day to a trip">
+  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ insOpen }}" onOpenChange="{{ setInsOpen }}" title="Insert a saved day into a trip">
     <div style="display: flex; flex-direction: column; gap: 14px;">
       <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
       <div style="display: flex; align-items: center; gap: 12px; background: var(--color-moss); border-radius: 12px; padding: 12px 14px;">
         <div style="flex: 1;">
           <div style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ insName }}</div>
-          <div style="font-size: 12px; color: var(--color-slate); margin-top: 2px;">Its stops get copied into the day you pick, shifted to start at the time you choose.</div>
+          <div style="font-size: 12px; color: var(--color-slate); margin-top: 2px;">{{ insLede }}</div>
         </div>
       </div>
-      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="i0" label="Which Playbook">
-        <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="i0" className="w-full" value="{{ insPbV }}" onChange="{{ setInsPb }}">
-          <sc-for list="{{ pbOptions }}" as="p" hint-placeholder-count="5">
-            <option value="{{ p.value }}">{{ p.label }}</option>
-          </sc-for>
-        </x-import>
-      </x-import>
-      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="i3" label="Which trip">
-        <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="i3" className="w-full" value="{{ insTrip }}" onChange="{{ setInsTrip }}">
-          <option value="japan">Japan: Tokyo → Kyoto → Osaka · Sep – Oct 2026</option>
-          <option value="nola">New Orleans · Sep 2026</option>
-        </x-import>
-      </x-import>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="i1" label="Which day">
-          <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="i1" className="w-full" value="{{ insDay }}" onChange="{{ setInsDay }}">
-            <sc-for list="{{ dayOptions }}" as="d" hint-placeholder-count="14">
-              <option value="{{ d.value }}">{{ d.label }}</option>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 12.5px; font-weight: 600; color: var(--color-ink);">Which trip</div>
+        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="100%,34px" value="{{ insTrip }}" onValueChange="{{ setInsTrip }}" options="{{ insTripOpts }}" aria-label="Which trip"></x-import>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 12.5px; font-weight: 600; color: var(--color-ink);">Where it goes</div>
+        <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="100%,36px" open="{{ insSlotOpen }}" onOpenChange="{{ setInsSlotOpen }}" align="start" contentClassName="w-80 p-1" collisionPadding="{{ 12 }}" trigger="{{ insSlotTrigger }}">
+          <div style="display: flex; flex-direction: column; max-height: 260px; overflow-y: auto;">
+            <sc-for list="{{ insSlots }}" as="d" hint-placeholder-count="8">
+              <button onClick="{{ d.pick }}" style="display: flex; align-items: center; gap: 9px; background: {{ d.bg }}; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                <span style="width: 14px; flex: none; font-size: 12px; line-height: 1; color: var(--color-brand);">{{ d.tick }}</span>
+                <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: {{ d.weight }}; color: var(--color-ink);">{{ d.label }}</span>
+              </button>
             </sc-for>
-          </x-import>
-        </x-import>
-        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="i2" label="Start it at">
-          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="i2" type="time" value="{{ insStart }}" onChange="{{ setInsStart }}"></x-import>
+          </div>
         </x-import>
       </div>
-      <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">{{ insSpanNote }}</x-import>
-      <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="warning">{{ insWarn }}</x-import>
-      <div style="border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-paper); padding: 12px;">
-        <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 8px;">After shifting</div>
-        <sc-for list="{{ insPreview }}" as="s" hint-placeholder-count="3">
-          <div style="display: flex; gap: 10px; padding: 3px 0; font-size: 13px;">
-            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-border-input); padding-top: 2px; width: 104px;">{{ s.t }}</span>
-            <span style="color: var(--color-ink);">{{ s.n }}</span>
-          </div>
-        </sc-for>
+      <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">{{ insShiftNote }}</x-import>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-paper); padding: 12px;">
+          <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 8px;">{{ insNewLabel }}</div>
+          <sc-for list="{{ insPreview }}" as="s" hint-placeholder-count="3">
+            <div style="display: flex; gap: 10px; padding: 3px 0; font-size: 13px;">
+              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 2px; width: 62px; flex: none;">{{ s.t }}</span>
+              <span style="color: var(--color-ink); min-width: 0;">{{ s.n }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ insMore }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size: 12px; color: var(--color-slate); padding-top: 6px;">{{ insMoreLabel }}</div>
+          </sc-if>
+        </div>
+        <div style="border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-paper); padding: 12px;">
+          <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 8px;">What moves</div>
+          <sc-for list="{{ insMoves }}" as="m" hint-placeholder-count="3">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 4px 0;">
+              <span style="font-size: 13px; color: var(--color-ink); flex: none;">{{ m.days }}</span>
+              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); min-width: 0;">{{ m.dates }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ insMovesMore }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size: 12px; color: var(--color-slate); padding-top: 6px;">{{ insMovesMoreLabel }}</div>
+          </sc-if>
+          <sc-if value="{{ insNoMoves }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">Nothing. It goes on the end, so no existing day changes date.</div>
+          </sc-if>
+        </div>
       </div>
       </div>
       <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closeIns }}">Cancel</x-import>
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ doInsert }}">Insert day</x-import>
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ doInsert }}">{{ insCta }}</x-import>
       </x-import>
     </div>
   </x-import>
@@ -2321,7 +2717,10 @@ class Component extends DCLogic {
     tagOv: {}, tagFilter: [], addTags: [], addKey: '', docTagF: [],
     pbOpen: false, pbDay: 7, pbName: '', pbVis: 'link', savedDays: [], justKept: null,
     insOpen: false, insPbIdx: 0, insTripId: 'japan', insDay: '12', insStart: '09:00',
-    pbFilter: 'all', pbCity: 'All cities', toast: '', rev: 0,
+    toast: '', rev: 0,
+    q: '', searching: false, cityHits: null, searchMs: 186, qCities: [], daysLoading: false, dayId: null,
+    pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added',
+    revStars: 0, revNote: '', revBusy: false, myReviews: {}, profileName: null, profileFrom: 'playbooks', saved: { 'pb-naoshima': 1, 'pb-kyoto3': 1 },
     blOpen: false,
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
     acctOpen: false, acctSheet: false, acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
@@ -2454,20 +2853,650 @@ class Component extends DCLogic {
   };
 
   PLAYBOOKS = [
-    { city: 'Kyoto', name: 'Higashiyama at dawn', span: '6:30 am – 2:15 pm', stops: 5, days: 1, origin: 'Yours', originVariant: 'brand', tags: ['Temples', 'Early start', 'Walkable'], from: 'From Japan', used: 3,
-      rawTimes: ['06:30', '09:00', '10:30'], preview: [{ t: '6:30 am', n: 'Fushimi Inari before the crowds' }, { t: '9 am', n: '% Arabica, Higashiyama' }, { t: '10:30 am', n: 'Kiyomizu-dera and Sannenzaka' }] },
-    { city: 'New Orleans', name: 'Tremé food day', span: '9 am – 11:45 pm', stops: 4, days: 1, origin: 'Yours', originVariant: 'brand', tags: ['Food', 'Live music'], from: 'From New Orleans', used: 1,
-      rawTimes: ['09:00', '13:00', '21:45'], preview: [{ t: '9 am', n: "Elizabeth's, Bywater" }, { t: '1 pm', n: "Dooky Chase's" }, { t: '9:45 pm', n: 'Frenchmen Street' }] },
-    { city: 'Tokyo', name: 'Shibuya to Nakameguro on foot', span: '8 am – 9 pm', stops: 6, days: 1, origin: 'From Priya', originVariant: 'info', tags: ['Coffee', 'Vintage', 'Walkable'], from: 'Shared by Priya', used: 12,
-      rawTimes: ['08:00', '11:00', '19:00'], preview: [{ t: '8 am', n: 'Onibus Coffee' }, { t: '11 am', n: 'Daikanyama book shops' }, { t: '7 pm', n: 'Yakitori at Torishiki' }] },
-    { city: 'Naoshima', name: 'Naoshima in one day', span: '7 am – 8:30 pm', stops: 5, days: 1, origin: 'From a link', originVariant: 'neutral', tags: ['Art', 'Ferry', 'Timed tickets'], from: 'From Mei', used: 2400,
-      rawTimes: ['07:00', '10:30', '14:30'], preview: [{ t: '7 am', n: 'Train and ferry from Osaka' }, { t: '10:30 am', n: 'Chichū Art Museum' }, { t: '2:30 pm', n: 'Benesse House' }] },
-    { city: 'Kyoto', name: 'Arashiyama half day', span: '9:45 am – 4:30 pm', stops: 4, days: 1, origin: 'Yours', originVariant: 'brand', tags: ['Gardens', 'Half day'], from: 'From Japan', used: 2,
-      rawTimes: ['09:45', '12:30', '15:00'], preview: [{ t: '9:45 am', n: 'Bamboo grove and Tenryū-ji' }, { t: '12:30 pm', n: 'Lunch at Yoshida-ya' }, { t: '3 pm', n: 'Tea at Ippodo Kaboku' }] },
-    { city: 'Kyoto', name: 'Kyoto in three days', span: '6:30 am – 9:30 pm', stops: 15, days: 3, origin: 'Yours', originVariant: 'brand', tags: ['Temples', 'Food', 'Gardens', 'First time'], from: 'From Japan', used: 6,
-      rawTimes: ['06:30', '09:45', '09:00'],
-      preview: [{ t: 'Day 1 · 6:30 am', n: 'Fushimi Inari, then Higashiyama' }, { t: 'Day 2 · 9:45 am', n: 'Arashiyama and Tenryū-ji' }, { t: 'Day 3 · 9 am', n: "Ginkaku-ji and the Philosopher's Path" }] }
+    { id: 'pb-higashiyama', cities: ['Kyoto'], name: 'Higashiyama at dawn', span: '6:30 am – 2:15 pm', days: 1,
+      origin: 'Yours', originVariant: 'brand', from: 'From Japan', used: 3, mine: true,
+      author: { name: 'You', initials: 'SK' },
+      rating: 0, reviewCount: 0, adds: 3, budget: 42, month: 'April', shared: '3 weeks ago', rank: 3,
+      blurb: 'The east side before it wakes up. Three temples, one coffee, downhill the whole way — and finished before the tour buses reach Sannenzaka.',
+      tags: ['Temples', 'Early start', 'Walkable'], rawTimes: ['06:30', '09:00', '10:30'],
+      full: [['6:30 am', 'Fushimi Inari before the crowds', 'Kyoto', 'Go in from the back gate off Inari station. The tunnels are empty until about eight.'],
+        ['9:00 am', '% Arabica, Higashiyama', 'Kyoto', 'Ten-minute queue by 9:30. Take it to the wall opposite and watch Yasaka pagoda.'],
+        ['10:30 am', 'Kiyomizu-dera and Sannenzaka', 'Kyoto', 'Walk it downhill from the temple, not up — the crowd goes the other way.'],
+        ['12:15 pm', 'Lunch at Hisago', 'Kyoto', 'Oyakodon, cash only, closes when the rice runs out.'],
+        ['1:30 pm', 'Kōdai-ji garden', 'Kyoto', '']], reviews: [] },
+
+    { id: 'pb-treme', cities: ['New Orleans'], name: 'Tremé food day', span: '9 am – 11:45 pm', days: 1,
+      origin: 'Yours', originVariant: 'brand', from: 'From New Orleans', used: 1, mine: true,
+      author: { name: 'You', initials: 'SK' },
+      rating: 4.5, reviewCount: 8, adds: 11, budget: 96, month: 'September', shared: '2 months ago', rank: 5,
+      blurb: 'Four meals and a nap, arranged so none of them fight. The nap is not optional if you want Frenchmen Street to land.',
+      tags: ['Food', 'Live music'], rawTimes: ['09:00', '13:00', '21:45'],
+      full: [['9:00 am', "Elizabeth's, Bywater", 'New Orleans', 'Praline bacon. In before ten or you are waiting forty minutes.'],
+        ['11:00 am', 'St. Roch Market, slow walk over', 'New Orleans', ''],
+        ['1:00 pm', "Dooky Chase's", 'New Orleans', 'Buffet stops at three. The gumbo is the whole reason.'],
+        ['4:00 pm', 'Nap, then Louis Armstrong Park', 'New Orleans', 'Genuinely plan the nap. Everything after this is late.'],
+        ['9:45 pm', 'Frenchmen Street', 'New Orleans', 'Spotted Cat first, then follow whichever horn is loudest.']],
+      reviews: [{ who: 'Dana Reyes', initials: 'DR', stars: 5, note: 'Did it in June. The nap is the trick — we skipped it the first time and were done by nine.', when: 'Jun 2026' },
+        { who: 'Alex Nwosu', initials: 'AN', stars: 4, note: "Dooky Chase's was closed on a Monday. Check the day before you plan around it.", when: 'May 2026' }] },
+
+    { id: 'pb-shibuya', cities: ['Tokyo'], name: 'Shibuya to Nakameguro on foot', span: '8 am – 9 pm', days: 1,
+      origin: 'From Priya', originVariant: 'info', from: 'Shared by Priya', used: 12, mine: false,
+      author: { name: 'Priya Raman', initials: 'PR' },
+      rating: 4.6, reviewCount: 38, adds: 412, budget: 74, month: 'October', shared: '5 weeks ago', rank: 6,
+      blurb: 'One long walk south-west, no trains until the way home. Coffee, second-hand clothes, a river of cherry trees and yakitori at the end of it.',
+      tags: ['Coffee', 'Vintage', 'Walkable'], rawTimes: ['08:00', '11:00', '19:00'],
+      full: [['8:00 am', 'Onibus Coffee, Nakameguro', 'Tokyo', 'Upstairs, window seat, trains going past at eye level.'],
+        ['9:30 am', 'Meguro river walk', 'Tokyo', ''],
+        ['11:00 am', 'Daikanyama book shops', 'Tokyo', 'Tsutaya first, then the lanes behind it.'],
+        ['1:30 pm', 'Lunch at Higashi-yama', 'Tokyo', 'Book two days out or eat at the counter.'],
+        ['4:00 pm', 'Vintage on Cat Street', 'Tokyo', ''],
+        ['7:00 pm', 'Yakitori at Torishiki', 'Tokyo', 'Reserve a month ahead. This is the one thing worth a phone call.']],
+      reviews: [{ who: 'Mei Tanaka', initials: 'MT', stars: 5, note: 'Lived here two years and still took two things off this list I had never done.', when: 'Oct 2026' },
+        { who: 'Jonas Ek', initials: 'JE', stars: 4, note: 'Torishiki needed a month of notice. Everything else worked walk-up.', when: 'Sep 2026' },
+        { who: 'Hana Park', initials: 'HP', stars: 5, note: 'Nine miles of walking by the end. Wear the good shoes, not the nice ones.', when: 'Sep 2026' }] },
+
+    { id: 'pb-naoshima', cities: ['Osaka', 'Uno', 'Naoshima'], name: 'Naoshima in one day', span: '7 am – 8:30 pm', days: 1,
+      origin: 'From a link', originVariant: 'neutral', from: 'From Mei', used: 2400, mine: false,
+      author: { name: 'Mei Tanaka', initials: 'MT' },
+      rating: 4.9, reviewCount: 214, adds: 2400, budget: 138, month: 'June', shared: '4 months ago', rank: 9,
+      blurb: 'Osaka to an island and back between breakfast and dinner. Two trains, one ferry, three museums — it only works if you book the Chichū slot before you leave.',
+      tags: ['Art', 'Ferry', 'Timed tickets'], rawTimes: ['07:00', '10:30', '14:30'],
+      full: [['7:00 am', 'Shinkansen to Okayama, local to Uno', 'Osaka', 'Buy the ferry ticket in Uno, not online — the queue is faster.'],
+        ['10:00 am', 'Ferry to Miyanoura', 'Uno', 'Twenty minutes. Sit on the top deck.'],
+        ['10:30 am', 'Chichū Art Museum', 'Naoshima', 'Timed entry, booked weeks out. Nothing else on the island needs a ticket.'],
+        ['1:00 pm', 'Lunch at Benesse House terrace', 'Naoshima', ''],
+        ['2:30 pm', 'Lee Ufan and the seaside walk', 'Naoshima', 'Yellow pumpkin is a ten-minute walk past the last bus stop.'],
+        ['6:10 pm', 'Last useful ferry back', 'Naoshima', 'Miss this one and you are sleeping on the island.']],
+      reviews: [{ who: 'Ruth Adeyemi', initials: 'RA', stars: 5, note: 'The 6:10 ferry warning saved us. Two people from our hotel got stranded that same night.', when: 'Jul 2026' },
+        { who: 'Tomás Ferreira', initials: 'TF', stars: 5, note: 'Long day, worth every hour. Book Chichū the moment you know your dates.', when: 'Jun 2026' },
+        { who: 'Sara Lindqvist', initials: 'SL', stars: 4, note: 'Doable from Osaka but tight. From Okayama it would be relaxed.', when: 'Jun 2026' }] },
+
+    { id: 'pb-arashiyama', cities: ['Kyoto'], name: 'Arashiyama half day', span: '9:45 am – 4:30 pm', days: 1,
+      origin: 'Yours', originVariant: 'brand', from: 'From Japan', used: 2, mine: true,
+      author: { name: 'You', initials: 'SK' },
+      rating: 4.0, reviewCount: 3, adds: 2, budget: 30, month: 'March', shared: '3 weeks ago', rank: 4,
+      blurb: 'A half day that stays a half day. Bamboo, one garden, tea, and back in the city by five with the evening still yours.',
+      tags: ['Gardens', 'Half day'], rawTimes: ['09:45', '12:30', '15:00'],
+      full: [['9:45 am', 'Bamboo grove and Tenryū-ji', 'Kyoto', 'The grove is a five-minute walk, not an afternoon. Tenryū-ji garden is the actual reason to come.'],
+        ['12:30 pm', 'Lunch at Yoshida-ya', 'Kyoto', ''],
+        ['2:00 pm', 'Ōkōchi Sansō', 'Kyoto', 'Entry includes tea. Almost nobody walks the extra ten minutes.'],
+        ['3:00 pm', 'Tea at Ippodo Kaboku', 'Kyoto', '']],
+      reviews: [{ who: 'Dana Reyes', initials: 'DR', stars: 4, note: 'Honest about the grove being brief, which most lists are not.', when: 'Apr 2026' }] },
+
+    { id: 'pb-kyoto3', cities: ['Kyoto'], name: 'Kyoto in three days', span: '6:30 am – 9:30 pm', days: 3,
+      origin: 'Yours', originVariant: 'brand', from: 'From Japan', used: 6, mine: true,
+      author: { name: 'You', initials: 'SK' },
+      rating: 4.7, reviewCount: 21, adds: 34, budget: 210, month: 'November', shared: '3 weeks ago', rank: 7,
+      blurb: 'Three days that do not double back on each other. East side, west side, then north — one long walk per day and dinner near where you finish.',
+      tags: ['Temples', 'Food', 'Gardens', 'First time'], rawTimes: ['06:30', '09:45', '09:00'],
+      full: [['Day 1 · 6:30 am', 'Fushimi Inari, then Higashiyama', 'Kyoto', ''],
+        ['Day 1 · 7:00 pm', 'Dinner in Gion', 'Kyoto', ''],
+        ['Day 2 · 9:45 am', 'Arashiyama and Tenryū-ji', 'Kyoto', 'Earlier than this and the trains are commuter-full.'],
+        ['Day 2 · 3:00 pm', 'Nishiki market, slowly', 'Kyoto', ''],
+        ['Day 3 · 9:00 am', "Ginkaku-ji and the Philosopher's Path", 'Kyoto', 'Walk it south. The cafés are at the far end.'],
+        ['Day 3 · 6:30 pm', 'Kikunoi Roan', 'Kyoto', 'Thirty days out, exactly at nine in the morning Japan time.']],
+      reviews: [{ who: 'Jonas Ek', initials: 'JE', stars: 5, note: 'Best three-day shape I have seen for Kyoto. No day undoes the one before it.', when: 'Nov 2026' },
+        { who: 'Hana Park', initials: 'HP', stars: 4, note: 'Day two is light. We added Kinkaku-ji and it still worked.', when: 'Oct 2026' }] },
+
+    { id: 'pb-uji', cities: ['Kyoto', 'Uji'], name: 'Uji tea afternoon after Fushimi', span: '11 am – 7:30 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Mei Tanaka', used: 168, mine: false,
+      author: { name: 'Mei Tanaka', initials: 'MT' },
+      rating: 4.7, reviewCount: 26, adds: 168, budget: 26, month: 'May', shared: '6 weeks ago', rank: 8,
+      blurb: 'Twenty minutes down the Nara line and nobody follows you. Two temples, the best tea in the country, and back in Kyoto for dinner.',
+      tags: ['Tea', 'Half day', 'Cheap', 'Train'], rawTimes: ['11:00', '13:30', '16:00'],
+      full: [['11:00 am', 'Fushimi Inari, mid-mountain only', 'Kyoto', 'Turn back at the Yotsutsuji lookout — that is where the crowd thins and the view is already there.'],
+        ['12:20 pm', 'Nara line to Uji', 'Kyoto', 'Local train, twenty minutes, sit on the right.'],
+        ['1:30 pm', 'Byōdō-in', 'Uji', 'The phoenix hall reflects best from the far side of the pond, before two.'],
+        ['3:00 pm', 'Nakamura Tōkichi', 'Uji', 'Matcha soba and the jelly. Forty-minute wait after three on weekends.'],
+        ['4:30 pm', 'Tea tasting at Fukujuen', 'Uji', 'Ask for the gyokuro flight. They will explain water temperature and it changes how you drink it after.'],
+        ['6:30 pm', 'Back to Kyoto for dinner', 'Kyoto', '']],
+      reviews: [{ who: 'Sara Lindqvist', initials: 'SL', stars: 5, note: 'The Yotsutsuji advice is worth the whole day. Half the mountain, all of the view.', when: 'May 2026' },
+        { who: 'Alex Nwosu', initials: 'AN', stars: 5, note: 'Cheapest good day of our trip. Under thirty each including the trains.', when: 'May 2026' },
+        { who: 'Dana Reyes', initials: 'DR', stars: 4, note: 'Nakamura queue was an hour on Saturday. Go on a weekday and it is nothing.', when: 'Apr 2026' }] },
+
+    { id: 'pb-nara-osaka', cities: ['Nara', 'Osaka'], name: 'Nara deer, then Osaka at night', span: '8:30 am – 11 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Daniel Okafor', used: 96, mine: false,
+      author: { name: 'Daniel Okafor', initials: 'DO' },
+      rating: 4.4, reviewCount: 51, adds: 96, budget: 68, month: 'October', shared: '2 weeks ago', rank: 10,
+      blurb: 'Morning in the park before the coaches arrive, afternoon train, and Osaka from six until it stops being sensible. Two cities, one set of shoes.',
+      tags: ['Day trip', 'Food', 'Late night'], rawTimes: ['08:30', '14:00', '19:00'],
+      full: [['8:30 am', 'Nara park, east side first', 'Nara', 'Coaches unload at the west gate around ten. Start opposite them.'],
+        ['9:30 am', 'Tōdai-ji', 'Nara', ''],
+        ['11:30 am', 'Kasuga-taisha lantern path', 'Nara', 'Quietest part of the park and almost everyone skips it.'],
+        ['2:00 pm', 'Kintetsu limited express to Osaka', 'Nara', 'Reserved seat, forty minutes, worth the extra few hundred yen.'],
+        ['4:00 pm', 'Check in, then Shinsekai', 'Osaka', ''],
+        ['7:00 pm', 'Kuromon then Dōtonbori', 'Osaka', 'Eat standing up. Sit-down dinner is a waste of this evening.'],
+        ['10:00 pm', 'Highball bar in Namba', 'Osaka', '']],
+      reviews: [{ who: 'Tomás Ferreira', initials: 'TF', stars: 5, note: 'Two cities in a day sounds mad and it was the best day we had.', when: 'Oct 2026' },
+        { who: 'Hana Park', initials: 'HP', stars: 3, note: 'Too much for us with a seven-year-old. Great as two separate days.', when: 'Sep 2026' },
+        { who: 'Jonas Ek', initials: 'JE', stars: 5, note: 'East-side-first for the deer park is the single best tip here.', when: 'Sep 2026' }] },
+
+    { id: 'pb-kamakura', cities: ['Tokyo', 'Kamakura'], name: 'Kamakura by train, back for Shibuya dinner', span: '7:45 am – 9:30 pm', days: 1,
+      origin: 'From Priya', originVariant: 'info', from: 'Shared by Priya Raman', used: 74, mine: false,
+      author: { name: 'Priya Raman', initials: 'PR' },
+      rating: 4.8, reviewCount: 19, adds: 74, budget: 55, month: 'February', shared: '9 days ago', rank: 12,
+      blurb: 'An hour out of Tokyo for sea air, a bamboo garden and a very large Buddha, timed so you are back in the city while it is still Friday night.',
+      tags: ['Day trip', 'Coast', 'Walkable'], rawTimes: ['07:45', '11:00', '19:30'],
+      full: [['7:45 am', 'Yokosuka line from Shibuya', 'Tokyo', 'Not the Odakyu. Slower but you keep the seat.'],
+        ['9:00 am', 'Hōkoku-ji bamboo garden', 'Kamakura', 'Tea room at the back, twenty minutes before the first tour group.'],
+        ['11:00 am', 'Great Buddha at Kōtoku-in', 'Kamakura', ''],
+        ['12:30 pm', 'Enoshima line to the beach, lunch', 'Kamakura', 'The old green tram. Sit at the front window.'],
+        ['3:30 pm', 'Walk the coast to Inamuragasaki', 'Kamakura', 'Fuji is visible on a clear afternoon, straight out to the right.'],
+        ['7:30 pm', 'Dinner back in Shibuya', 'Tokyo', '']],
+      reviews: [{ who: 'Mei Tanaka', initials: 'MT', stars: 5, note: 'Correct call on the Yokosuka line. The other route is standing room the whole way.', when: 'Feb 2026' },
+        { who: 'Sara Lindqvist', initials: 'SL', stars: 5, note: 'Saw Fuji from the coast path exactly as described. Whole day cost us under fifty.', when: 'Feb 2026' }] },
+
+    { id: 'pb-hakone', cities: ['Odawara', 'Hakone', 'Gora'], name: 'Hakone loop from Odawara', span: '8 am – 6 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Tomás Ferreira', used: 61, mine: false,
+      author: { name: 'Tomás Ferreira', initials: 'TF' },
+      rating: 3.9, reviewCount: 33, adds: 61, budget: 120, month: 'August', shared: '3 months ago', rank: 2,
+      blurb: 'The full circuit — train, switchback, ropeway, pirate boat, bus — in the one direction that does not leave you queueing. Honest warning: it is mostly transit.',
+      tags: ['Loop', 'Onsen', 'Mountains'], rawTimes: ['08:00', '11:30', '15:00'],
+      full: [['8:00 am', 'Free pass at Odawara station', 'Odawara', 'Buy it here, not in Tokyo. Same price, no queue.'],
+        ['9:00 am', 'Tozan switchback to Gōra', 'Hakone', ''],
+        ['10:00 am', 'Open-Air Museum', 'Gora', 'Ninety minutes is enough. The Picasso hall is the part people miss.'],
+        ['12:00 pm', 'Ropeway over Ōwakudani', 'Hakone', 'Closes on sulphur warnings. Check the board at Gōra before you commit.'],
+        ['1:30 pm', 'Boat across Ashi, lunch on the far side', 'Hakone', ''],
+        ['3:30 pm', 'Onsen at Tenzan', 'Hakone', 'Bus from Moto-Hakone. Tattoos are fine here, which is rare.']],
+      reviews: [{ who: 'Ruth Adeyemi', initials: 'RA', stars: 3, note: 'Six hours of it is transport. Beautiful transport, but know that going in.', when: 'Aug 2026' },
+        { who: 'Alex Nwosu', initials: 'AN', stars: 5, note: 'Ropeway was shut for sulphur and the bus alternative in the notes worked fine.', when: 'Jul 2026' },
+        { who: 'Dana Reyes', initials: 'DR', stars: 3, note: 'Would split this over two days with a night in Hakone rather than rush the loop.', when: 'Jul 2026' }] },
+
+    { id: 'pb-bywater', cities: ['New Orleans'], name: 'Bywater to Marigny, slowly', span: '10 am – 10 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Ruth Adeyemi', used: 29, mine: false,
+      author: { name: 'Ruth Adeyemi', initials: 'RA' },
+      rating: 4.2, reviewCount: 12, adds: 29, budget: 44, month: 'March', shared: '7 weeks ago', rank: 11,
+      blurb: 'Five stops in eight hours, all within a mile. Built for a hot day when the plan is to sit down a lot.',
+      tags: ['Easy pace', 'Live music', 'Cheap'], rawTimes: ['10:00', '14:00', '20:00'],
+      full: [['10:00 am', 'Coffee at Solo Espresso', 'New Orleans', ''],
+        ['11:30 am', 'Crescent Park along the river', 'New Orleans', 'Shade runs out around noon. Go early or go later.'],
+        ['2:00 pm', 'Bacchanal, back garden', 'New Orleans', 'Wine, cheese, someone playing quietly. Stay two hours.'],
+        ['5:30 pm', 'Sit on the levee', 'New Orleans', ''],
+        ['8:00 pm', 'Vaughan\'s or the Spotted Cat', 'New Orleans', 'Thursday at Vaughan\'s if you can line the dates up.']],
+      reviews: [{ who: 'Jonas Ek', initials: 'JE', stars: 4, note: 'Exactly the day you want in ninety-degree heat. Nothing is more than a mile.', when: 'Mar 2026' },
+        { who: 'Tomás Ferreira', initials: 'TF', stars: 4, note: 'Bacchanal is two hours minimum, not one. Plan for it.', when: 'Feb 2026' }] },
+
+    { id: 'pb-sintra', cities: ['Lisbon', 'Sintra'], name: 'Sintra before the buses, Lisbon after dark', span: '6:50 am – 11:30 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Ana Costa', used: 1180, mine: false,
+      author: { name: 'Ana Costa', initials: 'AC' },
+      rating: 4.9, reviewCount: 88, adds: 1180, budget: 61, month: 'May', shared: '5 weeks ago', rank: 13,
+      blurb: 'The first train out means an hour with Pena almost to yourself. Back down by two, sleep, then Lisbon at the hour it is actually good.',
+      tags: ['Early start', 'Palaces', 'Train', 'Late night'], rawTimes: ['06:50', '12:00', '21:00'],
+      full: [['6:50 am', 'First train from Rossio', 'Lisbon', 'Buy the return the night before. The morning queue is twenty minutes of your head start.'],
+        ['8:00 am', 'Pena Palace, gates at opening', 'Sintra', 'Walk up through the park rather than the shuttle. You arrive with the first ticket holders and no crowd.'],
+        ['10:30 am', 'Quinta da Regaleira', 'Sintra', 'Down the well, not up it.'],
+        ['12:30 pm', 'Lunch at Tascantiga', 'Sintra', ''],
+        ['2:30 pm', 'Train back, then sleep', 'Lisbon', 'Non-negotiable if you want the evening.'],
+        ['7:30 pm', 'Sunset at Graça, then dinner in Alfama', 'Lisbon', ''],
+        ['10:00 pm', 'Fado at a small house, not a big one', 'Lisbon', 'Ask the restaurant which one is playing tonight rather than booking ahead.']],
+      reviews: [{ who: 'Hana Park', initials: 'HP', stars: 5, note: 'We had Pena terraces to ourselves for forty minutes. By eleven it was unwalkable.', when: 'May 2026' },
+        { who: 'Sara Lindqvist', initials: 'SL', stars: 5, note: 'The afternoon sleep sounds soft until you are still out at midnight enjoying it.', when: 'May 2026' },
+        { who: 'Daniel Okafor', initials: 'DO', stars: 4, note: 'Long day. Skip Regaleira if you are not a garden person and it is perfect.', when: 'Apr 2026' }] },
+
+    { id: 'pb-cascais', cities: ['Lisbon', 'Cascais', 'Estoril'], name: 'Cascais and the coast road', span: '9:30 am – 8 pm', days: 1,
+      origin: 'Community', originVariant: 'info', from: 'Shared by Miguel Santos', used: 18, mine: false,
+      author: { name: 'Miguel Santos', initials: 'MS' },
+      rating: 4.1, reviewCount: 9, adds: 18, budget: 88, month: 'July', shared: '4 days ago', rank: 1,
+      blurb: 'Forty minutes of train along the water, a town you can cross on foot, and the cliff road west if the afternoon holds.',
+      tags: ['Coast', 'Easy pace', 'Swimming'], rawTimes: ['09:30', '13:00', '17:00'],
+      full: [['9:30 am', 'Cais do Sodré train, sea side', 'Lisbon', 'Sit on the right. It runs beside the water the whole way.'],
+        ['10:20 am', 'Coffee on the square, then the bay', 'Cascais', ''],
+        ['12:00 pm', 'Boca do Inferno and the cliff path', 'Cascais', ''],
+        ['1:30 pm', 'Lunch at Mar do Inferno', 'Cascais', 'Fish by weight. Ask the price before they cook it.'],
+        ['3:30 pm', 'Guincho beach by taxi', 'Cascais', 'Windy most afternoons. Fine for walking, hard for lying down.'],
+        ['6:00 pm', 'Drink on the promenade back east', 'Estoril', '']],
+      reviews: [{ who: 'Ana Costa', initials: 'AC', stars: 4, note: 'Local here. Guincho is genuinely windy — bring something with sleeves.', when: 'Jul 2026' },
+        { who: 'Ruth Adeyemi', initials: 'RA', stars: 4, note: 'Pleasant rather than remarkable, which is sometimes the whole point.', when: 'Jun 2026' }] }
   ];
+
+  _pbInit = this.PLAYBOOKS.forEach(p => {
+    p.city = p.cities[0];
+    p.stops = p.full.length;
+    p.preview = p.full.slice(0, 3).map(x => ({ t: x[0], n: x[1] }));
+  });
+
+  CITY_INDEX = [
+    { name: 'Kyoto', region: 'Kansai, Japan', days: 412 },
+    { name: 'Tokyo', region: 'Kantō, Japan', days: 903 },
+    { name: 'Osaka', region: 'Kansai, Japan', days: 288 },
+    { name: 'Nara', region: 'Kansai, Japan', days: 74 },
+    { name: 'Uji', region: 'Kansai, Japan', days: 21 },
+    { name: 'Kamakura', region: 'Kantō, Japan', days: 46 },
+    { name: 'Hakone', region: 'Kantō, Japan', days: 58 },
+    { name: 'Gora', region: 'Hakone, Japan', days: 12 },
+    { name: 'Odawara', region: 'Kantō, Japan', days: 9 },
+    { name: 'Naoshima', region: 'Seto Inland Sea, Japan', days: 37 },
+    { name: 'Uno', region: 'Okayama, Japan', days: 8 },
+    { name: 'Nikkō', region: 'Tochigi, Japan', days: 33 },
+    { name: 'Kanazawa', region: 'Ishikawa, Japan', days: 51 },
+    { name: 'Hiroshima', region: 'Chūgoku, Japan', days: 96 },
+    { name: 'New Orleans', region: 'Louisiana, USA', days: 164 },
+    { name: 'Lisbon', region: 'Portugal', days: 331 },
+    { name: 'Sintra', region: 'Lisbon district, Portugal', days: 88 },
+    { name: 'Cascais', region: 'Lisbon district, Portugal', days: 29 },
+    { name: 'Estoril', region: 'Lisbon district, Portugal', days: 11 },
+    { name: 'Porto', region: 'Portugal', days: 207 },
+    { name: 'Mexico City', region: 'Mexico', days: 276 },
+    { name: 'Oaxaca', region: 'Mexico', days: 118 },
+    { name: 'Barcelona', region: 'Catalonia, Spain', days: 402 },
+    { name: 'Seville', region: 'Andalusia, Spain', days: 173 },
+    { name: 'Copenhagen', region: 'Denmark', days: 149 },
+    { name: 'Istanbul', region: 'Türkiye', days: 244 },
+    { name: 'Marrakesh', region: 'Morocco', days: 131 },
+    { name: 'Taipei', region: 'Taiwan', days: 152 },
+    { name: 'Seoul', region: 'South Korea', days: 298 },
+    { name: 'Hanoi', region: 'Vietnam', days: 121 }
+  ];
+
+  MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  searchCities(v) {
+    clearTimeout(this._cs);
+    if (!String(v).trim()) { this.setState({ q: v, searching: false, cityHits: null }); return; }
+    this.setState({ q: v, searching: true, cityHits: null });
+    const lat = 240 + Math.round(Math.random() * 200);
+    this._cs = setTimeout(() => {
+      if (this.state.syncOff) { this.setState({ searching: false, cityHits: 'error' }); return; }
+      const k = String(this.state.q).trim().toLowerCase();
+      if (!k) { this.setState({ searching: false, cityHits: null }); return; }
+      const pre = [], sub = [];
+      this.CITY_INDEX.forEach(c => {
+        const n = c.name.toLowerCase();
+        if (n.indexOf(k) === 0) pre.push(c);
+        else if (n.indexOf(k) > 0 || c.region.toLowerCase().indexOf(k) >= 0) sub.push(c);
+      });
+      this.setState({ searching: false, cityHits: pre.concat(sub).slice(0, 6), searchMs: lat });
+    }, lat);
+  }
+  refetch() {
+    clearTimeout(this._df);
+    const lat = 210 + Math.round(Math.random() * 190);
+    this.setState({ daysLoading: true });
+    this._df = setTimeout(() => this.setState({ daysLoading: false, searchMs: lat }), lat);
+  }
+  pickCity(name) {
+    const cur = this.state.qCities;
+    const next = cur.indexOf(name) >= 0 ? cur : cur.concat([name]);
+    this.setState({ qCities: next, q: '', cityHits: null, searching: false });
+    this.refetch();
+  }
+  starsOf(r) {
+    return [1, 2, 3, 4, 5].map(i => ({ w: (Math.max(0, Math.min(1, r - i + 1)) * 100).toFixed(0) + '%' }));
+  }
+  myRev(id) { return this.state.myReviews[id] || null; }
+  liveRating(p) {
+    const mine = this.myRev(p.id);
+    let sum = p.rating * p.reviewCount, n = p.reviewCount;
+    if (mine && !mine.queued) { sum += mine.stars; n += 1; }
+    return { rating: n ? sum / n : 0, count: n };
+  }
+  openDay(id) { this.setState({ route: 'day', dayId: id, revStars: 0, revNote: '' }); }
+  cityChips(p, matched) {
+    return p.cities.map(c => {
+      const a = this.accent(c), on = matched.indexOf(c) >= 0;
+      return { name: c, fg: on ? 'var(--color-surface)' : a.ink, bg: on ? a.solid : a.tint, bd: on ? a.solid : 'transparent' };
+    });
+  }
+
+  // The four Discover filters. Same pill + popover the Notebooks menu uses, so a
+  // filter reads as this app's own control rather than a browser select.
+  filterMenus() {
+    const s = this.state;
+    const defs = [
+      { key: 'fScore', label: 'Rating', idle: 'Any rating', opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
+      { key: 'fSeason', label: 'Season', idle: 'Any season', opts: ['Any season', 'Spring', 'Summer', 'Autumn', 'Winter'] },
+      { key: 'fBudget', label: 'Budget', idle: 'Any budget', opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
+      { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] }
+    ];
+    return defs.map(d => {
+      const cur = s[d.key], set = cur !== d.idle;
+      return {
+        open: s.fOpen === d.key,
+        setOpen: v => this.setState({ fOpen: v ? d.key : null }),
+        trigger: this.filterPill(d.key, set ? cur : d.label, set),
+        items: d.opts.map(o => ({
+          label: o, tick: o === cur ? '✓' : '', weight: o === cur ? 600 : 400,
+          bg: o === cur ? 'var(--color-brand-tint)' : 'transparent',
+          pick: () => { this.setState({ [d.key]: o, fOpen: null }); this.refetch(); }
+        }))
+      };
+    });
+  }
+  caret(color) {
+    return React.createElement('svg', {
+      width: 10, height: 10, viewBox: '0 0 10 6', fill: 'none', 'aria-hidden': 'true',
+      style: { flex: 'none', display: 'block' }
+    }, React.createElement('path', {
+      d: 'M1 1.5 5 5 9 1.5', stroke: color, strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round'
+    }));
+  }
+  slotTrigger(text) {
+    return React.createElement('button', {
+      key: 'slot' + text,
+      style: {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%',
+        height: 36, padding: '0 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+        fontWeight: 600, textAlign: 'left', borderRadius: 'var(--radius-sm, 8px)',
+        background: 'var(--color-surface)', border: '1px solid var(--color-border-input)', color: 'var(--color-ink)'
+      }
+    }, React.createElement('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text),
+      this.caret('var(--color-slate)'));
+  }
+  filterPill(key, text, set) {
+    return React.createElement('button', {
+      key: key + text,
+      style: {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 7, height: 34,
+        width: 132, padding: '0 12px', cursor: 'pointer',
+        fontFamily: 'inherit', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', borderRadius: 999,
+        background: set ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+        border: '1px solid ' + (set ? 'var(--color-brand)' : 'var(--color-border-strong)'),
+        color: set ? 'var(--color-brand-pressed)' : 'var(--color-ink)'
+      }
+    }, React.createElement('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, text),
+      this.caret(set ? 'var(--color-brand-pressed)' : 'var(--color-slate)'));
+  }
+
+  // Adding a saved day INSERTS a day: the trip gets longer and every day after the
+  // insert point slides one day later (N days for a multi-day Playbook). It never
+  // merges into an existing day, so there is no time-shift and no collision to warn about.
+  insertPlan(pb) {
+    const s = this.state, t = this.TRIPS[s.insTripId], len = t.days.length;
+    const n = pb.days || 1;
+    const after = Math.max(0, Math.min(len, +s.insDay || len)); // 0 = before Day 1
+    const slots = [{ value: '0', label: 'At the start, before Day 1' }].concat(
+      t.days.map((d, i) => {
+        const st = this.dayStamp(i, s.insTripId);
+        return { value: String(i + 1), label: 'After Day ' + (i + 1) + ' · ' + st.mon + ' ' + st.num + ' · ' + d[0] + (i === len - 1 ? ' (at the end)' : '') };
+      })
+    ).map(o => ({
+      value: o.value, label: o.label,
+      tick: +o.value === after ? '✓' : '', weight: +o.value === after ? 600 : 400,
+      bg: +o.value === after ? 'var(--color-brand-tint)' : 'transparent',
+      pick: () => this.setState({ insDay: o.value, insSlotOpen: false })
+    }));
+    const currentSlot = (slots.filter(o => +o.value === after)[0] || slots[slots.length - 1]).label;
+    const newNums = [];
+    for (let k = 0; k < n; k++) newNums.push(after + 1 + k);
+    const newStamp = this.dayStamp(after, s.insTripId);
+    const endStamp = this.dayStamp(len - 1 + n, s.insTripId);
+
+    const moved = [];
+    for (let i = after; i < len; i++) {
+      const wasSt = this.dayStamp(i, s.insTripId), nowSt = this.dayStamp(i + n, s.insTripId);
+      moved.push({
+        days: 'Day ' + (i + 1) + ' → Day ' + (i + 1 + n),
+        dates: wasSt.mon + ' ' + wasSt.num + ' → ' + nowSt.mon + ' ' + nowSt.num + ' · ' + t.days[i][0]
+      });
+    }
+    const dayWord = n === 1 ? 'day' : n + ' days';
+    return {
+      slots: slots, currentSlot: currentSlot,
+      lede: n === 1
+        ? 'This becomes a new day in the trip, with its own times kept as written.'
+        : 'This becomes ' + n + ' new days in the trip, with their times kept as written.',
+      newLabel: newNums.length === 1 ? 'New Day ' + newNums[0] + ' · ' + newStamp.mon + ' ' + newStamp.num
+        : 'New Days ' + newNums[0] + '–' + newNums[newNums.length - 1],
+      preview: pb.full.slice(0, 4).map(x => ({ t: x[0], n: x[1] })),
+      more: Math.max(0, pb.full.length - 4),
+      moves: moved.slice(0, 4),
+      movesMore: Math.max(0, moved.length - 4),
+      shiftNote: moved.length
+        ? 'The trip becomes ' + (len + n) + ' days and now ends ' + endStamp.mon + ' ' + endStamp.num + '. Everything from Day ' + (after + 1) + ' onward keeps its own stops and moves ' + (n === 1 ? 'one day' : n + ' days') + ' later — lodging and anything booked will need the new dates.'
+        : 'The trip becomes ' + (len + n) + ' days and now ends ' + endStamp.mon + ' ' + endStamp.num + '. No existing day changes.',
+      cta: 'Insert ' + dayWord,
+      done: pb.name + ' inserted as Day ' + newNums[0] + (n > 1 ? '–' + newNums[n - 1] : '') + ' · trip is now ' + (len + n) + ' days'
+    };
+  }
+
+  // One row per person who has shared a day, ranked by real-trip adds (the answer to
+  // "who is worth following"). Derived from the days themselves so it can never
+  // disagree with what Discover shows.
+  contributors() {
+    const by = {};
+    this.PLAYBOOKS.forEach(p => {
+      const a = p.author, k = a.name;
+      if (!by[k]) by[k] = { name: k, initials: a.initials, mine: !!p.mine, adds: 0, days: [], sum: 0, revs: 0, cities: {} };
+      const e = by[k], live = this.liveRating(p);
+      e.adds += p.adds; e.days.push(p);
+      if (live.count) { e.sum += live.rating * live.count; e.revs += live.count; }
+      p.cities.forEach(c => { e.cities[c] = (e.cities[c] || 0) + 1; });
+    });
+    return Object.keys(by).map(k => by[k])
+      .map(e => Object.assign(e, { rating: e.revs ? e.sum / e.revs : 0 }))
+      .sort((a, b) => b.adds - a.adds);
+  }
+  contributorOf(name) {
+    const all = this.contributors();
+    return all.filter(x => x.name === name)[0] || { days: [], adds: 0, revs: 0, rating: 0, cities: {} };
+  }
+  boardRows() {
+    return this.contributors().map((e, i) => ({
+      rank: i + 1, rankInk: i < 3 ? 'var(--color-brand)' : 'var(--color-slate)',
+      bg: e.mine ? 'var(--color-brand-tint)' : 'transparent',
+      initials: e.initials, name: e.name,
+      adds: this.nAdds(e.adds),
+      line: (function (nc) {
+        return e.days.length + (e.days.length === 1 ? ' day shared' : ' days shared')
+          + (e.revs ? ' · ' + e.rating.toFixed(1) + ' across ' + e.revs + (e.revs === 1 ? ' review' : ' reviews') : ' · no reviews yet')
+          + ' · ' + nc + (nc === 1 ? ' city' : ' cities');
+      })(Object.keys(e.cities).length),
+      open: () => this.setState({ route: 'profile', profileName: e.name, profileFrom: 'board' })
+    }));
+  }
+  profileView(name) {
+    const s = this.state, all = this.contributors();
+    const e = all.filter(x => x.name === name)[0] || all[0];
+    const rank = all.indexOf(e) + 1;
+    const back = s.profileFrom === 'board' ? 'board' : s.profileFrom === 'day' ? 'day' : 'playbooks';
+    const cities = Object.keys(e.cities).sort((a, b) => e.cities[b] - e.cities[a]);
+    return {
+      name: e.mine ? 'You' : e.name, initials: e.initials,
+      sub: (e.mine ? 'Your public days' : 'Shares days publicly') + ' · #' + rank + ' by trip adds',
+      backLabel: back === 'board' ? '← Who shares the most' : back === 'day' ? '← Back to the day' : '← Playbooks',
+      back: () => this.setState({ route: back === 'day' ? 'day' : back === 'board' ? 'board' : 'playbooks' }),
+      stats: [
+        { k: 'Added to trips', v: this.nAdds(e.adds) },
+        { k: 'Days shared', v: String(e.days.length) },
+        { k: 'Average rating', v: e.revs ? e.rating.toFixed(1) : '—' },
+        { k: 'Reviews received', v: String(e.revs) }
+      ],
+      cities: cities.slice(0, 8).map(c => Object.assign({
+        name: c, count: e.cities[c],
+        pick: () => { this.setState({ route: 'playbooks', qCities: [c], q: '', cityHits: null }); this.refetch(); }
+      }, this.accent(c))),
+      daysTitle: e.mine ? 'Days you share' : 'Days ' + e.name.split(' ')[0] + ' shares',
+      days: e.days.slice().sort((a, b) => b.adds - a.adds).map(p => {
+        const live = this.liveRating(p);
+        return {
+          name: p.name, cityChips: this.cityChips(p, []),
+          spanLine: (p.days > 1 ? p.days + ' days · ' : '') + p.stops + ' stops · ' + p.span,
+          rated: live.count > 0, unrated: live.count === 0,
+          stars: this.starsOf(live.rating), ratingLabel: live.rating.toFixed(1), reviewLabel: '(' + live.count + ')',
+          footMeta: 'added ' + this.nAdds(p.adds) + '× · $' + p.budget + ' each',
+          open: () => this.openDay(p.id),
+          add: ev => { if (ev && ev.stopPropagation) ev.stopPropagation(); this.openIns(undefined, this.PLAYBOOKS.indexOf(p)); }
+        };
+      })
+    };
+  }
+
+  seasonOf(m) {
+    const i = this.MONTHS.indexOf(m);
+    return i < 0 ? '' : ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Summer', 'Summer', 'Autumn', 'Autumn', 'Autumn', 'Winter'][i];
+  }
+  nAdds(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n); }
+
+  discover() {
+    const s = this.state, qc = s.qCities.map(c => c.toLowerCase());
+    const scored = this.PLAYBOOKS.map(p => {
+      const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
+      return { p: p, matched: matched, hits: matched.length, live: this.liveRating(p) };
+    });
+    let list = qc.length ? scored.filter(x => x.hits > 0) : scored.slice();
+    const inQuery = list.slice();
+
+    if (s.pbScope === 'mine') list = list.filter(x => x.p.mine);
+    if (s.pbScope === 'saved') list = list.filter(x => !!s.saved[x.p.id]);
+    const min = s.fScore === '4.5 and up' ? 4.5 : s.fScore === '4.0 and up' ? 4 : s.fScore === '3.5 and up' ? 3.5 : 0;
+    if (min) list = list.filter(x => x.live.count > 0 && x.live.rating >= min);
+    if (s.fSeason !== 'Any season') list = list.filter(x => this.seasonOf(x.p.month) === s.fSeason);
+    if (s.fBudget === 'Under $50 each') list = list.filter(x => x.p.budget < 50);
+    if (s.fBudget === '$50 to $150 each') list = list.filter(x => x.p.budget >= 50 && x.p.budget <= 150);
+    if (s.fBudget === 'Over $150 each') list = list.filter(x => x.p.budget > 150);
+
+    const sort = s.fSort;
+    list.sort((a, b) => {
+      if (a.hits !== b.hits) return b.hits - a.hits;
+      if (sort === 'Highest rated') return b.live.rating - a.live.rating || b.live.count - a.live.count;
+      if (sort === 'Most reviewed') return b.live.count - a.live.count;
+      if (sort === 'Newest') return b.p.rank - a.p.rank;
+      return b.p.adds - a.p.adds;
+    });
+
+    const sibCount = {};
+    inQuery.forEach(x => x.p.cities.forEach(c => {
+      if (qc.indexOf(c.toLowerCase()) >= 0) return;
+      sibCount[c] = (sibCount[c] || 0) + 1;
+    }));
+    const siblings = qc.length ? Object.keys(sibCount).sort((a, b) => sibCount[b] - sibCount[a]).slice(0, 5)
+      .map(c => Object.assign({ name: c, count: sibCount[c] + (sibCount[c] === 1 ? ' day' : ' days'), pick: () => this.pickCity(c) }, this.accent(c))) : [];
+
+    const filtersOn = s.pbScope !== 'all' || s.fScore !== 'Any rating' || s.fSeason !== 'Any season' || s.fBudget !== 'Any budget' || s.fSort !== 'Most added';
+    const cityList = s.qCities.length === 1 ? s.qCities[0] : s.qCities.slice(0, -1).join(', ') + ' or ' + s.qCities[s.qCities.length - 1];
+    const n = list.length;
+    const line = qc.length
+      ? n + (n === 1 ? ' day that includes ' : ' days that include ') + cityList
+      : n + ' shared days, most added first';
+
+    return {
+      days: list.map(x => {
+        const p = x.p, live = x.live, a = this.accent(p.city);
+        const others = p.cities.filter(c => x.matched.indexOf(c) < 0);
+        return {
+          name: p.name, tint: a.tint, solid: a.solid,
+          cityChips: this.cityChips(p, x.matched),
+          matchNote: x.hits ? (x.matched.join(' + ') + ' matched' + (others.length ? ' · also ' + others.join(', ') : '')) : '',
+          yours: !!p.mine,
+          spanLine: (p.days > 1 ? p.days + ' days · ' : '') + p.stops + ' stops · ' + p.span,
+          rated: live.count > 0, unrated: live.count === 0,
+          stars: this.starsOf(live.rating), ratingLabel: live.rating.toFixed(1),
+          reviewLabel: '(' + live.count + ')',
+          shape: this.shapeOf(p.stops, p.days), preview: p.preview,
+          footMeta: (p.mine ? 'Yours' : 'by ' + p.author.name) + ' · added ' + this.nAdds(p.adds) + '× · $' + p.budget + ' each',
+          open: () => this.openDay(p.id),
+          add: e => { if (e && e.stopPropagation) e.stopPropagation(); this.openIns(undefined, this.PLAYBOOKS.indexOf(p)); }
+        };
+      }),
+      siblings: siblings, line: line, filtersOn: filtersOn,
+      emptyTitle: qc.length ? 'Nothing shared for that combination yet' : 'No days match these filters',
+      emptyBody: qc.length
+        ? 'No day passes through ' + cityList + ' with these filters. Loosen the rating or the season — most days were only run at one time of year.'
+        : 'Every shared day is filtered out. The season filter is usually the culprit.'
+    };
+  }
+
+  dayView(id) {
+    const s = this.state;
+    const p = this.PLAYBOOKS.filter(x => x.id === id)[0];
+    if (!p) return { author: {}, stops: [], reviews: [], tags: [], cityChips: [], bars: [], facts: [], stars: [], starInput: [] };
+    const live = this.liveRating(p), mine = this.myRev(p.id), multi = p.cities.length > 1;
+    const qc = s.qCities.map(c => c.toLowerCase());
+    const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
+
+    const shares = p.rating >= 4.7 ? [0.80, 0.15, 0.03, 0.01, 0.01]
+      : p.rating >= 4.3 ? [0.60, 0.28, 0.08, 0.03, 0.01]
+      : p.rating >= 4.0 ? [0.45, 0.33, 0.14, 0.05, 0.03]
+      : [0.30, 0.30, 0.25, 0.10, 0.05];
+    let counts = shares.map(w => Math.round(w * p.reviewCount));
+    const drift = p.reviewCount - counts.reduce((a, b) => a + b, 0);
+    counts[0] = Math.max(0, counts[0] + drift);
+    if (mine && !mine.queued) counts[5 - mine.stars] += 1;
+    const top = Math.max.apply(null, counts.concat([1]));
+
+    const list = [];
+    if (mine) list.push({
+      who: 'You', initials: 'SK', stars: this.starsOf(mine.stars), note: mine.note,
+      when: mine.queued ? 'not sent' : 'just now', mine: true,
+      badge: mine.queued ? 'Queued' : 'Yours', badgeVariant: mine.queued ? 'warning' : 'brand'
+    });
+    p.reviews.forEach(r => list.push({
+      who: r.who, initials: r.initials, stars: this.starsOf(r.stars), note: r.note, when: r.when, mine: false, badge: '', badgeVariant: 'neutral'
+    }));
+
+    const words = ['', 'Would not', 'Mixed', 'Solid', 'Very good', 'Would do again'];
+    const conflict = !!s.saved[p.id] && p.id === 'pb-naoshima';
+
+    return {
+      id: p.id, name: p.name, blurb: p.blurb, tags: p.tags,
+      backSuffix: s.qCities.length ? ' · ' + s.qCities.join(', ') : '',
+      cityChips: this.cityChips(p, matched),
+      meta: (p.days > 1 ? p.days + ' days · ' : '') + p.stops + ' stops · ' + p.span + ' · run in ' + p.month,
+      author: {
+        name: p.mine ? 'You' : p.author.name, initials: p.author.initials,
+        cta: p.mine ? 'Your days →' : 'Their days →',
+        open: () => this.setState({ route: 'profile', profileName: p.author.name, profileFrom: 'day' }),
+        line: (function (c) {
+          const dn = c.days.length + (c.days.length === 1 ? ' day shared' : ' days shared');
+          return p.mine ? dn + ' · added ' + this.nAdds(c.adds) + ' times by other people'
+            : dn + ' · added ' + this.nAdds(c.adds) + ' times · this one ' + p.shared;
+        }).call(this, this.contributorOf(p.author.name))
+      },
+      stops: p.full.map(x => Object.assign({ t: x[0], n: x[1], city: x[2], note: x[3], showCity: multi }, this.accent(x[2]))),
+      rated: live.count > 0, unrated: live.count === 0,
+      stars: this.starsOf(live.rating), ratingLabel: live.rating.toFixed(1),
+      reviewLabel: live.count + (live.count === 1 ? ' review' : ' reviews'),
+      reviewMeta: live.count ? live.count + ' from people who added this day' : 'nothing yet',
+      bars: [5, 4, 3, 2, 1].map((nStar, i) => ({ n: nStar, c: counts[i], w: (counts[i] / top * 100).toFixed(0) + '%' })),
+      facts: [
+        { k: 'Stops', v: p.stops + (p.days > 1 ? ' over ' + p.days + ' days' : '') },
+        { k: 'Window', v: p.span },
+        { k: 'Budget each', v: '$' + p.budget },
+        { k: 'Run in', v: this.seasonOf(p.month) + ' · ' + p.month },
+        { k: 'Added to trips', v: this.nAdds(p.adds) + '×' }
+      ],
+      conflict: conflict,
+      conflictText: 'Mei Tanaka changed this day two days ago — the ferry time and two stops. The copy already in your Japan trip is untouched.',
+      hasReviews: list.length > 0, noReviews: list.length === 0, reviews: list,
+      mineDone: !!mine, canReview: !mine,
+      mineDoneText: mine ? (mine.queued ? 'Your ' + mine.stars + '-star review is waiting to send.' : 'You rated this ' + mine.stars + ' stars.') : '',
+      undoReview: () => {
+        const next = Object.assign({}, s.myReviews); delete next[p.id];
+        this.setState({ myReviews: next, revStars: mine ? mine.stars : 0, revNote: mine ? mine.note : '' });
+      },
+      starInput: [1, 2, 3, 4, 5].map(v => ({
+        v: v, label: v + ' stars', color: v <= s.revStars ? 'var(--color-warning)' : 'var(--color-hairline)',
+        set: () => this.setState({ revStars: v })
+      })),
+      starWord: s.revStars ? words[s.revStars] : 'Tap a star',
+      note: s.revNote, setNote: e => this.setState({ revNote: e.target.value.slice(0, 140) }),
+      noteCount: (140 - String(s.revNote).length) + ' left',
+      postDisabled: !s.revStars || s.revBusy,
+      postLabel: s.revBusy ? 'Posting…' : s.syncOff ? 'Hold until online' : 'Post',
+      post: () => {
+        if (!s.revStars) return;
+        const rec = { stars: s.revStars, note: String(s.revNote).trim(), queued: !!s.syncOff };
+        if (s.syncOff) {
+          this.setState({ myReviews: Object.assign({}, s.myReviews, { [p.id]: rec }), revStars: 0, revNote: '' });
+          this.flash('Held on this device — it posts when you reconnect');
+          return;
+        }
+        this.setState({ revBusy: true });
+        clearTimeout(this._rv);
+        this._rv = setTimeout(() => {
+          this.setState({ revBusy: false, myReviews: Object.assign({}, this.state.myReviews, { [p.id]: rec }), revStars: 0, revNote: '' });
+          this.flash('Posted — this day is now rated ' + this.liveRating(p).rating.toFixed(1));
+        }, 620);
+      },
+      add: () => this.openIns(undefined, this.PLAYBOOKS.indexOf(p)),
+      save: () => {
+        const next = Object.assign({}, s.saved);
+        if (next[p.id]) { delete next[p.id]; this.setState({ saved: next }); this.flash('Removed from your Playbooks'); }
+        else { next[p.id] = 1; this.setState({ saved: next }); this.flash('Saved — it is in your Playbooks under Saved'); }
+      },
+      saveLabel: s.saved[p.id] ? 'Saved to your Playbooks' : 'Save to your Playbooks'
+    };
+  }
 
   toMin(s) { const p = s.split(':'); return (+p[0]) * 60 + (+p[1]); }
   fmt(t) {
@@ -3693,7 +4722,7 @@ class Component extends DCLogic {
     this.setState({ addOpen: true, addTitle: '', addDayV: String(i + 1), addStart: time, addDur: '1 hour', addCost: '', addTags: [], addKey: '' });
   }
   openIns(dayIdx, pbIdx) {
-    this.setState({ insOpen: true, insTripId: this.state.tripId, insDay: String((dayIdx === undefined ? this.trip().days.length - 1 : dayIdx) + 1), insPbIdx: pbIdx === undefined ? this.state.insPbIdx : pbIdx });
+    this.setState({ insOpen: true, insTripId: this.state.tripId, insDay: String(dayIdx === undefined ? this.trip().days.length : dayIdx + 1), insPbIdx: pbIdx === undefined ? this.state.insPbIdx : pbIdx });
   }
 
   // Tags are many-per-stop and come from a known list, never freeform, so each
@@ -4084,6 +5113,7 @@ class Component extends DCLogic {
     const sugs = this.suggestionData().filter(x => s.dismissed.indexOf(x.id) < 0);
     const focusDay = days[s.focus];
     const insPb = this.PLAYBOOKS[s.insPbIdx];
+    const ins = this.insertPlan(insPb);
     const mapData = route === 'trip' ? this.mapTrip() : [];
     const mapFocus = mapData[Math.min(s.focus, mapData.length - 1)];
     // the map is an imperative canvas beside the tree — reconcile it after every render
@@ -4162,8 +5192,10 @@ class Component extends DCLogic {
     const nights = Math.max(1, Math.round((new Date(s.end) - new Date(s.start)) / 86400000));
     const sp = this.spend();
 
+    const dv = this.discover();
+    const dayView = this.dayView(s.dayId);
     return {
-      isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks',
+      isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks', isDay: route === 'day', isBoard: route === 'board', isProfile: route === 'profile',
 
       acctOpen: !!s.acctOpen,
       setAcctOpen: v => this.setState({ acctOpen: v }),
@@ -4319,6 +5351,10 @@ class Component extends DCLogic {
 
       goHome: () => this.setState({ route: 'home' }),
       goPlaybooks: () => this.setState({ route: 'playbooks', ntOpen: false }),
+      backToDiscover: () => this.setState({ route: 'playbooks' }),
+      goBoard: () => this.setState({ route: 'board' }),
+      board: this.boardRows(),
+      prof: this.profileView(s.profileName),
       openJapan: () => this.setState({ route: 'trip', tripId: 'japan', focus: 0 }),
       copyLink: () => this.flash('Link copied — anyone with it can view'),
       waitlist: () => this.flash("You're on the list"),
@@ -4336,7 +5372,7 @@ class Component extends DCLogic {
         city: p.city, name: p.name,
         span: (p.days > 1 ? p.days + ' days · ' : '1 day · ') + p.stops + ' stops',
         window: p.span, shape: this.shapeOf(p.stops, p.days),
-        open: () => this.setState({ route: 'playbooks' })
+        open: () => this.openDay(p.id)
       }, this.accent(p.city))),
 
       trip: { name: trip.name, state: trip.state, dates: trip.dates, length: trip.days.length + ' days', stops: trip.days.reduce((a, d) => a + d[4].length, 0) + ' stops', crewLabel: (s.crewBy[s.tripId] || []).length + ' travelers' },
@@ -4407,7 +5443,7 @@ class Component extends DCLogic {
       viewOptions: [{ value: 'timeline', label: 'Timeline' }, { value: 'columns', label: 'Day columns' }, { value: 'calendar', label: 'Calendar' }, { value: 'map', label: 'Map' }],
       isTimeline: s.view === 'timeline', isColumns: s.view === 'columns', isCalendar: s.view === 'calendar', isMap: s.view === 'map',
       showChips: s.view !== 'map',
-      isOverview: route === 'home' || route === 'playbooks',
+      isOverview: route === 'home' || route === 'playbooks' || route === 'day' || route === 'board' || route === 'profile',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
 
       isNotebook: route === 'notebook', isDoc: route === 'doc',
@@ -4625,7 +5661,10 @@ class Component extends DCLogic {
         ? 'Looking at ' + (dayScope && focusDay ? focusDay.label + ' · ' + focusDay.city : trip.name)
         : route === 'notebook' ? 'Looking at the Notebook for ' + trip.name
         : route === 'doc' ? 'Looking at “' + this.doc().title + '”'
-        : route === 'playbooks' ? 'Looking at your Playbook library' : 'Looking at all three of your trips',
+        : route === 'playbooks' ? 'Looking at shared Playbooks'
+        : route === 'day' ? 'Looking at a shared day'
+        : route === 'board' ? 'Looking at who shares the most'
+        : route === 'profile' ? 'Looking at someone who shares days' : 'Looking at all three of your trips',
       chat: s.chat, ask: s.ask, setAsk: e => this.setState({ ask: e.target.value }),
       send: () => {
         if (!s.ask.trim()) return;
@@ -4716,33 +5755,60 @@ class Component extends DCLogic {
       },
 
       insOpen: s.insOpen, setInsOpen: v => this.setState({ insOpen: v }), closeIns: () => this.setState({ insOpen: false }),
-      insName: insPb.name + ' · ' + insPb.city + ' · ' + (insPb.days > 1 ? insPb.days + ' days, ' : '') + insPb.stops + ' stops',
-      insSpanNote: insPb.days > 1
-        ? 'This one runs ' + insPb.days + ' days. It fills the day you pick and the ' + (insPb.days - 1) + ' after it.'
-        : 'A single day. It drops onto the one day you pick.',
-      insPbV: String(s.insPbIdx), setInsPb: e => this.setState({ insPbIdx: +e.target.value }),
-      pbOptions: this.PLAYBOOKS.map((p, i) => ({ value: String(i), label: p.name + ' · ' + p.city + ' · ' + p.stops + ' stops' })),
-      insTrip: s.insTripId, setInsTrip: e => this.setState({ insTripId: e.target.value, insDay: '1' }),
-      insDay: s.insDay, setInsDay: e => this.setState({ insDay: e.target.value }),
-      insStart: s.insStart, setInsStart: e => this.setState({ insStart: e.target.value }),
-      insWarn: 'Day ' + s.insDay + ' of ' + this.TRIPS[s.insTripId].name.split(':')[0] + ' already has stops. They stay put — the Playbook fills the gaps and anything that collides is left for you to resolve.',
-      insPreview: insPb.preview.map((p, i) => ({ t: p.t + '  →  ' + this.fmt(this.shiftRaw(insPb.rawTimes[i], s.insStart, insPb.rawTimes[0])), n: p.n })),
-      doInsert: () => { this.setState({ insOpen: false, route: 'trip', tripId: s.insTripId }); this.flash(insPb.name + ' added to Day ' + s.insDay); },
+      insName: insPb.name + ' · ' + insPb.cities.join(' → ') + ' · ' + (insPb.days > 1 ? insPb.days + ' days, ' : '') + insPb.stops + ' stops',
+      insLede: ins.lede,
+      insTrip: s.insTripId,
+      setInsTrip: v => this.setState({ insTripId: v, insDay: String(this.TRIPS[v].days.length) }),
+      insTripOpts: [{ value: 'japan', label: 'Japan · Sep – Oct' }, { value: 'nola', label: 'New Orleans · Sep' }],
+      insSlotOpen: !!s.insSlotOpen, setInsSlotOpen: v => this.setState({ insSlotOpen: v }),
+      insSlotTrigger: this.slotTrigger(ins.currentSlot),
+      insSlots: ins.slots,
+      insShiftNote: ins.shiftNote,
+      insNewLabel: ins.newLabel,
+      insPreview: ins.preview, insMore: ins.more > 0, insMoreLabel: ins.more + ' more stops on this day',
+      insMoves: ins.moves, insMovesMore: ins.movesMore > 0,
+      insMovesMoreLabel: 'and ' + ins.movesMore + ' more days, each one day later',
+      insNoMoves: ins.moves.length === 0,
+      insCta: ins.cta,
+      doInsert: () => { this.setState({ insOpen: false, route: 'trip', tripId: s.insTripId }); this.flash(ins.done); },
 
-      pbFilter: s.pbFilter, setPbFilter: v => this.setState({ pbFilter: v }),
-      pbFilters: [{ value: 'all', label: 'All' }, { value: 'mine', label: 'Yours' }, { value: 'shared', label: 'Shared' }, { value: 'links', label: 'From links' }],
-      pbCity: s.pbCity, setPbCity: e => this.setState({ pbCity: e.target.value }),
-      playbooks: this.PLAYBOOKS
-        .filter(p => s.pbCity === 'All cities' || p.city === s.pbCity)
-        .filter(p => s.pbFilter === 'all' || (s.pbFilter === 'mine' && p.origin === 'Yours') || (s.pbFilter === 'shared' && p.origin === 'From Priya') || (s.pbFilter === 'links' && p.origin === 'From a link'))
-        .map(p => Object.assign({}, p, this.accent(p.city), {
-          spanLine: (p.days > 1 ? p.days + ' days · ' : '') + p.stops + ' stops · ' + p.span,
-          shape: this.shapeOf(p.stops, p.days),
-          shownTags: p.tags.slice(0, 2).concat(p.tags.length > 2 ? ['+' + (p.tags.length - 2) + ' more'] : []),
-          rest: p.stops > 3 ? 'See all ' + p.stops + ' stops' + (p.days > 1 ? ' across ' + p.days + ' days' : '') : '',
-          meta: p.from + ' · ' + this.uses(p.used),
-          insert: () => this.setState({ insOpen: true, insPbIdx: this.PLAYBOOKS.indexOf(p) })
-        })),
+      // ---- Discover: server-side city search ----
+      q: s.q, setQ: e => this.searchCities(e.target.value), hasQ: !!String(s.q).trim(),
+      searchKey: e => {
+        if (e.key !== 'Enter') return;
+        const h = Array.isArray(s.cityHits) ? s.cityHits : [];
+        if (h.length) this.pickCity(h[0].name);
+      },
+      retrySearch: () => { this.setState({ syncOff: false }); this.searchCities(s.q); },
+      hitsLoading: !!s.searching,
+      hitsError: s.cityHits === 'error',
+      hitsEmpty: Array.isArray(s.cityHits) && s.cityHits.length === 0,
+      hits: (Array.isArray(s.cityHits) ? s.cityHits : []).map(c => ({
+        name: c.name, region: c.region, count: c.days + ' days', pick: () => this.pickCity(c.name)
+      })),
+      hasCities: s.qCities.length > 0,
+      qChips: s.qCities.map(c => Object.assign({
+        name: c, removeLabel: 'Remove ' + c,
+        remove: () => { this.setState({ qCities: s.qCities.filter(x => x !== c) }); this.refetch(); }
+      }, this.accent(c))),
+      clearCities: () => { this.setState({ qCities: [], q: '', cityHits: null }); this.refetch(); },
+      siblings: dv.siblings, hasSiblings: dv.siblings.length > 0,
+
+      scope: s.pbScope, setScope: v => { this.setState({ pbScope: v }); this.refetch(); },
+      scopes: [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Yours' }, { value: 'saved', label: 'Saved' }],
+      pbFilterMenus: this.filterMenus(),
+      filtersOn: dv.filtersOn,
+      clearFilters: () => { this.setState({ pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added' }); this.refetch(); },
+
+      resultLine: dv.line,
+      loadingDays: !!s.daysLoading,
+      skeletons: [{}, {}, {}],
+      showDays: !s.daysLoading && dv.days.length > 0,
+      noResults: !s.daysLoading && dv.days.length === 0,
+      pbResults: dv.days,
+      emptyTitle: dv.emptyTitle, emptyBody: dv.emptyBody,
+      offline: !!s.syncOff,
+      day: dayView,
       toast: s.toast
     };
   }

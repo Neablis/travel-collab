@@ -215,3 +215,29 @@ here", the cheap answer is almost always empirical.
   `Document-Policy: js-profiling` on both the global route and the
   `/s|invite` route, with the CSP and the per-route `Referrer-Policy`
   unchanged.
+
+## Amendment — 2026-08-30: identity is now attached, deliberately, one field at a time
+
+`Sentry.setUser({ id, email })` is called from the `session` callback in
+`apps/web/src/lib/authConfig.ts` — the one seam every `auth()` call passes
+through in both the edge and Node runtimes, so it fires wherever a session
+resolves without a call at every route.
+
+This was prompted by a concrete gap: with no password gate and open Google
+sign-up, there was no way to see which accounts had actually signed up short
+of querying Postgres directly, and every Error, Transaction and Session
+Replay in Sentry was anonymous by construction. Mitchell asked for it
+explicitly (2026-08-30), aware this reverses the "no identity in Sentry"
+default `sendDefaultPii: false` establishes above.
+
+**This does not contradict §5's cardinality rule** ("`tripId` and `userId`
+are never attributes"): that rule is about metric *attributes*, which are
+series and blow up in cardinality. `Sentry.setUser` attaches to the
+Error/Transaction/Replay's top-level `user` field, not to a span or metric
+attribute — `telemetry.int.test.ts`'s "no unbounded identifier anywhere in
+the payload" assertion still passes, because that test mocks `@/server/auth`
+directly and never runs the real `session` callback.
+
+`sendDefaultPii` itself stays `false`. The distinction this ADR draws — an
+auto-attached default nobody decided to send, versus a field chosen on
+purpose — is unchanged; user identity has simply joined the second category.

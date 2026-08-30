@@ -2,15 +2,13 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-**Reconciled against the tree 2026-08-28** (M18 PR 1, M11 links 1-6, M15's gate) —
-see the note under §5.
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
 in full. Two files are authoritative on the build side and are not restated here:
-`apps/web/src/lib/preview-registry.ts` (**16** shelled-but-unwired surfaces as of
-2026-08-28, each with a milestone) and `docs/known-issues.md` (KI-nn).
-Preview-wrapped UI is *designed and shelled, not missing* — it is not a design gap.
+`apps/web/src/lib/preview-registry.ts` (18 shelled-but-unwired surfaces, each with a
+milestone) and `docs/known-issues.md` (KI-nn). Preview-wrapped UI is *designed and
+shelled, not missing* — it is not a design gap.
 
 ---
 
@@ -18,21 +16,20 @@ Preview-wrapped UI is *designed and shelled, not missing* — it is not a design
 
 | # | Thing | Code | Design | Call |
 |---|---|---|---|---|
+| **D1** | Product name | `AppHeader` says **Trip Planner**; `metadata.title` is `travel-collab` | **Caesura** | Design wins. Still unchanged in code — the oldest open item on this list. |
+| **D2** | Unauthenticated home | `app/page.tsx` renders a bare heading + a link to NextAuth's default page | Full marketing landing page, custom sign-in / sign-up | Design wins. **Rewritten this turn — see §2.** |
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins; design should add it back or the build should drop it. Only survivor of the old D5 list. |
 | **D4** | New-trip "roughly when?" chips | `CreateTrip` (`contracts/src/trip.ts`) carries **name only** | First-run screen offers date-range chips | Shipped as a Preview-wrapped shell with a dashed border reading "needs a `CreateTrip` field". Contract change, or delete. |
 | **D6** | "Next trip" | `TripSummary` has no dates, so `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown derived from `TODAY` / `NEXT_TRIP_START` | **= their KI-34, still open**, and worse than first written: with nothing to sort by, the hero can surface the *wrong trip*, not just the wrong date. Countdown is honest in design and unbuildable until the field lands. |
+| **D9** | Playbooks scope | `playbooks-route` shell, private days only | Public search, reviews, ratings, leaderboard, profiles (§2b) | Design is far ahead. Needs `cities[]`, a city search endpoint and a reviews table before it is buildable. |
+| **D8** | Landing page has no route | nothing — the unauthenticated branch is four lines | A full screen with a rotating hero and three feature blocks | New with §2. Needs a real marketing route, not a conditional inside `page.tsx`. |
 
-D1, D2, D5, D7 and D8 are closed (§5).
+D5 and D7 are closed (§5).
 
-## 2. The landing page — designed here, shipped in M15
+## 2. New this turn — the landing page
 
-**Built.** M15 Front door closed its gate 2026-08-26 (PR #56):
-`app/(front)/welcome/page.tsx` → `components/front/LandingScreen.tsx`, with
-`/signin` and `/signup` replacing NextAuth's default page and `/` redirecting
-server-side. Kept below because the constraints are what a *re-design* of this
-surface has to honour, not because anything here is outstanding.
-
-What the build carries:
+`startScreen: landing` is a complete surface with **no counterpart in code at all**.
+What a build would have to carry:
 
 - **Rotating hero.** Three views of a Japan trip — Day 5 Notebook, Day 6 Map, Day 7
   Timeline — on a 10s cycle. Clicking a day pill jumps and restarts the timer.
@@ -49,13 +46,11 @@ What the build carries:
   card". The only footnote is **Early access**. If marketing copy re-enters, it should
   not re-enter through these claims.
 
-**It was deliberately ahead of the build when designed, and partly still is.** Two blocks
-show functionality that does not fully exist: the Notebook block shows prose with live
-macro values (SPEC §7, which `packages/pages/src/templates.ts` contradicts) and the
-Playbooks block shows a shareable, rateable day (`playbooks-route` and `insert-playbook`
-are still Preview shells; `add-saved-day` was wired by M11 link 6). The peek CTAs
-themselves are real links to `/s/featured` — which dead-ends until someone seeds the
-share it points at (**KI-61**).
+**It is buildable today** — static fixture, no dependency on anything in §3 or §4, and
+**deliberately ahead of the build**. Two blocks show functionality that does not fully
+exist yet: the Notebook block shows prose with live macro values (SPEC §7, which
+`packages/pages/src/templates.ts` contradicts) and the Playbooks block shows a shareable,
+rateable day (`playbooks-route`, `insert-playbook`, `add-saved-day` are Preview shells).
 
 **That is the intent, not drift.** A landing page states where the product is going; it
 does not wait for the last shell to be wired. Do not file these as blockers and do not
@@ -66,30 +61,84 @@ footnote that covers the rest.
 Design-file note: decorative SVG layers in the hero are `pointer-events: none` so the
 day pills stay clickable. Same trap will exist in any real implementation.
 
+## 2b. New this turn — Playbooks becomes a public library
+
+The Playbooks route was a private grid with a city dropdown and a "coming soon" card.
+It is now a **discovery surface over other people's days**, and there is a second route.
+Nothing here exists in code; `playbooks-route`, `insert-playbook` and `add-saved-day`
+were already Preview shells, and this widens what they owe.
+
+**Playbooks (route `playbooks`)**
+- **City search is server-side.** Debounced input → a 30-city index with region and a
+  day count, ~240–440 ms simulated latency, and four real states: loading spinner,
+  results, "no city matches", and a failure state wired to `syncOff` with **Retry**.
+  The old `<option>` city list is gone and should not come back — the design now asserts
+  a `GET /cities?q=` style endpoint that does not exist.
+- **A day matches on *any* city it contains.** Days carry `cities: string[]`; a query for
+  Kyoto returns the Uji day, with the matched city filled and the rest outlined, plus a
+  per-card line ("Kyoto matched · also Uji"). Ranking is matched-city count first, then
+  the chosen sort. **There is no multi-city field in the contract** — this is the largest
+  new blocker on the list, bigger than the missing `tags`.
+- **Sibling chips.** Cities that appear in the current result set but not in the query,
+  with counts, one tap to add. Empty query shows a "busy right now" city row instead.
+- **Filters, four only:** rating floor, month it was run, budget per person, and sort
+  (most added / highest rated / most reviewed / newest). `Everyone / Yours / Saved` is a
+  scope segment — **your own library is a filter on this page, not a second page.**
+- States: skeleton grid while fetching, an `EmptyState` with *Drop the filters* /
+  *Search everywhere*, and an offline banner saying ratings are stale.
+
+**Shared day (route `day`, new)**
+Full stop list with per-stop notes and city chips, author strip (name, days shared, how
+often their days were added), sticky rail with the rating, a 5→1 histogram, the facts
+(stops, window, budget each, month, adds) and **Add to a trip** → the existing insert
+dialog. Reviews are **stars plus one optional line capped at 140 characters** — anyone
+signed in, no gate, and posting recomputes the average live. Empty ("nobody has rated
+this yet"), offline (held on device, badged *Queued*) and conflict ("Mei changed this day
+two days ago") are all present.
+
+**Leaderboard (route `board`) and public profiles (route `profile`), both new.**
+The author strip on a shared day is now a link into the profile. Nothing here exists in code.
+- **Leaderboard ranks on real-trip adds only** — not ratings, not post volume. Copy states
+  the rule out loud ("an add only counts once per trip, and only after the trip has dates;
+  copying your own day into your own trip does not count") because that rule is the whole
+  credibility of the ranking, and a build that counts raw inserts will produce a different
+  and gameable order. Your own row is tinted and badged rather than pinned to the top.
+- **Profiles are derived, never authored.** Every number on the page (adds, days shared,
+  average rating, reviews received, cities known) is computed from that person's days, so
+  a profile can't disagree with Discover. There is no bio, no follow, no avatar upload —
+  a profile answers "is this person worth taking a day from", nothing else.
+- The "Knows" city chips run a Discover search scoped to that city, so a profile is a way
+  into the library rather than a dead end.
+- Back links are contextual: the profile returns to wherever you came from (day, board or
+  Discover), because the same page is reachable three ways.
+- **Not in the top bar.** The leaderboard is trip-independent but it is not account scope,
+  so it is entered from Discover ("Who shares the most") per rule 1 in CLAUDE.md.
+- Offline: the board shows a stale-ranking banner. There is no empty state, because the
+  board cannot be empty while any day is shared.
+
+**What a build needs before any of this is real:** `cities: string[]` per playbook, a
+city search endpoint, public visibility on a day, a reviews table (author, stars, ≤140
+char note, created), denormalised `adds` / `rating` / `reviewCount` counters, and — for the
+board — an adds ledger keyed by (day, trip) so an add can be counted once and only for a
+dated trip. A public user record is NOT needed: profiles are derived from days. Until
+the reviews table exists, every rating on this surface is fixture data.
+
 ## 3. Designed, shelled in code behind `<Preview>`
 
-**Read `apps/web/src/lib/preview-registry.ts`, not a copy of it here.** This section
-used to restate the list and had drifted five entries out of date within two weeks —
-M11 links 3, 4 and 6 wired up `trip-invites`, `share-button`, `add-saved-day`,
-`keep-day-flag` and `keep-day-dialog`, and `assistant-suggestions`,
-`home-worth-attention` and `home-decisions` were deleted rather than left shelved.
-The registry carries a milestone and a one-line reason per entry and a sync test keeps
-it in lockstep with actual `<Preview id>` usage, which is exactly what a second copy
-cannot do.
+From the registry, unchanged this sync. **Blocked on a missing field:**
+`rack-provenance` (who parked a stop, which day it came from), `cost-estimate-state`
+(confirmed vs estimate), `budget-breakdown` (Booked/Holds/Travel/Other),
+`trip-invites` (`TripMember.role` is the literal `"owner"`), `map-legend-modes`
+(transport mode per leg).
 
-Sixteen entries as of 2026-08-28, in two groups the registry's own `wiredUpBy` text
-distinguishes: those blocked on a **missing field** (`rack-provenance`,
-`cost-estimate-state`, `budget-breakdown`, `map-legend-modes`, `add-stop-who`,
-`wizard-destination-chips`) and those blocked on a **feature** (`home-playbooks-strip`,
-`assistant-quick-asks`, `timeline-ghost`, `playbooks-route`, `insert-playbook`,
-`add-stop-suggestions`, `wizard-playbook-panel`, `wizard-longer-chip`,
-`wizard-pace-tags`, `wizard-assistant-draft`).
+**Blocked on a feature, not a field:** `home-worth-attention`, `home-decisions`,
+`home-playbooks-strip`, `assistant-suggestions`, `assistant-quick-asks`,
+`timeline-ghost`, `keep-day-flag`, `keep-day-dialog`, `playbooks-route`,
+`insert-playbook`, `share-button`, `add-saved-day`.
 
-**The `tags` field this section used to call missing now exists.** M18's contract PR
-(2026-08-27, PR #63) shipped `ActivityTag` alongside `ActivityKind`, so tag chips and
-dim-in-place filtering are unblocked. It ships **four** tags where the handoff designs
-six — `considering` and `travel` restate `kind: idea`/`transit` — a settled delta, not
-drift: **KI-52**.
+Add to that list, from KI-47: **there is no `tags` field**, which blocks the tag chips
+and dim-in-place filtering on five designed surfaces — including the phone's filter
+chips.
 
 ## 4. Real in code, absent from design
 
@@ -111,10 +160,6 @@ bullet is struck permanently — `ItineraryLens`, `DailyOverviewLens` and
 
 ## 5. Closed — kept as one line each
 
-- **D1 rename to Caesura.** Shipped in M10 Phase 8b (2026-08-24). `SITE_NAME` is
-  `"Caesura"` (`lib/siteMetadata.ts`) and both `AppHeader` and `SaveLight` wordmark it.
-- **D2 / D8 unauthenticated home and the landing route.** Shipped in M15, gate closed
-  2026-08-26 (PR #56) — see §2.
 - **D5 / R6 rename.** No pencil, no ⚙, no inline rename on either surface; the trip
   title *is* the settings button and renaming happens only in Trip settings. Build
   still owes the `TripHeader.tsx` deletion and the two test updates.
@@ -162,20 +207,14 @@ Carried forward because each one is a bug the design already hit:
 
 ## 7. Their open items that touch design
 
-Verified against `docs/known-issues.md` on 2026-08-28. Still open:
-
 | KI | Meaning for us |
 |---|---|
 | **KI-34** | = D6. Blocks the countdown and correct next-trip selection. |
+| **KI-43** | `Board.tsx` stacks one full-width `Banner` per conflict — 12 on the Japan seed, board below the fold. Design puts conflicts inside the card, which `Column.tsx` already does. Design is right; the fix is theirs. |
+| **KI-44** | `.tc-page-editor` is applied to every page and defined nowhere, so Notebook prose has no typography. Cheapest real fix in their audit. |
+| **KI-45** | `Preview size="container"` covers host content, including a currency amount in Trip settings. |
+| **KI-47** | No `tags` field. Blocks five designed surfaces. Don't design more tag UI until it lands. |
 | **KI-48** | Six one-file cosmetics, including `1 travellers`. Our copy says "4 travelers". |
-| **KI-52** | The tag chip row: four tags shipped where the handoff designs six. Settled delta — score it as decided, not as drift. |
-| **KI-61** | `/s/featured`, which both landing peek CTAs point at, resolves to "Nothing to see here" until someone seeds the share. Design side is fine; the data is not there. |
-
-**Closed since this table was written, all four verified RESOLVED in
-`docs/known-issues.md` 2026-08-28** — do not re-raise them: **KI-43** (the Day-columns
-lens no longer stacks a full-width banner per conflict), **KI-44** (`.tc-page-editor`
-typography), **KI-45** (`Preview size="container"`'s chip), and **KI-47** (the `tags`
-field itself — see §3).
 
 ## 8. Still open, on our side
 
@@ -194,13 +233,12 @@ field itself — see §3).
 
 ## Suggested order
 
-1. Settle **SPEC §7 vs `templates.ts`**. It blocks Notebook on both surfaces *and* the
+1. Settle **D1** (rename to Caesura in code) — it is trivial and a year stale.
+2. Settle **SPEC §7 vs `templates.ts`**. It blocks Notebook on both surfaces *and* the
    landing page's second feature block.
-2. Land **KI-34** so the home hero can be honest.
-3. Design the phone **conflict** state; that is the last of rule 6.
-4. Then §4's undesigned lifecycle work.
+3. Land **KI-34** so the home hero can be honest.
+4. Design the phone **conflict** state; that is the last of rule 6.
+5. Then §4's undesigned lifecycle work.
 
-Build status, for planning (2026-08-28): **M10's Wave-2 gate closed 2026-08-27** and
-M15's closed 2026-08-26. M18's contract PR landed 2026-08-27 and its surfaces are the
-work in flight; M11's first six links landed 2026-08-28 (PR #71). Nothing in this
-document holds any of it. Live roadmap: `TODO.md` and `docs/milestones/README.md`.
+Build status, for planning: M10 Wave 2 Phases 5–8b are merged; **Phase 9 is M10's exit
+gate and is the next work**. Nothing in this document holds it.
