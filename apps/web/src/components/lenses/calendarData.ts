@@ -1,5 +1,6 @@
 import type { TripDetail } from "@tc/contracts";
-import { addDaysIso } from "@/lib/dates";
+// One ISO parse for apps/web, not two — see the KI-73 note above `toIso` below.
+import { addDaysIso, parseIsoDateUtc } from "@/lib/dates";
 
 // A rendered calendar cell. `blank` cells are pure padding (a week's lead-in
 // before a month's first real date, or trailing pad to a multiple of 7) and
@@ -32,22 +33,51 @@ const MONTH_NAMES = [
 ];
 
 // Pure ISO-date math. NO wall-clock reads — every Date here is built from an
-// explicit YYYY-MM-DD, in UTC, never from a bare `new Date()`. Add-days is the
-// shared lib/dates.ts helper rather than a local copy; it agrees with the
-// `Date.UTC` parse below for every date the domain can emit (`deriveDayDates`
-// normalises through `Date.UTC` before a day date ever reaches here).
-function parseIso(iso: string): { y: number; m: number; d: number } {
-  const [y, m, d] = iso.split("-").map(Number);
-  return { y: y!, m: m!, d: d! };
-}
-
-function toUtcDate(iso: string): Date {
-  const { y, m, d } = parseIso(iso);
-  return new Date(Date.UTC(y, m - 1, d));
-}
+// explicit YYYY-MM-DD, in UTC, never from a bare `new Date()`.
+//
+// KI-73: this file used to carry its OWN parse, `new Date(Date.UTC(y, m - 1,
+// d))`, alongside the `lib/dates.ts` one it already imported `addDaysIso`
+// from. The comment here claimed the two "agree for every date the domain can
+// emit", which was true only because `deriveDayDates` normalised everything
+// through the same `Date.UTC` first — the two mechanisms themselves disagree
+// on input `TripDate` accepts ("2026-02-30" rolled over to March 2 here and
+// threw there; "0026-01-01" became 1926-01-01 here and stayed put there).
+// There is now one parse for apps/web, imported at the top of this file.
 
 function toIso(dt: Date): string {
   return dt.toISOString().slice(0, 10);
+}
+
+// Month arithmetic on an ALREADY-VALIDATED Date, so it takes components
+// rather than a string and deliberately relies on `Date.UTC`'s rollover
+// (month 12 -> next January, day 0 -> the previous month's last day).
+//
+// The year shift is the other half of KI-73's two-digit-year trap:
+// `Date.UTC(26, 0, 1)` means 1926, so once `parseIsoDateUtc` started
+// (correctly) admitting year 26, feeding `getUTCFullYear()` back into
+// `Date.UTC` would have thrown the century away again — and this file would
+// have disagreed with ITSELF, cell dates in year 26 and month headers in 1926.
+//
+// It shifts OUT of the 0-99 window before constructing rather than re-setting
+// the year afterwards, and that distinction is load-bearing. Re-setting after
+// the fact cannot tell an input year from a year the construction rolled
+// into: `addMonths(Dec 0026, +1)` builds `Date.UTC(26, 12, 1)` = 1927-01-01,
+// and pinning the year back to 26 yields 0026-01-01 — a cursor that moves
+// BACKWARD a year, which makes `calendarMonths`' `while` loop below
+// non-terminating for any trip crossing a December in years 0-99. (Caught in
+// review on PR #84, not in testing.)
+//
+// 400 years is exactly one Gregorian cycle — 146,097 days — so leap-year and
+// weekday behaviour at `year + 400` are identical to `year`, and shifting back
+// afterwards is lossless. Month and day rollover (month 12 -> next January,
+// day 0 -> the previous month's last day) keep working untouched, because the
+// arithmetic now happens where `Date.UTC` does not remap anything.
+const YEAR_SHIFT = 400;
+
+function utcFromParts(year: number, monthIndex: number, day: number): Date {
+  const dt = new Date(Date.UTC(year + YEAR_SHIFT, monthIndex, day));
+  dt.setUTCFullYear(dt.getUTCFullYear() - YEAR_SHIFT);
+  return dt;
 }
 
 // Sunday-start week index (SPEC.md §4 / the handoff design): 0 = Sunday ...
@@ -58,15 +88,15 @@ function sundayWeekday(dt: Date): number {
 }
 
 function startOfMonth(dt: Date): Date {
-  return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1));
+  return utcFromParts(dt.getUTCFullYear(), dt.getUTCMonth(), 1);
 }
 
 function endOfMonth(dt: Date): Date {
-  return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0));
+  return utcFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0);
 }
 
 function addMonths(dt: Date, n: number): Date {
-  return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + n, 1));
+  return utcFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + n, 1);
 }
 
 // One stacked block per month the trip touches (SPEC.md §4), each trimmed to
@@ -89,12 +119,12 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
   // trips build days chronologically, so the two coincide; sorting is only
   // for the date span the grid needs.
   const sortedDates = tripDays.map((day) => day.date).sort();
-  const firstDate = toUtcDate(sortedDates[0]!);
-  const lastDate = toUtcDate(sortedDates[sortedDates.length - 1]!);
+  const firstDate = parseIsoDateUtc(sortedDates[0]!);
+  const lastDate = parseIsoDateUtc(sortedDates[sortedDates.length - 1]!);
 
   // Rule 1: the grid's own start/end, walked out to whole weeks.
-  const gridStart = toUtcDate(addDaysIso(sortedDates[0]!, -sundayWeekday(firstDate)));
-  const gridEnd = toUtcDate(addDaysIso(sortedDates[sortedDates.length - 1]!, 6 - sundayWeekday(lastDate)));
+  const gridStart = parseIsoDateUtc(addDaysIso(sortedDates[0]!, -sundayWeekday(firstDate)));
+  const gridEnd = parseIsoDateUtc(addDaysIso(sortedDates[sortedDates.length - 1]!, 6 - sundayWeekday(lastDate)));
 
   const byDate = new Map<string, { ordinal: number; activityIds: string[] }>();
   detail.days.forEach((day, index) => {

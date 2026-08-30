@@ -13,6 +13,18 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-92 — `TripDate` accepts calendrically impossible dates, so the date parsers can only reject them by throwing
+- **Severity:** correctness (a validation gap; its symptom today is a 500 where a 400 belongs)
+- **Area:** `packages/contracts/src/trip.ts` (`TripDate`), `packages/domain/src/trip/decide.ts` (`SetTripDates`)
+- **What is wrong:** `TripDate` validates SHAPE only — `/^\d{4}-\d{2}-\d{2}$/` — with no calendar-range check, so `"2026-02-30"`, `"2027-02-29"` and `"2026-13-45"` all parse as valid trip dates. Shape is not calendar validity, and nothing between the API boundary and the date math closes the gap.
+- **The command pipeline is already closed (2026-08-29, PR #84).** `decide.ts` rejects a non-calendar date on both `SetTripStartDate` and `SetTripDates` with `invalid-dates`, via `isCalendarDate` exported from `packages/domain/src/trip/dates.ts`. That was not optional polish: KI-73's strict parse means a *persisted* impossible start date makes `deriveDayDates` throw on every projection, i.e. a trip that can never be read back, so without this guard the strictness would have traded silently-wrong dates for an unloadable trip.
+- **What is still open is the contract itself.** `TripDate` continues to accept the value, so every future consumer re-inherits the gap and the domain's `RangeError` remains reachable by any path that does not go through `decide.ts`. The close is a `.refine` on `TripDate`, which makes the impossible date unrepresentable at the boundary and turns the domain's throw back into an assertion nobody can trigger. That is a genuine contract change — AGENTS.md invariant 5 makes it its own reviewed step, with the changelog entry and consumer sweep that implies — which is why KI-73 was closed without it.
+- **Reachability:** the UI cannot produce such a date (`<input type="date">` will not emit one) and `NewTripWizard` gates on `ISO_DATE.test` first, so this needs a crafted API request. Latent, not live.
+- **Cross-reference:** KI-73 (resolved 2026-08-29 — this is the half it explicitly could not take).
+- **First noted:** 2026-08-29 (KI cluster, while converging the parsers).
+
+
+- **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77 the same night. Renumbered to 92 on merge. Nothing outside this file references it.
 ### KI-90 — The same history reconcile still clears a queue that fills while the command is IN FLIGHT
 - **Severity:** correctness (silent loss of one or more user edits — the KI-5 family; the half of KI-70 its one-line fix does not reach)
 - **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` (`dispatch`'s `HISTORY_TYPES` branch, after the `await`)
@@ -219,18 +231,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** KI-58, KI-59 (the Zentis Osaka query), KI-15.
 - **First noted:** 2026-08-29.
 
-### KI-73 — Two ISO-date parse mechanisms coexist, and they disagree on contract-valid input
-
-- **Severity:** correctness, latent — currently unreachable, and the thing making it unreachable is not written down anywhere as a requirement
-- **Area:** `packages/domain/src/trip/dates.ts`, `apps/web/src/components/lenses/calendarData.ts` (`toUtcDate`), `apps/web/src/lib/dates.ts` (`addDaysIso`)
-- **What happens:** the domain and `calendarData` parse an ISO date with `Date.UTC(y, m-1, d)`; `lib/dates.ts` parses with a template (`new Date(\`${iso}T00:00:00Z\`)`). These are not equivalent, and contracts cannot separate them because `TripDate` validates by shape only (`/^\d{4}-\d{2}-\d{2}$/`, `packages/contracts/src/trip.ts`) with no calendar-range check. Measured: `"2026-13-45"` silently rolls over to `"2027-02-14"` under `Date.UTC` and throws `RangeError` under the template parse; `"0026-01-01"` becomes `"1926-01-01"` under one and stays put under the other.
-- **Why it does not bite today:** `deriveDayDates` normalises every date through `Date.UTC` before it reaches the UI, so `detail.days[].date` is always a real four-digit-year calendar date. Proven, not assumed — an exhaustive equivalence check over 8,572 dates × 6 offsets, plus a `calendarMonths` output sweep over 75,005 calendars hashed identical before and after the 2026-08-28 `addDaysIso` unification.
-- **What would make it bite:** any surface that feeds *raw* user or import input to both mechanisms without going through `deriveDayDates` first.
-- **Related but distinct:** the project review's §1.8 (`commandsFor` mixing local and UTC arithmetic) is a different defect in the same family.
-- **The narrower half worth fixing on its own:** contracts accept calendrically impossible dates. A `.refine` on `TripDate` closes it — but that is a real contract change, with the changelog and consumer sweep that implies.
-- **A fourth copy exists.** `packages/domain/src/trip/dates.ts` carries its own add-days, which cannot import from `apps/web/src/lib`. Unifying it needs a shared location the module map does not currently have — a design call, not a cleanup.
-- **First noted:** 2026-08-28 (the §6.2 refactor, which unified three of the four copies and found the fourth).
-
 ### KI-66 — The CSP keeps `script-src 'unsafe-inline'`
 
 - **Severity:** correctness — a stated-and-accepted weakening. The "nobody has run this" half of this entry was closed on 2026-08-28; see the walk below.
@@ -376,27 +376,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`); the 2026-08-29 measurement above is recorded there too.
 - **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
 - **First noted:** 2026-08-28 (PR #74 review).
-
-### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
-- **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
-- **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx` (the `min-h-5 leading-5` slot), `apps/web/src/lib/cost.ts` (`plannedOfBudgetLine`)
-- **Symptom:** KI-28's fix reserves **one** `text-sm` line for the planned-of-budget line, so the card cannot change height when its `TripDetail` fetch resolves. That holds only while the string fits on one line. `plannedOfBudgetLine` produces `` `${formatMoney(total)} planned of ${formatMoney(budget)}` `` — for a large-figure currency (JPY especially) that is long, and in a narrow card it wraps.
-- **Measured (2026-08-28, production build, string `¥1,234,567 planned of ¥5,000,000` injected into the real rendered slot):**
-  ```
-  1440px slotW 523 | slot 20.2 -> 20.2 | card growth 0.0px
-   500px slotW 402 | slot 20.2 -> 20.2 | card growth 0.0px
-   375px slotW 277 | slot 20.2 -> 40.4 | card growth 20.2px
-   320px slotW 222 | slot 20.2 -> 40.4 | card growth 20.2px
-  ```
-  20px of growth is enough to move an open trip-actions menu off its target — KI-28's measurement showed 24px already lands a click aimed at "Delete" on "Duplicate".
-- **Why it is filed rather than fixed:** every fix is a product-visible choice about a money figure, not a mechanical one. Three options, none obviously right:
-  1. **`truncate`** (or `whitespace-nowrap` + ellipsis) — one line forever, but at 375px it renders `¥1,234,567 planned of ¥5,00…`, so the budget half of "planned *of* budget" becomes unreadable on the screens with least room to recover it.
-  2. **Reserve two lines below `sm`** (`min-h-10 sm:min-h-5`) — keeps the number whole and the height fixed, at the cost of permanent blank space on small screens even when the line is short.
-  3. **Shorten the string at narrow widths** — e.g. `plannedOfBudgetLine` emitting `¥1,234,567 / ¥5,000,000` instead of spelling out `planned of`. Keeps both figures *and* one line; costs a `cost.ts` change and a width-aware caller. Raised on PR #73's review thread and probably the best of the three, which is exactly why it should be chosen rather than defaulted into.
-  Per KI-46, below ~1100px there is no designed card yet for any of these to be measured against, so whatever lands here is likely to be overwritten by that design.
-- **Found by:** CodeRabbit's review of PR #73 flagged "long budget text may expand cards on narrow screens" as a residual risk on KI-28's fix; the measurement above confirms it and bounds it.
-- **Cross-reference:** KI-28 (resolved 2026-08-28 — this is the residue outside its measured bound), KI-46 (below ~1100px is the desktop layout, not the designed mobile companion).
-- **First noted:** 2026-08-28 (KI sweep, PR #73 review).
 
 ### KI-55 — A unit queued after a KI-42 retention predicts over a base that skips the retained work
 - **Severity:** correctness-cosmetic (the optimistic *preview* can show a trip no send will produce; **no work is lost** — every retained unit is still queued, still counted by `unsentCount`, and still sent in order)
@@ -815,6 +794,62 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again — RESOLVED by reserving two lines below the width where the slot is wide enough for one
+- **Severity (as filed):** reliability (the KI-28 defect, reintroduced at narrow widths only)
+- **Area:** `apps/web/src/components/home/TripCard.tsx`, `apps/web/src/components/home/NextTripHero.tsx`
+- **Reproduced in a real browser before fixing** — production build, Chromium, seeded trips, measuring the actual KI-28 invariant (card height with the slot EMPTY, as before its `TripDetail` resolves, against the height once the line lands):
+  ```
+  viewport 341px   hero  slot 222px   reserved 20 -> withReal 40   card growth 20.0px
+  viewport 341px   card  slot 246px   reserved 20 -> withLongJPY 40   card growth 20.0px
+  ```
+- **Worse than the entry recorded, in one specific way.** The entry framed this as a large-figure-currency problem ("JPY especially"). It is not: the hero grew 20px with the **real seeded USD line** `$9,085.00 planned of $16,400.00`, which wraps at a 222px slot. No exotic currency is needed to reach it.
+- **The wrap is bounded at two lines, measured rather than assumed.** Slot height per slot WIDTH at 13px IBM Plex Mono (what `DataText size="sm"` actually resolves to — not 14px):
+  ```
+  slot width                            180 222 246 260 277 301+
+  "$9,085.00 planned of $16,400.00"      40  40  20  20  20  20
+  "¥1,234,567 planned of ¥5,000,000"     40  40  40  20  20  20
+  "¥12,345,678 planned of ¥50,000,000"   40  40  40  40  20  20
+  ```
+  Nothing reaches three lines even at a 180px slot, far narrower than any reachable card — so `min-h-10` bounds the slot at every real width, not merely at the ones measured.
+- **Fix (2026-08-29):** candidate **(2)** from this entry — reserve two lines at narrow widths, one where the slot is provably wide enough. `min-h-10 md:min-h-5` in TripCard, `min-h-10 sm:min-h-5` in NextTripHero.
+- **The two breakpoints differ on purpose, and the first attempt got this wrong.** A trip card's slot does NOT widen monotonically with the viewport, because its grid is `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — every extra column makes each card narrower again:
+  ```
+  viewport   341  500  640  1024  1440
+  card slot   246  426  263   290   322
+                        ^ sm: 2 cols   ^ lg: 3 cols
+  ```
+  So the slot is narrower at 640px (263) than at 500px (426). Shipping `sm:min-h-5` reintroduced the defect in a ~640-670px band — **caught by measuring the fix rather than by reading it**, and closed by moving that one component to `md`. The hero has no such band (222px at 341, 402px at 500, 542px at 640), so `sm` is correct there.
+- **Verified after the fix, same method, six widths:** card growth **0.0px** for the real USD line, the entry's JPY line and a larger JPY line at **341, 500, 640, 768, 1024 and 1440px**, for both the hero and the card. 1440px is byte-identical to before (hero slot 523px, one line reserved), so desktop is untouched.
+- **Accepted cost, stated rather than discovered later:** below the breakpoint the slot keeps 20px of blank space even when the line is short or absent. That is this candidate's known price. Candidate (1) `truncate` would render `planned of ¥5,00…` and hide the budget on the screens least able to recover it; candidate (3) (shortening the string in `lib/cost.ts`) is a product-visible choice about how money reads, and was deliberately left to be chosen rather than defaulted into. Per KI-46 there is no designed card below ~1100px yet, so the blank space sits where design will revisit it anyway.
+- **Regression cover, added here rather than deferred.** `responsive.spec.ts` gains three narrow-viewport guards — the card at **320px** and **640px**, the hero at **360px** — each injecting a long money figure into the real rendered slot and asserting the surface's height does not move. **All three were confirmed RED against a deliberately reverted build (20.19px of growth each)**, which is the only reason they can be claimed as guards. Earlier drafts at 500px, 700px and 360px-for-the-card all PASSED against that same broken build — the slot is simply wide enough there — and were dropped for it; the widths that matter come from the measured slot-width table, not from the breakpoints. `m8-make-it-real.spec.ts`'s KI-28 guard at 1280px continues to pass.
+- **Cross-reference:** KI-28 (resolved — this was the residue outside its measured bound), KI-46 (below ~1100px is undesigned).
+- **First noted:** 2026-08-28 (KI sweep, PR #73 review). **Resolved:** 2026-08-29 (KI cluster).
+
+
+### KI-73 — Two ISO-date parse mechanisms coexist, and they disagree on contract-valid input — RESOLVED, converged on the strict parse; the contracts half is now KI-77
+- **Severity (as filed):** correctness, latent — unreachable only because `deriveDayDates` happened to normalise everything through one of the two mechanisms first
+- **Area:** `packages/domain/src/trip/dates.ts`, `apps/web/src/lib/dates.ts`, `apps/web/src/components/lenses/calendarData.ts`
+- **Reproduced before fixing, not inferred.** A probe running both mechanisms over the entry's own corpus, on input `TripDate` accepts:
+  ```
+  2026-13-45   Date.UTC -> 2027-02-14   template -> THROWS RangeError   *** DISAGREE ***
+  0026-01-01   Date.UTC -> 1926-01-01   template -> 0026-01-01          *** DISAGREE ***
+  2026-02-30   Date.UTC -> 2026-03-02   template -> THROWS RangeError   *** DISAGREE ***
+  2026-01-32   Date.UTC -> 2026-02-01   template -> THROWS RangeError   *** DISAGREE ***
+  2026-00-10   Date.UTC -> 2025-12-10   template -> THROWS RangeError   *** DISAGREE ***
+  2026-01-01   Date.UTC -> 2026-01-01   template -> 2026-01-01          agree
+  ```
+  Two distinct defects, not one: `Date.UTC` silently ROLLS an impossible date over to a different real date, and it REMAPS a year below 100 (`Date.UTC(26, 0, 1)` is 1926).
+- **There were three copies, not two.** The entry named the domain and `calendarData`'s `toUtcDate`; `calendarData` also already imported `addDaysIso` from `lib/dates.ts`, so it ran BOTH mechanisms in one function while its own comment asserted they agreed.
+- **Fix (2026-08-29):** both surviving copies now run the same two steps in the same order — parse `` `${iso}T00:00:00Z` `` (explicit `Z`, so UTC on every host and no two-digit-year remapping), then compare the parsed UTC components back against the input's own digits and throw `RangeError` if they differ. `apps/web` is down to ONE parse: `lib/dates.ts` exports `parseIsoDateUtc`, and `calendarData.ts` imports it instead of carrying `toUtcDate`.
+- **A fourth defect surfaced while fixing the third copy.** `calendarData`'s month arithmetic (`startOfMonth`/`endOfMonth`/`addMonths`) feeds `getUTCFullYear()` back into `Date.UTC`, which re-applies the two-digit-year remapping. Before the fix that was invisible because the cell parse threw the century away too; afterwards the file would have disagreed with ITSELF — cells in year 26, month headers reading 1926. A `utcFromParts` helper re-sets the year and keeps the intended month/day rollover. Pinned by a test asserting the header reads "January 26" while the cells start `0026-`.
+- **The two copies must stay separate.** AGENTS.md's module map makes `apps/web/src/server/**` the only web code that may import `@tc/domain`, and this math is needed inside UI components, so neither side can import the other. A shared home is a module-map design call, deliberately not taken here.
+- **What keeps them honest instead:** one corpus, duplicated verbatim, asserted on each side — `packages/domain/test/dates.equivalence.test.ts` and `apps/web/src/lib/dates.equivalence.test.ts`. **Proven to catch the defect, not assumed:** reverting `packages/domain/src/trip/dates.ts` to its pre-fix body turns the domain copy red with **19 failures**, including `expected [ '1926-01-01' ] to deeply equal [ '0026-01-01' ]` and `expected function to throw an error, but it didn't`. Restored, 193/193 pass.
+- **Behaviour change, and the regression it nearly shipped.** `deriveDayDates` and `daySpan` now THROW on a calendrically impossible date where they used to return a silently different one — the direction `lib/dates.ts` already chose on 2026-08-28, trading persisted corruption for a loud failure with nothing written. **Review on PR #84 caught what that turned into downstream:** `SetTripStartDate` would still PERSIST such a date, and `deriveDayDates` then throws on every projection, so the trip becomes permanently unloadable — availability strictly worse than the silently-wrong dates it replaced. `decide.ts` now rejects a non-calendar date on both `SetTripStartDate` and `SetTripDates` (`invalid-dates`, via a new exported `isCalendarDate`), so the throw is unreachable through the command pipeline. The contract-level close is still **KI-77**.
+- **A defect this fix introduced, and review caught.** `calendarData`'s `utcFromParts` originally re-set the year AFTER `Date.UTC` had already rolled a month into the next year, so `addMonths(Dec 0026, +1)` returned `0026-01-01` instead of `0027-01-01` — a month cursor moving BACKWARD, making `calendarMonths` non-terminating for any trip crossing a December in years 0-99. It now shifts out of the 0-99 window by a whole 400-year Gregorian cycle (identical leap/weekday behaviour) before constructing, and shifts back. Guarded by a test with a short timeout, because the pre-fix failure mode is a hang rather than a red assertion.
+- **Verified:** `pnpm --filter @tc/domain test` 193/193; the three web date/lens unit files 58/58; `pnpm check` green; `pnpm test:int` 242/242 against a clean database; `pnpm --filter web test:e2e:ci-like` 46/46.
+- **First noted:** 2026-08-28 (the §6.2 refactor). **Resolved:** 2026-08-29 (KI cluster).
+
 
 ### KI-64 — The trip header still greys out "Add stop" for a viewer while the rest of the board hides its write controls — RESOLVED, it is withheld like everything around it
 - **Severity (as filed):** cosmetic (one inconsistent control; no wrong behaviour, nothing unreachable)

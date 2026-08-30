@@ -15,22 +15,36 @@
 
 const ISO_DATE_PARTS = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-// Callers must pass a COMPLETE, REAL ISO date. A partial one (a half-typed
-// `<input type="date">` value) parses to an Invalid Date and `toISOString()`
-// throws a RangeError on it rather than returning garbage — deliberate, but it
-// means the caller gates first (NewTripWizard's `ISO_DATE.test`).
+// THE ISO-date parse for apps/web. Callers must pass a COMPLETE, REAL ISO
+// date. A partial one (a half-typed `<input type="date">` value) parses to an
+// Invalid Date and is rejected rather than returning garbage — deliberate, but
+// it means the caller gates first (NewTripWizard's `ISO_DATE.test`).
 //
-// Shape is not calendar validity, and that gate only checks shape. The parser
-// rejects an out-of-range month or day-of-month ("2026-13-45", "2026-01-32"),
-// but silently ROLLS OVER a day the month does not have: "2026-02-30" becomes
-// March 2, so `addDaysIso("2026-02-30", 1)` returned a date three days from
-// the one it was handed. Comparing the parsed UTC components back against the
-// input is what tells the two apart. This is the narrow, UI-local half of
-// KI-73; the wide half (contracts accepting impossible dates, which is the
-// only reason such a string can reach here at all) stays open.
-export function addDaysIso(startIso: string, days: number): string {
-  const d = new Date(`${startIso}T00:00:00Z`);
-  const parts = ISO_DATE_PARTS.exec(startIso);
+// Shape is not calendar validity, and that gate only checks shape. Parsing
+// `${iso}T00:00:00Z` rejects an out-of-range month or day-of-month
+// ("2026-13-45", "2026-01-32") on its own, but would silently ROLL OVER a day
+// the month does not have: "2026-02-30" becomes March 2, so
+// `addDaysIso("2026-02-30", 1)` returned a date three days from the one it was
+// handed. Comparing the parsed UTC components back against the input's own
+// digits is what tells the two apart.
+//
+// KI-73: `calendarData.ts` used to carry a SECOND mechanism — `Date.UTC(y,
+// m - 1, d)` — which disagreed with this one on contract-valid input: it rolls
+// every impossible date over to some other real date, and remaps a
+// two-digit-looking year ("0026-01-01" -> 1926-01-01, because `Date.UTC(26,
+// ...)` means 1926). That copy is gone; `calendarData` imports this function.
+// `packages/domain/src/trip/dates.ts` runs the same two steps, duplicated
+// because AGENTS.md's module map forbids UI code importing `@tc/domain` and
+// there is no shared home for this math yet. Both sides pin the same corpus
+// (`dates.equivalence.test.ts`, one per side) — change one, change the other.
+//
+// Still open, and the only reason such a string can reach here at all:
+// `TripDate` (packages/contracts/src/trip.ts) validates shape and not the
+// calendar. Closing that is a contract change with its own changelog and
+// consumer sweep (AGENTS.md invariant 5).
+export function parseIsoDateUtc(iso: string): Date {
+  const parts = ISO_DATE_PARTS.exec(iso);
+  const d = new Date(`${iso}T00:00:00Z`);
   if (
     parts === null ||
     d.getUTCFullYear() !== Number(parts[1]) ||
@@ -39,8 +53,13 @@ export function addDaysIso(startIso: string, days: number): string {
   ) {
     // RangeError, not a custom class: it is what the incomplete-input path
     // already threw, and every caller's contract is "gate first".
-    throw new RangeError(`addDaysIso: "${startIso}" is not a calendar date`);
+    throw new RangeError(`Not a calendar date: "${iso}"`);
   }
+  return d;
+}
+
+export function addDaysIso(startIso: string, days: number): string {
+  const d = parseIsoDateUtc(startIso);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
@@ -49,7 +68,7 @@ export function addDaysIso(startIso: string, days: number): string {
 export function dayLabel(startDate: string | null, index: number): string {
   const base = `Day ${index + 1}`;
   if (startDate === null) return base;
-  const d = new Date(`${addDaysIso(startDate, index)}T00:00:00Z`);
+  const d = parseIsoDateUtc(addDaysIso(startDate, index));
   const formatted = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return `${base} — ${formatted}`;
 }
