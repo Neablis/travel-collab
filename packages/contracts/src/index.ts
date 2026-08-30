@@ -9,3 +9,4 @@ export * from "./pages";
 export * from "./access";
 export * from "./share";
 export * from "./saved";
+export * from "./admission";
