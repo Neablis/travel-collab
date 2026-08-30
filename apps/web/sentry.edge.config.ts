@@ -1,20 +1,20 @@
-// This file configures the initialization of Sentry for edge features (middleware, edge routes, and so on).
-// The config you add here will be used whenever one of the edge features is loaded.
-// Note that this config is unrelated to the Vercel Edge Runtime and is also required when running locally.
+// Sentry on the edge runtime (proxy.ts and any edge route). Loaded by
+// `src/instrumentation.ts` when NEXT_RUNTIME is "edge". Note this is Next.js's
+// own edge runtime, not Vercel's — it is needed locally too.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
-
 import * as Sentry from "@sentry/nextjs";
+import { sharedSentryOptions } from "./sentry.shared";
 
+// No profiling here, and that is a property of the runtime rather than a
+// choice: CPU profiling needs a native module the edge runtime cannot load,
+// and there is no JS self-profiling API in it either. Errors, traces, logs and
+// metrics all work.
 Sentry.init({
-  dsn: "https://305df166f51c7bdec326b199cd9dca9c@o4511998018125824.ingest.us.sentry.io/4511998020616192",
-
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  ...sharedSentryOptions,
 
   dataCollection: {
-    // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#dataCollection
-    // userInfo: false,
-    // httpBodies: [],
+    // Same reasoning as the server config: stated, not defaulted, so an SDK
+    // default-flip can't start sending model inputs on its own.
+    genAI: { inputs: false, outputs: false },
   },
 });

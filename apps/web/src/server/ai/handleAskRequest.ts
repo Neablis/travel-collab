@@ -48,8 +48,10 @@ import {
   WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
 import type { Geocoder } from "@/server/geocoding";
-import { createAskRecorder, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
+import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { classifyAskIntent } from "@/server/ai/askIntent";
+import { startAgentTrace, traceModelCall } from "@/server/ai/aiTelemetry";
+import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 
 // Round-trips one question may take. Eight is generous for a read-only turn —
 // three tools, and the shape of a real answer is "read what you need, then
@@ -333,8 +335,30 @@ export async function handleAskRequest(
   //
   // `classifyAskIntent` is total — it fails open to `write` rather than
   // throwing — so there is deliberately no try/catch here to suggest otherwise.
+  //
+  // The span around it is a `gen_ai.chat` rather than part of the agent run
+  // below, because that is what it is: one tool-less round-trip, on a model id
+  // that may not even be the one that answers. Folding its tokens into the
+  // agent's would make `AI_CLASSIFIER_MODEL`'s whole reason for existing —
+  // "did the cheap classifier save more than it cost" — unanswerable from the
+  // trace, which is the same argument `AskIntentRecord.model` makes for the
+  // log record.
   const classification = canWrite
-    ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
+    ? await traceModelCall(
+        {
+          operation: "classify_intent",
+          kind: "chat",
+          modelId: modelIdOf(selected.classifierModel),
+          attributes: { agent: "ask", "ai.simulated": selected.simulated },
+        },
+        () => classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal),
+        // `classifyAskIntent` is total — it returns a record on the fail-open
+        // path rather than throwing — so the usage is read off the RECORD,
+        // and a failed classification still reports what it cost. Reading it
+        // from a throw instead would report zero for exactly the case KI-88
+        // was about.
+        (record) => ({ usage: record.usage }),
+      )
     : null;
   const offerWrites = canWrite && classification?.intent !== "question";
 
@@ -350,6 +374,44 @@ export async function handleAskRequest(
   if (!hasAtLeast(userId, detail.members, minimumRoleFor(offeredNames))) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
+
+  // **The agent's Sentry span, opened here rather than at `agent.stream`.**
+  //
+  // Here is the last moment the request's own span is still the ambient active
+  // one — `startAgentTrace` captures it as the explicit parent, and every span
+  // the run emits afterwards hangs off that capture. The stream's callbacks
+  // all fire after this function has returned its `Response`, so a trace that
+  // relied on the ambient span would put step 1 under the request and scatter
+  // the rest into traces of their own.
+  //
+  // One early return still sits between here and the stream — a thread that
+  // fails `safeValidateUIMessages` below — and on that path the run is never
+  // finished. That is deliberately harmless rather than merely unhandled: a
+  // span that is never ended is never transmitted, so a malformed body
+  // produces no agent run at all, which is the truth. Finishing it instead
+  // would file a zero-step run against a turn no model ever saw.
+  const trace = startAgentTrace({
+    agentName: "ask",
+    modelId: modelIdOf(selected.model),
+    availableTools: offeredNames,
+    // Bounded, low-cardinality facts only — no question text, no trip name.
+    // `tripId`/`userId` are on the log record, which is where unbounded
+    // identifiers belong; see `aiMetrics.ts`'s header for the same rule
+    // applied to metric attributes.
+    attributes: {
+      agent: "ask",
+      "ai.scope": scope.kind,
+      "ai.turn": turn,
+      "ai.simulated": selected.simulated,
+      "ai.can_write": offerWrites,
+    },
+  });
+
+  // Whatever `onError` was handed, so the span can carry the real exception
+  // rather than a reconstruction of it. `AskFailureCause` on the record is
+  // already a sanitized, bounded DESCRIPTION of this — good for a log line,
+  // and not a thing Sentry can group a stack trace by.
+  let failureCause: unknown;
 
   const recorder = createAskRecorder({
     tripId,
@@ -368,7 +430,28 @@ export async function handleAskRequest(
     // misclassification diagnosable after the fact rather than only visible as
     // an assistant that would not act.
     classification,
-    sink,
+    // **One writer, three consumers.** `createAskRecorder`'s single-writer
+    // latch already guarantees this fires exactly once per turn, on all three
+    // end paths (`onEnd`, abort, error) — which makes it the right place to
+    // close the span and emit the metrics, rather than repeating that
+    // once-only logic at each of the three call sites and getting it subtly
+    // wrong at one of them.
+    //
+    // The injected `sink` stays a pure test seam: a test that passes one reads
+    // the record instead of the console, exactly as before, and the two lines
+    // below are no-ops without a Sentry client.
+    sink: (record) => {
+      (sink ?? logAskAnalytics)(record);
+      recordAskMetrics(record);
+      trace.finish({
+        status: record.outcome,
+        usage: record.usage,
+        finishReason: record.finishReason,
+        steps: record.steps,
+        toolCallCount: record.toolCallCount,
+        cause: failureCause,
+      });
+    },
   });
 
   const agent = new ToolLoopAgent({
@@ -381,7 +464,39 @@ export async function handleAskRequest(
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
-    onStepEnd: (step) => recorder.observeStep(step),
+    // `onStepStart`/`onStepEnd` bracket ONE model round-trip, which is exactly
+    // what a `gen_ai.chat` span is. Taking the start from the SDK rather than
+    // inferring it from the previous step's end matters on a loop whose steps
+    // are not back-to-back: a step that waited on a tool would otherwise
+    // absorb that wait into the model call's duration and make every "how slow
+    // is the provider" reading wrong in the same direction.
+    onStepStart: () => trace.stepStarted(),
+    onStepEnd: (step) => {
+      recorder.observeStep(step);
+      trace.stepEnded({
+        usage: {
+          inputTokens: step.usage?.inputTokens ?? null,
+          outputTokens: step.usage?.outputTokens ?? null,
+          totalTokens: step.usage?.totalTokens ?? null,
+        },
+        finishReason: step.finishReason,
+        toolNames: step.toolCalls?.map((call) => call.toolName),
+      });
+    },
+    // One `gen_ai.execute_tool` span per tool run, nested under the step that
+    // called it. `toolExecutionMs` is the SDK's own measurement of the
+    // execute function, so the span is the tool's time and not ours — and
+    // this is the only way to get it without wrapping every tool's `execute`,
+    // which `readTools.ts` warns at length would collapse the tool set's
+    // context typing to `never`.
+    onToolExecutionEnd: (event) => {
+      trace.toolExecuted({
+        toolName: event.toolCall.toolName,
+        toolCallId: event.toolCall.toolCallId,
+        durationMs: event.toolExecutionMs,
+        ok: event.toolOutput.type !== "tool-error",
+      });
+    },
     // `writeTools` is the SAME collection `messageMetadata`'s `buildProposal`
     // reads below — `onEnd` just runs first, before the stream's `finish`
     // part exists to build the actual proposal from. A second, cheap
@@ -468,6 +583,7 @@ export async function handleAskRequest(
         // and the only thing that ever saw the actual cause was the client —
         // the message went out on the stream and nothing wrote it down. The
         // whole diagnosis was "step 1 finished, step 2 did not".
+        failureCause = error;
         recorder.abandon("error", error);
         // The client sees the real reason rather than "An error occurred.",
         // which is the SDK's default and is indistinguishable from a network
@@ -480,6 +596,7 @@ export async function handleAskRequest(
     // and the caps passed. What remains is the agent failing to start, which
     // is the same 503 shape `handleAiRequest` returns for a model that could
     // not be reached.
+    failureCause = err;
     recorder.abandon("error", err);
     return Response.json(
       { error: `model call failed: ${errorMessage(err)}`, simulated: selected.simulated },
@@ -532,7 +649,13 @@ export interface ProposalApplyRecord {
 
 export type ProposalApplySink = (record: ProposalApplyRecord) => void;
 
-const defaultApplySink: ProposalApplySink = (record) => console.info(record.event, record);
+// The log line and the counters, from the one record. Same shape, and the same
+// reasoning, as the `/ask` sink above: one writer, two consumers, and an
+// injected sink in a test still reads the record instead of the console.
+const defaultApplySink: ProposalApplySink = (record) => {
+  console.info(record.event, record);
+  recordProposalApplyMetrics(record);
+};
 
 /**
  * `POST /api/trips/:id/ask/apply` — the approval half of propose → review →

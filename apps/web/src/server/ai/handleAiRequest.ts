@@ -55,6 +55,8 @@ import {
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { traceModelCall } from "@/server/ai/aiTelemetry";
+import { recordCommandMetrics, type CommandMetricsRecord } from "@/server/ai/aiMetrics";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
@@ -164,14 +166,49 @@ function buildAiMeta(
     truncated: result.finishReason === "tool-calls",
     steps: result.steps.length,
     toolCalls: result.toolCalls.map((c) => ({ name: c.toolName, input: c.input })),
-    usage: {
-      inputTokens: result.usage.inputTokens ?? null,
-      outputTokens: result.usage.outputTokens ?? null,
-      totalTokens: result.usage.totalTokens ?? null,
-    },
+    usage: usageOf(result),
     warnings: [...(result.warnings ?? [])],
     maxRetries: AI_MAX_RETRIES,
     durationMs,
+  };
+}
+
+/**
+ * `AiCallMeta` in the shape the metrics module counts.
+ *
+ * A translation and nothing more — every field here already exists on the meta
+ * the response carries, so the counters and the `meta` a caller sees can never
+ * disagree about what a turn cost. `toolCalls[].input` is deliberately dropped:
+ * it is model-supplied and unbounded, and a metric attribute is a series.
+ */
+function commandMetricsOf(surface: AiCommandSurface, meta: AiCallMeta): CommandMetricsRecord {
+  return {
+    surface,
+    model: meta.model.requested,
+    simulated: meta.simulated,
+    finishReason: meta.finishReason,
+    truncated: meta.truncated,
+    steps: meta.steps,
+    toolNames: meta.toolCalls.map((call) => call.name),
+    usage: meta.usage,
+    durationMs: meta.durationMs,
+  };
+}
+
+/**
+ * Token counts off a `generateText` result, in the nullable shape both the
+ * response `meta` and the telemetry use.
+ *
+ * One function rather than the same three `?? null` lines written out at each
+ * of three sites. A usage mapping that drifts between the span and the
+ * response is the same species of bug as M18's hand-enumerated field list —
+ * quieter, because nothing type-checks the two against each other.
+ */
+function usageOf(result: Pick<AiResultLike, "usage">): AiCallMeta["usage"] {
+  return {
+    inputTokens: result.usage.inputTokens ?? null,
+    outputTokens: result.usage.outputTokens ?? null,
+    totalTokens: result.usage.totalTokens ?? null,
   };
 }
 
@@ -281,14 +318,27 @@ export async function handleAiRequest(
     let result;
     const startedAt = Date.now();
     try {
-      result = await generateText({
-        model: activeModel,
-        system,
-        prompt,
-        tools,
-        stopWhen: isStepCount(maxStepsFor("page")),
-        maxRetries: AI_MAX_RETRIES,
-      });
+      // `gen_ai.invoke_agent`, not `gen_ai.chat`: `stopWhen` makes this a tool
+      // loop, and a multi-step planning run filed as a single chat would be
+      // absent from the one Sentry view built to show agent runs.
+      result = await traceModelCall(
+        {
+          operation: "compose_page",
+          kind: "invoke_agent",
+          modelId: requestedModelId(activeModel),
+          attributes: { agent: "command", surface: "page", "ai.simulated": simulated },
+        },
+        () =>
+          generateText({
+            model: activeModel,
+            system,
+            prompt,
+            tools,
+            stopWhen: isStepCount(maxStepsFor("page")),
+            maxRetries: AI_MAX_RETRIES,
+          }),
+        (r) => ({ usage: usageOf(r), finishReason: r.finishReason }),
+      );
     } catch (err) {
       return Response.json(
         {
@@ -300,6 +350,7 @@ export async function handleAiRequest(
       );
     }
     const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
+    recordCommandMetrics(commandMetricsOf("page", meta));
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -325,14 +376,24 @@ export async function handleAiRequest(
   let gen;
   const startedAt = Date.now();
   try {
-    gen = await generateText({
-      model: activeModel,
-      system,
-      prompt,
-      tools,
-      stopWhen: isStepCount(maxStepsFor(surface)),
-      maxRetries: AI_MAX_RETRIES,
-    });
+    gen = await traceModelCall(
+      {
+        operation: "plan",
+        kind: "invoke_agent",
+        modelId: requestedModelId(activeModel),
+        attributes: { agent: "command", surface, "ai.simulated": simulated },
+      },
+      () =>
+        generateText({
+          model: activeModel,
+          system,
+          prompt,
+          tools,
+          stopWhen: isStepCount(maxStepsFor(surface)),
+          maxRetries: AI_MAX_RETRIES,
+        }),
+      (r) => ({ usage: usageOf(r), finishReason: r.finishReason }),
+    );
   } catch (err) {
     return Response.json(
       {
@@ -344,6 +405,7 @@ export async function handleAiRequest(
     );
   }
   const meta = buildAiMeta(gen, activeModel, Date.now() - startedAt, simulated);
+  recordCommandMetrics(commandMetricsOf(surface, meta));
 
   // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
   // commands in one batch-aware pass: mint new ids, resolve refs against the
