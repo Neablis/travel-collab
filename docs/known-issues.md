@@ -13,6 +13,19 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-96 — `sentry.shared.test.ts`'s fixture stubs the variables it names and clears none of the others, so two of its cases read the ambient environment
+- **Severity:** reliability (environment-dependent test outcome; no product impact — the module under test is correct)
+- **Area:** `apps/web/sentry.shared.test.ts` (`ratesWith`), reading `apps/web/sentry.shared.ts` (`tracesSampleRate`, `profileSessionSampleRate`)
+- **What is wrong:** `ratesWith(env)` calls `vi.resetModules()` and then stubs **only the keys the caller passed**. `vi.stubEnv` sets a value; it does not clear the ones it was not given. So a case that names one variable, or none, imports `sentry.shared.ts` with whatever the surrounding environment already has for the other three — `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE`.
+- **Which cases are exposed, and which are not.** The two precedence cases stub *both* names and are unaffected. The exposed ones are `"%s still honours the server-only name when no public one is set"` (stubs the server name; an ambient **public** name outranks it and the assertion reads the wrong value) and `"%s defaults to 1 when neither is set"` (stubs nothing at all).
+- **The symptom is a FALSE FAILURE, not a false pass, and that is worth stating precisely** — it would be easy to file this as "a test that silently verifies nothing", which is what the sibling finding on the same PR actually was. Here the fixture's expectations are specific values (`0.5`, `1`), so an ambient variable makes the test **fail** on that machine rather than pass hollowly. It is a test that does not control its own inputs, so its result depends on the shell it runs in: green in CI and on a clean checkout, red for whoever has one of these exported. Nothing is hidden; time is wasted, and the natural first suspicion would be the module rather than the fixture.
+- **Not reachable through `.env.local`:** the unit lane's config (`vitest.unit.config.ts`) does not load it — only `vitest.config.ts`, the integration lane, calls `process.loadEnvFile`. The realistic trigger is an exported shell variable or a CI environment that sets one, which is exactly what `.env.example` now invites someone to do.
+- **Fix, four lines (the reviewer's own diff):** clear all four names with `vi.stubEnv(key, undefined)` at the top of `ratesWith`, before applying `Object.entries(env)`. `afterEach`'s `vi.unstubAllEnvs()` already restores them. Worth doing at the same time: the same fixture shape would serve `SENTRY_DSN` and `SENTRY_ENVIRONMENT`, neither of which has a precedence test today.
+- **Why not fixed on the branch that introduced it:** the finding arrived from CodeRabbit after PR #93 had already been merged, and Mitchell's call was to file rather than open a follow-up PR for a four-line test change. It should be folded into the next change that touches this file rather than carried alone.
+- **Found by:** CodeRabbit, PR #93, reviewing the fix for the browser sample-rate bug that this test was written to pin.
+- **Cross-reference:** ADR-032 (the Sentry telemetry setup, and why the `NEXT_PUBLIC_` pairs exist).
+- **First noted:** 2026-08-30 (PR #93 review, post-merge).
+
 ### KI-95 — `docs/known-issues.md` has two hot insertion points, so every pair of parallel branches conflicts and the cost is quadratic
 - **Severity:** cleanup (no user impact) — but it is the most expensive process defect measured so far, and `/ki-sweep` is built to trigger it
 - **Area:** `docs/known-issues.md` itself, `.claude/commands/ki-sweep.md`, `.claude/agents/ki-fixer.md` (its contract requires each unit to move its own entry to Resolved)
@@ -51,6 +64,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   Reserving without reconciling is not an acceptable shortcut: it would charge every one-step answer the full 32, which re-creates KI-67's defect in reverse.
 - **A regression test should come with it:** a concurrent `Promise.all` of distinct users against the global bucket, which no current test covers — every quota test issues requests in sequence.
 - **Found by:** CodeRabbit, PR #83 §1 (Security & Privacy, Major), reviewing the KI-67 fix. Recorded rather than fixed because the refund primitive is a security-sensitive addition that wants its own reviewed step, not an unattended one appended to a four-issue branch.
+- **Seen again independently, 2026-08-30 (PR #93 review), with the arithmetic this entry had left qualitative.** The same reviewer re-derived it from scratch against a branch that changed nothing in `quota.ts` — it was reported as an out-of-diff finding — and put a number on the concurrent case: **30 concurrent board requests can consume 960 steps against a 240-step hourly budget** (32 steps admitted at a charge of 1 each). That is consistent with the `N × (budget − 1)` bound above and does not change the diagnosis or the fix path; it is recorded because a second, independent sighting is the evidence that this is not an artefact of how the first review read the code, and because the number makes the exposure concrete for whoever prioritises the refund primitive. No new entry was filed for it — see KI-95 on what duplicate entries cost this file.
 - **Cross-reference:** KI-67 (resolved — the step metering this refines), KI-24, ADR-019 (the AI kill switch).
 - **First noted:** 2026-08-29 (PR #83 review).
 
