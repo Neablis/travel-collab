@@ -730,7 +730,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             min-width of their content's intrinsic width, which a
             horizontally-scrolling day-columns row would otherwise refuse to
             go below. */}
-        <div className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}>
+        <div
+          className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}
+          // The rack is `position: fixed`, so it is outside normal flow and
+          // reserves no space: the day columns' own 24px bottom padding was
+          // measured against the viewport, not against the bar sitting on
+          // top of it, and a card's bottom edge ended up flush under the
+          // "Unscheduled" bar (Mitchell, 2026-08-30 design pass). Feeding the
+          // already-measured rack height in as a custom property lets
+          // `.trip-board-content` keep its 24px gap *above the bar* instead,
+          // and it tracks the rack opening, closing and changing item count
+          // for free — the same measurement the assistant launcher's `bottom`
+          // offset reads.
+          // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
+          style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
+        >
           <TripHeader tripId={tripId}>
             {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
                 the tabs' own `shrink-0` are what keep that true at a phone's

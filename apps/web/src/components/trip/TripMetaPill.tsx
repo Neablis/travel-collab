@@ -36,13 +36,27 @@ export function TripMetaPill({ detail, onOpenSettings }: { detail: TripDetail; o
       <span className="font-mono text-xs text-slate">{cities.size} cities</span>
 
       <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
+      {/* Avatars only — the "N travellers" text beside them was dropped in
+          the 2026-08-30 design pass (Mitchell, on the preview). The stacked
+          avatars already say who is on the trip, and the count was the one
+          item in this pill that restated something the row beside it shows.
+          The control itself stays: it is still how the pill opens Trip
+          settings, so the count moves to `aria-label`, where it is the
+          button's accessible name rather than a visible label. */}
       <Button
         variant="ghost"
         onClick={onOpenSettings}
-        aria-label={`${detail.members.length} travellers`}
-        className="h-auto gap-2 rounded-full p-0 font-normal"
+        aria-label={
+          detail.members.length === 1 ? "1 traveller" : `${detail.members.length} travellers`
+        }
+        className="h-auto rounded-full p-0 font-normal"
       >
-        <span className="flex items-center">
+        {/* `pr-1.5` cancels the last avatar's `-mr-1.5`. Each avatar pulls
+            the next one left to stack them; with the "N travellers" text
+            gone there is nothing after the last avatar to absorb its own
+            negative margin, so without this the stack sits 6px into the
+            pill's right padding. */}
+        <span className="flex items-center pr-1.5">
           {detail.members.map((member) => (
             <span
               key={member.userId}
@@ -55,7 +69,6 @@ export function TripMetaPill({ detail, onOpenSettings }: { detail: TripDetail; o
             </span>
           ))}
         </span>
-        <span className="font-mono text-xs text-slate">{detail.members.length} travellers</span>
       </Button>
     </div>
   );

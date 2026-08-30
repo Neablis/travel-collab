@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
 import { Text } from "../ui/text";
@@ -52,6 +52,30 @@ export function MapLens({
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
   const containerRef = useRef<HTMLDivElement>(null);
+  // Distance from the top of the viewport to the top of the map canvas —
+  // the sticky trip header, the tab strip and the day-chip rail, whose
+  // combined height is not a constant (the chips wrap, the header grows a
+  // line at narrow widths). Measured rather than assumed so the canvas can
+  // be exactly the rest of the window: it used to be a flat `70vh`, which
+  // left a strip of page visible under the map on a tall window and pushed
+  // the document just past one viewport on a short one, so the whole page
+  // scrolled a little. Both were reported together on the preview
+  // (Mitchell, 2026-08-30 design pass).
+  const [canvasTop, setCanvasTop] = useState<number | null>(null);
+  const canvasRef = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return;
+    const measure = () => setCanvasTop(node.getBoundingClientRect().top + window.scrollY);
+    measure();
+    // The canvas's own box does not change when the header above it does, so
+    // observing the canvas would never fire; the body is what reflows.
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
@@ -341,9 +365,24 @@ export function MapLens({
       )}
       {plottedPins.length > 0 ? (
         <div
+          ref={canvasRef}
           className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
-          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
-          style={{ minHeight: 480, height: "70vh" }}
+          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling exactly the viewport left below the header/tabs and above the unscheduled rack. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
+          style={{
+            // `dvh`, not `vh`: on mobile the two differ by the browser
+            // chrome's height, and `vh` is the one that overflows.
+            // `--rack-height` is set by TripBoardScreen on
+            // `.trip-board-content` above, so the map stops at the top of
+            // the Unscheduled bar instead of running under it, and follows
+            // the bar as it opens and closes. The floor keeps a very short
+            // window showing a usable map (and scrolling) rather than a
+            // sliver.
+            minHeight: 320,
+            height:
+              canvasTop === null
+                ? "70vh"
+                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px))`,
+          }}
         >
           <div ref={containerRef} className="h-full w-full" />
           <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />

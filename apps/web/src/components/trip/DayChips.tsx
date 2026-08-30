@@ -260,7 +260,16 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             >
               {day.transitionTo ? `${day.transitionFrom} → ${day.transitionTo}` : null}
             </div>
-            <div className="flex flex-wrap gap-0.5" aria-hidden>
+            {/* `mt-auto` pins the dots to the bottom of the chip. The chips
+                are flex siblings in a stretch row, so they already share a
+                height; what differed was where this row landed inside it.
+                The city line above collapses to zero height on a travel day
+                (the city moves to the transition line), so a travel chip's
+                dots sat a line higher than its neighbours' — reported on the
+                preview, 2026-08-30. Pinning to the bottom fixes that without
+                reserving height for a line that is deliberately empty, and
+                holds for any future row that renders conditionally. */}
+            <div className="mt-auto flex flex-wrap gap-0.5" aria-hidden>
               {Array.from({ length: day.stops }, (_, dotIndex) => (
                 <span
                   key={dotIndex}
