@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { asc } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "./db/client";
 import { events, tripDetails, tripSummaries } from "./db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "./commands";
@@ -35,27 +35,36 @@ async function seedBoard() {
   return { tripId, dayA, dayB, colosseum, vatican };
 }
 
+// The `beforeEach` that deleted every row of trip_details, trip_summaries and
+// events is gone (KI-89, the same defect KI-69 fixed in six sibling files).
+// Every trip id below is minted per test, so each assertion filters to the rows
+// the test itself wrote instead of counting the whole database — which is what
+// the truncation was really propping up.
 describe("executeTripCommand", () => {
-  beforeEach(async () => {
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
-  });
-
   it("appends TripCreated with the actor and updates both projections", async () => {
+    // A decoy trip nobody asserts about, standing in for a concurrent run or a
+    // developer's own data. It is the regression guard for KI-89: the scoped
+    // counts below stay 1 only while they are scoped, and the decoy's rows
+    // survive to the end of the test only while nothing truncates.
+    const decoyTripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId: decoyTripId, name: "Someone else's trip" });
+
     const tripId = randomUUID();
     const result = await exec({ type: "CreateTrip", tripId, name: "Rome 2027" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.tripId).toBe(tripId);
 
-    const eventRows = await db.select().from(events);
+    const eventRows = await db.select().from(events).where(eq(events.streamId, tripId));
     expect(eventRows).toHaveLength(1);
     expect(eventRows[0]!.actorId).toBe("user-1");
 
-    expect(await db.select().from(tripSummaries)).toHaveLength(1);
+    expect(await db.select().from(tripSummaries).where(eq(tripSummaries.tripId, tripId))).toHaveLength(1);
     const detail = await getTripDetail(tripId);
     expect(detail).toMatchObject({ tripId, name: "Rome 2027", days: [], backlog: [], conflicts: [] });
+
+    expect(await db.select().from(events).where(eq(events.streamId, decoyTripId))).toHaveLength(1);
+    expect(await db.select().from(tripSummaries).where(eq(tripSummaries.tripId, decoyTripId))).toHaveLength(1);
   });
 
   it("returns the authoritative detail + history on success", async () => {
@@ -100,10 +109,8 @@ describe("executeTripCommand", () => {
   it("mints the creator as owner and keeps owner-only commands reachable", async () => {
     const { tripId } = await seedBoard();
     expect((await getTripDetail(tripId))?.members).toEqual([{ userId: "user-1", role: "owner" }]);
-    const summary = await db.select().from(tripSummaries);
-    expect(summary.find((r) => r.tripId === tripId)?.members).toEqual([
-      { userId: "user-1", role: "owner" },
-    ]);
+    const summary = await db.select().from(tripSummaries).where(eq(tripSummaries.tripId, tripId));
+    expect(summary[0]?.members).toEqual([{ userId: "user-1", role: "owner" }]);
     expect((await exec({ type: "DeleteTrip", tripId })).ok).toBe(true);
     expect((await exec({ type: "RestoreTrip", tripId })).ok).toBe(true);
     await rebuildProjections();
@@ -220,7 +227,7 @@ describe("executeTripCommand", () => {
   });
 
   it("GOLDEN: rebuild from the log equals the live projections", async () => {
-    await seedBoard();
+    const first = await seedBoard();
     const second = await seedBoard();
     await exec({
       type: "MoveActivity",
@@ -239,13 +246,29 @@ describe("executeTripCommand", () => {
     await exec({ type: "RedoChange", tripId: second.tripId });
     await exec({ type: "RevertToState", tripId: second.tripId, toSeq: 1 });
 
-    const liveSummaries = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
-    const liveDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+    // Scoped to this test's two trips (KI-89). Unscoped, this compared every
+    // row of both projection tables before and after the rebuild, which held
+    // only because the truncation guaranteed those were the only rows.
+    // `rebuildProjections()` itself is still database-wide — that is a property
+    // of the function under test, not something the test can scope away — so
+    // the rebuild below still re-projects every trip in the log; only the
+    // comparison is narrowed. The length assertions keep that honest: a
+    // filtered comparison of two empty arrays would pass while proving nothing.
+    const tripIds = [first.tripId, second.tripId];
+    const summariesOfThisTest = () =>
+      db.select().from(tripSummaries).where(inArray(tripSummaries.tripId, tripIds)).orderBy(asc(tripSummaries.tripId));
+    const detailsOfThisTest = () =>
+      db.select().from(tripDetails).where(inArray(tripDetails.tripId, tripIds)).orderBy(asc(tripDetails.tripId));
+
+    const liveSummaries = await summariesOfThisTest();
+    const liveDetails = await detailsOfThisTest();
+    expect(liveSummaries).toHaveLength(2);
+    expect(liveDetails).toHaveLength(2);
 
     await rebuildProjections();
 
-    const rebuiltSummaries = await db.select().from(tripSummaries).orderBy(asc(tripSummaries.tripId));
-    const rebuiltDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+    const rebuiltSummaries = await summariesOfThisTest();
+    const rebuiltDetails = await detailsOfThisTest();
 
     const normalize = (rows: typeof liveSummaries) =>
       rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).toISOString() }));
@@ -254,13 +277,10 @@ describe("executeTripCommand", () => {
   });
 });
 
+// Same truncating `beforeEach`, removed on the same grounds (KI-89). Nothing in
+// this block ever asserted over a whole table — every test here reads back
+// through its own `tripId` — so it needed no other change.
 describe("executeTripCommandBatch", () => {
-  beforeEach(async () => {
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
-  });
-
   it("appends a batch of commands as ONE history entry", async () => {
     const tripId = randomUUID();
     await exec({ type: "CreateTrip", tripId, name: "Batch trip" });
