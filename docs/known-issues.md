@@ -13,6 +13,14 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-97 — TRACKING ONLY: the AI step quota's admission hole, as raised on PR #93. The record is KI-94.
+- **Severity:** correctness — inherited from KI-94, which is where the severity is argued.
+- **Area:** `apps/web/src/server/quota.ts` (`settleAiSteps`, `consumeQuota`), `apps/web/src/server/ai/handleAiRequest.ts` (the admission charge).
+- **This entry deliberately carries no analysis.** It exists because Mitchell asked for a standalone id to track the PR #93 sighting against (2026-08-30), after being told the defect was already filed. **KI-94 is the substantive record** — the mechanism, the honest scoping of per-user vs global exposure, what still bounds the burst today, the reserve-and-refund fix path and the two hazards that make the refund primitive a security-sensitive change of its own, and the concurrent regression test that should come with it. It also carries the PR #93 arithmetic (30 concurrent board requests → 960 steps against a 240-step hourly budget).
+- **Do not write a diagnosis here.** Two entries describing one defect drift apart the first time either is edited, and a divergent duplicate is worse than none — the failure KI-95 measures for this file. If you are here to fix the defect, go to KI-94 and read that; if you are here to close it, close **both**, and close this one by deletion rather than by moving a second narrative into `## Resolved`.
+- **Cross-reference:** KI-94 (the record), KI-67 (resolved — the step metering this refines), KI-95 (why duplicates in this file are expensive), ADR-019 (the AI kill switch).
+- **First noted:** 2026-08-29 as KI-94 (PR #83 review). Re-raised 2026-08-30 (PR #93 review). This id allocated 2026-08-30 for tracking only.
+
 ### KI-96 — `sentry.shared.test.ts`'s fixture stubs the variables it names and clears none of the others, so two of its cases read the ambient environment
 - **Severity:** reliability (environment-dependent test outcome; no product impact — the module under test is correct)
 - **Area:** `apps/web/sentry.shared.test.ts` (`ratesWith`), reading `apps/web/sentry.shared.ts` (`tracesSampleRate`, `profileSessionSampleRate`)
@@ -65,7 +73,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **A regression test should come with it:** a concurrent `Promise.all` of distinct users against the global bucket, which no current test covers — every quota test issues requests in sequence.
 - **Found by:** CodeRabbit, PR #83 §1 (Security & Privacy, Major), reviewing the KI-67 fix. Recorded rather than fixed because the refund primitive is a security-sensitive addition that wants its own reviewed step, not an unattended one appended to a four-issue branch.
 - **Seen again independently, 2026-08-30 (PR #93 review), with the arithmetic this entry had left qualitative.** The same reviewer re-derived it from scratch against a branch that changed nothing in `quota.ts` — it was reported as an out-of-diff finding — and put a number on the concurrent case: **30 concurrent board requests can consume 960 steps against a 240-step hourly budget** (32 steps admitted at a charge of 1 each). That is consistent with the `N × (budget − 1)` bound above and does not change the diagnosis or the fix path; it is recorded because a second, independent sighting is the evidence that this is not an artefact of how the first review read the code, and because the number makes the exposure concrete for whoever prioritises the refund primitive. No new entry was filed for it — see KI-95 on what duplicate entries cost this file.
-- **Cross-reference:** KI-67 (resolved — the step metering this refines), KI-24, ADR-019 (the AI kill switch).
+- **Cross-reference:** KI-67 (resolved — the step metering this refines), KI-24, ADR-019 (the AI kill switch), **KI-97 (a tracking-only id allocated for the PR #93 sighting — no analysis there; close it together with this one)**.
 - **First noted:** 2026-08-29 (PR #83 review).
 
 - **Numbering:** filed as 78 on 2026-08-29, when several sibling branches each filed a different KI-78 the same night. Renumbered to 94 on merge. Nothing outside this file references it.
