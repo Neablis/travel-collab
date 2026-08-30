@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
 import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
-import { mapDays, routeLine, type MapDay } from "./mapRailData";
+import { mapDays, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
@@ -31,9 +31,22 @@ function ghostRouteColor(): string {
   return getComputedStyle(document.documentElement).getPropertyValue("--color-slate").trim();
 }
 
-function layerIdFor(dayId: string): string {
-  return `route-${dayId}`;
+// A day draws up to two route layers: its ordinary legs, and the legs that
+// touch a `transit` stop, which are dashed. They have to be separate layers
+// because MapLibre's `line-dasharray` is a plain paint property and takes no
+// data-driven expression — see routeLegs() (mapRailData.ts) for the split.
+// Every route paint change below therefore applies to both.
+const ROUTE_VARIANTS = ["rest", "travel"] as const;
+type RouteVariant = (typeof ROUTE_VARIANTS)[number];
+
+function layerIdFor(dayId: string, variant: RouteVariant): string {
+  return `route-${variant}-${dayId}`;
 }
+
+// Dash pattern in line-width multiples, so it holds its proportions if the
+// route width changes: a 2x dash with a 1.6x gap reads as dotted at 3px
+// without turning into a dotted-line-shaped smear when the map zooms out.
+const TRAVEL_DASHARRAY = [2, 1.6];
 
 export function MapLens({
   detail,
@@ -185,24 +198,40 @@ export function MapLens({
         // ready synchronously after `new Map(...)`.
         for (const day of days) {
           if (day.stops.length < 2) continue;
-          const id = layerIdFor(day.dayId);
-          map.addSource(id, {
-            type: "geojson",
-            data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: routeLine(day) } },
-          });
-          map.addLayer({
-            id,
-            type: "line",
-            source: id,
-            paint: {
-              "line-color": accentVar(day.accent),
-              "line-width": 3,
-              // No focused day yet on first paint (see the focus effect
-              // below for what happens once one is picked) — every route
-              // draws at full strength until a focus dims the others.
-              "line-opacity": 1,
-            },
-          });
+          const legs = routeLegs(day);
+          for (const variant of ROUTE_VARIANTS) {
+            const coordinates = legs[variant];
+            // A day can be all travel or none of it, and an empty
+            // MultiLineString is a valid but pointless layer.
+            if (coordinates.length === 0) continue;
+            const id = layerIdFor(day.dayId, variant);
+            map.addSource(id, {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                properties: {},
+                // MultiLineString, not LineString: the legs of one variant
+                // are not necessarily contiguous — a day can go stop, train,
+                // stop, stop, train — so joining them into a single path
+                // would draw lines across gaps that no one travels.
+                geometry: { type: "MultiLineString", coordinates },
+              },
+            });
+            map.addLayer({
+              id,
+              type: "line",
+              source: id,
+              paint: {
+                "line-color": accentVar(day.accent),
+                "line-width": 3,
+                ...(variant === "travel" ? { "line-dasharray": TRAVEL_DASHARRAY } : {}),
+                // No focused day yet on first paint (see the focus effect
+                // below for what happens once one is picked) — every route
+                // draws at full strength until a focus dims the others.
+                "line-opacity": 1,
+              },
+            });
+          }
         }
 
         // Day-attached located stops only (Mitchell, preview review,
@@ -259,7 +288,6 @@ export function MapLens({
       const focused = focusedDay === null || day.index === focusedDay;
 
       if (day.stops.length >= 2) {
-        const layerId = layerIdFor(day.dayId);
         // Ghosting a non-focused route is two changes together: a lower
         // opacity floor than pins get (a thin line reads even fainter than a
         // pin at the same opacity, so it needs to drop further — tuned live
@@ -267,8 +295,14 @@ export function MapLens({
         // accent hue to a shared neutral, since the accent hue alone at
         // reduced opacity still read as "that day's colour, just fainter"
         // rather than genuinely de-emphasized.
-        map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
-        map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+        for (const variant of ROUTE_VARIANTS) {
+          const layerId = layerIdFor(day.dayId, variant);
+          // A day with no travel legs (or nothing but travel legs) never had
+          // the other layer added.
+          if (map.getLayer(layerId) === undefined) continue;
+          map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
+          map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+        }
       }
 
       // Pins read smaller than a route line and sit on a coloured basemap, so

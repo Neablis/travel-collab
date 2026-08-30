@@ -12,6 +12,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { formatMoney } from "@/components/lenses/formatMoney";
+import { displayPlace } from "@/lib/place";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
 // editor is now a portable Sheet raised from EditorHost's own state, not
@@ -230,7 +231,7 @@ function ReadOnlyActivity({
               : toClockRange(activity.timeWindow.start, activity.timeWindow.end)}
           </DataText>
           {activity.location && (
-            <Text as="p" variant="secondary">{activity.location.name}</Text>
+            <Text as="p" variant="secondary">{displayPlace(activity.location)}</Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}

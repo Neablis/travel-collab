@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ActivityTag, TripDetail } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
@@ -129,13 +129,23 @@ vi.mock("maplibre-gl", () => {
     }
     addLayer(...args: unknown[]) {
       addLayerMock(...args);
+      this.#layerIds.add((args[0] as { id: string }).id);
     }
     setPaintProperty(...args: unknown[]) {
       setPaintPropertyMock(...args);
     }
-    getLayer() {
-      return undefined;
+    // Real MapLibre returns the layer for an id it holds and `undefined`
+    // otherwise; this used to return `undefined` unconditionally, which was
+    // harmless only while nothing called it. MapLens now asks before painting
+    // a route layer — a day can have travel legs, ordinary legs or both, so
+    // one of its two layers may never have been added — and against the old
+    // stub every one of those guards took the "not there" branch and no route
+    // was ever painted. Tracking what addLayer() was given is what makes the
+    // guard testable at all.
+    getLayer(id: string) {
+      return this.#layerIds.has(id) ? { id } : undefined;
     }
+    #layerIds = new Set<string>();
     resize() {}
     fitBounds(...args: unknown[]) {
       fitBoundsMock(...args);
@@ -218,7 +228,7 @@ function detailFixture() {
 // is what `dayAccents` colours the routes by. It used to come out of the
 // `?? name` fallback that grouping no longer does; naming it here keeps these
 // route-colour tests about colour rather than about city derivation.
-function locatedActivity(id: string, lat: number, lng: number, city = id) {
+function locatedActivity(id: string, lat: number, lng: number, city = id, kind: ActivityKind = "planned") {
   return {
     activityId: id,
     title: id,
@@ -226,10 +236,26 @@ function locatedActivity(id: string, lat: number, lng: number, city = id) {
     location: { name: id, city, lat, lng },
     notes: null,
     anchors: [],
-    kind: "planned" as const,
+    kind,
     tags: [],
     cost: null,
   };
+}
+
+// One day whose middle stop is a train: the first and last legs both touch it,
+// so both are travel, and a fourth stop after it gives the day one ordinary
+// leg as well. Without that fourth stop the day would be entirely travel and
+// the "rest is still solid" half of the assertion would pass vacuously.
+function detailWithTransitStop(): TripDetail {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1", "t1", "a2", "a3"], date: "2027-06-01", costSubtotal: 0 }],
+    activities: {
+      a1: locatedActivity("a1", 41.89, 12.49, "a1"),
+      t1: locatedActivity("t1", 42.5, 12.6, "a1", "transit"),
+      a2: locatedActivity("a2", 43.0, 12.7, "a1"),
+      a3: locatedActivity("a3", 43.1, 12.8, "a1"),
+    },
+  });
 }
 
 // Both stops on a day share that day's city, which is what a day normally
@@ -363,6 +389,26 @@ describe("MapLens", () => {
     expect(lineLayers).toHaveLength(2);
   });
 
+  // Mitchell, 2026-08-30 design pass: "Travel activity kinds should be dotted
+  // line, not solid." The dash cannot be a data-driven expression in
+  // MapLibre, so it is a second layer per day rather than a property on the
+  // feature — this asserts the split actually happens and that only the
+  // travel half is dashed.
+  it("draws travel legs as a separate dashed layer, leaving the rest solid", async () => {
+    renderMap(detailWithTransitStop());
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const byId = new Map(
+      addLayerMock.mock.calls
+        .map(([layer]) => layer as { id: string; paint: Record<string, unknown> })
+        .filter((layer) => layer.id.startsWith("route-"))
+        .map((layer) => [layer.id, layer]),
+    );
+
+    expect(byId.get("route-travel-d1")?.paint["line-dasharray"]).toBeDefined();
+    expect(byId.get("route-rest-d1")?.paint["line-dasharray"]).toBeUndefined();
+  });
+
   it("does not move the camera for a focused day with no coordinates", async () => {
     renderMap(detailWithEmptyDay(), { focusedDay: 2 });
     await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
@@ -452,14 +498,14 @@ describe("MapLens", () => {
       const lastCall = (layerId: string, prop: string) =>
         setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === prop).at(-1)!;
 
-      const focusedOpacity = lastCall("route-d1", "line-opacity");
-      const ghostedOpacity = lastCall("route-d2", "line-opacity");
+      const focusedOpacity = lastCall("route-rest-d1", "line-opacity");
+      const ghostedOpacity = lastCall("route-rest-d2", "line-opacity");
       expect(focusedOpacity[2]).toBe(1);
       expect(ghostedOpacity[2]).toBeLessThan(0.55); // strictly ghostier than the old faint-fade value
       expect(ghostedOpacity[2]).toBeGreaterThan(0);
 
-      const focusedColor = lastCall("route-d1", "line-color");
-      const ghostedColor = lastCall("route-d2", "line-color");
+      const focusedColor = lastCall("route-rest-d1", "line-color");
+      const ghostedColor = lastCall("route-rest-d2", "line-color");
       // The focused day keeps its own accent colour; the non-focused day
       // shifts to a shared neutral tone rather than its accent at low opacity.
       expect(ghostedColor[2]).not.toBe(focusedColor[2]);
@@ -492,12 +538,12 @@ describe("MapLens", () => {
 
       await waitFor(() => {
         const latestOpacity = setPaintPropertyMock.mock.calls
-          .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-opacity")
+          .filter(([layerId, prop]) => layerId === "route-rest-d2" && prop === "line-opacity")
           .at(-1)!;
         expect(latestOpacity[2]).toBe(1);
       });
       const latestColor = setPaintPropertyMock.mock.calls
-        .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-color")
+        .filter(([layerId, prop]) => layerId === "route-rest-d2" && prop === "line-color")
         .at(-1)!;
       expect(latestColor[2]).toBe("TEST-SUCCESS");
     });

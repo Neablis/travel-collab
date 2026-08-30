@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Rochester",
-  accent: "warning", stops: [{ activityId: "a", title: "Stop A", lat: 43.15, lng: -77.6 }],
+  accent: "warning", stops: [{ activityId: "a", title: "Stop A", lat: 43.15, lng: -77.6, kind: "planned" }],
   unlocatedCount: 0, totalKm: 4.2, bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, ...over,
 });
 

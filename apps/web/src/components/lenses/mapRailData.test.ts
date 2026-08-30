@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TripDetail } from "@tc/contracts";
-import { mapDays, routeLine } from "./mapRailData";
+import type { ActivityKind, TripDetail } from "@tc/contracts";
+import { mapDays, routeLegs } from "./mapRailData";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
   return {
@@ -14,10 +14,10 @@ function detailWith(days: { dayId: string; date: string | null; activityIds: str
   };
 }
 
-const at = (name: string, lat?: number, lng?: number) => ({
+const at = (name: string, lat?: number, lng?: number, kind: ActivityKind = "planned") => ({
   activityId: name, title: name, timeWindow: null,
   location: lat === undefined ? { name } : { name, lat, lng, city: "Rochester" },
-  notes: null, anchors: [], cost: null,
+  notes: null, anchors: [], cost: null, kind,
 });
 
 describe("mapDays", () => {
@@ -115,16 +115,51 @@ describe("mapDays", () => {
   });
 });
 
-describe("routeLine", () => {
-  it("returns GeoJSON [lng, lat] pairs in stop order", () => {
+describe("routeLegs", () => {
+  it("returns GeoJSON [lng, lat] leg pairs in stop order", () => {
     const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b"] }], {
       a: at("a", 43.15, -77.60), b: at("b", 43.16, -77.62),
     });
-    expect(routeLine(mapDays(d)[0]!)).toEqual([[-77.60, 43.15], [-77.62, 43.16]]);
+    expect(routeLegs(mapDays(d)[0]!)).toEqual({
+      rest: [[[-77.60, 43.15], [-77.62, 43.16]]],
+      travel: [],
+    });
   });
 
-  it("returns an empty line for a day with no located stops", () => {
+  it("returns no legs at all for a day with no located stops", () => {
     const d = detailWith([{ dayId: "d1", date: null, activityIds: [] }], {});
-    expect(routeLine(mapDays(d)[0]!)).toEqual([]);
+    expect(routeLegs(mapDays(d)[0]!)).toEqual({ rest: [], travel: [] });
+  });
+
+  it("has no legs for a single stop — a leg needs two ends", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a"] }], { a: at("a", 43.15, -77.6) });
+    expect(routeLegs(mapDays(d)[0]!)).toEqual({ rest: [], travel: [] });
+  });
+
+  // The rule the dashed line encodes: a transit stop IS the movement, so the
+  // hop that reaches it and the hop that leaves it are both travel.
+  it("counts a leg as travel when either end is a transit stop", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "t", "b"] }], {
+      a: at("a", 43.10, -77.60),
+      t: at("t", 43.20, -77.70, "transit"),
+      b: at("b", 43.30, -77.80),
+    });
+    const legs = routeLegs(mapDays(d)[0]!);
+    expect(legs.travel).toEqual([
+      [[-77.60, 43.10], [-77.70, 43.20]],
+      [[-77.70, 43.20], [-77.80, 43.30]],
+    ]);
+    expect(legs.rest).toEqual([]);
+  });
+
+  it("keeps non-travel legs solid on a day that also has travel", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b", "t"] }], {
+      a: at("a", 43.10, -77.60),
+      b: at("b", 43.20, -77.70),
+      t: at("t", 43.30, -77.80, "transit"),
+    });
+    const legs = routeLegs(mapDays(d)[0]!);
+    expect(legs.rest).toEqual([[[-77.60, 43.10], [-77.70, 43.20]]]);
+    expect(legs.travel).toEqual([[[-77.70, 43.20], [-77.80, 43.30]]]);
   });
 });
