@@ -162,6 +162,36 @@ describe("preview registry ↔ usage", () => {
     }
   });
 
+  // M11b's exit-gate line: "All four Playbooks `<Preview>` shells are DELETED
+  // from preview-registry.ts" — deleted, not re-pointed. Named literally on
+  // purpose, unlike the scanner test below: these four ids are a decision that
+  // was made, and the failure mode this guards is somebody reintroducing one
+  // under the same name, which no derived assertion can see.
+  //
+  // The five OTHER M11-tagged entries are deliberately still here. None of them
+  // is Playbooks and each is blocked on a contract field that does not exist —
+  // see the registry's own note, and the build plan's finding 1, which records
+  // retagging them as Mitchell's call rather than PR3's.
+  it("has no Playbooks shell left, in the registry or in the tree", () => {
+    for (const id of ["home-playbooks-strip", "playbooks-route", "insert-playbook", "wizard-playbook-panel"]) {
+      expect(PREVIEW_REGISTRY, `"${id}" is back in the registry`).not.toHaveProperty(id);
+      expect(declared, `"${id}" is back in the tree`).not.toContain(id);
+    }
+  });
+
+  // The other half of the same gate box: "No `<option>` city list exists
+  // anywhere in the tree." The handoff says it twice and the milestone restates
+  // it, because the dropdown is what the server-side city search replaces —
+  // and a static list of cities is the obvious thing to reach for when the
+  // endpoint is inconvenient.
+  it("has no static city <option> list anywhere in src", () => {
+    const offenders = files
+      .filter((f) => f.endsWith(".tsx") && !isTest(f))
+      .filter((f) => /aria-label="City"|All cities/.test(readFileSync(f, "utf8")))
+      .map((f) => relative(SRC, f));
+    expect(offenders).toEqual([]);
+  });
+
   // Keeps the PARKED escape hatch honest: an entry is only legitimate while its
   // named file still parks that id and still isn't rendered. Wire the component
   // up (or delete it) and this fails until the entry is removed, so the
@@ -222,11 +252,28 @@ describe("the orphan scanner itself", () => {
     expect(previewIdsInSource(source.get("components/Shelved.tsx")!)).toEqual(["shelved-shell"]);
   });
 
-  it("still counts a <Preview id> in a component the app imports", () => {
-    const rendered = join(SRC, "components/trip/EndOfTrip.tsx");
-    expect(isRendered(rendered)).toBe(true);
-    expect(previewIdsIn(rendered)).toContain("insert-playbook");
-    expect(usedByRenderedCode).toContain("insert-playbook");
+  // Rewritten in M11b, and the reason is the point. This used to name
+  // `EndOfTrip.tsx` and `insert-playbook` as a literal pair — and M11b deleted
+  // that shell, so the test failed for a reason that had nothing to do with
+  // what it checks. A guard whose subject is a hardcoded fixture expires the
+  // day its fixture does; the property it was after ("a `<Preview id>` in a
+  // file the router can reach IS counted") is true of every such file, so it is
+  // asserted over all of them.
+  it("counts every <Preview id> that sits in a component the app renders", () => {
+    const carriers = scanned.filter((f) => isRendered(f) && previewIdsIn(f).length > 0);
+    // The witness: with no carriers the loop below asserts nothing and passes
+    // vacuously, which is the exact failure `test-support/witness.ts` exists
+    // for. Registered ids all have to be used, so this is also a floor of one.
+    expect(
+      carriers.length,
+      "no rendered file carries a <Preview id> — the scanner or the resolver has broken",
+    ).toBeGreaterThan(0);
+    for (const file of carriers) {
+      for (const id of previewIdsIn(file)) {
+        expect(usedByRenderedCode, `${relative(SRC, file)} carries "${id}"`).toContain(id);
+        expect(PREVIEW_REGISTRY, `${relative(SRC, file)} carries "${id}"`).toHaveProperty(id);
+      }
+    }
   });
 
   it("treats a Next.js entry point as rendered even though nothing imports it", () => {

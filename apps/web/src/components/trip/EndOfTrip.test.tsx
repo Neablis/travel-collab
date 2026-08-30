@@ -1,7 +1,6 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
 // M11 link 6 made "Add a saved day" real, and it reads TripProvider. These
 // tests render the block bare; the button's own behaviour is
 // AddSavedDayButton.test.tsx's subject.
@@ -30,36 +29,25 @@ describe("EndOfTrip", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add a day" }));
     expect(onAddDay).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Add a saved day" })).toBeTruthy();
   });
 
-  // M11 link 6: "Add a saved day" is real, so it must sit OUTSIDE the
-  // <Preview id="insert-playbook"> that still shells the Playbook shortcuts —
-  // the shield swallows every click below it, and a real control inside one
-  // would be dead on arrival.
-  it("mounts the real Add a saved day outside the insert-playbook shell", async () => {
+  // M11b: the three fabricated Playbook shortcut cards and the
+  // `<Preview id="insert-playbook">` around them are DELETED, not re-pointed.
+  // This is the assertion that keeps them gone — the shell used to be the thing
+  // this block was mostly made of, and re-adding it is the easy mistake.
+  it("carries no Preview shell and no fabricated Playbook cards", () => {
     render(<EndOfTrip onAddDay={vi.fn()} />);
-    const region = document.querySelector('[data-preview-id="insert-playbook"]') as HTMLElement;
-    expect(region).not.toBeNull();
-    const button = screen.getByRole("button", { name: "Add a saved day" });
-    expect(region.contains(button)).toBe(false);
-    // No click assertion here: this file mocks AddSavedDayButton, so a
-    // resolved `userEvent.click` would prove only that clicking a button with
-    // no handler does not throw — true of any button anywhere (CodeRabbit,
-    // PR #71). What the click was meant to show, that the shield does not
-    // swallow it, is exactly what `region.contains` already establishes; the
-    // real button's behaviour is covered in AddSavedDayButton.test.tsx.
+    expect(document.querySelector("[data-preview-id]")).toBeNull();
+    expect(document.querySelector('[data-testid^="playbook-shortcut-"]')).toBeNull();
   });
 
-  it("shows at most three Playbook shortcuts, from the existing preview fixture", () => {
+  // What replaced them: a link to the real library, which is a page's job to
+  // fetch rather than a footer's.
+  it("points at the real library instead", () => {
     render(<EndOfTrip onAddDay={vi.fn()} />);
-    const region = document.querySelector('[data-preview-id="insert-playbook"]') as HTMLElement;
-    const shortcuts = region.querySelectorAll('[data-testid^="playbook-shortcut-"]');
-    expect(shortcuts).toHaveLength(3);
-    // Real fixture data, not invented card content.
-    const first = PREVIEW_PLAYBOOK_CARDS[0]!;
-    expect(within(region).getByText(first.name)).toBeTruthy();
-    expect(within(region).getByText(first.span)).toBeTruthy();
-    // The fourth fixture entry is deliberately not rendered.
-    expect(within(region).queryByText(PREVIEW_PLAYBOOK_CARDS[3]!.name)).toBeNull();
+    expect(screen.getByRole("link", { name: "other people's days" }).getAttribute("href")).toBe(
+      "/playbooks",
+    );
   });
 });

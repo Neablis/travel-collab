@@ -9,6 +9,7 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
+  TripSummary,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type PageContext,
@@ -77,6 +78,25 @@ export async function createTrip(input: { name: string }): Promise<ApiResult<{ t
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Your trips, newest first — the list `/api/trips` has always returned.
+ *
+ * A helper rather than the raw `fetch` the home page still hand-rolls, because
+ * M11b's "Add to a trip" needs the same list from a page that is not a trip and
+ * has no TripProvider to ask. Parsed against the contract here so the second
+ * caller cannot quietly disagree with the first about the shape.
+ */
+export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
+  try {
+    const res = await fetch(apiUrl("/api/trips"));
+    return await readJson(res, (data) =>
+      ((data as { trips: unknown[] }).trips ?? []).map((t) => TripSummary.parse(t)),
+    );
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

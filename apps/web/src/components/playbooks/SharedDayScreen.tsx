@@ -1,0 +1,291 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useState } from "react";
+import type { SavedDay } from "@tc/contracts";
+import { Badge } from "@/components/ui/badge";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { DataText } from "@/components/ui/data-text";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
+import { formatMoney } from "@/components/lenses/formatMoney";
+import {
+  fetchPublicProfile,
+  fetchSavedDay,
+  publishSavedDay,
+  unpublishSavedDay,
+  type ApiResult,
+} from "@/lib/apiClient";
+import { displayNameFor } from "@/lib/displayName";
+import type { PublicAuthor } from "@/lib/playbooks";
+import { savedDayFacts } from "@/lib/savedDayFacts";
+import { toClockRange } from "@/lib/time";
+import { LibraryMoved, SyncFailure } from "./ReadStates";
+import { useLibraryRead } from "./useLibraryRead";
+import { AddToTripDialog } from "./AddToTripDialog";
+
+// A shared day (M11b link 6). The full stop list with per-stop notes and city
+// chips, an author strip, and a sticky rail of facts with "Add to a trip".
+//
+// **No rating, no 5→1 histogram, no review states.** §15 puts all three here;
+// the 2026-08-30 scope decision puts them in M12 with the reviews table that
+// would make them mean anything. Their absence is the milestone's, not an
+// oversight — see "Explicitly not here".
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+] as const;
+
+type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor };
+
+/**
+ * One read, two requests.
+ *
+ * The author strip's numbers come from the SAME endpoint the public profile
+ * uses, rather than from a count computed here — which is what makes "days
+ * shared / how often their days were added" say the same thing beside a day as
+ * it does on the profile that day links to.
+ */
+async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
+  const dayResult = await fetchSavedDay(savedDayId);
+  if (!dayResult.ok) return dayResult;
+  const authorResult = await fetchPublicProfile(dayResult.value.savedDay.ownerId);
+  if (!authorResult.ok) return authorResult;
+  return {
+    ok: true,
+    value: {
+      day: dayResult.value.savedDay,
+      isAuthor: dayResult.value.isAuthor,
+      author: authorResult.value.author,
+    },
+  };
+}
+
+export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayId: string; backHref: string; backLabel: string }) {
+  const read = useCallback(() => readDay(savedDayId), [savedDayId]);
+  // Visibility and the adds count are what somebody else can move under a
+  // reader — the day's stops are a snapshot and never change after it is saved.
+  const signature = useCallback(
+    (value: DayView) => `${value.day.visibility}:${value.day.adds}`,
+    [],
+  );
+  const feed = useLibraryRead(read, signature);
+
+  const [adding, setAdding] = useState(false);
+  const [withdrawn, setWithdrawn] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function setVisibility(next: "public" | "private") {
+    setBusy(true);
+    const result = next === "public" ? await publishSavedDay(savedDayId) : await unpublishSavedDay(savedDayId);
+    setBusy(false);
+    // Re-read rather than patching local state from the response: the author
+    // strip's numbers are computed server-side and a publish moves one of them.
+    if (result.ok) feed.reload();
+  }
+
+  // The day is gone — never yours, withdrawn by its author, or deleted. All
+  // three are the same 404 by design (`saved-day-access.ts`: a private day and
+  // a nonexistent one must be indistinguishable, so ids cannot be enumerated),
+  // so the copy cannot claim to know which.
+  if (feed.data === null && feed.error !== null && !feed.loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <BackLink href={backHref} label={backLabel} />
+        <EmptyState
+          title="This day is not in the library"
+          body="It may never have been shared, or its author may have taken it back out."
+          action={
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={feed.reload}>
+                Try again
+              </Button>
+              <Link href="/playbooks">
+                <Button variant="primary">Back to Discover</Button>
+              </Link>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (feed.data === null) {
+    return (
+      <div className="flex flex-col gap-4">
+        <BackLink href={backHref} label={backLabel} />
+        <Card className="h-64 animate-pulse rounded-lg bg-moss" aria-hidden data-testid="shared-day-skeleton" />
+      </div>
+    );
+  }
+
+  const { day, isAuthor, author } = feed.data;
+  const facts = savedDayFacts(day.stops);
+  const kept = new Date(day.createdAt);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <BackLink href={backHref} label={backLabel} />
+
+      <SyncFailure read={feed} what="this day" />
+      <LibraryMoved read={feed}>
+        This day has changed since you opened it — its author published, withdrew or someone took it.
+      </LibraryMoved>
+      {withdrawn && (
+        <Banner variant="warning" data-testid="day-withdrawn">
+          That day is no longer in the library, so it could not be added. Its author took it back
+          out while this page was open.
+        </Banner>
+      )}
+
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="min-w-0 flex-1 flex flex-col gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Heading level={1}>{day.name}</Heading>
+              {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+            </div>
+            <Text variant="secondary" className="mt-1">
+              Kept out of {day.sourceTripName}. Order and gaps kept, no dates — drop it into any
+              trip and the times reflow around it.
+            </Text>
+          </div>
+
+          {/* The author strip. One resolver for the name (M17's seam), and the
+              two numbers beside it are the profile's own. */}
+          <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
+            <div className="min-w-0">
+              <Link
+                href={`/playbooks/profile/${encodeURIComponent(author.userId)}?from=day&day=${day.savedDayId}`}
+                className="font-semibold text-ink hover:underline"
+              >
+                {displayNameFor({ userId: author.userId })}
+              </Link>
+              <Text variant="secondary">
+                {author.daysShared} day{author.daysShared === 1 ? "" : "s"} shared · added to{" "}
+                {author.adds} trip{author.adds === 1 ? "" : "s"}
+              </Text>
+            </div>
+            {isAuthor && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => void setVisibility(day.visibility === "public" ? "private" : "public")}
+              >
+                {day.visibility === "public" ? "Unpublish" : "Publish"}
+              </Button>
+            )}
+          </Card>
+
+          {day.stops.length === 0 ? (
+            <EmptyState
+              title="This day has nothing on it"
+              body="Every stop has been removed since it was kept."
+            />
+          ) : (
+            <ol className="flex flex-col gap-2" data-testid="stop-list">
+              {day.stops.map((stop, index) => (
+                <Card as="li" key={index} className="flex flex-col gap-1.5 p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-semibold text-ink">{stop.title}</span>
+                    {stop.timeWindow !== null && (
+                      <DataText size="xs">{toClockRange(stop.timeWindow.start, stop.timeWindow.end)}</DataText>
+                    )}
+                  </div>
+                  {stop.location?.city !== undefined && (
+                    <span className="w-fit rounded-full bg-moss px-2.5 py-0.5 text-xs font-semibold text-slate">
+                      {stop.location.city}
+                    </span>
+                  )}
+                  {stop.notes !== null && stop.notes !== "" && (
+                    <Text variant="secondary">{stop.notes}</Text>
+                  )}
+                  {stop.cost !== null && (
+                    <DataText size="xs">{formatMoney(stop.cost.amountMinor, stop.cost.currency)}</DataText>
+                  )}
+                </Card>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        {/* The sticky rail: the facts, and the one action. */}
+        <aside className="lg:w-72 lg:shrink-0">
+          <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
+            <Fact label="Stops" value={String(facts.stopCount)} />
+            <Fact
+              label="Window"
+              value={facts.window === null ? "No times set" : toClockRange(facts.window.start, facts.window.end)}
+            />
+            <Fact
+              label="Budget each"
+              value={
+                facts.budgetPerPerson === null
+                  ? "Not priced"
+                  : formatMoney(facts.budgetPerPerson.amountMinor, facts.budgetPerPerson.currency)
+              }
+            />
+            {/* "Kept in", not "run in" — the month §15 asks for does not exist.
+                `stopsForDay` drops a day's calendar date on purpose (ADR-029),
+                so the only month a saved day carries is the month it entered
+                the library. Discover's filter is labelled the same way. */}
+            <Fact label="Kept in" value={`${MONTHS[kept.getUTCMonth()]} ${kept.getUTCFullYear()}`} />
+            <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
+
+            <Button
+              variant="primary"
+              className="mt-1 w-full justify-center"
+              onClick={() => {
+                setWithdrawn(false);
+                setAdding(true);
+              }}
+            >
+              Add to a trip
+            </Button>
+          </Card>
+        </aside>
+      </div>
+
+      <AddToTripDialog
+        open={adding}
+        onOpenChange={setAdding}
+        savedDayId={day.savedDayId}
+        dayName={day.name}
+        onConflict={() => {
+          setWithdrawn(true);
+          feed.reload();
+        }}
+      />
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <Text as="span" variant="muted" className="text-xs uppercase tracking-wide">
+        {label}
+      </Text>
+      <DataText size="xs">{value}</DataText>
+    </div>
+  );
+}
+
+/**
+ * The contextual back link (§15: "the profile returns to day, board or Discover
+ * depending on where you came from, because the same page is reachable three
+ * ways"). The same argument applies to a shared day, which is reachable from
+ * Discover and from a profile.
+ */
+function BackLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} className="w-fit text-sm text-slate hover:underline">
+      ← {label}
+    </Link>
+  );
+}

@@ -337,9 +337,12 @@ describe("Board", () => {
     expect(title.className).toContain("text-ink");
   });
 
-  // The same two actions EndOfTrip carries: a real "Add a day", and an inert
-  // "Add a saved day" inside the existing insert-playbook Preview region.
-  it("carries a real Add a day and an inert Add a saved day", async () => {
+  // M11b deleted the inert `<Preview id="insert-playbook">` copy of "Add a
+  // saved day" that used to live in this column. The real control reads
+  // `useTrip()` and this component is rendered here with no provider, so what
+  // replaced it is a link into the public library — and this test is what keeps
+  // the shell from coming back.
+  it("carries a real Add a day and a link into the library, and no Preview shell", async () => {
     const callbacks = noopCallbacks();
     renderBoard(fixture(), callbacks);
     const column = screen.getByTestId("one-more-day-column");
@@ -347,22 +350,21 @@ describe("Board", () => {
     await userEvent.click(within(column).getByRole("button", { name: "Add a day" }));
     expect(callbacks.onAddDay).toHaveBeenCalledOnce();
 
-    const region = column.querySelector('[data-preview-id="insert-playbook"]');
-    expect(region).not.toBeNull();
-    expect(within(region as HTMLElement).getByRole("button", { name: "Add a saved day" })).toBeTruthy();
-    // The Preview shield swallows the click, so the saved-day half cannot fire.
-    await expect(
-      userEvent.click(screen.getByRole("button", { name: "Add a saved day" })),
-    ).rejects.toThrow();
+    expect(column.querySelector("[data-preview-id]")).toBeNull();
+    expect(
+      within(column).getByRole("link", { name: "Take a day from the library" }).getAttribute("href"),
+    ).toBe("/playbooks");
   });
 
   // Playwright's getByRole name match is substring by default, so an e2e spec
-  // asking for "Add a day" would otherwise also match "Add a saved day". The
-  // two are distinguishable by exact name; this pins that they stay so.
-  it("has exactly one button named Add a day, distinct from Add a saved day", () => {
+  // asking for "Add a day" would otherwise also match a longer name. Kept after
+  // M11b removed this column's "Add a saved day": the exactness claim is about
+  // the day button, and the second control it could be confused with changed
+  // rather than went away.
+  it("has exactly one button named Add a day", () => {
     renderBoard(fixture(), noopCallbacks());
     expect(screen.getAllByRole("button", { name: "Add a day" })).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Add a saved day" })).toHaveLength(1);
+    expect(screen.queryAllByRole("button", { name: /saved day/i })).toHaveLength(0);
   });
 
   // A trip with no days at all: the row is nothing but the trailing column,

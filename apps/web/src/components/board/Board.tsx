@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
@@ -11,7 +12,6 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccents } from "@/lib/dayAccent";
-import { Preview } from "@/components/ui/preview";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
@@ -23,8 +23,7 @@ import { resolveDrop } from "./resolveDrop";
 // grow by one more of these" rather than as a stray control parked next to the
 // plan — the Day-columns twin of the timeline's EndOfTrip block, carrying the
 // same two actions: a real "Add a day" (the AddDay command TripBoardScreen
-// already dispatches) and, inside <Preview id="insert-playbook">, M11's inert
-// "Add a saved day".
+// already dispatches) and a link into the public library.
 //
 // Deliberately NOT importing trip/EndOfTrip.tsx or extracting a shared block
 // out of it. The two share their copy and their actions, not their layout:
@@ -58,16 +57,22 @@ function OneMoreDayColumn({ onAddDay }: { onAddDay: () => void }) {
       <Button variant="primary" onClick={onAddDay} className="w-full justify-center">
         Add a day
       </Button>
-      {/* size="container": a region rather than a single control, so the
-          dotted border and the "Preview · M11" chip — same treatment
-          EndOfTrip gives its own copy of this button. The shield inside
-          Preview swallows every click below it, so this button neither has
-          nor needs an onClick. */}
-      <Preview id="insert-playbook" size="container" className="p-2">
-        <Button variant="secondary" className="w-full justify-center">
-          Add a saved day
-        </Button>
-      </Preview>
+      {/* M11b deleted the inert `<Preview id="insert-playbook">` copy of "Add a
+          saved day" that used to sit here. The REAL control is
+          `AddSavedDayButton`, which reads `useTrip()` — and `Board` is a
+          props-only component (`BoardCallbacks`) that its own tests render with
+          no provider, so mounting it here would couple this component to the
+          trip context to restore a button that never did anything. The library
+          is one link away instead, and the real "Add a saved day" is where the
+          design put it: in the plan flow, at the end of the trip
+          (`trip/EndOfTrip.tsx`, reachable from the Timeline lens). Raised in
+          the PR3 report rather than decided quietly. */}
+      <Link
+        href="/playbooks"
+        className="rounded-md px-2 py-1 text-center text-sm text-slate hover:underline"
+      >
+        Take a day from the library
+      </Link>
     </section>
   );
 }
