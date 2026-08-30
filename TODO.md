@@ -195,6 +195,32 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Drop Travelers from the trip header bar (2026-08-30, Mitchell, on PR #89's
+  preview — "Drop Travelers from this bar, its not needed, it can live just in
+  the trip settings").** It is a delete, not a move, and smaller than it sounds
+  — checked before filing:
+  - The control is the avatar stack plus "N travellers" in
+    `components/trip/TripMetaPill.tsx:39-58`, beside days / stops / cities.
+  - **Its `onClick` is already `onOpenSettings`** — it opens the same
+    `SettingsSheet` the trip title does. So the routing Mitchell describes is
+    not something to build; the control is a link there already.
+  - **Settings already lists members.** `SettingsSheet.tsx:327` has a "Who is
+    invited" section whose `TravelersPanel` shows the effective members and, for
+    an owner, creates, copies and revokes invite links (M11 link 3). Nothing is
+    lost by removing the header display.
+  So the work is deleting the `<Button>` and its avatar stack from
+  `TripMetaPill`, and its assertions from `TripMetaPill.test.tsx`. Watch the
+  divider: each meta item is preceded by a `bg-hairline` spacer, so the one
+  before it goes too or the pill ends on a stray rule.
+  The one judgement left is what it costs on a **shared** trip: after M11 the
+  avatar stack is the only at-a-glance sign that a trip has other people on it.
+  On a solo trip it reads "1 travellers" and earns nothing, which is the case
+  Mitchell was looking at. Removing it unconditionally is the literal ask;
+  hiding it below two members is the smaller-blast-radius alternative.
+  Deliberately not done in PR #89 — that PR closed M18's gate, and removing a
+  control from a different surface would have made the gate evidence harder to
+  read.
+
 - **Timeline: scrolling should move the day chips, the way the map rail
   already does (2026-08-28, Mitchell, walking PR #71's preview — "Add this to
   the future tasks").** The timeline's focus binding is one-way today. A chip
@@ -220,6 +246,12 @@ Captured so they aren't lost; not committed to a milestone yet.
   avoids it by calling `onFocus` only when the resolved day actually changes;
   the timeline additionally needs that effect to skip scrolling when the change
   came *from* scrolling.
+  **Raised a second time on 2026-08-30**, on PR #89's preview — "As i scroll
+  through the timeline, it should select the day you are passing, and show the
+  selection at the top bar to". Same request as the 2026-08-28 one above, now
+  with the top-bar half stated explicitly: the day chips should show the
+  selection, not just the timeline. Two asks for the same thing in two days is
+  the strongest signal on this list that it is worth scheduling.
 
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
