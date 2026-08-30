@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { e2eTripName } from "./tripNames";
@@ -16,6 +17,14 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test("sign in, create a trip, see it in the list", async ({ page }) => {
   const tripName = e2eTripName("Rome");
+  // A username the app has never seen, so the gate genuinely asks for the code
+  // filled in below. This used to be the literal "alice", who already has a
+  // `users` row from `auth.setup.ts` — she takes the returning-user path,
+  // `recordSignIn` admits her before any credential is read, and the super-code
+  // fill was therefore dead. The comment above claimed a brand-new account
+  // while the code signed in a returning one: the invariant-without-a-test
+  // class this repo names in KI-1 and KI-14. Caught in review on PR #99.
+  const username = `smoke${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 
   await page.goto("/");
   // `/signup`, not `/signin`: M11a's gate refuses anyone with no `users` row
@@ -31,7 +40,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
 
   // Dev Login credentials form.
-  await page.fill('input[name="username"]', "alice");
+  await page.fill('input[name="username"]', username);
 
   // Wait for the post-sign-in page's first authenticated /api/trips fetch to
   // resolve — that fetch only fires after React hydrates, so it's a reliable

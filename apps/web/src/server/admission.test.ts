@@ -84,7 +84,11 @@ describe("matchesSuperCode", () => {
     const w = witness("matchesSuperCode length mismatch");
     fc.assert(
       fc.property(fc.string({ minLength: 1 }), fc.string({ minLength: 1 }), (a, b) => {
-        w.tick();
+        // Ticked only on an actual mismatch. Ticking every case would witness
+        // that the property RAN, not that it ever reached the path the test is
+        // named for — a property that never generated an unequal pair would
+        // still report a full count. Caught in review on PR #99.
+        if (a.length !== b.length) w.tick();
         expect(() => matchesSuperCode(a, b)).not.toThrow();
       }),
     );

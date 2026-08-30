@@ -38,7 +38,14 @@ describe("AdmissionRefusal", () => {
     expect(AdmissionRefusal.safeParse(value).success).toBe(false);
   });
 
-  it.each<unknown>([null, undefined, 42, {}, [], ["MISSING_INVITE_CODE"]])(
+  // Single-element ROWS, not a flat list. Vitest decides table-vs-list by
+  // whether every entry is an array: the flat form worked only because the
+  // scalars in it forced list mode, and deleting them would silently flip it
+  // to a table, spreading `["MISSING_INVITE_CODE"]` back into a valid string.
+  // Verified by probe on Vitest 4.1.11 before changing anything. Raised in
+  // review on PR #99 (as an active break, which it was not — but the
+  // fragility is real and this form has none of it).
+  it.each<[unknown]>([[null], [undefined], [42], [{}], [[]], [["MISSING_INVITE_CODE"]]])(
     "refuses the non-string %j",
     (value) => {
       expect(AdmissionRefusal.safeParse(value).success).toBe(false);
