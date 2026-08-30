@@ -1,4 +1,4 @@
-### KI-88 — FIXED — A reasoning model made the /ask intent classifier fail open on every turn, and the optimisation silently bought nothing
+### KI-88 — A reasoning model made the /ask intent classifier fail open on every turn, and the optimisation silently bought nothing — RESOLVED, the verdict is a schema rather than a parsed string
 - **Status: FIXED, 2026-08-29, PR #88.** Filed hours earlier as a theoretical consequence of `maxOutputTokens: 8`, then observed live the same evening. Kept rather than deleted because it is the rare case of a known issue that predicted a real failure before it happened, and the fix is only legible against what it broke.
 - **Severity when open:** cleanup (the turn still worked — it fails open to the full tool set by design — but the ~55% input-token saving it exists for quietly stopped happening)
 - **Area:** `apps/web/src/server/ai/askIntent.ts` (`MAX_VERDICT_TOKENS`, `classifyAskIntent`), `apps/web/src/server/ai/simulatedModel.ts` (`classifyStep`), `apps/web/src/server/config.ts` (`aiModel`, `AI_MODEL`), `apps/web/src/server/ai/gateway.ts`
@@ -21,3 +21,4 @@
 - **What to watch:** `classification.model`, `.latencyMs` and `.usage` in the `ai.ask` records, which now name which model gave the verdict. A `failedOpen` rate that climbs after a model change is this issue's shape returning in a form the schema does not cover.
 - **Found by:** branch review of the classifier work, PR #88, 2026-08-29 — then confirmed live the same evening, before the predicted failure had been fixed.
 - **First noted:** 2026-08-29. **Fixed:** 2026-08-29.
+- **Bookkeeping, 2026-08-30:** this entry recorded itself as fixed on 2026-08-29 but was left sitting in `## Open`, so it read as outstanding work for a day. Moved to Resolved with no change to its substance. Its narrative is kept in full for the reason it states above — a known issue that predicted a real failure before it happened.
