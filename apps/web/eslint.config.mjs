@@ -223,6 +223,13 @@ export default [
       // context (e.g. a "probe" input standing in for some other field on
       // the page) — this is not shipped UI, so the element wall doesn't apply.
       "src/**/*.test.tsx",
+      // Sentry wizard-generated scaffolding (landed on main via 6a5501e,
+      // pushed directly without a PR, so `pnpm lint` never ran on it — see
+      // docs/guidelines/ci-cost-and-capacity.md for why CI is PR-only). It's
+      // a throwaway verification route, not product UI, so the design-system
+      // wall doesn't apply. If this file is ever deleted, delete this line
+      // with it rather than leaving a dangling exemption.
+      "src/app/sentry-example-page/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [
