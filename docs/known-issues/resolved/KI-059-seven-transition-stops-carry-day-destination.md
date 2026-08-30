@@ -1,4 +1,4 @@
-### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in — RESOLVED
 - **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
   Two sessions reached this entry from opposite ends on the same day; this
   paragraph reconciles them.** The other session corrected all seven rows,
@@ -58,3 +58,87 @@
 - **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`); the 2026-08-29 measurement above is recorded there too.
 - **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
 - **First noted:** 2026-08-28 (PR #74 review).
+
+---
+
+- **Resolved 2026-08-30.** Mitchell, asked about the product-visible
+  consequence: *"Go ahead and fix, i want honesty, not keeping past data the
+  same."* The entry had been carried as a recorded design decision; it is
+  closed as a defect.
+- **Reproduced first, from the fixture's own coordinates** rather than from the
+  entry's list. For each of the 68 scheduled stops, the distance from its
+  `lat`/`lng` to each of the trip's city reference points: exactly **seven**
+  stops were nearer some other city than the one they were tagged with — the
+  seven the entry names, no more and no fewer. `d13-s5-ferry-and-train-back-to-osaka`
+  was checked explicitly and is **correct**: it departs Miyanoura Port, which
+  is on Naoshima, so its day's city and its departure city already agree.
+  ```
+  d4-s1-limited-express-to-nikko     tagged Nikkō     112.6km away; Tokyo 4.5km
+  d6-s1-romancecar-to-hakone-yumoto  tagged Hakone     74.0km away; Tokyo 6.1km
+  d7-s1-shinkansen-odawara-kyoto     tagged Kyoto     310.3km away; Odawara 0.2km
+  d11-s1-train-kyoto-osaka           tagged Osaka      39.6km away; Kyoto 0.0km
+  d13-s1-train-and-ferry-to-naoshima tagged Naoshima    5.4km away; Tamano 0.2km
+  d14-s1-breakfast-at-the-hotel      tagged Tokyo     403.4km away; Osaka 0.6km
+  d14-s2-shinkansen-to-tokyo         tagged Tokyo     401.7km away; Osaka 3.4km
+  ```
+- **Cause:** `city` was not a stop fact at all. Upstream models it as
+  `days[].city` and tags a day with its DESTINATION; `trip.ts` denormalised
+  that onto every stop, so the first stop of a travel day claimed a city the
+  traveller had not reached — and `d14-s1`, a hotel breakfast, claimed one 400km
+  away.
+- **Fix:** a third override map beside `kindOverrides.ts` and
+  `coordinateOverrides.ts` — **`packages/fixtures/src/japan/cityOverrides.ts`**,
+  `CITY_OVERRIDES`, seven entries each recording the upstream value, ours, and
+  the geography that decides it. `trip.ts` carries the corrected values and its
+  `JapanStop.city` doc comment now states that `city` is no longer verbatim from
+  upstream. `upstreamDrift.test.ts` compares `city` against
+  `CITY_OVERRIDES[id]?.ours ?? days[].city` and gained the same staleness guard
+  the kind overrides have (an entry naming a missing stop, recording a stale
+  upstream city, not actually applied, or overriding to the value it already had
+  fails the suite).
+- **Product-visible consequence, verified by running the real
+  `calendarCityCards` and `chipModel` over `demoTripDetail()` before and after:**
+  six days now render **two** city cards where they rendered one —
+  `4 Tokyo(1)+Nikkō(4)`, `6 Tokyo(1)+Hakone(4)`, `7 Odawara(1)+Kyoto(4)`,
+  `11 Kyoto(1)+Osaka(4)`, `13 Tamano(1)+Naoshima(4)`, `14 Osaka(2)+Tokyo(3)`.
+  `citiesOfDay`'s list (packages/domain) is now genuinely multi-valued, as its
+  own comment always said it could be. **Day chips, day accents and every
+  transition badge are byte-identical to before** on all fourteen days, Nikkō
+  included — the 2026-08-29 regression this entry records does not recur,
+  because `cityFor()` reads a day's LAST located activity (M18) and every one
+  of these days still ends in the city the export named.
+- **Baseline moved, once:** `expectations.ts`'s `cities` went from six to eight
+  — `Odawara` and `Tamano` join, because that is where the day-7 and day-13
+  mornings physically start. `seed:verify` reported that as its only finding;
+  every other number (68 stops, 2 conflicts, 3 days needing booking, kinds,
+  tags, coordinates, costs) was unchanged, since conflicts read `lat`/`lng` and
+  those were never wrong.
+- **Regression test:** `packages/fixtures/src/japan/cityGeography.test.ts` —
+  coordinate-based, not a re-statement of the seven: no stop may sit closer to
+  another city's stops than to its own. **Verified non-vacuous**: reverting
+  `d14-s1` to `Tokyo` turns it red with the exact row named. It catches six of
+  the seven original rows; `d13-s1` (Uno Port, 5km of water from Naoshima)
+  survives it, and the test says so rather than overclaiming.
+- **A test that encoded the old assumption, corrected not weakened:**
+  `apps/web/src/server/ai/readTools.test.ts` asserted day 7 was `["Kyoto"]` and
+  day 11 `["Osaka"]`. Those days start at Odawara Station and Kyoto Station, so
+  the old assertion was the one-city-per-day belief, not a fact about the trip.
+  It now asserts `["Odawara", "Kyoto"]` and `["Kyoto", "Osaka"]` plus "five days
+  touch Kyoto" — strictly more than it checked before.
+- **Check subset:** `pnpm --filter @tc/fixtures test` (11 passed, 3 files),
+  `pnpm --filter @tc/fixtures typecheck`, `pnpm --filter @tc/domain test` (221
+  passed), `pnpm --filter @tc/factories test` (354 passed, a downstream consumer
+  of this fixture), `pnpm --filter web typecheck`, `pnpm --filter web lint`, and
+  `pnpm --filter web exec vitest run -c vitest.unit.config.ts` (138 files, 1720
+  passed / 1 skipped). **Not run:** `pnpm check`, `test:int` and e2e — run
+  serially by the owner. `e2e/m16-assistant.spec.ts` and
+  `e2e/m18b-tag-focus.spec.ts` were read: both only touch days 1-2, which are
+  wholly in Tokyo and unchanged.
+- **Left alone, deliberately:** `apps/web/scripts/geocode-japan-seed.mts` reads
+  the UPSTREAM export directly (`days[].city`), not `trip.ts`, so its next live
+  run would still send the seven unsatisfiable queries. Teaching it
+  `CITY_OVERRIDES` also needs viewboxes for Odawara and Tamano and a re-review
+  of ~70 live lookups — KI-58-shaped work, not a rider on this. Its own
+  comment about "expected misses under this method" is now the only place the
+  old convention is still described as correct.
+- **First noted:** 2026-08-28 (PR #74 review). **Resolved:** 2026-08-30.

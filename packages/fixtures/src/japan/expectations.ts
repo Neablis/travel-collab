@@ -52,7 +52,17 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // estimate yet in the upstream export (`trip.budget.unpricedStops: 2`).
   withCost: 66,
 
-  cities: ["Hakone", "Kyoto", "Naoshima", "Nikkō", "Osaka", "Tokyo"],
+  // Eight, not the six the trip SLEEPS in. Odawara and Tamano are where two
+  // travel mornings physically start — Odawara Station on day 7, Uno Port on
+  // day 13 — and KI-59's fix stopped tagging those stops with the city their
+  // day ends in (./cityOverrides.ts). This list is the distinct set of
+  // `location.city` over all 72 activities, so a stop the trip passes through
+  // counts exactly as much as one it stays in; that is the honest reading and
+  // it is the point of the change.
+  //
+  // If this drops back to six, suspect the override list went stale before you
+  // suspect the content: the drift test will say which entry.
+  cities: ["Hakone", "Kyoto", "Naoshima", "Nikkō", "Odawara", "Osaka", "Tamano", "Tokyo"],
   budgetMinor: 1_640_000,
   plannedTotalMinor: 908_500,
   currencies: ["USD"],
