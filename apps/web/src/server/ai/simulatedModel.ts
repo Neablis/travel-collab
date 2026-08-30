@@ -30,7 +30,7 @@ import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AiSurface, type AskScope } from "@/server/ai/context";
-import { isAskIntentCall } from "@/server/ai/askIntent";
+import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import type { DayReadout, FreeTimeReadout, ReadToolProblem, TripReadout } from "@/server/ai/readTools";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -512,7 +512,12 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * One predicate, so the two answers cannot disagree.
  */
 function classifyStep(options: CallOptionsLike): SimulatedStep {
-  const verdict = asksForAChange(latestUserText(options)) ? "write" : "question";
+  // The STRUCTURED verdict, via askIntent.ts's own writer — not the bare word
+  // this used to emit. `classifyAskIntent` now asks for a typed field
+  // (`Output.choice`), and the SDK parses this text as JSON against that
+  // schema before returning: a bare `write` would fail to parse and fail open
+  // on every turn of the only path anyone deploys.
+  const verdict = askIntentVerdictText(asksForAChange(latestUserText(options)) ? "write" : "question");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },

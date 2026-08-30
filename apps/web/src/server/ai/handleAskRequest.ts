@@ -274,9 +274,12 @@ export async function handleAskRequest(
   // derived from its identity, not from whether one was injected (the same
   // rule handleAiRequest documents, so a test that injects `simulatedModel()`
   // is still reported as simulated).
-  let selected: { model: LanguageModel; simulated: boolean };
+  //
+  // An injected model classifies as well as answers: one seam, so a test can
+  // never end up exercising a classifier the turn itself did not use.
+  let selected: { model: LanguageModel; classifierModel: LanguageModel; simulated: boolean };
   if (model) {
-    selected = { model, simulated: modelIdOf(model) === SIMULATED_MODEL_ID };
+    selected = { model, classifierModel: model, simulated: modelIdOf(model) === SIMULATED_MODEL_ID };
   } else {
     let outcome;
     try {
@@ -288,7 +291,11 @@ export async function handleAskRequest(
       );
     }
     if (outcome.outcome === "denied") return deniedResponse(outcome.reason);
-    selected = { model: outcome.model, simulated: outcome.outcome === "simulated" };
+    selected = {
+      model: outcome.model,
+      classifierModel: outcome.classifierModel,
+      simulated: outcome.outcome === "simulated",
+    };
   }
 
   // Charged after validation and after model selection, for the reasons
@@ -320,10 +327,14 @@ export async function handleAskRequest(
   //   * **It runs after the quota.** A turn refused before it reached a model
   //     must not have paid for a classification either.
   //
+  // It goes to `classifierModel`, which is the answer model unless
+  // AI_CLASSIFIER_MODEL says otherwise — a separate id, still built at
+  // `selectAiModel`'s one chokepoint, so the kill switch covers both.
+  //
   // `classifyAskIntent` is total — it fails open to `write` rather than
   // throwing — so there is deliberately no try/catch here to suggest otherwise.
   const classification = canWrite
-    ? await classifyAskIntent(selected.model, question, recentContext(messages), request.signal)
+    ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
     : null;
   const offerWrites = canWrite && classification?.intent !== "question";
 

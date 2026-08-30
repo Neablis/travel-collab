@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { simulatedModel, SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
-import { ASK_INTENT_INSTRUCTION } from "@/server/ai/askIntent";
+import { ASK_INTENT_INSTRUCTION, askIntentVerdictText, classifyAskIntent } from "@/server/ai/askIntent";
 
 // `simulatedModel` returns `LanguageModel`, which is `string | LanguageModelV4`
 // — so `.doGenerate` is not reachable on the union — and LanguageModelV4 itself
@@ -606,15 +606,31 @@ describe("simulatedModel — the intent classification call", () => {
     };
   }
 
-  it("answers a question with one word and no tool call", async () => {
+  it("answers a question with a structured verdict and no tool call", async () => {
     const result = await probe("ask").doGenerate(classifyPrompt("Which day has the most free time?"));
     expect(callsOf(result)).toEqual([]);
-    expect(textOf(result)).toBe("question");
+    expect(textOf(result)).toBe(askIntentVerdictText("question"));
   });
 
-  it("answers a change request with the word that keeps the write tools", async () => {
+  it("answers a change request with the verdict that keeps the write tools", async () => {
     const result = await probe("ask").doGenerate(classifyPrompt("Add a coffee stop to day 2"));
-    expect(textOf(result)).toBe("write");
+    expect(textOf(result)).toBe(askIntentVerdictText("write"));
+  });
+
+  // **The assertion that actually protects the deployed path.** The three
+  // above check this model's own output; this one drives it through the real
+  // `classifyAskIntent`, so the SDK's schema parsing is in the loop. Before
+  // the KI-88 fix the simulated model emitted a bare `write`, which is not
+  // JSON for the response schema `Output.choice` now sends — every turn on
+  // every Vercel environment (where `ai-live` is off, always) would have
+  // failed open and the optimisation would have bought nothing, silently, on
+  // the only path anyone experiences.
+  it("produces a verdict the real classifier parses, on both answers", async () => {
+    const question = await classifyAskIntent(simulatedModel("ask"), "Which day has the most free time?");
+    expect(question).toMatchObject({ intent: "question", source: "model", failedOpen: false });
+
+    const write = await classifyAskIntent(simulatedModel("ask"), "Add a coffee stop to day 2");
+    expect(write).toMatchObject({ intent: "write", source: "model", failedOpen: false });
   });
 
   // The same `asksForAChange` judgement that decides whether this model
@@ -625,7 +641,7 @@ describe("simulatedModel — the intent classification call", () => {
     const result = await probe("ask").doGenerate(
       classifyPrompt("There are no days yet — how should I start planning this trip?"),
     );
-    expect(textOf(result)).toBe("write");
+    expect(textOf(result)).toBe(askIntentVerdictText("write"));
   });
 
   // Without this the classification call would be read as an opening turn:
@@ -637,6 +653,6 @@ describe("simulatedModel — the intent classification call", () => {
       tools: [{ name: "read_trip" }, { name: "AddActivity" }],
     });
     expect(callsOf(withTools)).toEqual([]);
-    expect(textOf(withTools)).toBe("write");
+    expect(textOf(withTools)).toBe(askIntentVerdictText("write"));
   });
 });

@@ -99,13 +99,26 @@ export interface AskIntentRecord {
    */
   context: string | null;
   /**
-   * What the classifier actually said, sanitized and truncated — or the
-   * failure's description when `failedOpen` is true. Kept verbatim rather than
-   * folded into `intent` because "the model answered `writes`" and "the model
-   * answered with a paragraph" are different problems with the same verdict.
+   * Which model produced the verdict. Null for `affirmation`, which called
+   * none.
+   *
+   * Beside `AskRecord.model` and NOT the same field: `AI_CLASSIFIER_MODEL` can
+   * point the classifier at a different, cheaper model than the one answering
+   * (modelSelection.ts). Without this, a record from a deployment that has set
+   * it names the answer model and silently attributes a classifier's cost,
+   * latency and verdict to it — which is the exact measurement the separate
+   * var exists to let anyone make.
+   */
+  model: string | null;
+  /**
+   * What the classifier actually returned — the raw structured verdict
+   * (`{"result":"question"}`), sanitized and truncated, or the failure's
+   * description when `failedOpen` is true. Kept verbatim rather than folded
+   * into `intent` because "the model returned a verdict the schema rejected"
+   * and "the model answered `write`" are different problems.
    */
   verdict: string;
-  /** True when the call threw, timed out, or said something unrecognised, and the full tool set was handed over regardless. */
+  /** True when the call threw, timed out, was aborted, or never filled in the structured verdict, and the full tool set was handed over regardless. */
   failedOpen: boolean;
   latencyMs: number;
   usage: AskUsage;

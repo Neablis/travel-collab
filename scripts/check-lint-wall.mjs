@@ -72,6 +72,23 @@ if (gateway.passed) {
   console.log("lint wall OK: @/server/ai/gateway import outside modelSelection.ts correctly rejected");
 }
 
+// The same wall, for the SECOND export gateway.ts gained when the /ask intent
+// classifier got its own configurable model (AI_CLASSIFIER_MODEL). The rule
+// restricts the module, not the symbol, so this cannot fail while the fixture
+// above passes — which is exactly why it is cheap to assert, and exactly what
+// would have gone unchecked if a later export were added the same way.
+const gatewayClassifier = lintFixture(
+  "lint_wall_gateway_classifier_fixture",
+  'import { aiClassifierModel } from "@/server/ai/gateway";\nexport function forbidden() { return aiClassifierModel(); }\n',
+  { dir: "src/server/ai", ext: "ts" },
+);
+if (gatewayClassifier.passed) {
+  console.error("LINT WALL BREACHED: @/server/ai/gateway aiClassifierModel import outside modelSelection.ts was NOT flagged");
+  process.exitCode = 1;
+} else {
+  console.log("lint wall OK: aiClassifierModel import outside modelSelection.ts correctly rejected");
+}
+
 // Regression coverage for a Major caught in review: `no-restricted-imports`
 // `patterns` does string matching, not path resolution, so the alias-only
 // check above did not catch a sibling reaching gateway.ts via a relative

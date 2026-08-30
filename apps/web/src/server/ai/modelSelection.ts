@@ -2,7 +2,7 @@
 // model to use; it does not know a flag exists.
 import type { LanguageModel } from "ai";
 import { aiLiveFlag } from "@/server/flags";
-import { aiModel } from "@/server/ai/gateway";
+import { aiClassifierModel, aiModel } from "@/server/ai/gateway";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import type { AiSurface } from "@/server/ai/context";
 
@@ -57,9 +57,16 @@ export interface AiActor {
 // Three outcomes, not a boolean pair — collapsing `denied` into `simulated`
 // would mean a user without access gets a fabricated plan that mutates their
 // trip instead of a refusal (ADR-019 amendment §3).
+//
+// `classifierModel` is the /ask pre-turn intent classifier's model
+// (askIntent.ts). It rides along on the SELECTION rather than being fetched
+// where it is used, because a second model is a second way to reach a
+// provider: carried here it inherits every property this function already
+// guarantees — the flag, the entitlement check, and the single gateway
+// chokepoint — instead of needing them restated at the call site.
 export type ModelSelection =
-  | { outcome: "live"; model: LanguageModel }
-  | { outcome: "simulated"; model: LanguageModel }
+  | { outcome: "live"; model: LanguageModel; classifierModel: LanguageModel }
+  | { outcome: "simulated"; model: LanguageModel; classifierModel: LanguageModel }
   | { outcome: "denied"; reason: string };
 
 // The HTTP contract for a `denied` outcome, defined once here so every caller
@@ -81,10 +88,11 @@ export function deniedResponse(reason: string): Response {
 export type AiEntitlementCheck = (actor: AiActor) => boolean | Promise<boolean>;
 const EVERYONE_IS_ENTITLED: AiEntitlementCheck = () => true;
 
-// `aiModel()` is called ONLY on the live branch — it constructs the gateway
-// client that carries AI_GATEWAY_API_KEY, and it throws when that key is unset.
-// Calling it eagerly would both spend-enable the off path and break simulated
-// mode on a deployment that has no key at all. Enforced by a test.
+// `aiModel()`/`aiClassifierModel()` are called ONLY on the live branch — they
+// construct the gateway client that carries AI_GATEWAY_API_KEY, and throw when
+// that key is unset. Calling either eagerly would both spend-enable the off
+// path and break simulated mode on a deployment that has no key at all.
+// Enforced by a test.
 //
 // `isEntitled` is a test seam, not a real parameter callers pass — it exists
 // so `denied`, currently unreachable in production, can still be exercised by
@@ -96,7 +104,13 @@ export async function selectAiModel(
   if (!(await isEntitled(actor))) {
     return { outcome: "denied", reason: "AI is not available for this account." };
   }
-  return (await aiLive())
-    ? { outcome: "live", model: aiModel() }
-    : { outcome: "simulated", model: simulatedModel(actor.surface) };
+  if (!(await aiLive())) {
+    // ONE simulated instance, used for both. The classification call and the
+    // turn are the same surface, and `simulatedModel`'s per-instance latch is
+    // written on that assumption. Neither reaches a provider — which is the
+    // property the second model id must not quietly break, so it has a test.
+    const simulated = simulatedModel(actor.surface);
+    return { outcome: "simulated", model: simulated, classifierModel: simulated };
+  }
+  return { outcome: "live", model: aiModel(), classifierModel: aiClassifierModel() };
 }

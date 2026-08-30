@@ -349,7 +349,14 @@ describe("POST /api/trips/:id/ask", () => {
       await change.text();
 
       expect(asked[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
-      expect(asked[0]!.classification).toMatchObject({ intent: "question", verdict: "question", failedOpen: false });
+      // The verdict is the raw STRUCTURED answer, not a word (KI-88): the
+      // simulated model fills the same `Output.choice` field a live one does,
+      // so the flag-off path narrows for real rather than failing open.
+      expect(asked[0]!.classification).toMatchObject({
+        intent: "question",
+        verdict: '{"result":"question"}',
+        failedOpen: false,
+      });
       expect(told[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
     });
 
