@@ -25,9 +25,10 @@ event, tripId, userId, scope {kind, dayIndex?}, question (<=1000 chars),
 turn: "opening" | "follow-up", simulated, model, steps,
 toolCalls: [{name, input}], toolCallCount,
 offeredTools[], uncalledTools[],
-classification: {intent, source, context, verdict, failedOpen, latencyMs, usage} | null,
-answered, outcome: "completed" | "error" | "abort", finishReason,
+classification: {intent, source, context, model, verdict, failedOpen, latencyMs, usage} | null,
+answered, outcome: "completed" | "error" | "abort",
 cause: {name, message, statusCode} | null,   // null unless outcome is "error"
+finishReason,
 usage {inputTokens, outputTokens, totalTokens},
 usageByStep: [{inputTokens, outputTokens, totalTokens}],
 droppedCalls: [{type, code, refs, message}],  // no-op drops already filtered out
@@ -51,6 +52,13 @@ outcome: "applied" | "refused", code: string | null, latencyMs
 for a turn where `handleAskRequest` didn't call the classifier at all.
 `classification.source` is `"affirmation"` when a bare "yes go ahead" matched
 the agreement-word rule without a model call, `"model"` otherwise.
+`classification.model` names which model produced the verdict — null for
+`"affirmation"` — and matters because `AI_CLASSIFIER_MODEL` can point the
+classifier at a different, cheaper model than `AskAnalyticsRecord.model`
+answers with. `classification.verdict` is the raw structured-output JSON
+string the model returned (e.g. `{"result":"question"}`), not a bare word —
+the classifier moved off free-text parsing in PR #88 (KI-88) — so grepping
+for a bare `question` or `write` will not match it.
 
 ## Fetching
 
@@ -95,12 +103,27 @@ rather than trusting these blind:
 - a full (read + write, all 15 tools offered) step-1: ~4,900 input tokens
 - of that, tool schemas: ~4,200 tokens (~85%)
 - the write half alone (12 of the 15 tools): ~3,400 tokens
-- since the intent classifier shipped, a turn the classifier narrowed to
-  read-only should show a **much smaller** step-1 figure than ~4,900 — three
-  tools' schemas plus the system instruction, not fifteen's. If a classified
-  question turn's `usageByStep[0]` is still near the full-set number, either
-  `classification` is null (classifier didn't run) or `classification.intent`
-  came back `"write"` on a question — both worth a closer look.
+
+**Measured again 2026-08-30 on the preview deployment**, once the classifier
+(above) was actually working — kept alongside the 2026-08-29 numbers rather
+than replacing them, because the point is seeing the movement, not a single
+snapshot. Two comparable opening turns, both 2 steps, both a single
+`read_trip` call:
+
+- before the classifier worked (`failedOpen: true`, full tool set handed
+  over): 15 tools offered, `usageByStep[0]` = 4,911, total input 10,521
+- after (classifier narrowed to read-only): 3 tools offered, `usageByStep[0]`
+  = **1,332**, total input **3,363**
+- so: step-1 floor −73%, total input −68%
+- the classifier call itself: 198 input / 49 output / 247 total tokens,
+  1,561 ms
+
+If a classified question turn's `usageByStep[0]` is still near the full-set
+number, **check `classification.failedOpen` first** — a throw, timeout, or
+unrecognized verdict falls back to the full tool set by design, and that is
+the failure actually observed live (KI-88). Only after ruling that out does
+it become `classification` being null (classifier didn't run) or
+`classification.intent` coming back `"write"` on a question.
 
 ## Tool efficiency
 
