@@ -48,6 +48,8 @@ const {
   SIMULATED_HEADER,
   minimumRoleFor,
   offeredToolNamesFor,
+  instructionsFor,
+  postureFor,
 } = await import("@/server/ai/handleAskRequest");
 const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
 const { WRITE_TOOL_NAMES } = await import("@/server/ai/writeTools");
@@ -119,6 +121,48 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
     body: JSON.stringify(body),
     signal,
   });
+}
+
+/**
+ * The real simulated model, with the system instruction of every call kept.
+ *
+ * The instruction is not observable from the response — it is what the turn
+ * TELLS the model it may do — so the only way to assert on it is to read what
+ * the model was handed.
+ */
+function recordingModel() {
+  const systems: string[] = [];
+  const inner = simulatedModel("ask") as unknown as {
+    doGenerate: (o: unknown) => Promise<unknown>;
+    doStream: (o: unknown) => Promise<unknown>;
+  };
+  const keep = (options: unknown) => {
+    const prompt = (options as { prompt?: { role?: string; content?: unknown }[] }).prompt ?? [];
+    systems.push(
+      prompt
+        .filter((m) => m.role === "system" && typeof m.content === "string")
+        .map((m) => m.content as string)
+        .join("\n"),
+    );
+  };
+  const model = {
+    specificationVersion: "v4",
+    provider: "simulated",
+    modelId: "simulated/no-op",
+    supportedUrls: {},
+    doGenerate: async (options: unknown) => {
+      keep(options);
+      return inner.doGenerate(options);
+    },
+    doStream: async (options: unknown) => {
+      keep(options);
+      return inner.doStream(options);
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+  // The agent's own instruction, not the classifier's — the classification
+  // call is a system message too, and it is not what this is about.
+  const turnInstruction = () => systems.find((text) => text.includes("travel-collab trip assistant")) ?? "";
+  return { model, turnInstruction };
 }
 
 // A model that fails the way a provider outage does: the stream opens and then
@@ -377,6 +421,68 @@ describe("POST /api/trips/:id/ask", () => {
       expect(records[0]!.classification!.source).toBe("model");
       expect(records[0]!.classification!.context).toContain("Kyoto 2027 runs to 3 days.");
       expect(records[0]!.classification!.context).toContain("and where is the free time?");
+    });
+
+    // **A misclassified editor must not be told a lie they cannot recover
+    // from.** The classifier is a live model and will be wrong sometimes —
+    // that is priced in, and every uncertainty already biases toward `write`.
+    // What is not priced in is the read-only turn telling an EDITOR "I can
+    // only answer questions about the trip for now": there is no mid-turn
+    // escalation and no client retry, so a wrong verdict would produce a dead
+    // end rather than one extra turn.
+    it("tells an editor whose turn was read as a question that it is retryable, not that it cannot edit", async () => {
+      const tripId = await seedTrip();
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      const instruction = turnInstruction();
+      expect(instruction).toContain("on THIS turn you have no tool to change it");
+      expect(instruction).toContain("ask again");
+      // The viewer's sentence, which would be false here: this user CAN edit
+      // this trip.
+      expect(instruction).not.toContain("You can READ this trip and nothing else");
+      expect(instruction).not.toContain("only answer questions about the trip for now");
+    });
+
+    it("keeps the true read-only copy for a viewer, who genuinely cannot edit", async () => {
+      const tripId = await seedTrip();
+      await grantViewer(tripId, VIEWER_ID);
+      currentUserId = VIEWER_ID;
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      const instruction = turnInstruction();
+      expect(instruction).toContain("You can READ this trip and nothing else");
+      expect(instruction).not.toContain("on THIS turn");
+    });
+
+    // The rule underneath both, stated once: what the TURN may do is not the
+    // same question as what the ACTOR may do, and only the middle case is new.
+    it("derives the turn's posture from the actor and the turn together", () => {
+      expect(postureFor(true, true)).toBe("propose");
+      expect(postureFor(true, false)).toBe("withheld");
+      expect(postureFor(false, false)).toBe("read-only");
+      // Unreachable by construction — `offerWrites` is `canWrite && …` — and
+      // asserted so it stays that way if that line ever grows a branch.
+      expect(postureFor(false, true)).toBe("propose");
+
+      const withheld = instructionsFor({ kind: "trip" }, 3, "withheld");
+      expect(withheld).toContain("they can change this trip");
+      expect(withheld).not.toContain("PROPOSE changes");
+      expect(instructionsFor({ kind: "trip" }, 3, "propose")).toContain("PROPOSE changes to it");
+      expect(instructionsFor({ kind: "trip" }, 3)).toContain("You can READ this trip and nothing else");
     });
 
     // Rule 3 of askIntent.ts: a cost optimisation must never be able to break

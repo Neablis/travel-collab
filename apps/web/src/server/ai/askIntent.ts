@@ -81,8 +81,13 @@ export function isAskIntentCall(instructions: string): boolean {
 
 // One word plus slack for a model that adds punctuation or a stray token. Low
 // enough that a model which starts explaining itself is cut off rather than
-// paid for — the cut-off answer still parses, because the verdict is the first
-// word.
+// paid for.
+//
+// A cut-off answer does NOT then parse — `parseIntent` normalises the whole
+// string, so "This is a question" is unrecognised and fails open to `write`.
+// That is the safe direction and it is deliberate: a model that will not
+// answer in one word is a model this classifier cannot trust to narrow a tool
+// set, and `failedOpen` makes it visible in the records rather than silent.
 const MAX_VERDICT_TOKENS = 8;
 
 // A ceiling on how long a cost optimisation may delay an answer. Beyond this
@@ -243,6 +248,12 @@ export async function classifyAskIntent(
   }
 
   const prompt = askIntentPrompt(question, context);
+  // The WHOLE prompt, question included, rather than the context alone. It
+  // duplicates `question` on the record by a few hundred characters, and that
+  // is the point: this field's job is to show the classifier's exact input,
+  // and an input reassembled at read time from two fields is a reconstruction
+  // that can be wrong about ordering, truncation and framing — which is
+  // exactly what a reader is trying to rule out.
   const loggedContext = prompt === question ? null : sanitizeForLog(prompt, MAX_LOGGED_CONTEXT_CHARS);
   const timeout = AbortSignal.timeout(CLASSIFY_TIMEOUT_MS);
   try {

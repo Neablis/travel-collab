@@ -82,10 +82,15 @@ export interface AskIntentRecord {
    */
   source: "affirmation" | "model";
   /**
-   * The conversational context the classifier saw BESIDES `question`, exactly
-   * as it was fed in — already truncated by `askIntent.ts`, so this is the
-   * model's own input rather than a reconstruction of it. Null when the turn
-   * opened the thread, or when the affirmation rule answered without a call.
+   * The classifier's entire prompt, exactly as it was fed in — the earlier
+   * messages AND `question` again, already truncated by `askIntent.ts`. Null
+   * when the turn opened the thread (the prompt was then just `question`), or
+   * when the affirmation rule answered without a call.
+   *
+   * `question` is therefore repeated inside this field. Deliberate: the value
+   * of the field is being the model's own input rather than a reconstruction
+   * of it, and a reader stitching two fields back together at read time can
+   * be wrong about ordering, truncation and framing.
    *
    * The same deliberate call as `question`'s (see its comment), extended to
    * the two messages before it: user-authored content in a retained log,

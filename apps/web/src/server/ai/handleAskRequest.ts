@@ -362,11 +362,11 @@ export async function handleAskRequest(
 
   const agent = new ToolLoopAgent({
     model: selected.model,
-    // `offerWrites`, not `canWrite`: the instruction has to describe the tools
-    // the model was actually handed. An editor whose turn classified as a
-    // question is told it can only read — otherwise it would promise a
-    // proposal it has no tool to draft.
-    instructions: instructionsFor(scope, detail.days.length, offerWrites),
+    // Three-way, not `offerWrites` alone: the instruction has to describe the
+    // tools the model was actually handed AND stay true about what the user
+    // may do. An editor whose turn classified as a question is told the turn
+    // is retryable; a viewer is told what is actually true of them.
+    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites)),
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
@@ -609,6 +609,45 @@ export async function handleApplyProposalRequest(
 }
 
 /**
+ * What this turn may do, which is not the same question as what the ACTOR may
+ * do. Three answers, and the middle one is the reason this is not a boolean.
+ *
+ *   * `propose`   — an editor, holding the write tools.
+ *   * `withheld`  — an editor whose turn the classifier read as a question, so
+ *     the write tools were not handed over (askIntent.ts).
+ *   * `read-only` — a viewer. They cannot edit at all.
+ */
+export type AskToolPosture = "propose" | "withheld" | "read-only";
+
+// The one line that tells the model what it can do this turn.
+//
+// `withheld` and `read-only` are different sentences, and that difference is
+// load-bearing. A viewer genuinely cannot edit, so "I can only answer
+// questions about the trip for now" is true for them. Telling an EDITOR the
+// same thing is a lie — they can edit; this turn simply was not given the
+// tools — and it is a lie with no way out of it: there is no mid-turn
+// escalation and no client retry, so a model that misclassified the turn
+// would produce a dead end rather than an extra turn.
+//
+// The classifier is a live model and will be wrong sometimes; that is priced
+// in (askIntent.ts biases every uncertainty toward `propose`). A dead end is
+// not. So the withheld copy names the recovery: say what is missing, and the
+// user asks again.
+const ACCESS_LINE: Record<AskToolPosture, string> = {
+  // The propose→review→approve contract, said to the model in the terms it can
+  // act on. It is not the mechanism — the write tools collect and commit
+  // nothing, so a model that ignored every word of this still could not change
+  // the trip (writeTools.ts) — it is what stops the answer CLAIMING an edit
+  // that has not happened yet.
+  propose:
+    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
+  withheld:
+    "You can read this trip, but on THIS turn you have no tool to change it. You are not refusing them — they can change this trip. If what they asked for was a change rather than a question, answer what you can, then tell them plainly that you cannot draft that change on this turn and to ask again saying what they want changed. Never tell them the assistant cannot make changes.",
+  "read-only":
+    "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
+};
+
+/**
  * The system instruction.
  *
  * Scope narrowing is **instruction plus default, not a lie**. The day-scoped
@@ -625,17 +664,11 @@ export async function handleApplyProposalRequest(
  * a list but a prompt that only ever shows a single day does not change
  * behaviour on its own.
  */
-export function instructionsFor(scope: AskScope, dayCount: number, canWrite = false): string {
+export function instructionsFor(scope: AskScope, dayCount: number, posture: AskToolPosture = "read-only"): string {
+  const canWrite = posture === "propose";
   return [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
-    canWrite
-      ? // The propose→review→approve contract, said to the model in the terms
-        // it can act on. It is not the mechanism — the write tools collect and
-        // commit nothing, so a model that ignored every word of this still
-        // could not change the trip (writeTools.ts) — it is what stops the
-        // answer CLAIMING an edit that has not happened yet.
-        "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them."
-      : "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
+    ACCESS_LINE[posture],
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
     "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
     `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
@@ -665,6 +698,12 @@ export function instructionsFor(scope: AskScope, dayCount: number, canWrite = fa
 
 // A LanguageModel is either a bare model-id string or a provider model object
 // carrying `.modelId` — normalize to the requested id either way.
+/** What the turn may do, from what the actor may do and what this turn was given. */
+export function postureFor(canWrite: boolean, offerWrites: boolean): AskToolPosture {
+  if (offerWrites) return "propose";
+  return canWrite ? "withheld" : "read-only";
+}
+
 function modelIdOf(model: LanguageModel): string {
   return typeof model === "string" ? model : model.modelId;
 }

@@ -495,25 +495,21 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
 }
 
 /**
- * One ask step. Three shapes, in order:
- *
- *   1. Nothing read yet → read.
- *   2. Read, the user asked for a CHANGE or for IDEAS (`asksForAChange`), write
- *      tools are offered, and nothing has been queued yet → propose.
- *   3. Otherwise → speak.
- *
- * Step 2 is skipped entirely for a question, and unreachable for a viewer.
- */
-/**
  * The pre-turn classification call (askIntent.ts), answered from the same
  * `asksForAChange` judgement that decides whether this model proposes.
  *
  * Reusing that predicate is the point, not a shortcut: the switched-off
  * deployment is the one every Vercel environment runs, so a classifier that
  * said "question" for a turn this model then wants to propose on would hand
- * itself a tool set it cannot use — and `askChipCoverage.test.ts`, which drives
- * every suggestion chip through a real turn, would go quietly hollow. One
- * predicate, so the two answers cannot disagree.
+ * itself a tool set it cannot use, and the proposal card would stop appearing
+ * on the only path anyone deploys. The end-to-end cover for that is
+ * `e2e/m16-assistant.spec.ts` ("the chips that used to be dead ends are
+ * clickable and answered"), whose planning chip must still produce a proposal
+ * card — it goes through the real endpoint and therefore through the real
+ * classification call.
+ * `askChipCoverage.test.ts` does NOT cover it — it hands the model a
+ * hardcoded `EDITOR_TOOLS` and never issues a classification call at all.
+ * One predicate, so the two answers cannot disagree.
  */
 function classifyStep(options: CallOptionsLike): SimulatedStep {
   const verdict = asksForAChange(latestUserText(options)) ? "write" : "question";
@@ -524,6 +520,17 @@ function classifyStep(options: CallOptionsLike): SimulatedStep {
   };
 }
 
+/**
+ * One ask step. Three shapes, in order — plus the classification call, which
+ * is answered above them all because it is not a turn at all:
+ *
+ *   1. Nothing read yet → read.
+ *   2. Read, the user asked for a CHANGE or for IDEAS (`asksForAChange`), write
+ *      tools are offered, and nothing has been queued yet → propose.
+ *   3. Otherwise → speak.
+ *
+ * Step 2 is skipped entirely for a question, and unreachable for a viewer.
+ */
 function askTurn(options: CallOptionsLike): SimulatedStep {
   const system = systemTextOf(options);
   // Answered before anything else reads the prompt: a classification call

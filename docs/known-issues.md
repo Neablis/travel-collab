@@ -124,6 +124,17 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** KI-52 (four tags not six — the same "recorded design delta" shape), KI-47 (the tags field), `docs/milestones/M18-stop-kind.md`.
 - **First noted:** 2026-08-29 (M18's gate, walking `/demo`).
 
+### KI-88 — A reasoning model would make the /ask intent classifier fail open on every turn, and the optimisation would silently buy nothing
+- **Severity:** cleanup (the turn still works — it fails open to the full tool set by design — but the ~55% input-token saving it exists for quietly stops happening)
+- **Area:** `apps/web/src/server/ai/askIntent.ts` (`MAX_VERDICT_TOKENS`, `classifyAskIntent`), `apps/web/src/server/config.ts` (`aiModel`, `AI_MODEL`), `apps/web/src/server/ai/gateway.ts`
+- **How it presents:** every `/ask` turn is offered the full read + write tool set even for a plain question, and per-step input tokens go back to ~4,900. Nothing errors and no answer is wrong — the assistant behaves exactly as it did before the classifier existed. **The tell is in the `ai.ask` records, and it is unambiguous:** `classification.failedOpen` is `true` on turn after turn while `classification.verdict` is an empty string (or a fragment of reasoning) and `classification.source` is `"model"`.
+- **Cause:** the classification call sets `maxOutputTokens: 8` — one word plus slack, which is the whole reason it costs ~150 tokens. A reasoning model spends its output budget on reasoning tokens before it emits any text, so the call returns with **empty text**. `parseIntent` does not recognise it, `classifyAskIntent` fails open to `write` (correctly — that is rule 1), and the tool set is never narrowed.
+- **Reachable by changing one environment variable.** `serverConfig.aiModel` is `process.env.AI_MODEL ?? "anthropic/claude-haiku-4-5"`. The default is not a reasoning model and this does not happen today; pointing `AI_MODEL` at one on any deployment triggers it, with no error and no code change to correlate against.
+- **Not fixed because the failure is safe and instrumented.** The turn degrades to what it did before the classifier, and `failedOpen` was added precisely so a drifting or unusable classifier is visible in the records instead of silent. Fixing it properly means either raising the ceiling for models that reason (which costs the saving on every turn) or asking for a structured output; both are tuning decisions worth making against real records rather than pre-emptively.
+- **If you hit it:** raise `MAX_VERDICT_TOKENS` well above the model's reasoning budget, or (better) skip classification entirely for a model known to reason and accept the full tool set, rather than paying for a call that cannot answer.
+- **Found by:** branch review of the classifier work, PR #88, 2026-08-29.
+- **First noted:** 2026-08-29.
+
 ### KI-87 — `/ask` and `/ai` disagree about a new stop's default `kind`, so the same model behaviour reads as unbooked on one door and booked on the other
 - **Severity:** cleanup (a recorded inconsistency between two AI doors, not a defect on the one that matters today)
 - **Area:** `apps/web/src/server/ai/writeTools.ts` (`withDefaultKind`, `buildProposal`, `parseApprovedCommands`), `apps/web/src/server/ai/handleAiRequest.ts`, `apps/web/src/server/ai/batchResolver.ts`
