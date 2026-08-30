@@ -48,9 +48,11 @@ likely to need:
   ones went nowhere and TypeScript could not see it. Third occurrence this
   milestone — §6.1's activity-field descriptor refactor has earned its place,
   and `TripBoardScreen`'s two dead command builders sit in its path.
-- **KI-76 is real on this laptop.** `pg_isready` is absent while Postgres runs in
-  Docker on :5433, so `pnpm check` would have run **zero** integration tests and
-  exited 0. `pnpm --filter web test:int` directly gave 242.
+- **KI-76 is fixed (2026-08-29).** `pnpm check` used to exit 0 having run
+  **zero** integration tests wherever `pg_isready` was absent — this laptop,
+  with Postgres in Docker on :5433. The guard is now a real `pg` connect against
+  `DATABASE_URL` (`apps/web/scripts/db-probe.mjs`), and it tells "no database"
+  (skip, still green) from "the probe could not run" (fail loudly).
 - **KI-66's CSP finding, from a cloud session the same day** — the CSP blocking
   Vercel's feedback script on every preview page **was a real defect and is
   fixed**, not a behaviour to tolerate: that script is the Vercel Toolbar, and
@@ -158,10 +160,13 @@ re-checked**.
 
 **Three things from M18's gate that will bite the next session if unread:**
 
-- **KI-76 is not theoretical.** `pnpm check` exits 0 having run zero
-  integration tests wherever `pg_isready` is absent — which is this laptop, with
-  Postgres in Docker on :5433. Run `pnpm --filter web test:int` directly. M18's
-  gate got 242 tests that way and would have got none from `pnpm check`.
+- **KI-76 is fixed, but `test:int` is still exclusive.** `pnpm check` now runs
+  the integration suite instead of silently skipping it. The suites also stopped
+  truncating whole shared tables, so `test:int` no longer destroys local dev
+  data, and `db:reset` clears all ten tables derived from the schema rather than
+  a stale list of three. What is **not** fixed is concurrency: two agents
+  running `test:int` at once still corrupt each other — KI-89, caught doing
+  exactly that on 2026-08-29.
 - **Walk the thing in a browser before believing the suite.** M18's headline
   Calendar rule passed nine unit tests and was wrong, because the tests shared
   the implementation's assumption about the fixture. `/demo` needs no database

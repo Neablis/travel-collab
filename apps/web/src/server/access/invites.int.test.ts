@@ -1,15 +1,43 @@
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { eq, inArray, sql } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/client";
-import { events, tripDetails, tripInvites, tripMemberships, tripSummaries, users } from "../db/schema";
+import { tripInvites, users } from "../db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { getTripDetail } from "../projections";
 import { acceptInvite, createInvite, listInvites, previewInvite, revokeInvite } from "./invites";
 import { effectiveMembers, grantMembership, sharedTripIds, withProfiles } from "./members";
 
-const OWNER = "dev-alice";
-const GUEST = "dev-bob";
+// Fresh identities per TEST (KI-69), replacing the fixed "dev-alice"/"dev-bob".
+//
+// This file's beforeEach was the widest teardown in the repo: it deleted every
+// row of trip_invites, trip_memberships, trip_details, trip_summaries, events
+// AND users. Three things depended on that, and all three are identity-shaped:
+//
+//   - `sharedTripIds(GUEST)` / `sharedTripIds(OWNER)` filter by user and
+//     nothing else, so they were assertions about every membership row in the
+//     database for a fixed pair of names.
+//   - `withProfiles` expects OWNER to come back with `name: null`, i.e. that no
+//     users row exists for "dev-alice" — a row an earlier test in this same
+//     file inserts, and one a developer signed in as dev-alice genuinely has.
+//   - the two `db.insert(users)` calls use the actor id as the primary key, so
+//     without the truncation they threw a unique violation on the second run.
+//
+// Minting both per test makes each of those true by construction instead of by
+// emptying tables this file does not own. "dev-" is kept as the prefix because
+// these are dev-login-shaped identities, but the suffix means they can never
+// collide with a real one.
+let OWNER = "";
+let GUEST = "";
+// The third party: someone holding a link who is on neither side of the trip.
+let CARA = "";
+
+beforeEach(() => {
+  const run = randomUUID().slice(0, 8);
+  OWNER = `dev-alice-${run}`;
+  GUEST = `dev-bob-${run}`;
+  CARA = `dev-cara-${run}`;
+});
 
 async function seedTrip(name = "Kyoto"): Promise<string> {
   const tripId = randomUUID();
@@ -55,13 +83,13 @@ async function waitForABlockedBackend(table: string, timeoutMs = 5_000): Promise
   }
 }
 
-beforeEach(async () => {
-  await db.delete(tripInvites);
-  await db.delete(tripMemberships);
-  await db.delete(tripDetails);
-  await db.delete(tripSummaries);
-  await db.delete(events);
-  await db.delete(users);
+// Teardown is scoped to the rows this test created (KI-69) rather than being a
+// truncation of six shared tables. Only `users` needs cleaning: the two tests
+// that insert one now use a per-test primary key, so the rows would otherwise
+// accumulate in Identity forever. Everything else this file writes is keyed to
+// a randomUUID trip and is invisible to every assertion here.
+afterEach(async () => {
+  await db.delete(users).where(inArray(users.id, [OWNER, GUEST, CARA]));
 });
 
 describe("invites — create, accept, revoke", () => {
@@ -124,7 +152,7 @@ describe("invites — create, accept, revoke", () => {
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
 
-    const second = await acceptInvite(invite.token, "dev-cara");
+    const second = await acceptInvite(invite.token, CARA);
     expect(second).toEqual({
       ok: false,
       error: { code: "gone", message: "This invite has already been used." },
@@ -526,7 +554,7 @@ describe("invite preview", () => {
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     await acceptInvite(invite.token, GUEST);
 
-    const preview = await previewInvite(invite.token, "dev-cara");
+    const preview = await previewInvite(invite.token, CARA);
     expect(preview).toEqual({
       ok: false,
       error: { code: "gone", message: "This invite has already been used." },
