@@ -1,17 +1,18 @@
 # M18b — Tag focus
 
-**Status:** **Built 2026-08-30; the gate has NOT closed and no status flag was
-flipped.** All six behaviours below are implemented and proven on
-`pnpm --filter web test:e2e:ci-like` — see "The evidence". What is missing is
-the checklist's own trigger: *a **deployed** gate demo passing*. This session
-could not produce one, and tried both routes rather than assuming:
-`walk:preview` against this PR's own preview stops at Deployment Protection
-without `VERCEL_AUTOMATION_BYPASS_SECRET`, and an MCP-minted `_vercel_share`
-link gets past that only to be stopped by `429 Vercel Security Checkpoint` —
-Vercel's anti-bot interstitial, which headless Chromium on a datacenter IP
-trips (`docs/STATUS.md`, "Blocking / broken right now"). Closing the gate is one confirmation on the
-preview, and it is Mitchell's, in the same shape M16's close took on
-2026-08-29 after PR #88 deliberately flipped nothing.
+**Status:** **Done — gate closed 2026-08-30, all six boxes ticked.** The six
+behaviours were built and proven on `pnpm --filter web test:e2e:ci-like` (see
+"The evidence"), and the checklist's own trigger — *a **deployed** gate demo
+passing* — was met by **Mitchell walking PR #91's preview**.
+
+That split was not a formality. This session could not produce the deployed
+half, and tried both routes rather than assuming: `walk:preview` stops at
+Deployment Protection without `VERCEL_AUTOMATION_BYPASS_SECRET`, and an
+MCP-minted `_vercel_share` link gets past that only to be stopped by `429
+Vercel Security Checkpoint` — Vercel's anti-bot interstitial, which headless
+Chromium on a datacenter IP trips. So the gate closed in the same shape M16's
+did on 2026-08-29: the implementation PR flipped nothing, and a human's walk
+closed it. Until that secret exists, every gate will close this way.
 
 Approved 2026-08-29 and **placed the same day**, immediately after M16. Placing
 it was Mitchell's call; the scope and exit gate below were already written when
@@ -86,22 +87,20 @@ the rest of M18:
 
 ## Exit gate
 
-**Deliberately still unticked.** Every box below has machine evidence against a
-production build (next section), and the checklist in
-`docs/milestones/README.md` flips all four status flags *in one commit* when the
-**deployed** demo passes. Ticking these alone would be the half-flipped gate
-that checklist exists to prevent, and it would make the roadmap claim a close
-nobody walked on the preview.
+**All six ticked 2026-08-30.** Each has machine evidence against a production
+build (next section) *and* the deployed walk the checklist requires. They were
+left unticked until that walk, deliberately — ticking them alone would have
+been the half-flipped gate the checklist exists to prevent.
 
-- [ ] Clicking a tag chip on a stop focuses that tag; clicking it again clears.
+- [x] Clicking a tag chip on a stop focuses that tag; clicking it again clears.
       Only one tag is ever focused.
-- [ ] Timeline, Day columns and Map dim off-tag stops rather than removing them
+- [x] Timeline, Day columns and Map dim off-tag stops rather than removing them
       — a day with one matching stop still shows all its stops.
-- [ ] Calendar shows `N of M match` per city card and dims a no-match card,
+- [x] Calendar shows `N of M match` per city card and dims a no-match card,
       rather than dimming stops it no longer renders.
-- [ ] Focus is named beside the view tabs while active, with a working Clear.
-- [ ] Focus survives a lens switch, and is not confused with day focus.
-- [ ] No filter row, no "Show everything" control, and no multi-select anywhere.
+- [x] Focus is named beside the view tabs while active, with a working Clear.
+- [x] Focus survives a lens switch, and is not confused with day focus.
+- [x] No filter row, no "Show everything" control, and no multi-select anywhere.
 
 ### The evidence — what is proven, and how
 
@@ -175,3 +174,65 @@ and reads as a call this test caused.
 M18's gate. `ActivityTag` and the chips exist as of M18's PR 3; this milestone
 adds only the behaviour behind them. Nothing else on the roadmap is blocked by
 M18b, so it can be placed anywhere.
+
+## Retro — 2026-08-30
+
+**The milestone did what it said and cost a day. What is worth carrying forward
+is not the feature; it is the three things that caught real defects, in the
+order they caught them.**
+
+**1. The suite was the weakest of the three.** Every unit test passed, on every
+version of this milestone, including the two that shipped defects. That is the
+second consecutive gate where that has been true — M18's Calendar rule passed
+nine tests and was wrong — and the reason is the same both times: a test written
+by the same person, in the same sitting, as the implementation inherits its
+assumptions. The tests here are still worth having (they are what let the
+CodeRabbit fix be *proven* rather than asserted, by reverting the split and
+watching the new test go red) but they found nothing on their own.
+
+**2. The browser walk found what the suite could not, and it was an
+accessibility defect.** The Clear control and every focused chip carried the
+same accessible name — `Stop focusing on meal`, the chip's hover hint, reused
+for Clear because it reads well. On the Japan fixture that is **34 controls with
+one accessible name**, with nothing distinguishing the one that clears from the
+thirty-three that toggle. Playwright's strict mode refused the ambiguity
+outright. No unit test could have: each chip is correct in isolation, and the
+collision only exists on a page rendering 68 stops. **A walk is not a
+formality; three gates running, it has found what no test could.**
+
+**3. Review found the one thing both missed — and it was a lie in a comment.**
+`focusedTag` went into the deps of the effect that also calls `fitBounds`, so
+focusing a tag threw away a viewport the user had panned by hand. The comment
+beside that dep array said *"a tag focus never moves the viewport"*. It was true
+of the intent and false of the code, from the moment it was written. AGENTS.md
+already names this species — *"if a comment asserts an invariant, a test
+enforces it or the comment is a lie with a timer on it"* — and this is the first
+time that rule has been violated by a comment written in the same commit as the
+code it lied about. **A rationale comment is not evidence. The regression test
+is.**
+
+### Two traps for the next session
+
+- **`fitBoundsMock` in `MapLens.test.tsx` is file-scoped and nothing resets
+  it**, so it enters any test carrying every earlier test's calls — nine by the
+  point the camera test sits. A bare `toHaveBeenCalled()` resolves instantly
+  against somebody else's call, and the mount's own fit then lands after the
+  `mockClear()` and reads as a call this test caused. This cost two wrong
+  diagnoses before the counter was actually read: a cumulative constructor
+  count mistaken for a map remount, and an `afterEach(cleanup)` added for a
+  cause that was not the cause (and reverted). **Clear first, then assert
+  `toHaveBeenCalledTimes`.**
+- **A CSS transition makes a single style read a race.** The 150ms opacity fade
+  returned 0.77, then 0.45, then 0.37 for the same assertion. A value that
+  *moves* between runs is a timeout, not a defect — AGENTS.md's own
+  discriminator, and it held. Poll for the settled value; do not delete the
+  transition to make the test easy.
+
+### What this gate did not settle
+
+The **deployed** half of every gate is currently a human's, and will stay that
+way until `VERCEL_AUTOMATION_BYPASS_SECRET` exists — see the Status note above
+for the two routes tried and why the `_vercel_share` fallback is not a
+substitute. That is now the single highest-leverage thing anyone could do for
+unattended work in this repo: it is the difference between a session that can
+close a gate and one that must hand it back.
