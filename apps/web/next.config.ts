@@ -145,6 +145,25 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@tc/contracts", "@tc/domain"],
+  // Next 16.3 auto-generates `apps/web/AGENTS.md` and `apps/web/CLAUDE.md`
+  // when `next dev` detects an AI coding agent in the environment
+  // (`CLAUDECODE`, `CURSOR_TRACE_ID`, `AI_AGENT`, … — see
+  // `next/dist/compiled/@vercel/detect-agent`), so it can point the agent at
+  // the version-matched docs in `node_modules/next/dist/docs/`. Every agent
+  // session that started the dev server therefore left two untracked vendor
+  // files in the tree (KI-91).
+  //
+  // Off here, rather than gitignored, because this repo's operating manual IS
+  // `AGENTS.md`/`CLAUDE.md` at the root: a vendor file with the same name one
+  // directory down is a trap for the next session that opens either, and an
+  // ignore rule would still leave the file on disk to be opened. Not writing
+  // them at all is the fix; ignoring them only hides them.
+  //
+  // The bundled docs are unaffected — they stay readable at
+  // `node_modules/next/dist/docs/`, which the root `AGENTS.md` can point to
+  // if we ever want that. Documented at
+  // `next/dist/docs/01-app/02-guides/ai-agents.md` ("Opting out").
+  agentRules: false,
   // `@sentry/profiling-node` resolves a prebuilt `.node` binary at require
   // time. Bundling it would either inline a file the loader then cannot find
   // or drop the binary from the deployment entirely, so it is marked external
