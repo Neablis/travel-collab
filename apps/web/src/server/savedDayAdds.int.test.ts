@@ -119,6 +119,16 @@ async function tripWithCities(): Promise<{ tripId: string; dayId: string }> {
 }
 
 describe("saveDay's new columns", () => {
+  // Every assertion in this block reads the row BACK out of Postgres rather
+  // than trusting `saveDay`'s return value. `toDto` builds that value from the
+  // same in-memory object the insert was built from, so asserting on it would
+  // pass even if the column were dropped from the insert or renamed — while
+  // the test title still claimed persistence. Caught in review on PR #100.
+  async function storedRow(savedDayId: string) {
+    const [row] = await db.select().from(savedDays).where(eq(savedDays.id, savedDayId));
+    return row;
+  }
+
   it("stores the cities the domain's rule derives, in time order", async () => {
     const { tripId, dayId } = await tripWithCities();
     const detail = await getTripDetail(tripId);
@@ -127,6 +137,9 @@ describe("saveDay's new columns", () => {
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
     expect(saved.value.cities).toEqual(["Kyoto", "Osaka"]);
+
+    const stored = await storedRow(saved.value.savedDayId);
+    expect(stored?.cities).toEqual(["Kyoto", "Osaka"]);
   });
 
   // ADR-029's decision 3 says a saved day is private; M11b link 3 keeps that as
@@ -141,6 +154,10 @@ describe("saveDay's new columns", () => {
     if (!saved.ok) return;
     expect(saved.value.visibility).toBe("private");
     expect(saved.value.adds).toBe(0);
+
+    const stored = await storedRow(saved.value.savedDayId);
+    expect(stored?.visibility).toBe("private");
+    expect(stored?.adds).toBe(0);
   });
 });
 

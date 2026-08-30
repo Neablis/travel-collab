@@ -22,17 +22,23 @@
 // to.
 //
 // --- Why the deep import ---
-// `import { citiesOfStops } from "@tc/domain"` does not work from a plain Node
-// script: the package's entry point re-exports extensionless relative paths
-// ("./trip/state"), which Node's ESM resolver will not resolve even with type
-// stripping. Importing the one module by path is what makes the rule shareable
-// at all, and it is the same move `db-reset.mjs` makes for `schema.ts`.
+// The city rule comes from `src/server/savedDayCities.ts`, not from
+// `packages/domain` directly. AGENTS.md's architecture map makes `src/server`
+// the ONLY code that may import the domain, and `scripts/**` sits outside the
+// CI-enforced lint wall (`eslint.config.mjs` scopes it to `src/**`) — so a
+// direct import here passes lint and still breaks the rule the wall holds.
+// Flagged in review on PR #100.
+//
+// The path import (rather than `@/server/...` or `@tc/domain`) is what a plain
+// Node script can actually resolve: Node's ESM resolver handles neither the
+// alias nor the extensionless re-exports in the domain's entry point. Same
+// move `db-reset.mjs` makes for `schema.ts`.
 
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { pathToFileURL } from "node:url";
-import { citiesOfStops } from "../../../packages/domain/src/trip/cities.ts";
+import { savedDayCities } from "../src/server/savedDayCities.ts";
 import { savedDays } from "../src/server/db/schema.ts";
 
 /**
@@ -54,7 +60,7 @@ export async function backfillSavedDayCities(db) {
       unreadable.push(row.id);
       continue;
     }
-    const cities = citiesOfStops(row.stops);
+    const cities = savedDayCities(row.stops);
     const current = row.cities ?? [];
     if (cities.length === current.length && cities.every((city, i) => city === current[i])) continue;
     await db.update(savedDays).set({ cities }).where(eq(savedDays.id, row.id));
