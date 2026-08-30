@@ -1011,6 +1011,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   `check-case-collisions.mjs` were left alone — both still enumerate with plain
   `git ls-files` and have the identical gap. Filed as follow-up, not fixed here
   (one KI, one blast radius).
+- **A second, deliberately distinct exclusion mechanism (2026-08-29):**
+  `check-color-wall.mjs` now also carries `generatedNonProduct` — a separate
+  `Set` for files that are not product UI at all (currently just Sentry's
+  wizard-generated `sentry-example-page/page.tsx`, which shipped raw brand
+  colors straight from the scaffold). It is intentionally **not** an addition
+  to `pending` above: `pending` means legacy debt being paid down and only
+  ever shrinks; `generatedNonProduct` means "third-party codegen, permanently
+  out of scope," and neither list should be used for the other's purpose —
+  putting scaffolding in `pending` would silently redefine it as "stuff we
+  tolerate" instead of "debt we're closing." Covered by
+  `scripts/__tests__/check-color-wall.test.mjs`, which also updates the "no
+  regression test" note above for this one script — it now has one, run under
+  root `pnpm test` via `node --test "scripts/**/__tests__/**/*.test.mjs"`
+  (the pattern `check-sleep-wall.test.mjs` already used).
 
 ### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings — RESOLVED
 - **Severity (as filed):** cleanup (no live failure — the projection factory never runs the conflict engine, so the clash was unobservable)
