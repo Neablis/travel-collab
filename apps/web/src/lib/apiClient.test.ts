@@ -30,6 +30,9 @@ import {
   revokeTripInvite,
   revokeTripShare,
   searchCities,
+  searchPlaybooks,
+  fetchLeaderboard,
+  fetchPublicProfile,
   sendTripCommand,
   sendTripCommandBatch,
   unpublishSavedDay,
@@ -200,6 +203,9 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   publishSavedDay: () => publishSavedDay(UUID),
   unpublishSavedDay: () => unpublishSavedDay(UUID),
   searchCities: () => searchCities("Kyo"),
+  searchPlaybooks: () => searchPlaybooks({ cities: ["Kyoto"] }),
+  fetchLeaderboard: () => fetchLeaderboard(),
+  fetchPublicProfile: () => fetchPublicProfile("dev-alice"),
   askAssistant: () =>
     askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
   applyAssistantProposal: () =>

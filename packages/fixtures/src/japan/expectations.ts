@@ -209,6 +209,7 @@ export function diffAgainstExpectations(
     ["canonical coordinates disagreeing with the geocode overlay", report.coordinateDisagreements],
     ["COORDINATE_OVERRIDES entries that no longer explain anything", report.staleOverrides],
     ["saved days no city search could return", report.savedDaysWithNoCities],
+    ["published saved days that state no budget each", report.publishedSavedDaysWithNoPrice],
     ["adds the ledger rule forbids", report.savedDayLedgerViolations],
   ];
   for (const [label, list] of mustBeEmpty) {

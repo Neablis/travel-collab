@@ -100,6 +100,18 @@ export type JapanTripReport = {
    */
   savedDaysWithNoCities: string[];
   /**
+   * PUBLISHED days where no stop carries a price.
+   *
+   * A presence check, deliberately not a re-implementation of the budget rule:
+   * the sum itself is `savedDayFacts` in `apps/web/src/lib`, and a second copy
+   * of it here would be exactly the drift `cities` is derived rather than
+   * authored to avoid. What this catches is the M18 tag-chip failure — Discover
+   * filters on "budget each" and the shared-day rail states it, so a demo where
+   * every published day is unpriced ships a control with nothing to act on and
+   * a fact that reads "—" in every screenshot.
+   */
+  publishedSavedDaysWithNoPrice: string[];
+  /**
    * Ledger rows the add rule says cannot exist: *an add only counts once per
    * trip, and copying your own day into your own trip does not count.* The
    * database enforces the first half — `saved_day_adds`' primary key is
@@ -261,6 +273,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const savedDaysByOwner: Record<string, SavedDayOwnerReport> = {};
   const savedDayCities = new Set<string>();
   const savedDaysWithNoCities: string[] = [];
+  const publishedSavedDaysWithNoPrice: string[] = [];
   const savedDayLedgerViolations: string[] = [];
   const seenAdds = new Set<string>();
 
@@ -270,6 +283,12 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
       savedDaysWithNoCities.push(`"${saved.name}" (${saved.ownerId}) would never match a city search`);
     }
     for (const city of cities) savedDayCities.add(city);
+
+    if (saved.visibility === "public" && !saved.stops.some((stop) => stop.cost !== null)) {
+      publishedSavedDaysWithNoPrice.push(
+        `"${saved.name}" (${saved.ownerId}) would show no budget each in Discover`,
+      );
+    }
 
     const owner = (savedDaysByOwner[saved.ownerId] ??= { days: 0, published: 0, adds: 0, cities: [] });
     owner.days += 1;
@@ -385,6 +404,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     coordinateDisagreements,
     staleOverrides,
     savedDaysWithNoCities,
+    publishedSavedDaysWithNoPrice,
     savedDayLedgerViolations,
   };
 }

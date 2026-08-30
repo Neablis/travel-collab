@@ -27,9 +27,19 @@
 // `adds` is derived too — it is the LENGTH of `addedBy` below. The counter is
 // denormalised from the ledger in the database for the same reason, and the
 // fixture would be lying about the shape if it carried the two independently.
+//
+// --- Why some stops carry a cost ---
+// M11b's shared-day rail states "budget each" and Discover filters on it, both
+// derived by `savedDayFacts` from the priced stops. A fixture where every stop
+// is unpriced would make that fact "—" in every demo and every screenshot, and
+// the budget filter a control with nothing to act on — which is M18's tag-chip
+// failure, the one AGENTS.md's Definition of Done names by name. So the three
+// PUBLISHED days carry prices (`verify.ts` fails the seed if one does not) and
+// the two private ones deliberately do not: a day that does not say what it
+// costs is the ordinary case, and something has to render it.
 
 import type { SavedStop } from "@tc/contracts";
-import { JAPAN_TRIP_NAME } from "./trip.ts";
+import { JAPAN_TRIP_CURRENCY, JAPAN_TRIP_NAME } from "./trip.ts";
 
 /** One row of the adds ledger: a trip somebody took this day into. */
 export type JapanSavedDayAdd = {
@@ -64,6 +74,18 @@ const SOURCE_TRIP_ID = "00000000-0000-4000-8000-00000000f000";
 
 const ALICE = "dev-alice";
 const BOB = "dev-bob";
+
+/**
+ * A price, in the trip's own currency.
+ *
+ * `JAPAN_TRIP_CURRENCY` rather than a literal per stop: ADR-008 makes currency
+ * trip-level, and `savedDayFacts` refuses to sum a day whose priced stops
+ * disagree about it — a fixture that spelled the code out five times would be
+ * the one place that disagreement could be introduced by a typo.
+ */
+function money(amountMinor: number): SavedStop["cost"] {
+  return { amountMinor, currency: JAPAN_TRIP_CURRENCY };
+}
 
 function stop(
   title: string,
@@ -101,13 +123,24 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       { tripId: "bb000000-0000-4000-8000-000000000002", addedBy: "dev-carol" },
     ],
     stops: [
-      stop("Fushimi Inari at opening", "07:30", "09:30", { name: "Fushimi Inari Taisha", city: "Kyoto" }),
-      stop("Tofuku-ji gardens", "10:15", "11:30", { name: "Tofuku-ji", city: "Kyoto" }),
-      stop("Lunch at Omen Kodaiji", "12:30", "13:30", { name: "Omen Kodaiji", city: "Kyoto" }),
+      // Under the Discover filter's lower band edge ($50 each) once summed —
+      // the cheap end of the three ranges has to have an occupant in the demo
+      // or the band is a control nobody can see work.
+      stop("Fushimi Inari at opening", "07:30", "09:30", { name: "Fushimi Inari Taisha", city: "Kyoto" }, {
+        cost: money(0),
+      }),
+      stop("Tofuku-ji gardens", "10:15", "11:30", { name: "Tofuku-ji", city: "Kyoto" }, {
+        cost: money(500),
+      }),
+      stop("Lunch at Omen Kodaiji", "12:30", "13:30", { name: "Omen Kodaiji", city: "Kyoto" }, {
+        cost: money(1_800),
+      }),
       // Same city as the first stop and not adjacent to it — the day reports
       // Kyoto ONCE, which is what makes `cities.length` "how many cities does
       // this day touch" rather than "how many stops are placed".
-      stop("Kiyomizu-dera at dusk", "17:00", "18:30", { name: "Kiyomizu-dera", city: "Kyoto" }),
+      stop("Kiyomizu-dera at dusk", "17:00", "18:30", { name: "Kiyomizu-dera", city: "Kyoto" }, {
+        cost: money(400),
+      }),
     ],
   },
   {
@@ -120,10 +153,21 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     // Discover's per-card line ("Kyoto matched · also Uji") and its sibling
     // chips have nothing to render unless some day touches more than one city.
     stops: [
-      stop("Breakfast in Nakameguro", "08:00", "09:00", { name: "Onibus Coffee", city: "Tokyo" }),
-      stop("Romancecar to Hakone-Yumoto", "10:30", "12:00", { name: "Shinjuku Station", city: "Tokyo" }),
-      stop("Open-Air Museum", "13:30", "16:00", { name: "Hakone Open-Air Museum", city: "Hakone" }),
-      stop("Onsen before dinner", "17:00", "18:30", { name: "Tenzan Tohji-kyo", city: "Hakone" }),
+      // Over the upper band edge ($150 each): a travel day costs more than a
+      // walking day, and the top band needs an occupant for the same reason the
+      // bottom one does.
+      stop("Breakfast in Nakameguro", "08:00", "09:00", { name: "Onibus Coffee", city: "Tokyo" }, {
+        cost: money(1_200),
+      }),
+      stop("Romancecar to Hakone-Yumoto", "10:30", "12:00", { name: "Shinjuku Station", city: "Tokyo" }, {
+        cost: money(2_400),
+      }),
+      stop("Open-Air Museum", "13:30", "16:00", { name: "Hakone Open-Air Museum", city: "Hakone" }, {
+        cost: money(1_600),
+      }),
+      stop("Onsen before dinner", "17:00", "18:30", { name: "Tenzan Tohji-kyo", city: "Hakone" }, {
+        cost: money(11_000),
+      }),
     ],
   },
   {
@@ -155,13 +199,20 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       { tripId: "bb000000-0000-4000-8000-000000000007", addedBy: "dev-dan" },
     ],
     stops: [
-      stop("Nishiki Market", "10:00", "11:30", { name: "Nishiki Market", city: "Kyoto" }),
+      // The middle band. The Shinkansen stop below stays UNPRICED on purpose:
+      // a day with some priced stops and some not is the ordinary case, and
+      // "budget each" has to be readable as a floor rather than a total.
+      stop("Nishiki Market", "10:00", "11:30", { name: "Nishiki Market", city: "Kyoto" }, {
+        cost: money(2_500),
+      }),
       // A location with NO city — `Location.city` is `.optional()`, so a
       // manually typed place carries none (KI-35's shape). The rule skips it
       // rather than falling back to the name, which would answer "which city"
       // with "Shinkansen platform".
       stop("Shinkansen east", "15:40", "16:15", { name: "Shinkansen platform" }),
-      stop("Kushikatsu in Shinsekai", "18:30", "20:00", { name: "Daruma Shinsekai", city: "Osaka" }),
+      stop("Kushikatsu in Shinsekai", "18:30", "20:00", { name: "Daruma Shinsekai", city: "Osaka" }, {
+        cost: money(3_200),
+      }),
     ],
   },
   {
