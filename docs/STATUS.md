@@ -201,9 +201,18 @@ production's policy is untouched.
 **One thing is still Mitchell's to do, and nothing unattended can test a preview
 until it is done:** generate **Protection Bypass for Automation** (Vercel → the
 project → Settings → Deployment Protection) and copy the value into a
-`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret. Until then the only route in is
-an MCP-minted `_vercel_share` link, which expires in 23 hours and suits an
-interactive session, not a scheduled job. Treat the secret like `FLAGS_SECRET`:
+`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret.
+
+**The `_vercel_share` fallback was tested on 2026-08-30 and is not a substitute
+— tried while looking for M18b's gate evidence.** A freshly minted link gets
+*past* Deployment Protection and is then stopped by `429 Vercel Security
+Checkpoint` at the redeem step, twice, five minutes apart, before any app
+response. That is Vercel's anti-bot interstitial challenging the client —
+headless Chromium on a datacenter IP — not rate limiting and not the protection
+layer. It suits a person in a browser; it does not reliably suit the automated
+walk. The bypass secret is honoured before the checkpoint renders, which is why
+it is the only dependable route. `docs/guidelines/cloud-agent-sessions.md`
+carries the detail. Treat the secret like `FLAGS_SECRET`:
 it unlocks every protected deployment this project has.
 
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an

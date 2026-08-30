@@ -4,9 +4,12 @@
 flipped.** All six behaviours below are implemented and proven on
 `pnpm --filter web test:e2e:ci-like` — see "The evidence". What is missing is
 the checklist's own trigger: *a **deployed** gate demo passing*. This session
-could not produce one — `VERCEL_AUTOMATION_BYPASS_SECRET` is still unset, so
-nothing unattended can reach a protected preview (`docs/STATUS.md`,
-"Blocking / broken right now"). Closing the gate is one confirmation on the
+could not produce one, and tried both routes rather than assuming:
+`walk:preview` against this PR's own preview stops at Deployment Protection
+without `VERCEL_AUTOMATION_BYPASS_SECRET`, and an MCP-minted `_vercel_share`
+link gets past that only to be stopped by `429 Vercel Security Checkpoint` —
+Vercel's anti-bot interstitial, which headless Chromium on a datacenter IP
+trips (`docs/STATUS.md`, "Blocking / broken right now"). Closing the gate is one confirmation on the
 preview, and it is Mitchell's, in the same shape M16's close took on
 2026-08-29 after PR #88 deliberately flipped nothing.
 
@@ -135,6 +138,22 @@ day/tag independence), `ActivityCard.test.tsx`, `TagFocusLine.test.tsx`,
    *moves* between runs, which AGENTS.md's own discriminator calls a timeout
    rather than a defect. The spec polls for the settled value; the transition
    stays, because it is the behaviour.
+
+### And one thing review found that neither did
+
+**A tag focus re-centred the map.** `focusedTag` went into the deps of the
+effect that also calls `fitBounds`, so focusing a tag threw away a viewport the
+user had panned by hand. The comment beside that dep array asserted the
+opposite — *"a tag focus never moves the viewport"* — true of the intent, false
+of the code, which is the species AGENTS.md calls a lie with a timer on it.
+Caught by CodeRabbit on PR #91; styling and camera are two effects now, and the
+regression test was checked by reverting the split and confirming it goes red.
+
+Worth carrying into the next test written against `MapLens`: `fitBoundsMock` is
+file-scoped and nothing resets it, so it enters any test carrying every earlier
+test's calls — nine by that point. A bare `toHaveBeenCalled()` resolves against
+somebody else's call, and the mount's own fit then lands after the `mockClear()`
+and reads as a call this test caused.
 
 ### Recorded deltas from the spec text
 
