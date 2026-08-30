@@ -93,8 +93,8 @@ describe("the Postgres counter", () => {
   // that; the policy half is in quota.test.ts.
   it("adds a multi-unit charge to an existing window", async () => {
     const counters = pgCounters();
-    await counters.bump("a", T0);
-    expect(await counters.bump("a", T0, 31)).toBe(32);
+    await counters.bump(key("a"), T0);
+    expect(await counters.bump(key("a"), T0, 31)).toBe(32);
   });
 
   it("starts a NEW window at the charge, not at one", async () => {
@@ -102,15 +102,22 @@ describe("the Postgres counter", () => {
     // charge being applied — that would make a 32-step request free whenever it
     // happened to be the first of its window.
     const counters = pgCounters();
-    await counters.bump("a", T0, 5);
-    expect(await counters.bump("a", new Date(T0.getTime() + 60_000), 12)).toBe(12);
-    expect(await db.select().from(rateLimitCounters)).toHaveLength(1);
+    await counters.bump(key("a"), T0, 5);
+    expect(await counters.bump(key("a"), new Date(T0.getTime() + 60_000), 12)).toBe(12);
+    // Scoped to this test's own buckets, for the reason the sibling test above
+    // spells out: unscoped, this asserted the whole database held exactly one
+    // rate-limit counter.
+    const rows = await db
+      .select()
+      .from(rateLimitCounters)
+      .where(like(rateLimitCounters.bucket, `${keyPrefix}%`));
+    expect(rows).toHaveLength(1);
   });
 
   it("refuses to let a caller decrement a counter", async () => {
     const counters = pgCounters();
-    await counters.bump("a", T0, 10);
-    expect(await counters.bump("a", T0, -5)).toBe(11);
+    await counters.bump(key("a"), T0, 10);
+    expect(await counters.bump(key("a"), T0, -5)).toBe(11);
   });
 
   // Skewed clocks across instances must not hand an attacker a free reset.
