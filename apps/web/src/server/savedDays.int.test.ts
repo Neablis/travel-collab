@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "./db/client";
-import { events, savedDays, tripDetails, tripInvites, tripMemberships, tripSummaries } from "./db/schema";
+
+
 import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
 import { acceptInvite, createInvite } from "./access/invites";
@@ -14,8 +14,27 @@ import {
   saveDay,
 } from "./savedDays";
 
-const OWNER = "saved-alice";
-const OTHER = "saved-bob";
+// Fresh identities per TEST, not per file (KI-69).
+//
+// `listSavedDays(ownerId)` filters by owner and nothing else, so with a fixed
+// "saved-alice" the three assertions that read it back — an empty library, an
+// exact ordered pair of names, and `[0]` of the newest-first list — were really
+// assertions about the whole `saved_days` table. They passed only because the
+// beforeEach below had just deleted every row in it. Minting a new owner for
+// each test makes those queries see exactly the rows that test created, which
+// is what lets the truncation go: the isolation is now in the data, not in
+// having the table to ourselves.
+//
+// `let`, because `beforeEach` reassigns them; every reader below is inside a
+// function body and so picks up the current test's value.
+let OWNER = "";
+let OTHER = "";
+
+beforeEach(() => {
+  const run = randomUUID().slice(0, 8);
+  OWNER = `saved-alice-${run}`;
+  OTHER = `saved-bob-${run}`;
+});
 
 async function seedDay(name = "Kyoto"): Promise<{ tripId: string; dayId: string }> {
   const tripId = randomUUID();
@@ -50,14 +69,11 @@ async function seedDay(name = "Kyoto"): Promise<{ tripId: string; dayId: string 
 
 const detailFor = async (tripId: string) => (await getTripDetail(tripId))!;
 
-beforeEach(async () => {
-  await db.delete(savedDays);
-  await db.delete(tripInvites);
-  await db.delete(tripMemberships);
-  await db.delete(tripDetails);
-  await db.delete(tripSummaries);
-  await db.delete(events);
-});
+// The truncation that used to live here is gone (KI-69). It deleted every row
+// of saved_days, trip_invites, trip_memberships, trip_details, trip_summaries
+// and events — including a developer's own, since DATABASE_URL is shared with
+// local dev. Every trip here is a fresh randomUUID and every owner is now fresh
+// per test (above), so nothing this file reads can see another test's rows.
 
 describe("saving a day", () => {
   it("keeps the stops, their order and their times — and no date", async () => {

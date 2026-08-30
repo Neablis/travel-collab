@@ -1,19 +1,19 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "./db/client";
-import { events, tripDetails, tripSummaries } from "./db/schema";
+import { tripDetails } from "./db/schema";
 import { executeTripCommand } from "./commands";
 import { getTripDetail, rebuildProjections } from "./projections";
 
-const exec = (command: object, actorId = "user-1") => executeTripCommand(command, actorId);
+// Per run rather than the fixed "user-1" (KI-69).
+const ACTOR = `user-1-${randomUUID().slice(0, 8)}`;
+const exec = (command: object, actorId = ACTOR) => executeTripCommand(command, actorId);
 
+// The beforeEach that deleted every row of trip_details, trip_summaries and
+// events is gone (KI-69) — see the rebuild comparison at the end for the one
+// assertion that depended on it.
 describe("anchor conflicts through the server pipeline (ConflictContext, ADR-006)", () => {
-  beforeEach(async () => {
-    await db.delete(tripDetails);
-    await db.delete(tripSummaries);
-    await db.delete(events);
-  });
 
   it("a date shift recomputes anchor conflicts, and rebuild reproduces them", async () => {
     const tripId = randomUUID();
@@ -46,9 +46,16 @@ describe("anchor conflicts through the server pipeline (ConflictContext, ADR-006
       false,
     );
 
-    const liveDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+    // Scoped to this trip's row (KI-69). Unscoped, this compared every row in
+    // trip_details — so it was coupled to whatever else had written to that
+    // table, most sharply to `shares.int.test.ts`, which deliberately wrote a
+    // corrupted doc with no `where` clause. The length assertion keeps a
+    // filtered comparison from passing vacuously on two empty arrays.
+    const where = eq(tripDetails.tripId, tripId);
+    const liveDetails = await db.select().from(tripDetails).where(where);
+    expect(liveDetails).toHaveLength(1);
     await rebuildProjections();
-    const rebuiltDetails = await db.select().from(tripDetails).orderBy(asc(tripDetails.tripId));
+    const rebuiltDetails = await db.select().from(tripDetails).where(where);
     expect(rebuiltDetails).toEqual(liveDetails);
   });
 });
