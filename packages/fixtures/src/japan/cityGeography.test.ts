@@ -79,4 +79,49 @@ describe("every stop's city agrees with its coordinates", () => {
     }
     expect(findings).toEqual([]);
   });
+
+  // The centroid rule above has a structural blind spot, and it is exactly
+  // where this change is most fragile: **a city with one stop is always zero
+  // km from its own centroid**, so no other city can ever be nearer and the
+  // rule cannot fire. CodeRabbit found this on PR #97 for Tamano; checking the
+  // distribution showed it applies to Odawara too — both cities KI-59
+  // introduced, and both the ones a future editor is most likely to "simplify"
+  // back into Hakone and Naoshima.
+  //
+  // These assertions are deliberately hardcoded rather than read from
+  // CITY_OVERRIDES. Reading the override map would make the test agree with
+  // whatever that map says, which is the vacuous shape the repo's `witness`
+  // convention exists to prevent — the point is to fail when someone edits
+  // the map.
+  const SINGLE_STOP_CITY_CORRECTIONS: ReadonlyArray<readonly [string, string]> = [
+    ["d7-s1-shinkansen-odawara-kyoto", "Odawara"],
+    ["d13-s1-train-and-ferry-to-naoshima", "Tamano"],
+  ];
+
+  it.each(SINGLE_STOP_CITY_CORRECTIONS)(
+    "%s is tagged %s, which the centroid rule cannot check",
+    (id, city) => {
+      const stop = JAPAN_STOPS.find((s) => s.id === id);
+      expect(stop, `${id} no longer exists — update this table`).toBeDefined();
+      expect(stop!.city).toBe(city);
+    },
+  );
+
+  // And the blind spot must not be allowed to grow silently: any city that
+  // drops to a single stop in future is equally uncheckable by the rule above,
+  // so it has to appear in the table too. This is what stops the guard from
+  // quietly covering less than it claims.
+  it("every single-stop city has a direct assertion above", () => {
+    const perCity = new Map<string, string[]>();
+    for (const stop of JAPAN_STOPS) {
+      perCity.set(stop.city, [...(perCity.get(stop.city) ?? []), stop.id]);
+    }
+    const singles = [...perCity.entries()].filter(([, ids]) => ids.length === 1);
+    const covered = new Set(SINGLE_STOP_CITY_CORRECTIONS.map(([id]) => id));
+    const uncovered = singles
+      .filter(([, ids]) => !covered.has(ids[0]!))
+      .map(([city, ids]) => `${city} has only ${ids[0]}, which no direct assertion pins`);
+    expect(uncovered).toEqual([]);
+  });
 });
+
