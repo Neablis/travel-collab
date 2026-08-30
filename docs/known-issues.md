@@ -13,6 +13,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-95 — `docs/known-issues.md` has two hot insertion points, so every pair of parallel branches conflicts and the cost is quadratic
+- **Severity:** cleanup (no user impact) — but it is the most expensive process defect measured so far, and `/ki-sweep` is built to trigger it
+- **Area:** `docs/known-issues.md` itself, `.claude/commands/ki-sweep.md`, `.claude/agents/ki-fixer.md` (its contract requires each unit to move its own entry to Resolved)
+- **What happens:** every agent writes to the same two anchors — the top of `## Open` for a new entry, the top of `## Resolved` for a fixed one. Git cannot merge two inserts at one anchor, so **any two branches that file or resolve an issue conflict, always**, even when their entries are about entirely unrelated code. Worse, resolving the conflict on one branch does not help the others: each merge to `main` moves both anchors again, invalidating every remaining branch's resolution.
+- **Measured on the 2026-08-29 sweep (PRs #82-#86), not estimated:** four cluster branches, each semantically an independent append. Landing them took **10 conflict resolutions (4+3+2+1) and 4 extra CI cycles**. Zero of those conflicts were about overlapping subject matter; every one was two inserts at the same anchor. The same run also produced a **five-way collision on the number KI-77** — five branches independently allocated it the same night, plus a two-way on KI-78 — because a sequential id needs an allocator and parallel agents have none.
+- **The tooling manufactures it.** `/ki-sweep` exists to fan out N agents over independent issues; `ki-fixer`'s contract then requires each of them to edit this one file in the same two places. The more the parallel workflow is used as designed, the more the cost grows — as N², not N.
+- **File pressure, for scale:** 2,209 lines, 94 entries, **78 commits in the 30 days to 2026-08-30** (~2.6/day). This is the most frequently written document in the repo.
+- **Two fixes, deliberately not taken here** (Mitchell's call, 2026-08-30 — recorded rather than actioned):
+  1. **Workflow, free and structural-change-free:** merge a sweep's branches into one integration branch, resolve once, run CI once, merge once. O(N) instead of O(N²). On the 2026-08-29 sweep that is 1 resolution and 1 CI cycle instead of 10 and 4.
+  2. **Structural:** one file per issue (`docs/known-issues/KI-095-....md`), with Open/Resolved as frontmatter or a directory, plus a generated index. Two agents filing entries then create two *different files*, which git merges with no conflict at all. This is the standard remedy for the standard problem — towncrier's news fragments and changesets both exist for exactly this. Pair it with a non-sequential id (`KI-<date>-<slug>`, or PR-derived) so no allocator is needed and the KI-77 collision cannot recur.
+- **Migration cost was checked rather than assumed:** **nothing parses this file.** `.claude/protocol/adapter.json:17` names it as a protected filename and `apps/web/src/server/ai/writeTools.ts:101` mentions it in a prose comment; the other ~49 references are prose pointers in markdown. All mechanical. `CLAUDE.md`'s rule 2 ("grep `docs/known-issues.md` for the symptom") survives verbatim, since `grep -r docs/known-issues/` is equivalent.
+- **What this costs while it is open:** every parallel sweep pays the quadratic tax again, and every one risks another number collision. It does not corrupt anything and it is always resolvable — it is purely wasted time, which is why it is filed as cleanup rather than reliability.
+- **First noted:** 2026-08-30, landing the 2026-08-29 sweep's four remaining PRs.
+
 ### KI-93 — The AI handler's server-side geocoding spends the LocationIQ key without consulting the geocode quota at all
 - **Severity:** correctness (a spend gate with a second, unmetered door into the same vendor key)
 - **Area:** `apps/web/src/server/ai/handleAiRequest.ts` (the `enrichCommandLocations` call), `apps/web/src/server/ai/geocodeEnrichment.ts`, `apps/web/src/server/quota.ts` (`geocodeQuota`)
