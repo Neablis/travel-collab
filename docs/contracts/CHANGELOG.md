@@ -13,6 +13,66 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-30 — `SavedDay` gains `cities`, `visibility` and `adds` (M11b PR1)
+
+- Added: `cities: z.array(z.string().min(1))`, `visibility: SavedDayVisibility`
+  and `adds: z.number().int().nonnegative()` on `SavedDay`
+  (`packages/contracts/src/saved.ts`), plus a new
+  `SavedDayVisibility = z.enum(["private", "public"])` with the type inferred.
+  All three are REQUIRED — a saved day always has all three, and `[]` / `0` are
+  the "nothing yet" values rather than an absent field a reader has to interpret
+- Why `cities` is stored and not derived per query: `saved_days.stops` is jsonb
+  precisely because a saved day is a value that is never queried into
+  (ADR-029), and M11b link 5's Discover matches a day on **any** city it
+  contains, on every keystroke. Deriving it per read would query into the value
+  the ADR says is not queried into, so it is a SNAPSHOT taken at save time, on
+  exactly the terms `sourceTripName` already is (ADR-028)
+- **One derivation, shared.** `packages/domain/src/trip/cities.ts` already held
+  `citiesOfDay(detail, dayIndex)` with the decisions made and tested — time
+  order not stored order, `location.city` only with no name/area fallback,
+  duplicates collapsed to the first occurrence, `[]` when nothing is located.
+  Its core is now `citiesOfStops(stops)`, and `citiesOfDay` folds it. A second
+  rule over `SavedStop[]` is what would let a public profile's cities disagree
+  with Discover's, which is one of M11b's own exit-gate boxes; the agreement is
+  asserted directly in `packages/domain/test/cities.test.ts`
+- `visibility` is an enum rather than an `isPublic` boolean: M12 quarantines
+  moderation, and a day withdrawn by a moderator is neither the author's
+  `private` nor `public`, so a third member is already foreseeable — adding one
+  is a contract change with an exhaustiveness typecheck behind it, where
+  widening a boolean is a column rewrite. It also matches how this repo already
+  spells a small closed state set (`trip_invites.status`, `TripStatus`).
+  ADR-029's "anyone with the link" reversal is explicitly NOT a member here —
+  that returns as a bearer token on its own table (ADR-027's shape)
+- `adds` is denormalised from a new `saved_day_adds` ledger keyed on
+  (saved day, trip). The ledger is not a contract type: nothing about it
+  crosses the UI/server boundary in this milestone, so it lives only in
+  `apps/web/src/server/db/schema.ts`. The rule it exists for, verbatim from the
+  design: *an add only counts once per trip, and only after the trip has dates;
+  copying your own day into your own trip does not count.* Its composite
+  primary key makes the first clause true by construction — proved against the
+  database, not the type, in `apps/web/src/server/savedDayAdds.int.test.ts`
+- Consumers updated, all in this change: `apps/web/src/server/savedDays.ts`
+  produces all three (`citiesOfStops` at save time,
+  `SavedDayVisibility.enum.private`, `adds: 0`) and `toDto` returns them;
+  `apps/web/src/server/db/schema.ts` gains the columns and the ledger table;
+  `apps/web/src/components/trip/SavedDaysDialog.test.tsx`'s typed `SavedDay`
+  literal gains the three fields. `packages/fixtures` gains the demo library
+  (`JAPAN_SAVED_DAYS`, five days across two owners) so the new fields are
+  exercised by the fixture, per the Definition of Done
+- Contract tests: `packages/contracts/test/saved.test.ts` — round-trip, the
+  absent-field cases for all three, a blank city, non-string cities, a
+  visibility outside the enum and a casing variant of one, and a fractional and
+  a negative `adds`
+- Breaking? **Yes, for producers.** Anything constructing a `SavedDay` must now
+  supply all three. Migration `apps/web/drizzle/0012_nervous_tomas.sql` adds
+  `cities text[] NOT NULL DEFAULT '{}'`, `visibility text NOT NULL DEFAULT
+  'private'`, `adds integer NOT NULL DEFAULT 0`, a GIN index on `cities`, and
+  the `saved_day_adds` table — every column defaulted, so it applies to
+  existing rows without a rewrite. Rows saved before it carry `cities = '{}'`
+  until `pnpm --filter web db:backfill-cities` derives them from the stored
+  `stops`; the backfill is a script rather than SQL in the migration so it runs
+  the one `citiesOfStops` rather than a second copy of the rule in SQL
+
 ## 2026-08-30 — `AdmissionRefusal`: the invite gate's refusal codes become a closed set
 
 - Added: `AdmissionRefusal` in a new `packages/contracts/src/admission.ts`,

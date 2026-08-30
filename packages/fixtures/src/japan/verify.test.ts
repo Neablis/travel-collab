@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ActivityKind, ActivityTag } from "@tc/contracts";
 import { diffAgainstExpectations, JAPAN_TRIP_EXPECTATIONS } from "./expectations.ts";
+import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
 import { japanTripCommands } from "./commands.ts";
 import { deterministicMintId, formatReport, REFERENCE_START_DATE, verifyJapanTrip } from "./verify.ts";
 
@@ -35,6 +36,55 @@ describe("the canonical Japan fixture", () => {
   it("reports a finding when an expectation is wrong", () => {
     const findings = diffAgainstExpectations(report, { ...JAPAN_TRIP_EXPECTATIONS, activityCount: 71 });
     expect(findings).toContain("activityCount: expected 71, got 72");
+  });
+
+  // The demo library (M11b). These are the properties M11b's exit gate rests
+  // on, asserted here rather than left to the expectations diff, because a
+  // diff can only say "3 became 2" — it cannot say why 3 mattered.
+  it("carries two owners whose numbers a bug could not accidentally reconcile", () => {
+    const owners = Object.entries(report.savedDaysByOwner);
+    expect(owners.length).toBe(2);
+
+    // "checked against a seed where they could disagree": if any of these three
+    // pairs were equal, a build that credited one person's rows to the other
+    // would still add up, and the gate box would pass on a broken profile.
+    for (const field of ["days", "published", "adds"] as const) {
+      const values = owners.map(([, owner]) => owner[field]);
+      expect(new Set(values).size, `${field} is the same for both owners`).toBe(values.length);
+    }
+  });
+
+  it("shares exactly one city between the two owners", () => {
+    const [a, b] = Object.values(report.savedDaysByOwner);
+    // Overlap, so a Kyoto query has to return both people's days; and
+    // difference, so a Hakone query returns one person's. Neither alone
+    // exercises Discover's matched/outlined city chips.
+    const shared = a!.cities.filter((city) => b!.cities.includes(city));
+    expect(shared).toEqual(["Kyoto"]);
+    expect(a!.cities.filter((c) => !b!.cities.includes(c)).length).toBeGreaterThan(0);
+    expect(b!.cities.filter((c) => !a!.cities.includes(c)).length).toBeGreaterThan(0);
+  });
+
+  it("carries a day that touches more than one city", () => {
+    // Discover's per-card line ("Kyoto matched · also Uji") and its sibling
+    // chips render nothing without one. M18 shipped tag chips against a
+    // preview whose data had zero tags; this is the guard against the repeat.
+    const multi = JAPAN_SAVED_DAYS.filter((day) => {
+      const cities = new Set(day.stops.flatMap((s) => (s.location?.city ? [s.location.city] : [])));
+      return cities.size > 1;
+    });
+    expect(multi.length).toBeGreaterThan(0);
+  });
+
+  // A guard on the guard, matching the `activityCount` one above: the
+  // saved-day checks are new, and a diff that cannot fail is a diff that
+  // proves nothing.
+  it("reports a finding when a saved-day expectation is wrong", () => {
+    const findings = diffAgainstExpectations(report, {
+      ...JAPAN_TRIP_EXPECTATIONS,
+      savedDayCount: 4,
+    });
+    expect(findings).toContain("savedDayCount: expected 4, got 5");
   });
 
   it("covers every ActivityKind and every ActivityTag", () => {

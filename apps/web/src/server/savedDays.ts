@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { SavedStop, type BatchableCommand, type SavedDay, type TripDetail } from "@tc/contracts";
+import {
+  SavedDayVisibility,
+  SavedStop,
+  type BatchableCommand,
+  type SavedDay,
+  type TripDetail,
+} from "@tc/contracts";
+import { citiesOfStops } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
@@ -36,6 +43,9 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
     ownerId: row.ownerId,
     name: row.name,
     stops,
+    cities: row.cities,
+    visibility: row.visibility,
+    adds: row.adds,
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
     createdAt: row.createdAt.toISOString(),
@@ -122,6 +132,23 @@ export async function saveDay(
     ownerId,
     name,
     stops: validated.data,
+    // Derived HERE, once, at save time — the snapshot ADR-029 already takes of
+    // `sourceTripName`, for the reason link 1 gives: `stops` is jsonb because a
+    // saved day is never queried into, and Discover has to search on cities.
+    //
+    // `citiesOfStops` is the domain's single rule, the same one `citiesOfDay`
+    // folds for the trip readout. A second implementation over `SavedStop[]`
+    // would be free to drift, and a profile whose cities disagree with
+    // Discover's is a gate box, not a rounding error.
+    cities: citiesOfStops(validated.data),
+    // Private until its author says otherwise (M11b link 3). Spelled through
+    // the contract's enum rather than as the literal "private", so the set of
+    // visibilities has exactly one definition — the rule M11a set for
+    // `AdmissionRefusal`.
+    visibility: SavedDayVisibility.enum.private,
+    // Nobody has taken this day yet. It is only ever moved by the path that
+    // writes a `saved_day_adds` row (PR2); see the schema note.
+    adds: 0,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
     createdAt: new Date(now),

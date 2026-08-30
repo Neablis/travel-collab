@@ -42,6 +42,12 @@ const saved: SavedDay = {
       cost: null,
     },
   ],
+  // M11b PR1's three new `SavedDay` fields. This fixture is a typed literal,
+  // which makes it the one UI file a contracts-only change has to touch; the
+  // dialog reads none of them yet — Discover and the publish control are PR3.
+  cities: ["Tokyo"],
+  visibility: "private",
+  adds: 0,
   sourceTripId: "11111111-1111-4111-8111-111111111111",
   sourceTripName: "Kyoto",
   createdAt: "2026-08-01T00:00:00.000Z",

@@ -11,7 +11,15 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Origin, SavedStop, TripDetail, TripMember, PageContent, PageContext } from "@tc/contracts";
+import type {
+  Origin,
+  SavedDayVisibility,
+  SavedStop,
+  TripDetail,
+  TripMember,
+  PageContent,
+  PageContext,
+} from "@tc/contracts";
 
 // M11 link 1 (ADR-025). Identity is an ordinary CRUD module (AGENTS.md module
 // map), not event-sourced — ADR-003 scopes the log to planning. The only
@@ -207,11 +215,91 @@ export const savedDays = pgTable(
     // written before the contract moved is dropped-and-logged rather than
     // trusted (KI-71). Do not add a caller that reads `row.stops` directly.
     stops: jsonb("stops").$type<SavedStop[]>().notNull(),
+    // The cities this day touches, derived from `stops` at SAVE time by
+    // `citiesOfStops` (@tc/domain) — a snapshot, exactly like
+    // `source_trip_name` below (M11b link 1).
+    //
+    // Its own column, and this is the whole point: `stops` is jsonb because a
+    // saved day is a value that is never queried into (ADR-029), and Discover
+    // has to ask "which days contain Kyoto" on every keystroke. Deriving it
+    // per query would query into the thing the ADR says is not queried into.
+    //
+    // `text[]`, not jsonb: this column exists to be searched by containment,
+    // and `cities && ARRAY['Kyoto']` over a real array with a GIN index is the
+    // operation link 5 ranks on ("a day matches on ANY city it contains").
+    // Defaulted to the empty array so the migration that adds it lands on
+    // existing rows without a rewrite; the backfill then fills them in.
+    cities: text("cities").array().notNull().default([]),
+    // Private by default (M11b link 3) — the default is the guarantee, not a
+    // convention the publish endpoint has to remember. Every row that existed
+    // before this column did is private, and a future writer that forgets the
+    // field gets private too.
+    //
+    // `text` with a `$type` rather than a pg enum, matching `trip_invites`
+    // and `trip_shares`' `status`. See `SavedDayVisibility` in
+    // packages/contracts for why the CONTRACT is an enum rather than a
+    // boolean; the column follows the contract's spelling so the two never
+    // need a mapping table between them.
+    visibility: text("visibility").$type<SavedDayVisibility>().notNull().default("private"),
+    // The denormalised counter over `saved_day_adds` (M11b link 4). The LEDGER
+    // is the authority and this is recomputable from it
+    // (`count(*) where saved_day_id = ?`) — it exists so the leaderboard and
+    // every Discover card can rank and render without an aggregate per row.
+    // Nothing may increment it except the path that inserts a ledger row, or
+    // the two disagree and the board's credibility goes with them.
+    adds: integer("adds").notNull().default(0),
     sourceTripId: uuid("source_trip_id").notNull(),
     sourceTripName: text("source_trip_name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
-  (t) => [index("saved_days_owner").on(t.ownerId)],
+  (t) => [
+    index("saved_days_owner").on(t.ownerId),
+    // GIN, because every read of this column is a containment test
+    // (`cities && ARRAY[...]`) and btree cannot serve one. It ships with the
+    // column rather than with its first query: the column has exactly one
+    // reason to exist, and adding the index later means a second migration
+    // for a table whose access pattern was known when it was designed.
+    index("saved_days_cities").using("gin", t.cities),
+  ],
+);
+
+// The adds ledger (M11b link 4). One row per (saved day, trip) — the day
+// somebody took, and the trip they took it into.
+//
+// **A table, not an `adds++`.** The rule, verbatim from the design: *an add
+// only counts once per trip, and only after the trip has dates; copying your
+// own day into your own trip does not count.* A build that counts raw inserts
+// produces a different and gameable order, and the leaderboard's whole
+// credibility is that rule holding — so the ledger records what was added and
+// `saved_days.adds` is derived from it, never the other way round.
+//
+// **The composite primary key is the "once per trip" half of that rule, made
+// true by construction.** Inserting the same day into the same trip twice
+// raises a unique violation at the database rather than depending on an
+// application read-then-write that a future caller could forget, or lose a
+// race with. The other two clauses — the trip has dates, and the author is not
+// their own audience — are facts about a trip and an actor, not about this
+// table, so they stay in the write path (PR2) where those values are in hand.
+//
+// `added_by` is recorded but does not key anything: it is what makes "copying
+// your own day into your own trip does not count" auditable after the fact,
+// and what a future "days you have taken" surface would read. No index on it
+// yet — no query asks, and `invite_codes` above sets the precedent for not
+// indexing one that nobody makes.
+export const savedDayAdds = pgTable(
+  "saved_day_adds",
+  {
+    savedDayId: uuid("saved_day_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
+    // (ADR-025).
+    addedBy: text("added_by").notNull(),
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  // No separate index on `saved_day_id`: the primary key leads with it, so
+  // "how many times was this day added" already has one.
+  (t) => [primaryKey({ columns: [t.savedDayId, t.tripId] })],
 );
 
 // Single-use admission codes (M11a link 4). The invite gate's third way

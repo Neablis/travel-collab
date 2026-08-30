@@ -31,18 +31,43 @@ import type { TripDetail } from "@tc/contracts";
 // A day with no located, city-bearing stop reports `[]` — not `null` and not
 // an omitted field — the same "nothing to report" shape `find_free_time`'s
 // empty `gaps` array already uses.
-export function citiesOfDay(detail: TripDetail, dayIndex: number): string[] {
-  const day = detail.days[dayIndex];
-  if (!day) return [];
 
+/**
+ * What the rule above actually reads off a stop: when it happens, and where.
+ *
+ * Structural rather than a contract type because two different stop shapes
+ * need the identical answer — `ActivityView` (a day inside a trip) and
+ * `SavedStop` (a day lifted out of one, M11b link 1). Both spell these two
+ * fields `T | null`, so both satisfy this without an adapter.
+ */
+type CityBearingStop = {
+  timeWindow: { start: string } | null;
+  location: { city?: string | undefined } | null;
+};
+
+/**
+ * The rule itself, over an ordered list of stops — **the one implementation**.
+ *
+ * It is exported and shared rather than reimplemented per caller because a
+ * saved day's stored `cities` and the trip readout's `citiesOfDay` are read
+ * side by side in M11b: a public profile counts a person's cities from the
+ * former, Discover matches on the same column, and a second rule that agreed
+ * today would be free to drift tomorrow. Two implementations disagreeing is
+ * exactly how a profile's numbers come to contradict Discover's, which is one
+ * of that milestone's gate boxes.
+ *
+ * `undefined` entries are tolerated so `citiesOfDay` can hand over a raw
+ * id-to-activity lookup: an id naming no activity contributes no city, the
+ * same as a stop with no location.
+ */
+export function citiesOfStops(stops: readonly (CityBearingStop | undefined)[]): string[] {
   const timed: { city: string; start: string }[] = [];
   const untimed: string[] = [];
-  for (const id of day.activityIds) {
-    const activity = detail.activities[id];
-    const city = activity?.location?.city;
+  for (const stop of stops) {
+    const city = stop?.location?.city;
     if (!city) continue;
-    if (activity!.timeWindow) {
-      timed.push({ city, start: activity!.timeWindow.start });
+    if (stop!.timeWindow) {
+      timed.push({ city, start: stop!.timeWindow.start });
     } else {
       untimed.push(city);
     }
@@ -59,4 +84,11 @@ export function citiesOfDay(detail: TripDetail, dayIndex: number): string[] {
     ordered.push(city);
   }
   return ordered;
+}
+
+/** The rule over one day of a trip. A day index past the end reports `[]`. */
+export function citiesOfDay(detail: TripDetail, dayIndex: number): string[] {
+  const day = detail.days[dayIndex];
+  if (!day) return [];
+  return citiesOfStops(day.activityIds.map((id) => detail.activities[id]));
 }

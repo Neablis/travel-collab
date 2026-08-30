@@ -19,6 +19,7 @@
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
+    "db:backfill-cities": "node --env-file-if-exists=.env.local scripts/backfill-saved-day-cities.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
     "db:reseed": "pnpm db:reset --yes && pnpm db:seed"
   },
