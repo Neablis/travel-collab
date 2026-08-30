@@ -155,7 +155,8 @@ describe("Transcript — what a screen reader is told", () => {
 describe("toolNoteLabel", () => {
   it.each([
     ["read_trip", {}, "Read the trip"],
-    ["read_day", { day: 3 }, "Checked day 3"],
+    ["read_day", { days: 3 }, "Checked day 3"],
+    ["read_day", { days: [8, 9, 10] }, "Checked days 8, 9, 10"],
     ["read_day", {}, "Checked the day you're looking at"],
     ["find_free_time", { day: 2, after: "08:00" }, "Looked for free time on day 2"],
     ["find_free_time", { after: "08:00" }, "Looked for free time"],

@@ -6,10 +6,13 @@ import {
   buildReadTools,
   findFreeTime,
   readDay,
+  readDays,
   readTrip,
   FindFreeTimeInputSchema,
+  MAX_READ_DAYS,
   READ_TOOL_INPUT_SCHEMAS,
   READ_TOOL_NAMES,
+  ReadDayInput,
   type DayReadout,
   type FreeTimeReadout,
 } from "@/server/ai/readTools";
@@ -58,6 +61,26 @@ describe("read_trip", () => {
       expect(conflict).not.toHaveProperty("id");
     }
   });
+
+  // The whole reason this field exists: "which days are near Kyoto?" (the
+  // Nara-shaped question from the 2026-08-29 live run — Nara is not in this
+  // fixture, but Kyoto is the same shape of answer) must be answerable from
+  // `read_trip` ALONE, without opening a single day. Days 7-10 are the Japan
+  // fixture's Kyoto stretch (fixtures/src/japan/trip.ts).
+  it("carries each day's cities, so a place can be found without reading every day", () => {
+    const readout = readTrip(japan);
+    for (const day of [7, 8, 9, 10]) {
+      expect(readout.days[day - 1]!.cities, `day ${day}`).toEqual(["Kyoto"]);
+    }
+    expect(readout.days[10]!.cities).toEqual(["Osaka"]); // day 11
+  });
+
+  it("reports no cities for a day with no located stop, never throwing", () => {
+    const readout = readTrip(japan);
+    for (const day of readout.days) {
+      expect(Array.isArray(day.cities)).toBe(true);
+    }
+  });
 });
 
 describe("read_day", () => {
@@ -100,6 +123,49 @@ describe("read_day", () => {
       error: `This trip has ${JAPAN_TRIP_DAY_COUNT} days, so there is no day ${JAPAN_TRIP_DAY_COUNT + 1}.`,
     });
     expect(readDay(japan, 0)).toHaveProperty("error");
+  });
+});
+
+describe("read_day, batched", () => {
+  // The exact call `read_day({ days: [8, 9, 10] })` this batching exists to
+  // make possible — one call, not three — for a candidate set `read_trip`'s
+  // `cities` field would have surfaced.
+  it("reads several days in one call, in the order asked", () => {
+    const readout = readDays(japan, [8, 9, 10]);
+    expect(readout.days).toHaveLength(3);
+    expect((readout.days[0] as DayReadout).day).toBe(8);
+    expect((readout.days[1] as DayReadout).day).toBe(9);
+    expect((readout.days[2] as DayReadout).day).toBe(10);
+  });
+
+  it("collapses a day asked for more than once to a single entry", () => {
+    const readout = readDays(japan, [8, 9, 8]);
+    expect(readout.days.map((d) => (d as DayReadout).day)).toEqual([8, 9]);
+  });
+
+  it("reports an out-of-range day as its own error without failing the batch", () => {
+    const readout = readDays(japan, [8, JAPAN_TRIP_DAY_COUNT + 1]);
+    expect((readout.days[0] as DayReadout).day).toBe(8);
+    expect(readout.days[1]).toHaveProperty("error");
+  });
+
+  it("keeps the single-day shape a bare DayReadout, not a batch of one", () => {
+    const { tools } = buildReadTools();
+    // Structural: the SCHEMA accepts both a bare number and a list under the
+    // same `days` field, which is what "batch every day into one call rather
+    // than one tool per day" needs to be expressible without a second tool
+    // (ADR-022 §1) or a second field.
+    expect(ReadDayInput.safeParse({ days: 8 }).success).toBe(true);
+    expect(ReadDayInput.safeParse({ days: [8] }).success).toBe(true);
+    expect(tools.read_day.inputSchema).toBe(ReadDayInput);
+  });
+
+  it(`bounds a batch to ${MAX_READ_DAYS} days, as a schema failure rather than a silent truncation`, () => {
+    const atCap = Array.from({ length: MAX_READ_DAYS }, (_, i) => i + 1);
+    const overCap = [...atCap, MAX_READ_DAYS + 1];
+    expect(ReadDayInput.safeParse({ days: atCap }).success).toBe(true);
+    const result = ReadDayInput.safeParse({ days: overCap });
+    expect(result.success).toBe(false);
   });
 });
 

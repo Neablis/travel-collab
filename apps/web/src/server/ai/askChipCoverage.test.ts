@@ -70,14 +70,19 @@ const EDITOR_TOOLS = [
  * not a stub of behaviour, only of the array they push into.
  */
 function runTool(detail: TripDetail, scope: AskScope, call: ToolCallPart): unknown {
-  const input = JSON.parse(call.input) as { day?: number };
+  const input = JSON.parse(call.input) as { day?: number; days?: number };
   const scopedDay = scope.kind === "day" ? scope.dayIndex + 1 : undefined;
   switch (call.toolName) {
     case "read_trip":
       return readTrip(detail);
     case "read_day": {
-      const day = input.day ?? scopedDay;
-      return day === undefined ? { error: "Say which day: read_day takes a 1-based day number." } : readDay(detail, day);
+      // `simulatedModel` only ever asks for its own scoped day (one number,
+      // never a list), so this harness needs only the single-day shape —
+      // `readTools.test.ts` covers the batched one directly.
+      const day = input.days ?? scopedDay;
+      return day === undefined
+        ? { error: "Say which day: read_day takes a 1-based day number, or a list of them." }
+        : readDay(detail, day);
     }
     case "find_free_time":
       return findFreeTime(detail, scope, input);

@@ -38,7 +38,7 @@ import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
-import { buildReadTools, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
+import { buildReadTools, MAX_READ_DAYS, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
 import {
   buildProposal,
   buildWriteTools,
@@ -544,10 +544,17 @@ export async function handleApplyProposalRequest(
  *
  * Scope narrowing is **instruction plus default, not a lie**. The day-scoped
  * turn says what the subject is and the tools default to it (readTools.ts), but
- * `read_day(4)` still works — because M16's gate is about the ANSWER not
- * wandering onto other days, and a model that genuinely needs day 4 to answer a
- * question about day 3 ("is this a long walk from yesterday's hotel?") should
- * be able to look.
+ * `read_day({ days: 4 })` still works — because M16's gate is about the ANSWER
+ * not wandering onto other days, and a model that genuinely needs day 4 to
+ * answer a question about day 3 ("is this a long walk from yesterday's
+ * hotel?") should be able to look.
+ *
+ * The batching line below is the other half of the 2026-08-29 live-run fix:
+ * `read_trip`'s `cities` field is what makes "which days are near Nara"
+ * answerable at all, and telling the model to batch is what stops it re-paying
+ * for that answer with a `read_day` per candidate day — a schema that permits
+ * a list but a prompt that only ever shows a single day does not change
+ * behaviour on its own.
  */
 export function instructionsFor(scope: AskScope, dayCount: number, canWrite = false): string {
   return [
@@ -561,7 +568,9 @@ export function instructionsFor(scope: AskScope, dayCount: number, canWrite = fa
         "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them."
       : "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
-    "Call read_trip for the trip's shape, read_day for what happens on a day (it is the only place stop times live), and find_free_time for open time — never work gaps out yourself from read_day's times.",
+    "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
+    `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
+    "Call find_free_time for open time — never work gaps out yourself from read_day's times.",
     ...(canWrite
       ? [
           "Read before you propose. A change that names a day or a stop you have not read is a guess.",

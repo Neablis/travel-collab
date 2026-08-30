@@ -191,7 +191,7 @@ describe("simulatedModel — the ask surface", () => {
   it("adds read_day when, and only when, the turn is scoped to a day", async () => {
     const calls = callsOf(await probe("ask").doGenerate(askPrompt({ kind: "day", dayIndex: 2 })));
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "read_day", "find_free_time"]);
-    expect(JSON.parse(calls[1]!.input)).toEqual({ day: 3 });
+    expect(JSON.parse(calls[1]!.input)).toEqual({ days: 3 });
   });
 
   it("answers in prose from what the tools returned, not from a canned string", async () => {

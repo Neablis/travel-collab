@@ -40,15 +40,30 @@ export type AssistantTurn =
  *
  * Day numbers arrive from the tools 1-based already (`readTools.ts` converts
  * once, server-side) — nothing here adds one.
+ *
+ * `read_day`'s `days` field is a bare number OR a list (`readTools.ts`'s
+ * `ReadDayInput`) — a real model asking for several days in the ONE call this
+ * whole change exists to make possible still deserves a note that says so,
+ * rather than falling through to the single-day label or the empty one.
  */
+function readDayNumbers(value: unknown): number[] | undefined {
+  if (typeof value === "number") return [value];
+  if (Array.isArray(value) && value.every((v) => typeof v === "number")) return value as number[];
+  return undefined;
+}
+
 export function toolNoteLabel(toolName: string, input: unknown): string {
-  const day = typeof input === "object" && input !== null ? (input as { day?: unknown }).day : undefined;
+  const record = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : undefined;
+  const day = typeof record?.day === "number" ? record.day : undefined;
   const onDay = typeof day === "number" ? ` on day ${day}` : "";
   switch (toolName) {
     case "read_trip":
       return "Read the trip";
-    case "read_day":
-      return typeof day === "number" ? `Checked day ${day}` : "Checked the day you're looking at";
+    case "read_day": {
+      const days = readDayNumbers(record?.days);
+      if (days === undefined) return "Checked the day you're looking at";
+      return days.length === 1 ? `Checked day ${days[0]}` : `Checked days ${days.join(", ")}`;
+    }
     case "find_free_time":
       return `Looked for free time${onDay}`;
     default:

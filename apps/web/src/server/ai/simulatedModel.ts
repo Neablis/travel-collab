@@ -245,7 +245,7 @@ const WAKING_HOURS = { after: "08:00", before: "22:00" };
  */
 function askQuestions(scope: AskScope): ToolCall[] {
   const calls = [call("read_trip", {})];
-  if (scope.kind === "day") calls.push(call("read_day", { day: scope.dayIndex + 1 }));
+  if (scope.kind === "day") calls.push(call("read_day", { days: scope.dayIndex + 1 }));
   calls.push(call("find_free_time", { ...WAKING_HOURS }));
   return calls;
 }

@@ -33,7 +33,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ActivityKind, TripDetail } from "@tc/contracts";
-import { findFreeGaps, minutesOf } from "@tc/domain";
+import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/booking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
 
@@ -96,6 +96,17 @@ export interface TripDayReadout {
   /** 1-based, matching `read_day`'s input. */
   day: number;
   date: string | null;
+  /**
+   * The city (or cities, on a travel day) this day's located stops touch —
+   * `citiesOfDay` (`@tc/domain`), in arrival order. `[]` when nothing on the
+   * day is located, or nothing carries a city.
+   *
+   * The reason this tool is earned in the first place (2026-08-29 live run):
+   * without it, "which day is near Nara?" has no answer this readout can give,
+   * so the model's only move was a `read_day` roll call of the WHOLE trip, one
+   * day at a time. A handful of short strings per day replaces that.
+   */
+  cities: string[];
   stopCount: number;
   /**
    * How many of those stops still need booking — kind neither `booked` nor
@@ -140,6 +151,7 @@ export function readTrip(detail: TripDetail): TripReadout {
     days: detail.days.map((day, index) => ({
       day: index + 1,
       date: day.date,
+      cities: citiesOfDay(detail, index),
       stopCount: day.activityIds.length,
       toBook: day.activityIds.filter((id) => {
         const activity = detail.activities[id];
@@ -241,6 +253,45 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
   };
 }
 
+// How many days `read_day` will read in one call. The Nara case this exists
+// for — "which days are near Nara?" — is a handful of candidates, not the
+// trip: a cap that let the model ask for the whole thing back through this
+// door would recreate the exact roll-call this batching was built to remove,
+// just moved into one call instead of fourteen. Chosen well below the Japan
+// fixture's 14 days (ADR-030) so a genuinely trip-wide question stays routed
+// to `read_trip`, while a real multi-day comparison ("days 8 through 10", "the
+// day before and after this one") fits in one call. `ReadDayInput` enforces
+// this at the SCHEMA — asking for more fails validation before `execute` ever
+// runs, rather than silently reading the first `MAX_READ_DAYS` and dropping
+// the rest.
+export const MAX_READ_DAYS = 5;
+
+export interface DayBatchReadout {
+  /** One entry per requested day, in the same (deduplicated) order asked. */
+  days: (DayReadout | ReadToolProblem)[];
+}
+
+/**
+ * `read_day`, batched. One entry per requested day, IN THE ORDER ASKED, after
+ * collapsing a day asked for more than once to its first occurrence — the same
+ * "duplicates collapse" rule `citiesOfDay` uses, for the same reason: a model
+ * that names day 9 twice should not pay for day 9's stops twice.
+ *
+ * Each entry is independently a `DayReadout` or a `ReadToolProblem`: one day
+ * out of range does not fail the whole batch, because the other requested days
+ * are still answerable.
+ */
+export function readDays(detail: TripDetail, days: readonly number[]): DayBatchReadout {
+  const seen = new Set<number>();
+  const unique: number[] = [];
+  for (const day of days) {
+    if (seen.has(day)) continue;
+    seen.add(day);
+    unique.push(day);
+  }
+  return { days: unique.map((day) => readDay(detail, day)) };
+}
+
 export interface FreeTimeGapReadout {
   day: number;
   date: string | null;
@@ -325,13 +376,27 @@ export function findFreeTime(
 // structurally rather than by reading the tool descriptions.
 export const ReadTripInput = z.object({});
 
+// One field, two shapes: a bare day number (the common case, and what a
+// day-scoped turn's default still fills in unasked) or a list of up to
+// `MAX_READ_DAYS` of them. This is what "read days 8, 9 and 10" was missing —
+// the live run this whole change answers spent 75 seconds and 17 tool calls
+// because the ONLY door here took one day, so the model walked the trip one
+// `read_day` at a time to find the days near Nara. A model that reads
+// `read_trip`'s new `cities` field can now name the candidates and read all of
+// them in the ONE call this schema exists to make possible.
 export const ReadDayInput = z.object({
-  day: z
-    .number()
-    .int()
-    .min(1)
+  days: z
+    .union([
+      z.number().int().min(1),
+      z
+        .array(z.number().int().min(1))
+        .min(1)
+        .max(MAX_READ_DAYS, `Ask for at most ${MAX_READ_DAYS} days per call.`),
+    ])
     .optional()
-    .describe("1-based day number. Omit to read the day this question is about."),
+    .describe(
+      `One or more 1-based day numbers — a single number, or a list like [8, 9, 10] (up to ${MAX_READ_DAYS} at once). ALWAYS batch every day the question needs into ONE call rather than calling this once per day. Omit to read the day this question is about.`,
+    ),
 });
 
 export const FindFreeTimeInputSchema = z.object({
@@ -370,22 +435,35 @@ export function buildReadTools() {
     tools: {
       read_trip: tool({
         description:
-          "Read this trip's shape: name, currency, start date, how many days, each day's date, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts.",
+          "Read this trip's shape: name, currency, start date, how many days, each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
         inputSchema: ReadTripInput,
         contextSchema: ReadContextSchema,
         execute: async (_input, { context }) => readTrip(context.detail),
       }),
       read_day: tool({
         description:
-          "Read one day in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch it. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about that day's conflicts or what it still needs booked.",
+          `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
         inputSchema: ReadDayInput,
         contextSchema: ReadContextSchema,
         execute: async (input, { context }) => {
-          const day = input.day ?? (context.scope.kind === "day" ? context.scope.dayIndex + 1 : undefined);
-          if (day === undefined) {
-            return { error: "Say which day: read_day takes a 1-based day number." } satisfies ReadToolProblem;
+          const days =
+            input.days !== undefined
+              ? Array.isArray(input.days)
+                ? input.days
+                : [input.days]
+              : context.scope.kind === "day"
+                ? [context.scope.dayIndex + 1]
+                : undefined;
+          if (days === undefined) {
+            return {
+              error: "Say which day: read_day takes a 1-based day number, or a list of them.",
+            } satisfies ReadToolProblem;
           }
-          return readDay(context.detail, day);
+          // The single-day shape stays exactly what it was — a bare
+          // `DayReadout` — so the one-day form this tool has always answered
+          // is unchanged for the common case. Only a genuine batch takes the
+          // wrapped `{ days: [...] }` shape `readDays` returns.
+          return days.length === 1 ? readDay(context.detail, days[0]!) : readDays(context.detail, days);
         },
       }),
       find_free_time: tool({
