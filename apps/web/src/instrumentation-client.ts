@@ -1,31 +1,41 @@
-// This file configures the initialization of Sentry on the client.
-// The added config here will be used whenever a users loads a page in their browser.
+// Sentry in the browser: loaded on every page load, before the app renders.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
-
 import * as Sentry from "@sentry/nextjs";
+import { profileSessionSampleRate, sampleRate, sharedSentryOptions } from "../sentry.shared";
 
 Sentry.init({
-  dsn: "https://305df166f51c7bdec326b199cd9dca9c@o4511998018125824.ingest.us.sentry.io/4511998020616192",
+  ...sharedSentryOptions,
 
-  // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  integrations: [
+    Sentry.replayIntegration(),
+    // Browser profiling uses the JS Self-Profiling API, which a page may only
+    // call if the response carried `Document-Policy: js-profiling`. That
+    // header is set in `next.config.ts`, and the pairing is the whole feature:
+    // without it this integration initialises, fails to construct a
+    // `Profiler`, and disables itself for the session with nothing in the
+    // console outside a debug build. `next.config.test.ts` asserts the header
+    // so the two cannot drift apart.
+    //
+    // Chromium-only today (Firefox and Safari ship no Self-Profiling API), so
+    // this is a sample of the traffic rather than all of it, by construction.
+    Sentry.browserProfilingIntegration(),
+  ],
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  // Same deal as the server: profile only while a sampled root span is open,
+  // which in the browser means a page load or a route transition rather than
+  // the whole time a tab sits open.
+  profileLifecycle: "trace",
+  profileSessionSampleRate,
 
-  // Define how likely Replay events are sampled.
-  // This sets the sample rate to be 10%. You may want this to be 100% while
-  // in development and sample at a lower rate in production
-  replaysSessionSampleRate: 0.1,
-
-  // Define how likely Replay events are sampled when an error occurs.
-  replaysOnErrorSampleRate: 1.0,
+  // Replay: 10% of sessions, and every session that hit an error. Unchanged
+  // from the wizard's values, now reading the environment so they can be
+  // turned down without a deploy.
+  replaysSessionSampleRate: sampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE, 0.1),
+  replaysOnErrorSampleRate: sampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE, 1.0),
 
   dataCollection: {
-    // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#dataCollection
-    // userInfo: false,
-    // httpBodies: [],
+    // Same reasoning as the server config: stated, not defaulted.
+    genAI: { inputs: false, outputs: false },
   },
 });
 

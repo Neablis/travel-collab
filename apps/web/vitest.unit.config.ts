@@ -1,6 +1,11 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+// Imported in the *parent* Node process, before Vitest assigns Vite's env onto
+// process.env, so the `url` handed to jsdom below is the real base URL and not
+// Vite's "/" base path. That was already true while KI-72 was open; what has
+// changed is that src/config.ts no longer reads a Vite-owned name at all, so
+// the value is now the real one inside workers too. src/config.test.ts pins it.
 import { BASE_URL } from "./src/config";
 
 // Four .ts files that need a document despite not rendering React — see
@@ -61,10 +66,14 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          // next.config.test.ts is the one unit test outside src/, because the
-          // thing it covers — the CSP's build-time VERCEL_ENV branch — is
-          // outside src/ too. Nothing else at the app root is a test.
-          include: ["src/**/*.test.ts", "next.config.test.ts"],
+          // Two unit tests live outside src/, because the things they cover
+          // do too: `next.config.test.ts` covers the CSP's build-time
+          // VERCEL_ENV branch and the js-profiling document policy, and
+          // `sentry.shared.test.ts` covers the sample-rate parsing shared by
+          // the three `sentry.*.config.ts` files — which sit at the app root
+          // because that is where the Next.js SDK looks for them. Nothing
+          // else at the app root is a test.
+          include: ["src/**/*.test.ts", "next.config.test.ts", "sentry.shared.test.ts"],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,
         },

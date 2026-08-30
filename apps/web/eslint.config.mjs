@@ -1,6 +1,7 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import importPlugin from "eslint-plugin-import";
 
 const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
@@ -49,6 +50,96 @@ export default [
         "error",
         {
           patterns: domainAndServerWallPatterns,
+        },
+      ],
+    },
+  },
+  {
+    // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): every AI
+    // feature reaches a model by asking `selectAiModel()`, never by
+    // constructing one directly. `@/server/ai/gateway` (the only place
+    // AI_GATEWAY_API_KEY is used) is importable ONLY from
+    // `modelSelection.ts` and its own test. Unlike the walls above, this one
+    // is NOT scoped to UI — it covers the whole `src/server` tree too, because
+    // the threat this closes is a second SERVER-SIDE entry point (M16's `/ask`
+    // endpoint) constructing its own gateway client and bypassing the
+    // ai-live flag, not a UI import.
+    //
+    // `src/proxy.ts` and `src/lib/authConfig.ts` are ALSO in `ignores` here —
+    // not because either would ever import the gateway, but because ESLint
+    // flat config REPLACES a rule's options for the last matching block
+    // rather than merging them (the AUTH-CONFIG WALL block below documents
+    // this same mechanic, for the same reason). Both files are ignored by
+    // that block, which means IT never re-asserts the domain/server wall for
+    // them — block 1 above is what does, and this block sits between block 1
+    // and it. Left unignored here, this block would become the last one to
+    // match those two files and its gateway-only pattern would silently
+    // replace, not add to, block 1's domain/server restriction — exactly
+    // the regression a review caught: `proxy.ts` and `authConfig.ts` losing
+    // the `@tc/domain`/`@/server/*` wall entirely, invisible because nothing
+    // fixtured either path. ADR-024 requires `proxy.ts` held to the same
+    // standard as any other UI file; this ignore is what keeps that true
+    // once a block sits between the wall that sets it and the block that
+    // deliberately skips re-asserting it.
+    //
+    // `no-restricted-imports` alone only catches the `@/server/ai/gateway`
+    // ALIAS spelling — ESLint's own docs warn `patterns` does string
+    // matching, not path resolution, so a sibling reaching for the same
+    // module via a relative path (`./gateway` from anywhere in
+    // `src/server/ai/`, which is exactly the directory `handleAskRequest.ts`
+    // and any future second entry point would sit in) was a clean bypass: a
+    // review confirmed lint passed on `import { aiModel } from "./gateway"`.
+    // `import/no-restricted-paths` (eslint-plugin-import, already pulled in
+    // transitively by `eslint-config-next` — pinned here as a direct
+    // devDependency so this file can import it) resolves the import to an
+    // actual file before comparing, so it closes the relative form too,
+    // regardless of how many `../` segments or which extension spelling is
+    // used. Kept alongside the alias pattern rather than replacing it: the
+    // alias check is cheap, already proven, and gives a more specific error
+    // message for the common case.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/server/ai/modelSelection.ts",
+      "src/server/ai/modelSelection.test.ts",
+      // gateway.test.ts reaches its own subject with a dynamic `await
+      // import("./gateway")` (so it can re-import after `vi.stubEnv` +
+      // `vi.resetModules()`). The old `no-restricted-imports` rule never
+      // saw this — it only inspects static `import` declarations — so this
+      // file didn't need listing here to pass. `import/no-restricted-paths`
+      // resolves dynamic imports too, and DOES see it, so closing the
+      // relative-import hole surfaced this file needing the same explicit
+      // exemption the comment above already claimed it had.
+      "src/server/ai/gateway.test.ts",
+      "src/proxy.ts",
+      "src/lib/authConfig.ts",
+    ],
+    plugins: {
+      import: importPlugin,
+    },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/server/ai/gateway"],
+              message:
+                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25).",
+            },
+          ],
+        },
+      ],
+      "import/no-restricted-paths": [
+        "error",
+        {
+          zones: [
+            {
+              target: "./src",
+              from: "./src/server/ai/gateway.ts",
+              message:
+                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25). This still applies via a relative import.",
+            },
+          ],
         },
       ],
     },
@@ -132,6 +223,13 @@ export default [
       // context (e.g. a "probe" input standing in for some other field on
       // the page) — this is not shipped UI, so the element wall doesn't apply.
       "src/**/*.test.tsx",
+      // Sentry wizard-generated scaffolding (landed on main via 6a5501e,
+      // pushed directly without a PR, so `pnpm lint` never ran on it — see
+      // docs/guidelines/ci-cost-and-capacity.md for why CI is PR-only). It's
+      // a throwaway verification route, not product UI, so the design-system
+      // wall doesn't apply. If this file is ever deleted, delete this line
+      // with it rather than leaving a dangling exemption.
+      "src/app/sentry-example-page/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [

@@ -115,7 +115,27 @@ export async function requireTripAccess(
   return { userId, role: memberRole(userId, members)!, detail: parsed.data };
 }
 
-/** The same member overlay, for a detail the caller already holds. */
+/**
+ * The same member overlay, for a detail the caller already holds.
+ *
+ * PARSED on the way out, for the reason `requireTripAccess` above is (KI-74).
+ * The parameter type is not the guarantee it looks like: `getTripDetail` hands
+ * back the stored `trip_details.doc` typed `TripDetail` and parsed by nothing,
+ * so "the caller already holds a `TripDetail`" is exactly the claim that was
+ * false for eight milestones and produced the "500 loading any trip". Spreading
+ * such a doc and returning it under this signature would hand the lie on
+ * intact — the contract's `.default()`s (`kind`, `tags`, `forkedFrom`) only
+ * exist inside a parse.
+ *
+ * `parse`, not `requireTripAccess`'s `safeParse`, because this function has no
+ * error channel: its result type is a bare `TripDetail`, so there is no
+ * `{ error: Response }` a caller could be entitled to assume covers a malformed
+ * row. Throwing is the only way it can decline to return one, and a silent
+ * mis-typed object is what this entry exists to stop. A caller that needs the
+ * softer failure should route through `requireTripAccess`, which has the
+ * channel for it.
+ */
 export async function withEffectiveMembers(detail: TripDetail): Promise<TripDetail> {
-  return { ...detail, members: await effectiveMembers(db, detail.tripId, detail.members) };
+  const members = await effectiveMembers(db, detail.tripId, detail.members);
+  return TripDetail.parse({ ...detail, members });
 }

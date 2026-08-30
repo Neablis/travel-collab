@@ -44,7 +44,10 @@ export function MapRail({
 }: {
   days: MapDay[];
   focusedDay: number | null;
-  onFocus: (index: number) => void;
+  // Widened to match DayChips, which is the affordance that actually clears
+  // the focus. The rail itself only ever emits a real index — its focus is
+  // scroll-driven, and a clear here would be undone by the next scroll event.
+  onFocus: (index: number | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonsRef = useRef<Map<number, HTMLButtonElement>>(new Map());

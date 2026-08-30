@@ -46,4 +46,7 @@ apps/web/.ds-compiled.css
 # from pnpm-lock.yaml if committed.
 package-lock.json
 
+# SDD scratch workspace (superpowers:subagent-driven-development)
+.superpowers/
+
 .env.sentry-build-plugin

@@ -15,6 +15,7 @@ practice. Read the one that matches your task:
 | `design-system.md` | What tokens, colors, and shared components does UI code use — and when? |
 | `cloud-agent-sessions.md` | I'm in a Claude Code cloud session — what's different here, and which failures are the container's fault? |
 | `fixtures-and-seed-data.md` | I added a feature — where does its sample data go so the demo trip, the preview branch and the tests keep exercising it? |
+| `observability-and-telemetry.md` | What does the app report to Sentry and the logs, where do I look at it, and how do I turn any of it down? |
 
 Document map for orientation:
 

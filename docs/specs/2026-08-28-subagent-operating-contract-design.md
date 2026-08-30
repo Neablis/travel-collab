@@ -397,6 +397,25 @@ Maps the tool call's `cwd` to a unit via `manifest.json` (one worktree per
 unit), then checks the target path against that unit's declared globs. Out of
 scope emits `permissionDecision: "ask"` quoting the declared scope.
 
+Two branches this description used to omit, both of which the code and
+`CONTRACT.md` already carry (KI-63):
+
+- **The run-directory allowance, checked first.** The contract *orders* two
+  writes that land outside the unit's worktree — the report at
+  `<run-dir>/reports/<unit-id>.md` and board entries under `<run-dir>/notes/`.
+  The run directory lives in the main checkout, so without this the boundary
+  branch below would fire on the two files every unit is required to produce.
+  The allowance is exactly those two things: the unit's **own** report (by id)
+  and anything under `notes/`. `manifest.json` and *another* unit's report are
+  deliberately excluded — permitting the whole run directory let one unit
+  overwrite another's report, which is an integrity hole in a protocol built
+  for parallel units.
+- **The worktree-boundary branch.** Anything else resolving outside the unit's
+  own worktree asks with a message naming the boundary, before file-scope
+  globs are consulted at all. Both this and the allowance are `sep`-terminated
+  rather than bare string prefixes, so a sibling path like `<run-dir>-evil/`
+  is still an escape.
+
 Deliberately `ask`, not `deny`: sometimes the declared scope is genuinely wrong,
 and the correct outcome is that someone *notices*, not that the agent is stuck.
 This is the direct guard against the PR #23 sprawl.
@@ -413,10 +432,22 @@ failures each run — a symptom that reads as flakiness and burns hours.
 
 ### 3. `subagent-report-conformance.mjs` — `SubagentStop`
 
-Reads `transcript_path`, takes the final assistant message, and checks for the
-exit state and the required sections. On a gap it exits 2 with the missing
-sections named on stderr, which forces the agent to continue and fix its report.
-It must guard on `stop_hook_active` so it cannot loop.
+Takes the stopping unit's final assistant message and checks it for the exit
+state and the required sections. On a gap it exits 2 with the missing sections
+named on stderr, which forces the agent to continue and fix its report. It must
+guard on `stop_hook_active` so it cannot loop.
+
+**Where that message comes from matters, and the first answer was wrong**
+(KI-62). This originally read `payload.transcript_path` and walked it backwards
+for the last assistant text. Measured against two concurrent subagents,
+`transcript_path` is the **parent session's** transcript — the same path for
+every unit — and the units' own entries are not in it, so the hook selected an
+unrelated message from the orchestrator's earlier turn and silently exited 0.
+It now prefers `payload.last_assistant_message` (the stopping unit's final
+message, verbatim, already in the payload), falls back to
+`payload.agent_transcript_path` (that unit's own transcript file), and keeps
+`transcript_path` only as a last resort for a Claude Code build supplying
+neither.
 
 **Stated limit: this validates shape, not truth.** It can force an "Acceptance
 checks" section to exist; it cannot make the output pasted into it real. That is

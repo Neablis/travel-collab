@@ -1,7 +1,9 @@
 # M18b — Tag focus
 
-**Status:** Approved 2026-08-29, **unplaced**. Not "next" merely by sitting
-unchecked in `TODO.md`.
+**Status:** Approved 2026-08-29 and **placed the same day**, immediately after
+M16, as the current milestone. Placing it was Mitchell's call; the scope and
+exit gate below were already written when it was carved out of M18's gate,
+which is why it needed only a place.
 **Carved out of:** M18's gate, by Mitchell on 2026-08-29 — the same shape as
 M11b Playbooks leaving M11's gate the day before. M18 lands the two fields and
 every surface that *reads* `kind`, plus tag chips that render and can be set.

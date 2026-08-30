@@ -50,6 +50,13 @@ export function ActivityEditorSheet() {
   // existing initial-value mapping (ActivityView shape) can be reused unchanged.
   // Its timeWindow (e.g. TimelineLens's nextSlot) is also what ActivityEditor
   // reverse-maps into an initial "How long" selection (closestDurationLabel).
+  //
+  // `kind: "hold"`, not the contract's `"planned"` zero value: a stop a person
+  // creates through this form is more likely to need booking than not, and the
+  // picker should preselect that rather than an empty-reading default (Mitchell,
+  // 2026-08-29). This is a UI default, not the domain's — a command that omits
+  // `kind` still resolves to `planned` (decide.ts), and the fixture always
+  // states a kind explicitly, so neither is touched by this.
   const createInitial: ActivityView | null =
     state.mode === "create" && state.prefill !== undefined
       ? {
@@ -59,7 +66,7 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: null,
           anchors: [],
-          kind: "planned" as const,
+          kind: "hold" as const,
           tags: [],
           cost: null,
         }

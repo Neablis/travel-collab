@@ -7,11 +7,11 @@ import { e2eTripName } from "./tripNames";
 // defect — most famously KI-16, a full-page click sink below 1180px — was
 // invisible to the gate. This spec runs in the "narrow" project
 // (playwright.config.ts, 1100px) and is the gate condition Task 3.4 asks
-// for: five assertions covering every breakpoint-dependent behavior the app
+// for: assertions covering every breakpoint-dependent behavior the app
 // actually has, rather than running all 15 specs twice to catch a narrow
 // class of bug.
 test.describe("responsive (narrow viewport)", () => {
-  test("the assistant rail is in overlay mode and its scrim dismisses it (KI-16)", async ({ page }) => {
+  test("the assistant rail is docked, not an overlay: no scrim, and the page stays interactive with it open (KI-16)", async ({ page }) => {
     const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
@@ -19,18 +19,62 @@ test.describe("responsive (narrow viewport)", () => {
     await page.goto(`/trips/${tripId}`);
 
     // The rail is closed until asked for, at every width, so open it before
-    // asserting anything about it. (It used to default open and then race a
-    // media-query effect closed at this width; the explicit click was needed
-    // then too, for a different reason.)
+    // asserting anything about it.
     await page.getByRole("button", { name: "Assistant" }).click();
     const rail = page.getByRole("complementary", { name: "Assistant" });
     await expect(rail).toBeVisible();
 
-    // The regression itself: an aria-hidden click-catcher with no handler
-    // made every control on the page unreachable below 1180px. If the scrim
-    // doesn't dismiss the rail, this is that bug again.
-    await page.getByRole("button", { name: "Close the assistant" }).click();
+    // M16 Wave 1 (Task 4, SPEC §9): the rail is a real flex sibling now, not
+    // `position: fixed` with a scrim in front of it — there is nothing left
+    // to dismiss the rail past, so the scrim is gone outright rather than
+    // just hidden at this width. The regression this guards, KI-16, was an
+    // aria-hidden click-catcher with no handler that made every control on
+    // the page unreachable below 1180px. Proving the scrim element doesn't
+    // exist is necessary but not sufficient — the property that actually
+    // matters, and survives however the rail is implemented, is that the
+    // rest of the page keeps responding while the rail is open.
+    await expect(page.locator(".assistant-rail-scrim")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Timeline" }).click();
+    await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Hide" }).click();
     await expect(rail).toBeHidden();
+  });
+
+  test("docked contract: opening the rail shrinks the plan by exactly its own 356px, at 1280px and below 1180px", async ({ page }) => {
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    await page.goto(`/trips/${tripId}`);
+
+    // SPEC §9's whole DOCKED claim, in one number: "the plan shrinks instead
+    // of being overlaid." Checked at both a wide (1280px) and a narrow
+    // (1100px, below the 1179px breakpoint that used to gate overlay vs.
+    // column) width — 1280 is not this project's default viewport, so it's
+    // set explicitly here, the same pattern the landing-card and hero-art
+    // tests in this file already use to check more than one width from a
+    // single narrow-project test.
+    for (const width of [1280, 1100] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      const plan = page.locator(".trip-board-content");
+      await expect
+        .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(width);
+
+      await page.getByRole("button", { name: "Assistant" }).click();
+      const rail = page.getByRole("complementary", { name: "Assistant" });
+      await expect(rail).toBeVisible();
+      await expect
+        .poll(() => rail.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(356);
+      await expect
+        .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(width - 356);
+
+      await page.getByRole("button", { name: "Hide" }).click();
+      await expect(rail).toBeHidden();
+    }
   });
 
   test("the trip page is interactive: a view tab click changes the lens", async ({ page }) => {
@@ -45,22 +89,22 @@ test.describe("responsive (narrow viewport)", () => {
     await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
   });
 
-  test("a sheet opens above the rail and its Close button is reachable (KI-17)", async ({ page }) => {
+  test("a sheet opens above the docked rail and its Close button is reachable (KI-17)", async ({ page }) => {
     const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
     await page.goto(`/trips/${tripId}`);
 
-    // Below 1180px the rail is a full-page-scrim overlay by design — while
-    // it's open, the scrim intentionally blocks interaction with the rest
-    // of the page (that's the point of the KI-16 fix, not a new bug). The
-    // rail is closed until asked for, at every width, so it's already out of
-    // the way here without this test doing anything; this
-    // asserts the *other* stacking claim, KI-17 — that a sheet's Close
-    // button is a real, reachable control rather than sitting under some
-    // other fixed-position layer — still holds at a narrow viewport.
-    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
+    // Opened deliberately, unlike before: KI-17 is about a Radix portal
+    // stacking underneath a fixed-position layer already on the page, and a
+    // hidden rail is not on the page to stack under anything. M16 Wave 1
+    // made the rail a docked flex sibling with no overlay/scrim mode left to
+    // gate on width (it used to be one below 1180px) — the risk this guards
+    // against is the same stacking bug in that new shape, so the rail has to
+    // actually be open for this assertion to mean anything.
+    await page.getByRole("button", { name: "Assistant" }).click();
+    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
     await page.getByRole("button", { name: "Trip settings" }).click();
     const closeButton = page.getByRole("button", { name: "Close" });
@@ -87,6 +131,108 @@ test.describe("responsive (narrow viewport)", () => {
       .locator(".hero-grid")
       .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
     expect(columns).toBe(1);
+  });
+
+  // KI-56, and the reason it needs its own narrow assertion: KI-28 reserves
+  // room for the "{planned} planned of {budget}" line so a card cannot change
+  // height when its TripDetail lands, and an open trip-actions menu cannot
+  // drift off its target. That reservation was one line, which holds only
+  // while the string FITS on one line — in a narrow card it wraps and the
+  // card grows again. `m8-make-it-real.spec.ts` guards the same invariant at
+  // 1280px, where the slot is wide enough that nothing ever wraps, so it
+  // cannot see this. .coderabbit.yaml's components rule asks for exactly this:
+  // breakpoint-gated layout exercised below the default e2e viewport.
+  //
+  // The widths are chosen from measured slot WIDTHS, not from the breakpoints
+  // — a card's slot does not widen monotonically, because the grid adds a
+  // column at `sm` and narrows every card again:
+  //
+  //   viewport   360  500  640  768  1024  1440
+  //   card slot   265  426  263  327   290   322
+  //
+  // The widest figure needs 277px to stay on one line, so most widths do not
+  // wrap at all and an assertion there proves nothing. Both widths below were
+  // confirmed RED against a deliberately reverted build (20.19px of growth);
+  // earlier drafts using 500, 700 and even 360 all passed against that same
+  // broken build and were dropped for it. 320 is the narrowest real phone;
+  // 640 is the band where the extra column shrinks the card, which is why
+  // TripCard reserves to `md` and not `sm`.
+  for (const width of [320, 640]) {
+    test(`a long money figure cannot change a card's height at ${width}px (KI-56)`, async ({ page }) => {
+      const { tripId } = await page.request
+        .post("/api/trips", { data: { name: e2eTripName("Narrow cost") } })
+        .then((r) => r.json());
+      for (const command of commandsFor("threeDayTrip", tripId)) {
+        await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+      }
+
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      const card = page.getByTestId("trip-card").first();
+      await expect(card).toBeVisible();
+      // The line has actually landed — otherwise this would measure the
+      // reserved slot against itself and pass for the wrong reason.
+      await expect(card.getByText(/planned of|No budget yet/)).toBeVisible();
+
+      // Swap the real line for one long enough to wrap at this width and
+      // measure the CARD, which is what an anchored menu follows. Injecting
+      // the string is what makes this deterministic: it does not depend on a
+      // seeded trip happening to carry a large-figure currency.
+      const growth = await card.evaluate((el) => {
+        const slot = el.querySelector('div[class*="min-h-"]');
+        const line = slot?.firstElementChild;
+        if (!line) return null;
+        const height = () => el.getBoundingClientRect().height;
+        const original = line.textContent;
+        const before = height();
+        line.textContent = "¥12,345,678 planned of ¥50,000,000";
+        const after = height();
+        line.textContent = original;
+        return after - before;
+      });
+
+      expect(growth, "the card's cost-line slot was not found").not.toBeNull();
+      // 1px, not 3: this compares one rendered state against another in the
+      // same layout pass, with none of the reserved-vs-filled line-box
+      // residue the 1280px guard has to absorb. The defect is 20px.
+      expect(Math.abs(growth!)).toBeLessThan(1);
+    });
+  }
+
+  // The hero's own reservation, which is `sm` rather than `md` because its
+  // slot IS monotonic below `lg` (235px at 360, 402px at 500, 542px at 640).
+  // Only 360 is narrow enough to wrap, so unlike the card there is one width
+  // worth asserting. The hero sits ABOVE the trip grid, so any height it
+  // gains pushes every card and every menu anchored to one.
+  test("a long money figure cannot change the hero's height at 360px (KI-56)", async ({ page }) => {
+    const { tripId } = await page.request
+      .post("/api/trips", { data: { name: e2eTripName("Narrow hero") } })
+      .then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto("/");
+    const hero = page.locator(".hero-grid");
+    await expect(hero).toBeVisible();
+    await expect(hero.getByText(/planned of|No budget yet/)).toBeVisible();
+
+    const growth = await hero.evaluate((el) => {
+      const slot = el.querySelector('div[class*="min-h-"]');
+      const line = slot?.firstElementChild;
+      if (!line) return null;
+      const height = () => el.getBoundingClientRect().height;
+      const original = line.textContent;
+      const before = height();
+      line.textContent = "¥12,345,678 planned of ¥50,000,000";
+      const after = height();
+      line.textContent = original;
+      return after - before;
+    });
+
+    expect(growth, "the hero's cost-line slot was not found").not.toBeNull();
+    expect(Math.abs(growth!)).toBeLessThan(1);
   });
 });
 

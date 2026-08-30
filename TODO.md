@@ -7,19 +7,21 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M16 is the current work**,
-per the order M18's close leaves standing —
-`M16 → M12 → M13 → M14 → M9`. Whichever item carries
-`← current milestone` is the current work; when that marker and the first
+purpose**, so read the marker, not the position: **M18b is the current work**,
+per the order set on 2026-08-29 when Mitchell placed two of the three
+approved-but-unplaced milestones: `M18b → M17 → M12 → M13 → M14 → M9`.
+**M11b Playbooks stays unplaced** — unlike the other two it has no scope and
+no exit gate written yet, and authoring those is a product decision.
+Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
-**Three items are approved but deliberately unplaced, and none is "next"
-just because it appears unchecked:** M17 (account customization, needs a
-re-scope first), **M11b Playbooks** (carved out of M11's gate 2026-08-28,
-needs its own scope and exit gate written before it opens), and **M18b Tag
-focus** (carved out of M18's gate 2026-08-29 — scope and exit gate already
-written, so this one needs only a place).
+**One item is approved but deliberately unplaced, and it is not "next" just
+because it appears unchecked:** **M11b Playbooks** (carved out of M11's gate
+2026-08-28), which needs its own scope and exit gate written before it opens —
+a product decision, not something to pick up by position. *(M18b and M17 were
+the other two until 2026-08-29, when Mitchell placed both; M17 needed a
+re-scope to be placeable and got one in the same decision.)*
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
@@ -94,7 +96,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       alone now, equal cards plus an untitled bucket, and the day-to-day
       transition moved to the day label. **Tag focus was carved out as M18b.**
       Retro and evidence in the milestone file.)*
-- [ ] **M18b Tag focus** — **approved, unplaced** (not "next").
+- [ ] **M18b Tag focus** ← **current milestone** — placed 2026-08-29.
       The piece carved out of M18's gate.
       → `docs/milestones/M18b-tag-focus.md`
       *(Carved out 2026-08-29 when M18's gate was amended: M18 lands both
@@ -107,9 +109,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       arguments that carved Playbooks out of M11 the day before. Note for
       whoever opens it: the **filter row it replaced is gone**, and our own
       KI-47 cited it for four days after SPEC §11 deleted it.)*
-- [ ] **M16 The assistant answers questions** ← **current milestone** →
-      `docs/milestones/M16-assistant-read-agent.md`
-      *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
+- [x] **M16 The assistant answers questions** — **gate closed 2026-08-29**
+      → `docs/milestones/M16-assistant-read-agent.md`
+      *(Ten of eleven boxes ticked and the eleventh moved, not waived:
+      **"recorded transcripts replay in CI" went to M9's gate**, by Mitchell's
+      explicit decision — it was PR #88's Task 7, dropped rather than
+      half-landed, M9's gate already carried the identical criterion, and M9
+      is where the write agent it measures lives. **KI-11 stays open and is
+      now M9's to close.** Implementation landed in PR #88, which correctly
+      flipped no status flag because everything in it ran simulated; the gate
+      closed afterwards on Mitchell's live confirmation. One caveat recorded
+      in the milestone file rather than smoothed over: Vercel holds exactly
+      one real-model `ai.ask` record, and the four acceptance assertions were
+      confirmed locally, so Wave 3's box rests on one record plus a human
+      pass. Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
       and ahead of M15 — but M15 in fact closed its own gate first (2026-08-26),
       M18 was then scheduled ahead of M16 (2026-08-26), and **M11 was scheduled
       ahead of both on 2026-08-27**. So M16 now runs after M11 and M18.
@@ -121,7 +134,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M17 Account customization** — **approved, not placed in the order**
+- [ ] **M17 Account customization** — **re-scoped and placed 2026-08-29, after M18b**
       → `docs/milestones/M17-account-customization.md`
       *(Approved 2026-08-26 out of SPEC §12 and **never scheduled**. It was
       absent from this file entirely until 2026-08-28, which in a file whose
@@ -161,7 +174,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       `wizard-playbook-panel` — plus a whole `/playbooks` route rendering mock
       cards. Needs its own scope and exit gate written before it opens; saved
       days (link 6) is the data model it would build on.)*
-- [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
+- [ ] **M12 Community** — all trust & safety scope
+      lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
       conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
       into M11, because they are the same `AccessPolicy` change as share links

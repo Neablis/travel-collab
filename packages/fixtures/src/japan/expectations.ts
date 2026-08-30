@@ -26,6 +26,7 @@ export type JapanTripExpectations = {
   currencies: string[];
   conflictsByKind: Record<string, number>;
   conflictTotal: number;
+  daysNeedingBooking: number;
 };
 
 export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
@@ -72,6 +73,14 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // content: a travel day flagging its own travel is the shape of that bug.
   conflictsByKind: { "time-overlap": 2 },
   conflictTotal: 2,
+
+  // KI-86, Mitchell's call 2026-08-29: `needsBooking`'s narrower reading of
+  // SPEC §12, tuned so the Calendar's `N to book` flag is the one actionable
+  // thing at that zoom rather than wallpaper on all 14 days. Pinned here so a
+  // change to a creation-time `kind` default (M18's PR 2+ follow-up) cannot
+  // silently push this back toward 14 — the fixture always states `kind`
+  // explicitly per stop (commands.ts) and never rides a command's default.
+  daysNeedingBooking: 3,
 };
 
 /**
@@ -120,6 +129,7 @@ export function diffAgainstExpectations(
   scalar("currencies", report.currencies, expected.currencies);
   scalar("conflictsByKind", report.conflictsByKind, expected.conflictsByKind);
   scalar("conflictTotal", report.conflictTotal, expected.conflictTotal);
+  scalar("daysNeedingBooking", report.daysNeedingBooking, expected.daysNeedingBooking);
 
   // Coverage, stated separately from the counts above so the failure message
   // says WHY a zero matters rather than just that a number moved.

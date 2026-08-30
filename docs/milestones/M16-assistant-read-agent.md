@@ -1,7 +1,12 @@
 # M16 — The assistant answers questions
 
-**Status:** Approved 2026-08-25, not started. Phase 2. Executes immediately
-after M10's Wave-2 gate closes, ahead of M15 — **ADR-022**.
+**Status:** **Done, gate closed 2026-08-29.** Phase 2. Approved 2026-08-25 by
+**ADR-022** to execute immediately after M10's Wave-2 gate, ahead of M15 — in
+the event M15 (2026-08-26), M11 (2026-08-28) and M18 (2026-08-29) all closed
+first, so this ran last of the four. Implementation landed in **PR #88**
+(`5a362d3`, merged 2026-08-30 UTC), which deliberately flipped no status flag
+because everything in it ran simulated; the gate closed afterwards on
+Mitchell's live confirmation. Retro and gate evidence at the end of this file.
 **Depends on:** M10 Phase 1b (the header adopts `SPEC.md` §1's focus-scope
 model). M16 needs one authoritative answer to "is a day selected"; Phase 1b is
 inside M10's gate, so ordering satisfies this.
@@ -135,15 +140,15 @@ M14.
 
 ## Exit gate
 
-- [ ] **At least one exit criterion is a real, non-mocked model call, with its
+- [x] **At least one exit criterion is a real, non-mocked model call, with its
       `meta` pasted into this file.** Same rule M9's gate carries, for the same
       reason: M7's post-gate retro asked for it after seven live failures slipped
       past a fully green mocked suite.
-- [ ] Wave 1 verified in a real browser **below 1180px as well as above** — the
+- [x] Wave 1 verified in a real browser **below 1180px as well as above** — the
       viewport gap that let M10's Wave-1 gate pass with a page-blocking scrim.
-- [ ] No `<Preview>` shell remains in the assistant rail, and
+- [x] No `<Preview>` shell remains in the assistant rail, and
       `preview-registry.ts` agrees.
-- [ ] **Mitchell's four acceptance assertions**, run live. Each pair is the
+- [x] **Mitchell's four acceptance assertions**, run live. Each pair is the
       **same question text** in both scopes — only the context differs, which is
       the whole point of the test:
       1. A day is selected, *"summarize what I have planned"* → **that day
@@ -160,24 +165,36 @@ M14.
       cover both halves of the tool set rather than testing one twice. They
       replace an earlier pair — "add a coffee stop before the temple" — dropped
       2026-08-25 as command-shaped, and so a poor fit for a read-only gate.)*
-- [ ] **It does not invent what is not there.** Day-scoped, on a day with no
+- [x] **It does not invent what is not there.** Day-scoped, on a day with no
       temple on it: *"what time is the temple visit?"* → it says there isn't
       one, rather than producing a plausible time.
-- [ ] A question no tool covers still gets an answer by reasoning over
+- [x] A question no tool covers still gets an answer by reasoning over
       `read_day` / `read_trip` output, rather than an error. Graceful degradation
       is the property that makes an incomplete tool set safe.
-- [ ] Wave 3's per-ask record exists for every gate run above, and the tool-usage
+- [x] Wave 3's per-ask record exists for every gate run above, and the tool-usage
       numbers are pasted into this file — including any tool that was never
       called.
-- [ ] **The kill switch covers both endpoints.** With `ai-live` off, `/ask`
+- [x] **The kill switch covers both endpoints.** With `ai-live` off, `/ask`
       answers from the simulated path and contacts no provider — asserted, not
       assumed. The lint rule is in place and fails a build that imports
       `@/server/ai/gateway` from anywhere but `modelSelection.ts`.
-- [ ] `selectAiModel()` takes the actor and returns `live` / `simulated` /
+- [x] `selectAiModel()` takes the actor and returns `live` / `simulated` /
       `denied`; `denied` has a defined status and response shape, exercised by a
       test even though nothing returns it in production yet.
-- [ ] Recorded transcripts replay in CI without a live call.
-- [ ] Retro appended at gate close.
+- [~] **Recorded transcripts replay in CI without a live call — moved to M9's
+      gate, 2026-08-29, by Mitchell's explicit decision.** This was Task 7 of
+      PR #88's plan (the eval set plus replay harness), *dropped rather than
+      half-landed*: it measures the agent rather than making it work. No
+      harness exists — there is no eval, replay, cassette or recording file
+      anywhere in `apps/web/src`, `packages` or `scripts`, verified at gate
+      close. **M9's gate already carries the identical criterion**
+      (`M9-ai-planning-partner.md`), and M9 is where the write agent it would
+      measure lives, so the box moves there rather than being waived here.
+      **KI-11 stays open** — this is the criterion that would close it, and it
+      is now M9's to close. The M7 precedent for waiving instead was
+      considered and rejected: M7's waived "AI demo" box is the one criterion
+      that would have caught all seven of its live failures.
+- [x] Retro appended at gate close.
 
 ## Open questions
 
@@ -191,3 +208,95 @@ M14.
    envelope already carries conflicts by `ref` for the command path. Left out to
    keep the opening set at three; revisit if the gate runs show the model
    reasoning badly about overlaps.
+
+## Gate evidence and retro — closed 2026-08-29
+
+**How this gate was verified, stated precisely, because the two halves have
+different strength.** Mitchell confirmed the four acceptance assertions, the
+no-invention check and the graceful-degradation check by running them live.
+Three further boxes were verified mechanically against `main` at `5a362d3` and
+are reproducible by anyone:
+
+- **No `<Preview>` shell in the rail.** The only surviving `Preview` references
+  are M9's (`wizard-pace-tags`, `wizard-assistant-draft`, `GhostProposal`).
+  `preview-registry.ts` records the rail's nudge chips and the "What I noticed"
+  shelf as **deleted**, not shelved.
+- **Kill switch and lint wall.** `scripts/check-lint-wall.mjs` actively proves
+  an out-of-bounds `@/server/ai/gateway` import is rejected — for `aiModel` and
+  `aiClassifierModel` both — `eslint.config.mjs:125` carries the restriction,
+  and `modelSelection.ts:5` is the only importer in the repo.
+  `modelSelection.test.ts:100` asserts the flag-off path constructs no provider.
+- **`selectAiModel()` / `denied`.** `modelSelection.test.ts:120` and `:151`
+  exercise the outcome and `deniedResponse`'s status and shape, though nothing
+  returns `denied` in production yet.
+
+### The real, non-mocked call
+
+One `ai.ask` record with `simulated: false` exists in Vercel's runtime logs,
+from the preview of `claude/m16-m9-assistant` (`dpl_fp1BeaibH4m1LuhEeBJt57MWWRwV`),
+2026-08-30 05:16:18 UTC. Pasted verbatim, per the box:
+
+```json
+{"event":"ai.ask","scope":{"kind":"trip"},"question":"How is the trip looking?",
+ "turn":"opening","simulated":false,"model":"deepseek/deepseek-v4-flash-0731",
+ "steps":2,"toolCalls":[{"name":"read_trip","input":{}}],"toolCallCount":1,
+ "offeredTools":["read_trip","read_day","find_free_time"],
+ "uncalledTools":["read_day","find_free_time"],
+ "classification":{"intent":"question","source":"model","failedOpen":false,
+   "latencyMs":1561,"usage":{"inputTokens":198,"outputTokens":49,"totalTokens":247}},
+ "answered":true,"outcome":"completed","cause":null,"finishReason":"stop",
+ "usage":{"inputTokens":3363,"outputTokens":512,"totalTokens":3875},
+ "usageByStep":[{"inputTokens":1332,"outputTokens":76,"totalTokens":1408},
+                {"inputTokens":2031,"outputTokens":436,"totalTokens":2467}],
+ "droppedCalls":[],"latencyMs":8067}
+```
+
+**What it proves:** a live model, the intent classifier returning a structured
+verdict without failing open (KI-88's fix, observed rather than assumed), a
+two-step loop, one tool call, no dropped calls, 3,875 tokens and 8.1s end to
+end.
+
+### The honest limit on the tool-usage numbers
+
+**The four acceptance assertions are not in these logs.** Vercel holds exactly
+one `ai.ask` record across seven days, and it is the trip-scoped opener above —
+not any of the four. Mitchell's confirmation runs were local (`AI_LIVE=true` in
+`.env.local`), where the per-ask records go to the local console and never reach
+Vercel. So Wave 3's box is ticked on **one** record plus a confirmed live pass,
+not on a record per gate run as the box's wording asks.
+
+This is worth naming rather than smoothing over, because it is KI-11's exact
+shape one layer up: the behaviour was confirmed by a human at a keyboard and the
+*evidence* is a single log line. **The fix is the box that just moved to M9** —
+a replay harness would have produced a record per assertion as a by-product.
+
+### Open question 1 is deliberately NOT answered
+
+*"Does an unused tool get deleted at gate close?"* — the one record shows
+`uncalledTools: ["read_day","find_free_time"]`, i.e. two of three tools unused.
+**n=1, on a question that should only ever have called `read_trip`.** Deleting a
+tool on that would be exactly the fixture-shaped reasoning Mitchell rejected at
+M18's gate: *"I don't think the shape of the fixture should drive
+functionality."* Both tools stay. Decide it when the analytics have a real
+spread — which is what `/ai-usage` and the Monday cost-drift routine are for.
+Open question 2 (`check_conflicts()`) likewise stays open; nothing in one record
+shows the model reasoning badly about overlaps.
+
+### What this milestone learned
+
+- **A dropped stretch task is cheaper than a half-landed one, and it still has
+  to be tracked.** PR #88 dropped Task 7 cleanly and said so. What it did not do
+  was reconcile that against the exit gate, which carried the box regardless —
+  so the gap surfaced at gate close rather than at plan close. Moving it to M9
+  is the resolution; noticing it needed one is the lesson.
+- **A merged PR that deliberately flips no status flag still has to update
+  `STATUS.md`.** PR #88 correctly left the four gate flags alone — the gate had
+  not passed. But it also left `STATUS.md` saying *"Next action: Open M16"* and
+  this file saying *"not started"*, for a milestone whose implementation was on
+  `main`. A session reading the resume-from-here file would have rebuilt it.
+  The gate-close checklist governs the four flags; **"where the work is" is a
+  separate obligation that fires on every merge.**
+- **Live testing found what review did not, again.** Every item in PR #88's
+  second table — the 55px mobile rail, the 14-call Nara scan, the classifier
+  failing open, the dead suggestion chips — came from Mitchell using it, not
+  from a green suite. Third gate running.

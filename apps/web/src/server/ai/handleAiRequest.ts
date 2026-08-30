@@ -37,13 +37,14 @@
 // test needs LOCATIONIQ_API_KEY.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
-import { PageContext, type PageContent, type TripDetail, type TripHistory } from "@tc/contracts";
+import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
-import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
-import { selectAiModel } from "@/server/ai/modelSelection";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
+import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
-import { buildEnvelope, type AiSurface } from "@/server/ai/context";
+import { buildEnvelope, type AiCommandSurface } from "@/server/ai/context";
+import { MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
 import { summarizeBatch } from "@/server/ai/planSummary";
@@ -53,7 +54,8 @@ import {
   hasUnverifiedLocations,
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
-import { boundingBoxAround, plausibleCoords } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { recordCommandMetrics, type CommandMetricsRecord } from "@/server/ai/aiMetrics";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
@@ -62,14 +64,6 @@ const STATUS: Record<string, number> = {
   "trip-not-found": 404,
   "concurrency-conflict": 409,
 };
-
-// Ceiling on a single prompt (security review 2026-08-28, H1). The prompt is
-// re-sent to the provider on EVERY step alongside the whole envelope, so its
-// cost is multiplied by MAX_STEPS — an unbounded prompt was an unbounded bill
-// on someone else's key. 4,000 characters is ~1k tokens: several paragraphs,
-// well past any real "plan me a week in Rome", and small enough that 32 steps
-// of it is not the dominant term next to the envelope itself.
-const MAX_PROMPT_CHARS = 4000;
 
 const AiRequest = z.object({
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS, `prompt must be ${MAX_PROMPT_CHARS} characters or fewer`),
@@ -92,7 +86,7 @@ const AiRequest = z.object({
 // which keeps the usual cost at 1–3 steps; this ceiling is only the backstop
 // for when the model insists on going one at a time. Page composition is still
 // a single compose_page call.
-const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 };
+const MAX_STEPS: Record<AiCommandSurface, number> = { page: 3, board: 32, combined: 32 };
 
 // Operator override for the planning budget, e.g. AI_MAX_STEPS=8 (security
 // review 2026-08-28, H1: 32 round-trips is the per-request blast radius, and
@@ -101,7 +95,7 @@ const MAX_STEPS: Record<AiSurface, number> = { page: 3, board: 32, combined: 32 
 // var can lower spend but never raise it, and anything that is not a positive
 // integer is ignored rather than treated as "no limit". The page surface is one
 // compose_page call and is not worth a knob.
-function maxStepsFor(surface: AiSurface): number {
+function maxStepsFor(surface: AiCommandSurface): number {
   const ceiling = MAX_STEPS[surface];
   if (surface === "page") return ceiling;
   const raw = Number(process.env.AI_MAX_STEPS);
@@ -171,14 +165,49 @@ function buildAiMeta(
     truncated: result.finishReason === "tool-calls",
     steps: result.steps.length,
     toolCalls: result.toolCalls.map((c) => ({ name: c.toolName, input: c.input })),
-    usage: {
-      inputTokens: result.usage.inputTokens ?? null,
-      outputTokens: result.usage.outputTokens ?? null,
-      totalTokens: result.usage.totalTokens ?? null,
-    },
+    usage: usageOf(result),
     warnings: [...(result.warnings ?? [])],
     maxRetries: AI_MAX_RETRIES,
     durationMs,
+  };
+}
+
+/**
+ * `AiCallMeta` in the shape the metrics module counts.
+ *
+ * A translation and nothing more — every field here already exists on the meta
+ * the response carries, so the counters and the `meta` a caller sees can never
+ * disagree about what a turn cost. `toolCalls[].input` is deliberately dropped:
+ * it is model-supplied and unbounded, and a metric attribute is a series.
+ */
+function commandMetricsOf(surface: AiCommandSurface, meta: AiCallMeta): CommandMetricsRecord {
+  return {
+    surface,
+    model: meta.model.requested,
+    simulated: meta.simulated,
+    finishReason: meta.finishReason,
+    truncated: meta.truncated,
+    steps: meta.steps,
+    toolNames: meta.toolCalls.map((call) => call.name),
+    usage: meta.usage,
+    durationMs: meta.durationMs,
+  };
+}
+
+/**
+ * Token counts off a `generateText` result, in the nullable shape both the
+ * response `meta` and the telemetry use.
+ *
+ * One function rather than the same three `?? null` lines written out at each
+ * of three sites. A usage mapping that drifts between the span and the
+ * response is the same species of bug as M18's hand-enumerated field list —
+ * quieter, because nothing type-checks the two against each other.
+ */
+function usageOf(result: Pick<AiResultLike, "usage">): AiCallMeta["usage"] {
+  return {
+    inputTokens: result.usage.inputTokens ?? null,
+    outputTokens: result.usage.outputTokens ?? null,
+    totalTokens: result.usage.totalTokens ?? null,
   };
 }
 
@@ -224,14 +253,20 @@ export async function handleAiRequest(
     // — pre-existing under the old default-parameter form too, but now
     // reachable by flipping a flag on a public deployment rather than only by
     // a local misconfiguration.
+    let outcome;
     try {
-      selected = await selectAiModel(surface);
+      outcome = await selectAiModel({ surface, userId });
     } catch (err) {
       return Response.json(
         { error: `model selection failed: ${errorMessage(err)}`, simulated: false },
         { status: 503 },
       );
     }
+    // `denied` is unreachable today — no entitlement source exists yet
+    // (ADR-019 amendment §3) — but the branch is real so this endpoint
+    // already renders the contract Task 3's /ask endpoint reuses.
+    if (outcome.outcome === "denied") return deniedResponse(outcome.reason);
+    selected = { model: outcome.model, simulated: outcome.outcome === "simulated" };
   }
   const activeModel = selected.model;
   const { simulated } = selected;
@@ -248,7 +283,13 @@ export async function handleAiRequest(
   // Applies in simulated mode too: the request still writes to the log and the
   // limiter's job is to bound requests, not to guess which ones reached a
   // provider.
-  const quota = await consumeQuota(aiQuotas(), userId);
+  // Two layers, both charged here (KI-67). `aiQuotas` bounds how many times an
+  // actor may ask; `aiStepQuotas` bounds what asking COSTS, in model
+  // round-trips. Only one round-trip can be pre-authorised, because the real
+  // step count does not exist until generateText returns — `settleAiSteps`
+  // below charges the rest once it does. An actor already over either ceiling
+  // is refused here, before a provider is touched.
+  const quota = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
@@ -289,6 +330,11 @@ export async function handleAiRequest(
         tools,
         stopWhen: isStepCount(maxStepsFor("page")),
         maxRetries: AI_MAX_RETRIES,
+        // Names this run in Sentry's AI Agents view. Sentry's `VercelAI`
+        // integration emits the run's spans off the AI SDK's own telemetry
+        // channel; `functionId` is the only thing it cannot infer, and
+        // without it every run in this app is a span called `invoke_agent`.
+        telemetry: { functionId: "compose_page" },
       });
     } catch (err) {
       return Response.json(
@@ -301,6 +347,15 @@ export async function handleAiRequest(
       );
     }
     const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
+    // Settle the round-trips this answer actually cost, beyond the one already
+    // pre-authorised (KI-67). Placed immediately after `meta` is built so every
+    // return path below it — composed, not-composed, invalid — is charged the
+    // same: the provider was paid for those steps whatever the handler decides
+    // to do with the result. Never throws; see settleAiSteps.
+    await settleAiSteps(aiStepQuotas(), userId, meta.steps);
+    // Same placement, same reason, different ledger: the metrics count what the
+    // turn spent whatever the handler returns below. Never throws either.
+    recordCommandMetrics(commandMetricsOf("page", meta));
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -333,6 +388,10 @@ export async function handleAiRequest(
       tools,
       stopWhen: isStepCount(maxStepsFor(surface)),
       maxRetries: AI_MAX_RETRIES,
+      // See `compose_page` above. `surface` rather than a literal: `board` and
+      // `combined` are different tool sets and different step budgets, and
+      // averaging them together is exactly the comparison this names apart.
+      telemetry: { functionId: `plan_${surface}` },
     });
   } catch (err) {
     return Response.json(
@@ -345,6 +404,10 @@ export async function handleAiRequest(
     );
   }
   const meta = buildAiMeta(gen, activeModel, Date.now() - startedAt, simulated);
+  // As in the page branch above: charge the real round-trip cost here, once,
+  // so every return path below is metered identically (KI-67).
+  await settleAiSteps(aiStepQuotas(), userId, meta.steps);
+  recordCommandMetrics(commandMetricsOf(surface, meta));
 
   // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
   // commands in one batch-aware pass: mint new ids, resolve refs against the
@@ -428,23 +491,6 @@ export async function handleAiRequest(
     resolutionErrors,
     locationReport,
   });
-}
-
-// Padding on the region drawn from a trip's existing activities. Matches
-// TRIP_REGION_MARGIN_KM in geocodeEnrichment — kept here rather than exported
-// because this is the caller's decision about how loosely to read "the trip is
-// around here", not the enricher's.
-const TRIP_REGION_MARGIN_KM = 150;
-
-// The trip's own already-geocoded activities are the only region signal that
-// does not come from the model. A brand-new trip planned in one prompt has
-// none — that is expected, and enrichment falls back to per-place hints and
-// its own within-batch bootstrapping.
-function tripRegionOf(detail: TripDetail) {
-  const points = Object.values(detail.activities)
-    .map((a) => (a.location ? plausibleCoords(a.location) : null))
-    .filter((p): p is NonNullable<typeof p> => p !== null);
-  return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
 }
 
 // Turn the enrichment report into one sentence, or nothing. Named places beat

@@ -6,7 +6,7 @@ import { Preview } from "./preview";
 describe("Preview", () => {
   it("renders children and a milestone chip", () => {
     render(
-      <Preview id="assistant-quick-asks" size="container">
+      <Preview id="map-legend-modes" size="container">
         {<span>rail body</span>}
       </Preview>,
     );
@@ -16,7 +16,7 @@ describe("Preview", () => {
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();
     render(
-      <Preview id="assistant-quick-asks" size="container">
+      <Preview id="map-legend-modes" size="container">
         <button onClick={onClick}>Ask</button>
       </Preview>,
     );
@@ -25,7 +25,7 @@ describe("Preview", () => {
   });
   it("marks the region aria-disabled", () => {
     render(
-      <Preview id="assistant-quick-asks" size="container">
+      <Preview id="map-legend-modes" size="container">
         body
       </Preview>,
     );
@@ -33,7 +33,7 @@ describe("Preview", () => {
   });
   it("renders an icon badge instead of the text pill when compact", () => {
     render(
-      <Preview id="assistant-quick-asks" size="compact">
+      <Preview id="map-legend-modes" size="compact">
         body
       </Preview>,
     );
@@ -70,7 +70,7 @@ describe("Preview", () => {
   });
   it("does not force position:relative when the caller positions itself", () => {
     render(
-      <Preview id="assistant-quick-asks" size="container" className="fixed inset-0">
+      <Preview id="map-legend-modes" size="container" className="fixed inset-0">
         <p>x</p>
       </Preview>,
     );

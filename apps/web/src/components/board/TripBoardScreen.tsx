@@ -25,27 +25,53 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { PREVIEW_QUICK_ASKS } from "@/components/assistant/preview-fixtures";
-import { composeAiPlan } from "@/lib/apiClient";
+import { toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
+import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
+import {
+  AI_NOT_ENTITLED_CODE,
+  ASK_ABORTED_CODE,
+  DEMO_TRIP_UNSUPPORTED_CODE,
+  applyAssistantProposal,
+  askAssistant,
+  type ApiError,
+  type AskScope,
+  type AskWireMessage,
+} from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
+import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 
 // Closed until asked for, at every width (Mitchell, walking the #71 preview:
 // "Can we default the assistant to minimized? Its a better experience").
 //
 // This narrows the handoff (`current/…dc.html:1111-1119`), which had the rail
 // as an inline column at wide widths and an overlay below 1180px that starts
-// hidden. The overlay half is unchanged — that is layout, and it still never
-// covers the plan uninvited. What changed is that a wide viewport no longer
-// opens the rail on the reader's behalf: the plan is what someone came for,
-// and the assistant is one click away rather than already occupying a column.
+// hidden. What changed here first was that a wide viewport no longer opens
+// the rail on the reader's behalf: the plan is what someone came for, and
+// the assistant is one click away rather than already occupying a column.
+// M16 Wave 1 (Task 4, SPEC §9 "the assistant — one panel, three
+// presentations") later replaced the overlay half too — the rail is a real
+// flex sibling of the plan at every width now, not an overlay below 1180px,
+// so there is no overlay-vs-column split left to gate on width at all;
+// docked is unconditional.
 //
 // The media query went with it rather than staying as dead weight. Its only
-// job was deciding the default per width, and there is one default now; the
-// overlay-vs-column treatment is CSS keyed off `assistant-hidden`, not this
-// hook, so nothing responsive is lost. `userChose` went for the same reason —
-// with no automatic opening there is no automatic decision left to override.
+// job was deciding the default per width, and there is one default now.
+// `userChose` went for the same reason — with no automatic opening there is
+// no automatic decision left to override.
+// What the rail SAYS when an ask fails. Branches on the server's `code`, not
+// its prose: a refusal's wording is free to change, and two of these are
+// refusals rather than failures. Everything else falls through to the
+// server's own message on purpose — /ask's 400s are specific and actionable
+// ("this trip has 5 days, so day 9 is out of range", "your message must be
+// 4000 characters or fewer") and rewriting them here would throw that away.
+function askErrorMessage(error: ApiError): string {
+  if (error.code === DEMO_TRIP_UNSUPPORTED_CODE) return "The assistant isn't available on the demo trip.";
+  if (error.code === AI_NOT_ENTITLED_CODE) return "The assistant is switched off for this account.";
+  return error.message;
+}
+
 function useAssistantVisibility() {
   const [open, setOpen] = useState(false);
   return { open, show: () => setOpen(true), hide: () => setOpen(false) };
@@ -65,14 +91,38 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const assistant = useAssistantVisibility();
   // The demo board (`/demo`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
-  // work: `composeAiPlan` posts to `/api/trips/:id/ai`, which needs a session
-  // and, being a write to the plan, is refused for a viewer anyway. Offering a
-  // signed-out visitor a launcher whose only outcome is an error is worse than
-  // not offering it, and this is the one control on the board with no
-  // read-only half to fall back to.
+  // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
+  // `demo-trip-unsupported` (KI-79), so a launcher offered to a signed-out
+  // visitor has no outcome but an error. This is the one control on the board
+  // with no read-only half to fall back to.
   const isDemo = isDemoTripId(tripId);
   const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  // The conversation itself, oldest turn first. See runAsk below for why it
+  // lives here rather than in the rail.
+  const [thread, setThread] = useState<AssistantTurn[]>([]);
+  // Turn ids only have to be unique within one thread and stable across
+  // re-renders; a counter says so and stays deterministic under test, where
+  // crypto.randomUUID would not.
+  const turnSeq = useRef(0);
+  // `pending`, readable AFTER an await — where the render closure's copy is
+  // stale by a whole AI batch round-trip (see `approveProposal`). Assigned
+  // during render rather than in an effect, the same way TripProvider keeps
+  // `optimisticRef` in step, so it is never a render behind. It must live up
+  // here with the other hooks: everything below the `status` early returns
+  // runs conditionally, and a `useRef` there is a hook-order violation.
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  // Held so "New conversation" — and unmounting — can hang up on a turn that
+  // is still streaming. Without it the composer stays disabled behind an
+  // answer nobody wants, and navigating away mid-answer leaves the read
+  // running and its setState firing into a tree that is gone.
+  const askAbort = useRef<AbortController | null>(null);
+  // Runs on unmount only, so it must not be keyed on anything that changes.
+  useEffect(() => () => askAbort.current?.abort(), []);
+  // The text of a turn that was rolled back, handed to the rail to put back in
+  // its composer. See the rollback in runAsk for why.
+  const [restoredDraft, setRestoredDraft] = useState<string | null>(null);
   // Collapsed by default (Phase 3's design). The open flag is paired with who
   // opened it, because a drag auto-opens the drawer and must only re-close the
   // ones it opened itself — that rule lives in `rackDisclosure` (a pure
@@ -187,6 +237,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     );
   }
 
+  // THE focused day, clamped to a day that still exists — and the single
+  // value the assistant's scope, its context line and its suggested questions
+  // are all derived from below.
+  //
+  // `focusedDay` outlives the day it points at: FocusProvider holds a bare
+  // index and nothing resets it when a day is removed. Before this clamp the
+  // three consumers disagreed about what a stale index meant — the scope sent
+  // it verbatim, the context line said "Looking at Day N" for a day that no
+  // longer existed, and `suggestedQuestions` (correctly) read it as no focus
+  // at all. The visible result of focusing the last day and then deleting it
+  // was trip-shaped chips that every returned
+  // `this trip has N days, so day N+1 is out of range`, with no way back.
+  //
+  // Clamping to `null` is the same "wider reading is the safer one" call
+  // `parseAskScope` makes server-side for a scope line it cannot parse.
+  const scopedDay = focusedDay !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
+  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
+  // NUMBER a human reads is +1, and that conversion happens in one place.
+  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
+
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
     void dispatch({
       type: "UpdateActivity",
@@ -298,35 +368,165 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     onRackEvent({ type: "parked" });
   };
 
-  // The Assistant rail's real ask box (M10 redesign-feedback follow-up):
-  // the same composeAiPlan("board") call the old standalone ComposePanel
-  // used to make directly, just triggered from the rail instead. The server
-  // executes the model's plan as one atomic batch (Task 5.3) and returns the
-  // resulting { detail, history } already reconciled — applyOutcome is the
-  // same reconciler ComposePanel's board surface used, no refetch needed.
+  // The Assistant rail's conversation (M16 Wave 2, Task 5). It posts to
+  // /api/trips/:id/ask — the READ-only streaming agent — not to the command
+  // endpoint the rail used to call.
+  //
+  // Why the rail stopped calling `composeAiPlan`: that endpoint answers with a
+  // derived receipt for a batch it has already applied, which is structurally
+  // the wrong channel for "have a discussion" (ADR-022 §4 says so outright).
+  // Two ask boxes side by side — one that talks, one that silently rewrites
+  // your trip — is worse than either. `composeAiPlan` itself is untouched and
+  // still exported.
+  //
+  // M9 (Task 6) brought applying a plan back through THIS endpoint, in the
+  // strictly better form: the turn PROPOSES, the user reviews, and Approve
+  // commits one atomic batch through /ask/apply. See `approveProposal` below.
+  //
+  // Conversation state is client-held (Ruling R1): there is no conversations
+  // table and no migration in this plan, so `thread` IS the conversation and
+  // the whole of it is posted back on every turn. It survives hiding the rail
+  // (this component stays mounted) and dies with the page, which is the
+  // honest lifetime for something the server keeps nothing of.
+  const nextTurnId = (prefix: string) => {
+    turnSeq.current += 1;
+    return `${prefix}${turnSeq.current}`;
+  };
+
+  const runAsk = async (text: string) => {
+    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
+    const answerId = nextTurnId("a");
+    // `thread` from this render's closure is the thread the user is looking
+    // at: only one turn can be in flight (the composer and the suggestion
+    // chips are both disabled while `asking`), so there is no newer one.
+    const posted: AskWireMessage[] = [
+      ...thread
+        // A turn that failed before it produced any text is dropped below, but
+        // a partial one is kept — and an empty `parts` array is not a message
+        // the server's validator will accept.
+        .filter((turn) => turn.text.trim() !== "")
+        .map((turn) => ({ id: turn.id, role: turn.role, parts: [{ type: "text" as const, text: turn.text }] })),
+      { id: userTurn.id, role: "user" as const, parts: [{ type: "text" as const, text }] },
+    ];
+    setThread((current) => [
+      ...current,
+      userTurn,
+      { id: answerId, role: "assistant", text: "", tools: [], pending: true },
+    ]);
+    setAskStatus("loading");
+    setAskError(null);
+    setAskSimulated(false);
+    // Cleared so a second rollback of the SAME text still re-fires the rail's
+    // restore effect — the value has to change for the effect to see it.
+    setRestoredDraft(null);
+
+    const controller = new AbortController();
+    askAbort.current = controller;
+
+    // Only ever touches the one answer turn this call owns, by id — a stale
+    // stream that outlived its turn cannot write into a newer one.
+    const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
+      setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
+
+    // Accumulated here as well as in the turn, because the rollback below has
+    // to know whether ANY text arrived, and `askAssistant` only returns the
+    // text when it succeeds.
+    let streamed = "";
+    const result = await askAssistant(
+      tripId,
+      posted,
+      askScope,
+      (event) => {
+        if (event.type === "text") {
+          streamed += event.delta;
+          patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
+        } else if (event.type === "tool") {
+          patchAnswer((turn) => ({
+            ...turn,
+            tools: [...turn.tools, { id: event.toolCallId, label: toolNoteLabel(event.toolName, event.input) }],
+          }));
+        } else if (event.type === "meta") {
+          // Ruling B: read from the response header the server sets, not from
+          // a phrase in the model's own answer. It arrives before the first
+          // delta, so a turn that dies mid-stream is still badged correctly —
+          // which the prose sniff could not do, because the sentence it
+          // matched is the LAST one.
+          setAskSimulated(event.simulated);
+        } else if (event.type === "proposal") {
+          // Attached to the answer, still pending. Nothing has been committed:
+          // the turn's write tools collected, and the only thing that writes is
+          // `applyAssistantProposal`, below, behind the Approve button.
+          patchAnswer((turn) => ({
+            ...turn,
+            proposal: { proposal: event.proposal, status: "pending", note: null },
+          }));
+        }
+      },
+      controller.signal,
+    );
+    askAbort.current = null;
+
+    if (result.ok) {
+      patchAnswer((turn) => ({ ...turn, pending: false }));
+      setAskStatus("idle");
+      return;
+    }
+
+    // Abandoned by "New conversation": its turn is already gone, and the user
+    // asked for it. Not an error.
+    if (result.error.code === ASK_ABORTED_CODE) return;
+
+
+    // A turn that produced no text at all did not happen — drop both halves so
+    // the thread stays a conversation rather than accumulating orphan
+    // questions, and let the inline error carry the reason. A turn that got
+    // PART of an answer out keeps it: the words are on screen already, and
+    // deleting them under the user is the worse lie.
+    if (streamed !== "") {
+      patchAnswer((turn) => ({ ...turn, pending: false }));
+    } else {
+      setThread((current) => current.filter((t) => t.id !== answerId && t.id !== userTurn.id));
+      // ...and the question goes back in the composer with it. The two
+      // refusals above keep the typed prompt on screen for the reason
+      // AssistantRail's own comment gives — a refusal the user has to retype
+      // reads as the box being broken — and a rolled-back turn is the same
+      // thing arriving later. It is the actionable 400s ("your message must be
+      // 4000 characters or fewer") that make this more than a nicety: being
+      // told to shorten a message you can no longer see is not actionable.
+      setRestoredDraft(text);
+    }
+    setAskStatus("error");
+    setAskError(askErrorMessage(result.error));
+  };
+
   const submitAssistantAsk = async (text: string) => {
-    // Refused while the optimistic queue still holds unsent work. The AI batch
-    // is decided server-side against state that does NOT include those units,
-    // and `applyOutcome` clears `pending` to take its result — so asking on
-    // top of a queued-but-unsent drag discarded that drag from the UI and the
-    // server both, silently, and the in-flight head raced the batch on
-    // optimistic concurrency (docs/reviews/2026-08-28-project-review.md §1.4).
-    // Reported through the rail's own askError surface rather than swallowed:
-    // disabling the box outright would need a new AssistantRail prop, and a
-    // control that silently does nothing is the failure mode TripProvider's
+    // A viewer's ask is refused here even though /ask itself admits a viewer
+    // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
+    // product call about who the assistant is offered to rather than a
+    // mechanical guard: with M9's write tools landed, the server already
+    // offers a viewer's turn the READ tools only (`minimumRoleFor`, measured
+    // from the set actually handed to the agent), and `/ask/apply` refuses
+    // them outright — so a viewer could hold a safe read-only conversation.
+    // Offering one is a product decision nobody has made; this refusal is
+    // where to change it if it ever is.
+    // Reported through the rail's own askError surface rather than swallowed —
+    // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
-    // A viewer's ask is refused for the same reason their drag is: the AI
-    // route is editor-gated server-side, so the model would plan a batch the
-    // server then refuses wholesale. Reported through the rail's own askError
-    // surface rather than swallowed — same call the `pending` gate below makes,
-    // and for the same reason (a control that silently does nothing is the
-    // failure mode TripProvider's runDispatch comment was written about).
     if (readOnly) {
       setAskStatus("error");
       setAskError("You have view-only access to this trip.");
       setAskSimulated(false);
       return false;
     }
+    // Refused while the optimistic queue still holds unsent work. The original
+    // reason was a data-loss race — the AI batch was decided against server
+    // state that did NOT include those units, and `applyOutcome` cleared
+    // `pending` to take its result, discarding a queued-but-unsent drag from
+    // the UI and the server both (docs/reviews/2026-08-28-project-review.md
+    // §1.4). /ask applies nothing, so that race is gone; what remains is that
+    // the assistant would read the trip WITHOUT the edits on screen and
+    // confidently answer about a plan the user is not looking at. Same
+    // refusal, same copy, a reason that is still real.
     if (pending) {
       setAskStatus("error");
       setAskError("Finish saving your changes before asking the assistant.");
@@ -335,18 +535,113 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       // the model, so making the user retype it would read as a broken box.
       return false;
     }
-    setAskStatus("loading");
-    setAskError(null);
-    setAskSimulated(false);
-    const result = await composeAiPlan(tripId, text, "board");
+    // Deliberately NOT awaited: the answer streams for seconds, and the rail
+    // clears its composer on whatever this resolves to. Accepting the ask is
+    // the thing the composer waits for; the answer arrives in `thread`.
+    void runAsk(text);
+    return true;
+  };
+
+  // ---------------------------------------------------------------------
+  // Propose -> review -> approve (M9)
+  // ---------------------------------------------------------------------
+  //
+  // Why approving can be blocked, and why the reason is computed once here
+  // rather than asked per card:
+  //
+  //   * **View-only.** A viewer's turn is never offered write tools
+  //     (`handleAskRequest`), so they cannot hold a proposal — but a role can
+  //     change under a mounted page, and a button that 403s is worse than one
+  //     that says why.
+  //   * **Unsent edits.** `applyOutcome` has a stated precondition: apply an
+  //     outcome only when `pending` is empty, because the server decided it
+  //     without seeing anything still queued here, so taking it discards those
+  //     units from the UI and the server both (TripProvider's own comment,
+  //     docs/reviews/2026-08-28-m11-pr71-review.md §4). The ask itself is
+  //     already refused while `pending`; approving is a SECOND moment, minutes
+  //     later, when a drag may have queued something since.
+  const approvalBlockedReason = readOnly
+    ? "You have view-only access to this trip."
+    : pending
+      ? "Finish saving your changes before applying this."
+      : null;
+
+  const patchProposal = (
+    turnId: string,
+    fn: (state: NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>) =>
+      | NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>
+      | null,
+  ) =>
+    setThread((current) =>
+      current.map((t) =>
+        t.id === turnId && t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
+      ),
+    );
+
+  const approveProposal = async (turnId: string) => {
+    if (approvalBlockedReason !== null) return;
+    const turn = thread.find((t) => t.id === turnId);
+    if (!turn || turn.role !== "assistant" || turn.proposal == null) return;
+    // Guards a double click and a re-approval of something already applied.
+    if (turn.proposal.status === "applying" || turn.proposal.status === "applied") return;
+    const { proposal } = turn.proposal;
+    patchProposal(turnId, (state) => ({ ...state, status: "applying", note: null }));
+
+    const result = await applyAssistantProposal(tripId, proposal);
     if (!result.ok) {
-      setAskStatus("error");
-      setAskError(result.error.message);
+      // The batch is atomic (ADR-013), so a refusal means NOTHING applied —
+      // the card goes back to pending and the user can try again or reject.
+      patchProposal(turnId, (state) => ({ ...state, status: "failed", note: result.error.message }));
       return;
     }
-    setAskSimulated(result.value.simulated);
-    applyOutcome(result.value);
+    // **Re-checked after the await, not before it.**
+    //
+    // `applyOutcome` clears `pending` unconditionally, and its documented
+    // precondition is that nothing is queued — the server decided this outcome
+    // without seeing anything still in the local queue, so taking it discards
+    // those units from the UI *and* from the server. The check above ran from a
+    // render-time closure before a whole AI batch round-trip; an edit dragged
+    // during that window would be silently lost. This is the same failure the
+    // rail's "Finish saving your changes before asking the assistant" refusal
+    // was written for (docs/reviews/2026-08-28-project-review.md §1.4), so it
+    // is closed the same way rather than left as a known issue.
+    //
+    // Skipping `applyOutcome` is safe and self-healing, not a dropped result:
+    // the batch really did commit, and the queued edit's own send confirms
+    // against fresh server state (`confirmHead` in TripProvider), which already
+    // contains it. So the stops arrive on the board a moment later, by the
+    // ordinary path, with nothing lost either way.
+    if (pendingRef.current) {
+      patchProposal(turnId, (state) => ({
+        ...state,
+        status: "applied",
+        note: `${result.value.message} It will appear on your board once your other unsaved changes have saved.`,
+      }));
+      return;
+    }
+    // Authoritative server state, taken whole, the same way an undo is.
+    applyOutcome({ detail: result.value.detail, history: result.value.history });
+    patchProposal(turnId, (state) => ({ ...state, status: "applied", note: result.value.message }));
+  };
+
+  // Rejecting sends nothing. There is no server-side draft to discard: the
+  // turn's write tools collected into a proposal that lives in this array and
+  // nowhere else, so "reject" is this array changing and the trip staying
+  // byte-identical.
+  const rejectProposal = (turnId: string) => {
+    patchProposal(turnId, (state) =>
+      state.status === "applied" ? state : { ...state, status: "rejected", note: null },
+    );
+  };
+
+  const startNewConversation = () => {
+    askAbort.current?.abort();
+    askAbort.current = null;
+    setThread([]);
     setAskStatus("idle");
+    setAskError(null);
+    setAskSimulated(false);
+    setRestoredDraft(null);
   };
 
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
@@ -382,162 +677,209 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The assistant's context line — "Looking at Day N" once a day is focused
   // (Task 4's FocusProvider, already read above for the day chips), else
   // the trip itself. Used to say "Looking at all three of your trips" (a
-  // fabricated cross-trip claim from when the whole rail was still a
-  // Preview fixture) — now that the ask box is real and scoped to this one
-  // trip's real composeAiPlan call, the fallback has to be honest about
-  // that scope too.
-  const assistantContextLine = focusedDay !== null ? `Looking at Day ${focusedDay + 1}` : `Looking at ${activeTrip.name}`;
+  // fabricated cross-trip claim from when the whole rail was still a Preview
+  // fixture); the fallback has to be honest about the scope the question is
+  // actually asked in, so it is worded FROM `askScope` — which is worded from
+  // `scopedDay` — rather than from a second reading of `focusedDay`.
+  const assistantContextLine =
+    askScope.kind === "day" ? `Looking at Day ${askScope.dayIndex + 1}` : `Looking at ${activeTrip.name}`;
+
+  // Derived from the trip in front of the user, never canned — the rules and
+  // the reasoning are in suggestedQuestions.ts. Recomputed per render because
+  // it is a pure walk of the days and it MUST change when the focused day
+  // does; memoising it on `activeTrip` identity would be the bug. Fed
+  // `scopedDay`, the same value the scope carries, so a question can never be
+  // offered in one scope and asked in another.
+  const assistantSuggestions = suggestedQuestions(activeTrip, scopedDay);
+
+  // How many more questions this thread has room for.
+  //
+  // `runAsk` posts the whole thread plus the new question, and the server
+  // refuses a body over `MAX_ASK_MESSAGES` with a 400 (`handleAskRequest`).
+  // Until this existed the rail had no idea: at message 41 every turn failed
+  // with "a thread may hold at most 40 messages", the question rolled back into
+  // a composer that still looked ready, and nothing said New conversation was
+  // the only way out (final branch review, 2026-08-29, finding 2).
+  //
+  // Counted from the SAME filter `runAsk` applies when it builds `posted` — a
+  // turn with no text is not on the wire — so the two cannot disagree about
+  // what the server will see. Each answered question adds two messages, so
+  // `(cap − posted + 1) / 2` is what is left: at 39 posted, one more question
+  // fits (40) and none after it.
+  const postedThreadLength = thread.filter((turn) => turn.text.trim() !== "").length;
+  const asksRemaining = Math.max(0, Math.floor((MAX_ASK_MESSAGES - postedThreadLength + 1) / 2));
 
   return (
     <>
-      {/* .trip-board-content (globals.css): reserves 356px of right padding
-          at >=1180px so real content (day columns, header actions) never
-          sits underneath the fixed-position Assistant rail below — dropped
-          via .assistant-hidden when the rail itself is hidden, so hiding it
-          actually reclaims the width rather than leaving a dead gutter. It
-          also gives lens content a bottom margin against the page, dropped
-          via .full-bleed for the Map lens, which is deliberately full-bleed
-          (same `isFullLens` this component already computes below). */}
-      <div className={cn("trip-board-content", !assistant.open && "assistant-hidden", isFullLens && "full-bleed")}>
-        <TripHeader tripId={tripId}>
-          <TripViewTabs />
-          {/* Task 2.3: MapRail replaces the chips row's job in map view — the
-              two side by side would be redundant, and the chips row's own
-              horizontal scroll makes no sense floating over a full-bleed map. */}
-          {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
-        </TripHeader>
-        {error !== null && (
-          <PageContainer width="full">
-            <p role="alert">{error}</p>
-          </PageContainer>
-        )}
-        <div inert={preview.seq !== null ? true : undefined}>
-          {isFullLens ? (
-            // px-0: Task 2.3 makes the Map lens genuinely full-bleed
-            // ("mapwrap" in the handoff) — the default px-6 gutter would
-            // leave the rail's 16px inset reading as ~40px instead.
-            <PageContainer width="full" className="px-0">
-              {/* Main's rule: a viewer does not get the jump into the stop
-                  editor, so `onSelectActivity` is withheld (ADR-031). The
-                  `readOnly` prop is the half that rule does not reach —
-                  double-click-to-create calls `openCreate` from useEditor()
-                  directly, not through this callback, so without it a viewer
-                  could still raise the editor in create mode. */}
-              {lens === "Map" && (
-                <MapLens
-                  detail={activeTrip}
-                  onSelectActivity={readOnly ? undefined : openEdit}
-                  readOnly={readOnly}
-                />
-              )}
-            </PageContainer>
-          ) : (
-            <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
-              {lens === "Board" && (
-                <Board
-                  trip={activeTrip}
-                  focusedDay={focusedDay}
-                  // A viewer's board, and the demo's, show the plan and offer
-                  // nothing that changes it (ADR-031). `readOnly` comes from
-                  // the provider's own gate — the same flag that already
-                  // refuses the command — so the controls and the refusal can
-                  // never disagree about who may edit. The same reasoning
-                  // reached here independently from the M11 side
-                  // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
-                  // is the difference between an inert board and one whose
-                  // cards move and snap back.
-                  readOnly={readOnly}
-                  callbacks={{
-                    onSelectDay: setFocusedDay,
-                    onMove: moveActivity,
-                    onUnschedule: unscheduleActivity,
-                    onDragStart: () => onRackEvent({ type: "dragStart" }),
-                    onDragEnd: () => onRackEvent({ type: "dragEnd" }),
-                    onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
-                    onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                    onAddActivity: (value: ActivityFormValue) =>
-                      void dispatch({
-                        type: "AddActivity",
-                        tripId,
-                        activityId: crypto.randomUUID(),
-                        title: value.title,
-                        timeWindow: value.timeWindow ?? undefined,
-                        location: value.location ?? undefined,
-                        notes: value.notes ?? undefined,
-                        anchors: value.anchors,
-                        cost: value.cost ?? undefined,
-                      }),
-                    onUpdateActivity: updateActivity,
-                    onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
-                    onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-                  }}
-                />
-              )}
-              {lens === "Schedule" && (
-                <ScheduleLens
-                  detail={activeTrip}
-                  readOnly={readOnly}
-                  onSelectActivity={readOnly ? undefined : openEdit}
-                  // The timeline raises real commands through this one seam:
-                  // UpdateActivity for the overlap warning's one-click fix,
-                  // DismissConflict for its dismissal, and — Phase 6 — AddDay
-                  // from the end-of-trip block's "Add a day". That last one is
-                  // deliberately the SAME `dispatch({ type: "AddDay", tripId,
-                  // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
-                  // above performs, just arriving pre-built (the seam carries
-                  // whole commands) rather than as a bare callback. None of
-                  // the three is ever a CreateTrip, which is the only
-                  // TripCommand dispatch doesn't take. The timeline scrolls
-                  // the appended day into view itself, via the focus effect it
-                  // already owns — see TimelineLens's `addDay`.
-                  onCommand={(command) => {
-                    // All three commands this seam carries (UpdateActivity,
-                    // DismissConflict, AddDay) are writes, so a viewer has
-                    // nothing legitimate to raise through it. Unreachable
-                    // today — the timeline withholds every affordance that
-                    // would raise one (`readOnly` above), and TripProvider's
-                    // `dispatch` refuses a viewer as well — and kept for the
-                    // same reason ActivityEditorSheet's handleSave guard is:
-                    // so the refusal does not depend on a render branch
-                    // somewhere below staying correct. The server refuses each
-                    // of them independently (accessPolicy.ts) and remains the
-                    // real gate; this is defence in depth.
-                    if (readOnly) return;
-                    if (command.type !== "CreateTrip") void dispatch(command);
-                  }}
-                />
-              )}
+      {/* M16 Wave 1 (Task 4, SPEC §9 docked presentation): the Assistant rail
+          is a real flex sibling of the plan now, not `position: fixed` over
+          it — this row is what makes the plan genuinely SHRINK by 356px when
+          the rail opens, rather than being overlaid with a scrim in front of
+          it (KI-16, KI-17). `.assistant-open` (globals.css) is the marker the
+          unscheduled rack's own `position: fixed` right-inset reads, since a
+          fixed element ignores this row's flex sizing entirely and needs its
+          own compensation to stop short of the docked rail instead of
+          running underneath it. */}
+      <div className={cn("flex items-start", !isDemo && assistant.open && "assistant-open")}>
+        {/* .trip-board-content (globals.css): gives lens content a bottom
+            margin against the page, dropped via .full-bleed for the Map
+            lens, which is deliberately full-bleed (same `isFullLens` this
+            component already computes below). `min-w-0` lets this column
+            actually shrink when the rail opens — flex items default to a
+            min-width of their content's intrinsic width, which a
+            horizontally-scrolling day-columns row would otherwise refuse to
+            go below. */}
+        <div className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}>
+          <TripHeader tripId={tripId}>
+            <TripViewTabs />
+            {/* Task 2.3: MapRail replaces the chips row's job in map view — the
+                two side by side would be redundant, and the chips row's own
+                horizontal scroll makes no sense floating over a full-bleed map. */}
+            {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
+          </TripHeader>
+          {error !== null && (
+            <PageContainer width="full">
+              <p role="alert">{error}</p>
             </PageContainer>
           )}
+          <div inert={preview.seq !== null ? true : undefined}>
+            {isFullLens ? (
+              // px-0: Task 2.3 makes the Map lens genuinely full-bleed
+              // ("mapwrap" in the handoff) — the default px-6 gutter would
+              // leave the rail's 16px inset reading as ~40px instead.
+              <PageContainer width="full" className="px-0">
+                {/* Main's rule: a viewer does not get the jump into the stop
+                    editor, so `onSelectActivity` is withheld (ADR-031). The
+                    `readOnly` prop is the half that rule does not reach —
+                    double-click-to-create calls `openCreate` from useEditor()
+                    directly, not through this callback, so without it a viewer
+                    could still raise the editor in create mode. */}
+                {lens === "Map" && (
+                  <MapLens
+                    detail={activeTrip}
+                    onSelectActivity={readOnly ? undefined : openEdit}
+                    readOnly={readOnly}
+                  />
+                )}
+              </PageContainer>
+            ) : (
+              <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
+                {lens === "Board" && (
+                  <Board
+                    trip={activeTrip}
+                    focusedDay={focusedDay}
+                    // A viewer's board, and the demo's, show the plan and offer
+                    // nothing that changes it (ADR-031). `readOnly` comes from
+                    // the provider's own gate — the same flag that already
+                    // refuses the command — so the controls and the refusal can
+                    // never disagree about who may edit. The same reasoning
+                    // reached here independently from the M11 side
+                    // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
+                    // is the difference between an inert board and one whose
+                    // cards move and snap back.
+                    readOnly={readOnly}
+                    callbacks={{
+                      onSelectDay: setFocusedDay,
+                      onMove: moveActivity,
+                      onUnschedule: unscheduleActivity,
+                      onDragStart: () => onRackEvent({ type: "dragStart" }),
+                      onDragEnd: () => onRackEvent({ type: "dragEnd" }),
+                      onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
+                      onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
+                      onAddActivity: (value: ActivityFormValue) =>
+                        void dispatch({
+                          type: "AddActivity",
+                          tripId,
+                          activityId: crypto.randomUUID(),
+                          title: value.title,
+                          timeWindow: value.timeWindow ?? undefined,
+                          location: value.location ?? undefined,
+                          notes: value.notes ?? undefined,
+                          anchors: value.anchors,
+                          cost: value.cost ?? undefined,
+                        }),
+                      onUpdateActivity: updateActivity,
+                      onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
+                      onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+                    }}
+                  />
+                )}
+                {lens === "Schedule" && (
+                  <ScheduleLens
+                    detail={activeTrip}
+                    readOnly={readOnly}
+                    onSelectActivity={readOnly ? undefined : openEdit}
+                    // The timeline raises real commands through this one seam:
+                    // UpdateActivity for the overlap warning's one-click fix,
+                    // DismissConflict for its dismissal, and — Phase 6 — AddDay
+                    // from the end-of-trip block's "Add a day". That last one is
+                    // deliberately the SAME `dispatch({ type: "AddDay", tripId,
+                    // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
+                    // above performs, just arriving pre-built (the seam carries
+                    // whole commands) rather than as a bare callback. None of
+                    // the three is ever a CreateTrip, which is the only
+                    // TripCommand dispatch doesn't take. The timeline scrolls
+                    // the appended day into view itself, via the focus effect it
+                    // already owns — see TimelineLens's `addDay`.
+                    onCommand={(command) => {
+                      // All three commands this seam carries (UpdateActivity,
+                      // DismissConflict, AddDay) are writes, so a viewer has
+                      // nothing legitimate to raise through it. Unreachable
+                      // today — the timeline withholds every affordance that
+                      // would raise one (`readOnly` above), and TripProvider's
+                      // `dispatch` refuses a viewer as well — and kept for the
+                      // same reason ActivityEditorSheet's handleSave guard is:
+                      // so the refusal does not depend on a render branch
+                      // somewhere below staying correct. The server refuses each
+                      // of them independently (accessPolicy.ts) and remains the
+                      // real gate; this is defence in depth.
+                      if (readOnly) return;
+                      if (command.type !== "CreateTrip") void dispatch(command);
+                    }}
+                  />
+                )}
+              </PageContainer>
+            )}
+          </div>
         </div>
+        {/* The assistant rail — a real streaming conversation against
+            /api/trips/:id/ask (see runAsk above). Mounted here, as the row's
+            second flex child, so it's present regardless of which lens is
+            active and its 356px width comes out of real layout (see the row's
+            own comment above) rather than a fixed-position overlay. Unmounted
+            entirely (not just visually hidden) when the user hides it, so it
+            costs the row nothing when closed — the thread lives in this
+            component, so hiding the rail does not end the conversation. */}
+        {!isDemo && assistant.open && (
+          <AssistantRail
+            contextLine={assistantContextLine}
+            scope={askScope}
+            turns={thread}
+            suggestions={assistantSuggestions}
+            asksRemaining={asksRemaining}
+            restoreDraft={restoredDraft}
+            onNewConversation={startNewConversation}
+            onAsk={(text) => submitAssistantAsk(text)}
+            onApproveProposal={(turnId) => void approveProposal(turnId)}
+            onRejectProposal={rejectProposal}
+            approvalBlockedReason={approvalBlockedReason}
+            asking={askStatus === "loading"}
+            askError={askStatus === "error" ? askError : null}
+            simulated={askSimulated}
+            onHide={assistant.hide}
+          />
+        )}
       </div>
-      {/* The assistant rail — real header/context/ask box (composeAiPlan,
-          same as the removed standalone ComposePanel used to call directly)
-          + still-Preview suggestions/quick-asks (AssistantRail.tsx wraps
-          those two internally now, narrower than the old whole-rail wrap).
-          Mounted once here (like ActivityEditorSheet below) so it's present
-          regardless of which lens is active; it's fixed-position internally,
-          so it doesn't affect any lens's own layout. Unmounted entirely
-          (not just visually hidden) when the user hides it, so its fixed
-          scrim/aside don't linger in the DOM. */}
-      {isDemo ? null : assistant.open ? (
-        <AssistantRail
-          contextLine={assistantContextLine}
-          quickAsks={PREVIEW_QUICK_ASKS}
-          onAsk={(text) => void submitAssistantAsk(text)}
-          asking={askStatus === "loading"}
-          askError={askStatus === "error" ? askError : null}
-          simulated={askSimulated}
-          onHide={assistant.hide}
-        />
-      ) : (
+      {!isDemo && !assistant.open && (
         // Matches the design's minimized launcher (`Trip Planner Redesign
         // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
         // not the edge-tab treatment this used to have (variant="secondary",
         // rounded-r-none, vertically centered against the right edge) — the
         // design has no bordered edge-tab state for the assistant, only this
         // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
-        // same component's header).
+        // same component's header). Stays `position: fixed`, outside the row
+        // above — a closed rail costs no layout, so there is nothing for it
+        // to be a flex sibling of.
         <Button
           variant="primary"
           onClick={assistant.show}
