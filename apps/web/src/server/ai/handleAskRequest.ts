@@ -49,6 +49,7 @@ import {
 } from "@/server/ai/writeTools";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
+import { classifyAskIntent } from "@/server/ai/askIntent";
 
 // Round-trips one question may take. Eight is generous for a read-only turn —
 // three tools, and the shape of a real answer is "read what you need, then
@@ -272,13 +273,33 @@ export async function handleAskRequest(
   const quota = await consumeQuota(aiQuotas(), userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
+  // **What this turn is for, decided before the agent is built.**
+  //
+  // ~85% of a step's fixed input cost is tool schemas, and 12 of the 15 tools
+  // are write tools that a question never calls — see the measurement in
+  // askIntent.ts. One extra, tool-less round-trip buys back most of it.
+  //
+  // Two properties this call site is responsible for, not the classifier:
+  //
+  //   * **It can only narrow.** `canWrite` gates it, so a viewer is never
+  //     classified at all — there is no write half to withhold, and paying for
+  //     the call would be waste. `minimumRoleFor` below still has the final
+  //     word on whatever comes out.
+  //   * **It runs after the quota.** A turn refused before it reached a model
+  //     must not have paid for a classification either.
+  //
+  // `classifyAskIntent` is total — it fails open to `write` rather than
+  // throwing — so there is deliberately no try/catch here to suggest otherwise.
+  const classification = canWrite ? await classifyAskIntent(selected.model, question, request.signal) : null;
+  const offerWrites = canWrite && classification?.intent !== "question";
+
   // The tool set for THIS turn. A viewer gets the read half and nothing else,
   // and the rule is enforced rather than commented: `minimumRoleFor` is asked
   // what the set about to be handed to the agent requires, and the actor must
   // already satisfy it. Unreachable while `canWrite` decides the set — which
   // is why it is here, because the next person to add a branch to that line is
   // who this catches.
-  const writeTools = canWrite ? buildWriteTools() : null;
+  const writeTools = offerWrites ? buildWriteTools() : null;
   const tools = { ...buildReadTools().tools, ...(writeTools?.tools ?? {}) };
   const offeredNames = Object.keys(tools);
   if (!hasAtLeast(userId, detail.members, minimumRoleFor(offeredNames))) {
@@ -298,12 +319,20 @@ export async function handleAskRequest(
     // `readTools.test.ts` ties this set to `READ_TOOL_NAMES`, which is what
     // the guard above is computed from.
     offeredTools: offeredNames,
+    // Beside `question` and `offeredTools`, which is what makes a
+    // misclassification diagnosable after the fact rather than only visible as
+    // an assistant that would not act.
+    classification,
     sink,
   });
 
   const agent = new ToolLoopAgent({
     model: selected.model,
-    instructions: instructionsFor(scope, detail.days.length, canWrite),
+    // `offerWrites`, not `canWrite`: the instruction has to describe the tools
+    // the model was actually handed. An editor whose turn classified as a
+    // question is told it can only read — otherwise it would promise a
+    // proposal it has no tool to draft.
+    instructions: instructionsFor(scope, detail.days.length, offerWrites),
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
@@ -385,10 +414,16 @@ export async function handleAskRequest(
         return proposal === null ? undefined : { proposal };
       },
       onError: (error) => {
-        // The turn failed. Record it before the message goes out — `onEnd`
-        // will not fire, and the tool-call trace of a failed turn is the
-        // whole reason to keep one.
-        recorder.abandon("error");
+        // The turn failed. Record it — WITH the error — before the message
+        // goes out: `onEnd` will not fire, and the tool-call trace of a failed
+        // turn is the whole reason to keep one.
+        //
+        // Passing `error` rather than only the reason is the 2026-08-29 fix. A
+        // live turn failed here, this line recorded `finishReason: "error"`,
+        // and the only thing that ever saw the actual cause was the client —
+        // the message went out on the stream and nothing wrote it down. The
+        // whole diagnosis was "step 1 finished, step 2 did not".
+        recorder.abandon("error", error);
         // The client sees the real reason rather than "An error occurred.",
         // which is the SDK's default and is indistinguishable from a network
         // failure in the rail.
@@ -400,7 +435,7 @@ export async function handleAskRequest(
     // and the caps passed. What remains is the agent failing to start, which
     // is the same 503 shape `handleAiRequest` returns for a model that could
     // not be reached.
-    recorder.abandon("error");
+    recorder.abandon("error", err);
     return Response.json(
       { error: `model call failed: ${errorMessage(err)}`, simulated: selected.simulated },
       { status: 503 },

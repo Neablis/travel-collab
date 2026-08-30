@@ -30,6 +30,7 @@ import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AiSurface, type AskScope } from "@/server/ai/context";
+import { isAskIntentCall } from "@/server/ai/askIntent";
 import type { DayReadout, FreeTimeReadout, ReadToolProblem, TripReadout } from "@/server/ai/readTools";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -503,8 +504,33 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  *
  * Step 2 is skipped entirely for a question, and unreachable for a viewer.
  */
+/**
+ * The pre-turn classification call (askIntent.ts), answered from the same
+ * `asksForAChange` judgement that decides whether this model proposes.
+ *
+ * Reusing that predicate is the point, not a shortcut: the switched-off
+ * deployment is the one every Vercel environment runs, so a classifier that
+ * said "question" for a turn this model then wants to propose on would hand
+ * itself a tool set it cannot use — and `askChipCoverage.test.ts`, which drives
+ * every suggestion chip through a real turn, would go quietly hollow. One
+ * predicate, so the two answers cannot disagree.
+ */
+function classifyStep(options: CallOptionsLike): SimulatedStep {
+  const verdict = asksForAChange(latestUserText(options)) ? "write" : "question";
+  return {
+    content: [{ type: "text", text: verdict }],
+    finishReason: { unified: "stop", raw: undefined },
+    textDeltas: [verdict],
+  };
+}
+
 function askTurn(options: CallOptionsLike): SimulatedStep {
-  const scope = parseAskScope(systemTextOf(options));
+  const system = systemTextOf(options);
+  // Answered before anything else reads the prompt: a classification call
+  // carries no scope line and no tools, so every branch below would misread it
+  // as an opening turn and reply with `read_trip`.
+  if (isAskIntentCall(system)) return classifyStep(options);
+  const scope = parseAskScope(system);
   const results = toolResultsOf(options);
   if (results.length === 0) {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };

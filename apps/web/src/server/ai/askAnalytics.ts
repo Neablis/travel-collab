@@ -16,6 +16,74 @@
 // and "the model probably didn't need it" is not evidence.
 import type { AskScope } from "@/server/ai/context";
 
+/**
+ * How a turn ended, as a fact about the TURN rather than about the model.
+ *
+ * `finishReason` cannot answer this: it carries the model's own word ("stop",
+ * "tool-calls", "length") on a completed turn and our own word on an abandoned
+ * one, so counting failures out of it means knowing which of its values are
+ * ours. And the two abandonments are not the same event — a user navigating
+ * away is not a failure, and reading `abort` as one inflates every error rate
+ * anyone computes from these lines.
+ */
+export type AskOutcome = "completed" | "error" | "abort";
+
+/**
+ * WHY a turn failed. Null on every outcome but `error`.
+ *
+ * This exists because a live turn failed on 2026-08-29 and nothing anywhere
+ * recorded the cause: `onError` returned the message to the client and the
+ * record said only `finishReason: "error"`. Vercel's logs held nothing at
+ * error, warning or fatal level, so the whole diagnosis was "step 1 finished,
+ * step 2 did not".
+ *
+ * Every field here is derived from an EXTERNAL string (a provider's error) and
+ * is treated as such: bounded, and stripped of control characters — see
+ * `sanitizeForLog`.
+ */
+export interface AskFailureCause {
+  /**
+   * The error's own `name` — `AI_APICallError`, `AI_RetryError`, `TypeError`,
+   * `TimeoutError`. The fastest discriminator between a provider refusing us
+   * and a bug of ours, and the one field that is usually a short enum-like
+   * token rather than prose.
+   */
+  name: string;
+  /** The provider's own text. Sanitized and truncated. */
+  message: string;
+  /**
+   * The HTTP status when the failure was an API call, else null. 429 and 5xx
+   * are the two this is here to tell apart — a rate limit and an outage read
+   * identically in a message and demand opposite responses.
+   */
+  statusCode: number | null;
+}
+
+/**
+ * The pre-turn intent classification (see `askIntent.ts`), or null when no
+ * classification ran — a viewer's turn, which has no write tools to withhold.
+ *
+ * Recorded so a misclassification is diagnosable after the fact: the record
+ * already carries `question`, so the verdict beside it is the whole evidence
+ * needed to tell a good classification from a bad one, and `offeredTools`
+ * shows what the verdict actually cost or saved.
+ */
+export interface AskIntentRecord {
+  /** What the turn was classified as. `write` is also what every uncertainty resolves to. */
+  intent: "question" | "write";
+  /**
+   * What the classifier actually said, sanitized and truncated — or the
+   * failure's description when `failedOpen` is true. Kept verbatim rather than
+   * folded into `intent` because "the model answered `writes`" and "the model
+   * answered with a paragraph" are different problems with the same verdict.
+   */
+  verdict: string;
+  /** True when the call threw, timed out, or said something unrecognised, and the full tool set was handed over regardless. */
+  failedOpen: boolean;
+  latencyMs: number;
+  usage: AskUsage;
+}
+
 export interface AskToolCallRecord {
   name: string;
   /** What the model asked for, verbatim — a `find_free_time` nobody constrains reads differently from one with `after`. */
@@ -86,8 +154,14 @@ export interface AskAnalyticsRecord {
   offeredTools: string[];
   /** Offered and never called. Counted, never guessed. */
   uncalledTools: string[];
+  /** What decided `offeredTools`' write half, and what that decision cost. Null when nothing was classified. */
+  classification: AskIntentRecord | null;
   /** False when the run produced no assistant text — a turn that spent steps and said nothing. */
   answered: boolean;
+  /** How the turn ended. Count error rates from THIS, not from `finishReason`. */
+  outcome: AskOutcome;
+  /** Why it failed, when it did. Null otherwise — an abort is not a failure. */
+  cause: AskFailureCause | null;
   finishReason: string;
   /** The whole run's token spend. */
   usage: AskUsage;
@@ -121,6 +195,57 @@ function truncateForLog(text: string): string {
   return text.length > MAX_LOGGED_QUESTION_CHARS ? `${text.slice(0, MAX_LOGGED_QUESTION_CHARS)}…` : text;
 }
 
+// A provider's error text is an external string, and it goes into the same
+// retained log everything else here does. Two things follow:
+//
+//   * **Bound it.** A failing gateway answers with an HTML error page, not a
+//     sentence; 500 characters is enough to name the failure and not enough
+//     for one bad turn to own the log view. The same reasoning (and roughly
+//     half the size) as `MAX_LOGGED_QUESTION_CHARS`, which a real question is
+//     measured against — an error message has no comparable "realistic" size,
+//     so this is bounded by what a reader can use rather than by what a
+//     provider might send.
+//   * **Strip control characters.** `JSON.stringify` escapes them today, so
+//     nothing can forge a second log line through this field — but that is a
+//     property of the CURRENT sink, and the guarantee belongs to the string,
+//     not to whoever writes it next. C0 and C1 both, because U+0085 is a
+//     line break to several log platforms' parsers and U+0000 truncates a
+//     line outright in others.
+export const MAX_LOGGED_CAUSE_CHARS = 500;
+
+export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): string {
+  const flattened = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim();
+  return flattened.length > max ? `${flattened.slice(0, max)}…` : flattened;
+}
+
+/**
+ * What went wrong, from whatever the SDK threw.
+ *
+ * **Total by construction**, because of where it is called from: `abandon` is
+ * reached from the stream's `onError` AND from a raw `request.signal` abort
+ * listener that nothing wraps (see `logAskAnalytics`'s comment). The `unknown`
+ * it is handed is provider-shaped — it can be a `Proxy` whose getters throw, a
+ * null-prototype object with no `toString`, or a `bigint` — so every read is
+ * inside the try, not just the obvious ones.
+ */
+export function describeFailure(err: unknown): AskFailureCause {
+  try {
+    const e = err as { name?: unknown; message?: unknown; statusCode?: unknown; status?: unknown };
+    // `statusCode` is what `AI_APICallError` carries; `status` is what a bare
+    // `Response`-shaped rejection carries. Both, because the whole value of
+    // this field is telling a 429 from a 500 without reading prose.
+    const statusCode =
+      typeof e?.statusCode === "number" ? e.statusCode : typeof e?.status === "number" ? e.status : null;
+    return {
+      name: sanitizeForLog(typeof e?.name === "string" ? e.name : typeof err, 100),
+      message: sanitizeForLog(typeof e?.message === "string" ? e.message : String(err)),
+      statusCode,
+    };
+  } catch {
+    return { name: "unknown", message: "the failure could not be described", statusCode: null };
+  }
+}
+
 // `console.info` with a message + the record, JSON-serialized rather than
 // handed to `console.info` as a live object.
 //
@@ -147,7 +272,39 @@ function truncateForLog(text: string): string {
 // a request's abort path. So: never throw, and never lose the line entirely —
 // a fallback that names the tripId, the event and the failure is a debuggable
 // log, where a silent drop or an uncaught throw is not.
+//
+// A FAILED turn is additionally written at error level, and that is a
+// discoverability decision rather than a second copy for its own sake. The
+// cause belongs on the record — beside the question, the tool trace and the
+// per-step usage, which is what makes it diagnosable at all — but the record
+// is `console.info`, and on 2026-08-29 the search that found nothing was a
+// search of Vercel's error, warning and fatal levels. Whoever triages the next
+// failure will filter the same way. So: the diagnosis on the record, and a
+// short line at the level people actually look at, naming the cause and
+// pointing back at the turn.
 export const logAskAnalytics: AskAnalyticsSink = (record) => {
+  if (record.outcome === "error") {
+    try {
+      // Only server-controlled fields plus `cause`, which `describeFailure`
+      // has already bounded and stripped — small enough that this line cannot
+      // itself become the thing that buries the log.
+      console.error(
+        "ai.ask.failed",
+        JSON.stringify({
+          event: "ai.ask.failed",
+          tripId: record.tripId,
+          userId: record.userId,
+          model: record.model,
+          steps: record.steps,
+          cause: record.cause,
+        }),
+      );
+    } catch {
+      // Same contract as below: this path must not throw. The info line still
+      // carries the cause, so losing this one loses discoverability, not
+      // information.
+    }
+  }
   try {
     console.info("ai.ask", JSON.stringify(record));
   } catch (err) {
@@ -195,6 +352,8 @@ export interface AskRecorderParams {
   simulated: boolean;
   model: string;
   offeredTools: readonly string[];
+  /** The pre-turn classification that decided the write half of `offeredTools`, or null when none ran. */
+  classification?: AskIntentRecord | null;
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -215,7 +374,7 @@ export interface AskRecorder {
   finish(final: AskStepLike, dropped?: readonly AskDroppedCall[]): void;
   /**
    * Wire to the agent's `onAbort` and to the stream's `onError`. Writes what
-   * was accumulated before the run stopped, under the given finish reason.
+   * was accumulated before the run stopped, under the given outcome.
    *
    * The two turns most worth measuring are the failed one and the abandoned
    * one — a turn nobody waited for and a turn that broke are exactly the
@@ -223,10 +382,15 @@ export interface AskRecorder {
    * this they wrote nothing at all, and `answered: false` had no production
    * trigger.
    *
+   * `error` takes a `cause` — whatever was thrown. It is optional in the type
+   * only because `abort` has none; a caller with an error in hand and nothing
+   * to pass is the bug this parameter exists to prevent. Whatever is passed is
+   * run through `describeFailure`, which is total.
+   *
    * First writer wins: an errored run fires `onError` before `onEnd`, so the
    * record carries "error" rather than the tidier reason that follows it.
    */
-  abandon(finishReason: "abort" | "error"): void;
+  abandon(outcome: "abort" | "error", cause?: unknown): void;
 }
 
 /**
@@ -270,15 +434,23 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       usageByStep.push(usageOf(step));
     },
     finish(final, dropped) {
-      write(final, dropped ?? []);
+      write(final, dropped ?? [], "completed", null);
     },
-    abandon(finishReason) {
-      write({ finishReason }, []);
+    abandon(outcome, cause) {
+      // `describeFailure` is total, so this reads no further than the type
+      // says — and `abort` carries no cause because a user leaving is not a
+      // failure and must not read as one to anyone counting error rates.
+      write({ finishReason: outcome }, [], outcome, outcome === "error" ? describeFailure(cause) : null);
     },
   };
 
   // One writer, one latch — a run that both errors and ends still logs once.
-  function write(final: AskStepLike, dropped: readonly AskDroppedCall[]): void {
+  function write(
+    final: AskStepLike,
+    dropped: readonly AskDroppedCall[],
+    outcome: AskOutcome,
+    cause: AskFailureCause | null,
+  ): void {
     if (written) return;
     written = true;
     const called = new Set(toolCalls.map((c) => c.name));
@@ -303,7 +475,10 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       toolCallCount: toolCalls.length,
       offeredTools: [...params.offeredTools],
       uncalledTools: params.offeredTools.filter((name) => !called.has(name)),
+      classification: params.classification ?? null,
       answered: text.trim().length > 0,
+      outcome,
+      cause,
       finishReason: final.finishReason ?? "unknown",
       usage: {
         inputTokens: final.usage?.inputTokens ?? null,

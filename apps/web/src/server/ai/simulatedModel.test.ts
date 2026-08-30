@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { simulatedModel, SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
+import { ASK_INTENT_INSTRUCTION } from "@/server/ai/askIntent";
 
 // `simulatedModel` returns `LanguageModel`, which is `string | LanguageModelV4`
 // — so `.doGenerate` is not reachable on the union — and LanguageModelV4 itself
@@ -587,5 +588,55 @@ describe("simulatedModel — proposing a change", () => {
       askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),
     );
     expect(callsOf(result)).toEqual([]);
+  });
+});
+
+// The pre-turn classification call (askIntent.ts). Every Vercel environment
+// runs with `ai-live` off, so if this branch did not exist the classifier
+// would fail open on every deployed turn and the whole optimisation would buy
+// nothing there.
+describe("simulatedModel — the intent classification call", () => {
+  /** A classification call: the marker instruction, no scope line, no tools. */
+  function classifyPrompt(question: string) {
+    return {
+      prompt: [
+        { role: "system", content: ASK_INTENT_INSTRUCTION },
+        { role: "user", content: [{ type: "text", text: question }] },
+      ],
+    };
+  }
+
+  it("answers a question with one word and no tool call", async () => {
+    const result = await probe("ask").doGenerate(classifyPrompt("Which day has the most free time?"));
+    expect(callsOf(result)).toEqual([]);
+    expect(textOf(result)).toBe("question");
+  });
+
+  it("answers a change request with the word that keeps the write tools", async () => {
+    const result = await probe("ask").doGenerate(classifyPrompt("Add a coffee stop to day 2"));
+    expect(textOf(result)).toBe("write");
+  });
+
+  // The same `asksForAChange` judgement that decides whether this model
+  // proposes, so the verdict and the behaviour cannot disagree — a chip
+  // classified `question` that this model then wants to propose on would leave
+  // `askChipCoverage.test.ts` asserting against a tool set the turn no longer has.
+  it("classifies a planning prompt as a write, exactly as it would propose on one", async () => {
+    const result = await probe("ask").doGenerate(
+      classifyPrompt("There are no days yet — how should I start planning this trip?"),
+    );
+    expect(textOf(result)).toBe("write");
+  });
+
+  // Without this the classification call would be read as an opening turn:
+  // no tool results yet means "ask the read tools", which answers a
+  // classifier with `read_trip` and fails open every time.
+  it("is recognised by its instruction, not by the absence of tools", async () => {
+    const withTools = await probe("ask").doGenerate({
+      ...classifyPrompt("Add a coffee stop to day 2"),
+      tools: [{ name: "read_trip" }, { name: "AddActivity" }],
+    });
+    expect(callsOf(withTools)).toEqual([]);
+    expect(textOf(withTools)).toBe("write");
   });
 });

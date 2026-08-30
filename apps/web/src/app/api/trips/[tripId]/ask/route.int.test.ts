@@ -271,11 +271,82 @@ describe("POST /api/trips/:id/ask", () => {
     it("offers an editor the read tools AND the derived write tools", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
-      const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } }, (r) =>
-        records.push(r),
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } },
+        (r) => records.push(r),
       );
       await res.text();
       expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: false });
+    });
+
+    // ~85% of a step's fixed input cost is tool schemas, and 12 of the 15
+    // tools are write tools a question never calls (askIntent.ts carries the
+    // measurement). This is the pair that proves the narrowing is real, and
+    // that it is the ONLY thing that changed between them: same trip, same
+    // actor, same scope, different sentence.
+    it("withholds the write tools from a question and hands them to a change request", async () => {
+      const tripId = await seedTrip();
+      const asked: AskAnalyticsRecord[] = [];
+      const told: AskAnalyticsRecord[] = [];
+
+      const question = await ask(
+        tripId,
+        { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } },
+        (r) => asked.push(r),
+      );
+      await question.text();
+      const change = await ask(
+        tripId,
+        { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } },
+        (r) => told.push(r),
+      );
+      await change.text();
+
+      expect(asked[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      expect(asked[0]!.classification).toMatchObject({ intent: "question", verdict: "question", failedOpen: false });
+      expect(told[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+    });
+
+    // Rule 3 of askIntent.ts: a cost optimisation must never be able to break
+    // a turn. `failingModel` throws on every call INCLUDING the classification,
+    // so this is the fail-open path end to end — the turn is still offered the
+    // full set, and the failure is recorded as a failure of the classifier
+    // rather than silently as a question.
+    it("falls back to the full tool set when the classification itself fails", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        failingModel("provider exploded"),
+        (r) => records.push(r),
+      );
+      await res.text();
+
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: true });
+      expect(records[0]!.classification!.verdict).toContain("provider exploded");
+    });
+
+    // The classifier selects WITHIN what the guard allows and can never widen
+    // it. A viewer is not classified at all — there is no write half to
+    // withhold, and paying for the call would be waste — so the record carries
+    // no classification and the tool set is the guard's answer, not a model's.
+    it("never widens a viewer's tool set, and does not classify their turn at all", async () => {
+      const tripId = await seedTrip();
+      await grantViewer(tripId, VIEWER_ID);
+      currentUserId = VIEWER_ID;
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } },
+        (r) => records.push(r),
+      );
+      await res.text();
+      expect(records[0]!.classification).toBeNull();
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
     });
 
     it("offers a VIEWER no write tool at all, however the question is phrased", async () => {
@@ -645,7 +716,11 @@ describe("POST /api/trips/:id/ask", () => {
       expect(JSON.stringify(error)).toContain("provider exploded");
 
       expect(records).toHaveLength(1);
-      expect(records[0]).toMatchObject({ finishReason: "error", answered: false, toolCallCount: 0 });
+      expect(records[0]).toMatchObject({ finishReason: "error", outcome: "error", answered: false, toolCallCount: 0 });
+      // The 2026-08-29 gap: this turn used to record THAT it failed and
+      // nothing about why, so the client was the only thing that ever saw the
+      // provider's own words.
+      expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("provider exploded") });
     });
 
     it("records an abandoned turn", async () => {
@@ -664,6 +739,9 @@ describe("POST /api/trips/:id/ask", () => {
 
       expect(records).toHaveLength(1);
       expect(records[0]!.finishReason).toBe("abort");
+      // A user who navigated away is not a failure, and must not read as one
+      // to anyone counting error rates off these lines.
+      expect(records[0]).toMatchObject({ outcome: "abort", cause: null });
     });
   });
 
@@ -696,9 +774,11 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(record.toolCalls.map((c) => c.name)).toEqual(["read_trip", "find_free_time"]);
       expect(record.toolCalls[1]!.input).toEqual({ after: "08:00", before: "22:00" });
-      // Measured, not inferred — the whole point of the number. An owner is
-      // offered the write tools too, and a question calls none of them.
-      expect(record.uncalledTools).toEqual(["read_day", ...WRITE_TOOL_NAMES]);
+      // Measured, not inferred — the whole point of the number. `read_day` is
+      // the only tool left uncalled because the write tools were never offered:
+      // this turn classified as a question, which is what the twelve entries
+      // that used to be on this line cost in schema tokens every step.
+      expect(record.uncalledTools).toEqual(["read_day"]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
@@ -712,8 +792,9 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
       expect(records[0]!.scope).toEqual({ kind: "day", dayIndex: 1 });
-      // Every read tool used; every write tool untouched by a question.
-      expect(records[0]!.uncalledTools).toEqual([...WRITE_TOOL_NAMES]);
+      // Every read tool used, and no write tool offered to go uncalled — the
+      // day-scoped question is the shape this endpoint answers most.
+      expect(records[0]!.uncalledTools).toEqual([]);
     });
   });
 });

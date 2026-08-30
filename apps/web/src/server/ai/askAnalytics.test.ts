@@ -138,6 +138,9 @@ describe("the per-ask record", () => {
         toolCallCount: 0,
         offeredTools: [],
         uncalledTools: [],
+        classification: null,
+        outcome: "completed",
+        cause: null,
         answered: true,
         finishReason: "stop",
         usage: { inputTokens: null, outputTokens: null, totalTokens: null },
@@ -184,6 +187,9 @@ describe("the per-ask record", () => {
         toolCallCount: 1,
         offeredTools: [],
         uncalledTools: [],
+        classification: null,
+        outcome: "completed",
+        cause: null,
         answered: true,
         finishReason: "stop",
         usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
@@ -228,6 +234,9 @@ describe("the per-ask record", () => {
           toolCallCount: 1,
           offeredTools: [],
           uncalledTools: [],
+          classification: null,
+          outcome: "completed",
+          cause: null,
           answered: true,
           finishReason: "stop",
           usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
@@ -320,3 +329,142 @@ describe("the per-ask record", () => {
     expect(records[0]!.droppedCalls).toEqual([]);
   });
 });
+
+// A live turn failed on 2026-08-29 and nothing recorded WHY: the record said
+// `finishReason: "error"`, the message went to the client, and Vercel's logs
+// held nothing at error, warning or fatal level. These are the assertions that
+// make the next occurrence name itself.
+describe("why a turn failed", () => {
+  it("records the cause of an errored turn", () => {
+    const { recorder, records } = recorderWith();
+    recorder.observeStep({ toolCalls: [{ toolName: "read_trip", input: {} }] });
+    recorder.abandon("error", new Error("Provider returned 500"));
+
+    expect(records[0]).toMatchObject({
+      outcome: "error",
+      cause: { name: "Error", message: "Provider returned 500", statusCode: null },
+    });
+    // The trace of what the turn had already done survives the failure — the
+    // whole reason to write a record for a turn that never finished.
+    expect(records[0]!.toolCalls.map((c) => c.name)).toEqual(["read_trip"]);
+  });
+
+  // A 429 and a 500 read identically in a message and demand opposite
+  // responses; KI-83 (the AI quota) is the local example of the first.
+  it("keeps the HTTP status when the provider gave one", () => {
+    const apiError = Object.assign(new Error("Too Many Requests"), {
+      name: "AI_APICallError",
+      statusCode: 429,
+    });
+    const { recorder, records } = recorderWith();
+    recorder.abandon("error", apiError);
+    expect(records[0]!.cause).toEqual({ name: "AI_APICallError", message: "Too Many Requests", statusCode: 429 });
+  });
+
+  // The distinction anyone counting error rates depends on. A user navigating
+  // away is not a failure, and `finishReason` cannot answer this on its own —
+  // it carries the model's word on a turn that completed and ours on one that
+  // did not.
+  it("does not read an abandoned turn as a failure", () => {
+    const { recorder, records } = recorderWith();
+    recorder.abandon("abort");
+    expect(records[0]).toMatchObject({ outcome: "abort", cause: null, finishReason: "abort" });
+  });
+
+  it("reports a completed turn as completed, with no cause", () => {
+    const { recorder, records } = recorderWith();
+    recorder.finish({ finishReason: "stop" });
+    expect(records[0]).toMatchObject({ outcome: "completed", cause: null });
+  });
+
+  // A provider's error text is an external string. It is bounded and stripped
+  // of control characters before it reaches a log line — not because the
+  // current sink could be fooled by one (`JSON.stringify` escapes them) but
+  // because that is a property of today's sink and not of the string.
+  it("flattens and bounds whatever the provider said", () => {
+    const { recorder, records } = recorderWith();
+    recorder.abandon("error", new Error(`upstream said:\n\r\tHTTP/1.1 500 ${"x".repeat(1000)}`));
+
+    const message = records[0]!.cause!.message;
+    expect(message).not.toMatch(/[\u0000-\u001f]/);
+    expect(message.length).toBeLessThanOrEqual(501); // 500 + the ellipsis
+    expect(message).toContain("upstream said: HTTP/1.1 500");
+  });
+
+  // `abandon` is reached from a raw `request.signal` listener that nothing
+  // wraps (see handleAskRequest.ts), so describing the failure must be total —
+  // including for the values a provider can actually throw.
+  it("survives a thrown value that has no message and no string form", () => {
+    const { recorder, records } = recorderWith();
+    const hostile = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("this getter always throws");
+        },
+      },
+    );
+    expect(() => recorder.abandon("error", hostile)).not.toThrow();
+    expect(records[0]!.outcome).toBe("error");
+    expect(records[0]!.cause).not.toBeNull();
+  });
+
+  // Mitchell searched Vercel's error, warning and fatal levels and found
+  // nothing — which is where anyone triaging the next failure will look. The
+  // diagnosis lives on the info record beside the question and the tool trace;
+  // this line is what makes it findable.
+  it("also writes a failed turn at error level, and only a failed one", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      logAskAnalytics(recordWith({ outcome: "abort", cause: null }));
+      expect(error).not.toHaveBeenCalled();
+
+      logAskAnalytics(
+        recordWith({ outcome: "error", cause: { name: "AI_APICallError", message: "boom", statusCode: 503 } }),
+      );
+      expect(error).toHaveBeenCalledTimes(1);
+      const [message, payload] = error.mock.calls[0]!;
+      expect(message).toBe("ai.ask.failed");
+      expect(JSON.parse(payload as string)).toMatchObject({
+        tripId: "t",
+        cause: { name: "AI_APICallError", message: "boom", statusCode: 503 },
+      });
+      // Both lines, every time: the short one is discoverability, the record
+      // is the diagnosis.
+      expect(info).toHaveBeenCalledTimes(2);
+    } finally {
+      info.mockRestore();
+      error.mockRestore();
+    }
+  });
+});
+
+/** A minimal record, for the sink tests that care about one field of it. */
+function recordWith(overrides: Partial<AskAnalyticsRecord>): AskAnalyticsRecord {
+  return {
+    event: "ai.ask",
+    tripId: "t",
+    userId: "u",
+    scope: { kind: "trip" },
+    question: "how does this look?",
+    turn: "opening",
+    simulated: true,
+    model: "simulated/no-op",
+    steps: 1,
+    toolCalls: [],
+    toolCallCount: 0,
+    offeredTools: [],
+    uncalledTools: [],
+    classification: null,
+    answered: false,
+    outcome: "completed",
+    cause: null,
+    finishReason: "stop",
+    usage: { inputTokens: null, outputTokens: null, totalTokens: null },
+    usageByStep: [],
+    droppedCalls: [],
+    latencyMs: 1,
+    ...overrides,
+  };
+}
