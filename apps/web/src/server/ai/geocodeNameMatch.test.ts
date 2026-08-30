@@ -229,3 +229,38 @@ describe("placeNameVerdict — KI-77 mechanisms", () => {
     expect(placeNameVerdict("Tenryū Temple", "Tenryū-ji, Kyoto, Japan", ctx)).toBe("match");
   });
 });
+
+describe("the category-suffix equivalence is one-directional, deliberately", () => {
+  // CodeRabbit, PR #95: `placeNameVerdict("Tenryū Temple", "Tenryuji, …")` is a
+  // mismatch, because `nameTokens("Tenryuji")` is one token and `ji` never
+  // reaches CATEGORY_SYNONYMS. The finding is correct and this pins it.
+  //
+  // NOT fixed, and the reason is reachability rather than difficulty. The only
+  // importer of this module is `apps/web/scripts/geocode-japan-seed.mts`
+  // (verified by grep across the repo, 2026-08-30); nothing in the product
+  // calls it. That script's QUERY side is `trip.ts`'s hand-authored place
+  // names, which spell these venues "Tenryū-ji" and "Ginkaku-ji" — the
+  // direction that already works. For the failing direction to occur, a caller
+  // would have to query the ENGLISH category form and get the separator-free
+  // Japanese spelling back.
+  //
+  // Fixing it means stripping a category suffix off the inside of a candidate
+  // token — a heuristic that necessarily over-accepts at some length ("Fuji" →
+  // "Fu"). KI-77's whole lesson is that over-permissive matching is the
+  // expensive direction to be wrong in, so paying that for a case no caller can
+  // produce is a bad trade today.
+  //
+  // It stops being a bad trade the moment this module is wired into the AI
+  // enrichment path (ADR-022's SearchPlaces grounding, KI-81), because a model
+  // will happily emit "Tenryu Temple". Whoever does that wiring should delete
+  // this test and implement the strip WITH the 21-row must-not-loosen table
+  // above still passing.
+  it("accepts the -ji query against an English-category candidate", () => {
+    expect(placeNameVerdict("Tenryū-ji", "Tenryū Temple, Kyoto, Japan", ["Arashiyama", "Kyoto"])).toBe("match");
+  });
+
+  it("does NOT accept an English-category query against a separator-free candidate", () => {
+    expect(placeNameVerdict("Tenryū Temple", "Tenryuji, Kyoto, Japan", ["Arashiyama", "Kyoto"])).toBe("mismatch");
+  });
+});
+
