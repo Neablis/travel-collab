@@ -124,6 +124,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** KI-52 (four tags not six — the same "recorded design delta" shape), KI-47 (the tags field), `docs/milestones/M18-stop-kind.md`.
 - **First noted:** 2026-08-29 (M18's gate, walking `/demo`).
 
+### KI-87 — `/ask` and `/ai` disagree about a new stop's default `kind`, so the same model behaviour reads as unbooked on one door and booked on the other
+- **Severity:** cleanup (a recorded inconsistency between two AI doors, not a defect on the one that matters today)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`withDefaultKind`, `buildProposal`, `parseApprovedCommands`), `apps/web/src/server/ai/handleAiRequest.ts`, `apps/web/src/server/ai/batchResolver.ts`
+- **The behaviour:** a stop created through `/ask` (the assistant's write tools) defaults to `hold` when the model states no `kind`, so it counts toward the Calendar's `N to book` (KI-86). The same stop created through the older `/ai` command endpoint still defaults to `planned`, and does not count. Two AI doors, two different answers to "did I just create something that needs booking" for the identical model output.
+- **Why it is that way:** `handleAiRequest.ts` calls `resolveBatch` directly and never reaches `writeTools.ts`, so `withDefaultKind` — applied in `buildProposal` and again in `parseApprovedCommands` — never runs on that path. The seam that would fix it in one place, `batchResolver.ts` (`resolveBatch`), is deliberately pinned while M16/M9 is in flight: ADR-022 §4 requires the command path to stay untouched so write-tool work doesn't quietly reshape the endpoint both `/ai` and `/ask` share.
+- **Why it is not urgent:** `/ai` is the older path — the assistant rail no longer calls it. `/ask` is what a user reaches today, and it already carries the fix.
+- **Fix path:** whichever seam is right once the pin lifts, most likely `resolveBatch` itself so both doors agree by construction rather than by two independent copies of a default. `withoutFabricatedCost` (the zero-cost fix, M9) has the same `/ai`/`/ask` split already, for the same reason — worth closing both in the same pass.
+- **Cross-reference:** KI-86 (the `needsBooking` rule a stop's default `kind` feeds), ADR-022 (the pin this is waiting on).
+- **First noted:** 2026-08-29, while implementing M16/M9's create-time `kind` default.
+
 ### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
 - **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
 - **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
