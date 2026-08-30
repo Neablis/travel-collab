@@ -1,3 +1,5 @@
+import { AdmissionRefusal } from "@tc/contracts";
+
 export type AuthMode = "signin" | "signup";
 
 export type AuthCopy = {
@@ -61,11 +63,51 @@ const ERROR_MESSAGES: Record<string, string> = {
     "That email is already here under a different sign-in method. Use the one you signed up with.",
 };
 
+// M11a link 6 — the invite gate's three refusals, kept in their own map and
+// deliberately NOT merged into `ERROR_MESSAGES` above.
+//
+// Two properties come from the separation, and both are the point:
+//
+// 1. **Typed exhaustively.** `Record<AdmissionRefusal, string>` means adding a
+//    member to the contract enum without writing copy for it fails the build,
+//    instead of shipping a screen that silently renders FALLBACK. A
+//    `Record<string, string>` would give that away, which is why the map above
+//    (whose keys are Auth.js's, not ours to enumerate) needs its own
+//    `Object.hasOwn` guard and this one does not.
+// 2. **Parsed, not looked up.** `errorMessage` runs the untrusted `?error=`
+//    value through `AdmissionRefusal.safeParse` before it can index this map,
+//    so no arbitrary string reaches it at all.
+//
+// The two sets stay visually distinguishable too: ours are
+// SCREAMING_SNAKE_CASE from `@tc/contracts`, Auth.js's are PascalCase.
+//
+// On the copy itself: Google has already said yes by the time any of these
+// renders. The account is fine, it simply has no way in yet, and nothing was
+// created for it. Each one names the next action and the affordance to do it
+// with, because this is the front door's failure state — a dead end here is a
+// person who never comes back. The "Create an account" they point at is this
+// screen's own swap CTA (`AUTH_COPY.signin.swapCta`), so the instruction stays
+// true as long as the screen does.
+const ADMISSION_MESSAGES: Record<AdmissionRefusal, string> = {
+  MISSING_INVITE_CODE:
+    "Caesura is invite-only while it is small, so we need something that lets you in. Follow Create an account below and enter your invite code — or, if someone invited you to their trip, open that invite link instead and it admits you on its own.",
+  INVALID_INVITE_CODE:
+    "That invite code is not one of ours. Check it for a typo or a stray space and try again under Create an account — if it still will not take, ask whoever invited you for a fresh one.",
+  SPENT_INVITE_CODE:
+    "That invite code has already been used, and each one works only once. Ask whoever invited you for a new code — or open the trip invite link they sent you, which admits you without a code at all.",
+};
+
 const FALLBACK =
   "Something went wrong signing you in. Try again — if it keeps happening, any trip you were invited to is still safe.";
 
 export function errorMessage(code: string | null): string | null {
   if (!code) return null;
+  // Ours first, and by parsing rather than lookup. `code` is whatever the URL
+  // says, so the schema — not a map's key set — is what decides whether it is
+  // one of our refusals. A random string fails here and falls through to the
+  // Auth.js codes and then FALLBACK; it never indexes `ADMISSION_MESSAGES`.
+  const refusal = AdmissionRefusal.safeParse(code);
+  if (refusal.success) return ADMISSION_MESSAGES[refusal.data];
   // Plain-object lookup: `code` is untrusted (it comes straight off the URL's
   // `?error=` query param), and `ERROR_MESSAGES[code]` on a plain object
   // literal inherits from `Object.prototype` — `code` values like

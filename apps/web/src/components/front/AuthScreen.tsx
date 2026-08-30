@@ -14,6 +14,7 @@ import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { AUTH_COPY, GOOGLE_UNAVAILABLE_MESSAGE, errorMessage, type AuthMode } from "@/components/front/authCopy";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
+import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/pendingAdmission";
 
 // `useSearchParams()` is the only piece of this screen that needs a
 // Suspense boundary during static prerender — isolating it in its own leaf
@@ -64,14 +65,27 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 // `?error=` at all (that round trip is client-side, before Auth.js's error
 // redirect ever fires) — so the button must never be clickable, and the
 // explanation has to come from this prop, not from `errorMessage()`.
+//
+// M11a: `storeAdmissionCode` is the Server Action `signup/page.tsx` hands
+// down, and it is the whole reason the invite-code field can exist on a
+// client component at all. The gate reads its code out of an **httpOnly**
+// `pending_admission` cookie, which `document.cookie` cannot write by
+// definition — so the write has to happen server-side, and it has to have
+// happened *before* `signIn()` navigates away, because the OAuth callback
+// comes back from Google with no memory of this form (the milestone's link
+// 5). Awaiting the action is what orders those two: its `Set-Cookie` is in
+// the jar before the browser leaves. Optional, because `/signin` has no code
+// field and passes nothing.
 export function AuthScreen({
   mode,
   devLoginEnabled,
   googleAvailable,
+  storeAdmissionCode,
 }: {
   mode: AuthMode;
   devLoginEnabled: boolean;
   googleAvailable: boolean;
+  storeAdmissionCode?: (code: string) => Promise<void>;
 }) {
   const copy = AUTH_COPY[mode];
   // Both of the design's Google-presuming strings, suppressed only in the
@@ -92,6 +106,38 @@ export function AuthScreen({
   // calls hardcoded before this fix, so a click that somehow beats the
   // effect still lands somewhere safe rather than on `undefined`.
   const [callbackUrl, setCallbackUrl] = useState("/");
+  // Signup only. Someone on `/signin` either already has a `users` row (the
+  // gate waves them through untouched) or arrived on a trip invite link,
+  // which `proxy.ts` has already banked in the same cookie — neither has a
+  // code to type, and a field asking for one would read as a requirement.
+  const [admissionCode, setAdmissionCode] = useState("");
+  const showAdmissionCode = mode === "signup";
+
+  // Every sign-in dispatch on this screen goes through here, including dev
+  // login: the build plan's decision 3 routes dev login through the same
+  // admission path rather than exempting it, so it needs the same cookie.
+  async function startSignIn(dispatch: () => void) {
+    // `normalizePendingAdmission` returning null for blank is load-bearing,
+    // not defensive tidiness: writing an empty cookie would still be a write,
+    // and it would overwrite the trip-invite token `proxy.ts` stored for
+    // someone who opened `/invite/<token>` and then walked to `/signup`.
+    const code = showAdmissionCode ? normalizePendingAdmission(admissionCode) : null;
+    if (code && storeAdmissionCode) {
+      try {
+        await storeAdmissionCode(code);
+      } catch {
+        // Sign in anyway. The two outcomes of a failed cookie write are a
+        // button that visibly does nothing, or a refusal on the designed
+        // `?error=` screen that says to try the code again — and this screen
+        // has no surface for the first one (its banner is `?error=`-driven,
+        // and there is no handoff copy for "your browser and our server
+        // disagreed"). The refusal names a slightly wrong cause but it is a
+        // designed screen with a next action, which is the whole point of
+        // link 6; a dead button is the blank state the gate says can't happen.
+      }
+    }
+    dispatch();
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
@@ -120,6 +166,26 @@ export function AuthScreen({
           </Suspense>
 
           <Card raised className="flex flex-col gap-3.5">
+            {showAdmissionCode && (
+              // Above the Google button, because it has to be filled in before
+              // the button is pressed — pressing it is what leaves the site.
+              // Label only, no explanatory line: `AUTH_COPY` is verbatim from
+              // the design handoff and has no invite sentence in it, and this
+              // file does not get to invent product copy (authCopy.ts:13-16).
+              // Flagged for Mitchell — the handoff needs a line here.
+              <FormField id="admission-code" label="Invite code">
+                <Input
+                  id="admission-code"
+                  name="inviteCode"
+                  value={admissionCode}
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={PENDING_ADMISSION_MAX_LENGTH}
+                  onChange={(event) => setAdmissionCode(event.target.value)}
+                />
+              </FormField>
+            )}
+
             <Button
               type="button"
               variant="secondary"
@@ -127,7 +193,7 @@ export function AuthScreen({
               disabled={!googleAvailable}
               onClick={() => {
                 if (!googleAvailable) return;
-                void signIn("google", { callbackUrl });
+                void startSignIn(() => void signIn("google", { callbackUrl }));
               }}
             >
               Continue with Google
@@ -142,7 +208,7 @@ export function AuthScreen({
                 className="flex flex-col gap-2 border-t border-hairline pt-3.5"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void signIn("dev-login", { username, callbackUrl });
+                  void startSignIn(() => void signIn("dev-login", { username, callbackUrl }));
                 }}
               >
                 <FormField id="dev-login-username" label="Username" hint="Preview and local only">

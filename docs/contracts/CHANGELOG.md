@@ -13,6 +13,48 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-30 — `AdmissionRefusal`: the invite gate's refusal codes become a closed set
+
+- Added: `AdmissionRefusal` in `packages/contracts/src/admission.ts`, exported
+  from the package index — `z.enum(["MISSING_INVITE_CODE",
+  "INVALID_INVITE_CODE", "SPENT_INVITE_CODE"])` plus the inferred type
+- Why: M11a's gate decides the refusal in `server/admission.ts`, `recordSignIn`
+  returns it as `/signin?error=<code>`, and the sign-in screen reads it back
+  off the query param — so the value makes a round trip through a URL the
+  browser controls and is untrusted by the time anything renders from it.
+  Mitchell's call, 2026-08-30: *"make sure every error type is a hard coded
+  case static string that is typed ... so any random string cant pass"*.
+  The enum buys two things a bare string could not. `errorMessage()` in
+  `apps/web/src/components/front/authCopy.ts` now `safeParse`s the param
+  instead of indexing a map, so an arbitrary `?error=` value cannot reach the
+  copy at all; and the copy map is declared `Record<AdmissionRefusal, string>`,
+  so adding a fourth refusal without writing copy for it is a typecheck
+  failure rather than a production screen that silently shows the generic
+  fallback
+- Supersedes the prose spelling in `docs/plans/2026-08-30-M11a-M11b.md`
+  ("the shared contract between the parallel units"), which named these
+  `InviteRequired` / `InviteInvalid` / `InviteSpent`. Mapping, in that order:
+  `MISSING_INVITE_CODE`, `INVALID_INVITE_CODE`, `SPENT_INVITE_CODE`. No
+  PascalCase spelling was ever released — the plan is write-once scaffolding
+  and the server side is being built against the new names in the same
+  milestone
+- Auth.js's own error codes (`AccessDenied`, `Configuration`, `Verification`,
+  `OAuthAccountNotLinked`) travel on the same `?error=` param and are
+  deliberately NOT in this enum: they are Auth.js's set, not ours to
+  enumerate, and they keep their PascalCase spelling in `ERROR_MESSAGES` and
+  their existing `Object.hasOwn` guard. The two sets stay distinguishable at a
+  glance
+- Consumers updated: `apps/web` — `components/front/authCopy.ts`
+  (`ADMISSION_MESSAGES` + the parse in `errorMessage`) and its tests. The
+  server-side producer (`server/admission.ts`, `server/users.ts`) is M11a's
+  parallel unit and imports the same enum; if this entry lands before that
+  unit merges, the enum has one consumer, not zero, and nothing is left
+  hand-written on either side
+- Contract tests: `packages/contracts/test/admission.test.ts` — the member
+  list, the three valid codes, and a refusal set that includes casing
+  variants, a trailing space, regex bait and the prototype-pollution keys
+- Breaking? no — new schema, no existing shape changed
+
 ## 2026-08-28 — compose the duplicated `ActivityAdded`/`ActivityUpdated` payload block
 
 - Changed (source only): the eight-field block
