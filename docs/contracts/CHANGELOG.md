@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-08-30 — `AdmissionRefusal`, the invite gate's refusal vocabulary
+
+- Added: `AdmissionRefusal` — a `z.enum` of exactly
+  `MISSING_INVITE_CODE`, `INVALID_INVITE_CODE`, `SPENT_INVITE_CODE` — in a new
+  `packages/contracts/src/admission.ts`, re-exported from `src/index.ts`
+- Why: M11a's invite gate (`docs/milestones/M11a-invite-gate.md`, link 6) has
+  three distinct refusals and each is a different sentence on the `/signin`
+  screen. Auth.js collapses every falsy `signIn` return into one `AccessDenied`
+  (`@auth/core@0.41.3` `lib/actions/callback/index.js:393-409`), so the reason
+  can only travel as a returned path — `/signin?error=<code>` — which means the
+  code crosses the UI/server wall through a URL query parameter. A **closed**
+  enum is the point: an arbitrary `?error=` string cannot pose as a refusal this
+  app produced, and the compiler enforces the set rather than a comment asking
+  for it. Invariant 5 puts a cross-boundary type here, inferred once, never
+  hand-written on both sides
+- Consumers updated: `apps/web/src/server/admission.ts` (produces it —
+  `refusalRedirect`) and `recordSignIn`, which returns the path; the front
+  door's copy map consumes it (M11a Unit B, same milestone). Neither side
+  spells a member as a string literal — both go through `AdmissionRefusal.enum`
+- Contract test: `packages/contracts/test/admission.test.ts` — the enum accepts
+  exactly its three members and rejects an arbitrary string, a non-string, and a
+  near miss in the wrong case
+- Breaking? no. Nothing existed to break: this is a new type with no prior wire
+  format, no schema was edited, and no event, command or DTO changed shape. No
+  migration
+
 ## 2026-08-28 — compose the duplicated `ActivityAdded`/`ActivityUpdated` payload block
 
 - Changed (source only): the eight-field block

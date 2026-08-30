@@ -214,6 +214,40 @@ export const savedDays = pgTable(
   (t) => [index("saved_days_owner").on(t.ownerId)],
 );
 
+// Single-use admission codes (M11a link 4). The invite gate's third way
+// through: a code minted by hand, handed to one person, and burned when they
+// sign in. That is what makes this an invite system rather than a shared
+// password — a leaked code admits one account, and the row records who came in
+// on whose invitation.
+//
+// `code` is the primary key, not a surrogate id with a unique index. The only
+// query on the redemption path is "claim the row for exactly this string", and
+// making the string itself the key is what makes the conditional
+// `UPDATE ... WHERE code = ? AND redeemed_by IS NULL RETURNING` in
+// `server/admission.ts` a single indexed statement with nothing to race
+// against — the same construction `acceptInvite` already uses on
+// `trip_invites.token`.
+//
+// **No secondary index, deliberately.** The obvious candidates would serve
+// "which codes did I issue" (`created_by`) and "who did I let in"
+// (`redeemed_by`), and neither has a caller: invite-code administration is
+// explicitly out of M11a's scope (codes are minted by hand), so both would
+// index a query nobody makes, on a table with one row per invited person. Add
+// one when the surface that reads it exists.
+export const inviteCodes = pgTable("invite_codes", {
+  code: text("code").primaryKey(),
+  // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
+  // (ADR-025). Today it is whoever ran the INSERT by hand.
+  createdBy: text("created_by").notNull(),
+  // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  // Null until redeemed. This column IS the single-use guarantee: the claim is
+  // conditional on it still being null, so two concurrent sign-ins with the
+  // same code produce exactly one winner without a transaction or a lock.
+  redeemedBy: text("redeemed_by"),
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true, mode: "date" }),
+});
+
 // Vendor-spend rate limiting (security review 2026-08-28, H1/L4). Not part of
 // any module's domain data — it is infrastructure, disposable in the same sense
 // projections are: dropping every row costs one window of over-permissiveness
