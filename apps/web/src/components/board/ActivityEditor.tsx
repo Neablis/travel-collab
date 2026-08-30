@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ActivityView, Anchor, Location, Money, TimeWindow } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, ActivityView, Anchor, Location, Money, TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import {
   durationMinutes,
   type DurationLabel,
 } from "./activityDuration";
+import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
+import { TAG_LABEL, TAG_ORDER, toggleTag } from "./activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
 
@@ -30,6 +32,8 @@ export type ActivityFormValue = {
   location: Location | null;
   notes: string | null;
   anchors: Anchor[];
+  kind: ActivityKind;
+  tags: ActivityTag[];
   cost: Money | null;
 };
 
@@ -90,6 +94,16 @@ export function ActivityEditor({
   // activity already carries so existing anchors aren't silently dropped.
   const anchors: Anchor[] = initial?.anchors ?? [];
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  // A stop being edited starts wherever it already sits. One being CREATED
+  // starts at `hold`, not the contract's `planned` zero value: a new stop is
+  // more likely to need booking than not (Mitchell, 2026-08-29) — see
+  // ActivityEditorSheet's `createInitial` for the same call on the prefilled
+  // path. This `??` only fires for `initial === null` — the bare "Add stop"
+  // with no prefill; ActivityEditorSheet already supplies "hold" whenever it
+  // builds an initial value at all, and an edit's `initial` carries the
+  // activity's own real kind.
+  const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? (mode === "create" ? "hold" : "planned"));
+  const [tags, setTags] = useState<ActivityTag[]>(initial?.tags ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
@@ -148,6 +162,10 @@ export function ActivityEditor({
       location,
       notes: notes.trim() !== "" ? notes.trim() : null,
       anchors,
+      kind,
+      // Always the complete set: `UpdateActivity.tags` is a whole-array
+      // replace, not a delta (packages/contracts/src/activity.ts).
+      tags,
       cost,
     });
   }
@@ -272,6 +290,21 @@ export function ActivityEditor({
         )
       ) : null}
 
+      {/* The design has no kind control — its prototype infers one from seed
+          prose, which is the parse M18 exists to disqualify. Without a picker
+          every kind surface (the card badge, the Calendar's split and its
+          `N to book`, the home hero's tile) renders on seeded trips only and
+          stays permanently empty on a trip a user creates. */}
+      <FormField id="activity-kind" label="Kind" description="What this stop is, and how firm. It shows as the badge on the card.">
+        <NativeSelect id="activity-kind" value={kind} onChange={(e) => setKind(e.target.value as ActivityKind)}>
+          {KIND_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {KIND_LABEL[option]}
+            </option>
+          ))}
+        </NativeSelect>
+      </FormField>
+
       <FormField
         id="activity-cost"
         label="Cost"
@@ -279,6 +312,36 @@ export function ActivityEditor({
       >
         <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
       </FormField>
+
+      {/* Four toggles, never the handoff's six (KI-52). The design pairs each
+          chip with the "power" it grants — "Pins where you sleep that night",
+          "the assistant keeps asking until there is a booking date". None of
+          those powers exists yet (they are M18b and later), so the copy that
+          promises them is left out rather than shipped ahead of the
+          behaviour. */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between gap-2.5">
+          <Text variant="muted">Tags</Text>
+          <Text variant="muted">Pick as many as fit</Text>
+        </div>
+        <div role="group" aria-label="Tags" className="flex flex-wrap gap-1.5">
+          {TAG_ORDER.map((tag) => {
+            const on = tags.includes(tag);
+            return (
+              <Button
+                key={tag}
+                variant={on ? "primary" : "secondary"}
+                size="sm"
+                aria-pressed={on}
+                className="rounded-full px-3"
+                onClick={() => setTags((current) => toggleTag(current, tag))}
+              >
+                {TAG_LABEL[tag]}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <Text variant="muted">Who is in</Text>

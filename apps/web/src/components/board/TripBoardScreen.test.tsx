@@ -14,18 +14,58 @@ import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/
 import { makeTripHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
-// The Assistant rail's real Ask box calls composeAiPlan directly (M10
-// redesign-feedback follow-up) — mocked the same way ComposePanel.test.tsx
-// mocks it, rather than adding a real /api/trips/:id/ai MSW handler this
-// file otherwise has no use for.
-const composeAiPlanMock = vi.fn();
+// The Assistant rail holds a real streaming conversation against
+// /api/trips/:id/ask (M16 Wave 2). Mocked at the client seam rather than with
+// an MSW handler this file otherwise has no use for — an SSE handler would
+// only re-test apiClient.test.ts's own parser, and what this file is for is
+// the thread, the scope and the refusals.
+type AskArgs = Parameters<typeof import("@/lib/apiClient").askAssistant>;
+const askAssistantMock = vi.fn();
+const applyProposalMock = vi.fn();
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
-    composeAiPlan: (...args: unknown[]) => composeAiPlanMock(...args),
+    askAssistant: (...args: unknown[]) => askAssistantMock(...args),
+    applyAssistantProposal: (...args: unknown[]) => applyProposalMock(...args),
   };
 });
+
+/**
+ * An answer that streams `text` in one delta, after one tool call.
+ *
+ * The `meta` event goes first because that is where it goes on the wire — the
+ * server sets a response header, which `askAssistant` reads before it touches
+ * the body (Ruling B). `simulated` defaults to false so most tests say nothing
+ * about it.
+ */
+function answers(text: string, toolName = "read_trip", input: unknown = {}, simulated = false) {
+  return async (...args: AskArgs) => {
+    const onEvent = args[3]!;
+    onEvent({ type: "meta", simulated });
+    onEvent({ type: "tool", toolCallId: "t1", toolName, input });
+    onEvent({ type: "text", delta: text });
+    return { ok: true as const, value: { text } };
+  };
+}
+
+/** The same, plus the proposal the turn's final chunk carried. */
+function proposes(text: string, proposal: import("@/lib/apiClient").AssistantProposal) {
+  return async (...args: AskArgs) => {
+    const onEvent = args[3]!;
+    onEvent({ type: "meta", simulated: true });
+    onEvent({ type: "tool", toolCallId: "t1", toolName: "AddActivity", input: { title: "Coffee" } });
+    onEvent({ type: "text", delta: text });
+    onEvent({ type: "proposal", proposal });
+    return { ok: true as const, value: { text } };
+  };
+}
+
+/** The scope of the nth (0-based) ask, and the thread it carried. */
+function askCall(n: number) {
+  const [, messages, scope] = askAssistantMock.mock.calls[n] as AskArgs;
+  return { messages, scope };
+}
 
 // The Map lens's own viewer gate — no double-click-to-create — is
 // MapLens.test.tsx's subject. What only this file can state is that the screen
@@ -96,7 +136,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   search = new URLSearchParams("");
   replaceSpy.mockClear();
-  composeAiPlanMock.mockReset();
+  askAssistantMock.mockReset();
+  applyProposalMock.mockReset();
   mapLensProps.mockClear();
   setViewportMatches({ "(min-width: 1180px)": true });
 });
@@ -494,71 +535,459 @@ describe("TripBoardScreen", () => {
     expect(screen.queryByLabelText(/ask ai to plan/i)).toBeNull();
   });
 
-  it("the Assistant rail's Ask box submits a real composeAiPlan call and reconciles the board", async () => {
+  it("the Ask box holds a real conversation: the question, the tool call and the streamed answer all land in the transcript", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    composeAiPlanMock.mockResolvedValue({
-      ok: true,
-      value: {
-        detail: tripDetailFixture({
-          tripId: fixture.tripId,
-          days: [{ dayId: "new-day", activityIds: [], date: null, costSubtotal: 0 }],
-        }),
-        history: historyFixture(fixture.tripId),
-        message: "Added a day.",
-        simulated: false,
-      },
-    });
+    askAssistantMock.mockImplementation(answers("Rome 2027 runs to 0 days.", "read_trip", {}));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.queryAllByTestId("day-column")).toHaveLength(0);
 
     // The rail is closed until asked for now, so open it before reaching for
     // anything inside it.
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Add a day" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
-    expect(composeAiPlanMock).toHaveBeenCalledWith(fixture.tripId, "Add a day", "board");
+    const log = await screen.findByRole("log", { name: "Conversation" });
+    await waitFor(() => expect(log.textContent).toContain("Rome 2027 runs to 0 days."));
+    expect(log.textContent).toContain("How is it looking?");
+    // Visible, and quiet — a sentence, not the tool's JSON output.
+    expect(log.textContent).toContain("Read the trip");
+    expect(log.textContent).not.toContain("{");
+  });
+
+  // Ruling R1: conversation state is client-held, so turn 2 is the same POST
+  // with a longer array. Without this the follow-up "what about the next day?"
+  // has nothing to refine and the assistant answers a question nobody asked.
+  it("accumulates the thread across turns and posts the whole of it", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Five stops."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i);
+    fireEvent.change(box, { target: { value: "What's planned?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy());
+
+    askAssistantMock.mockImplementation(answers("Four stops."));
+    fireEvent.change(box, { target: { value: "What about the next day?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+
+    expect(askCall(0).messages.map((m) => [m.role, m.parts[0]!.text])).toEqual([["user", "What's planned?"]]);
+    expect(askCall(1).messages.map((m) => [m.role, m.parts[0]!.text])).toEqual([
+      ["user", "What's planned?"],
+      ["assistant", "Five stops."],
+      ["user", "What about the next day?"],
+    ]);
+    // Every message carries a distinct non-empty id: the endpoint requires one
+    // and `validateUIMessages` is the thing that rejects a thread without.
+    const ids = askCall(1).messages.map((m) => m.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids.every((id) => id.length > 0)).toBe(true);
+  });
+
+  it("New conversation empties the thread and takes the transcript with it", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Five stops."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText("Five stops.")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Fresh start" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["Fresh start"]);
+  });
+
+  // The scope the server is told and the scope the rail claims are the same
+  // value. A rail that says "Looking at Day 2" while asking about the whole
+  // trip is the bug this is written against.
+  it("sends the focused day as the scope, 0-based, and says so in the same words", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
+    // The composer says the same thing the context line does — it used to say
+    // "this day" here regardless (final branch review, finding 3).
+    expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "trip" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(screen.getByText("Looking at Day 2")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Ask about this day…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And here?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).scope).toEqual({ kind: "day", dayIndex: 1 });
+  });
+
+  // Derived, not canned (Ruling R5). suggestedQuestions.ts owns the rules;
+  // what only this file can state is that the rail is actually re-fed them
+  // when the focus moves.
+  it("re-derives the suggested questions when the focused day changes, and asking one starts the conversation", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const suggestions = () =>
+      within(screen.getByRole("list", { name: "Suggested questions" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    expect(suggestions()).toContain("How is the trip looking?");
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(suggestions()).toEqual(["Day 2 is empty — what could I do with it?"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 2 is empty — what could I do with it?" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).messages[0]!.parts[0]!.text).toBe("Day 2 is empty — what could I do with it?");
+  });
+
+  // THE reproduction for the stale-focus bug. `focusedDay` is a bare index and
+  // nothing resets it when its day is removed, so before the clamp the rail
+  // said "Looking at Day 2" for a day that no longer existed and every ask
+  // came back `this trip has 1 days, so day 2 is out of range` — and with the
+  // chips' toggle also gone, there was no way back short of a reload.
+  it("stops scoping to a focused day once that day is deleted", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(screen.getByText("Looking at Day 2")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Remove Day 2/ }));
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
+
+    // All three consumers agree that a stale index is no focus at all.
+    expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
+    expect(
+      within(screen.getByRole("list", { name: "Suggested questions" })).getAllByRole("button").map((b) => b.textContent),
+    ).toContain("How is the trip looking?");
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "trip" });
+  });
+
+  // Half of M16's gate is "no day selected, same question", so trip scope has
+  // to be reachable from the UI rather than only on a fresh page load.
+  it("clicking the focused day chip again returns the assistant to trip scope", async () => {
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Here?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "day", dayIndex: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
+    expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And now?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).scope).toEqual({ kind: "trip" });
+  });
+
+  // Finding 2 of the final branch review. `MAX_ASK_MESSAGES` was a server 400
+  // with no counterpart here: at message 41 every turn failed with "a thread
+  // may hold at most 40 messages", the question rolled back into a composer
+  // that still looked ready, and nothing said New conversation was the way out.
+  // Twenty exchanges is reachable in one "plan a trip start to finish" session.
+  //
+  // This drives the whole thread rather than poking a number, because the thing
+  // that can drift is the ARITHMETIC — the client's count has to land on exactly
+  // the turn the server would refuse.
+  it("stops at the thread's ceiling instead of letting the server refuse the turn", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Two days."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+
+    const ask = async (n: number) => {
+      fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+        target: { value: `question ${n}` },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
+    };
+
+    // 40 messages is 20 exchanges, and the 20th ask is the last that fits: it
+    // posts 19 answered exchanges plus the new question, 39 messages. A 21st
+    // would post 41 and be refused. A posted thread is always odd, so 39 is the
+    // real ceiling here rather than the client stopping short of the server's.
+    for (let n = 1; n <= 20; n++) await ask(n);
+    expect(askCall(19).messages).toHaveLength(39);
+    await waitFor(() => expect(screen.getByText(/reached its limit of 40 messages/)).toBeTruthy());
+
+    // The composer is gone, so there is no 21st ask to make…
+    expect(screen.queryByPlaceholderText(/ask about this (?:day|trip)/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    // …and nothing was trimmed out from under the user: the first question is
+    // still on screen.
+    expect(screen.getByText("question 1")).toBeTruthy();
+
+    // The way out is a control, and it works.
+    fireEvent.click(screen.getByRole("button", { name: "Start a new conversation" }));
+    await waitFor(() => expect(screen.queryByText("question 1")).toBeNull());
+    expect(screen.getByPlaceholderText(/ask about this (?:day|trip)/i)).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(20);
+  });
+
+  it("warns before the thread is full, not only once it is", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Two days."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+
+    for (let n = 1; n <= 17; n++) {
+      fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+        target: { value: `question ${n}` },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
+    }
+    // 34 messages posted-so-far leaves room for three more questions, which is
+    // where the warning starts — with room to finish the thought you are in.
+    await waitFor(() => expect(screen.getByText("Room for 3 more questions in this conversation.")).toBeTruthy());
+    expect(screen.getByPlaceholderText(/ask about this (?:day|trip)/i)).toBeTruthy();
   });
 
   it("clears a stale Simulated badge when a follow-up ask fails", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    composeAiPlanMock.mockResolvedValueOnce({
-      ok: true,
-      value: {
-        detail: tripDetailFixture({ tripId: fixture.tripId }),
-        history: historyFixture(fixture.tripId),
-        message: "Did a thing.",
-        simulated: true,
-      },
-    });
+    askAssistantMock.mockImplementationOnce(answers("Rome 2027 runs to 0 days.", "read_trip", {}, true));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    // The rail is closed until asked for now, so open it before reaching for
-    // anything inside it.
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "First ask" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "First ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
 
     // A second ask that fails must not leave the previous answer's Simulated
     // badge on screen next to the new error — that would misattribute a
     // request that never produced a new answer at all.
-    composeAiPlanMock.mockResolvedValueOnce({
+    askAssistantMock.mockResolvedValueOnce({
       ok: false,
-      error: { status: 500, message: "The model is unavailable right now." },
+      error: { status: 503, message: "The model is unavailable right now." },
     });
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "Second ask" } });
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Second ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
     expect(screen.queryByText("Simulated")).toBeNull();
+  });
+
+  // A turn that produced nothing did not happen. Leaving the question in the
+  // thread would post it again on the next turn, and the model would answer a
+  // question the user watched fail.
+  it("rolls the question back out of the thread when the turn produced no answer at all", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "this trip has 2 days, so day 9 is out of range" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Day nine?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    // The 400's own words, verbatim: they are the actionable part.
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("this trip has 2 days, so day 9 is out of range"),
+    );
+    expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
+
+    askAssistantMock.mockImplementationOnce(answers("Two days."));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How many days?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);
+  });
+
+  // A half-written answer stays: the words are on screen and deleting them
+  // under the user is the worse lie. The failure arrived INSIDE a 200 stream,
+  // which is the channel a `res.ok` check cannot see.
+  it("keeps a partial answer when the stream fails half way, and still says what went wrong", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
+      args[3]!({ type: "text", delta: "Rome 2027 runs to " });
+      args[3]!({ type: "error", message: "model call failed: upstream 500" });
+      return { ok: false as const, error: { status: 200, message: "model call failed: upstream 500", code: "ask-stream-error" } };
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("model call failed: upstream 500"),
+    );
+    expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("Rome 2027 runs to ");
+  });
+
+  // Branching on the CODE, not the prose — the one 403 a legitimate signed-in
+  // user can provoke (KI-79).
+  it("says the assistant is unavailable on the demo trip, from the code rather than the message", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 403, message: "some other wording entirely", code: "demo-trip-unsupported" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Anything" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("The assistant isn't available on the demo trip."),
+    );
+  });
+
+  // A partial answer with no badge claims a model wrote it. The verdict comes
+  // from the response header, so it is known before any prose arrives — Task
+  // 5's prose sniff could only decide this from the answer's LAST sentence,
+  // which a half-written answer never reaches.
+  it("badges a simulated answer that died half way through", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
+      // The header arrives before the body, so the badge is decided before a
+      // single word is — which is the whole reason it is a header.
+      args[3]!({ type: "meta", simulated: true });
+      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
+      args[3]!({ type: "error", message: "model call failed: upstream 500" });
+      return {
+        ok: false as const,
+        error: { status: 200, message: "model call failed: upstream 500", code: "ask-stream-error" },
+      };
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByText("Simulated")).toBeTruthy();
+  });
+
+  // The same promise the two synchronous refusals keep, kept for a refusal
+  // that arrives a moment later: being told your message is too long is not
+  // actionable if the message is gone.
+  it("puts the question back in the composer when its turn is rolled back", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "your message must be 4000 characters or fewer" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "a very long question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("your message must be 4000 characters or fewer"),
+    );
+    await waitFor(() => expect(box.value).toBe("a very long question"));
+  });
+
+  // Navigating away mid-answer used to leave the read running and its
+  // setState firing into a tree that is gone.
+  it("hangs up on a turn that is still streaming when the screen unmounts", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    let signal: AbortSignal | undefined;
+    askAssistantMock.mockImplementation(
+      (...args: AskArgs) =>
+        new Promise(() => {
+          signal = args[4];
+        }),
+    );
+    const view = renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Slow one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(signal!.aborted).toBe(false);
+
+    view.unmount();
+    expect(signal!.aborted).toBe(true);
   });
 
   it("the Assistant rail can be hidden and shown again, reclaiming the reserved layout width", async () => {
@@ -717,7 +1146,7 @@ describe("assistant ask — unsent work blocks the ask", () => {
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -727,7 +1156,7 @@ describe("assistant ask — unsent work blocks the ask", () => {
         "Finish saving your changes before asking the assistant.",
       ),
     );
-    expect(composeAiPlanMock).not.toHaveBeenCalled();
+    expect(askAssistantMock).not.toHaveBeenCalled();
     // The optimistic day is still on the board — the whole point of refusing.
     expect(screen.getAllByTestId("day-column")).toHaveLength(1);
   });
@@ -771,11 +1200,12 @@ describe("TripBoardScreen — a viewer's board", () => {
     expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
   });
 
-  // The AI route is editor-gated server-side, so a viewer's ask would have the
-  // model plan a batch the server then refuses wholesale. Refused here with a
-  // reason, the same way the `pending` gate above reports through the rail's
-  // own error surface — a control that silently does nothing is the failure
-  // mode TripProvider's runDispatch comment was written about.
+  // /ask itself admits a viewer and writes nothing, so this refusal is a
+  // product call about who the assistant is offered to rather than a guard
+  // against a batch the server would refuse (which is what it was on the
+  // command path). Kept, with its copy, and reported through the rail's own
+  // error surface — a control that silently does nothing is the failure mode
+  // TripProvider's runDispatch comment was written about.
   it("refuses the assistant ask and says why", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
@@ -783,7 +1213,7 @@ describe("TripBoardScreen — a viewer's board", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), {
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -791,7 +1221,241 @@ describe("TripBoardScreen — a viewer's board", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
     );
-    expect(composeAiPlanMock).not.toHaveBeenCalled();
+    expect(askAssistantMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Propose -> review -> approve (M9)
+// ---------------------------------------------------------------------------
+//
+// The claim this whole block exists to hold: an assistant turn changes nothing
+// until a human clicks Approve, and rejecting one leaves the trip exactly as
+// it was.
+describe("TripBoardScreen — approving an assistant proposal", () => {
+  const NEW_ACTIVITY_ID = "77777777-7777-4777-8777-777777777777";
+
+  function proposalFor(tripId: string, dayId: string) {
+    return {
+      proposalId: "p1",
+      changes: [{ type: "AddActivity", text: "Add “Coffee at Fuglen” to day 1" }],
+      commands: [
+        {
+          type: "AddActivity" as const,
+          tripId,
+          activityId: NEW_ACTIVITY_ID,
+          dayId,
+          title: "Coffee at Fuglen",
+        },
+      ],
+      skipped: [],
+    };
+  }
+
+  /** The same trip with the proposed stop really on it — what the server answers with. */
+  function afterApproval(fixture: ReturnType<typeof costedTripDetailFixture>) {
+    const day = fixture.days[0]!;
+    return {
+      ...fixture,
+      days: [{ ...day, activityIds: [...day.activityIds, NEW_ACTIVITY_ID] }],
+      activities: {
+        ...fixture.activities,
+        [NEW_ACTIVITY_ID]: {
+          activityId: NEW_ACTIVITY_ID,
+          title: "Coffee at Fuglen",
+          timeWindow: null,
+          location: null,
+          notes: null,
+          anchors: [],
+          kind: "planned" as const,
+          tags: [],
+          cost: null,
+        },
+      },
+    };
+  }
+
+  async function askForAChange(fixture: ReturnType<typeof costedTripDetailFixture>) {
+    askAssistantMock.mockImplementation(
+      proposes("I've drafted 1 change. Nothing is applied yet.", proposalFor(fixture.tripId, fixture.days[0]!.dayId)),
+    );
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+      target: { value: "add a coffee stop" },
+    });
+    // Deliberately the BUTTON, not Enter: the Ask control has been covered by
+    // the fixed rack before, and every keyboard-driven test missed it.
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    return screen.findByLabelText("Proposed change");
+  }
+
+  it("renders the proposal, applies NOTHING, and offers the two buttons", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+
+    expect(card.textContent).toContain("Add “Coffee at Fuglen” to day 1");
+    expect(card.textContent).toContain("Not applied yet");
+    expect(applyProposalMock).not.toHaveBeenCalled();
+    // The board is untouched while it sits there.
+    expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
+    expect(within(card).getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(within(card).getByRole("button", { name: "Reject" })).toBeTruthy();
+  });
+
+  it("approving commits ONE batch and the stop really lands on the board", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+
+    applyProposalMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: afterApproval(fixture),
+        history: historyFixture(fixture.tripId),
+        message: "Done — added “Coffee at Fuglen” to day 1.",
+        simulated: false,
+      },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+
+    // The board, not just the card: this is the assertion Ruling A is about.
+    await waitFor(() => expect(screen.getByText("Coffee at Fuglen")).toBeTruthy());
+    expect(applyProposalMock).toHaveBeenCalledTimes(1);
+    const [tripIdArg, proposalArg] = applyProposalMock.mock.calls[0] as [string, { commands: unknown[] }];
+    expect(tripIdArg).toBe(fixture.tripId);
+    // ONE batch for the whole proposal (ADR-013) — not one call per change.
+    expect(proposalArg.commands).toHaveLength(1);
+    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+      "Done — added “Coffee at Fuglen” to day 1.",
+    );
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  // The requirement in its own test: rejection is not an operation.
+  it("rejecting sends nothing and leaves the trip byte-identical", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+    const boardBefore = screen.getByTestId("day-column").textContent;
+
+    fireEvent.click(within(card).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Rejected"));
+    expect(applyProposalMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
+    expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("a refused batch changes nothing and says why, and Approve stays available", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const card = await askForAChange(fixture);
+    const boardBefore = screen.getByTestId("day-column").textContent;
+
+    applyProposalMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 409, message: "someone else changed this trip", code: "concurrency-conflict" },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Proposed change").textContent).toContain("someone else changed this trip"),
+    );
+    // Atomic: nothing applied, so retrying is the honest affordance.
+    expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+  });
+
+  // IMPORTANT 2 (review round 1). The refusal below covers a `pending` queue
+  // that exists BEFORE Approve is pressed. This covers the window that opens
+  // after it: `approveProposal` read `pending` from a render closure, then
+  // awaited a whole AI batch round-trip, then called `applyOutcome` — which
+  // clears `pending` unconditionally. An edit queued during that round-trip was
+  // silently discarded from the UI and the server both, which is the exact
+  // failure the rail's "Finish saving your changes" refusal exists to prevent
+  // (docs/reviews/2026-08-28-project-review.md §1.4).
+  it("does not discard an edit queued WHILE the approval is in flight", async () => {
+    const fixture = costedTripDetailFixture();
+    let releaseApply: (value: unknown) => void = () => {};
+    const applyLanded = new Promise((resolve) => {
+      releaseApply = resolve;
+    });
+    server.use(
+      // Never resolves, so the day the user adds mid-approval stays queued for
+      // the whole test — the strongest form of "still pending".
+      http.post("*/api/trips/:tripId/commands", () => new Promise(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    const card = await askForAChange(fixture);
+
+    // Approve, and hold the response open.
+    applyProposalMock.mockImplementationOnce(async () => {
+      await applyLanded;
+      return {
+        ok: true,
+        value: {
+          detail: afterApproval(fixture),
+          history: historyFixture(fixture.tripId),
+          message: "Done — added “Coffee at Fuglen” to day 1.",
+          simulated: false,
+        },
+      };
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(applyProposalMock).toHaveBeenCalledTimes(1));
+
+    // …and queue an edit while it is in the air.
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+    await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(2));
+
+    releaseApply(undefined);
+
+    // Wait on the state BOTH branches reach, so the two assertions below are
+    // each load-bearing rather than one of them short-circuiting the other.
+    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Applied"));
+
+    // The queued day is STILL THERE. Before the fix, `applyOutcome` took the
+    // server's outcome whole and this column vanished — the data loss.
+    expect(screen.getAllByTestId("day-column")).toHaveLength(2);
+    // …and the user is told why the approved stop is not on the board yet,
+    // rather than watching a receipt describe something they cannot see.
+    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+      "It will appear on your board once your other unsaved changes have saved.",
+    );
+  });
+
+  // `applyOutcome`'s stated precondition: apply an outcome only when `pending`
+  // is empty, or the queued units are discarded from the UI and the server
+  // both. The ask is already refused while pending; approving is a SECOND
+  // moment, later, when a drag may have queued something since.
+  it("blocks approving while unsent edits are still queued, and says why", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(
+      // FIRST, so it wins over makeTripHandlers' own POST /commands: MSW takes
+      // the first matching handler, and a command that actually resolves
+      // closes the `pending` window this test is about in a millisecond.
+      http.post("*/api/trips/:tripId/commands", () => new Promise(() => {})),
+      ...makeTripHandlers(fixture),
+    );
+    await askForAChange(fixture);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+
+    // Re-queried, not captured: the optimistic add re-renders the whole board.
+    // Both assertions inside the same `waitFor`, so a transient `pending`
+    // window cannot satisfy one and then close before the other.
+    await waitFor(() => {
+      expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByLabelText("Proposed change").textContent).toContain(
+        "Finish saving your changes before applying this.",
+      );
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(applyProposalMock).not.toHaveBeenCalled();
   });
 });
 

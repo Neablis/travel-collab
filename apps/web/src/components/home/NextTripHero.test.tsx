@@ -193,7 +193,7 @@ describe("NextTripHero", () => {
   // Regression: Sparkline used to key its accent by day index, so the same
   // real city landed on two different colors depending on which day it fell
   // on (e.g. a 3-day Rochester trip). This exercises the real wiring
-  // (cityFor, sourced from each day's first located activity) end to end,
+  // (cityFor, sourced from each day's LAST located activity) end to end,
   // not just Sparkline's own color assignment in isolation.
   it("gives two days in the same real city the same sparkline block color", async () => {
     const trip = tripSummaryFixture();
@@ -338,6 +338,67 @@ describe("NextTripHero", () => {
     expect(decisionTile).toBeTruthy();
     expect(within(decisionTile!).getByText("3")).toBeTruthy();
     expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
+  });
+
+  // M18: the second tile was "days planning", a createdAt-to-now count that
+  // stood in for exactly this one. It counts stops whose kind is neither
+  // `booked` nor `transit` — the same predicate the Calendar's `N to book` flag
+  // uses, so the hero and the Calendar can never disagree about one trip.
+  it("counts the trip's unbooked stops in the second stat tile", async () => {
+    const trip = tripSummaryFixture();
+    const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit", tags: ("meal" | "lodging" | "ticketed" | "outdoors")[] = []) => ({
+      activityId: id,
+      title: id,
+      timeWindow: null,
+      location: null,
+      notes: null,
+      anchors: [],
+      kind,
+      tags,
+      cost: null,
+    });
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        // Every one of the five kinds, so a regression that stops counting any
+        // single one fails here. `hold` in particular was missing while the
+        // expected value was 2, and dropping it would still have read 2.
+        days: [{ dayId: "d1", activityIds: ["a", "b", "c", "d", "e", "f"], date: "2027-06-01", costSubtotal: 0 }],
+        activities: {
+          a: stop("a", "booked"),
+          b: stop("b", "transit"),
+          c: stop("c", "idea"),
+          // A plain `planned` stop does NOT count — the default is not a
+          // decision. Tagged `ticketed`, it does.
+          d: stop("d", "planned"),
+          e: stop("e", "hold"),
+          f: stop("f", "planned", ["ticketed"]),
+        },
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    // The tiles exist on the FIRST render, before the fetch resolves, so
+    // findAllByTestId returns while `notBooked` is still null and the tile
+    // reads "—". Wait for the resolved count itself, not for the tile.
+    const tiles = screen.getAllByTestId("stat-tile");
+    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
+    expect(bookingTile).toBeTruthy();
+    // c (idea), e (hold) and f (planned + ticketed). Not a (booked),
+    // not b (transit), and not d — a plain `planned` stop owes nothing.
+    await waitFor(() => expect(within(bookingTile!).getByText("3")).toBeTruthy());
+    expect(tiles.some((tile) => /days planning/i.test(tile.textContent ?? ""))).toBe(false);
+  });
+
+  it("shows an em dash, not a confident zero, before the trip detail has loaded", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={trip} />);
+
+    const tiles = screen.getAllByTestId("stat-tile");
+    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
+    expect(within(bookingTile!).getByText("—")).toBeTruthy();
   });
 
   // Task 8.5: the visible StatTile label used to say "travelers"

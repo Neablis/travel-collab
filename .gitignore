@@ -10,6 +10,15 @@ coverage/
 .turbo/
 playwright-report/
 test-results/
+# Browser-verification leftovers. `playwright-report/` and `test-results/`
+# above cover the test *runner*; these are what the MCP browser tools drop
+# into whatever directory they are driven from — console logs, page
+# snapshots, and ad-hoc screenshots. Every agent that walks a flow in a
+# browser dirtied its worktree with these until they were listed here.
+# The `/` anchors the screenshot rule to the repo root, so the committed
+# apps/web/src/app/opengraph-image.png is untouched.
+.playwright-mcp/
+/*.png
 .auth/
 .claude/*
 !.claude/settings.json
@@ -36,3 +45,8 @@ apps/web/.ds-compiled.css
 # lockfile means someone ran `npm install` locally, and it silently drifts
 # from pnpm-lock.yaml if committed.
 package-lock.json
+
+# SDD scratch workspace (superpowers:subagent-driven-development)
+.superpowers/
+
+.env.sentry-build-plugin
