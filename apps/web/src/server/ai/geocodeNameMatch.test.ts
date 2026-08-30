@@ -125,3 +125,107 @@ describe("placeNameVerdict — the KI-39 wrong-venue candidates", () => {
     ).toBe("match");
   });
 });
+
+// KI-77. Three stops of the Japan seed that the check rejected on TOKENISATION
+// rather than on identity, all three the correct venue. Verbatim from the
+// 2026-08-29 live LocationIQ run (the KI-58 regeneration); the queries are the
+// script's own "<place>, <area>, <city>, Japan" and the display names are the
+// vendor's answers, so these rows are a transcript, not a construction.
+//
+// Two mechanisms:
+//   1. separator placement — "Nishiazabu" vs "Nishi-Azabu", "Ginkaku-ji" vs
+//      "Ginkakuji" are the same name split into different tokens;
+//   2. translation — "-ji" is the Japanese for the category noun "Temple",
+//      which GENERIC_TOKENS already knows in English only.
+describe("placeNameVerdict — KI-77 correct venues rejected on tokenisation", () => {
+  const KI77: [place: string, area: string, city: string, displayName: string, stopId: string][] = [
+    [
+      "Gonpachi Nishiazabu",
+      "Nishi-Azabu",
+      "Tokyo",
+      "Gonpachi Nishi-Azabu, Gaien Nishi-dori, Nishi-Azabu 1, Nishi-Azabu, Minato, Tokyo, 106-0031, Japan",
+      "d1-s3-dinner-at-gonpachi",
+    ],
+    [
+      "Tenryū-ji",
+      "Arashiyama",
+      "Kyoto",
+      "Tenryū Temple, Saga Arashiyama Station Line, Sagatenryuji-Kitatsukurimichicho, Ukyō Ward, Kyoto, Kyoto Prefecture, 616-0000, Japan",
+      "d9-s2-arashiyama-and-tenryu-ji",
+    ],
+    [
+      "Ginkaku-ji",
+      "Sakyō",
+      "Kyoto",
+      "Ginkakuji, Ginkakujichō, Sakyō Ward, Kyoto, Kyoto Prefecture, 606-8402, Japan",
+      "d10-s1-ginkaku-ji",
+    ],
+  ];
+
+  it.each(KI77)("accepts %s (%s, %s) -> %s [%s]", (place, area, city, displayName) => {
+    expect(placeNameVerdict(place, displayName, [area, city, "Japan"])).toBe("match");
+  });
+});
+
+// The other half of KI-77: the rejections the check MUST keep making, so that
+// the fix above cannot become a false-accept generator. Every row is a real
+// LocationIQ candidate from the same family of runs, and every one is the
+// WRONG venue inside the right city — the class `withinBox` structurally
+// cannot reject (KI-39).
+describe("placeNameVerdict — KI-77 must not loosen these", () => {
+  const STILL_MISMATCH: [place: string, area: string, city: string, candidateOwnName: string][] = [
+    // Token equality, not substring — the reason the module's comment names.
+    ["Kichi Kichi", "Pontochō", "Kyoto", "KICHIRI 河原町店"],
+    ["Bread & Espresso", "Omotesandō", "Tokyo", "Cawaii Bread & Coffee"],
+    ["Bread & Espresso", "Omotesandō", "Tokyo", "bricolage bread & co"],
+    ["Yoshida-ya", "Arashiyama", "Kyoto", "Coffee Yoshida"],
+    ["Yoshida-ya", "Arashiyama", "Kyoto", "Steak House Yoshida"],
+    ["Sushi Yoshitake", "Ginza", "Tokyo", "Sushi Wasabi"],
+    ["Sushi Yoshitake", "Ginza", "Tokyo", "Sushi Iwa Ginza"],
+    ["Sushi Yoshitake", "Ginza", "Tokyo", "Sushi Bar Yasuda"],
+    ["Kegon Falls", "Chūzenji", "Nikkō", "Urami Falls"],
+    ["Kegon Falls", "Chūzenji", "Nikkō", "Furukuma Falls"],
+    ["Gion Nanba", "Gion", "Kyoto", "Gion House"],
+    ["Gion Nanba", "Gion", "Kyoto", "Gion Quarter"],
+    ["Gion Nanba", "Gion", "Kyoto", "Gion Hanasaki"],
+    ["Gion Nanba", "Gion", "Kyoto", "Gion Misen"],
+    ["Gion Nanba", "Gion", "Kyoto", "GION KIMUTAKO"],
+    ["Torishiki", "Meguro", "Tokyo", "MEGURO MARC"],
+    ["Zentis Osaka", "Kita", "Osaka", "Hotels Inn Osaka KitaUmeda"],
+    ["Zentis Osaka", "Kita", "Osaka", "M's Cort Kita Osaka"],
+    ["Shin-Osaka Station", "Yodogawa", "Tokyo", "Shinagawa Station"],
+    ["Shin-Osaka Station", "Yodogawa", "Tokyo", "Taito Station Shinjuku South Exit"],
+    ["Hama-rikyū Gardens", "Hamamatsuchō", "Tokyo", "Tokyo, Chiyoda, Tokyo"],
+  ];
+
+  it.each(STILL_MISMATCH)("still rejects %s (%s, %s) -> %s", (place, area, city, candidate) => {
+    expect(placeNameVerdict(place, `${candidate}, Japan`, [area, city, "Japan"])).toBe("mismatch");
+  });
+});
+
+// The two properties the KI-77 fix rests on, stated directly rather than only
+// as a consequence of the tables above.
+describe("placeNameVerdict — KI-77 mechanisms", () => {
+  // A run is a concatenation of WHOLE tokens, which is what keeps the
+  // separator-insensitive comparison from degenerating into a substring test.
+  it("joins tokens only on token boundaries, so a prefix is still not a match", () => {
+    expect(placeNameVerdict("Shin", "Shinagawa Station, Minato, Tokyo, Japan", ["Minato", "Tokyo", "Japan"])).toBe("mismatch");
+    expect(placeNameVerdict("Shin-Aga", "Shinagawa Station, Minato, Tokyo, Japan", ["Minato", "Tokyo", "Japan"])).toBe("mismatch");
+    // …but the whole name, differently punctuated, is identity and is accepted.
+    expect(placeNameVerdict("Shin-Aga-Wa", "Shinagawa, Minato, Tokyo, Japan", ["Minato", "Tokyo", "Japan"])).toBe("match");
+  });
+
+  // Documented and accepted, not accidental — see placeNameVerdict's comment.
+  // Treating "-ji" as the category noun it is means "Tenryū-ji" requires only
+  // "tenryu", exactly as the English spelling "Tenryū Temple" already did
+  // before this change. Pinned so that the cost of the decision is visible if
+  // anyone revisits it.
+  it("treats a Japanese category suffix like the English category noun, including its blind spot", () => {
+    const ctx = ["Arashiyama", "Kyoto", "Japan"];
+    expect(placeNameVerdict("Tenryū Temple", "Tenryu Restaurant, Kyoto, Japan", ctx)).toBe("match");
+    expect(placeNameVerdict("Tenryū-ji", "Tenryu Restaurant, Kyoto, Japan", ctx)).toBe("match");
+    // Both spellings also agree with each other, which is the point.
+    expect(placeNameVerdict("Tenryū-ji", "Tenryū Temple, Kyoto, Japan", ctx)).toBe("match");
+    expect(placeNameVerdict("Tenryū Temple", "Tenryū-ji, Kyoto, Japan", ctx)).toBe("match");
+  });
+});
