@@ -96,8 +96,15 @@ Where the work actually stands right now: `docs/STATUS.md`.
       alone now, equal cards plus an untitled bucket, and the day-to-day
       transition moved to the day label. **Tag focus was carved out as M18b.**
       Retro and evidence in the milestone file.)*
-- [ ] **M18b Tag focus** ← **current milestone** — placed 2026-08-29.
+- [ ] **M18b Tag focus** ← **current milestone** — placed 2026-08-29,
+      **built 2026-08-30, gate not yet closed.**
       The piece carved out of M18's gate.
+      *(All six exit-gate behaviours are implemented and green on
+      `pnpm --filter web test:e2e:ci-like`; **no flag was flipped** because the
+      checklist's trigger is a *deployed* demo and no unattended session can
+      reach a protected preview until `VERCEL_AUTOMATION_BYPASS_SECRET` exists.
+      Closing it is one preview walk, Mitchell's — same shape as M16's close
+      after PR #88. Evidence in the milestone file.)*
       → `docs/milestones/M18b-tag-focus.md`
       *(Carved out 2026-08-29 when M18's gate was amended: M18 lands both
       fields, every surface that reads `kind`, and tag chips that render and

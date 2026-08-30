@@ -25,6 +25,31 @@ general setup.
 **M16's gate closed 2026-08-29. M18b is the current work**, and the order is
 now `M18b → M17 → M12 → M13 → M14 → M9`.
 
+**M18b is built and in review, and its gate has NOT closed — 2026-08-30.** All
+six exit-gate behaviours are implemented and walked green on
+`pnpm --filter web test:e2e:ci-like` (`e2e/m18b-tag-focus.spec.ts`, four specs
+over `/demo`, plus unit coverage per surface). **No status flag was flipped**,
+which is correct rather than an oversight: the checklist's trigger is a
+*deployed* demo passing, and this session could not produce one — the
+`VERCEL_AUTOMATION_BYPASS_SECRET` below is still unset, so nothing unattended
+reaches a protected preview. **Closing it is one confirmation on the preview,
+and it is Mitchell's** — the same shape M16's close took after PR #88
+deliberately flipped nothing. Evidence and two findings the browser walk
+produced that no unit test did are in `docs/milestones/M18b-tag-focus.md`.
+
+Two of those findings are worth carrying forward on sight:
+
+- **A hover hint reused as a control's accessible name collided 34 ways.** The
+  Clear beside the view tabs said `Stop focusing on meal`, which is also every
+  focused chip's hint — 34 controls with one accessible name on the Japan
+  fixture, and nothing telling the one that clears from the thirty-three that
+  toggle. Every unit test passed before and after. Playwright's strict mode is
+  what refused it.
+- **A 150ms fade makes a single opacity read a race.** The same assertion
+  returned 0.77, 0.45 and 0.37 on successive runs. A value that *moves* between
+  runs is a timeout, not a defect (AGENTS.md's own discriminator) — the spec
+  polls for the settled value and the transition stays.
+
 **Mitchell placed M18b and M17 on 2026-08-29**, out of the three
 approved-but-unplaced milestones, to run as one overnight batch together with
 the activity-field descriptor refactor (project review §6.1). M17 needed a
@@ -188,12 +213,18 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Open M18b — Tag focus** — `docs/milestones/M18b-tag-focus.md`. Six exit-gate
-boxes, no migration, no live model, and `/demo` renders the tagged Japan
-fixture with no database, so it can be walked end to end. Per
-`docs/milestones/README.md` the next milestone's plan re-checks the gate-close
-checklist, and **M16's close (2026-08-29) is the one being re-checked** — all
-four flags plus this file were flipped in commit `c489397`.
+**Close M18b's gate** — walk `/demo` on the PR's Vercel preview, focus a tag
+from a stop's chip, and confirm the six boxes in
+`docs/milestones/M18b-tag-focus.md`. Everything else that gate needs is done and
+proven locally; only the deployed walk is missing, and it is missing for the
+reason recorded below rather than because it was skipped. Then run the
+gate-close checklist in one commit.
+
+M18b needed no migration and no live model, and `/demo` renders the tagged
+Japan fixture with no database, so the walk needs no setup beyond the preview
+URL. Per `docs/milestones/README.md` the next milestone's plan re-checks the
+gate-close checklist, and **M16's close (2026-08-29) is the one being
+re-checked** — all four flags plus this file were flipped in commit `c489397`.
 
 **Then M17**, re-scoped 2026-08-29 (see above). **Its migration must not be
 merged without a dispatch** — `gh workflow run migrate-production.yml -f

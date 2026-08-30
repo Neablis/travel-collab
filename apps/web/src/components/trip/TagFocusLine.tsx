@@ -47,7 +47,15 @@ export function TagFocusLine() {
         // The visible word is "Clear"; the accessible name says what it
         // clears, because "Clear" alone is meaningless out of the line's
         // visual context and there are other clearable things on this page.
-        aria-label={`Stop focusing on ${focusedTag}`}
+        //
+        // Deliberately NOT the chip's own `Stop focusing on meal` hint, which
+        // is what this said first: a focused board renders that hint on every
+        // chip carrying the tag — 34 of them on the Japan fixture — so this
+        // button was the 34th control on the page with an identical accessible
+        // name, and no screen-reader user could tell the one that clears from
+        // the thirty-three that toggle. Caught by the `/demo` walk, where
+        // Playwright's strict mode refused the ambiguity outright.
+        aria-label={`Clear ${focusedTag} focus`}
         className="shrink-0"
       >
         <X className="size-3.5" aria-hidden />

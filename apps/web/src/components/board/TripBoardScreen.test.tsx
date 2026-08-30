@@ -860,8 +860,20 @@ describe("TripBoardScreen", () => {
     );
     expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
 
+    // Wait for the rolled-back question to be BACK IN THE COMPOSER before
+    // typing over it. The alert and the restore are two separate state
+    // updates — the parent sets `restoredDraft`, and the rail copies it into
+    // its own `ask` from an effect (`AssistantRail`, `[restoreDraft]`) — so
+    // synchronising on the alert alone leaves the restore in flight. Under
+    // load it lands AFTER the change below and overwrites it, and the second
+    // ask then posts "Day nine?" again. Seen once in a full `pnpm check`,
+    // green on six other runs of the same suite: a race, not a defect, and
+    // waiting for the right state is the fix rather than a retry.
+    const composer = screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLTextAreaElement;
+    await waitFor(() => expect(composer.value).toBe("Day nine?"));
+
     askAssistantMock.mockImplementationOnce(answers("Two days."));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How many days?" } });
+    fireEvent.change(composer, { target: { value: "How many days?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);

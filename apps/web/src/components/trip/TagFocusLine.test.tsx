@@ -45,7 +45,7 @@ describe("TagFocusLine", () => {
     await userEvent.click(screen.getByRole("button", { name: "set" }));
     expect(screen.getByTestId("state").textContent).toBe("lodging");
 
-    await userEvent.click(screen.getByRole("button", { name: "Stop focusing on lodging" }));
+    await userEvent.click(screen.getByRole("button", { name: "Clear lodging focus" }));
     expect(screen.getByTestId("state").textContent).toBe("null");
     expect(screen.queryByTestId("tag-focus-line")).toBeNull();
   });

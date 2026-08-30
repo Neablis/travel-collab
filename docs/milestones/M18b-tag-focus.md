@@ -1,9 +1,18 @@
 # M18b — Tag focus
 
-**Status:** Approved 2026-08-29 and **placed the same day**, immediately after
-M16, as the current milestone. Placing it was Mitchell's call; the scope and
-exit gate below were already written when it was carved out of M18's gate,
-which is why it needed only a place.
+**Status:** **Built 2026-08-30; the gate has NOT closed and no status flag was
+flipped.** All six behaviours below are implemented and proven on
+`pnpm --filter web test:e2e:ci-like` — see "The evidence". What is missing is
+the checklist's own trigger: *a **deployed** gate demo passing*. This session
+could not produce one — `VERCEL_AUTOMATION_BYPASS_SECRET` is still unset, so
+nothing unattended can reach a protected preview (`docs/STATUS.md`,
+"Blocking / broken right now"). Closing the gate is one confirmation on the
+preview, and it is Mitchell's, in the same shape M16's close took on
+2026-08-29 after PR #88 deliberately flipped nothing.
+
+Approved 2026-08-29 and **placed the same day**, immediately after M16. Placing
+it was Mitchell's call; the scope and exit gate below were already written when
+it was carved out of M18's gate, which is why it needed only a place.
 **Carved out of:** M18's gate, by Mitchell on 2026-08-29 — the same shape as
 M11b Playbooks leaving M11's gate the day before. M18 lands the two fields and
 every surface that *reads* `kind`, plus tag chips that render and can be set.
@@ -74,6 +83,13 @@ the rest of M18:
 
 ## Exit gate
 
+**Deliberately still unticked.** Every box below has machine evidence against a
+production build (next section), and the checklist in
+`docs/milestones/README.md` flips all four status flags *in one commit* when the
+**deployed** demo passes. Ticking these alone would be the half-flipped gate
+that checklist exists to prevent, and it would make the roadmap claim a close
+nobody walked on the preview.
+
 - [ ] Clicking a tag chip on a stop focuses that tag; clicking it again clears.
       Only one tag is ever focused.
 - [ ] Timeline, Day columns and Map dim off-tag stops rather than removing them
@@ -83,6 +99,57 @@ the rest of M18:
 - [ ] Focus is named beside the view tabs while active, with a working Clear.
 - [ ] Focus survives a lens switch, and is not confused with day focus.
 - [ ] No filter row, no "Show everything" control, and no multi-select anywhere.
+
+### The evidence — what is proven, and how
+
+Read as "these behaviours work", not as "the gate passed".
+
+`apps/web/e2e/m18b-tag-focus.spec.ts`, four specs, run on
+`pnpm --filter web test:e2e:ci-like` (the only lane that counts — KI-27). It
+walks `/demo`, so it needs no database and runs against the canonical Japan
+fixture, whose 68 stops carry 33 `meal`, 4 `lodging`, 11 `outdoors` and 8
+`ticketed` tags. Day 1 is the worked example: four Tokyo stops, two of them
+`meal`, one `lodging`, one untagged.
+
+The walk asserts the **computed** opacity the browser produced, not a class
+name we hoped for. That is M18's lesson applied rather than restated: its
+headline Calendar rule passed nine unit tests and was wrong, because the tests
+shared the implementation's assumptions about the fixture.
+
+Unit coverage sits beside it — `FocusProvider.test.tsx` (the toggle and the
+day/tag independence), `ActivityCard.test.tsx`, `TagFocusLine.test.tsx`,
+`TimelineLens.test.tsx`, `CalendarLens.test.tsx`, `MapLens.test.tsx` and
+`calendarCityCards.test.ts`.
+
+### Two things the walk found that no test did
+
+1. **The Clear control and every focused chip had the same accessible name.**
+   Both said `Stop focusing on meal` — the chip's hover hint, reused for Clear
+   because it reads well. On the Japan fixture that is **34 controls with one
+   accessible name**, and nothing distinguishes the one that clears from the
+   thirty-three that toggle. Playwright's strict mode refused the ambiguity
+   outright; a screen-reader user would simply have been lost. Clear is
+   `Clear meal focus` now. Every unit test passed both before and after.
+2. **The 150ms fade makes a single opacity read a race.** The same assertion
+   returned 0.77, then 0.45, then 0.37 on successive runs — a value that
+   *moves* between runs, which AGENTS.md's own discriminator calls a timeout
+   rather than a defect. The spec polls for the settled value; the transition
+   stays, because it is the behaviour.
+
+### Recorded deltas from the spec text
+
+- **SPEC §11's cell overflow copy, `3 of 5 in focus`, has no surface left.** It
+  described the Calendar cell's "+N more" line, and M18 replaced the cell's
+  stop list with city cards — there is no overflow line to relabel. The exit
+  gate's own wording (`N of M match` per city card) is what shipped, and it is
+  the later of the two texts.
+- **Chips remain a Day-columns affordance.** SPEC §11 says "tag chips on a stop
+  are now the control" across all four lenses; M18 put chips on the day-column
+  card only, and this milestone's Prerequisites say it "adds only the behaviour
+  behind them". Timeline, Calendar and Map therefore honour focus and offer no
+  chip of their own; the Clear beside the view tabs is the way out from those
+  three. Giving the timeline row its own chips is a real follow-up, not a gap
+  this gate left unmeasured.
 
 ## Prerequisites
 

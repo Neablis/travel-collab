@@ -1522,11 +1522,15 @@ needs action — skip this section when triaging.
   is stale in the same way** — mobile thins a day with tag focus now. Nothing
   should be built against either sentence. What replaced the filter row is tag
   focus, which is **M18b**.
-- **Status after M18's PR 2+ (2026-08-29):** chips on stop cards and the
-  Add/Edit tag picker are **built**. Tag *focus* — the dimming behaviour that
-  replaced the filter row — is **M18b, approved and unplaced**. The Notebook
+- **Status after M18b (2026-08-30):** chips on stop cards and the Add/Edit tag
+  picker were built by M18's PR 2+; tag *focus* — the dimming behaviour that
+  replaced the filter row — is **built by M18b** and the chips are now the
+  control that drives it. M18b's gate has not closed (it needs a deployed walk;
+  see that milestone file), but nothing about this entry is outstanding any
+  more: the replacement for the deleted filter row exists. The Notebook
   repeater's `Only stops tagged …` filter (SPEC §7) belongs to **M14**, which
-  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18.
+  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18 or
+  M18b.
 
 - **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
   which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
