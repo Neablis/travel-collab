@@ -36,3 +36,5 @@ apps/web/.ds-compiled.css
 # lockfile means someone ran `npm install` locally, and it silently drifts
 # from pnpm-lock.yaml if committed.
 package-lock.json
+
+.env.sentry-build-plugin
