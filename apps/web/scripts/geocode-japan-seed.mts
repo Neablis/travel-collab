@@ -21,15 +21,24 @@
 // run. This script is the one-time (rerun-when-the-seed-changes) source of
 // that overlay; nothing at request time calls LocationIQ for this data.
 //
-// A plain `.mjs` file, not `.ts`, dependency-free ESM, matching db-reset.mjs's
-// convention (see its own comment) rather than db-seed.ts's — this one
-// reaches into src/server/**, which db-seed.ts never does, by importing the
-// real implementation files directly with their `.ts` extension. Node's
-// unflagged type-stripping (Node >= 22.18, this repo's floor) loads that
-// fine at runtime; `tsc --noEmit` would reject an explicit `.ts` import
-// specifier (TS5097) if this script were itself a `.ts` file under
-// tsconfig's `include`, and `eslint src` never sees `scripts/` at all — a
-// `.mjs` entry point sidesteps both without touching either config.
+// An `.mts` file — TypeScript ESM, dependency-free — living in `scripts/`
+// rather than under `src/`. It reaches into src/server/**, which db-seed.ts
+// never does, by importing the real implementation files directly with their
+// `.ts` extension. Node's unflagged type-stripping (Node >= 22.18, this
+// repo's floor) loads that fine at runtime, and `allowImportingTsExtensions`
+// (tsconfig.base.json) means the explicit `.ts` specifier typechecks too.
+//
+// That last point used to read the other way round. This comment claimed the
+// file was "a plain `.mjs`, not `.ts`" and that `tsc --noEmit` would reject
+// an explicit `.ts` specifier with TS5097 — both were true when written and
+// neither is now: the file is `.mts`, and `allowImportingTsExtensions: true`
+// removed the TS5097 constraint. The stale version mattered because it is
+// exactly the reasoning someone would copy when adding the next script, and
+// because `geocode-japan-seed.test.ts` imports this file — which the comment
+// said was impossible.
+//
+// Still true, and the reason `scripts/` is not a free lunch: `eslint src`
+// never sees this directory (KI-2026-08-30-b), so nothing lints it.
 //
 // Reuses `createLocationIQGeocoder` (the vendor adapter behind the
 // `Geocoder` seam, ADR-007) directly rather than through `getGeocoder()`
