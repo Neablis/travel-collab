@@ -1,13 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { AdmissionRefusal } from "@tc/contracts";
-import {
-  PENDING_ADMISSION_COOKIE,
-  PENDING_ADMISSION_MAX_AGE_SECONDS,
-  matchesSuperCode,
-  normalizeCredential,
-  refusalRedirect,
-} from "./admission";
+import { matchesSuperCode, normalizeCredential, refusalRedirect } from "./admission";
 import { witness } from "../test-support/witness";
 
 describe("normalizeCredential", () => {
@@ -132,12 +126,8 @@ describe("refusalRedirect", () => {
   });
 });
 
-describe("the pending_admission cookie contract", () => {
-  // Fixed in the M11a plan and shared with the front door and the proxy, which
-  // write the cookie this module reads. Pinned so a rename on either side is a
-  // failing test rather than a silently missing credential.
-  it("is named and time-boxed exactly as the plan fixes it", () => {
-    expect(PENDING_ADMISSION_COOKIE).toBe("pending_admission");
-    expect(PENDING_ADMISSION_MAX_AGE_SECONDS).toBe(600);
-  });
-});
+// The cookie's name and TTL were pinned here too, against a second local copy
+// of both constants. That copy is gone — `lib/pendingAdmission.ts` is the only
+// declaration now, and `pendingAdmission.test.ts` pins it there. Asserting the
+// same constant in two files is the duplication this module just stopped
+// having, one level up.

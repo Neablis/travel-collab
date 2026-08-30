@@ -2,6 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { AdmissionRefusal } from "@tc/contracts";
+// The cookie's name, TTL and attributes live in one module on purpose — see
+// that file's header. Importing them here rather than re-declaring keeps the
+// read/clear side and the two write sides from drifting apart, which is the
+// exact failure it exists to prevent.
+import { PENDING_ADMISSION_COOKIE } from "@/lib/pendingAdmission";
 import { db } from "./db/client";
 import { inviteCodes, tripInvites } from "./db/schema";
 
@@ -21,15 +26,6 @@ import { inviteCodes, tripInvites } from "./db/schema";
 // cookie and validates nothing.
 
 /** The cookie that carries an admission credential across the OAuth round trip. */
-export const PENDING_ADMISSION_COOKIE = "pending_admission";
-
-/**
- * Ten minutes: long enough for a Google round trip including a fresh consent
- * screen, short enough that a credential left on a shared machine is not a
- * standing invitation. The cookie is also cleared explicitly in `recordSignIn`
- * on both success and refusal — this TTL only covers a sign-in never finished.
- */
-export const PENDING_ADMISSION_MAX_AGE_SECONDS = 600;
 
 /** How a person got through the gate. Recorded so a refusal can be told from each. */
 export type AdmissionGrant = "returning-user" | "trip-invite" | "super-code" | "invite-code";

@@ -181,9 +181,15 @@ to do next. Project rule 6: this is the failure state of the front door.
   deployment. That is the practical argument for minting single-use codes for
   most people and keeping the super code for active onboarding — and a reason
   not to treat the super code as revocable in an emergency.
-- **Only two places in the e2e suite actually sign in** — `auth.setup.ts` and
-  `smoke.spec.ts`; every other spec reuses saved storage state. The blast radius
-  is small, but it is not zero, and `auth.setup.ts` runs before every project.
+- ~~**Only two places in the e2e suite actually sign in** — `auth.setup.ts` and
+  `smoke.spec.ts`.~~ **Wrong, corrected 2026-08-30 during the build: there are
+  six.** The other four are `m11-invites.spec.ts`'s `signedInAs`,
+  `m11-clone.spec.ts`'s `signedInAs` (erin), `m11-demo.spec.ts:106` and
+  `m15-front-door.spec.ts` (both alice). Every *other* spec does reuse saved
+  storage state, and `auth.setup.ts` does run before every project, so the
+  shape of the warning was right and the count was not. Taking the two on
+  trust would have left `m11-clone`'s erin red on a fresh database — she holds
+  no invite, so she needs the super code.
 - **`server/admission.ts` must not be imported from `proxy.ts`.** The proxy
   builds its own Edge-runtime Auth.js instance from `lib/authConfig.ts`
   precisely so no database reaches it (ADR-024). The cookie write is Edge-safe;
