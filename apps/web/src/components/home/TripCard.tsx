@@ -112,8 +112,60 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
             Reserving the space removes the cause rather than reacting to it
             (candidate (b) in KI-28). Still honest absence, not a fabricated
             line: an unresolved or failed fetch renders empty space, never a
-            number. */}
-        <div className="mt-1 min-h-5 leading-5">
+            number.
+
+            KI-56: one reserved line holds only while the string FITS on one
+            line, and below ~380px it does not. `plannedOfBudgetLine` emits
+            "{planned} planned of {budget}" — two money figures and four words
+            — and the slot narrows with the card. Measured in a production
+            build at 13px IBM Plex Mono (what DataText size="sm" resolves to),
+            as slot height per slot WIDTH; 20px = one line, 40px = two:
+
+              slot width                            180 222 246 260 277 301+
+              "$9,085.00 planned of $16,400.00"      40  40  20  20  20  20
+              "¥1,234,567 planned of ¥5,000,000"     40  40  40  20  20  20
+              "¥12,345,678 planned of ¥50,000,000"   40  40  40  40  20  20
+
+            So a plain USD figure already wraps at a 320px viewport — the hero
+            was measured growing 20px there with its real seeded line, no
+            exotic currency needed — and a large JPY figure wraps up to a
+            ~375px viewport. Two lines are reserved below `sm`, not one.
+            Nothing reaches THREE lines: the widest string above still renders
+            two at a 180px slot, narrower than any reachable card, so
+            `min-h-10` bounds the slot at every real width rather than only at
+            the ones measured.
+
+            This is candidate (2) from the KI entry, and its cost is the one
+            the entry names: below `sm` the slot keeps 20px of blank space
+            even when the line is short or absent. That is the deliberate
+            trade. `truncate` (candidate 1) would render "planned of ¥5,00…",
+            hiding the budget on the screens with least room to recover it;
+            shortening the string (candidate 3) is a `lib/cost.ts` change and
+            a product-visible choice about how money reads. Both change what
+            the user can see; a fixed height does not.
+
+            The breakpoint is `md` (768px), NOT `sm`, and that is the one
+            genuinely counter-intuitive thing here. A card's slot does not
+            widen monotonically with the viewport, because this grid is
+            `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — every column-count
+            increase makes each card NARROWER again. Measured slot widths:
+
+              viewport   341  500  640  1024  1440
+              slot        246  426  263   290   322
+                                    ^ sm: 2 columns
+                                          ^ lg: 3 columns
+
+            So the slot is narrower at 640px (263) than at 500px (426), and
+            263 is below the 277 the widest figure needs — reserving one line
+            at `sm` reintroduced exactly this defect in a ~640-670px band, the
+            first measurement of the fix caught it, and `md` is what closes
+            it: by 768px the two-column slot is back above 277, and the `lg`
+            three-column minimum (290 at 1024) clears it too.
+
+            NextTripHero takes the same reservation at `sm` rather than `md`
+            because its own slot IS monotonic below `lg` — 402px already at a
+            500px viewport, 542px at 640px — so it has no such band. */}
+        <div className="mt-1 min-h-10 leading-5 md:min-h-5">
           {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
         </div>
       </div>

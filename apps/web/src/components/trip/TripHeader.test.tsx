@@ -290,7 +290,11 @@ describe("TripHeader viewer gating", () => {
     // disabled — the way Delete is absent for a non-owner in the settings
     // sheet. A disabled Share still reads as an offer.
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(true);
+    // Absent, not disabled (KI-64). This asserted `disabled === true` until
+    // the header was the last greyed control on a board ADR-031 had otherwise
+    // gone quiet: same reasoning as Share one line up, applied to the button
+    // beside it.
+    expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
 
     // Undo/redo and Revert live inside the History popover. Assert the panel
     // actually OPENED first: `queryByRole` returns null for a popover that

@@ -165,8 +165,28 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 gain when its TripDetail landed pushed every card (and any
                 actions menu anchored to one) down by that much. Height is
                 reserved whether or not the line arrives; absence still renders
-                nothing rather than a fabricated figure. */}
-            <div className="mt-1.5 min-h-5 leading-5">
+                nothing rather than a fabricated figure.
+
+                KI-56: two lines below `sm`, one at `sm` and up — the same
+                reservation TripCard's own slot takes, for the same reason and
+                off the same measurement (see the table in TripCard.tsx, which
+                is the primary record of it). This hero is the surface where
+                the defect was easiest to see: at a 320px viewport its slot is
+                222px wide, and the REAL seeded line "$9,085.00 planned of
+                $16,400.00" already wrapped to two lines there — a plain USD
+                figure, not a contrived one — so the hero grew 20px when its
+                TripDetail landed and pushed the whole trip grid, and any
+                actions menu anchored into it, down by that much. That is
+                precisely the drift KI-28 reserved this slot to stop.
+
+                `sm` here, `md` in TripCard — not an oversight. This hero's
+                slot widens monotonically below `lg` (222px at a 341px
+                viewport, 402px at 500px, 542px at 640px), so one line is
+                safe from `sm` up. A trip CARD's slot does not: its grid adds
+                a column at `sm`, so each card narrows to a 263px slot at
+                640px, under the 277px the widest figure needs. The table in
+                TripCard.tsx has the numbers. */}
+            <div className="mt-1.5 min-h-10 leading-5 sm:min-h-5">
               {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
             </div>
           </div>

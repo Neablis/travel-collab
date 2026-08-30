@@ -1,6 +1,11 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+// Imported in the *parent* Node process, before Vitest assigns Vite's env onto
+// process.env, so the `url` handed to jsdom below is the real base URL and not
+// Vite's "/" base path. That was already true while KI-72 was open; what has
+// changed is that src/config.ts no longer reads a Vite-owned name at all, so
+// the value is now the real one inside workers too. src/config.test.ts pins it.
 import { BASE_URL } from "./src/config";
 
 // Four .ts files that need a document despite not rendering React — see
