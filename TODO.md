@@ -7,10 +7,11 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M16 is the current work**,
-per the order M18's close leaves standing —
-`M16 → M12 → M13 → M14 → M9`. Whichever item carries
-`← current milestone` is the current work; when that marker and the first
+purpose**, so read the marker, not the position: **M12 is the current work**,
+per the order M16's close (2026-08-29) leaves standing —
+`M12 → M13 → M14 → M9`. Three approved milestones sit outside that order and
+**none of them becomes current merely because M16 closed** — see below.
+Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
@@ -107,9 +108,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       arguments that carved Playbooks out of M11 the day before. Note for
       whoever opens it: the **filter row it replaced is gone**, and our own
       KI-47 cited it for four days after SPEC §11 deleted it.)*
-- [ ] **M16 The assistant answers questions** ← **current milestone** →
-      `docs/milestones/M16-assistant-read-agent.md`
-      *(Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
+- [x] **M16 The assistant answers questions** — **gate closed 2026-08-29**
+      → `docs/milestones/M16-assistant-read-agent.md`
+      *(Ten of eleven boxes ticked and the eleventh moved, not waived:
+      **"recorded transcripts replay in CI" went to M9's gate**, by Mitchell's
+      explicit decision — it was PR #88's Task 7, dropped rather than
+      half-landed, M9's gate already carried the identical criterion, and M9
+      is where the write agent it measures lives. **KI-11 stays open and is
+      now M9's to close.** Implementation landed in PR #88, which correctly
+      flipped no status flag because everything in it ran simulated; the gate
+      closed afterwards on Mitchell's live confirmation. One caveat recorded
+      in the milestone file rather than smoothed over: Vercel holds exactly
+      one real-model `ai.ask` record, and the four acceptance assertions were
+      confirmed locally, so Wave 3's box rests on one record plus a human
+      pass. Approved 2026-08-25, **ADR-022**. Placed right after M10's Wave-2 gate
       and ahead of M15 — but M15 in fact closed its own gate first (2026-08-26),
       M18 was then scheduled ahead of M16 (2026-08-26), and **M11 was scheduled
       ahead of both on 2026-08-27**. So M16 now runs after M11 and M18.
@@ -161,7 +173,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       `wizard-playbook-panel` — plus a whole `/playbooks` route rendering mock
       cards. Needs its own scope and exit gate written before it opens; saved
       days (link 6) is the data model it would build on.)*
-- [ ] **M12 Community** — all trust & safety scope lives here, nowhere earlier.
+- [ ] **M12 Community** ← **current milestone** — all trust & safety scope
+      lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
       conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
       into M11, because they are the same `AccessPolicy` change as share links

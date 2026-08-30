@@ -22,7 +22,12 @@ general setup.
 
 ## Where the work is right now
 
-**M18's gate closed 2026-08-29. M16 is the current work.**
+**M16's gate closed 2026-08-29. M12 is the current work by the recorded order —
+but see "Next action": M18b is the cheaper and better-specified thing to do
+first, and placing it is Mitchell's call.**
+
+Two gates closed on 2026-08-29, M18 first and M16 second. M18's live warnings
+are immediately below because they still bite; M16's close follows them.
 
 M18 gave a stop two real fields and then made the app act on them: `act.badge`
 (Booked / Holding / Idea / Travel, and nothing for `planned`), tag chips, a kind
@@ -64,16 +69,37 @@ likely to need:
 cross-lens dimming, the behaviour behind the chips M18 made settable. Its scope
 and exit gate are written, so unlike M11b it needs only a place.
 
-**M16 is now current** — the assistant answers questions (ADR-022). Three waves:
-the sidebar styled to SPEC §9's docked presentation with both `<Preview>` blocks
-deleted; a read-only tool-using agent on its own `/ask` endpoint; then analytics
-on which tools get called and what an answer costs. The command path is
-untouched. It exists because `/ai` derives its reply from committed commands and
-the envelope carries no time windows, so "where is the most free time" is
-unanswerable twice over.
+**M16 shipped and closed, and the way it happened is the thing to know.** The
+implementation landed overnight in **PR #88** (`5a362d3`) — a streaming,
+multi-turn, tool-using agent on `POST /ask`, the rail docked per SPEC §9, an
+intent classifier that cut step-1 input 73%, per-ask analytics, and **M9's write
+tools behind propose → review → approve**, which is M9 scope shipped early on
+Mitchell's request. That PR **deliberately flipped no status flag** because
+everything in it ran simulated — correct under the gate-close checklist — and
+the gate then closed on Mitchell's live confirmation on 2026-08-29.
+
+**Ten of eleven boxes ticked; the eleventh moved rather than being waived.**
+*"Recorded transcripts replay in CI without a live call"* is **M9's box now**,
+by Mitchell's explicit decision: it was PR #88's Task 7 (the eval set and replay
+harness), dropped rather than half-landed, and M9's gate already carried the
+identical criterion. **KI-11 stays open and is now M9's to close.**
+
+Two things `M16-assistant-read-agent.md` records rather than smooths over, both
+worth reading before trusting the assistant's numbers:
+
+- **The gate's evidence is one log line plus a human pass.** Vercel holds
+  exactly **one** real-model `ai.ask` record across seven days, and it is a
+  trip-scoped opener, not one of the four acceptance assertions — those were
+  confirmed locally, where records go to the console and never reach Vercel.
+  That is KI-11's shape one layer up, and the box that just moved to M9 is
+  the fix.
+- **Open question 1 is deliberately still open.** That one record shows
+  `uncalledTools: ["read_day","find_free_time"]`. Deleting a tool on n=1 would
+  be the same fixture-shaped reasoning Mitchell rejected at M18's gate. Both
+  tools stay until `/ai-usage` has a real spread.
 
 **Done:** M0-M8, the Phase 1 gate review, M10 (2026-08-27), M15 (2026-08-26),
-M11 (2026-08-28) and M18 (2026-08-29).
+M11 (2026-08-28), M18 and M16 (both 2026-08-29).
 
 **Three milestones are approved and unplaced, none of them "next":** M17
 (re-scope it first — M11 link 1 already shipped the `users` table its file
@@ -152,11 +178,19 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Open M16 — the assistant answers questions** —
-`docs/milestones/M16-assistant-read-agent.md`. Read that file's own preflight
-first: per `docs/milestones/README.md`, the next milestone's plan re-checks the
-gate-close checklist, and **M18's close (2026-08-29) is the one being
-re-checked**.
+**The recorded order puts M12 Community next**, and M12 has no milestone file
+yet — writing its scope and exit gate is its first standing task, and all trust
+& safety scope lives there and nowhere earlier. Per `docs/milestones/README.md`
+the next milestone's plan re-checks the gate-close checklist, and **M16's close
+(2026-08-29) is the one being re-checked** — all four flags plus this file were
+flipped in that commit.
+
+**Before M12, consider M18b Tag focus.** It is approved and unplaced, its scope
+and exit gate are already written (six boxes), its only prerequisite — M18's
+gate — is closed, it needs no migration and no live model, and `/demo` renders
+the tagged Japan fixture with no database, so it can be walked end to end
+unattended. M12 by contrast is the largest unscoped milestone left. Placing
+M18b is Mitchell's call; nothing downstream is blocked either way.
 
 **Three things from M18's gate that will bite the next session if unread:**
 
