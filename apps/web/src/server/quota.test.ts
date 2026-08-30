@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   aiQuotas,
+  aiStepQuotas,
   consumeQuota,
   geocodeQuota,
   quotaRefusal,
+  settleAiSteps,
   type QuotaCounters,
   type QuotaPolicy,
 } from "./quota";
@@ -15,12 +17,15 @@ function fakeCounters(): QuotaCounters & { rows: Map<string, { windowStart: numb
   const rows = new Map<string, { windowStart: number; hits: number }>();
   return {
     rows,
-    async bump(bucket, windowStart) {
+    async bump(bucket, windowStart, amount = 1) {
+      // Mirrors pgCounters' own clamp, so the fake cannot accept a charge the
+      // real store would reject or coerce.
+      const by = Math.max(1, Math.trunc(Number.isFinite(amount) ? amount : 1));
       const existing = rows.get(bucket);
       const next =
         existing === undefined || windowStart.getTime() > existing.windowStart
-          ? { windowStart: windowStart.getTime(), hits: 1 }
-          : { windowStart: existing.windowStart, hits: existing.hits + 1 };
+          ? { windowStart: windowStart.getTime(), hits: by }
+          : { windowStart: existing.windowStart, hits: existing.hits + by };
       rows.set(bucket, next);
       return next.hits;
     },
@@ -153,6 +158,124 @@ describe("quotaRefusal", () => {
 
   it("is a 503, not a 429, when the limiter itself is the problem", () => {
     expect(quotaRefusal({ allowed: false, reason: "unavailable", retryAfterSeconds: 60 }).status).toBe(503);
+  });
+});
+
+// KI-67: the policies metered REQUESTS, so a 32-round-trip answer cost the same
+// allowance as a one-round-trip one. Measured against the code before the fix:
+//
+//   1-step  request charged ai-hourly: 1
+//   32-step request charged ai-hourly: 1
+//   per-user hourly ceiling (requests): 30
+//   model round-trips that ceiling actually permits: 960
+//
+// The nominal ceiling of 30 was really a ceiling of 960, and an actor who
+// wanted to maximise spend under it only had to write prompts that provoked
+// long tool loops.
+describe("cost metering (KI-67)", () => {
+  /** The handler's accounting for one AI request that used `steps` round-trips. */
+  async function chargeRequest(counters: QuotaCounters, userId: string, steps: number) {
+    const policies = [...aiQuotas(), ...aiStepQuotas()];
+    const decision = await consumeQuota(policies, userId, counters, T0);
+    if (decision.allowed) await settleAiSteps(aiStepQuotas(), userId, steps, counters, T0);
+    return decision;
+  }
+
+  it("charges a 32-step answer 32x what a 1-step answer costs", async () => {
+    const counters = fakeCounters();
+    await chargeRequest(counters, "alice", 1);
+    await chargeRequest(counters, "mallory", 32);
+
+    expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(1);
+    expect(counters.rows.get("ai-steps-hourly:user:mallory")?.hits).toBe(32);
+  });
+
+  it("still charges the request policies exactly once each, whatever the cost", async () => {
+    // The request layer keeps its own meaning; the step layer is additive.
+    const counters = fakeCounters();
+    await chargeRequest(counters, "mallory", 32);
+    expect(counters.rows.get("ai-hourly:user:mallory")?.hits).toBe(1);
+    expect(counters.rows.get("ai-daily:user:mallory")?.hits).toBe(1);
+  });
+
+  it("bounds a loop of maximum-cost requests far below the old 960 round-trips", async () => {
+    // The whole point of the entry: drive the most expensive request possible
+    // in a loop and count how many round-trips the ceiling actually permits.
+    const counters = fakeCounters();
+    let spent = 0;
+    for (let i = 0; i < 100; i += 1) {
+      const decision = await chargeRequest(counters, "mallory", 32);
+      if (!decision.allowed) break;
+      spent += 32;
+    }
+    expect(spent).toBeLessThanOrEqual(240 + 32); // ceiling, plus one request's overshoot
+    expect(spent).toBeLessThan(960); // what the same loop bought before the fix
+  });
+
+  it("leaves ordinary cheap use nowhere near the step ceiling", async () => {
+    const counters = fakeCounters();
+    for (let i = 0; i < 30; i += 1) {
+      expect((await chargeRequest(counters, "alice", 2)).allowed).toBe(true);
+    }
+    expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(60);
+  });
+
+  it("charges the global bucket the same real cost as the user bucket", async () => {
+    const counters = fakeCounters();
+    await chargeRequest(counters, "mallory", 12);
+    expect(counters.rows.get("ai-steps-hourly:global")?.hits).toBe(12);
+  });
+
+  it("serves the request that crosses the line, then refuses the next one", async () => {
+    // The stated consequence of settling after the fact: overshoot is bounded
+    // by one request's step budget, and enforcement lands on the NEXT request.
+    const counters = fakeCounters();
+    const policy = aiStepQuotas()[0]!;
+    let last = await chargeRequest(counters, "mallory", 32);
+    while (last.allowed && (counters.rows.get("ai-steps-hourly:user:mallory")?.hits ?? 0) <= policy.perUser) {
+      last = await chargeRequest(counters, "mallory", 32);
+    }
+    const over = counters.rows.get("ai-steps-hourly:user:mallory")!.hits;
+    expect(over).toBeGreaterThan(policy.perUser);
+    expect(over).toBeLessThanOrEqual(policy.perUser + 32);
+    expect(await chargeRequest(counters, "mallory", 1)).toMatchObject({
+      allowed: false,
+      reason: "user",
+    });
+  });
+
+  describe("settleAiSteps", () => {
+    it("charges nothing extra for a one-step answer", async () => {
+      const counters = fakeCounters();
+      await settleAiSteps(aiStepQuotas(), "alice", 1, counters, T0);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")).toBeUndefined();
+    });
+
+    it.each([0, -5, Number.NaN, Number.POSITIVE_INFINITY])(
+      "ignores a nonsensical step count (%o) rather than corrupting the ledger",
+      async (steps) => {
+        const counters = fakeCounters();
+        await settleAiSteps(aiStepQuotas(), "alice", steps, counters, T0);
+        expect(counters.rows.get("ai-steps-hourly:user:alice")).toBeUndefined();
+      },
+    );
+
+    it("clamps a step count above the handler's compiled budget", async () => {
+      // 31, not 10_000 and not 32: the count is clamped to the 32-step budget,
+      // and settlement charges only the 31 beyond the one admission covered.
+      const counters = fakeCounters();
+      await settleAiSteps(aiStepQuotas(), "alice", 10_000, counters, T0);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(31);
+    });
+
+    it("never throws when the counter store fails, because the work is already done", async () => {
+      const broken: QuotaCounters = {
+        async bump() {
+          throw new Error("counter store down");
+        },
+      };
+      await expect(settleAiSteps(aiStepQuotas(), "alice", 32, broken, T0)).resolves.toBeUndefined();
+    });
   });
 });
 

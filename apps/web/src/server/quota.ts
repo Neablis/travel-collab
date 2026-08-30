@@ -54,11 +54,14 @@ export type QuotaDecision =
 /** The one piece of I/O, injected so the policy logic is testable without a database. */
 export interface QuotaCounters {
   /**
-   * Atomically add one to `bucket` for the window starting at `windowStart` and
-   * return the resulting count. A count from an older window is discarded, not
-   * added to.
+   * Atomically add `amount` (default 1) to `bucket` for the window starting at
+   * `windowStart` and return the resulting count. A count from an older window
+   * is discarded, not added to.
+   *
+   * `amount` exists for KI-67: a policy that can only ever add 1 can only ever
+   * meter calls, and cost is not proportional to calls.
    */
-  bump(bucket: string, windowStart: Date): Promise<number>;
+  bump(bucket: string, windowStart: Date, amount?: number): Promise<number>;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -129,6 +132,68 @@ export function aiQuotas(): QuotaPolicy[] {
 }
 
 /**
+ * The per-request step budget the AI handler compiles in (`MAX_STEPS` for the
+ * board/combined surfaces in handleAiRequest.ts). Duplicated as a constant
+ * rather than imported so this module keeps no dependency on the AI handler —
+ * it is used here only to derive and document the step ceilings below, and to
+ * bound what `settleAiSteps` will accept.
+ */
+const AI_MAX_STEPS_PER_REQUEST = 32;
+
+/**
+ * AI **cost** quotas, metered in model round-trips rather than in calls (KI-67).
+ *
+ * The request policies above bound how many times an actor may ask. They do not
+ * bound what asking costs: `handleAiRequest` runs a tool-using loop with a
+ * 32-step budget, so one request can burn 32 model round-trips while another
+ * burns one, and both used to decrement the same allowance by exactly 1. The
+ * measured consequence: a nominal ceiling of 30 requests an hour actually
+ * permits **960** round-trips an hour, and an actor who wants to maximise spend
+ * under the cap simply writes prompts that provoke long tool loops.
+ *
+ * These policies are ADDITIVE — the request policies keep their numbers and
+ * their meaning, so no operator's configured value silently changes unit. A
+ * request is refused if it exceeds EITHER layer, so this can only ever tighten
+ * the ceiling, never loosen it.
+ *
+ * **Why steps and not tokens.** `meta.usage.totalTokens` is the truer cost
+ * signal and is already computed, but a token budget has to answer "per token
+ * or per currency?" the moment two models differ in price — a question with a
+ * product decision inside it. Steps are the driver `TODO.md` already names
+ * ("Watch `meta.steps` — that is the cost driver, and it is already
+ * instrumented"), they are bounded and model-independent, and they are within
+ * a small constant factor of tokens for this handler's fixed-size envelope.
+ * Switching the denominator later is a change to these four numbers and the
+ * value passed to `settleAiSteps`, not to the mechanism.
+ *
+ * **The numbers.** Per-user hourly is 30 requests × an 8-round-trip working
+ * average, i.e. the same request budget priced at what a request realistically
+ * costs rather than at its worst case. That cuts the reachable ceiling from 960
+ * round-trips an hour to 240 — a 4× reduction in maximum spend — while leaving
+ * ordinary use (most answers finish in one to three steps) nowhere near it. The
+ * daily and global ceilings are scaled from their request counterparts the same
+ * way. Every one is operator-overridable, and `envCeiling`'s fallback-on-
+ * malformed rule applies to them exactly as it does above.
+ */
+export function aiStepQuotas(): QuotaPolicy[] {
+  const AVERAGE_STEPS = 8;
+  return [
+    {
+      name: "ai-steps-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AI_STEP_LIMIT_PER_USER_HOURLY", 30 * AVERAGE_STEPS),
+      global: envCeiling("AI_STEP_LIMIT_GLOBAL_HOURLY", 300 * AVERAGE_STEPS),
+    },
+    {
+      name: "ai-steps-daily",
+      windowMs: DAY_MS,
+      perUser: envCeiling("AI_STEP_LIMIT_PER_USER_DAILY", 100 * AVERAGE_STEPS),
+      global: envCeiling("AI_STEP_LIMIT_GLOBAL_DAILY", 1000 * AVERAGE_STEPS),
+    },
+  ];
+}
+
+/**
  * Geocode-proxy quota (review finding L4). One daily window, because the thing
  * being protected IS a daily number: LocationIQ's free tier is 5,000
  * lookups/day, so the global ceiling is set below it deliberately — this is a
@@ -137,6 +202,17 @@ export function aiQuotas(): QuotaPolicy[] {
  * Per-user 300/day is generous for a search box the user drives with an
  * explicit button press (LocationInput has no typeahead), and still bounds a
  * single account to ~6% of the daily allowance.
+ *
+ * **Deliberately still metered in requests, unlike the AI policies (KI-67).**
+ * That entry names this policy alongside the AI ones, but the defect it
+ * describes is not present here: one request to `/api/geocode` is exactly one
+ * LocationIQ lookup, so calls and cost are the same quantity and a
+ * cost-proportional charge would be `1` every time. Adding the machinery would
+ * buy nothing. The geocode key's real unmetered exposure is a different
+ * problem, filed separately as KI-77: the AI handler's own server-side
+ * enrichment geocodes through `getGeocoder()` without consulting this policy at
+ * all, so an AI request can spend an unbounded-by-this-ceiling number of
+ * lookups. That is a missing call site, not a wrong denominator.
  */
 export function geocodeQuota(): QuotaPolicy[] {
   return [
@@ -204,6 +280,72 @@ export async function consumeQuota(
   return { allowed: true };
 }
 
+/**
+ * Charge the round-trips a completed AI request actually used, beyond the one
+ * `consumeQuota` already pre-authorised (KI-67).
+ *
+ * **Why this is a second call and not a bigger first one.** You cannot
+ * pre-authorise an unknown cost: the step count does not exist until
+ * `generateText` returns. So admission stays a charge of 1 — enough to refuse
+ * an actor who is already over — and the true cost is settled afterwards. That
+ * is the shape change the entry identified as the design question, and it has
+ * exactly one consequence worth stating plainly:
+ *
+ * **The request that crosses the line mid-flight is served, and its debt lands
+ * on the actor's counter.** The alternative — failing after the provider has
+ * already been paid — burns the money AND withholds the answer, which is
+ * strictly worse for everyone including the operator. The ceiling is therefore
+ * enforced on the NEXT request.
+ *
+ * **How far it can be overshot, stated correctly.** For one actor issuing
+ * requests in sequence the overshoot is at most one request's step budget. It
+ * is NOT bounded that way under concurrency: every request in flight has
+ * charged only its admission step, so N requests admitted before any of them
+ * settles can together overshoot by up to N × (budget − 1). The global bucket
+ * is where that matters — with distinct users, enough concurrent 32-step
+ * requests can pass the global step ceiling before any of them settles.
+ * Filed as KI-78, with the fix the reviewer proposed (reserve the maximum
+ * in-flight cost at admission and reconcile the unused part afterwards), which
+ * needs a refund primitive this module deliberately does not have yet — see
+ * `bump`'s clamp, and the window-rollover hazard a refund has to survive.
+ * What still bounds the burst today is the request-count layer above
+ * (`aiQuotas`), which caps concurrent admissions independently.
+ *
+ * **Never refuses and never throws.** The work is already done, so there is no
+ * decision left to make, and a counter write failing must not turn a successful
+ * answer into an error the caller sees. A failed settlement loses that
+ * request's excess cost from the ledger — one window of under-counting, the
+ * same magnitude of over-permissiveness the counter table's own schema comment
+ * already accepts — which is why this swallows rather than propagates. It is
+ * also what keeps an int4 overflow at the very top of the range harmless.
+ *
+ * `steps` is clamped rather than trusted: it arrives from the AI response meta,
+ * and a negative or absurd value must not be able to zero out or blow up an
+ * actor's allowance.
+ */
+export async function settleAiSteps(
+  policies: readonly QuotaPolicy[],
+  userId: string,
+  steps: number,
+  counters: QuotaCounters = pgCounters(),
+  now: Date = new Date(),
+): Promise<void> {
+  if (!Number.isFinite(steps)) return;
+  const used = Math.min(Math.max(Math.trunc(steps), 1), AI_MAX_STEPS_PER_REQUEST);
+  const extra = used - 1; // admission already charged the first round-trip
+  if (extra <= 0) return;
+
+  for (const policy of policies) {
+    const windowStart = windowStartFor(policy, now);
+    try {
+      await counters.bump(`${policy.name}:user:${userId}`, windowStart, extra);
+      await counters.bump(`${policy.name}:global`, windowStart, extra);
+    } catch {
+      // See the note above: a completed request is never failed over a counter.
+    }
+  }
+}
+
 /** The refusal a route returns. 429 for a ceiling, 503 for a broken counter. */
 export function quotaRefusal(decision: Extract<QuotaDecision, { allowed: false }>): Response {
   const status = decision.reason === "unavailable" ? 503 : 429;
@@ -241,14 +383,22 @@ function secondsUntilWindowEnd(policy: QuotaPolicy, windowStart: Date, now: Date
  */
 export function pgCounters(database: Db = db): QuotaCounters {
   return {
-    async bump(bucket, windowStart) {
+    async bump(bucket, windowStart, amount = 1) {
+      // Clamped to a positive integer before it reaches SQL. `amount` is the
+      // only value here that does not originate in this module, and a
+      // fractional or negative one would either corrupt an integer column or
+      // let a caller DECREMENT someone's usage.
+      const by = Math.max(1, Math.trunc(Number.isFinite(amount) ? amount : 1));
       const [row] = await database
         .insert(rateLimitCounters)
-        .values({ bucket, windowStart, hits: 1 })
+        .values({ bucket, windowStart, hits: by })
         .onConflictDoUpdate({
           target: rateLimitCounters.bucket,
           set: {
-            hits: sql`case when excluded.window_start > ${rateLimitCounters.windowStart} then 1 else ${rateLimitCounters.hits} + 1 end`,
+            // A new window starts AT `by`, not at 1: the charge being applied
+            // is the first thing in the window and must not be discarded along
+            // with the previous window's count.
+            hits: sql`case when excluded.window_start > ${rateLimitCounters.windowStart} then ${by} else ${rateLimitCounters.hits} + ${by} end`,
             windowStart: sql`greatest(${rateLimitCounters.windowStart}, excluded.window_start)`,
           },
         })

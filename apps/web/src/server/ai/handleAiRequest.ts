@@ -40,7 +40,7 @@ import { generateText, isStepCount, type LanguageModel } from "ai";
 import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { getTripHistory } from "@/server/history";
-import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { buildEnvelope, type AiCommandSurface } from "@/server/ai/context";
@@ -247,7 +247,13 @@ export async function handleAiRequest(
   // Applies in simulated mode too: the request still writes to the log and the
   // limiter's job is to bound requests, not to guess which ones reached a
   // provider.
-  const quota = await consumeQuota(aiQuotas(), userId);
+  // Two layers, both charged here (KI-67). `aiQuotas` bounds how many times an
+  // actor may ask; `aiStepQuotas` bounds what asking COSTS, in model
+  // round-trips. Only one round-trip can be pre-authorised, because the real
+  // step count does not exist until generateText returns — `settleAiSteps`
+  // below charges the rest once it does. An actor already over either ceiling
+  // is refused here, before a provider is touched.
+  const quota = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
@@ -300,6 +306,12 @@ export async function handleAiRequest(
       );
     }
     const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
+    // Settle the round-trips this answer actually cost, beyond the one already
+    // pre-authorised (KI-67). Placed immediately after `meta` is built so every
+    // return path below it — composed, not-composed, invalid — is charged the
+    // same: the provider was paid for those steps whatever the handler decides
+    // to do with the result. Never throws; see settleAiSteps.
+    await settleAiSteps(aiStepQuotas(), userId, meta.steps);
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -344,6 +356,9 @@ export async function handleAiRequest(
     );
   }
   const meta = buildAiMeta(gen, activeModel, Date.now() - startedAt, simulated);
+  // As in the page branch above: charge the real round-trip cost here, once,
+  // so every return path below is metered identically (KI-67).
+  await settleAiSteps(aiStepQuotas(), userId, meta.steps);
 
   // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
   // commands in one batch-aware pass: mint new ids, resolve refs against the

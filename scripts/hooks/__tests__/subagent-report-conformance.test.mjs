@@ -197,3 +197,126 @@ test("a thinking-only final entry still catches an incomplete prior report", () 
   assert.equal(res.status, 2);
   assert.match(res.stderr, /## Evidence gaps/);
 });
+
+// --- KI-62: which unit's report does the hook actually read? ----------------
+//
+// Settled by measurement, not by reading. Two concurrent subagents were run
+// with this hook instrumented. At BOTH SubagentStop events `transcript_path`
+// was the PARENT session's transcript — the same path for both units — and
+// its last assistant text block was an unrelated message from the
+// orchestrator's own earlier turn. The hook found no "## Exit:" heading and
+// silently exited 0 for both. It was not checking the wrong unit's report; it
+// was not checking any report at all.
+//
+// The payload carries two per-unit fields that make this unambiguous:
+// `last_assistant_message` (the unit's final message, verbatim) and
+// `agent_transcript_path` (that unit's own transcript file). These pin the
+// precedence between them and the now-last-resort `transcript_path`.
+
+/**
+ * The shape the reproduction actually produced: a parent transcript whose
+ * final assistant text belongs to the orchestrator, not to any unit.
+ */
+const PARENT_NOISE = "Five cloud agents running, 19 of 34 open KIs, five PRs.";
+
+test("KI-62: last_assistant_message wins over a parent transcript's unrelated text", () => {
+  const res = runHook("subagent-report-conformance.mjs", {
+    transcript_path: transcriptWith(PARENT_NOISE),
+    last_assistant_message: COMPLETE_DONE.replace("## Evidence gaps\nnone\n", ""),
+    stop_hook_active: false,
+  });
+  // Without the fix this exits 0 (no "## Exit:" in the parent noise) and the
+  // incomplete report ships unchecked. That silent no-op IS the bug.
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Evidence gaps/);
+});
+
+test("KI-62: a conforming report in last_assistant_message passes", () => {
+  const res = runHook("subagent-report-conformance.mjs", {
+    transcript_path: transcriptWith(PARENT_NOISE),
+    last_assistant_message: COMPLETE_DONE,
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 0);
+});
+
+test("KI-62: agent_transcript_path is read in preference to transcript_path", () => {
+  const res = runHook("subagent-report-conformance.mjs", {
+    transcript_path: transcriptWith(PARENT_NOISE),
+    agent_transcript_path: transcriptWith(
+      COMPLETE_DONE.replace("## Board entries written\nnone\n", ""),
+    ),
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Board entries written/);
+});
+
+test("KI-62: a BLANK last_assistant_message falls through to the transcripts", () => {
+  // An empty or whitespace-only field must not select itself and suppress both
+  // fallbacks — that would reintroduce the exact silent no-op this fix ended,
+  // through the very field that fixed it. (CodeRabbit, PR #83.)
+  const res = runHook("subagent-report-conformance.mjs", {
+    last_assistant_message: "   \n  ",
+    agent_transcript_path: transcriptWith(COMPLETE_DONE.replace("## Unit\nu1 — do the thing\n", "")),
+    transcript_path: transcriptWith(PARENT_NOISE),
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Unit/);
+});
+
+test("KI-62: an unreadable agent_transcript_path falls back to transcript_path", () => {
+  const res = runHook("subagent-report-conformance.mjs", {
+    transcript_path: transcriptWith(COMPLETE_DONE.replace("## Teardown\nnothing created\n", "")),
+    agent_transcript_path: "/nonexistent/agent.jsonl",
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /## Teardown/);
+});
+
+test("KI-62: two concurrent units are each judged on their own report", () => {
+  // The reproduction's exact shape: one parent transcript, two units, one
+  // conforming and one not. Reading `transcript_path` cannot tell them apart;
+  // reading each unit's own final message can.
+  const parent = transcriptWith(PARENT_NOISE);
+  const alpha = runHook("subagent-report-conformance.mjs", {
+    transcript_path: parent,
+    last_assistant_message: COMPLETE_DONE,
+    stop_hook_active: false,
+  });
+  const bravo = runHook("subagent-report-conformance.mjs", {
+    transcript_path: parent,
+    last_assistant_message: COMPLETE_DONE.replace("## Acceptance checks", "## Checks I ran"),
+    stop_hook_active: false,
+  });
+  assert.equal(alpha.status, 0);
+  assert.equal(bravo.status, 2);
+  assert.match(bravo.stderr, /## Acceptance checks/);
+});
+
+// --- KI-63: two "## Exit:" headings ----------------------------------------
+
+test("KI-63: a quoted DONE above a real BLOCKED no longer sheds BLOCKED's sections", () => {
+  // The first heading used to govern silently, so this validated as DONE and
+  // never asked for Blocker / Tree state.
+  const twoStates = `## Exit: DONE\n\n${COMPLETE_DONE.replace("## Exit: DONE", "## Exit: BLOCKED")}`;
+  const res = runHook("subagent-report-conformance.mjs", {
+    last_assistant_message: twoStates,
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /ambiguous/);
+  assert.match(res.stderr, /## Blocker/);
+  assert.match(res.stderr, /## Tree state/);
+});
+
+test("KI-63: repeating the SAME exit state is not treated as ambiguous", () => {
+  const repeated = `## Exit: DONE\n\n${COMPLETE_DONE}`;
+  const res = runHook("subagent-report-conformance.mjs", {
+    last_assistant_message: repeated,
+    stop_hook_active: false,
+  });
+  assert.equal(res.status, 0);
+});

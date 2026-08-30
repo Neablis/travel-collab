@@ -32,6 +32,15 @@ export function parseStdin(raw) {
   }
 }
 
+// Resolves the MAIN checkout (git-common-dir), which is shared by every linked
+// worktree — the right root for `.claude/run/` scratch. It is NOT
+// interchangeable with `worktreeRoot` below, which resolves the calling
+// worktree's own top level and is the right root for branch-versioned repo
+// content like `.claude/protocol/adapter.json`. The two agree only when no
+// linked worktree is in play. Read the comment above `worktreeRoot` before
+// changing either: collapsing them has already caused two silent failures.
+// (KI-63: that comment existed but had no pointer from this end, so the
+// resolver you land on first told you nothing about the choice.)
 export function mainCheckout(cwd) {
   try {
     const common = execSync(
