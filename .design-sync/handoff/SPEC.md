@@ -1,7 +1,7 @@
 # Spec — what the design file cannot say out loud
 
-Companion to `design/Trip Planner Redesign.dc.html` and `design/Trip Planner Mobile.dc.html`.
-Current as of 2026-08-24.
+Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
+a second file). Current as of 2026-08-30 — §15 is the newest section.
 
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
@@ -535,3 +535,76 @@ values (§7, contradicted by `templates.ts`) and playbook sharing (three Preview
 **This is deliberate and is not drift.** A landing page states direction. Do not gate it
 on those, and do not reduce it to what ships today. The line it must not cross is a claim
 the product will never honour; the copy makes none.
+
+
+---
+
+## 15. Playbooks becomes a public library — 2026-08-30
+
+Four routes, three of them new: `playbooks` (Discover), `day` (a shared day), `board`
+(leaderboard) and `profile` (public profile). **None of this exists in code.**
+`playbooks-route`, `insert-playbook` and `add-saved-day` were already `<Preview>` shells;
+this section widens what they owe. DRIFT §2b lists the fields a build needs first.
+
+### Discover: city search is server-side
+
+The old `<option>` city dropdown is **gone and must not come back**. A debounced input
+queries a 30-city index (region + day count) with ~240–440 ms simulated latency, and the
+design asserts a `GET /cities?q=` style endpoint that does not exist yet. Four real states:
+loading spinner, results, "no city matches", and a failure state wired to `syncOff` with
+**Retry**.
+
+**A day matches on *any* city it contains.** Days carry `cities: string[]`; a Kyoto query
+returns the Uji day with the matched city filled and the rest outlined, plus a per-card
+line ("Kyoto matched · also Uji"). Ranking is matched-city count first, then the chosen
+sort. There is **no multi-city field in the contract** — this is the largest blocker on the
+list, bigger than the missing `tags` (KI-47).
+
+**Sibling chips** surface cities present in the current result set but absent from the
+query, with counts, one tap to add. An empty query shows a "busy right now" city row
+instead.
+
+**Filters, four only** — rating floor, month it was run, budget per person, and sort (most
+added / highest rated / most reviewed / newest). `Everyone / Yours / Saved` is a **scope
+segment**: your own library is a filter on this page, not a second page (R5). States:
+skeleton grid while fetching, an `EmptyState` offering *Drop the filters* / *Search
+everywhere*, and an offline banner saying ratings are stale.
+
+### Shared day (route `day`)
+
+Full stop list with per-stop notes and city chips; author strip (name, days shared, how
+often their days were added); sticky rail with the rating, a 5→1 histogram, the facts
+(stops, window, budget each, month, adds) and **Add to a trip** → the *existing* insert
+dialog, not a new one.
+
+**Reviews are stars plus one optional line, capped at 140 characters.** Anyone signed in,
+no gate; posting recomputes the average live. Three states present: empty ("nobody has
+rated this yet"), offline (held on device, badged *Queued*) and conflict ("Mei changed
+this day two days ago").
+
+### Leaderboard (route `board`)
+
+**Ranks on real-trip adds only** — not ratings, not post volume. The page states the rule
+in copy: *an add only counts once per trip, and only after the trip has dates; copying
+your own day into your own trip does not count.* That rule is the whole credibility of the
+ranking — **a build that counts raw inserts will produce a different and gameable order.**
+It needs an adds ledger keyed by (day, trip).
+
+Your own row is tinted and badged, never pinned to the top. **Not in the top bar** — it is
+trip-independent but not account scope, so it is entered from Discover ("Who shares the
+most"), per R1. Offline shows a stale-ranking banner; there is no empty state, because the
+board cannot be empty while any day is shared.
+
+### Public profiles (route `profile`)
+
+**Derived, never authored.** Every number — adds, days shared, average rating, reviews
+received, cities known — is computed from that person's days, so a profile can never
+disagree with Discover. No bio, no follow, no avatar upload: a profile answers "is this
+person worth taking a day from" and nothing else. **A public user record is not needed.**
+
+"Knows" city chips run a Discover search scoped to that city, so a profile is a way into
+the library rather than a dead end. Back links are contextual — the profile returns to
+day, board or Discover depending on where you came from, because the same page is
+reachable three ways.
+
+### Until the reviews table exists, every rating here is fixture data.

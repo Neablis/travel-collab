@@ -32,6 +32,7 @@
     "@radix-ui/react-popover": "^1.1.19",
     "@radix-ui/react-tabs": "^1.1.17",
     "@sentry/nextjs": "^10.72.0",
+    "@sentry/profiling-node": "^10.72.0",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
     "@tc/fixtures": "workspace:*",
