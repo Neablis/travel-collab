@@ -8,7 +8,7 @@ import { DataText } from "@/components/ui/data-text";
 
 // Task 15 (M9 Preview shell): the in-timeline ghost proposal's real prop
 // contract per the M10 plan — sample data + a no-op handler pair today (fed
-// by preview-fixtures.ts), so M9 only has to swap the data source and wire
+// by ghost-proposal-fixtures.ts), so M9 only has to swap the data source and wire
 // real handlers later, never rebuild the component shape. The caller always
 // mounts this inside <Preview id="timeline-ghost"> (Task 3's seam), which
 // shields pointer events and stamps the "Preview · M9" chip, so neither

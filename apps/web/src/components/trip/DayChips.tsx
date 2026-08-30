@@ -65,9 +65,19 @@ export function parseLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-// The first scheduled activity's location.city (packages/contracts'
+// The LAST scheduled activity's location.city (packages/contracts'
 // Location.city — the geocoder's own structured city/town/village, distinct
 // from the full place-name label).
+//
+// Last, not first (Mitchell, 2026-08-29): the day label compares yesterday's
+// last activity city with today's, because where you END a day is where you
+// start the next one — SPEC §12's own framing is that the day belongs to
+// where you end up. On the Japan fixture first and last coincide (whole days
+// sit in one city) so nothing rendered differently when this flipped; the
+// case it fixes is a day that genuinely spans two cities, which is the only
+// case the "Tokyo → Kyoto" transition line exists for. Reading the first stop
+// there named the travel day by the city it was leaving and pushed the arrow
+// onto the FOLLOWING day, which never moved.
 //
 // `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
 // with `area`. This value names the day and drives the day accent and the
@@ -85,10 +95,11 @@ export function parseLocalDate(iso: string): Date {
 // So a day whose stops carry neither city nor area has no city, and says so
 // by returning null — the callers all handle that.
 //
-// Falls through subsequent activityIds if the first has no location; null if
+// Walks back through earlier activityIds if the last has no location; null if
 // none of the day's activities name a city or an area.
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
-  for (const activityId of day.activityIds) {
+  for (let index = day.activityIds.length - 1; index >= 0; index--) {
+    const activityId = day.activityIds[index]!;
     const location = activities[activityId]?.location;
     const place = location?.city ?? location?.area;
     if (place !== undefined && place !== "") return place;
@@ -125,7 +136,13 @@ export function chipModel(detail: TripDetail): ChipDay[] {
 export type DayChipsProps = {
   days: ChipDay[];
   focusedDay: number | null;
-  onSelect: (index: number) => void;
+  /**
+   * `null` clears the focus. The chips are the only affordance in the app that
+   * can do that, which is why the type is widened here and not just tolerated:
+   * `focusedDay` is the assistant's scope, and half of M16's gate is asked
+   * with "no day selected".
+   */
+  onSelect: (index: number | null) => void;
 };
 
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
@@ -148,6 +165,15 @@ export type DayChipsProps = {
 // Clicking a chip calls onSelect — TripBoardScreen wires this straight to
 // Task 4's useFocus().setFocusedDay; this component dispatches no trip
 // command and knows nothing about the active lens.
+//
+// Clicking the ALREADY-focused chip clears the focus (`onSelect(null)`).
+// M16 Wave 2 made that load-bearing rather than a nicety: `focusedDay` is now
+// the assistant's scope, so without a way back to "no day" the whole-trip half
+// of every question was reachable only on a fresh page load — and
+// TimelineLens's "add a day" focuses silently, so adding one locked you into
+// day scope for the session. `aria-pressed` already tells assistive tech this
+// is a toggle; the × on the focused chip is what tells everyone else, since a
+// toggle nobody can see is a toggle nobody uses.
 export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
@@ -182,7 +208,7 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""
             }, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
             aria-pressed={isFocused}
-            onClick={() => onSelect(index)}
+            onClick={() => onSelect(isFocused ? null : index)}
             className={cn(
               "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
               CHIP_BG[accent.solid],
@@ -191,15 +217,31 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
             // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
             style={{ width: "92px" }}
           >
-            <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+            {/* Weekday and day-of-month share the first line — "Tue 8" (Mitchell,
+                on the preview: "Lets move the day of the month up to be inline
+                with the Day of the week to be more space efficient"). The number
+                used to sit on the second line ahead of the city, where it was
+                the reason a longer city name truncated: it took a fixed
+                `shrink-0` bite out of a chip only ~72px wide. */}
             <div className="flex w-full items-baseline gap-1 overflow-hidden">
+              <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
-              {/* On a travel day the city moves down to the transition line, which
-                  spells out both ends of the move — printing it here as well would
-                  be the same fact twice on one chip (RULES.md 4), and printing it
-                  here alone is what produced the reported "Nikkō" over "→ Nikkō". */}
+              {isFocused && (
+                // Not a nested <button>: the whole chip already IS the toggle,
+                // and a button inside a button is invalid HTML. This is the
+                // visible half of `aria-pressed`.
+                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", INK_TEXT[accent.ink])}>
+                  ×
+                </span>
+              )}
+            </div>
+            {/* On a travel day the city moves down to the transition line, which
+                spells out both ends of the move — printing it here as well would
+                be the same fact twice on one chip (RULES.md 4), and printing it
+                here alone is what produced the reported "Nikkō" over "→ Nikkō". */}
+            <div className="flex w-full items-baseline overflow-hidden">
               {day.city && !day.transitionTo ? (
                 <span
                   className="truncate text-slate"

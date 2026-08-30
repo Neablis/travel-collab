@@ -17,7 +17,7 @@ import { chipModel } from "@/components/trip/DayChips";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useFocus } from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
-import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/preview-fixtures";
+import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/ghost-proposal-fixtures";
 import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
 import { initialsFor } from "@/lib/initials";
 import { shortPlace } from "@/lib/place";

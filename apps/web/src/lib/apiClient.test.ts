@@ -4,6 +4,8 @@ import { HttpResponse, http } from "msw";
 import * as apiClientModule from "@/lib/apiClient";
 import {
   acceptInvite,
+  applyAssistantProposal,
+  askAssistant,
   cloneSharedTrip,
   composeAiPage,
   composeAiPlan,
@@ -190,11 +192,20 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
   deleteSavedDay: () => deleteSavedDay(UUID),
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
+  askAssistant: () =>
+    askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
+  applyAssistantProposal: () =>
+    applyAssistantProposal(TRIP_ID, {
+      proposalId: "p1",
+      changes: [],
+      commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }],
+      skipped: [],
+    }),
 };
 
 // Pure URL builders — they touch no network, so totality is not a claim about
 // them. Anything else exported as a function has to be in the table above.
-const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink"]);
+const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink", "askEventFromFrame"]);
 
 describe("apiClient totality — no helper ever rejects", () => {
   // The witness for the suite below: it asserts nothing about behaviour, only
@@ -247,5 +258,328 @@ describe("apiClient totality — no helper ever rejects", () => {
     const result = await fetchTripDetail(TRIP_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.status).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// askAssistant — the streaming half.
+//
+// Everything here is written against the wire format `handleAskRequest`
+// actually emits (task 3's report §3, itself quoted verbatim from an
+// integration run), not against a guess: `data: <json>\n\n` frames terminated
+// by `data: [DONE]`, tool calls before the answer, and a mid-turn failure as an
+// `error` frame on a 200 rather than a non-200.
+// ---------------------------------------------------------------------------
+
+function sseResponse(
+  frames: string[],
+  { split = false, simulated }: { split?: boolean; simulated?: boolean } = {},
+) {
+  const body = frames.map((f) => `data: ${f}\n\n`).join("");
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const bytes = new TextEncoder().encode(body);
+      if (!split) {
+        controller.enqueue(bytes);
+      } else {
+        // Deliberately mid-frame: a real connection splits wherever it likes,
+        // and a client that parses per read() drops deltas exactly here.
+        for (let i = 0; i < bytes.length; i += 7) controller.enqueue(bytes.slice(i, i + 7));
+      }
+      controller.close();
+    },
+  });
+  return new HttpResponse(stream, {
+    headers: {
+      "content-type": "text/event-stream",
+      "x-vercel-ai-ui-message-stream": "v1",
+      ...(simulated === undefined ? {} : { "x-tc-ai-simulated": String(simulated) }),
+    },
+  });
+}
+
+const ANSWER_FRAMES = [
+  '{"type":"start"}',
+  '{"type":"start-step"}',
+  '{"type":"tool-input-available","toolCallId":"t1","toolName":"read_trip","input":{}}',
+  '{"type":"tool-input-available","toolCallId":"t2","toolName":"read_day","input":{"day":3}}',
+  '{"type":"tool-output-available","toolCallId":"t1","output":{"name":"Japan"}}',
+  '{"type":"finish-step"}',
+  '{"type":"text-start","id":"0"}',
+  '{"type":"text-delta","id":"0","delta":"Day 3 has 5 stops. "}',
+  '{"type":"text-delta","id":"0","delta":"The biggest open stretch is 17:30 to 19:30."}',
+  '{"type":"text-end","id":"0"}',
+  '{"type":"finish","finishReason":"stop"}',
+  "[DONE]",
+];
+
+describe("askAssistant", () => {
+  it("posts the whole thread and the scope to /ask", async () => {
+    let seen: unknown;
+    server.use(
+      http.post("*/api/trips/:tripId/ask", async ({ request }) => {
+        seen = await request.json();
+        return sseResponse(ANSWER_FRAMES);
+      }),
+    );
+    const thread: apiClientModule.AskWireMessage[] = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "what's planned?" }] },
+      { id: "a1", role: "assistant", parts: [{ type: "text", text: "Five stops." }] },
+      { id: "u2", role: "user", parts: [{ type: "text", text: "what about the next day?" }] },
+    ];
+    await askAssistant(TRIP_ID, thread, { kind: "day", dayIndex: 2 });
+    expect(seen).toEqual({ messages: thread, scope: { kind: "day", dayIndex: 2 } });
+  });
+
+  it("streams text deltas in order and concatenates them into one answer", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
+    const events: apiClientModule.AskEvent[] = [];
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    if (!result.ok) throw new Error(`expected ok, got ${result.error.message}`);
+    expect(result.value.text).toBe("Day 3 has 5 stops. The biggest open stretch is 17:30 to 19:30.");
+    expect(events.filter((e) => e.type === "text").map((e) => e.delta)).toEqual([
+      "Day 3 has 5 stops. ",
+      "The biggest open stretch is 17:30 to 19:30.",
+    ]);
+  });
+
+  it("surfaces tool calls, in order, before any answer text", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const kinds = events.map((e) => e.type);
+    expect(kinds.indexOf("tool")).toBeLessThan(kinds.indexOf("text"));
+    expect(events.filter((e) => e.type === "tool").map((e) => e.toolName)).toEqual(["read_trip", "read_day"]);
+  });
+
+  // The property the buffering exists for. Without it this test loses deltas
+  // and the answer comes back truncated.
+  it("reassembles frames split across network reads", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES, { split: true })));
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.value.text).toBe("Day 3 has 5 stops. The biggest open stretch is 17:30 to 19:30.");
+  });
+
+  // The channel a `res.ok` check cannot see: HTTP 200, and the failure inside.
+  it("reports a mid-stream error frame as a failure, carrying the server's own message", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([
+          '{"type":"start"}',
+          '{"type":"text-delta","id":"0","delta":"Day 3 "}',
+          '{"type":"error","errorText":"model call failed: upstream 500"}',
+        ]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(200);
+    expect(result.error.code).toBe(apiClientModule.ASK_STREAM_ERROR_CODE);
+    expect(result.error.message).toBe("model call failed: upstream 500");
+    // The partial answer still reached the caller — it is on screen already.
+    expect(events.filter((e) => e.type === "text").map((e) => e.delta)).toEqual(["Day 3 "]);
+  });
+
+  it("passes a pre-stream refusal's status, message and code straight through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        HttpResponse.json(
+          { error: "The assistant isn't available on the demo trip.", code: "demo-trip-unsupported" },
+          { status: 403 },
+        ),
+      ),
+    );
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(403);
+    expect(result.error.code).toBe(apiClientModule.DEMO_TRIP_UNSUPPORTED_CODE);
+    expect(result.error.message).toBe("The assistant isn't available on the demo trip.");
+  });
+
+  it("reports an aborted turn with its own code, not as a network failure", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
+    const controller = new AbortController();
+    controller.abort();
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, () => {}, controller.signal);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe(apiClientModule.ASK_ABORTED_CODE);
+  });
+});
+
+describe("askEventFromFrame", () => {
+  // The frames it must IGNORE are the contract too: the stream is a superset
+  // the server may grow, and an unknown part type must never break a
+  // conversation (nor render as raw JSON in the transcript).
+  it.each([
+    '{"type":"start"}',
+    '{"type":"start-step"}',
+    '{"type":"finish-step"}',
+    '{"type":"text-start","id":"0"}',
+    '{"type":"text-end","id":"0"}',
+    '{"type":"tool-output-available","toolCallId":"t1","output":{"name":"Japan"}}',
+    '{"type":"finish","finishReason":"stop"}',
+    '{"type":"something-invented-next-quarter"}',
+    "[DONE]",
+    "",
+    "not json at all",
+  ])("ignores %s", (payload) => {
+    expect(apiClientModule.askEventFromFrame(`data: ${payload}`)).toBeNull();
+  });
+
+  it("reads a multi-line data frame as one payload, per the SSE spec", () => {
+    expect(apiClientModule.askEventFromFrame('data: {"type":"text-delta",\ndata: "delta":"hi"}')).toEqual({
+      type: "text",
+      delta: "hi",
+    });
+  });
+
+  it("falls back to a readable message when an error frame carries no errorText", () => {
+    const event = apiClientModule.askEventFromFrame('data: {"type":"error"}');
+    expect(event).toEqual({ type: "error", message: "The assistant stopped mid-answer." });
+  });
+});
+
+// Ruling B: `simulated` comes from a response HEADER, not from a phrase in the
+// model's own answer. The three tests below are what the deleted prose sniff
+// could not do.
+describe("the simulated verdict", () => {
+  it("is read from the header, before the first delta", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES, { simulated: true })));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events[0]).toEqual({ type: "meta", simulated: true });
+  });
+
+  it("is false when the header says so, whatever the answer's words are", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(
+          [
+            '{"type":"start"}',
+            // The exact sentence the deleted `answerIsSimulated` matched. A
+            // live model quoting it must not badge the answer.
+            '{"type":"text-delta","id":"0","delta":"AI is switched off on this deployment, they say."}',
+          ],
+          { simulated: false },
+        ),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: false }]);
+  });
+
+  it("still badges a turn that dies before it says anything", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(['{"type":"start"}', '{"type":"error","errorText":"upstream 500"}'], { simulated: true }),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(result.ok).toBe(false);
+    expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: true }]);
+  });
+
+  it("reads a missing header as not simulated", async () => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events[0]).toEqual({ type: "meta", simulated: false });
+  });
+});
+
+const DETAIL = tripDetailFixture();
+const HISTORY = historyFixture(DETAIL.tripId);
+
+const PROPOSAL = {
+  proposalId: "p1",
+  changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+  commands: [
+    { type: "AddActivity", tripId: TRIP_ID, activityId: UUID, dayId: UUID, title: "Coffee" },
+  ],
+  skipped: [],
+};
+
+const FINISH_WITH_PROPOSAL = `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL })}}`;
+
+describe("the proposal on the wire", () => {
+  it("arrives as one event, on the stream's final chunk", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () => sseResponse([...ANSWER_FRAMES, FINISH_WITH_PROPOSAL])),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const proposals = events.filter((e) => e.type === "proposal");
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]!.proposal.proposalId).toBe("p1");
+    expect(proposals[0]!.proposal.commands).toEqual(PROPOSAL.commands);
+    // It is the LAST thing the caller hears about, after the whole answer.
+    expect(events.at(-1)).toBe(proposals[0]);
+  });
+
+  // The commands are posted straight back to /ask/apply, so a malformed
+  // proposal has to be dropped here rather than forwarded.
+  it.each([
+    ['{"type":"finish","finishReason":"stop"}', "no metadata at all"],
+    ['{"type":"finish","finishReason":"stop","messageMetadata":{}}', "metadata with no proposal"],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p1","commands":[]}}}',
+      "an empty command list",
+    ],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p1","commands":[{"type":"Nope"}]}}}',
+      "a command that is not batchable",
+    ],
+    [
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"commands":[{"type":"AddDay","tripId":"' +
+        TRIP_ID +
+        '","dayId":"' +
+        UUID +
+        '"}]}}}',
+      "no proposalId",
+    ],
+  ])("drops %s (%s)", async (frame) => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+});
+
+describe("applyAssistantProposal", () => {
+  it("posts the reviewed commands to /ask/apply and returns the server's receipt", async () => {
+    let seen: unknown;
+    server.use(
+      http.post("*/api/trips/:tripId/ask/apply", async ({ request }) => {
+        seen = await request.json();
+        return HttpResponse.json({ detail: DETAIL, history: HISTORY, message: "Done — added “Coffee” to day 2." });
+      }),
+    );
+    const result = await applyAssistantProposal(TRIP_ID, PROPOSAL as never);
+    expect(seen).toEqual({ proposalId: "p1", commands: PROPOSAL.commands });
+    if (!result.ok) throw new Error(`expected ok, got ${result.error.message}`);
+    expect(result.value.message).toBe("Done — added “Coffee” to day 2.");
+    expect(result.value.detail.tripId).toBe(DETAIL.tripId);
+    // Approving calls no model, so it claims no authorship of its own.
+    expect(result.value.simulated).toBe(false);
+  });
+
+  it("passes a refusal's status and code through, so the card can say why", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask/apply", () =>
+        HttpResponse.json({ error: "someone else changed this trip", code: "concurrency-conflict" }, { status: 409 }),
+      ),
+    );
+    const result = await applyAssistantProposal(TRIP_ID, PROPOSAL as never);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(409);
+    expect(result.error.code).toBe("concurrency-conflict");
   });
 });

@@ -13,7 +13,7 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-79 — `commands.int.test.ts` is a seventh whole-table truncator, and its `events` count assertion is what a concurrent run breaks first
+### KI-89 — `commands.int.test.ts` is a seventh whole-table truncator, and its `events` count assertion is what a concurrent run breaks first
 - **Severity:** reliability (the KI-69 defect class, in the one file KI-69 did not list — and the file that demonstrates why the exclusive-resource policy is load-bearing)
 - **Area:** `apps/web/src/server/commands.int.test.ts:38-41` (the `beforeEach`) and `:52-53`, `:55` (the whole-table assertions)
 - **What happens:** the `describe("executeTripCommand")` block opens with `db.delete(tripDetails)`, `db.delete(tripSummaries)`, `db.delete(events)` — no `where` on any of them — and then asserts `expect(await db.select().from(events)).toHaveLength(1)` and `expect(await db.select().from(tripSummaries)).toHaveLength(1)`. Those are assertions about the entire database, and they hold only because the truncation immediately above them emptied it. KI-69 named six files; this is a seventh with the same shape, missed because its truncation sits inside a `describe` rather than at the top level.
@@ -21,9 +21,182 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **The cause was found rather than assumed, and it was not the code under test.** `ps aux` showed **two other agent worktrees running `pnpm test:int` at that moment** (`agent-a3eeb2ba9d7c27133`, `agent-a69c157d0bc06d926`), and the second one's `apps/web/.env.local` carries the byte-identical `DATABASE_URL=postgres://postgres:postgres@localhost:5433/travel`. A concurrent run appended events between this file's `delete` and its `select`, so the count was 3 instead of 1. This is precisely the corruption `ADAPTER.md` declares `postgres` an exclusive resource to prevent, caught in the act.
 - **Why it is filed rather than fixed:** the KI-69 branch was scoped to the six files that entry names, and a seventh file is a new finding, not that scope. The fix is the same shape as the six: assert over `eq(events.tripId, tripId)` instead of the whole table, and drop the truncation.
 - **The residue after that fix is the real question.** Even with every suite id-scoped, `rebuildProjections()` — called by `projections.int.test.ts` and `anchors.int.test.ts` — truncates and re-projects every trip's projections from the whole event log. So the integration lane cannot become genuinely concurrency-safe by scoping test data alone; that needs a schema or database per run, which is KI-69's second, untaken fix path and the thing that would let `test:int` stop being an exclusive resource.
-- **Numbering:** filed as 79 because three sibling branches each filed a *different* KI-77 and two filed a different KI-78 on the same night. Whoever merges last should reconcile the numbers; nothing outside this file references it yet.
+- **Numbering:** filed as 79 on 2026-08-29, when three sibling branches each filed a *different* KI-77 and two a different KI-78. Renumbered to 89 on merge, `main` having reached KI-88. Nothing outside this file references it.
 - **Cross-reference:** KI-69 (resolved — the same defect in six other files), `.claude/protocol/ADAPTER.md`'s exclusive-resources table.
 - **First noted:** 2026-08-29 (the KI-69 sweep, by its own `pnpm check`).
+
+### KI-84 — The docked assistant rail is a fixed 356px at every viewport, so a narrow phone loses the plan under it — MOSTLY RESOLVED
+- **Severity (as filed):** cosmetic. **Actual, once Mitchell hit it on the PR #88 preview from his own phone (411×852):** functional — the composer was unusable ("the input is unselectable", "totally broken"), not just cramped.
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx`, `apps/web/src/app/globals.css` (`.assistant-rail`, `.assistant-open ~ .unscheduled-rack`), `apps/web/playwright.config.ts` (new `phone` project), `apps/web/e2e/m16-mobile-assistant.spec.ts` (new).
+- **What was filed:** the rail's width was a fixed 356px regardless of viewport, with no narrower breakpoint — at 375px the plan behind it was squeezed to ~19px.
+- **What Mitchell actually hit, and the root causes behind "unselectable" (found by direct click+type reproduction and `getComputedStyle` inspection, not guessed):**
+  1. **`TripHeader` painted over the rail.** `TripHeader` is `sticky z-10` with `overflow-x: visible`; at the crushed width its own content (Share, Add stop, History) didn't fit its squeezed column and overflowed sideways, and — because the docked rail carried no `z-index` of its own (`auto`) — that overflow painted *on top of* the rail rather than under it. Confirmed directly: `document.elementFromPoint()` at a coordinate inside the rail's own box returned a day-chip `<a>` from the header, not the rail.
+  2. Consistent with the composer being genuinely unclickable at some scroll/content states, not merely visually cramped.
+- **The fix:** below 768px (Tailwind's own `md` — the phone/tablet line every other breakpoint-aware rule in `globals.css` already treats the same way, and the point `SPEC.md` §13 frames mobile foundations from) the rail is no longer a 356px flex sibling. It becomes `position: fixed; inset: 0; height: 100dvh; z-index: 30` — a full-screen surface, per Mitchell's own direction ("it probably shouldn't be a modal but a full page experience"), not a modal and not a squeeze. `z-index: 30` clears both stacking competitors already on the page (TripHeader's 10, the unscheduled rack's 20), so nothing can paint over it regardless of how tall either one's content gets. `100dvh` (not the docked rule's `100vh`) tracks the browser's real visible viewport, since a phone's on-screen keyboard can change that without changing `vh` — one credible way a fixed-height composer ends up below the visible area while still reporting itself as open; this is the class of bug a synthetic click cannot prove absent (Playwright never opens a real keyboard), so it's addressed structurally rather than left to a test that cannot see it. The `.unscheduled-rack` 356px compensation is now scoped to `>=768px` too — reserving room for a docked sidebar that no longer exists below that width was the exact kind of thing this ticket was filed to stop leaving unhandled. Docked (`>=768px`) behaviour is byte-for-byte unchanged and still pinned by `responsive.spec.ts`'s "docked contract" test at 1280px and 1100px. The header's "Hide" button is now the full-screen surface's only way back and is a real 44px target (SPEC §13.1) with a border, not a bare ghost action. Verified in the browser at 411×852 (Mitchell's own size) and 375px by clicking and typing into the composer (not `fill()`, not keyboard Enter — the same discipline that would have caught the rack/Ask-button bug this file's `.unscheduled-rack` comment describes), and pinned by `e2e/m16-mobile-assistant.spec.ts` in a new `phone` (411×852) Playwright project. `pnpm --filter web test:e2e:ci-like`: 54/54 passed.
+- **What is deliberately NOT fixed here, and stays open:** the entry point is still the floating pill launcher, which `SPEC.md` §13.5 rules out outright ("Nothing floats over data. No floating action button.") — it was already off-spec before this fix and remains so after it. Redesigning the mobile entry point is a real design decision (§10's "mobile is retrieval, not planning" plus a genuine phone surface, neither of which exists yet) and out of scope for a defect fix; SPEC's two other assistant presentations (56px bubble, 364×476 floating card, §9) are still M16-deferred per Mitchell's 2026-08-25 call and are the more likely long-term answer to the launcher question, not a fixed full-screen rail.
+- **Found by:** CodeRabbit, PR #88 review, 2026-08-29 (filed); Mitchell, same PR's live preview, same day (escalated from cosmetic to functional, and set the direction — full page, not modal).
+- **Cross-reference:** `docs/milestones/M16-assistant-read-agent.md` ("Deferred, and owned by this milestone so it stays routed"), `SPEC.md` §9/§10/§13.
+- **First noted:** 2026-08-29.
+
+### KI-83 — Repeated local e2e runs exhaust the per-user AI quota, and `/ask` specs go red with 429 for a reason no code change explains
+- **Severity:** reliability of the test lane (the product ceiling is working exactly as designed; what is missing is any way to tell that from the failure)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas()`), `apps/web/e2e/m10-simulated-ai.spec.ts`, `apps/web/e2e/m16-assistant.spec.ts`, `apps/web/playwright.config.ts` (`webServer.env`), the `rate_limit_counters` table
+- **How it presents:** every `/ask` e2e fails at once. `m10-simulated-ai.spec.ts:50` fails on `expect(response.status()).toBe(200)` with **`Received: 429`**, and the proposal-card specs fail a step later on `getByRole("region", { name: "Proposed change" })` never appearing, because the turn that would have produced it was refused. `m16-assistant.spec.ts` fails on the transcript never filling. The failure **appears after several suite runs, not on a first run**, and correlates with **nothing in the diff** — the specs that break are the ones you did not touch as readily as the ones you did.
+- **The discriminator, and why it is worth stating.** It looks like a timeout and is not one. The failing STEP does move between runs — whichever `/ask` happens to cross the ceiling first depends on how many were spent before it, so a retry fails somewhere else and the adapter's "a failure whose location moves is a timeout" heuristic points the wrong way here. Two things separate it. It reproduces identically on `test:e2e:ci-like` rather than only on the dev lane (so it is not KI-27), and — the giveaway — it is not fixed by anything you would normally try. The quota is **per-user, per-hour, and persisted in Postgres** (deliberately — `quota.ts`'s header explains that an in-memory counter caps nothing on Vercel serverless), so it **survives a restarted dev server, a rebuild, a fresh `next start`, a new worktree, and a `git stash`**. Nothing else in the suite behaves that way. If restarting everything changes nothing and the failure is confined to `/ask`, this is the entry you want.
+- **The numbers.** `aiQuotas()` is 30 requests/hour and 100/day per user, 300/hour and 1000/day globally. One full `test:e2e:ci-like` run makes **~7** `/ask` calls (3 in `m10-simulated-ai`, 4 in `m16-assistant`), so **roughly four full suite runs inside one hour exhausts the hourly ceiling** — which is one afternoon of iterating on an assistant spec. Playwright's retries make it sooner. Watch the daily cap too: ~14 runs a day reaches it, and unlike the hourly one **waiting an hour does not clear it**. Every e2e run shares one account, `dev-alice`, so the ceiling is per-suite in practice, not per-spec.
+- **Diagnosis** — one query, and it is unambiguous:
+  ```bash
+  docker exec travel-collab-postgres-1 psql -U postgres -d travel \
+    -c "select bucket, window_start, hits from rate_limit_counters order by window_start desc limit 6;"
+  ```
+  Observed when this was hit (2026-08-29), against a ceiling of 30:
+  ```
+            bucket          |      window_start      | hits
+   ai-hourly:user:dev-alice | 2026-08-29 15:00:00+00 |   47
+   ai-hourly:global         | 2026-08-29 15:00:00+00 |   30
+  ```
+- **Fix, locally:** `docker exec travel-collab-postgres-1 psql -U postgres -d travel -c "delete from rate_limit_counters;"`. Safe — it is a counter table, not planning state, and the app recreates rows on demand. It does **not** violate invariant 1: rate limiting is not the planning domain (ADR-003 scopes the event log to planning; this is operational I/O, like `sessions`).
+- **The durable fix, which someone should decide deliberately.** Neither `e2e/global.setup.ts` nor `e2e/global.teardown.ts` can do it as written — both are HTTP-only by design and hold no database client, and giving the e2e hooks one is a real widening of what they may touch. The closer-grained option is to raise the ceiling for the test lane the same way `AI_LIVE=false` is already pinned, in `playwright.config.ts`'s `webServer.env`: `AI_RATE_LIMIT_PER_USER_HOURLY` and `AI_RATE_LIMIT_PER_USER_DAILY` are already env-driven (`envCeiling`), so it is two lines and no new capability. **The objection, and it is a real one:** a lane that raises the ceiling stops exercising it, and the 429 path then has no browser-level cover at all — which is how the demo-trip quota interaction in KI-79 became reasonable to miss. If the ceiling is raised, a spec that asserts the 429 on purpose should land in the same change. Recorded rather than done because it is a decision about what the e2e lane guarantees, not a cleanup.
+- **Found by:** the final fix-wave implementer, 2026-08-29, mid browser-walk — after concluding from a wandering failure point that it looked environmental, then running the query above instead of stopping there.
+- **Cross-reference:** KI-27 (the other "a red lane is not a defect" trap, and the reason this one is written down), KI-79 (the same quota, read as a security boundary), `docs/guidelines/ci-cost-and-capacity.md`, security review 2026-08-28 finding H1 (why the quota exists).
+- **First noted:** 2026-08-29.
+
+### KI-82 — The assistant can never mark a stop free: a zero cost is stripped as fabrication, and nothing distinguishes "free" from "unknown"
+- **Severity:** correctness of an expressive limit — deliberately taken, and the *opposite* trade is the one that already caused harm; recorded so the limit is visible rather than buried in a helper
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`withoutFabricatedCost`, called from `buildProposal` and `parseApprovedCommands`), `apps/web/src/server/ai/handleAskRequest.ts` (the instruction), `packages/contracts/src/money.ts`
+- **The behaviour:** an AI-proposed or AI-approved `AddActivity`/`UpdateActivity` carrying `cost.amountMinor === 0` has its `cost` **removed** before the batch is built. So a user who asks the assistant for "a free walking tour on day 2" gets a stop with no cost at all, not a stop that says £0.00. `amountMinor: 0` is simply not expressible through the assistant. (`SetTripBudget`'s zero is untouched — a different claim, normally the user's.)
+- **Why it was taken that way:** the model has no way to say *"I know this is free"* separately from *"I do not know the price"*, and the second failure has already happened for real. The **2026-08-02 dogfood run wrote `amountMinor: 0` on all nine activities it planned**, which the board renders as *free* when the truth was *unknown* — a confident wrong number on every stop. M9's exit gate names exactly this: "No activity carries a fabricated cost — unknown reads as unknown, not as `0`/free." An instruction alone could not hold it (a live model can ignore every word of the prompt), so the zero is dropped structurally. Given one signal and two meanings, "unknown" is the safe reading: a missing cost is visibly missing, a wrong zero is invisibly wrong.
+- **Why it is tolerable today:** the user can still type `0` directly into `MoneyInput` on the stop, so a genuinely free activity is one edit away and no data is unreachable — only the assistant's *route* to it is closed. Nothing is silently discarded either: a real price the model supplies survives untouched, and an explicit `null` (clear the cost) survives untouched, because clearing is a decision rather than a guess.
+- **What would resolve it properly:** give the two meanings two signals, so the strip has something to discriminate on. Options, cheapest first: (a) a `costUnknown: true` flag the model sets when it does not know, with `cost` omitted — the strip then applies only to a zero that arrives *without* an explicit "this is free"; (b) a `free: true` marker on the activity, which is arguably the honest domain concept anyway (a free stop and an unpriced stop are different facts about a trip, and `Money.nullable()` conflates them for the manual path too); (c) `SearchPlaces` grounding (KI-81), which for many venues supplies a real price and removes the guess entirely. (b) is the one worth designing — it fixes the manual path's version of the same ambiguity, not just the assistant's.
+- **Tripwire:** `withoutFabricatedCost` is unit-tested for both directions (a zero stripped, a real price and an explicit `null` kept) and end-to-end against Postgres in the apply route's suite. Whoever adds a "free" concept must update those tests deliberately rather than loosening the strip.
+- **Found by:** the Task 6 implementer, 2026-08-29, on review round 1 — flagged as the cost of the fix, not discovered afterwards.
+- **Cross-reference:** KI-81 (grounding, which supplies real prices), KI-15 (the same species: a model guess laundered into a stored fact), ADR-008 (money is integer minor units), M9's exit gate.
+- **First noted:** 2026-08-29.
+
+### KI-81 — An approved AI plan carries the model's own place names, ungrounded: `SearchPlaces` is M9's named remainder
+- **Severity:** correctness (a model guess is laundered into a stored fact — the same species as KI-15, one layer up)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`commitProposal`), `apps/web/src/server/ai/geocodeEnrichment.ts`, ADR-022 §1 (the fourth read tool it foresees)
+- **What is missing:** M9's grounding half. The assistant can now propose and commit a batch (propose → review → approve), but a proposed `AddActivity`'s `location` is still whatever the model wrote. ADR-022 already names the fix and calls it earned under its own rule: a `search_places` READ tool the model must call, and a `placeRef` it must cite, so a stored place is a place the vendor returned rather than a name the model produced.
+- **Why the floor is not zero:** an approved batch runs the SAME `enrichCommandLocations` the command endpoint runs — region-biased, "refine, never relocate", everything unverified reported (`commitProposal` is asserted to call it before the batch, in `writeTools.test.ts` and in the apply route's integration suite). So approval is not a second door around KI-15's protection, and locations from the assistant are **no worse than the command path's today**. They are also no better.
+- **Why it was not built here:** it needs LocationIQ throttling at 2 req/s inside a streaming turn, a `placeRef` the resolver understands, and a review step that shows the user which candidate was chosen. That is its own scoped unit; folding it into the write-tools task was the single largest way to not finish either.
+- **Tripwire:** the day `ai-live` is switched on for a real user, this is the entry to read first — an unreviewed model-authored place name is the failure KI-15 already cost a day to.
+- **Found by:** the Task 6 implementer, 2026-08-29, recording it as the deliberate remainder its brief named.
+- **Cross-reference:** KI-15 (the enrichment rewrite this rests on), ADR-022 §1, `docs/milestones/` M9.
+- **First noted:** 2026-08-29.
+
+### KI-80 — Two phrasings of the same command list: `summarizeBatch` (past) and `describeProposedChange` (conditional)
+- **Severity:** cleanup (a duplicated exhaustive switch; both sides read the same `BatchableCommand`s, so they cannot disagree about facts — only about wording)
+- **Area:** `apps/web/src/server/ai/planSummary.ts` (`summarizeBatch`), `apps/web/src/server/ai/writeTools.ts` (`describeProposedChange`)
+- **What the duplication is:** a twelve-case switch over `BatchableCommand["type"]` exists twice. `summarizeBatch` writes the receipt for a batch that has ALREADY applied ("Done — added a day and added “X” to day 1.") — its documented contract, and exactly right after approval. A proposal needs the same information in the conditional mood, because "Done — added a day" rendered above an Approve button claims the thing the button has not done yet.
+- **Why it was not collapsed:** `planSummary.ts`'s behaviour is pinned by ADR-022 §4 and this plan's Constraint 1 ("the command path is not modified"), so the shared `describeCommand(command, detail, mood)` that would collapse the two could not be written from the task that needed it.
+- **Fix path:** move the per-command phrasing into `planSummary.ts` as an exported `describeCommand(command, detail, mood: "applied" | "proposed")`, have `summarizeBatch` join its `"applied"` output (byte-identical, its existing tests prove it), and delete `describeProposedChange`. It is a pure refactor of one module plus one caller.
+- **One real drift channel the duplication opens** (found in review, judged not worth its own fix): the two are resolved against **different snapshots**. `describeProposedChange` labels days against the propose-time `detail` the guard captured; `summarizeBatch` labels them against the apply-time `detail`. So if the trip's day list moves between the proposal and the approval — another editor removes day 1 — the card can say "day 1" and the receipt say "day 2" for the same command. Nothing is mis-applied (the command carries a `dayId`, not a position); the two *labels* disagree. Collapsing the switch does not fix this on its own, but whoever does the refactor is the person best placed to decide whether the card should be re-derived at approval time.
+- **Tripwire:** both switches are exhaustive with no `default`, so a thirteenth `BatchableCommand` fails to compile in **two** places. Whoever hits that should collapse them rather than write the case twice.
+- **Found by:** the Task 6 implementer, 2026-08-29, while writing the proposal card.
+- **Cross-reference:** KI-73 (the same species: one computation, two copies), ADR-022 §4.
+- **First noted:** 2026-08-29.
+
+### KI-79 — `/ask` deliberately refuses the demo trip, because a viewer-gated assistant on a session-less trip is an open LLM proxy
+- **Severity:** correctness of a security boundary — currently *closed* by the refusal this entry documents; recorded so the decision is visible rather than buried in a guard clause
+- **Area:** `apps/web/src/server/ai/handleAskRequest.ts` (the `isDemoTripId` refusal), `apps/web/src/server/access/trip-access.ts` (`requireTripAccess`'s demo branch), ADR-031
+- **What the collision is:** `requireTripAccess` answers `isDemoTripId(tripId)` **before `auth()`**, returning `{ userId: "demo-visitor", role: "viewer" }` — that is what makes `/demo` public, and it is correct for every read route. `/ask` guards on `viewer` on purpose too (ADR-022: a viewer may ask about a trip they can see, unlike `/ai`, which is editor-gated because every surface it serves writes). Both decisions are right on their own. Composed, they would have made `POST /api/trips/<demo-id>/ask` an **unauthenticated, internet-facing LLM endpoint on the operator's key**.
+- **What it would have cost, with `ai-live` on:** up to 30 attacker-authored turns an hour and 100 a day (`aiQuotas()`), all of them sharing the single `demo-visitor` bucket — so one visitor exhausting it denies every other visitor, and the global ceiling is reachable by anyone with a URL. It would also have put a Postgres write (the quota counter) on a request path `demoTrip.ts` deliberately keeps free of the database, which is an architecture regression, not a missing feature. `ai-live` is off in every environment today, so nothing was ever spendable; the exposure was the shape, not a live bill.
+- **What was done:** `handleAskRequest` refuses `isDemoTripId(tripId)` with **403 `{ error, code: "demo-trip-unsupported" }`**, first thing — before the guard, before model selection, before the quota. Two integration tests cover it: the refusal signed in and signed out, and that nothing is written to `rate_limit_counters`. The rail does not render on `/demo` today (`TripBoardScreen`: `isDemo ? null`), but that is a client condition and the server no longer depends on it.
+- **What would have to be decided to open it up** (all three, not any one):
+  1. **Who pays.** A per-IP or per-session quota bucket, because `demo-visitor` is one bucket for the whole internet. `quota.ts` is keyed by actor id and has no notion of an anonymous caller.
+  2. **Whether the demo path may touch Postgres.** ADR-031's guarantee is that `/demo` needs no trip row, no stream and no share row; a quota counter is a write. Either the guarantee is narrowed deliberately or the assistant needs a counter that is not the database.
+  3. **What an anonymous prompt may reach.** Today the read tools are bounded by `toolsContext` to one fixed fixture, which is the strongest argument *for* opening it — but M9's write tools land on this same endpoint, and `minimumRoleFor` would then move the guard to `editor`, which the demo visitor is not. The order those two changes land in matters.
+- **Found by:** the Task 3 implementer, 2026-08-29, while reading `requireTripAccess` for the guard choice; escalated and ruled on in review.
+- **Cross-reference:** ADR-022 §3, ADR-031, KI-61 (the `DEMO_SHARE_TOKEN` problem the demo trip replaced).
+- **First noted:** 2026-08-29.
+
+### KI-85 — The Map lens reported as "no longer full height", not reproduced
+- **Severity:** cosmetic — and **unconfirmed**; this entry exists so the report is not lost, not because a defect is established
+- **Area:** `apps/web/src/components/lenses/MapLens.tsx`, `.map-lens` / `.map-lens-canvas` in `apps/web/src/app/globals.css`
+- **Symptom as reported:** Mitchell, on PR #89's preview (2026-08-29), with a screenshot: the map does not fill the height it used to. Seen on his own trip at `?lens=Map`, in a **3440×1271** window.
+- **What was checked, and what it rules out.** The report arrived on a PR that changed `DayChips`, which sits directly above the map, so the obvious suspect was a taller header squeezing a flex-sized lens. Measured both ways on the same page and viewport — with that change checked out, and with the previous version:
+  ```
+  pre-change   header 153px   map lens 630px   top offset 288px
+  post-change  header 153px   map lens 630px   top offset 288px
+  ```
+  Not a pixel moved. PR #89's diff also contains no change to `MapLens.tsx`, to `globals.css`, or to any container above the lens. On `/demo?lens=Map` at 1200×900 the map ran to the bottom edge with the MapLibre attribution bar on it.
+- **Why it is still filed.** Three things differ between that check and the report, any of which could carry it: a 3440px-wide window versus 1200px (a much wider aspect than anything tested), `/demo` renders a banner above the board that a real trip does not, so the offsets above the lens differ, and the report is against a Vercel preview rather than a local build. None of those were eliminated.
+- **What would settle it:** open `/demo?lens=Map` at ~3440×1271. Full height there means it is specific to a real trip's header and this is a live defect; short there means it is width-dependent and reproducible without an account. Either way it is **not** PR #89's — that much is measured — so it belongs to whatever change did it, or to `main` as it stands.
+- **Cross-reference:** KI-49 (the Map lens's tiles have never been confirmed to paint — a different and still-open claim about the same lens).
+- **First noted:** 2026-08-29 (PR #89 preview review).
+
+### KI-86 — `N to book` counts a narrower set than SPEC §12's wording, deliberately
+- **Severity:** cleanup (a recorded design delta, not a defect — the same class as KI-52)
+- **Area:** `apps/web/src/lib/needsBooking.ts`, `packages/fixtures/src/japan/kindOverrides.ts`
+- **What differs:** SPEC §12 says *"Counted as unbooked: every stop whose kind is neither `booked` nor `transit`."* The build counts `hold`, `idea`, and `planned` **only when tagged `ticketed`**.
+- **Why:** taken literally, SPEC's rule flagged **50 of the Japan fixture's 72 stops**, so all fourteen Calendar days carried a flag at once — for a line the same SPEC calls *"the one actionable thing at this zoom"*. The cause is that `planned` is the contract's zero value: a stop gets it for free, so counting it reads intent into the *absence* of intent, and every morning coffee and free shrine became outstanding work. `hold` and `idea` are the kinds a user sets deliberately to mean "not settled", which is exactly the outstanding work. The `ticketed` exception uses the tag's own designed power from the handoff's `TAGS` table — *"Wants a booking date. The assistant keeps asking until there is one."* — so the one `planned` stop that genuinely owes an action still counts. Mitchell's call, 2026-08-29.
+- **What this costs:** a user who leaves a genuinely unbooked restaurant on the default `planned` gets no nudge for it. The counter-argument, and why it was accepted: they get no nudge *today* either, because the nudge was on every stop and therefore meant nothing. A stop someone actually cares about booking is one they will mark `hold`, which is what that kind is for.
+- **Landed with a fixture pass, and the two are separable.** Five stops were re-profiled (three dinners `hold` → `booked`, two ticketed museums `planned` → `booked`) so the demo reads like a trip someone has worked on. Those diverge from the design export's own `status`, which `upstreamDrift.test.ts` guards — so they are declared in `kindOverrides.ts` with a reason each, and a further test asserts every override names a real stop, records the true upstream value, actually applies, and is not a no-op. A stale entry cannot quietly switch the drift guard off one id at a time. **Net effect on the demo: 3 of 14 days carry a flag instead of 14 of 14.**
+- **If it should be revisited:** the honest alternative is a sixth kind, or a `needsBooking` flag on the activity, so "this needs booking" is stated rather than inferred from `kind` × `tags`. That is a contract change and its own reviewed step; nothing today wants it badly enough.
+- **Cross-reference:** KI-52 (four tags not six — the same "recorded design delta" shape), KI-47 (the tags field), `docs/milestones/M18-stop-kind.md`.
+- **First noted:** 2026-08-29 (M18's gate, walking `/demo`).
+
+### KI-88 — FIXED — A reasoning model made the /ask intent classifier fail open on every turn, and the optimisation silently bought nothing
+- **Status: FIXED, 2026-08-29, PR #88.** Filed hours earlier as a theoretical consequence of `maxOutputTokens: 8`, then observed live the same evening. Kept rather than deleted because it is the rare case of a known issue that predicted a real failure before it happened, and the fix is only legible against what it broke.
+- **Severity when open:** cleanup (the turn still worked — it fails open to the full tool set by design — but the ~55% input-token saving it exists for quietly stopped happening)
+- **Area:** `apps/web/src/server/ai/askIntent.ts` (`MAX_VERDICT_TOKENS`, `classifyAskIntent`), `apps/web/src/server/ai/simulatedModel.ts` (`classifyStep`), `apps/web/src/server/config.ts` (`aiModel`, `AI_MODEL`), `apps/web/src/server/ai/gateway.ts`
+- **The live record.** Preview deployment, `ai-live` ON, `AI_MODEL=deepseek/deepseek-v4-flash-0731`:
+  ```
+  question: "What day risks being too draining or complicated?"
+  classification: { intent: "write", source: "model", verdict: "",
+                    failedOpen: true, latencyMs: 1861,
+                    usage: { inputTokens: 208, outputTokens: 8 } }
+  usageByStep[0]: 4906        // full 15-tool cost — the ~3,400-token saving did not happen
+  ```
+  An unambiguous question, classified `write`. Note the two numbers together: `outputTokens: 8` is the budget being spent *in full*, and `verdict: ""` is nothing coming back for it — the model reasoned to the ceiling and never emitted text. The classifier cost 216 tokens and 1.9s per turn and bought nothing.
+- **How it presented:** every `/ask` turn offered the full read + write tool set even for a plain question, and per-step input tokens back at ~4,900. Nothing errored and no answer was wrong — the assistant behaved exactly as it did before the classifier existed. The tell was in the `ai.ask` records and was unambiguous: `classification.failedOpen` true turn after turn while `classification.verdict` was an empty string and `classification.source` was `"model"`.
+- **Cause:** the verdict was FREE TEXT that we string-matched. `maxOutputTokens: 8` — one word plus slack — was the whole reason the call cost ~150 tokens, but a reasoning model spends its output budget on reasoning tokens before emitting anything, so the call returned empty text, `parseIntent` did not recognise it, and `classifyAskIntent` failed open to `write` (correctly — that is rule 1). The deeper defect was not the number: it was that correctness depended on the configured model's output **style**, so the same code was correct or useless depending on one environment variable. Two other spellings of the same bug were reachable without a reasoning model at all — a chatty model ("This is a question.") did not match either, because `parseIntent` normalised the whole string and required an exact `question`.
+- **The fix:** the verdict is a **schema, not a parsed string**. `classifyAskIntent` passes `Output.choice({ options: ["question", "write"] })` to `generateText` (AI SDK 7.0.34), so the provider is handed a JSON response format constraining the answer to those two values and the SDK validates it before returning. A reasoning model still populates structured output *after* it reasons. Three consequences, all deliberate:
+  - `MAX_VERDICT_TOKENS` went from 8 to **512**. It is now a *cost* ceiling rather than a *style* ceiling: it has to fit a reasoning preamble plus the ~10 tokens of `{"result":"question"}`. The real bound on spend and latency remains `CLASSIFY_TIMEOUT_MS` (4s).
+  - The entire fail-open contract is unchanged, and it absorbed one more case: `result.output` throws when the step did not finish cleanly, so a budget consumed by reasoning is now a *miss* rather than a misread, and lands in the same branch as a throw, a timeout and an abort. `verdict` records the raw structured answer (or the offending text off the error), so a bad verdict stays diagnosable; `failedOpen` is still true whenever the fallback fires; the `isBareAgreement` short-circuit is untouched.
+  - `simulatedModel`'s `classifyStep` emits through `askIntentVerdictText` rather than a bare word. This was the trap in the fix: a bare `write` is not valid JSON for the new schema, so leaving it would have failed open on **every turn of every Vercel environment**, which is the only path anyone deploys — the same failure this KI describes, moved from live to simulated. Covered by a test that drives the simulated model through the real `classifyAskIntent`.
+- **Also landed alongside, and worth knowing about:** `AI_CLASSIFIER_MODEL` now configures the classifier's model separately from `AI_MODEL`, defaulting to `AI_MODEL` so nothing changes until it is set. Both handles are still built inside `modelSelection.ts` — ADR-019's gateway chokepoint, with a lint-wall fixture for the new export — so the `ai-live` kill switch and the `denied` outcome cover the classifier too. With the fix in, pointing this at a reasoning model is a legitimate choice rather than a way to break the classifier.
+- **What to watch:** `classification.model`, `.latencyMs` and `.usage` in the `ai.ask` records, which now name which model gave the verdict. A `failedOpen` rate that climbs after a model change is this issue's shape returning in a form the schema does not cover.
+- **Found by:** branch review of the classifier work, PR #88, 2026-08-29 — then confirmed live the same evening, before the predicted failure had been fixed.
+- **First noted:** 2026-08-29. **Fixed:** 2026-08-29.
+
+### KI-87 — `/ask` and `/ai` disagree about a new stop's default `kind`, so the same model behaviour reads as unbooked on one door and booked on the other
+- **Severity:** cleanup (a recorded inconsistency between two AI doors, not a defect on the one that matters today)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`withDefaultKind`, `buildProposal`, `parseApprovedCommands`), `apps/web/src/server/ai/handleAiRequest.ts`, `apps/web/src/server/ai/batchResolver.ts`
+- **The behaviour:** a stop created through `/ask` (the assistant's write tools) defaults to `hold` when the model states no `kind`, so it counts toward the Calendar's `N to book` (KI-86). The same stop created through the older `/ai` command endpoint still defaults to `planned`, and does not count. Two AI doors, two different answers to "did I just create something that needs booking" for the identical model output.
+- **Why it is that way:** `handleAiRequest.ts` calls `resolveBatch` directly and never reaches `writeTools.ts`, so `withDefaultKind` — applied in `buildProposal` and again in `parseApprovedCommands` — never runs on that path. The seam that would fix it in one place, `batchResolver.ts` (`resolveBatch`), is deliberately pinned while M16/M9 is in flight: ADR-022 §4 requires the command path to stay untouched so write-tool work doesn't quietly reshape the endpoint both `/ai` and `/ask` share.
+- **Why it is not urgent:** `/ai` is the older path — the assistant rail no longer calls it. `/ask` is what a user reaches today, and it already carries the fix.
+- **Fix path:** whichever seam is right once the pin lifts, most likely `resolveBatch` itself so both doors agree by construction rather than by two independent copies of a default. `withoutFabricatedCost` (the zero-cost fix, M9) has the same `/ai`/`/ask` split already, for the same reason — worth closing both in the same pass.
+- **Cross-reference:** KI-86 (the `needsBooking` rule a stop's default `kind` feeds), ADR-022 (the pin this is waiting on).
+- **First noted:** 2026-08-29, while implementing M16/M9's create-time `kind` default.
+
+### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
+- **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
+- **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
+- **Symptom:** `placeNameVerdict` requires every distinctive token of the queried place to appear as a token of the candidate's own name, and `nameTokens` splits on every non-alphanumeric character. So a hyphen the vendor renders differently is a mismatch, and a translated suffix is a mismatch. Three of the Japan seed's stops are rejected this way — all three are the right place:
+  ```
+  "Gonpachi Nishiazabu"  vs  "Gonpachi Nishi-Azabu"   required [gonpachi, nishiazabu], candidate [gonpachi, nishi, azabu]
+  "Tenryū-ji"            vs  "Tenryū Temple"          required [tenryu, ji],           candidate [tenryu, temple]
+  "Ginkaku-ji"           vs  "Ginkakuji"              required [ginkaku, ji],          candidate [ginkakuji]
+  ```
+- **How it surfaced:** the 2026-08-29 regeneration for KI-58. These three had been in the overlay as `not-comparable` — the vendor had previously answered in local script (権八 西麻布, 天龍寺, 銀閣寺), which the check cannot read and therefore accepts. This run it answered in romaji, which the check *can* read and therefore rejects. **The verdict for a correct venue depends on which script the vendor happens to answer in**, which is not a property anyone chose.
+- **Why it matters more than three rows:** `verify.ts` only checks a canonical coordinate where the overlay has an opinion, so each false rejection quietly removes one stop from the cross-check. It fails safe — nothing wrong is stored — but the guard covers 41 of 72 stops instead of 51, and nothing says so at the point of use.
+- **Fix path:** compare on a concatenation-insensitive fold as well as a token fold, so "nishiazabu" matches "nishi"+"azabu" and "ginkakuji" matches "ginkaku"+"ji". That covers two of the three. "-ji" vs "Temple" is a translation, not a spelling, and wants either a small suffix synonym set (`-ji`/`-dera` → temple, `-jingū`/`-gū` → shrine) or acceptance that a translated name is `not-comparable` rather than `mismatch`. **Do not** simply widen `GENERIC_TOKENS` — that module's own comment warns a long list shrinks the distinctive set toward nothing.
+- **Do not fix by loosening the caller.** The script's step 4b (KI-58) is a ranking; this is about what counts as a mismatch at all, and it belongs in the shared module with tests, not in the one-off script.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58 (the run that exposed it), KI-39 (which added the check), KI-15.
+- **First noted:** 2026-08-29.
+
+### KI-78 — The geocode script reports "no results" as a retryable vendor error, on nine stops, every run
+- **Severity:** cleanup (a misleading label in a one-off script's report; no product impact)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts` (`resolveJob`'s `catch`, and the `lookup-failed` reporting block)
+- **Symptom:** LocationIQ answers a zero-result query with **HTTP 404**, not an empty list. `createLocationIQGeocoder` throws on it, `resolveJob` catches it as `reason: "lookup-failed"`, and the report prints it under `Lookup failed (rate limit or vendor error — rerun to retry)`. Nine stops hit this on every run — Hippari Dako, Koffee Mameya, Nazuna Kyoto Gosho, Omen Kodaiji, Giro Giro Hitoshina, Ippodo Kaboku, Aisunao, Zentis Osaka and Tonkatsu Maisen — and none of them is a transient failure. Rerunning changes nothing.
+- **Why it is worth fixing:** the script's whole design point is that a miss is *reported and left missing* rather than guessed (its own method comment, constraint 5). It gets that right; it then files the honest misses under a heading that tells the next reader to rerun. The distinction the report is trying to draw — "the vendor failed us" versus "the vendor has no such place" — is real and currently collapsed, and a genuine rate-limit would be invisible among the nine standing 404s.
+- **One of the nine is a symptom of another bug, not of this one:** `d14-s1-breakfast-at-the-hotel` queries `"Zentis Osaka, Kita, Tokyo, Japan"` — a real Osaka hotel with Tokyo in the string, because the day's destination city is folded into the query. That is KI-59, and it is the clearest independent evidence of it: the query is unanswerable because the data is wrong.
+- **Fix path:** have the vendor adapter distinguish 404 from other failures, or have the script inspect the error, and add a fourth outcome (`no-results`) alongside `no-candidate-in-box` / `name-mismatch` / `lookup-failed`. Touching `locationiq.ts` makes this a change to a shared seam rather than a script edit, so it wants its own scoped step.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58, KI-59 (the Zentis Osaka query), KI-15.
+- **First noted:** 2026-08-29.
 
 ### KI-73 — Two ISO-date parse mechanisms coexist, and they disagree on contract-valid input
 
@@ -178,6 +351,35 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   failure this protocol's promotion gate exists to prevent.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch.
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+- **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
+  Two sessions reached this entry from opposite ends on the same day; this
+  paragraph reconciles them.** The other session corrected all seven rows,
+  measured the result as a regression, and reverted it — see "ATTEMPTED AND
+  REVERTED" below. Its stated prerequisite was: *"a day's city must come from
+  where the day **ends**, not from its first stop… `cityFor()` can take the
+  day's last stop instead of its first. Correct these seven rows in the **same**
+  change as that, never before it."* **`cityFor()` now reads a day's LAST
+  city-bearing stop** (M18, Mitchell's day-label rule). So the specific
+  regression that was measured — every corrected first-stop retagging its whole
+  day, Nikkō vanishing from the chips — should no longer occur, because a day's
+  label now comes from where it ends. **That is a prediction from the mechanism,
+  not a measurement: nobody has re-run the correction since `cityFor` changed.**
+  Re-run it before believing it.
+- **One half of that prerequisite did NOT land, and deliberately so.** The same
+  paragraph also expected `calendarCityCards.ts` to split a travel day at its
+  last `transit` stop. That split was built, walked, and **removed** at M18's
+  gate: it fired on one of seven travel days and got that one wrong, and its
+  output depended on this very entry's tagging convention — *"I don't think the
+  shape of the fixture should drive functionality, that's how we get drift"*
+  (Mitchell, 2026-08-29). The Calendar now groups by city alone. So a correction
+  here no longer has a transit rule to coordinate with; it only has to not break
+  day accents and the city cards, which is a smaller question than the entry has
+  carried until now. Full account: `docs/milestones/M18-stop-kind.md`.
+- **Also worth carrying forward:** KI-60 already removed the conflict-baseline
+  obstacle this entry was originally filed against, and `upstreamDrift.test.ts`
+  is the newer one — it asserts `JapanStop.city` equals the export's
+  `days[].city`, so any correction must also declare that `city` is no longer
+  carried verbatim from upstream.
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
 - **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
@@ -194,29 +396,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it is filed rather than fixed:** it is the fixture's stated convention, inherited from `db-seed.ts` where the day-14 case was reasoned out explicitly — splitting that day produced "a pile of 'same day, ~400km apart' distance warnings ... accurate but noisy for a fixture". `cityFor()` names and colours a day from its activities' `city`, and `calendarCityCards.ts` groups strictly on it, so splitting these seven would change day accents, the calendar's city cards, and the 12-conflict baseline `pnpm seed:verify` pins. That is a product decision about how a travel day is modelled, not a mechanical correction — the same class as KI-39's note that the seed's coordinates are "a product-visible data decision".
 - **The real question underneath it:** the domain has no concept of a stop that moves between two places. `ActivityKind: "transit"` says a stop *is* travel but not where it goes. Until there is a from/to, any single `city` on a transit stop is a lie in one direction or the other; the current convention at least makes the lie consistent.
 - **Fix path, if taken:** give a transit stop the city it departs from and let the day derive its label from the majority or the last stop — or model an origin/destination pair on the activity, which is a contract change and its own reviewed step.
-- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`).
+- **ATTEMPTED AND REVERTED, 2026-08-29 — the correction alone is a regression, now measured.** All seven rows were corrected to the city the stop is physically in and the day chips recomputed. `cityFor()` (`DayChips.tsx`) reads the day's **first** located activity, and all seven of these rows are their day's first stop, so each one retags its entire day:
+  ```
+  day  4  Nikkō    -> Tokyo      the Nikkō day trip stops saying Nikkō
+  day  6  Hakone   -> Tokyo
+  day  7  Kyoto    -> Hakone
+  day 11  Osaka    -> Kyoto
+  day 14  Tokyo    -> Osaka      the fly-home-from-Tokyo day says Osaka
+  ```
+  **Nikkō disappears from the trip's chips altogether** (six cities become five) and every transition badge lands one day late — Tokyo→Hakone on the Kyoto day, Kyoto→Osaka on day 12. So the data fix makes the demo visibly *wrong in a new way*, and the entry's original judgement holds after both M18 and KI-60.
+- **What has changed since it was filed, and what has not.** KI-60 removed one of the three stated obstacles: the conflict baseline is **not** affected, because conflicts are computed from `lat`/`lng`, which were always physically correct — `seed:verify` still reports 2 conflicts with all seven rows corrected. `upstreamDrift.test.ts` is a second, newer obstacle: it asserts `JapanStop.city` equals the export's `days[].city`, so any correction here must also declare that `city` is no longer carried verbatim from upstream. The day accents and the calendar cards remain the real blocker.
+- **The enabling change, and it is downstream:** a day's city must come from where the day **ends**, not from its first stop. M18 shipped `kind`, so `calendarCityCards.ts` can now do what its own comment has always said it would — split a travel day at its last `transit` stop — and `cityFor()` can take the day's last stop instead of its first. Correct these seven rows in the **same** change as that, never before it. Touching `packages/fixtures` alone cannot close this entry.
+- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`); the 2026-08-29 measurement above is recorded there too.
 - **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
 - **First noted:** 2026-08-28 (PR #74 review).
-
-### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
-- **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
-- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
-- **Symptom:** KI-39 hardened this script to reject candidates outside the right city's bounding box. That is a real bound, but "inside Tokyo" is a ~60km box, so a wrong *venue* within the right city still passes. Read off the overlay's own `canonicalName`, of the 12 stops where its output disagrees with the canonical coordinates, **six are simply the wrong place**:
-  ```
-  Hama-rikyū Gardens  -> "Tokyo, Chiyoda, Tokyo, Japan"          a city centroid, not a garden
-  Bread & Espresso    -> "Cawaii Bread & Coffee, Chūō, Tokyo"    a different café
-  Yoshida-ya          -> "Coffee Yoshida, Kyoto-shi"             a different venue
-  Onibus Coffee       -> "Onibus Coffee, Setagaya"               the wrong branch
-  Sushi Yoshitake     -> "Sushi Wasabi, Shinjuku"                a different restaurant, wrong ward
-  Torishiki           -> "MeGuro, Shinagawa"                     a locality, not the restaurant
-  ```
-  The other six are the right venue offset by 1.2–1.9km.
-- **What this cost while it was live:** the preview branch's reset route read this overlay directly, so a preview deployment rendered those six stops at coordinates for somewhere else, while local dev — which used `db-seed.ts`'s hand-authored values — rendered them correctly. Nobody had compared the two. **Closed as a data problem by ADR-030**: the canonical coordinates now live on the fixture rows, all 72 of them, and every caller gets the same ones.
-- **What is still open:** the script itself. Re-running it still produces these six wrong matches. It was not re-run or re-tuned as part of ADR-030 because that is separate work — changing the matching rule, re-running ~70 live lookups, and re-reviewing every result — not because it could not be run. `LOCATIONIQ_API_KEY` is set in the main checkout's `apps/web/.env.local`; a fresh worktree does not get it, because `scripts/setup-env.mjs` copies `.env.example`, where the value is empty.
-- **Why it is bounded now rather than fixed:** `packages/fixtures/src/japan/coordinateOverrides.ts` records all twelve disagreements with what the geocoder actually matched, and `verify.ts` fails on any *unlisted* disagreement. So the tool can no longer silently move a pin — a future run either agrees, or lands in that file with a reason next to it.
-- **Fix path:** a name-similarity floor between the query's `place` and the candidate's own name, rejecting "Cawaii Bread & Coffee" for "Bread & Espresso". The script already has a name-verification step (step 4 of its own method comment); it prefers a name-verified candidate but does not *require* one.
-- **Cross-reference:** KI-39 (resolved — the city-box bound this is the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), ADR-030.
-- **First noted:** 2026-08-28 (ADR-030, while checking the two seed copies against each other).
 
 ### KI-56 — Below ~500px a long money figure wraps, so the KI-28 reserved slot grows and the menu drifts again
 - **Severity:** reliability (the KI-28 defect, reintroduced at narrow widths only; no impact at 500px and up)
@@ -657,29 +850,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Resolved
 
-### KI-76 — `pnpm check` exits 0 while running zero integration tests — RESOLVED, the probe now connects the way the app does
-- **Severity (as filed):** reliability, and it undermined the Definition of Done directly — `AGENTS.md` names `pnpm check` as the bar for every change.
-- **Area:** `package.json` → `test:int:if-db`, new `apps/web/scripts/db-probe.mjs`
-- **Symptom (as filed):** the guard was `if pg_isready -q -h localhost -p ${POSTGRES_PORT:-5433} 2>/dev/null`. `pg_isready` ships with the Postgres **client** tools; where Postgres runs in Docker and no client is installed on the host the binary is absent, "command not found" goes to `/dev/null`, and its non-zero exit is indistinguishable from "no database". The banner printed and `pnpm check` still exited 0.
-- **Reproduced before fixing, on the machine the entry describes:** `which pg_isready` → not found, `docker ps` → `travel-collab-postgres-1 … Up 4 weeks (healthy) 0.0.0.0:5433->5432/tcp`, and `pnpm test:int:if-db` printed `SKIPPED: integration tests did NOT run. No Postgres on localhost:5433` with **`EXIT=0`** — while `pnpm test:int` run directly reported **25 files, 242 tests, all green**. Exactly the entry's account, three weeks on.
-- **Fix (2026-08-29):** `apps/web/scripts/db-probe.mjs` connects with the `pg` client the app already depends on, against the same `DATABASE_URL` the integration tests resolve (it loads `apps/web/.env.local` the way `vitest.config.ts` does, and lets an already-exported value win). It reports **three** outcomes instead of two, which is the whole point: exit `0` the database answered, exit `1` nothing answered (skip, `pnpm check` stays green), exit `2` **the probe itself could not run** — no `DATABASE_URL`, no `pg` client, an unparseable URL — which fails loudly. "I could not tell" is no longer reported as "there is no database".
-- **The quieter half is fixed too:** the probe parses `DATABASE_URL` rather than hardcoding `localhost` and reading `POSTGRES_PORT`, so it no longer probes a host nobody configured, and it names the host it actually tried in both the success and the skip line.
-- **Verified — all three branches, through `package.json` and not just the script:** database up → probe printed `db-probe: localhost:5433/travel answered — running the integration tests.` and the suite ran; `DATABASE_URL` pointed at a dead port → `no database answered at localhost:5599/travel. connect ECONNREFUSED ::1:5599; connect ECONNREFUSED 127.0.0.1:5599`, banner printed, **exit 0**; `DATABASE_URL="not a url"` → `DATABASE_URL is not a parseable URL`, **exit 2**, propagated out through pnpm. The first of those is the case that used to be silently skipped.
-- **CI is unaffected:** `.github/workflows/ci.yml` calls `pnpm --filter web test:int` directly and never went through this guard.
-- **A refused connect reports a real reason.** The first cut printed a blank one: a TCP refusal arrives as an `AggregateError` whose own `message` is empty (Node tries every resolved address), so the script unwraps the nested errors — a probe that cannot say why is the failure this file exists to end.
-- **First noted:** 2026-08-28 (M11's exit-gate run). **Resolved:** 2026-08-29.
-
-### KI-72 — `process.env.BASE_URL` is `"/"` inside every Vitest worker — RESOLVED, `config.ts` no longer reads a name Vite owns
-- **Severity (as filed):** correctness, latent — nothing was known to depend on it, which is why it could sit unnoticed.
-- **Area:** `apps/web/src/config.ts`, `apps/web/src/config.test.ts` (new), `apps/web/vitest.unit.config.ts`, `.env.example`
-- **Symptom (as filed):** Vitest assigns Vite's resolved `env` onto `process.env`, and Vite's `env.BASE_URL` is the public base *path*, `"/"`. `src/config.ts` read `env.BASE_URL`, so it evaluated to `"/"` in every unit test regardless of what the app would use at runtime, and any test asserting against it agreed with almost anything.
-- **Reproduced before fixing**, with the entry's own probe, on Vitest 4.1.11: `[[WORKER]] process.env.BASE_URL= "/"` and `[[WORKER]] config BASE_URL= "/"`.
-- **Fix (2026-08-29):** the override moved to `WEB_BASE_URL`, a name Vite does not own — `export const BASE_URL = env.WEB_BASE_URL ?? \`http://localhost:${WEB_PORT}\``. Nothing in the repo ever set `BASE_URL` deliberately (no workflow, no `.env.example`, no script), so the override's only real producer *was* the collision; renaming it keeps the capability — overriding scheme and host, not just the port — and matches the `WEB_PORT` knob beside it. Documented in `.env.example` with the reason, so the odd-looking name is not "cleaned up" back into the bug.
-- **Verified:** the same probe after the change reports `process.env.BASE_URL= "/"` (Vite still sets it — the trap is still there, it is simply no longer read) and `config BASE_URL= "http://localhost:3001"`. Full web unit suite: **125 files, 1201 passed, 1 skipped**.
-- **Pinned against regression, and the pin was proved to fail:** `src/config.test.ts` asserts `BASE_URL` is an absolute URL and not `"/"`. Reverting `config.ts` to read `env.BASE_URL` was measured to fail it — `AssertionError: expected '/' not to be '/'` and `expected '/' to be 'http://localhost:3001'` — so this is a working guard, not a test that happens to pass.
-- **`vitest.unit.config.ts` needed no guard.** It imports `BASE_URL` in the *parent* Node process, before Vitest assigns Vite's env, so the jsdom `url` it passes was always the real one; a comment now records that, since the file's old guard was removed by PR #77 and its absence looked like an oversight.
-- **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
-
 ### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database — RESOLVED, per-run actor ids
 - **Severity (as filed):** cleanup (CI runs against a fresh database every time; this bit local re-runs only).
 - **Area:** `apps/web/src/app/api/dev/reset-demo-data/route.int.test.ts`
@@ -689,6 +859,16 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Fix (2026-08-29):** both identities are minted per run (`actor-<uuid>` / `outsider-<uuid>`). Every query in the file filters by membership, so a fresh pair sees exactly the rows this run created. The actor is scoped too — not because it accumulated (the route deletes the caller's own trips, so it self-cleans) but so neither id depends on database state the file does not control. This is the third of the three mechanisms this entry itself listed, and the one that does not require the lane to own the database.
 - **Verified:** **four consecutive runs of the file against one un-truncated private database, all green** (6/6 each) — the same procedure that, with the constant ids restored, failed on its second run.
 - **`vitest.config.ts` was left alone, deliberately.** The entry's scope named it and the obvious mechanism was a global-setup truncate, but that would re-assert whole-database destruction on every run — the exact thing KI-69 was fixed by removing. Per-test data isolation and a lane-wide truncate are alternatives, not complements; this change takes the first, and the two KIs now agree.
+- **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
+
+### KI-68 — `db-reset.mjs` truncates a hardcoded three-table list while the schema has ten — RESOLVED, the list is derived from the schema
+- **Severity (as filed):** reliability (a "reset" that leaves state behind is worse than no reset — it produces a database that looks clean and is not).
+- **Area:** `apps/web/scripts/db-reset.mjs`
+- **Symptom (as filed):** `const TABLES = ["events", "trip_details", "trip_summaries"]`, written when the schema had four tables. It now declares ten, so seven were never cleared — memberships, invites, shares, saved days and `rate_limit_counters` survived a "reset", the last of which leaves a developer throttled with no visible cause.
+- **Fix (2026-08-29):** the entry's own diagnosis — *the real defect is the shape, not the list*. The tables are derived from the Drizzle schema module (`Object.values(schema).filter(v => is(v, PgTable)).map(t => getTableConfig(t).name)`), so a new `pgTable` is covered the day it lands with no edit here. Drizzle's own brand check is used rather than a naming convention, so non-table exports are ignored. One `TRUNCATE` names every table with `RESTART IDENTITY CASCADE`, which removes the ordering problem a longer literal list would have created. The script refuses to run if it derives zero tables, so a broken import fails loudly instead of silently resetting nothing.
+- **Migration history is structurally safe:** Drizzle's bookkeeping lives in a separate `drizzle` schema and is not exported from `schema.ts`, so it cannot be caught by the derivation.
+- **Verified end to end on a private database, not by reading the code:** with all ten tables populated (`users` 18, `events` 1382, `trip_summaries` 52, `trip_details` 52, `pages` 60, `trip_memberships` 12, `trip_invites` 159, `trip_shares` 72, `saved_days` 51, `rate_limit_counters` 1), `pnpm --filter web db:reset --yes` reported `reset 10 tables on localhost: events, pages, rate_limit_counters, saved_days, trip_details, trip_invites, trip_memberships, trip_shares, trip_summaries, users` and all ten counted **0** afterwards, while `drizzle.__drizzle_migrations` still held its rows. The pre-fix script would have cleared three of those ten.
+- **The stale comment is gone:** the header no longer claims the script misses `pages`, because it no longer does.
 - **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
 
 ### KI-69 — Six integration suites truncate whole shared tables in `beforeEach` — RESOLVED, teardown is scoped to the ids each test creates
@@ -708,15 +888,54 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **`rebuildProjections()` is still database-wide**, and that is a property of the function under test, not of the tests: it truncates and re-projects every trip's projections from the whole event log. Two suites call it. Scoping their *assertions* is as far as a test-side fix reaches.
 - **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
 
-### KI-68 — `db-reset.mjs` truncates a hardcoded three-table list while the schema has ten — RESOLVED, the list is derived from the schema
-- **Severity (as filed):** reliability (a "reset" that leaves state behind is worse than no reset — it produces a database that looks clean and is not).
-- **Area:** `apps/web/scripts/db-reset.mjs`
-- **Symptom (as filed):** `const TABLES = ["events", "trip_details", "trip_summaries"]`, written when the schema had four tables. It now declares ten, so seven were never cleared — memberships, invites, shares, saved days and `rate_limit_counters` survived a "reset", the last of which leaves a developer throttled with no visible cause.
-- **Fix (2026-08-29):** the entry's own diagnosis — *the real defect is the shape, not the list*. The tables are derived from the Drizzle schema module (`Object.values(schema).filter(v => is(v, PgTable)).map(t => getTableConfig(t).name)`), so a new `pgTable` is covered the day it lands with no edit here. Drizzle's own brand check is used rather than a naming convention, so non-table exports are ignored. One `TRUNCATE` names every table with `RESTART IDENTITY CASCADE`, which removes the ordering problem a longer literal list would have created. The script refuses to run if it derives zero tables, so a broken import fails loudly instead of silently resetting nothing.
-- **Migration history is structurally safe:** Drizzle's bookkeeping lives in a separate `drizzle` schema and is not exported from `schema.ts`, so it cannot be caught by the derivation.
-- **Verified end to end on a private database, not by reading the code:** with all ten tables populated (`users` 18, `events` 1382, `trip_summaries` 52, `trip_details` 52, `pages` 60, `trip_memberships` 12, `trip_invites` 159, `trip_shares` 72, `saved_days` 51, `rate_limit_counters` 1), `pnpm --filter web db:reset --yes` reported `reset 10 tables on localhost: events, pages, rate_limit_counters, saved_days, trip_details, trip_invites, trip_memberships, trip_shares, trip_summaries, users` and all ten counted **0** afterwards, while `drizzle.__drizzle_migrations` still held its rows. The pre-fix script would have cleared three of those ten.
-- **The stale comment is gone:** the header no longer claims the script misses `pages`, because it no longer does.
+### KI-72 — `process.env.BASE_URL` is `"/"` inside every Vitest worker — RESOLVED, `config.ts` no longer reads a name Vite owns
+- **Severity (as filed):** correctness, latent — nothing was known to depend on it, which is why it could sit unnoticed.
+- **Area:** `apps/web/src/config.ts`, `apps/web/src/config.test.ts` (new), `apps/web/vitest.unit.config.ts`, `.env.example`
+- **Symptom (as filed):** Vitest assigns Vite's resolved `env` onto `process.env`, and Vite's `env.BASE_URL` is the public base *path*, `"/"`. `src/config.ts` read `env.BASE_URL`, so it evaluated to `"/"` in every unit test regardless of what the app would use at runtime, and any test asserting against it agreed with almost anything.
+- **Reproduced before fixing**, with the entry's own probe, on Vitest 4.1.11: `[[WORKER]] process.env.BASE_URL= "/"` and `[[WORKER]] config BASE_URL= "/"`.
+- **Fix (2026-08-29):** the override moved to `WEB_BASE_URL`, a name Vite does not own — `export const BASE_URL = env.WEB_BASE_URL ?? \`http://localhost:${WEB_PORT}\``. Nothing in the repo ever set `BASE_URL` deliberately (no workflow, no `.env.example`, no script), so the override's only real producer *was* the collision; renaming it keeps the capability — overriding scheme and host, not just the port — and matches the `WEB_PORT` knob beside it. Documented in `.env.example` with the reason, so the odd-looking name is not "cleaned up" back into the bug.
+- **Verified:** the same probe after the change reports `process.env.BASE_URL= "/"` (Vite still sets it — the trap is still there, it is simply no longer read) and `config BASE_URL= "http://localhost:3001"`. Full web unit suite: **125 files, 1201 passed, 1 skipped**.
+- **Pinned against regression, and the pin was proved to fail:** `src/config.test.ts` asserts `BASE_URL` is an absolute URL and not `"/"`. Reverting `config.ts` to read `env.BASE_URL` was measured to fail it — `AssertionError: expected '/' not to be '/'` and `expected '/' to be 'http://localhost:3001'` — so this is a working guard, not a test that happens to pass.
+- **`vitest.unit.config.ts` needed no guard.** It imports `BASE_URL` in the *parent* Node process, before Vitest assigns Vite's env, so the jsdom `url` it passes was always the real one; a comment now records that, since the file's old guard was removed by PR #77 and its absence looked like an oversight.
 - **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
+
+### KI-76 — `pnpm check` exits 0 while running zero integration tests — RESOLVED, the probe now connects the way the app does
+- **Severity (as filed):** reliability, and it undermined the Definition of Done directly — `AGENTS.md` names `pnpm check` as the bar for every change.
+- **Area:** `package.json` → `test:int:if-db`, new `apps/web/scripts/db-probe.mjs`
+- **Symptom (as filed):** the guard was `if pg_isready -q -h localhost -p ${POSTGRES_PORT:-5433} 2>/dev/null`. `pg_isready` ships with the Postgres **client** tools; where Postgres runs in Docker and no client is installed on the host the binary is absent, "command not found" goes to `/dev/null`, and its non-zero exit is indistinguishable from "no database". The banner printed and `pnpm check` still exited 0.
+- **Reproduced before fixing, on the machine the entry describes:** `which pg_isready` → not found, `docker ps` → `travel-collab-postgres-1 … Up 4 weeks (healthy) 0.0.0.0:5433->5432/tcp`, and `pnpm test:int:if-db` printed `SKIPPED: integration tests did NOT run. No Postgres on localhost:5433` with **`EXIT=0`** — while `pnpm test:int` run directly reported **25 files, 242 tests, all green**. Exactly the entry's account, three weeks on.
+- **Fix (2026-08-29):** `apps/web/scripts/db-probe.mjs` connects with the `pg` client the app already depends on, against the same `DATABASE_URL` the integration tests resolve (it loads `apps/web/.env.local` the way `vitest.config.ts` does, and lets an already-exported value win). It reports **three** outcomes instead of two, which is the whole point: exit `0` the database answered, exit `1` nothing answered (skip, `pnpm check` stays green), exit `2` **the probe itself could not run** — no `DATABASE_URL`, no `pg` client, an unparseable URL — which fails loudly. "I could not tell" is no longer reported as "there is no database".
+- **The quieter half is fixed too:** the probe parses `DATABASE_URL` rather than hardcoding `localhost` and reading `POSTGRES_PORT`, so it no longer probes a host nobody configured, and it names the host it actually tried in both the success and the skip line.
+- **Verified — all three branches, through `package.json` and not just the script:** database up → probe printed `db-probe: localhost:5433/travel answered — running the integration tests.` and the suite ran; `DATABASE_URL` pointed at a dead port → `no database answered at localhost:5599/travel. connect ECONNREFUSED ::1:5599; connect ECONNREFUSED 127.0.0.1:5599`, banner printed, **exit 0**; `DATABASE_URL="not a url"` → `DATABASE_URL is not a parseable URL`, **exit 2**, propagated out through pnpm. The first of those is the case that used to be silently skipped.
+- **CI is unaffected:** `.github/workflows/ci.yml` calls `pnpm --filter web test:int` directly and never went through this guard.
+- **A refused connect reports a real reason.** The first cut printed a blank one: a TCP refusal arrives as an `AggregateError` whose own `message` is empty (Node tries every resolved address), so the script unwraps the nested errors — a probe that cannot say why is the failure this file exists to end.
+- **First noted:** 2026-08-28 (M11's exit-gate run). **Resolved:** 2026-08-29.
+
+### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city — RESOLVED
+- **Severity (as filed):** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracked the tool, not the data)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`, `packages/fixtures/src/japan/coordinateOverrides.ts`
+- **Symptom (as filed):** of the 12 stops where the overlay disagreed with the canonical coordinates, six were simply the wrong place — a city centroid for Hama-rikyū Gardens, "Cawaii Bread & Coffee" for Bread & Espresso, "Coffee Yoshida" for Yoshida-ya, "Sushi Wasabi" for Sushi Yoshitake, "MeGuro" for Torishiki, and the Setagaya branch for Onibus Coffee. The entry's fix path was "a name-similarity floor between the query's `place` and the candidate's own name".
+- **Reproduced first, and the entry was half wrong.** Replaying `placeNameVerdict` offline against the committed overlay's own `canonicalName` for all 12 disagreements (no LocationIQ call needed — the overlay records what was matched) returns **`mismatch` for five of the six**:
+  ```
+  d2-s4-hama-rikyu-gardens     mismatch   "Hama-rikyū Gardens" -> "Tokyo"
+  d2-s5-yakitori-at-torishiki  mismatch   "Torishiki"          -> "MeGuro"
+  d3-s1-breakfast-at-bread-…   mismatch   "Bread & Espresso"   -> "Cawaii Bread & Coffee"
+  d5-s5-omakase-at-sushi-…     mismatch   "Sushi Yoshitake"    -> "Sushi Wasabi"
+  d9-s3-lunch-at-yoshida-ya    mismatch   "Yoshida-ya"         -> "Coffee Yoshida"
+  d2-s1-coffee-at-onibus       MATCH      "Onibus Coffee"      -> "Onibus Coffee"
+  ```
+  The name-similarity floor the entry asks for **already existed** — KI-39 added it as step 4 — and it already rejects five of the six. The overlay was simply never regenerated after KI-39, so it was stale output from a run that predated its own fix. "Re-running it still produces these six wrong matches" was an assumption, not a measurement.
+- **The one real residue is a different bug than the entry describes.** `d2-s1-coffee-at-onibus` scores a genuine `match`: the queried venue and the candidate are the same chain, so their names are *identical* and token identity cannot separate them. `geocodeNameMatch.ts`'s own header says so — "it cannot tell two branches of the same chain apart ... which stays the box's job and the human's" — and the box is ~60km of Tokyo. No name-similarity floor, however tight, can fix a name that matches exactly. The only field that separates the branches is the **ward**, which step 4 deliberately discounts as geography.
+- **Fix (2026-08-29):** a step **4b** in the script — an *area corroboration* tiebreak among the candidates that survive step 4. A candidate whose full display name also carries the queried `area` outranks one that does not, and a pin that wins without it is reported as `area-uncorroborated`. Deliberately a **ranking, not a filter**: plenty of correct OSM addresses render the ward in local script or omit it, so rejecting on it would lose right answers exactly the way collapsing `not-comparable` into `mismatch` would. Implemented in the script, not in `geocodeNameMatch.ts`, so the shared seam keeps its single meaning.
+- **The overlay was then regenerated against the live vendor** (~62 unique lookups, `LOCATIONIQ_API_KEY` from `apps/web/.env.local`), and every result re-reviewed. All six wrong-venue matches are gone from it:
+  - five no longer resolve at all — the name check rejects them, so the overlay simply has no entry for those stops;
+  - `d2-s1-coffee-at-onibus` still resolves to the Setagaya branch (the vendor's top 5 contained no Nakameguro candidate to rank above it) but is now **reported** rather than accepted silently, and keeps its `COORDINATE_OVERRIDES` entry.
+- **It surfaced a second instance of the same branch bug.** `d3-s3-lunch-at-afuri` used to match "WITH HARAJUKU" — a building, wrong venue, but close enough to pass the 2km tolerance unremarked. It now matches "Afuri, Minato", the right chain and the wrong branch, 2.8km from the Harajuku stop, and lands in `COORDINATE_OVERRIDES` with a reason. A wrong pin that was invisible is now written down.
+- **Overlay coverage moved 51 → 41 of 72, deliberately, and every one of the ten is accounted for:** seven were wrong or dubious matches the name check now rejects (the five above, plus "GION KIMUTAKO" for Gion Nanba and "KICHIRI" for Kichi Kichi — both wrong venues that had slipped through only because they happened to sit within the distance tolerance). **Three are false rejections and are filed as KI-77**: Gonpachi, Tenryū-ji and Ginkaku-ji are the right places, rejected on tokenisation ("Nishiazabu" vs "Nishi-Azabu", "-ji" vs "Temple"). The overlay is a *proposal* cross-checked against `trip.ts`, so a lost entry weakens a check but stores nothing wrong; `with coordinates` is still **72/72** and no coordinate the app serves changed.
+- **Verification:** `pnpm seed:verify` green (72/72 coordinates, 6 cities, **2 conflicts** — KI-60's baseline unmoved). The guard proved itself non-vacuously along the way: before `coordinateOverrides.ts` was updated, `verify.ts` failed with exactly the six findings the regeneration should produce — five "overridden but the overlay has no entry for it" and one new unexplained disagreement — so the coupling between the overlay and its override list is enforced, not asserted.
+- **Left alone deliberately:** the script reports LocationIQ's `404` as `lookup-failed (rate limit or vendor error — rerun to retry)`. LocationIQ also returns 404 for *zero results*, and nine stops hit it on every run, so that label is wrong for all nine and invites a pointless rerun. Filed as KI-78 rather than fixed here.
+- **Found by:** ADR-030, 2026-08-28, while checking the two seed copies against each other. **Resolved:** 2026-08-29.
+- **Cross-reference:** KI-39 (the city-box bound this was the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), KI-77 and KI-78 (opened by this work), ADR-030.
 
 ### KI-75 — `m10-map-rail.spec.ts` skips a day about half the time, and a different day each time — RESOLVED, the scan was asserting an unthrottled model of a throttled feature
 - **Severity:** reliability (no product impact — the rail behaves as designed; it made "the full e2e suite is green" an unreliable signal, which is what a milestone gate rests on)
@@ -815,6 +1034,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   `check-case-collisions.mjs` were left alone — both still enumerate with plain
   `git ls-files` and have the identical gap. Filed as follow-up, not fixed here
   (one KI, one blast radius).
+- **A second, deliberately distinct exclusion mechanism (2026-08-29):**
+  `check-color-wall.mjs` now also carries `generatedNonProduct` — a separate
+  `Set` for files that are not product UI at all (currently just Sentry's
+  wizard-generated `sentry-example-page/page.tsx`, which shipped raw brand
+  colors straight from the scaffold). It is intentionally **not** an addition
+  to `pending` above: `pending` means legacy debt being paid down and only
+  ever shrinks; `generatedNonProduct` means "third-party codegen, permanently
+  out of scope," and neither list should be used for the other's purpose —
+  putting scaffolding in `pending` would silently redefine it as "stuff we
+  tolerate" instead of "debt we're closing." Covered by
+  `scripts/__tests__/check-color-wall.test.mjs`, which also updates the "no
+  regression test" note above for this one script — it now has one, run under
+  root `pnpm test` via `node --test "scripts/**/__tests__/**/*.test.mjs"`
+  (the pattern `check-sleep-wall.test.mjs` already used).
 
 ### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings — RESOLVED
 - **Severity (as filed):** cleanup (no live failure — the projection factory never runs the conflict engine, so the clash was unobservable)
@@ -1212,10 +1445,23 @@ needs action — skip this section when triaging.
   parse the milestone disqualifies. `db-seed.ts` instead carries hand-authored
   tags on all 68 stops: 33 `meal`, 11 `outdoors`, 8 `ticketed`, 4 `lodging`,
   18 untagged.
-- **Still not built (PR 2+):** the five surfaces this entry lists — chips on
-  stop cards, the tag filter row, the Add/Edit tag picker, the Notebook
-  repeater's filter, and SPEC §10's mobile column. They are unblocked, not
-  done.
+- **One of the five surfaces below no longer exists — corrected 2026-08-29.**
+  This entry was written against the 2026-08-24 handoff. **SPEC §11, dated
+  2026-08-25, deleted the tag filter row**: *"The header filter row is **gone**.
+  Tag chips on a stop are now the control: clicking 'Meal' on a stop dims
+  everything not tagged Meal to 32% opacity across Timeline, Day columns,
+  Calendar and Map… Single focus, one tag at a time — multi-select was the part
+  that earned its keep least."* So `showTagFilter` / `tagFilters` / "Show
+  everything" describe a control that was removed a day after this entry cited
+  it, and **SPEC §10's "the filter row is the only way to thin a 402px column"
+  is stale in the same way** — mobile thins a day with tag focus now. Nothing
+  should be built against either sentence. What replaced the filter row is tag
+  focus, which is **M18b**.
+- **Status after M18's PR 2+ (2026-08-29):** chips on stop cards and the
+  Add/Edit tag picker are **built**. Tag *focus* — the dimming behaviour that
+  replaced the filter row — is **M18b, approved and unplaced**. The Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7) belongs to **M14**, which
+  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18.
 
 - **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
   which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
@@ -1229,12 +1475,14 @@ needs action — skip this section when triaging.
   being re-derived per surface)
 - **Area:** `packages/contracts/src/activity.ts`
 - **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
-  builds five things on top of tags: chips on every stop card, the tag filter
-  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
-  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
-  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
-  SPEC §10's statement that on a 402px column the filter row is *the only way*
-  to thin a day.
+  builds five things on top of tags: chips on every stop card, ~~the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything")~~
+  (**deleted by SPEC §11 the next day — see the correction at the top of this
+  entry**), the Add-and-Edit-stop tag picker with its per-tag "power" hint, the
+  Notebook repeater's `Only stops tagged …` filter (SPEC §7), and — most
+  load-bearing — ~~SPEC §10's statement that on a 402px column the filter row is
+  *the only way* to thin a day~~ (**stale for the same reason; mobile thins with
+  tag focus**).
 - **Why it belongs in the registry rather than here, eventually:** this is the
   same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
   in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but

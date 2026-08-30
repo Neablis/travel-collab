@@ -11,6 +11,20 @@ import { readFileSync } from "node:fs";
 // every other city-accented surface, so it needs no raw-hex exception of its
 // own anymore (Mitchell, 2026-08-25 — one city, one color, everywhere).
 const pending = new Set(JSON.parse(readFileSync("scripts/design-wall-pending.json", "utf8")));
+// Third-party generated files that are permanently out of scope because they
+// are not product UI at all — NOT the same concept as `pending` above. That
+// list is legacy debt we are paying down and only ever shrinks; this one is
+// scaffolding nobody hand-authors and nobody will ever re-skin, so it never
+// shrinks either (KI-51 records the distinction). Keep this list to files
+// that are wizard/codegen output, never a convenient place to park a raw
+// color someone didn't want to fix.
+const generatedNonProduct = new Set([
+  // Sentry's `npx @sentry/wizard` scaffold — a throwaway route for verifying
+  // error capture, not a page a user ever sees. Its `<style jsx>` block ships
+  // Sentry's own brand colors, not ours (landed via 6a5501e, pushed directly
+  // to main without a PR review — docs/guidelines/ci-cost-and-capacity.md).
+  "apps/web/src/app/sentry-example-page/page.tsx",
+]);
 // --others --exclude-standard adds untracked-but-not-ignored files to the
 // tracked (--cached) list: a brand-new file was invisible to the wall until it
 // was staged (KI-51), which is exactly the file most likely to carry a raw hex.
@@ -28,7 +42,7 @@ const files = [
   ),
 ]
   .sort()
-  .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f));
+  .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f) && !generatedNonProduct.has(f));
 
 const colorLiteral = /(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
 const arbitraryValue = /className={?["'`][^"'`]*\[/;
@@ -47,4 +61,6 @@ for (const file of files) {
   });
 }
 if (failed) process.exit(1);
-console.log(`color wall OK (${files.length} files scanned, ${pending.size} pending re-skin)`);
+console.log(
+  `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product excluded)`,
+);

@@ -22,9 +22,14 @@
 // none of them (its `enums` block lists only `stopStatus`). Tags are
 // hand-authored per M18's rule that inferring them from title text is the
 // prose parse that milestone disqualifies. Coordinates are the union of
-// scripts/geocode-japan-seed.mts's verified output (51 of 72 — see KI-39) and
-// hand-authored values for the 21 the geocoder could not resolve to the right
-// venue; `verify.ts` checks the two still agree wherever both have an opinion.
+// scripts/geocode-japan-seed.mts's verified output (51 of 72 as authored — see
+// KI-39) and hand-authored values for the 21 the geocoder could not resolve to
+// the right venue; `verify.ts` checks the two still agree wherever both have an
+// opinion. The values below have not changed since; the OVERLAY they are
+// checked against has — KI-58's 2026-08-29 re-run tightened the matching and it
+// now proposes 41 of 72, so `verify.ts` cross-checks 41 rows rather than 51.
+// See ./coordinateOverrides.ts for the twelve-turned-eight disagreements, and
+// KI-77 for three correct venues the re-run drops for a tokenisation reason.
 //
 // --- Adding data for a new feature ---
 // See docs/guidelines/fixtures-and-seed-data.md. Short version: add the field
@@ -67,6 +72,30 @@ export type JapanStop = {
    * on it. Splitting these seven would change the day accents, the calendar
    * cards and the conflict baseline, so it is a product decision rather than a
    * correction. Raised by CodeRabbit on PR #74 and recorded as KI-59.
+   *
+   * MEASURED, 2026-08-29, so the next attempt does not have to guess. All seven
+   * rows were corrected to the city the stop is physically in and the day chips
+   * recomputed. `cityFor()` reads the day's FIRST located activity, and all
+   * seven of these are their day's first stop, so every one of them retags its
+   * whole day:
+   *
+   *   day  4  Nikkō    -> Tokyo     the Nikkō day trip stops saying Nikkō
+   *   day  6  Hakone   -> Tokyo
+   *   day  7  Kyoto    -> Hakone
+   *   day 11  Osaka    -> Kyoto
+   *   day 14  Tokyo    -> Osaka     the fly-home-from-Tokyo day says Osaka
+   *
+   * Nikkō disappears from the trip's chips altogether (six cities become five)
+   * and every transition badge lands one day late — Tokyo→Hakone on the Kyoto
+   * day, Kyoto→Osaka on day 12. The correction alone is a visible REGRESSION,
+   * which is why it is still filed rather than applied.
+   *
+   * The enabling change is downstream, not here: a day's city has to come from
+   * where the day ENDS rather than from its first stop — M18 shipped `kind`,
+   * so `calendarCityCards.ts` can now do what its own comment always said it
+   * would and split a travel day at its last `transit` stop, and `cityFor()`
+   * can take the last stop instead of the first. Correct these seven in the
+   * SAME change as that, never before it.
    */
   city: string;
   start: string;
@@ -132,7 +161,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d2-s2-teamlab-planets", day: 2, title: "teamLab Planets", place: "teamLab Planets", area: "Toyosu", city: "Tokyo", start: "09:00", end: "11:00", kind: "booked", tags: ["ticketed"], costUsd: 355, note: "Timed entry 9 am. Barefoot — no tights.", who: "all", lat: 35.6469, lng: 139.793 },
   { id: "d2-s3-lunch-at-tsukiji-outer-market", day: 2, title: "Lunch at Tsukiji Outer Market", place: "Tsukiji Outer Market", area: "Tsukiji", city: "Tokyo", start: "12:00", end: "13:00", kind: "planned", tags: ["meal"], costUsd: 10, note: null, who: "all", lat: 35.6654, lng: 139.7707 },
   { id: "d2-s4-hama-rikyu-gardens", day: 2, title: "Hama-rikyū Gardens", place: "Hama-rikyū Gardens", area: "Hamamatsuchō", city: "Tokyo", start: "14:00", end: "16:00", kind: "planned", tags: ["outdoors"], costUsd: 15, note: null, who: ["Priya R", "Mei T"], lat: 35.6597, lng: 139.7633 },
-  { id: "d2-s5-yakitori-at-torishiki", day: 2, title: "Yakitori at Torishiki", place: "Torishiki", area: "Meguro", city: "Tokyo", start: "19:00", end: "21:00", kind: "hold", tags: ["meal"], costUsd: 315, note: null, who: "all", lat: 35.6339, lng: 139.7157 },
+  { id: "d2-s5-yakitori-at-torishiki", day: 2, title: "Yakitori at Torishiki", place: "Torishiki", area: "Meguro", city: "Tokyo", start: "19:00", end: "21:00", kind: "booked", tags: ["meal"], costUsd: 315, note: null, who: "all", lat: 35.6339, lng: 139.7157 },
 
   // Day 3 — Tokyo
   { id: "d3-s1-breakfast-at-bread-espresso", day: 3, title: "Breakfast at Bread & Espresso", place: "Bread & Espresso", area: "Omotesandō", city: "Tokyo", start: "08:00", end: "09:00", kind: "planned", tags: ["meal"], costUsd: 85, note: null, who: "all", lat: 35.6658, lng: 139.7128 },
@@ -150,10 +179,10 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
 
   // Day 5 — Tokyo
   { id: "d5-s1-coffee-at-koffee-mameya", day: 5, title: "Coffee at Koffee Mameya", place: "Koffee Mameya", area: "Omotesandō", city: "Tokyo", start: "09:00", end: "10:00", kind: "planned", tags: ["meal"], costUsd: 65, note: null, who: "all", lat: 35.6674, lng: 139.7104 },
-  { id: "d5-s2-nezu-museum", day: 5, title: "Nezu Museum", place: "Nezu Museum", area: "Minami-Aoyama", city: "Tokyo", start: "10:30", end: "13:00", kind: "planned", tags: ["ticketed"], costUsd: 95, note: null, who: ["Priya R", "Mei T"], lat: 35.6641, lng: 139.7168 },
+  { id: "d5-s2-nezu-museum", day: 5, title: "Nezu Museum", place: "Nezu Museum", area: "Minami-Aoyama", city: "Tokyo", start: "10:30", end: "13:00", kind: "booked", tags: ["ticketed"], costUsd: 95, note: null, who: ["Priya R", "Mei T"], lat: 35.6641, lng: 139.7168 },
   { id: "d5-s3-lunch-at-kagari", day: 5, title: "Lunch at Kagari", place: "Kagari", area: "Ginza", city: "Tokyo", start: "12:30", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 45, note: null, who: "all", lat: 35.6717, lng: 139.765 },
   { id: "d5-s4-itoya-and-ginza-six", day: 5, title: "Itoya and Ginza Six", place: "Itoya", area: "Ginza", city: "Tokyo", start: "16:00", end: "18:00", kind: "planned", tags: [], costUsd: 125, note: null, who: "all", lat: 35.6733, lng: 139.7644 },
-  { id: "d5-s5-omakase-at-sushi-yoshitake", day: 5, title: "Omakase at Sushi Yoshitake", place: "Sushi Yoshitake", area: "Ginza", city: "Tokyo", start: "20:00", end: "22:00", kind: "hold", tags: ["meal"], costUsd: 155, note: "Concierge is chasing this one.", who: "all", lat: 35.671, lng: 139.7638 },
+  { id: "d5-s5-omakase-at-sushi-yoshitake", day: 5, title: "Omakase at Sushi Yoshitake", place: "Sushi Yoshitake", area: "Ginza", city: "Tokyo", start: "20:00", end: "22:00", kind: "booked", tags: ["meal"], costUsd: 155, note: "Concierge is chasing this one.", who: "all", lat: 35.671, lng: 139.7638 },
 
   // Day 6 — Hakone
   { id: "d6-s1-romancecar-to-hakone-yumoto", day: 6, title: "Romancecar to Hakone-Yumoto", place: "Shinjuku Station", area: "Shinjuku", city: "Hakone", start: "08:20", end: "09:55", kind: "transit", tags: [], costUsd: 35, note: null, who: "all", lat: 35.6896, lng: 139.7006 },
@@ -175,7 +204,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d8-s3-kiyomizu-dera-and-sannenzaka", day: 8, title: "Kiyomizu-dera and Sannenzaka", place: "Kiyomizu-dera", area: "Higashiyama", city: "Kyoto", start: "10:30", end: "12:30", kind: "planned", tags: ["outdoors"], costUsd: 80, note: null, who: "all", lat: 34.9949, lng: 135.785 },
   { id: "d8-s4-lunch-at-omen-kodaiji", day: 8, title: "Lunch at Omen Kodaiji", place: "Omen Kodaiji", area: "Higashiyama", city: "Kyoto", start: "12:00", end: "13:15", kind: "planned", tags: ["meal"], costUsd: 30, note: null, who: "all", lat: 35.0013, lng: 135.7809 },
   { id: "d8-s5-nishiki-market", day: 8, title: "Nishiki Market", place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", start: "16:00", end: "17:30", kind: "planned", tags: ["meal"], costUsd: 20, note: null, who: ["Jonah M", "Mei T"], lat: 35.005, lng: 135.765 },
-  { id: "d8-s6-dinner-at-giro-giro-hitoshina", day: 8, title: "Dinner at Giro Giro Hitoshina", place: "Giro Giro Hitoshina", area: "Shimogyō", city: "Kyoto", start: "19:30", end: "21:30", kind: "hold", tags: ["meal"], costUsd: 90, note: null, who: "all", lat: 35.0028, lng: 135.7683 },
+  { id: "d8-s6-dinner-at-giro-giro-hitoshina", day: 8, title: "Dinner at Giro Giro Hitoshina", place: "Giro Giro Hitoshina", area: "Shimogyō", city: "Kyoto", start: "19:30", end: "21:30", kind: "booked", tags: ["meal"], costUsd: 90, note: null, who: "all", lat: 35.0028, lng: 135.7683 },
 
   // Day 9 — Kyoto
   { id: "d9-s1-breakfast-at-walden-woods", day: 9, title: "Breakfast at Walden Woods", place: "Walden Woods", area: "Shimogyō", city: "Kyoto", start: "08:00", end: "09:00", kind: "planned", tags: ["meal"], costUsd: 30, note: null, who: "all", lat: 34.9925, lng: 135.7423 },
@@ -207,7 +236,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d13-s1-train-and-ferry-to-naoshima", day: 13, title: "Train and ferry to Naoshima", place: "Uno Port", area: "Tamano", city: "Naoshima", start: "07:00", end: "10:00", kind: "transit", tags: [], costUsd: 130, note: null, who: "all", lat: 34.4903, lng: 133.9491 },
   { id: "d13-s2-chichu-art-museum", day: 13, title: "Chichū Art Museum", place: "Chichū Art Museum", area: "Naoshima", city: "Naoshima", start: "10:30", end: "12:30", kind: "booked", tags: ["ticketed"], costUsd: 340, note: "Timed ticket 10:30 am. Late arrivals are turned away.", who: "all", lat: 34.459, lng: 133.995 },
   { id: "d13-s3-lunch-at-aisunao", day: 13, title: "Lunch at Aisunao", place: "Aisunao", area: "Honmura", city: "Naoshima", start: "13:00", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 95, note: null, who: "all", lat: 34.4565, lng: 134.008 },
-  { id: "d13-s4-benesse-house-and-yellow-pumpkin", day: 13, title: "Benesse House and Yellow Pumpkin", place: "Benesse House", area: "Naoshima", city: "Naoshima", start: "14:30", end: "16:30", kind: "planned", tags: ["ticketed", "outdoors"], costUsd: 130, note: null, who: "all", lat: 34.4551, lng: 133.9945 },
+  { id: "d13-s4-benesse-house-and-yellow-pumpkin", day: 13, title: "Benesse House and Yellow Pumpkin", place: "Benesse House", area: "Naoshima", city: "Naoshima", start: "14:30", end: "16:30", kind: "booked", tags: ["ticketed", "outdoors"], costUsd: 130, note: null, who: "all", lat: 34.4551, lng: 133.9945 },
   { id: "d13-s5-ferry-and-train-back-to-osaka", day: 13, title: "Ferry and train back to Osaka", place: "Miyanoura Port", area: "Naoshima", city: "Naoshima", start: "17:30", end: "20:30", kind: "transit", tags: [], costUsd: 180, note: null, who: "all", lat: 34.4614, lng: 133.9782 },
 
   // Day 14 — Tokyo
