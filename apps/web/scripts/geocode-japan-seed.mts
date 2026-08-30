@@ -21,15 +21,24 @@
 // run. This script is the one-time (rerun-when-the-seed-changes) source of
 // that overlay; nothing at request time calls LocationIQ for this data.
 //
-// A plain `.mjs` file, not `.ts`, dependency-free ESM, matching db-reset.mjs's
-// convention (see its own comment) rather than db-seed.ts's — this one
-// reaches into src/server/**, which db-seed.ts never does, by importing the
-// real implementation files directly with their `.ts` extension. Node's
-// unflagged type-stripping (Node >= 22.18, this repo's floor) loads that
-// fine at runtime; `tsc --noEmit` would reject an explicit `.ts` import
-// specifier (TS5097) if this script were itself a `.ts` file under
-// tsconfig's `include`, and `eslint src` never sees `scripts/` at all — a
-// `.mjs` entry point sidesteps both without touching either config.
+// An `.mts` file — TypeScript ESM, dependency-free — living in `scripts/`
+// rather than under `src/`. It reaches into src/server/**, which db-seed.ts
+// never does, by importing the real implementation files directly with their
+// `.ts` extension. Node's unflagged type-stripping (Node >= 22.18, this
+// repo's floor) loads that fine at runtime, and `allowImportingTsExtensions`
+// (tsconfig.base.json) means the explicit `.ts` specifier typechecks too.
+//
+// That last point used to read the other way round. This comment claimed the
+// file was "a plain `.mjs`, not `.ts`" and that `tsc --noEmit` would reject
+// an explicit `.ts` specifier with TS5097 — both were true when written and
+// neither is now: the file is `.mts`, and `allowImportingTsExtensions: true`
+// removed the TS5097 constraint. The stale version mattered because it is
+// exactly the reasoning someone would copy when adding the next script, and
+// because `geocode-japan-seed.test.ts` imports this file — which the comment
+// said was impossible.
+//
+// Still true, and the reason `scripts/` is not a free lunch: `eslint src`
+// never sees this directory (KI-2026-08-30-b), so nothing lints it.
 //
 // Reuses `createLocationIQGeocoder` (the vendor adapter behind the
 // `Geocoder` seam, ADR-007) directly rather than through `getGeocoder()`
@@ -90,6 +99,12 @@
 //      No city-centroid fallback, no retry with a looser box, no unbounded
 //      query. A missing pin is reported and left missing; nothing here ever
 //      guesses one.
+//   6. A miss is reported under the reason it actually had. Four outcomes:
+//      `no-results` (the vendor has no such place), `no-candidate-in-box`,
+//      `name-mismatch` and `lookup-failed` (the vendor failed us). Only the
+//      last is worth rerunning — see `vendorErrorStatus` below for why the
+//      first two of those arrive here looking identical, and KI-78 for what
+//      collapsing them cost.
 //
 // `unscheduled[]` items (the trip's backlog) carry no city of their own
 // (see `UnscheduledSeed` in @tc/fixtures's seedSchema.ts), so
@@ -113,6 +128,7 @@
 // reason, not a shortcut invented here.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts";
 import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
@@ -180,7 +196,11 @@ interface Resolved {
 interface Unresolved {
   ids: string[];
   query: string;
-  reason: "no-candidate-in-box" | "name-mismatch" | "lookup-failed";
+  // `no-results` and `lookup-failed` both arrive as a thrown error from the
+  // vendor adapter and are deliberately kept apart: the first is a definitive
+  // negative answer ("no such place"), the second a transient failure worth
+  // rerunning. See `vendorErrorStatus`.
+  reason: "no-results" | "no-candidate-in-box" | "name-mismatch" | "lookup-failed";
   detail?: string;
   // Every candidate LocationIQ actually returned, so "why did this miss"
   // is answerable from the report without re-running the script.
@@ -249,6 +269,33 @@ function areaCorroborates(area: string, candidateDisplayName: string): boolean {
   return wanted.every((token) => present.has(token));
 }
 
+/**
+ * The HTTP status behind a `Geocoder.forward` rejection, if the rejection came
+ * from the vendor adapter's own non-2xx throw — otherwise undefined.
+ *
+ * `createLocationIQGeocoder` turns every non-2xx into
+ * `Error("geocode failed: <status>")` and nothing else, so the status is the
+ * only thing distinguishing "the vendor answered, definitively, no" from "the
+ * vendor failed us". That matters here because **LocationIQ answers a
+ * zero-result query with HTTP 404 and a body of `{"error":"Unable to
+ * geocode"}` — not an empty list**. Nine of this seed's stops hit that on
+ * every single run (KI-78), so filing them all under "rate limit or vendor
+ * error — rerun to retry" was both wrong about every one of them and, worse,
+ * would have buried a real 429 among nine standing 404s.
+ *
+ * Read off the message rather than giving `locationiq.ts` a typed error: that
+ * adapter sits behind the shared `Geocoder` seam (ADR-007) and every caller
+ * would have to move with it, which is a scoped change of its own and not
+ * this one-off script's to make. The match is anchored and status-shaped, so
+ * anything that is NOT that throw — a network failure, a JSON parse error, an
+ * adapter someday worded differently — returns undefined and keeps the
+ * conservative `lookup-failed` classification.
+ */
+function vendorErrorStatus(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  return /^geocode failed: (\d{3})$/.exec(err.message)?.[1];
+}
+
 async function resolveJob(
   geocoder: ReturnType<typeof createLocationIQGeocoder>,
   job: Job,
@@ -259,7 +306,12 @@ async function resolveJob(
   } catch (err) {
     // Never counted as "no coordinates" — a vendor error/rate-limit is a
     // distinct, reported outcome (task constraint #5 / KI-15's original sin).
-    return { ids: job.ids, query: job.query, reason: "lookup-failed", detail: String(err) };
+    // A 404 is not that: it is the vendor's definitive "no such place", the
+    // same negative answer an empty list would be, and rerunning it changes
+    // nothing. Reported as its own outcome so the retryable heading below
+    // means what it says (KI-78).
+    const reason = vendorErrorStatus(err) === "404" ? "no-results" : "lookup-failed";
+    return { ids: job.ids, query: job.query, reason, detail: String(err) };
   }
 
   const report = (c: { lat: number; lng: number; canonicalName: string }) => ({ lat: c.lat, lng: c.lng, canonicalName: c.canonicalName });
@@ -323,6 +375,7 @@ async function main(): Promise<void> {
   const resolved = results.filter(isResolved);
   const unresolved = results.filter((r): r is Unresolved => !isResolved(r));
   const failed = unresolved.filter((r) => r.reason === "lookup-failed");
+  const noResults = unresolved.filter((r) => r.reason === "no-results");
   const noMatch = unresolved.filter((r) => r.reason === "no-candidate-in-box");
   const nameMismatch = unresolved.filter((r) => r.reason === "name-mismatch");
   const unverified = resolved.filter((r) => r.nameVerdict === "not-comparable");
@@ -348,7 +401,14 @@ async function main(): Promise<void> {
   writeFileSync(OUTPUT_PATH, `${JSON.stringify(overlay, null, 2)}\n`);
 
   console.log(`\nResolved ${resolvedStopCount}/${totalStops} stops (${resolved.length} unique lookups matched).`);
-  console.log(`Unresolved: ${unresolvedStopCount} stops (${noMatch.length} no candidate in box, ${nameMismatch.length} in box but wrong venue, ${failed.length} lookup failed).`);
+  console.log(`Unresolved: ${unresolvedStopCount} stops (${noResults.length} no vendor result, ${noMatch.length} no candidate in box, ${nameMismatch.length} in box but wrong venue, ${failed.length} lookup failed).`);
+  // A definitive negative, listed with the other definitive misses and NOT
+  // with the retryable ones (KI-78). Nothing to print per candidate: the
+  // vendor returned none.
+  if (noResults.length > 0) {
+    console.log("\nNo result from the vendor (LocationIQ 404 — it has no such place; rerunning changes nothing):");
+    for (const r of noResults) console.log(`  ${r.ids.join(", ")} — "${r.query}"`);
+  }
   if (noMatch.length > 0) {
     console.log("\nNo candidate in box:");
     for (const r of noMatch) {
@@ -377,6 +437,8 @@ async function main(): Promise<void> {
     console.log(`\nAccepted but area-uncorroborated (${areaUncorroborated.length} lookups — check the ward if the venue is a chain):`);
     for (const r of areaUncorroborated) console.log(`  ${r.ids.join(", ")} — "${r.query}" -> ${r.canonicalName}`);
   }
+  // Genuinely transient, and now the only thing under this heading — a
+  // standing 404 no longer hides a real rate limit here (KI-78).
   if (failed.length > 0) {
     console.log("\nLookup failed (rate limit or vendor error — rerun to retry):");
     for (const r of failed) console.log(`  ${r.ids.join(", ")} — "${r.query}": ${r.detail}`);
@@ -384,4 +446,20 @@ async function main(): Promise<void> {
   console.log(`\nWrote ${OUTPUT_PATH}`);
 }
 
-await main();
+// Run only when this file IS the command, so `geocode-japan-seed.test.ts` can
+// import `resolveJob` and drive it with a stub geocoder. Without the guard,
+// importing this module runs the whole 70-lookup pass (and throws on a missing
+// LOCATIONIQ_API_KEY before it gets that far), which is why the outcome
+// classification above had no test until KI-78.
+//
+// `process.argv[1]` rather than `import.meta.main`: that property is newer
+// than this repo's Node floor (>= 22.18, see the header) and is not defined
+// under Vitest, so it would read false in exactly one of the two cases and
+// true in neither reliably. Resolved because the script is invoked by a
+// relative path (`node scripts/geocode-japan-seed.mts` from apps/web).
+const invokedDirectly =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) await main();
+
+export { resolveJob, vendorErrorStatus };
+export type { Job, Resolved, Unresolved };

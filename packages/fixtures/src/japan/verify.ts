@@ -26,6 +26,7 @@ import {
 } from "@tc/domain";
 import { deterministicMintId, japanTripCommands } from "./commands.ts";
 import { COORDINATE_OVERRIDES } from "./coordinateOverrides.ts";
+import { COORDINATE_GAPS } from "./coordinateGaps.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
 import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, REFERENCE_START_DATE } from "./trip.ts";
 
@@ -238,6 +239,18 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   for (const id of Object.keys(COORDINATE_OVERRIDES)) {
     if (!rowIds.has(id)) staleOverrides.push(`${id} is overridden but no stop or backlog item has that id`);
   }
+  // The same dead-key check for the gap register. A gap naming no row explains
+  // nothing, and an unreachable entry is how a list stops describing reality.
+  for (const id of Object.keys(COORDINATE_GAPS)) {
+    if (!rowIds.has(id)) staleOverrides.push(`${id} is recorded as a geocode gap but no stop or backlog item has that id`);
+  }
+  // A stop cannot be both "the overlay proposes something else" and "the
+  // overlay has nothing". Listing it twice means one of the two is a lie.
+  for (const id of Object.keys(COORDINATE_GAPS)) {
+    if (id in COORDINATE_OVERRIDES) {
+      staleOverrides.push(`${id} is in both COORDINATE_OVERRIDES and COORDINATE_GAPS — it cannot be both`);
+    }
+  }
 
   for (const row of [...JAPAN_STOPS, ...JAPAN_BACKLOG]) {
     const resolved = overlay[row.id];
@@ -247,6 +260,12 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
       // nothing and would quietly mask a future disagreement.
       if (overridden) staleOverrides.push(`${row.id} is overridden but the overlay has no entry for it`);
       continue;
+    }
+    // The vendor DID resolve a stop we recorded as uncorroborable. Good news,
+    // and the entry is now false: drop it rather than leave a record claiming
+    // the place cannot be found. (The mirror of the "now agrees" check below.)
+    if (row.id in COORDINATE_GAPS) {
+      staleOverrides.push(`${row.id} is recorded in COORDINATE_GAPS but the overlay now resolves it — drop the gap`);
     }
     const km = haversineKm(row, resolved);
     if (km > KM_TOLERANCE) {
