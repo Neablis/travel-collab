@@ -261,14 +261,23 @@ describe("the per-ask record", () => {
 
   // The prompt is already capped at MAX_PROMPT_CHARS (4000) on the wire, but a
   // page of log lines is unreadable at that length — the log's own cap is
-  // much tighter, and this pins the truncation rather than trusting the
-  // comment.
-  it("truncates a long question in the log, without touching what was asked", () => {
-    const long = "x".repeat(400);
+  // much tighter (1000, Mitchell 2026-08-29 — see the constant's comment),
+  // and this pins the actual number rather than trusting the comment or a
+  // "got shorter" assertion loose enough to survive the cap silently
+  // drifting to something else.
+  it("passes a question at exactly the cap through untouched", () => {
+    const atLimit = "x".repeat(1000);
+    const { recorder, records } = recorderWith({ question: atLimit });
+    recorder.finish({ finishReason: "stop" });
+    expect(records[0]!.question).toBe(atLimit);
+  });
+
+  it("truncates a question over the cap, without touching what was asked", () => {
+    const long = "x".repeat(4000); // the wire's own MAX_PROMPT_CHARS ceiling
     const { recorder, records } = recorderWith({ question: long });
     recorder.finish({ finishReason: "stop" });
-    expect(records[0]!.question.length).toBeLessThan(long.length);
-    expect(records[0]!.question.endsWith("…")).toBe(true);
+    expect(records[0]!.question).toBe(`${"x".repeat(1000)}…`);
+    expect(records[0]!.question.length).toBe(1001);
   });
 
   // The number tuning actually wants: not the run's total, but where the

@@ -104,12 +104,18 @@ export interface AskAnalyticsRecord {
 
 export type AskAnalyticsSink = (record: AskAnalyticsRecord) => void;
 
-// A question long enough to hit this is rare — `MAX_PROMPT_CHARS` already caps
-// the wire input at 4000 — but the log's job is tuning at a glance across many
-// records, not verbatim reproduction of one: an unclipped 4000-character
-// question would drown a page of log lines for the sake of the one turn that
-// pasted a whole itinerary in.
-const MAX_LOGGED_QUESTION_CHARS = 300;
+// Bounded against `MAX_PROMPT_CHARS` (4000, the wire cap on a prompt), not
+// picked independently of it. 1000 rather than either extreme: a realistic
+// ask ("plan a 7 day trip to Kyoto with meals and something near each stop,
+// keep mornings free") lands well under 500, so 1000 captures essentially
+// every real prompt whole — including the long, complex ones whose tool-call
+// behaviour is the whole reason this field exists — while still bounding one
+// log line to about a quarter of the worst case. Going straight to 4000 would
+// let a single record dominate the log view for no tuning benefit (Mitchell,
+// 2026-08-29). Revisit this number by re-checking those two things — the
+// wire cap it's bounded against, and what a realistic ask actually costs —
+// not by guessing a new one.
+const MAX_LOGGED_QUESTION_CHARS = 1000;
 
 function truncateForLog(text: string): string {
   return text.length > MAX_LOGGED_QUESTION_CHARS ? `${text.slice(0, MAX_LOGGED_QUESTION_CHARS)}…` : text;
