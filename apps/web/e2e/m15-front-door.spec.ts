@@ -79,3 +79,54 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/welcome$/);
 });
+
+// Reported from the 2026-08-30 preview design pass: "Pressing enter should
+// submit the Dev Login flow here." It already did — but only once React had
+// hydrated. Before that the form was a plain `<form>` with no `action`, so
+// Enter fired the browser's native implicit submission: a GET back to
+// /signin that reloaded the page, emptied the controlled username input and
+// pushed what had been typed into the address bar as `?username=…`. On a
+// cold preview that gap is wide enough to hit by hand, and it reads as
+// "Enter does nothing".
+//
+// Both halves are asserted, because fixing either one alone leaves the
+// defect: Enter has to work after hydration, and it has to be *inert*
+// before it rather than destroying what the user typed.
+test("Enter submits the dev-login form once hydrated", async ({ page }) => {
+  await page.goto("/signin");
+  const username = page.getByLabel(/username/i);
+  await username.fill("alice");
+  await expect(username).toHaveValue("alice");
+
+  // The submit button is hydration-gated, so waiting for it to be enabled is
+  // waiting for the handler Enter depends on to exist.
+  await expect(page.getByRole("button", { name: /sign in with dev login/i })).toBeEnabled();
+
+  await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes("/api/trips") && r.request().method() === "GET" && r.ok(),
+    ),
+    username.press("Enter"),
+  ]);
+  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+});
+
+test.describe("before hydration", () => {
+  // No JS at all is the honest stand-in for "JS has not run yet": it is the
+  // same DOM, with the same handlers missing, and it cannot go green by
+  // simply waiting — which is exactly the state a cold preview shows a fast
+  // typist.
+  test.use({ javaScriptEnabled: false });
+
+  test("Enter does not reload /signin or leak the username into the URL", async ({ page }) => {
+    await page.goto("/signin");
+    const username = page.getByLabel(/username/i);
+    await username.fill("alice");
+    await username.press("Enter");
+
+    // The pre-fix failure was a navigation to /signin?username=alice with an
+    // emptied field; both assertions below failed on that build.
+    await expect(page).toHaveURL(/\/signin$/);
+    await expect(username).toHaveValue("alice");
+  });
+});
