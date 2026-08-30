@@ -2,37 +2,48 @@ import { describe, expect, it } from "vitest";
 import { AdmissionRefusal } from "../src";
 
 describe("AdmissionRefusal", () => {
-  it("accepts exactly its three members", () => {
+  it("is exactly the three refusals the gate can produce", () => {
     expect(AdmissionRefusal.options).toEqual([
       "MISSING_INVITE_CODE",
       "INVALID_INVITE_CODE",
       "SPENT_INVITE_CODE",
     ]);
-    for (const member of AdmissionRefusal.options) {
-      expect(AdmissionRefusal.parse(member)).toBe(member);
-    }
   });
 
-  // The whole reason this is an enum and not a string: the refusal reaches the
-  // front door through a URL query parameter, which anyone can type. A random
-  // value must not be able to pose as a refusal this app produced.
-  it("rejects an arbitrary string", () => {
-    for (const notARefusal of [
-      "InviteRequired",
-      "missing_invite_code",
-      "MISSING_INVITE_CODE ",
-      "",
-      "AccessDenied",
-    ]) {
-      expect(AdmissionRefusal.safeParse(notARefusal).success).toBe(false);
-    }
+  it.each<string>(["MISSING_INVITE_CODE", "INVALID_INVITE_CODE", "SPENT_INVITE_CODE"])(
+    "accepts %s",
+    (value) => {
+      expect(AdmissionRefusal.parse(value)).toBe(value);
+    },
+  );
+
+  // The whole reason this is an enum rather than a string: the value arrives
+  // off `/signin?error=`, which anyone can type. If a schema is what stands
+  // between that param and the copy map, the schema has to actually refuse.
+  // The prototype keys are here because the map this guards is an object and
+  // the old lookup path needed an `Object.hasOwn` guard for exactly them.
+  it.each<string>([
+    "NOT_A_REAL_CODE",
+    "InviteRequired",
+    "missing_invite_code",
+    "MISSING_INVITE_CODE ",
+    "__proto__",
+    "constructor",
+    "toString",
+    "MISSING_INVITE_CODE|INVALID_INVITE_CODE",
+    ".*",
+    "AccessDenied",
+    "",
+  ])("refuses the arbitrary ?error= value %j", (value) => {
+    expect(AdmissionRefusal.safeParse(value).success).toBe(false);
   });
 
-  it("rejects a non-string", () => {
-    for (const notAString of [null, undefined, 0, {}, ["MISSING_INVITE_CODE"]]) {
-      expect(AdmissionRefusal.safeParse(notAString).success).toBe(false);
-    }
-  });
+  it.each<unknown>([null, undefined, 42, {}, [], ["MISSING_INVITE_CODE"]])(
+    "refuses the non-string %j",
+    (value) => {
+      expect(AdmissionRefusal.safeParse(value).success).toBe(false);
+    },
+  );
 
   // `.enum` is how every producer is meant to spell a member (never a literal),
   // so it is pinned here rather than left as a convention in a comment.

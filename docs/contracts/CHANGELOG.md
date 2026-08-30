@@ -13,31 +13,49 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-08-30 — `AdmissionRefusal`, the invite gate's refusal vocabulary
+## 2026-08-30 — `AdmissionRefusal`: the invite gate's refusal codes become a closed set
 
-- Added: `AdmissionRefusal` — a `z.enum` of exactly
-  `MISSING_INVITE_CODE`, `INVALID_INVITE_CODE`, `SPENT_INVITE_CODE` — in a new
-  `packages/contracts/src/admission.ts`, re-exported from `src/index.ts`
-- Why: M11a's invite gate (`docs/milestones/M11a-invite-gate.md`, link 6) has
-  three distinct refusals and each is a different sentence on the `/signin`
-  screen. Auth.js collapses every falsy `signIn` return into one `AccessDenied`
-  (`@auth/core@0.41.3` `lib/actions/callback/index.js:393-409`), so the reason
-  can only travel as a returned path — `/signin?error=<code>` — which means the
-  code crosses the UI/server wall through a URL query parameter. A **closed**
-  enum is the point: an arbitrary `?error=` string cannot pose as a refusal this
-  app produced, and the compiler enforces the set rather than a comment asking
-  for it. Invariant 5 puts a cross-boundary type here, inferred once, never
-  hand-written on both sides
-- Consumers updated: `apps/web/src/server/admission.ts` (produces it —
-  `refusalRedirect`) and `recordSignIn`, which returns the path; the front
-  door's copy map consumes it (M11a Unit B, same milestone). Neither side
-  spells a member as a string literal — both go through `AdmissionRefusal.enum`
-- Contract test: `packages/contracts/test/admission.test.ts` — the enum accepts
-  exactly its three members and rejects an arbitrary string, a non-string, and a
-  near miss in the wrong case
-- Breaking? no. Nothing existed to break: this is a new type with no prior wire
-  format, no schema was edited, and no event, command or DTO changed shape. No
-  migration
+- Added: `AdmissionRefusal` in a new `packages/contracts/src/admission.ts`,
+  re-exported from `src/index.ts` — `z.enum(["MISSING_INVITE_CODE",
+  "INVALID_INVITE_CODE", "SPENT_INVITE_CODE"])` plus the inferred type
+- Why: M11a's gate decides the refusal in `server/admission.ts`, `recordSignIn`
+  returns it as `/signin?error=<code>`, and the sign-in screen reads it back off
+  the query param — so the value makes a round trip through a URL the browser
+  controls and is untrusted by the time anything renders from it. It has to
+  travel that way at all because Auth.js collapses every falsy `signIn` return
+  into a single `AccessDenied` (`@auth/core@0.41.3`
+  `lib/actions/callback/index.js:393-409`), and a returned **string** is the
+  only channel that can carry three distinct reasons. Mitchell's call,
+  2026-08-30: *"make sure every error type is a hard coded case static string
+  that is typed ... so any random string cant pass"*
+- The enum buys two things a bare string could not. `errorMessage()` in
+  `apps/web/src/components/front/authCopy.ts` `safeParse`s the param instead of
+  indexing a map, so an arbitrary `?error=` value cannot reach the copy at all;
+  and the copy map is declared `Record<AdmissionRefusal, string>`, so adding a
+  fourth refusal without writing copy for it is a typecheck failure rather than
+  a production screen silently showing the generic fallback. Invariant 5 puts a
+  cross-boundary type here, inferred once, never hand-written on both sides
+- Supersedes the prose spelling in `docs/plans/2026-08-30-M11a-M11b.md`, which
+  named these `InviteRequired` / `InviteInvalid` / `InviteSpent`. Mapping, in
+  that order: `MISSING_INVITE_CODE`, `INVALID_INVITE_CODE`,
+  `SPENT_INVITE_CODE`. No PascalCase spelling was ever released — the plan is
+  write-once scaffolding and both sides were built against the new names
+- Auth.js's own error codes (`AccessDenied`, `Configuration`, `Verification`,
+  `OAuthAccountNotLinked`) travel on the same `?error=` param and are
+  deliberately NOT in this enum: they are Auth.js's set, not ours to enumerate,
+  and they keep their PascalCase spelling in `ERROR_MESSAGES` and their
+  existing `Object.hasOwn` guard. The two sets stay distinguishable at a glance
+- Consumers updated, both in the same milestone: `apps/web/src/server/admission.ts`
+  produces it (`refusalRedirect`) and `recordSignIn` returns the path;
+  `components/front/authCopy.ts` consumes it (`ADMISSION_MESSAGES` plus the
+  parse in `errorMessage`). Neither side spells a member as a string literal —
+  both go through `AdmissionRefusal.enum`
+- Contract test: `packages/contracts/test/admission.test.ts` — the member list
+  and order, the three valid codes, and a refusal set covering casing variants,
+  a trailing space, regex bait, the prototype-pollution keys, an Auth.js code,
+  and non-strings
+- Breaking? no. Nothing existed to break: a new type with no prior wire format,
+  no schema edited, no event, command or DTO changed shape. No migration
 
 ## 2026-08-28 — compose the duplicated `ActivityAdded`/`ActivityUpdated` payload block
 
