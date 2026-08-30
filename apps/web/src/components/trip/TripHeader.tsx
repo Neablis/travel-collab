@@ -237,9 +237,30 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   it is sharing; everything else about this call site is
                   unchanged. */}
               {!readOnly && <ShareButton tripId={tripId} />}
-              <Button variant="primary" disabled={readOnly} onClick={() => openCreate()}>
-                Add stop
-              </Button>
+              {/* HIDDEN for a reader, not greyed (KI-64). This was the one
+                  disabled control left on an otherwise quiet page: ADR-031 took
+                  every other write affordance away from a read-only board —
+                  card edit/remove, day remove, "+ Add", "One more day?",
+                  conflict "Dismiss", the timeline's Ask/Edit/Add-stop/Keep-day,
+                  the rack's day picker, Share, and undo/redo three blocks below
+                  — on the stated grounds that "a disabled control still says
+                  'there is something here for you'", and the header kept
+                  saying it. The nav row eight blocks up already writes that
+                  same sentence about itself.
+                  ADR-031's closing section left this one deliberately, as the
+                  argument for the other audience: for an INVITED viewer, a
+                  greyed button says what promotion would buy them. That reading
+                  needs the two audiences told apart — `readOnly` alone cannot,
+                  it is one flag over a member without the rank AND a stranger
+                  on /demo — and splitting it is the design decision that entry
+                  names. Consistency now, per the rule already written down; the
+                  split stays available if the Travelers UI (SPEC §8) wants it.
+                  The "View only" badge is what still explains the quiet page. */}
+              {!readOnly && (
+                <Button variant="primary" onClick={() => openCreate()}>
+                  Add stop
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-0.5">

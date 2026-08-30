@@ -1,6 +1,6 @@
 import type { CreateTrip, TripCommand, TripEvent } from "@tc/contracts";
 import { detectConflicts } from "./conflicts";
-import { daySpan } from "./dates";
+import { daySpan, isCalendarDate } from "./dates";
 import { tripStatesEqual } from "./equality";
 import { evolveTrip } from "./evolve";
 import type { TripState } from "./state";
@@ -137,6 +137,13 @@ function decideCommand(
         { type: "DayRemoved", version: 1, payload: { tripId: command.tripId, dayId: command.dayId } },
       ]);
     case "SetTripStartDate":
+      // KI-77: `TripDate` checks shape, not the calendar, so "2026-02-30"
+      // arrives here fully parsed. Reject it rather than emitting the event —
+      // a persisted impossible start date makes `deriveDayDates` throw on
+      // every subsequent projection, i.e. a trip that can never be read back.
+      if (command.startDate !== null && !isCalendarDate(command.startDate)) {
+        return reject("invalid-dates", "That is not a date on the calendar.");
+      }
       return okUnlessNoOp(state, [
         {
           type: "TripStartDateSet",
@@ -148,6 +155,15 @@ function decideCommand(
       const { startDate, endDate } = command;
       if (startDate === null && endDate !== null) {
         return reject("invalid-dates", "An end date needs a start date.");
+      }
+      // KI-77, same reason as SetTripStartDate above — and this path has a
+      // second way to bite: `daySpan` below THROWS on a non-calendar date,
+      // which would escape past this decider's own rejection contract.
+      if (
+        (startDate !== null && !isCalendarDate(startDate)) ||
+        (endDate !== null && !isCalendarDate(endDate))
+      ) {
+        return reject("invalid-dates", "That is not a date on the calendar.");
       }
       const events: TripEvent[] = [];
       if (state.startDate !== startDate) {

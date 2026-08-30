@@ -1,6 +1,12 @@
 # M9 — AI as a planning partner
 
-**Status:** Not started. **Moved to last in the execution order — after M14 —
+**Status:** Not started as a milestone — **but part of its scope shipped early.**
+PR #88 (`5a362d3`, merged 2026-08-30 UTC) landed write tools behind
+propose → review → approve and `POST /ask/apply`, built overnight on Mitchell's
+request to plan a trip with the assistant end to end. M16 and M9 shared a branch
+because neither half is testable alone. **This gate did not close and none of
+its boxes were ticked there**; what remains is conversation durability,
+grounding (`SearchPlaces`, KI-81), and the gate itself. **Moved to last in the execution order — after M14 —
 on 2026-08-25 by ADR-022**, on Mitchell's call that the data layer beneath a
 planning partner should exist first and that UI polish and sharing come before
 it. Numbers unchanged; this is a placement, the same shape as ADR-018/ADR-021.
@@ -128,4 +134,12 @@ progress reads, how rejection feels — not in M10.
 - [ ] No activity carries a fabricated cost — unknown reads as unknown, not as
       `0`/free.
 - [ ] Recorded real-model transcripts replay in CI without a live call.
+      **M16's identical box moved here on 2026-08-29 by Mitchell's explicit
+      decision, so this box now carries both milestones' weight.** It was
+      Task 7 of PR #88's plan — the eval set plus replay harness — dropped
+      rather than half-landed, on the grounds that it measures the agent
+      rather than making it work. The foundation it builds on (per-ask
+      analytics, `ai.ask` records with `usageByStep`, `uncalledTools` and
+      `droppedCalls`) **is already shipped** by that PR's Task 3. This is also
+      the criterion that closes **KI-11**, open since M7's post-gate retro.
 - [ ] Retro appended at gate close.

@@ -200,6 +200,12 @@ export const savedDays = pgTable(
     // (ADR-025).
     ownerId: text("owner_id").notNull(),
     name: text("name").notNull(),
+    // `$type` is a compile-time cast, NOT a runtime check — it says what the
+    // write path intends and nothing about what the bytes are. The runtime
+    // guarantee lives at the read boundary instead: `savedDays.ts`'s `fromRow`
+    // parses this column with `SavedStop.array()` on every read, so a row
+    // written before the contract moved is dropped-and-logged rather than
+    // trusted (KI-71). Do not add a caller that reads `row.stops` directly.
     stops: jsonb("stops").$type<SavedStop[]>().notNull(),
     sourceTripId: uuid("source_trip_id").notNull(),
     sourceTripName: text("source_trip_name").notNull(),

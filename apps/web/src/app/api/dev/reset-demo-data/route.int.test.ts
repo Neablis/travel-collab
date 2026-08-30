@@ -5,8 +5,24 @@ import type { TripCommand } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
 import { getTripDetail, listTripSummaries } from "@/server/projections";
 
-const ACTOR_ID = "user-1";
-const OUTSIDER_ID = "user-2";
+// Unique per run, not the fixed "user-1"/"user-2" these used to be (KI-57).
+//
+// The outsider is the one that mattered. Its whole purpose is to own a trip the
+// route must NOT delete — and the route is correct, so that trip survives the
+// run and the next run's `expect(outsiderTrips).toEqual([outsiderTripId])` saw
+// two. Four runs against one database reported `expected [ …(4) ] to deeply
+// equal [ Array(1) ]`, always at the same assertion. Nothing truncates between
+// runs, so a fixed id makes this file's assertions a function of how many times
+// it has ever been run, which is not a property a test should have.
+//
+// Scoping the identity per run is the narrow half of the fix: every query below
+// filters by membership, so a fresh pair of ids sees exactly the rows this run
+// created and no others. The actor is scoped too — not because it accumulated
+// (the route deletes the caller's own trips, so it self-cleans) but so neither
+// id depends on a database state this file does not control.
+const RUN = randomUUID();
+const ACTOR_ID = `actor-${RUN}`;
+const OUTSIDER_ID = `outsider-${RUN}`;
 
 let currentUserId: string | null = ACTOR_ID;
 

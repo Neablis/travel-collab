@@ -52,12 +52,36 @@ if (!payload || typeof payload !== "object") process.exit(0);
 // doesn't check it would block that retry too, forever. Must be checked
 // before anything else that could exit 2.
 if (payload.stop_hook_active) process.exit(0);
-if (typeof payload.transcript_path !== "string" || !payload.transcript_path) process.exit(0);
 
-let text = "";
-try {
-  const raw = readFileSync(payload.transcript_path, "utf8").trim();
-  const lines = raw ? raw.split("\n") : [];
+// KI-62, settled by measurement rather than by reading. Two concurrent
+// subagents were run with this hook instrumented; at BOTH SubagentStop events
+// `payload.transcript_path` was the PARENT session's transcript — the same
+// path for both units — and the last assistant text block in it was an
+// unrelated message from the orchestrator's own earlier turn. The hook found
+// no "## Exit:" heading and silently exited 0, twice. It was not checking the
+// wrong unit's report; it was not checking any report at all.
+//
+// The entry's hypothesis (interleaved sidechains) was close but wrong in a way
+// that matters: the units' entries were not in the parent transcript to
+// interleave. Each unit gets its OWN file, and the payload names it.
+//
+// Two payload fields make this unambiguous, both scoped to the stopping unit:
+//
+//   - `last_assistant_message` — the unit's final message, verbatim, as a
+//     string. This is exactly what the hook wants and needs no file read, no
+//     backwards walk, and no way to pick up a neighbour's text. Preferred.
+//   - `agent_transcript_path` — that unit's own transcript file
+//     (`<session>/subagents/agent-<id>.jsonl`). Distinct per unit.
+//
+// `transcript_path` is kept only as a last-resort fallback for a Claude Code
+// build that supplies neither of the above. It is known to select the wrong
+// text when subagents are involved, so it is tried last, never first.
+function lastAssistantText(file) {
+  const raw = readFileSync(file, "utf8").trim();
+  // `"".split("\n")` yields `[""]`, whose JSON.parse throws into the `continue`
+  // below, so an empty transcript needs no special case (KI-63: the `raw ? …`
+  // ternary this replaces was dead weight).
+  const lines = raw.split("\n");
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     let entry;
     try {
@@ -80,29 +104,65 @@ try {
     // Keep walking backwards past it rather than treating its absence of
     // text as "no report" and silently no-opping on the transcript's actual
     // final report, one or more entries earlier.
-    if (candidate.trim()) {
-      text = candidate;
-      break;
-    }
+    if (candidate.trim()) return candidate;
   }
-} catch {
-  // Missing file, permission error, non-UTF8 content — the hook must not
-  // block a subagent's stop because it could not read its own transcript.
-  process.exit(0);
+  return "";
+}
+
+let text = "";
+// Non-blank, not merely present: an empty or whitespace-only
+// `last_assistant_message` would otherwise select this source and suppress
+// BOTH transcript fallbacks, so the hook would exit 0 even when the unit's own
+// transcript holds an incomplete report — the same silent no-op KI-62 exists
+// to end, arriving through the field that fixed it. (CodeRabbit, PR #83.)
+if (typeof payload.last_assistant_message === "string" && payload.last_assistant_message.trim()) {
+  text = payload.last_assistant_message;
+} else {
+  const files = [payload.agent_transcript_path, payload.transcript_path].filter(
+    (f) => typeof f === "string" && f,
+  );
+  for (const file of files) {
+    try {
+      text = lastAssistantText(file);
+    } catch {
+      // Missing file or a permission error — the hook must not block a
+      // subagent's stop because it could not read its own transcript.
+      // (KI-63: this comment used to also claim "non-UTF8 content", which
+      // `readFileSync(…, "utf8")` does not throw on — it substitutes U+FFFD.)
+      continue;
+    }
+    if (text) break;
+  }
 }
 
 if (!/^##\s*Exit:/m.test(text)) process.exit(0);
 
-const stateMatch = text.match(/^##\s*Exit:\s*(DONE|BLOCKED|DESCOPED)\s*$/m);
+// KI-63: with two "## Exit:" headings the FIRST used to govern silently, so a
+// report that quoted the template's `## Exit: DONE` above its own
+// `## Exit: BLOCKED` was validated as DONE and never asked for the two extra
+// sections BLOCKED requires. Collect every heading instead: one is the normal
+// case, several that agree is harmless, and several that DISAGREE is a real
+// ambiguity the unit has to resolve rather than a coin toss the hook makes.
+const states = [...text.matchAll(/^##\s*Exit:\s*(DONE|BLOCKED|DESCOPED)\s*$/gm)].map(
+  (m) => m[1],
+);
+const distinct = [...new Set(states)];
 const missing = [];
 
-if (!stateMatch) {
+if (distinct.length === 0) {
   missing.push('"## Exit: <state>" naming exactly one of DONE | BLOCKED | DESCOPED');
+} else if (distinct.length > 1) {
+  missing.push(
+    `a single "## Exit: <state>" — this report declares ${distinct.join(" and ")}, ` +
+      "so which one governs is ambiguous",
+  );
 }
 
 const required = [
   ...REQUIRED,
-  ...(stateMatch?.[1] === "BLOCKED" ? BLOCKED_EXTRA : []),
+  // If BLOCKED is declared at all, its two extra sections are required — an
+  // ambiguous report must not shed them by listing DONE first.
+  ...(distinct.includes("BLOCKED") ? BLOCKED_EXTRA : []),
 ];
 
 for (const heading of required) {
