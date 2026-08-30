@@ -15,6 +15,7 @@ import {
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
+import { CitySearchResponse, type CityMatch } from "@/lib/cities";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -462,6 +463,67 @@ export async function insertSavedDay(
       method: "POST",
     });
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ── The public library (M11b) ────────────────────────────────────────────────
+
+/**
+ * One saved day: your own, or anybody's published one.
+ *
+ * `isAuthor` comes back beside the day because the client cannot work it out —
+ * the signed-in id is not something the browser holds — and it is what decides
+ * whether the shared-day route offers Unpublish.
+ */
+export async function fetchSavedDay(
+  savedDayId: string,
+): Promise<ApiResult<{ savedDay: SavedDay; isAuthor: boolean }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`));
+    return await readJson(res, (data) => {
+      const body = data as { savedDay: unknown; isAuthor: unknown };
+      return { savedDay: SavedDay.parse(body.savedDay), isAuthor: body.isAuthor === true };
+    });
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Puts one of YOUR days into the public library. 404 if it is not yours. */
+export async function publishSavedDay(savedDayId: string): Promise<ApiResult<SavedDay>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}/publish`), { method: "POST" });
+    return await readJson(res, (data) => SavedDay.parse((data as { savedDay: unknown }).savedDay));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Takes it back out. The author's control over their own content, not M12's. */
+export async function unpublishSavedDay(savedDayId: string): Promise<ApiResult<SavedDay>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}/publish`), { method: "DELETE" });
+    return await readJson(res, (data) => SavedDay.parse((data as { savedDay: unknown }).savedDay));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Cities whose name starts with `q`, with how many published days touch each.
+ *
+ * An empty or blank `q` is answered by the server with `[]` rather than
+ * short-circuited here: the endpoint is the boundary, and a client that has to
+ * remember not to ask is a client that will one day forget. The caller
+ * debounces; this does not (a helper that owned a timer would be untestable and
+ * would fight the caller's own).
+ */
+export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/cities?q=${encodeURIComponent(q)}`));
+    return await readJson(res, (data) => CitySearchResponse.parse(data).cities);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
