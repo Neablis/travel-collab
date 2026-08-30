@@ -16,6 +16,30 @@ export type AuthCopy = {
 // :3388-3396 (the five bound strings) and :1620-1625 (the two footnotes).
 // Do not reword — the handoff README makes the design the source of truth
 // for product copy.
+/**
+ * **Build-side copy, awaiting design sign-off — NOT from the handoff.**
+ *
+ * Deliberately its own block rather than fields on `AUTH_COPY`, which is
+ * verbatim handoff text that a design sync rewrites in place. Keeping these
+ * separate means a sync cannot silently overwrite them, and nobody can mistake
+ * them for handoff-approved strings.
+ *
+ * They exist because M11a put an "Invite code" field on `/signup` and the
+ * handoff has no sentence explaining it — a first-time visitor would otherwise
+ * meet an unexplained box with no way to know whether it is required or where
+ * to get one. Drafted 2026-08-30 in the handoff's voice (second person, plain,
+ * no exclamation), for Mitchell to accept or replace before merge.
+ *
+ * @see docs/milestones/M11a-invite-gate.md — link 6, the refusal is a designed
+ * screen and so is the thing that asks for the code.
+ */
+export const ADMISSION_FIELD_COPY = {
+  /** Sits above the field, explaining why it is there at all. */
+  note: "Caesura is invite-only while it is small.",
+  /** The field's own hint — says when it may be left empty. */
+  hint: "Paste the code you were sent. Arriving from a trip invite link? Leave this empty.",
+} as const;
+
 export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
   signup: {
     title: "Start planning with Caesura",

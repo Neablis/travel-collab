@@ -8,6 +8,7 @@ vi.mock("next-auth/react", () => ({ signIn: (...args: unknown[]) => signInMock(.
 let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({ useSearchParams: () => searchParams }));
 
+import { ADMISSION_FIELD_COPY } from "./authCopy";
 import { AuthScreen } from "./AuthScreen";
 
 // Stands in for the Server Action signup/page.tsx passes down. Async on
@@ -185,6 +186,23 @@ describe("AuthScreen", () => {
   it("does not ask for an invite code in signin mode", () => {
     render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     expect(screen.queryByLabelText("Invite code")).toBeNull();
+  });
+
+  // A labelled box with no explanation is the defect this closes: a first-time
+  // visitor could not tell whether the code was required or where to get one.
+  // Asserted through ADMISSION_FIELD_COPY rather than as literals, so revising
+  // the wording (it is awaiting design sign-off) does not fail the test for
+  // the wrong reason — what is pinned is that both strings reach the screen.
+  it("says why the invite code is being asked for, and when it may be left empty", () => {
+    render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
+    expect(screen.getByText(ADMISSION_FIELD_COPY.note)).toBeDefined();
+    expect(screen.getByText(ADMISSION_FIELD_COPY.hint)).toBeDefined();
+  });
+
+  it("carries neither line in signin mode, where there is no field to explain", () => {
+    render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
+    expect(screen.queryByText(ADMISSION_FIELD_COPY.note)).toBeNull();
+    expect(screen.queryByText(ADMISSION_FIELD_COPY.hint)).toBeNull();
   });
 
   // The ordering assertion this whole mechanism exists for. The code has to be

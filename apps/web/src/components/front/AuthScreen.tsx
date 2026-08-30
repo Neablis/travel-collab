@@ -12,7 +12,13 @@ import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { AUTH_COPY, GOOGLE_UNAVAILABLE_MESSAGE, errorMessage, type AuthMode } from "@/components/front/authCopy";
+import {
+  ADMISSION_FIELD_COPY,
+  AUTH_COPY,
+  GOOGLE_UNAVAILABLE_MESSAGE,
+  errorMessage,
+  type AuthMode,
+} from "@/components/front/authCopy";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/pendingAdmission";
 
@@ -169,21 +175,31 @@ export function AuthScreen({
             {showAdmissionCode && (
               // Above the Google button, because it has to be filled in before
               // the button is pressed — pressing it is what leaves the site.
-              // Label only, no explanatory line: `AUTH_COPY` is verbatim from
-              // the design handoff and has no invite sentence in it, and this
-              // file does not get to invent product copy (authCopy.ts:13-16).
-              // Flagged for Mitchell — the handoff needs a line here.
-              <FormField id="admission-code" label="Invite code">
-                <Input
+              //
+              // The note and hint come from `ADMISSION_FIELD_COPY`, which is
+              // build-side copy awaiting design sign-off, kept separate from
+              // the verbatim `AUTH_COPY` on purpose (see that block). The
+              // hint carries the "may be empty" case: someone arriving from a
+              // trip invite link is admitted by the token the proxy stored, so
+              // the field is genuinely optional and nothing else says so.
+              <>
+                <Text variant="muted">{ADMISSION_FIELD_COPY.note}</Text>
+                <FormField
                   id="admission-code"
-                  name="inviteCode"
-                  value={admissionCode}
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={PENDING_ADMISSION_MAX_LENGTH}
-                  onChange={(event) => setAdmissionCode(event.target.value)}
-                />
-              </FormField>
+                  label="Invite code"
+                  hint={ADMISSION_FIELD_COPY.hint}
+                >
+                  <Input
+                    id="admission-code"
+                    name="inviteCode"
+                    value={admissionCode}
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={PENDING_ADMISSION_MAX_LENGTH}
+                    onChange={(event) => setAdmissionCode(event.target.value)}
+                  />
+                </FormField>
+              </>
             )}
 
             <Button

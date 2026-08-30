@@ -65,10 +65,36 @@ Both storage choices below are Mitchell's, 2026-08-30 — he asked for both, not
 one: *"i want a super code i can share that gets you invite, and unique codes
 that are one-off."*
 
-**Link 1 — The admission rule, in one module.** `server/admission.ts`. Called
+**Link 1 — The admission rule, in one module.** `server/admission.ts`. ~~Called
 twice: once from the signup form for immediate "that code isn't valid" feedback,
-once from `recordSignIn` as the authoritative validate-and-redeem. The rule is
+once from `recordSignIn` as the authoritative validate-and-redeem.~~ The rule is
 written once even though it is asked twice.
+
+> **Amended 2026-08-30, during the build — it is called once.** Mitchell's
+> ruling, on two findings the scoping session did not have.
+>
+> **It is not buildable as written.** The advisory call was to come from the
+> signup form, but the lint wall forbids a page file importing `@/server/*`,
+> and `signup/page.tsx` is a page file. The form therefore *stores* the code
+> without validating it, exactly as `proxy.ts` does with a token. Routing it
+> through an `src/app/api/**` handler would be legal — that directory is
+> exempt from the wall — which is what made this a decision rather than a
+> blocker.
+>
+> **And on inspection we do not want the endpoint.** An unauthenticated
+> "is this code valid?" route is a brute-force oracle: it lets anyone
+> enumerate `invite_codes` without ever attempting a sign-in, against a table
+> whose entire security property is that a code is unguessable. It is
+> mitigable — `consumeQuota` already rate-limits `/api/geocode` — but the
+> mitigation is a tuning problem with a real false-positive cost, and the
+> check is inherently TOCTOU besides: it can answer "valid" for a code another
+> person spends a second later, so it can never be the gate.
+>
+> **What ships instead:** a wrong code is caught authoritatively at sign-in
+> and lands on the designed `INVALID_INVITE_CODE` screen, which already says
+> what to do next. The cost is one wasted OAuth round trip for someone who
+> mistypes. `checkAdmission` remains in the module, exported and tested, so
+> restoring the advisory path later is wiring rather than rewriting.
 
 **Link 2 — A trip invite is an invitation.** Mitchell's explicit call,
 2026-08-30: holding a **pending, unrevoked** M11 invite token admits you with no
