@@ -37,6 +37,8 @@ export {
   type MintId,
 } from "./japan/commands.ts";
 
+export { CITY_OVERRIDES } from "./japan/cityOverrides.ts";
+
 export { parseTripSeed, TripSeedV1 } from "./japan/seedSchema.ts";
 
 // REFERENCE_START_DATE is the only part of the verification harness that

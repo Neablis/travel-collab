@@ -55,7 +55,20 @@ test.describe("the demo trip", () => {
         /^Day 1, \w{3}, \w{3} \d{1,2}\. Tokyo, 4 stops, \$990\.00, 2:30 pm to 10:30 pm, 2 to book$/,
       ),
     ).toBeVisible();
-    await expect(page.getByLabel(/^Day 14, \w{3}, \w{3} \d{1,2}\. Tokyo, /)).toBeVisible();
+    // Day 14 is the trip's one two-city cell, and that is the point of
+    // asserting it: the traveller wakes in Osaka (breakfast at the hotel, then
+    // the Shinkansen out) and lands the last three stops in Tokyo, so the cell
+    // renders a card per city in TIME order. Until KI-59 every stop on a
+    // travel day carried the day's DESTINATION, so this read "Tokyo, 5 stops"
+    // and the morning in Osaka was invisible.
+    //
+    // Pinning both cards and their counts, not just the first city: the whole
+    // behaviour KI-59 changed is that this cell stopped being one card, and an
+    // assertion on the head alone would pass again the moment it collapsed
+    // back.
+    await expect(
+      page.getByLabel(/^Day 14, \w{3}, \w{3} \d{1,2}\. Osaka, 2 stops, .*\. Tokyo, 3 stops, /),
+    ).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
     await expect(page).toHaveURL(/lens=Map/);

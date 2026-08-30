@@ -67,12 +67,24 @@ describe("read_trip", () => {
   // fixture, but Kyoto is the same shape of answer) must be answerable from
   // `read_trip` ALONE, without opening a single day. Days 7-10 are the Japan
   // fixture's Kyoto stretch (fixtures/src/japan/trip.ts).
+  //
+  // Days 8-10 sit entirely in Kyoto. Day 7 and day 11 are its ends, and they
+  // report TWO cities each — this used to assert `["Kyoto"]` and `["Osaka"]`
+  // for them, which was the one-city-per-day assumption KI-59 was about, not a
+  // fact about the trip: day 7 starts on the platform at Odawara Station and
+  // day 11 starts at Kyoto Station. `citiesOfDay` returns a list precisely for
+  // this case and until KI-59 was fixed nothing in the fixture exercised it,
+  // so the multi-city ends are asserted here rather than dropped.
   it("carries each day's cities, so a place can be found without reading every day", () => {
     const readout = readTrip(japan);
-    for (const day of [7, 8, 9, 10]) {
+    for (const day of [8, 9, 10]) {
       expect(readout.days[day - 1]!.cities, `day ${day}`).toEqual(["Kyoto"]);
     }
-    expect(readout.days[10]!.cities).toEqual(["Osaka"]); // day 11
+    // In time order: where the day starts, then where it ends.
+    expect(readout.days[6]!.cities).toEqual(["Odawara", "Kyoto"]); // day 7
+    expect(readout.days[10]!.cities).toEqual(["Kyoto", "Osaka"]); // day 11
+    // The question still answers: five days of this trip touch Kyoto.
+    expect(readout.days.filter((d) => d.cities.includes("Kyoto"))).toHaveLength(5);
   });
 
   it("reports no cities for a day with no located stop, never throwing", () => {

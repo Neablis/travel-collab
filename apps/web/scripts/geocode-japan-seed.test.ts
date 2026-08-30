@@ -11,7 +11,9 @@
 // the app root; vitest.unit.config.ts's node project names all three.
 import { describe, expect, it } from "vitest";
 import type { Geocoder } from "@/server/geocoding/geocoder";
-import { resolveJob, vendorErrorStatus, type Job, type Unresolved } from "./geocode-japan-seed.mts";
+import { readFileSync } from "node:fs";
+import { CITY_OVERRIDES, JAPAN_STOPS, parseTripSeed } from "@tc/fixtures";
+import { resolveJob, vendorErrorStatus, buildJobs, CITY_VIEWBOXES, type Job, type Unresolved } from "./geocode-japan-seed.mts";
 
 const TOKYO = { minLat: 35.5, maxLat: 35.85, minLng: 139.3, maxLng: 139.95 };
 
@@ -103,3 +105,70 @@ describe("resolveJob outcome classification (KI-78)", () => {
     expect(result.reason).toBe("no-candidate-in-box");
   });
 });
+
+describe("buildJobs asks for the city a stop is physically in (KI-59)", () => {
+  const seed = parseTripSeed(
+    JSON.parse(readFileSync(new URL("../../../.design-sync/handoff/data/japan-trip-seed.json", import.meta.url), "utf-8")),
+  );
+  const jobs = buildJobs(seed);
+  const jobFor = (id: string) => jobs.find((j) => j.ids.includes(id));
+
+  // The upstream export models city per DAY and tags a travel day with its
+  // destination, so this script used to send queries no vendor could satisfy.
+  // These are the seven stops CITY_OVERRIDES corrects, with the query each one
+  // must now produce. Written out rather than derived from CITY_OVERRIDES: a
+  // test that reads the same map the code reads agrees with it by
+  // construction and proves nothing.
+  const EXPECTED: ReadonlyArray<readonly [string, string]> = [
+    ["d4-s1-limited-express-to-nikko", "Tobu Asakusa Station, Asakusa, Tokyo, Japan"],
+    ["d6-s1-romancecar-to-hakone-yumoto", "Shinjuku Station, Shinjuku, Tokyo, Japan"],
+    ["d7-s1-shinkansen-odawara-kyoto", "Odawara Station, Odawara, Odawara, Japan"],
+    ["d11-s1-train-kyoto-osaka", "Kyoto Station, Shimogyō, Kyoto, Japan"],
+    ["d13-s1-train-and-ferry-to-naoshima", "Uno Port, Tamano, Tamano, Japan"],
+    ["d14-s1-breakfast-at-the-hotel", "Zentis Osaka, Kita, Osaka, Japan"],
+    ["d14-s2-shinkansen-to-tokyo", "Shin-Osaka Station, Yodogawa, Osaka, Japan"],
+  ];
+
+  it.each(EXPECTED)("%s queries %s", (id, query) => {
+    expect(jobFor(id)?.query).toBe(query);
+  });
+
+  it("covers every override, so a new one cannot be added without a query here", () => {
+    expect([...Object.keys(CITY_OVERRIDES)].sort()).toEqual(EXPECTED.map(([id]) => id).sort());
+  });
+
+  it("leaves a stop with no override on its day's city", () => {
+    // Day 14's later stops really are in Tokyo; only the morning moved.
+    expect(jobFor("d14-s3-last-lunch-at-maisen")?.query).toBe("Tonkatsu Maisen, Omotesandō, Tokyo, Japan");
+  });
+
+  it("has a viewbox for every city an override names", () => {
+    const missing = [...new Set(Object.values(CITY_OVERRIDES).map((o) => o.ours))].filter(
+      (city) => CITY_VIEWBOXES[city] === undefined,
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("puts each overridden stop's own coordinate inside the box it will be searched in", () => {
+    // The box is the hard bound this script enforces on a candidate, so a box
+    // that excludes the venue's real location can never accept it — KI-59's
+    // failure in a different shape.
+    //
+    // Coordinates come from JAPAN_STOPS (canonical since ADR-030), NOT from
+    // the seed export: the export's stops carry no coordinates at all, so the
+    // first draft of this test skipped every row and passed while Odawara's
+    // box sat a full degree of latitude off. The `toHaveLength` floor below is
+    // what makes that failure mode visible rather than silent.
+    const checked = JAPAN_STOPS.filter((s) => CITY_OVERRIDES[s.id]);
+    expect(checked).toHaveLength(Object.keys(CITY_OVERRIDES).length);
+
+    const outside = checked
+      .filter((s) => {
+        const box = CITY_VIEWBOXES[CITY_OVERRIDES[s.id]!.ours]!;
+        return s.lat < box.minLat || s.lat > box.maxLat || s.lng < box.minLng || s.lng > box.maxLng;
+      })
+      .map((s) => `${s.id} (${s.lat}, ${s.lng}) is outside ${CITY_OVERRIDES[s.id]!.ours}'s viewbox`);
+    expect(outside).toEqual([]);
+  });
+});
+

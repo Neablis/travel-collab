@@ -16,6 +16,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseTripSeed } from "./seedSchema.ts";
+import { CITY_OVERRIDES } from "./cityOverrides.ts";
 import { KIND_OVERRIDES } from "./kindOverrides.ts";
 import {
   JAPAN_BACKLOG,
@@ -93,13 +94,19 @@ describe("the canonical copy still matches the design handoff export", () => {
     // two arrays names every row that moved, where a per-row loop stops at the first.
     expect(
       JAPAN_STOPS.map((s) => ({
-        id: s.id, day: s.day, title: s.title, place: s.place, area: s.area, city: s.city,
-        start: s.start, end: s.end, kind: s.kind, costUsd: s.costUsd, note: s.note, who: s.who,
+        id: s.id, day: s.day, title: s.title, place: s.place, area: s.area,
+        start: s.start, end: s.end, city: s.city, kind: s.kind, costUsd: s.costUsd, note: s.note, who: s.who,
       })),
     ).toEqual(
       upstreamStops.map((s) => ({
-        id: s.id, day: s.day, title: s.title, place: s.place, area: s.area, city: s.city,
+        id: s.id, day: s.day, title: s.title, place: s.place, area: s.area,
         start: s.start, end: s.end,
+        // `city` is the export's `days[].city` denormalised onto the stop,
+        // EXCEPT where ./cityOverrides.ts declares a deliberate divergence.
+        // Upstream has no per-stop city and tags a day with its DESTINATION,
+        // which put the wrong city on seven travel-day rows (KI-59); the
+        // override list carries those seven and nothing else.
+        city: CITY_OVERRIDES[s.id]?.ours ?? s.city,
         // `kind` is compared against the export's `status` EXCEPT where
         // ./kindOverrides.ts declares a deliberate divergence, with a reason.
         // Everything else on the row is still verbatim, so a re-sync that
@@ -125,6 +132,23 @@ describe("the canonical copy still matches the design handoff export", () => {
       const ours = JAPAN_STOPS.find((s) => s.id === id);
       expect(ours!.kind, `${id} does not actually carry its override`).toBe(override.ours);
       expect(override.ours, `${id} overrides to the same value it already had`).not.toBe(override.upstream);
+      expect(override.why.length, `${id} has no reason recorded`).toBeGreaterThan(20);
+    }
+  });
+
+  // Same guard as the one above, for the same reason: without it an entry could
+  // name a stop that no longer exists, or record an `upstream` city the export
+  // never had, and the comparison would simply stop checking that row. It also
+  // fails an override that no longer overrides anything — a re-sync that fixes
+  // `days[].city` upstream should delete the entry, not leave a no-op behind.
+  it("declares only city overrides that are real, applied, and still needed", () => {
+    for (const [id, override] of Object.entries(CITY_OVERRIDES)) {
+      const upstream = upstreamStops.find((s) => s.id === id);
+      expect(upstream, `${id} is not a stop in the export`).toBeDefined();
+      expect(upstream!.city, `${id}'s recorded upstream city is stale`).toBe(override.upstream);
+      const ours = JAPAN_STOPS.find((s) => s.id === id);
+      expect(ours!.city, `${id} does not actually carry its override`).toBe(override.ours);
+      expect(override.ours, `${id} overrides to the same city it already had`).not.toBe(override.upstream);
       expect(override.why.length, `${id} has no reason recorded`).toBeGreaterThan(20);
     }
   });
