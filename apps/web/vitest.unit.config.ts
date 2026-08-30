@@ -66,14 +66,23 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          // Two unit tests live outside src/, because the things they cover
+          // Three unit tests live outside src/, because the things they cover
           // do too: `next.config.test.ts` covers the CSP's build-time
-          // VERCEL_ENV branch and the js-profiling document policy, and
+          // VERCEL_ENV branch and the js-profiling document policy,
           // `sentry.shared.test.ts` covers the sample-rate parsing shared by
           // the three `sentry.*.config.ts` files — which sit at the app root
-          // because that is where the Next.js SDK looks for them. Nothing
-          // else at the app root is a test.
-          include: ["src/**/*.test.ts", "next.config.test.ts", "sentry.shared.test.ts"],
+          // because that is where the Next.js SDK looks for them — and
+          // `scripts/geocode-japan-seed.test.ts` covers the one decision in
+          // that one-off script (is this thrown vendor error a definitive
+          // "no such place" or a retryable failure, KI-78) with a stub
+          // geocoder. Named file by file, not by a `scripts/**` glob: the
+          // other files in `scripts/` are entry points, not test subjects.
+          include: [
+            "src/**/*.test.ts",
+            "next.config.test.ts",
+            "sentry.shared.test.ts",
+            "scripts/geocode-japan-seed.test.ts",
+          ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,
         },
