@@ -35,6 +35,14 @@ export const SENTRY_DSN =
  * is the distinction that matters for triage: a preview error is a reviewer
  * hitting a branch, a production error is a user. Locally it is unset and
  * `NODE_ENV` answers instead — which is why this is not just `VERCEL_ENV`.
+ *
+ * `NEXT_PUBLIC_VERCEL_ENV` comes first for the reason `envRate` sets out: in
+ * the browser the other two are `undefined` and `NODE_ENV` is "production" on
+ * every built app, preview included, so without the public name every preview
+ * page would file its errors against production. Vercel exposes it
+ * automatically while "Automatically expose System Environment Variables" is
+ * on, which is the default — if preview browser events ever start arriving
+ * tagged `production`, that setting is the first thing to check.
  */
 export const SENTRY_ENVIRONMENT = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
 
@@ -52,6 +60,29 @@ export const SENTRY_RELEASE =
 
 /** False when the DSN was deliberately blanked — see `SENTRY_DSN`. */
 export const sentryEnabled = SENTRY_DSN !== "";
+
+/**
+ * **Why every browser-visible value here is read through a `NEXT_PUBLIC_` name
+ * first.**
+ *
+ * This module is imported by `instrumentation-client.ts`, which runs in the
+ * browser. Next.js inlines only `process.env.NEXT_PUBLIC_*` (and `NODE_ENV`)
+ * into the client bundle — every other name is `undefined` there. So a
+ * server-only variable read from this file does not fail, it silently returns
+ * the fallback: `SENTRY_TRACES_SAMPLE_RATE=0.1` would turn tracing down on the
+ * server and leave the browser at 1.0, with nothing anywhere to say so.
+ *
+ * That is the same failure mode `sampleRate` below exists to prevent — a
+ * config change that reads as applied and isn't — arriving through a different
+ * door. Hence the pairs: the public name wins, the server name still works
+ * server-side, and the fallback is last.
+ *
+ * The inlining is a static text substitution, so both names must be written
+ * out in full. `process.env[somethingComputed]` would not be replaced.
+ */
+function envRate(publicValue: string | undefined, serverValue: string | undefined, fallback: number): number {
+  return sampleRate(publicValue ?? serverValue, fallback);
+}
 
 /**
  * Read a 0-to-1 sample rate from the environment, falling back to `fallback`.
@@ -80,7 +111,11 @@ export function sampleRate(raw: string | undefined, fallback: number): number {
  * day. Turn it down through `SENTRY_TRACES_SAMPLE_RATE` if that ever stops
  * being true; the variable exists so that is a deployment change, not a deploy.
  */
-export const tracesSampleRate = sampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE, 1);
+export const tracesSampleRate = envRate(
+  process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+  process.env.SENTRY_TRACES_SAMPLE_RATE,
+  1,
+);
 
 /**
  * How many user/server sessions get a CPU profile.
@@ -91,7 +126,11 @@ export const tracesSampleRate = sampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE
  * request or page load is in flight. The two together are why 1.0 is
  * affordable at this traffic level.
  */
-export const profileSessionSampleRate = sampleRate(process.env.SENTRY_PROFILE_SESSION_SAMPLE_RATE, 1);
+export const profileSessionSampleRate = envRate(
+  process.env.NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE,
+  process.env.SENTRY_PROFILE_SESSION_SAMPLE_RATE,
+  1,
+);
 
 /**
  * The options shared by all three runtimes.

@@ -100,6 +100,13 @@ here needs a code change:
 - `SENTRY_TRACES_SAMPLE_RATE` — **this also turns the AI Agents view down**,
   because the `gen_ai` spans ride on the same sampling decision.
 - `SENTRY_PROFILE_SESSION_SAMPLE_RATE` — CPU profiles, browser and server.
+
+  **Both of those have a `NEXT_PUBLIC_` twin, and you usually want to set it
+  too.** `sentry.shared.ts` is imported by the browser bundle, where Next.js
+  inlines only `NEXT_PUBLIC_*` names — so the server-only name turns the rate
+  down on the server and silently leaves the browser at its default. The public
+  name wins in both runtimes, so setting just that one is the simplest correct
+  answer.
 - `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`,
   `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` — Session Replay.
 

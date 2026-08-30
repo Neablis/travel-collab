@@ -197,7 +197,11 @@ describe("POST /api/trips/:id/ask — AI telemetry", () => {
   });
 
   it("carries token usage on the run, which is what the cost view reads", () => {
-    for (const run of aiSpansWithOp("gen_ai.invoke_agent")) {
+    const runs = aiSpansWithOp("gen_ai.invoke_agent");
+    // A `for` over an empty list asserts nothing and reports green — which is
+    // exactly what a failed init, transport or flush would produce here.
+    expect(runs.length).toBeGreaterThan(0);
+    for (const run of runs) {
       expect(attr(run, "gen_ai.usage.input_tokens")).toEqual(expect.any(Number));
       expect(attr(run, "gen_ai.usage.output_tokens")).toEqual(expect.any(Number));
       expect(attr(run, "gen_ai.usage.total_tokens")).toEqual(expect.any(Number));
@@ -231,6 +235,12 @@ describe("POST /api/trips/:id/ask — AI telemetry", () => {
   // `recordInputs`/`recordOutputs` to false, and the three `sentry.*.config.ts`
   // files say so explicitly so an SDK default-flip cannot start sending them.
   it("sends no question text and no unbounded identifier anywhere in the payload", () => {
+    // Same witness floor as the token case above, and it matters more here:
+    // `not.toContain` on an empty payload is the strongest-looking, emptiest
+    // assertion in the file.
+    expect(aiSpans().length).toBeGreaterThan(0);
+    expect(streamedMetrics().length).toBeGreaterThan(0);
+
     const payload = JSON.stringify(sent);
     expect(payload).not.toContain("how long is this trip?");
     expect(payload).not.toContain(ACTOR_ID);

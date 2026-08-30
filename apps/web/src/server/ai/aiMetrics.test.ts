@@ -345,7 +345,19 @@ describe("recordAskMetrics", () => {
       cause: { name: "AI_APICallError", message: "boom", statusCode: 500 },
     });
 
-    const serialized = JSON.stringify(allEmitted().map((m) => m.attributes));
+    // **A witness floor, per AGENTS.md.** Every assertion below is a
+    // `not.toContain`, and `not.toContain` passes on an empty string — so a
+    // record that emitted NOTHING (a throw swallowed by this module's own
+    // catch, say) would sail through the whole privacy sweep. Pin what was
+    // actually emitted first, so the sweep is checking a payload rather than
+    // checking nothing. (CodeRabbit, PR #93.)
+    const all = allEmitted();
+    expect(all.length).toBeGreaterThan(0);
+    expect(counted("ai.classify.turns")).toHaveLength(1);
+    expect(counted("ai.ask.dropped_calls")).toHaveLength(1);
+    expect(counted("ai.ask.failures")).toHaveLength(1);
+
+    const serialized = JSON.stringify(all.map((m) => m.attributes));
     for (const forbidden of [
       ASK_RECORD.tripId,
       ASK_RECORD.userId,
