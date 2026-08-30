@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
+import { E2E_SUPER_CODE } from "./e2e/admission";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -117,6 +118,14 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // M11a: every dev user this suite signs in is brand new against a fresh
+      // database, and the gate refuses anyone with no `users` row and no
+      // credential — so without this the run dies in `auth.setup.ts` and every
+      // project fails for a reason that looks nothing like the gate. Pinned to
+      // the constant rather than `process.env.INVITE_SUPER_CODE ?? …`: the
+      // specs present this exact string, so a developer's own value in
+      // `.env.local` must not be what the server ends up trusting.
+      INVITE_SUPER_CODE: E2E_SUPER_CODE,
       // Auth.js v5 rejects requests from untrusted hosts under `next start`
       // (production mode) unless the platform sets this itself (Vercel does).
       // CI's workflow env already sets this for the job as a whole (see
