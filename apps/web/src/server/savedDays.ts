@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import type { BatchableCommand, SavedDay, TripDetail } from "@tc/contracts";
+import { SavedStop, type BatchableCommand, type SavedDay, type TripDetail } from "@tc/contracts";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
@@ -26,17 +26,56 @@ type SavedDayRow = typeof savedDays.$inferSelect;
  * `mode: "date"` precisely so this conversion cannot be skipped on the write
  * path: a row built in memory carries a `Date` exactly like a row read back
  * does, so both paths render the same ISO-8601 string (KI-53).
+ *
+ * `stops` is passed in rather than read off the row, so that every path into a
+ * `SavedDay` has had to produce a PARSED array first — see `fromRow` (KI-71).
  */
-function toDto(row: SavedDayRow): SavedDay {
+function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
   return {
     savedDayId: row.id,
     ownerId: row.ownerId,
     name: row.name,
-    stops: row.stops,
+    stops,
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * The read boundary: a stored row becomes a `SavedDay`, or it becomes nothing.
+ *
+ * KI-71. The column is `jsonb("stops").$type<SavedStop[]>()`, and `$type` is a
+ * **compile-time cast on Drizzle's side, not a runtime check** — it describes
+ * what the write path intends, never what the bytes are. Passing `row.stops`
+ * straight through therefore trusted every row ever written against today's
+ * contract: the day `SavedStop` gains a required field, rows written before it
+ * existed become an opaque 400 at the response boundary, at read time, on data
+ * the user already saved, with nothing naming the row or the field. This is the
+ * same species as the unparsed `trip_details.doc` (KI-74, and the "500 loading
+ * any trip" before it); the fix is the one `requireTripAccess` took — parse
+ * where the row is read, so the type is true once for every caller.
+ *
+ * DROPPING the row, not rejecting the read, and not throwing: a library is a
+ * list, and one unreadable fragment must not be able to take the other
+ * twenty-nine with it. `getSavedDay` returning null puts an unreadable row in
+ * the same place a deleted one is already in, which every caller of it already
+ * handles (404 / "does not exist"). What the user is not owed is silence, so
+ * the failure is LOGGED with the row id and the parse issues — the missing
+ * half of the entry's complaint, and the reason this returns null rather than
+ * quietly substituting an empty stop list, which would look like a saved day
+ * that legitimately holds nothing.
+ */
+function fromRow(row: SavedDayRow): SavedDay | null {
+  const stops = SavedStop.array().safeParse(row.stops);
+  if (!stops.success) {
+    console.error("saved_days.stops failed SavedStop[] parse", {
+      savedDayId: row.id,
+      issues: stops.error.issues,
+    });
+    return null;
+  }
+  return toDto(row, stops.data);
 }
 
 export async function saveDay(
@@ -62,24 +101,43 @@ export async function saveDay(
   if (name === "") {
     return { ok: false, error: { code: "invalid", message: "Give this day a name." } };
   }
+  // Checked BEFORE the insert, deliberately (KI-71's write-path half). The
+  // stops come from `stopsForDay` over a `TripDetail` the caller was handed —
+  // which is exactly the value that used to be an unparsed `trip_details.doc`,
+  // and copied `undefined` into a required `SavedStop.kind` so the response
+  // threw AFTER the library row had already been inserted (PR #71 review §2).
+  // Refusing here means the failure mode is "nothing was saved", not "an
+  // unreadable row is in your library and the request 500ed".
+  const validated = SavedStop.array().safeParse(stops);
+  if (!validated.success) {
+    console.error("refused to save a day whose stops do not match SavedStop", {
+      tripId: detail.tripId,
+      dayId: input.dayId,
+      issues: validated.error.issues,
+    });
+    return { ok: false, error: { code: "invalid", message: "This day cannot be saved." } };
+  }
   const row: SavedDayRow = {
     id: randomUUID(),
     ownerId,
     name,
-    stops,
+    stops: validated.data,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
     createdAt: new Date(now),
   };
   await db.insert(savedDays).values(row);
-  return { ok: true, value: toDto(row) };
+  return { ok: true, value: toDto(row, validated.data) };
 }
 
 /** Newest first — what you just saved is what you are most likely to reach for. */
 export async function listSavedDays(ownerId: string): Promise<SavedDay[]> {
   const rows = await db.select().from(savedDays).where(eq(savedDays.ownerId, ownerId));
   return rows
-    .map(toDto)
+    .map(fromRow)
+    // A row this server can no longer read is left out rather than allowed to
+    // fail the whole library (see `fromRow`); it is logged, never silent.
+    .filter((day): day is SavedDay => day !== null)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 }
 
@@ -88,7 +146,7 @@ export async function getSavedDay(savedDayId: string, ownerId: string): Promise<
     .select()
     .from(savedDays)
     .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId)));
-  return rows[0] === undefined ? null : toDto(rows[0]);
+  return rows[0] === undefined ? null : fromRow(rows[0]);
 }
 
 export async function deleteSavedDay(savedDayId: string, ownerId: string): Promise<boolean> {

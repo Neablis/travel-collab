@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SavedDay, type TripDetail } from "@tc/contracts";
+import { SavedDay, TripDetail } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripDetails } from "../db/schema";
 import { executeTripCommand } from "../commands";
+import { getTripDetail } from "../projections";
 import { saveDay } from "../savedDays";
+import { grantMembership } from "./members";
 
 const OWNER = "trip-access-owner";
 const STRANGER = "trip-access-stranger";
+const GUEST = "trip-access-guest";
 
 let currentUserId = OWNER;
 
@@ -16,7 +19,7 @@ vi.mock("../auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-const { requireTripAccess } = await import("./trip-access");
+const { requireTripAccess, withEffectiveMembers } = await import("./trip-access");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -113,6 +116,50 @@ describe("requireTripAccess", () => {
     expect(() => SavedDay.parse(saved.value)).not.toThrow();
     expect(saved.value.stops).toEqual([
       expect.objectContaining({ title: "Ramen", kind: "planned", tags: [] }),
+    ]);
+  });
+});
+
+// KI-74. The sibling declared one function below `requireTripAccess`, carrying
+// the defect the parse there was added to fix: `withEffectiveMembers` spreads
+// whatever it was handed and calls the result a `TripDetail`. Its parameter
+// being typed `TripDetail` is not the guarantee it looks like — the raw
+// `trip_details.doc` was typed exactly that way for eight milestones and every
+// consumer inherited the lie. These are the callers the entry says it never had.
+describe("withEffectiveMembers", () => {
+  it("supplies the contract's defaults for a doc written before the fields existed", async () => {
+    const { tripId } = await seedDay();
+    await ageDocToPreM18(tripId);
+
+    // Exactly the way a caller reaches it: the raw projection, typed
+    // `TripDetail` by `getTripDetail`'s signature and parsed by nothing.
+    const raw = await getTripDetail(tripId);
+    if (raw === null) throw new Error("the seeded trip has no projection");
+
+    const detail = await withEffectiveMembers(raw);
+    const activities = Object.values(detail.activities);
+    expect(activities).toHaveLength(1);
+    expect(activities[0]!.kind).toBe("planned");
+    expect(activities[0]!.tags).toEqual([]);
+    expect(detail.forkedFrom).toBeNull();
+  });
+
+  it("still overlays the granted members onto the projected ones", async () => {
+    const { tripId } = await seedDay();
+    await grantMembership(db, {
+      tripId,
+      userId: GUEST,
+      role: "editor",
+      invitedBy: OWNER,
+      now: new Date().toISOString(),
+    });
+    const raw = await getTripDetail(tripId);
+    if (raw === null) throw new Error("the seeded trip has no projection");
+
+    const detail = await withEffectiveMembers(raw);
+    expect(detail.members).toEqual([
+      { userId: OWNER, role: "owner" },
+      { userId: GUEST, role: "editor" },
     ]);
   });
 });

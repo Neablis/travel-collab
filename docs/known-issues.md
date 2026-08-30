@@ -13,6 +13,27 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
+### KI-90 — The same history reconcile still clears a queue that fills while the command is IN FLIGHT
+- **Severity:** correctness (silent loss of one or more user edits — the KI-5 family; the half of KI-70 its one-line fix does not reach)
+- **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` (`dispatch`'s `HISTORY_TYPES` branch, after the `await`)
+- **Symptom:** the branch now guards correctly on `optimisticRef.current` before sending (KI-70, resolved), but the send is awaited and the reconcile that follows is unconditional: `setOptimistic((prev) => (prev ? { confirmed: result.value, pending: [] } : prev))`. Nothing stops the user editing during that round trip — `runDispatch` has no gate of its own — so any unit enqueued while the undo/redo/revert is in flight is discarded by `pending: []` when it lands. Same loss, same line, a window measured in network latency rather than in one React tick.
+- **Why it is filed rather than fixed:** unlike KI-70's guard, this one has no obviously right answer. The queued units were predicted against a state the server has since replaced, so keeping them means re-predicting against the authoritative outcome — which is `confirmHead`'s job and `confirmHead` drops the head, so it does not fit — and the honest alternatives (refuse the reconcile, or disable editing for the duration of a history command) are both product decisions about a control that is currently instantaneous-feeling. Widening `confirmHead` into a general "adopt this outcome, re-predict what is queued" reducer is the shape that would fix KI-77, KI-5's `applyOutcome` precondition and this at once, and that is a design pass, not a line.
+- **Found by:** the M11-fallout KI cluster, 2026-08-29, while fixing KI-70 — reading the branch it was fixing. Not fixed there under that PR's own "report a seventh problem, do not fix it" rule.
+- **A second, much milder site of the same stale read:** `enter` (the history *preview*) still tests the render-time `pending`, so a preview can be entered in the same tick as an enqueue. Nothing is lost when it happens — `enter` only sets `previewSeq`/`previewTrip` and `exit` restores — so it is noted here rather than filed on its own.
+- **Cross-reference:** KI-70 (resolved — the same-tick half), KI-5 (the hub entry for this loss class), KI-36 (resolved).
+- **First noted:** 2026-08-29.
+
+- **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77/78 the same night. Renumbered to 90 on merge. Nothing outside this file references it.
+### KI-91 — `next dev` leaves three files in the working tree that are not ours and are not ignored
+- **Severity:** cleanup (no product impact; it puts unrelated files in front of every `git add` on a branch where someone ran the dev server)
+- **Area:** `.gitignore`, `apps/web/next-env.d.ts`
+- **What happens:** starting `pnpm --filter web dev` (Next 16, Turbopack) writes `apps/web/AGENTS.md` and `apps/web/CLAUDE.md` — vendor "agent rules" files from the `next` package, untracked and unignored — and rewrites the tracked `apps/web/next-env.d.ts` to point at `./.next/dev/types/...` where the committed version points at `./.next/types/...`. `next build` points it back. So `git status` on any branch is dirty in three places after a browser check, and the two `.md` files sit directly beside a real `AGENTS.md`/`CLAUDE.md` convention this repo uses for its own instructions — which is exactly the pair a hurried `git add apps/web` would sweep in.
+- **Why it matters more here than it looks:** this repo's operating manual IS `AGENTS.md`, and a vendor file with the same name one directory down is a genuine trap for a future session reading either.
+- **Fix path:** ignore all three (`apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, and — if the dev/build flip is unavoidable — decide which spelling of `next-env.d.ts` is committed and ignore the other). Next's own docs cover suppressing the agent-rules files; that is worth checking before ignoring them, since not writing them at all is better than ignoring them.
+- **Found by:** the M11-fallout KI cluster, 2026-08-29, doing KI-64's browser verification. The three files were kept out of that PR by hand.
+- **First noted:** 2026-08-29.
+
+- **Numbering:** filed as 78 on 2026-08-29, when several sibling branches each filed a different KI-77/78 the same night. Renumbered to 91 on merge. Nothing outside this file references it.
 ### KI-89 — `commands.int.test.ts` is a seventh whole-table truncator, and its `events` count assertion is what a concurrent run breaks first
 - **Severity:** reliability (the KI-69 defect class, in the one file KI-69 did not list — and the file that demonstrates why the exclusive-resource policy is load-bearing)
 - **Area:** `apps/web/src/server/commands.int.test.ts:38-41` (the `beforeEach`) and `:52-53`, `:55` (the whole-table assertions)
@@ -210,28 +231,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **A fourth copy exists.** `packages/domain/src/trip/dates.ts` carries its own add-days, which cannot import from `apps/web/src/lib`. Unifying it needs a shared location the module map does not currently have — a design call, not a cleanup.
 - **First noted:** 2026-08-28 (the §6.2 refactor, which unified three of the four copies and found the fourth).
 
-### KI-74 — `withEffectiveMembers` hands back a `TripDetail` it never parsed, and has no callers to notice
-
-- **Severity:** correctness (latent — the same species as the bug `requireTripAccess` was just fixed for, sitting one function below the fix)
-- **Filed as KI-64 on 2026-08-28 and renumbered to KI-74 on merge:** PR #79 allocated 64 concurrently on `main` and landed first. Nothing outside this file referenced the old number.
-- **Area:** `apps/web/src/server/access/trip-access.ts:60`
-- **Symptom:** `requireTripAccess` now ends with `TripDetail.parse({ ...projected, members })`, and its own doc comment explains at length why: `getTripDetail` returns `trip_details.doc` raw, a doc is only rewritten when its trip next changes, so every document written before a field existed is missing that key — and the contract's `.default()`s (`kind`, `tags`, `forkedFrom`) only apply when something actually parses. `withEffectiveMembers`, the "same member overlay, for a detail the caller already holds" sibling declared immediately below it, does `return { ...detail, members: await effectiveMembers(...) }` — a spread over whatever it was handed, with no parse. Its return type says `TripDetail`; nothing makes that true.
-- **What makes it latent rather than live:** it currently has **zero callers**. `git grep withEffectiveMembers HEAD -- apps/web/src` returns only the declaration. Its parameter is typed `TripDetail`, so *today* a caller could only reach it with something already parsed — but that is exactly the guarantee `requireTripAccess`'s comment says the type system cannot give you here, because the raw doc used to be cast to `TripDetail` and every consumer inherited the lie.
-- **Why not fixed here:** the fix is either a `TripDetail.parse` on the way out or deleting the function, and which one is right depends on whether the overlay-for-a-held-detail shape is still wanted — a question for whoever wired the last caller out of it, not for a docs pass. It is one line either way.
-- **How it went wrong before:** the unparsed-doc cast is what produced Mitchell's "500 loading any trip", and then produced it a second time through `POST /api/saved-days` handing the same doc to `stopsForDay` (PR #71 review §2), which copied `undefined` into a required `SavedStop.kind` and threw *after* the library row was already inserted.
-- **Cross-reference:** KI-53 (resolved — the other "trusted, unparsed row" in the access module), KI-71 (`saved_days.stops`, the same species still live).
-- **First noted:** 2026-08-28 (review-remediation docs pass, reading the access-layer fix).
-
-### KI-65 — There is no remove-member endpoint, so a stray membership row can only be cleared by revoking an invite twice
-
-- **Severity:** correctness (a gap in the access surface, not a defect in it)
-- **Area:** `apps/web/src/server/access/members.ts` (`revokeMembership`), `apps/web/src/server/access/invites.ts:151`, `apps/web/src/app/api/trips/[tripId]/invites/[inviteId]/route.ts`
-- **Symptom:** `revokeMembership` has exactly one production caller — `revokeInvite`. There is no `DELETE /api/trips/:id/members/:userId` and no other path that removes a `trip_memberships` row. An owner's only lever on membership is the invite that created it.
-- **What that covers, and what it does not.** It covers the case it was built for: the revoke/accept race (PR #71 review §1) could leave an invite revoked and a membership alive, and revoking *again* now re-asserts the delete rather than returning early, so the owner has a recovery path. `invites.int.test.ts`'s "a second revoke clears a membership that was left behind" pins it, and its comment states the dependency plainly: *"revoking again is the ONLY way an owner can clear a membership a lost race left behind. There is no remove-member endpoint."* It does **not** cover a membership row from any other cause — a direct `grantMembership` (which the test suite itself uses), a future non-invite join path, a bad migration, or an operator's hand-written row. For those there is no API removal at all.
-- **Why it is filed rather than built:** an endpoint means deciding who may remove whom (may an editor remove an editor? may anyone remove the log owner?), what happens to the removed person's in-flight optimistic queue, and whether removal is visible in the trip's history — none of which are mechanical, and all of which belong with M11's Travelers UI, which SPEC §8 marks *"deliberately not designed yet"*.
-- **Cross-reference:** M11 (`docs/milestones/M11-sharing-and-invites.md`), ADR-026 (invites as CRUD with link-bearer tokens), KI-74 (`withEffectiveMembers`).
-- **First noted:** 2026-08-28 (review-remediation docs pass; the dependency was noted in the invites integration test on the same day).
-
 ### KI-66 — The CSP keeps `script-src 'unsafe-inline'`
 
 - **Severity:** correctness — a stated-and-accepted weakening. The "nobody has run this" half of this entry was closed on 2026-08-28; see the walk below.
@@ -258,39 +257,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why not fixed here:** post-hoc metering means deciding what happens to the request that crosses the line mid-flight (serve it and go negative, or fail after paying?), and whether the counter is per-token or per-currency once models differ in price. `TODO.md`'s "AI cost/quality tuning" candidate already says **"Watch `meta.steps` — that is the cost driver, and it is already instrumented"**; this is the same observation arriving at the enforcement layer.
 - **Cross-reference:** ADR-019 (the AI kill switch — remediation after the fact, which is why prevention was added), KI-24 (`AI_LIVE` on Vercel is warned-about, not prevented), KI-11 (no test calls a real model, so no test measures a real token cost).
 - **First noted:** 2026-08-28 (security-review remediation, findings H1/L4).
-
-### KI-70 — A history command dispatched in the same tick as an accepted enqueue drops the just-queued unit
-
-- **Severity:** correctness (silent loss of one user edit — the KI-5 family, on a trigger none of the others cover)
-- **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` (`dispatch`'s `HISTORY_TYPES` branch, and the render-time `pending` it closes over)
-- **Symptom:** `pending` is derived at render — `const pending = (optimistic?.pending.length ?? 0) > 0` — and `dispatch` closes over that value. An undo/redo/revert clicked in the same tick as an accepted enqueue therefore reads the **pre-enqueue** `pending === false`, passes the guard, and reconciles with `{ confirmed: result.value, pending: [] }`, which discards the unit that was queued a moment earlier. The user sees an edit they made vanish with no error.
-- **The window is narrow and the guard is real** — this is not "undo is broken". It needs the two actions inside one React tick, so it is a race, not a reliable reproduction.
-- **The fix pattern already exists three lines away.** `runDispatch` maintains `optimisticRef.current` for precisely this hazard, with the comment *"tick predicts against this result rather than the pre-dispatch queue."* The history branch never adopted it: it should test `optimisticRef.current`, not the render-time `pending`. That is why this is filed as a distinct entry rather than folded into KI-5 — same loss class, different mechanism, and a fix that is a one-line change to which value is read.
-- **Not the same as the applyOutcome gap fixed on 2026-08-28.** That one was `applyOutcome`'s two ungated callers (inserting a saved day, asking the assistant) clearing a non-empty queue; those now gate their own affordance. This is the guard *inside* `dispatch` reading a stale copy of the thing it guards on.
-- **Found by:** the 2026-08-28 project review, §1.7 (PLAUSIBLE). Re-verified against the tree 2026-08-28 after the send-queue fix landed: still present.
-- **Cross-reference:** KI-5 (the hub entry for this loss class), KI-55, KI-36 (resolved).
-- **First noted:** 2026-08-28 (project review §1.7).
-
-### KI-71 — `saved_days.stops` is returned unparsed and trusted forever against a moving contract
-
-- **Severity:** correctness (latent — it becomes an opaque 400 on old rows the day `SavedStop` gains a required field)
-- **Area:** `apps/web/src/server/savedDays.ts:30-40` (`toDto`), `apps/web/src/server/db/schema.ts` (`savedDays.stops`)
-- **Symptom:** the column is `jsonb("stops").$type<SavedStop[]>()`. `$type` is a **compile-time cast on Drizzle's side, not a runtime check**, and `toDto` passes `row.stops` straight through into a `SavedDay`. Every row ever written is trusted to match today's contract. A `SavedStop` row written before a field existed keeps whatever shape it had; add a required field to `SavedStop` and those rows fail at the response boundary — as an opaque 400, at read time, on data the user already saved, with nothing naming the row or the field.
-- **Sibling of KI-53, and of the bug `requireTripAccess` was just fixed for.** The same species has now bitten this codebase three times: `trip_details.doc` cast rather than parsed (Mitchell's "500 loading any trip"), the same doc handed to `stopsForDay` so `undefined` landed in a required `SavedStop.kind` *after* the row was inserted (PR #71 review §2), and this. The fix is the one `requireTripAccess` took: parse at the read boundary, so the type is true once for every caller.
-- **Why it has not bitten yet:** `SavedStop` has not changed since M11 link 6 shipped it, so every stored row matches. That is a statement about the calendar, not about the design.
-- **Fix path:** `SavedStop.array().parse(row.stops)` in `toDto`, and a decision about the failure mode — reject the row, or drop the unparseable stops and say so. Rejecting is honest; dropping is friendlier and needs a surface to say it on. Either beats trusting.
-- **Found by:** the 2026-08-28 PR #71 review, §8 (*"trusted forever against a moving contract… Sibling of KI-53; file it"*).
-- **Cross-reference:** KI-53 (resolved — access-module timestamps in two formats), KI-74 (`withEffectiveMembers`, the unparsed sibling in the access layer).
-- **First noted:** 2026-08-28 (PR #71 review §8).
-
-### KI-64 — The trip header still greys out "Add stop" for a viewer while the rest of the board hides its write controls
-- **Severity:** cosmetic (one inconsistent control; no wrong behaviour, nothing unreachable)
-- **Area:** `apps/web/src/components/trip/TripHeader.tsx` (`disabled={readOnly}`)
-- **Symptom:** ADR-031 made a read-only board hide every affordance that writes — card edit/remove, day remove, "+ Add", "One more day?", conflict "Dismiss", the timeline's Ask/Edit/Add stop/Keep-day, the rack's day picker — on the grounds that a greyed control still says "there is something here for you" and for a reader there is not. `TripHeader` was deliberately left alone and still renders "Add stop" **disabled**, so it is the one greyed control on an otherwise quiet page, most visibly on `/demo`.
-- **Why it is filed rather than fixed:** it is not obvious which way is right. Disabled-with-a-badge is arguably the better read for an *invited viewer* — it tells them what they would be able to do if the owner promoted them — while hidden is clearly right for a stranger on the demo. Those are two audiences behind one `readOnly` flag, and splitting it into two is a design decision, not a mechanical one. ADR-031's closing section states the same trade.
-- **Fix path, if taken:** either drop the button under `readOnly` for consistency, or split the flag (`readOnly` for a member without the rank, something like `demo`/`anonymous` for a visitor with no account) and let the header choose per audience.
-- **Found by:** noticed while walking `/demo` in a browser, 2026-08-28.
-- **Cross-reference:** ADR-031, ADR-026 (roles), KI-61.
 
 ### KI-62 — Report-conformance may check the wrong unit's report when units run concurrently
 
@@ -849,6 +815,70 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **First noted:** 2026-08-27 (M18 contract PR).
 
 ## Resolved
+
+### KI-64 — The trip header still greys out "Add stop" for a viewer while the rest of the board hides its write controls — RESOLVED, it is withheld like everything around it
+- **Severity (as filed):** cosmetic (one inconsistent control; no wrong behaviour, nothing unreachable)
+- **Area:** `apps/web/src/components/trip/TripHeader.tsx`
+- **Symptom (as filed):** ADR-031 made a read-only board hide every affordance that writes, on the grounds that a greyed control still says "there is something here for you" and for a reader there is not. `TripHeader` was deliberately left alone and still rendered "Add stop" **disabled** — the one greyed control on an otherwise quiet page, most visibly on `/demo`.
+- **The decision, since the entry says it is not obvious:** of the two fix paths it names — drop the button under `readOnly`, or split the flag by audience — the first was taken. It applies a rule this codebase has already written down three times (the nav row's own comment says the same sentence about itself, and Share and undo/redo two blocks away are absent rather than disabled) instead of inventing a new one. The second is a design decision: `readOnly` is one flag over two audiences (a member without the rank, and a stranger on `/demo`), and telling them apart is ADR-031's closing argument and the Travelers UI's business. That option is untouched and one prop away if Mitchell wants it; the "View only" badge is what still explains the quiet page in the meantime.
+- **Verified in a real browser, both audiences, against a local dev server:**
+  - **Viewer** (`/demo`, signed out): the header renders title · Active · "View only" · History and nothing else. A page-wide search for "Add stop" returns no matches.
+  - **Owner** (dev login, own trip): "Share" and a live primary "Add stop" both present, no "View only" badge.
+- **Tests moved with it, all three of them:** `TripHeader.test.tsx`'s viewer case asserts absence where it asserted `disabled === true`, and the two e2e specs that pinned the greyed button — `m11-demo.spec.ts` ("hides every control a signed-out visitor has no session for") and `m11-invites.spec.ts` (carol, an invited viewer) — now assert `toHaveCount(0)` like the controls beside them.
+- **Cross-reference:** ADR-031 (whose "one thing worth arguing with" section this closes in the direction of consistency), ADR-026, KI-61.
+- **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
+
+### KI-65 — There is no remove-member endpoint, so a stray membership row can only be cleared by revoking an invite twice — RESOLVED, `DELETE /api/trips/:tripId/members/:userId`
+- **Severity (as filed):** correctness (a gap in the access surface, not a defect in it)
+- **Area:** new `apps/web/src/app/api/trips/[tripId]/members/[userId]/route.ts`, `apps/web/src/server/access/members.ts` (`removeMember`, `revokeMembership`)
+- **Symptom (as filed):** `revokeMembership` had exactly one production caller — `revokeInvite`. An owner's only lever on membership was the invite that created it, which covers nothing about a row from any other cause: a direct `grantMembership` (which the test suite itself uses), a future non-invite join path, a bad migration, or an operator's hand-written row.
+- **Confirmed absent before building:** `git ls-tree -r --name-only origin/main -- apps/web/src/app/api/trips` matches nothing containing "member".
+- **The three decisions the entry called non-mechanical, each taken the narrow way** (widening later is additive; narrowing is breaking), and stated in `removeMember`'s doc comment rather than in the route, so a second caller cannot quietly get a different policy:
+  1. **Who may remove whom: the owner, only.** Matching invite creation and revocation (ADR-026) — the other two levers on the same thing. An editor is refused: an editor edits the plan, and nothing in ADR-026 puts the guest list in their hands.
+  2. **The owner cannot be removed, by anyone including themselves** — 409, not a silent success. Their membership is not a `trip_memberships` row at all (it comes from `TripCreated`, see `mergeMembers`), so the delete would find nothing and report success. This is also what keeps "leave a trip" honestly absent rather than half-built.
+  3. **Removal is not in the trip's history.** Access is CRUD, not event-sourced (ADR-003, invariant 1); revoking an invite is not an event either.
+  The removed person's in-flight optimistic queue needed nothing: their next write 403s at the access seam, and the send queue already retains, counts and surfaces a refused send (KI-36).
+- **No contract change, deliberately:** the response is the same `TripAccess` the sibling `GET .../access` returns, so nothing moved in `packages/contracts` and invariant 5's separate reviewed step is not owed. It also answers the caller's real next question ("so who is on it now") without a follow-up read.
+- **Not idempotent, where the sibling invite revoke is:** removing someone who is not a member is a 404. Revoking an invite twice still has a row to report back; reporting success for a user id that was never here would make a typo look like a completed removal — the false confidence that lets a stray row survive.
+- **Proof:** `apps/web/src/app/api/trips/[tripId]/members/[userId]/route.int.test.ts`, ten integration cases — the removal itself, the `TripAccess`-parsed response body (the contract test), 401/403-stranger/403-editor, the owner 409, the not-a-member 404, the second-removal 404, that the removed person's `requireTripAccess` now 403s, and that the other members are left alone.
+- **Still no UI**, and that is the entry's own reasoning left standing: the Travelers panel is SPEC §8's "deliberately not designed yet". This is the API an owner (or an operator) can now reach; the panel that calls it is M11's Travelers work.
+- **One stale comment left behind on purpose:** `invites.int.test.ts` says *"There is no remove-member endpoint"*. That file was being rewritten in a concurrent PR, so it was not touched here.
+- **Cross-reference:** M11, ADR-026, KI-74.
+- **First noted:** 2026-08-28. **Resolved:** 2026-08-29.
+
+### KI-70 — A history command dispatched in the same tick as an accepted enqueue drops the just-queued unit — RESOLVED, the guard reads the ref it is guarding
+- **Severity (as filed):** correctness (silent loss of one user edit — the KI-5 family, on a trigger none of the others cover)
+- **Area:** `apps/web/src/components/trip/context/TripProvider.tsx` (`dispatch`'s `HISTORY_TYPES` branch)
+- **Symptom (as filed):** `pending` is derived at render and `dispatch` closed over it, so an undo/redo/revert clicked in the same tick as an accepted enqueue read the **pre-enqueue** `pending === false`, passed the guard, and reconciled with `{ confirmed: result.value, pending: [] }` — discarding the unit queued a moment earlier, with no error.
+- **Reproduced before fixing, in one React tick and with no fake timers:** a probe whose single click handler dispatches `AddDay` and then `UndoLastChange`. Both halves failed against the old code — `AssertionError: expected [ 'UndoLastChange', 'AddDay' ] to deeply equal [ 'AddDay' ]` (the undo went out, and went out first), and `AssertionError: expected '1' to be '2'` (the queued day was gone from the board). The entry called this "a race, not a reliable reproduction"; it is reliable when both actions are in one handler, which is what a keyboard shortcut fired during a drag-release does.
+- **Fix (2026-08-29):** the guard tests `optimisticRef.current`, not the render-time `pending` — the value `runDispatch` advances synchronously three lines away for exactly this hazard ("anything dispatched later in this same tick predicts against this result rather than the pre-dispatch queue"). `pending` also leaves `dispatch`'s dependency array with it, so the callback stops being rebuilt on every queue change.
+- **Proof:** three cases in `TripProvider.test.tsx` — the refusal, the edit still on screen after the microtask queue settles, and (so the first two cannot pass against a provider that never sends a history command at all) an undo with an empty queue still going through.
+- **Not fully closed — see KI-77:** this fixes the same-tick window. A unit enqueued while the history command is *in flight* is still cleared by the same reconcile.
+- **Cross-reference:** KI-5 (the hub entry for this loss class), KI-77, KI-55, KI-36 (resolved).
+- **First noted:** 2026-08-28 (project review §1.7). **Resolved:** 2026-08-29.
+
+### KI-71 — `saved_days.stops` is returned unparsed and trusted forever against a moving contract — RESOLVED, it is parsed at the read boundary
+- **Severity (as filed):** correctness (latent — it becomes an opaque 400 on old rows the day `SavedStop` gains a required field)
+- **Area:** `apps/web/src/server/savedDays.ts` (`toDto`, new `fromRow`), `apps/web/src/server/db/schema.ts` (`savedDays.stops`)
+- **Symptom (as filed):** the column is `jsonb("stops").$type<SavedStop[]>()`. `$type` is a **compile-time cast on Drizzle's side, not a runtime check**, and `toDto` passed `row.stops` straight through into a `SavedDay`. Every row ever written was trusted to match today's contract.
+- **Reproduced before fixing:** a row written directly into the column — the way a bad migration, an operator, or a moved contract would leave one — came straight back out of the read. Four of five new cases failed, the plainest being a `stops` value that is not an array at all: `AssertionError: expected { …(7) } to be null`, received a `SavedDay` whose `stops` was the string `"not stops at all"`.
+- **Fix (2026-08-29):** `fromRow` is now the only way a stored row becomes a `SavedDay`, and it runs `SavedStop.array().safeParse(row.stops)`. `toDto` takes the parsed stops as a parameter rather than reading the column, so no path can skip it.
+  Of the two failure modes the entry weighed — reject the row, or drop the unparseable stops — it does **neither** exactly: it drops the *row*, logs it with the `savedDayId` and the Zod issues, and leaves the rest of the library readable. Rejecting the whole read would let one legacy fragment take the other twenty-nine with it; substituting an empty stop list would render as a saved day that legitimately holds nothing. `getSavedDay` returning null puts an unreadable row exactly where a deleted one already is, which every caller handles. The log is what answers the entry's actual complaint — "nothing naming the row or the field".
+- **The write path closed too:** `saveDay` parses the stops it computed BEFORE inserting, so a day it cannot read back is refused rather than persisted. That is the exact shape of PR #71 review §2, where the library row was inserted and the response threw afterwards.
+- **Proof:** `apps/web/src/server/savedDays.stops.int.test.ts`, five cases — a well-formed round trip (the control), a row missing `kind`/`tags`, the log naming the row and the field, one unreadable row not taking the list down with it, and a `stops` that is not an array at all. A separate file from `savedDays.int.test.ts` on purpose: that suite truncates `saved_days` in `beforeEach` (KI-69), and these rows are deliberately malformed and clean up after themselves.
+- **Cross-reference:** KI-53 (resolved), KI-74 (resolved in the same PR).
+- **First noted:** 2026-08-28 (PR #71 review §8). **Resolved:** 2026-08-29.
+
+### KI-74 — `withEffectiveMembers` hands back a `TripDetail` it never parsed — RESOLVED, it parses on the way out and now has the callers that would have noticed
+- **Severity (as filed):** correctness (latent — the same species as the bug `requireTripAccess` was just fixed for, sitting one function below the fix)
+- **Filed as KI-64 on 2026-08-28 and renumbered to KI-74 on merge:** PR #79 allocated 64 concurrently on `main` and landed first.
+- **Area:** `apps/web/src/server/access/trip-access.ts`
+- **Symptom (as filed):** `requireTripAccess` ends with `TripDetail.parse({ ...projected, members })` and its doc comment explains at length why — `getTripDetail` returns `trip_details.doc` raw, a doc is only rewritten when its trip next changes, and the contract's `.default()`s (`kind`, `tags`, `forkedFrom`) only apply when something actually parses. `withEffectiveMembers`, declared immediately below, did `return { ...detail, members: await effectiveMembers(...) }` — a spread over whatever it was handed, with no parse. Its return type said `TripDetail`; nothing made that true.
+- **Reproduced before fixing:** the entry's "zero callers, so a caller could only reach it with something already parsed" is exactly the assumption that was false. A test that reaches it the way a caller would — `getTripDetail(tripId)` on a doc aged back to pre-M18, whose signature already types it `TripDetail` — failed on the first assertion: `AssertionError: expected undefined to be 'planned'`.
+- **Fix (2026-08-29):** `TripDetail.parse({ ...detail, members })`. `parse`, not `requireTripAccess`'s `safeParse`, and the comment says why: this function's result type is a bare `TripDetail`, so there is no `{ error: Response }` channel a caller is entitled to assume covers a malformed row. Throwing is the only way it can decline to return one; a silently mis-typed object is what the entry exists to stop. The other option the entry named — deleting the function — was not taken, because the overlay-for-a-held-detail shape is the natural one for the Travelers UI (SPEC §8) to reach for, and a parsed helper is better than a deleted one plus a hand-rolled spread later.
+- **Proof:** two caller tests in `apps/web/src/server/access/trip-access.int.test.ts`, using the file's existing `ageDocToPreM18` helper — the defaults case (the one that failed above) and the member overlay itself, so the fix cannot pass by breaking what the function is for. **Non-vacuous:** the first fails against the pre-fix function, which is how it was written.
+- **Cross-reference:** KI-53 (resolved), KI-71 (the same species, resolved in the same PR).
+- **First noted:** 2026-08-28. **Resolved:** 2026-08-29 (the M11-fallout KI cluster).
 
 ### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database — RESOLVED, per-run actor ids
 - **Severity (as filed):** cleanup (CI runs against a fresh database every time; this bit local re-runs only).

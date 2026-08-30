@@ -303,7 +303,18 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         return;
       }
       if (HISTORY_TYPES.has(command.type)) {
-        if (pending) return;
+        // The REF, not the render-time `pending` (KI-70). This guard is the
+        // only thing that makes the `pending: []` reconcile below safe, and it
+        // used to read a value derived during render — so an undo/redo/revert
+        // fired in the same tick as an accepted enqueue saw the PRE-enqueue
+        // `false`, passed, and reconciled away the unit that had been queued a
+        // moment earlier. One user edit gone, with no error and no count.
+        //
+        // `runDispatch` advances `optimisticRef.current` synchronously for
+        // exactly this hazard ("anything dispatched later in this same tick
+        // predicts against this result rather than the pre-dispatch queue");
+        // the history branch now guards on the same value it is guarding.
+        if ((optimisticRef.current?.pending.length ?? 0) > 0) return;
         setError(null);
         const result = await sendTripCommand(command);
         if (!result.ok) {
@@ -316,7 +327,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       }
       runDispatch([command as BatchableCommand]);
     },
-    [runDispatch, pending, exit, readOnly, refusal],
+    // No `pending` here any more: the guard above reads the ref instead, so
+    // this callback no longer has to be rebuilt on every queue change — and
+    // one fewer render-time value closed over is one fewer way to read a
+    // stale one.
+    [runDispatch, exit, readOnly, refusal],
   );
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the
