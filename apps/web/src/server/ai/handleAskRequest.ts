@@ -146,6 +146,31 @@ function textOf(message: AskUiMessage): string {
     .join("");
 }
 
+/**
+ * The messages the classifier is shown besides the latest one, oldest first.
+ *
+ * Two, which in a normal thread is the previous question and the answer to
+ * it — enough for "Yes go ahead" to resolve to what was offered. They are
+ * truncated by `askIntentPrompt`, not here: how much of a message a model
+ * needs is that module's decision, and this one's job is only to say which
+ * messages.
+ */
+function recentContext(messages: readonly AskUiMessage[]): { role: "user" | "assistant"; text: string }[] {
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.role === "user") {
+      lastUserIndex = i;
+      break;
+    }
+  }
+  return messages
+    .slice(0, Math.max(lastUserIndex, 0))
+    .filter((message) => message.role !== "system")
+    .slice(-2)
+    .map((message) => ({ role: message.role as "user" | "assistant", text: textOf(message) }))
+    .filter((message) => message.text.trim().length > 0);
+}
+
 function badRequest(error: string): Response {
   return Response.json({ error }, { status: 400 });
 }
@@ -279,6 +304,13 @@ export async function handleAskRequest(
   // are write tools that a question never calls — see the measurement in
   // askIntent.ts. One extra, tool-less round-trip buys back most of it.
   //
+  // It is handed the two messages before this one, because the turn that
+  // writes is often the one that says least: the 2026-08-29 thread ended a
+  // long request with "Yes go ahead", and those three words did all ten
+  // writes. In isolation they classify as a question — reasonably — and the
+  // user would have got an assistant that could not act on the one turn that
+  // mattered. Fail-open does not cover that: nothing fails.
+  //
   // Two properties this call site is responsible for, not the classifier:
   //
   //   * **It can only narrow.** `canWrite` gates it, so a viewer is never
@@ -290,7 +322,9 @@ export async function handleAskRequest(
   //
   // `classifyAskIntent` is total — it fails open to `write` rather than
   // throwing — so there is deliberately no try/catch here to suggest otherwise.
-  const classification = canWrite ? await classifyAskIntent(selected.model, question, request.signal) : null;
+  const classification = canWrite
+    ? await classifyAskIntent(selected.model, question, recentContext(messages), request.signal)
+    : null;
   const offerWrites = canWrite && classification?.intent !== "question";
 
   // The tool set for THIS turn. A viewer gets the read half and nothing else,

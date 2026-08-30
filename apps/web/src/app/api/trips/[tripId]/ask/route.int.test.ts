@@ -309,6 +309,76 @@ describe("POST /api/trips/:id/ask", () => {
       expect(told[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
     });
 
+    // Mitchell's live thread, 2026-08-29, verbatim — and the regression this
+    // exists to prevent. The long request read the trip and proposed nothing;
+    // "Yes go ahead" is the turn that made all ten write calls. Classified on
+    // its own it is a question, and fail-open does not save it, because
+    // nothing fails: the classifier would simply be wrong and believed.
+    it("keeps the write tools for “Yes go ahead” after a turn that offered changes", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        {
+          messages: [
+            userMessage(
+              "Lets fit the day trip into that day, feel free to remove any conflicting events, we can leave in the morning, hit up the temple and eat lunch in nara after seeing the deer park, and be back in kyoto that night",
+              "m1",
+            ),
+            {
+              id: "m2",
+              role: "assistant",
+              parts: [
+                {
+                  type: "text",
+                  text: "I've drafted 8 changes for day 1 — removing the two stops that clash and adding the temple, the deer park and lunch. Nothing is applied yet.",
+                },
+              ],
+            },
+            userMessage("Yes go ahead", "m3"),
+          ],
+          scope: { kind: "day", dayIndex: 0 },
+        },
+        (r) => records.push(r),
+      );
+      await res.text();
+
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      // Answered by the rule, so no model was asked and no model could be
+      // wrong about it.
+      expect(records[0]!.classification).toMatchObject({
+        intent: "write",
+        source: "affirmation",
+        failedOpen: false,
+      });
+    });
+
+    // A follow-up that is NOT an agreement still reaches the classifier, and
+    // reaches it with the previous turn attached — which is what the record
+    // has to show, or the next person tuning this cannot tell a bad verdict
+    // from a bad input.
+    it("records the conversational context it classified a follow-up with", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        {
+          messages: [
+            userMessage("how does this trip look?", "m1"),
+            { id: "m2", role: "assistant", parts: [{ type: "text", text: "Kyoto 2027 runs to 3 days." }] },
+            userMessage("and where is the free time?", "m3"),
+          ],
+          scope: { kind: "trip" },
+        },
+        (r) => records.push(r),
+      );
+      await res.text();
+
+      expect(records[0]!.classification!.source).toBe("model");
+      expect(records[0]!.classification!.context).toContain("Kyoto 2027 runs to 3 days.");
+      expect(records[0]!.classification!.context).toContain("and where is the free time?");
+    });
+
     // Rule 3 of askIntent.ts: a cost optimisation must never be able to break
     // a turn. `failingModel` throws on every call INCLUDING the classification,
     // so this is the fail-open path end to end — the turn is still offered the

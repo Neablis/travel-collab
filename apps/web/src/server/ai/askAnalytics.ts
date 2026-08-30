@@ -67,10 +67,32 @@ export interface AskFailureCause {
  * already carries `question`, so the verdict beside it is the whole evidence
  * needed to tell a good classification from a bad one, and `offeredTools`
  * shows what the verdict actually cost or saved.
+ *
+ * `source` and `context` are the other half of that: a bad verdict and a bad
+ * INPUT look identical from the verdict alone, and after 2026-08-29 the
+ * classifier no longer sees only the latest message. A reader has to be able
+ * to tell which of the three inputs produced the answer.
  */
 export interface AskIntentRecord {
   /** What the turn was classified as. `write` is also what every uncertainty resolves to. */
   intent: "question" | "write";
+  /**
+   * What decided it. `affirmation` is the rule that never called a model at
+   * all ("Yes go ahead"); `model` is the classification call.
+   */
+  source: "affirmation" | "model";
+  /**
+   * The conversational context the classifier saw BESIDES `question`, exactly
+   * as it was fed in — already truncated by `askIntent.ts`, so this is the
+   * model's own input rather than a reconstruction of it. Null when the turn
+   * opened the thread, or when the affirmation rule answered without a call.
+   *
+   * The same deliberate call as `question`'s (see its comment), extended to
+   * the two messages before it: user-authored content in a retained log,
+   * because tuning this is otherwise guesswork. It carries an assistant
+   * message too, which `question` does not.
+   */
+  context: string | null;
   /**
    * What the classifier actually said, sanitized and truncated — or the
    * failure's description when `failedOpen` is true. Kept verbatim rather than

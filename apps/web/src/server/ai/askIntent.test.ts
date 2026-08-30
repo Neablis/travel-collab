@@ -7,7 +7,7 @@
 // answer has to be `write` every time.
 import { describe, expect, it } from "vitest";
 import type { LanguageModel } from "ai";
-import { ASK_INTENT_INSTRUCTION, classifyAskIntent, isAskIntentCall } from "@/server/ai/askIntent";
+import { ASK_INTENT_INSTRUCTION, classifyAskIntent, isAskIntentCall, isBareAgreement } from "@/server/ai/askIntent";
 
 // The slice of a call the assertions below read. Structural for the same
 // reason `simulatedModel` is: LanguageModelV4CallOptions lives in a package
@@ -116,7 +116,7 @@ describe("classifyAskIntent", () => {
       const controller = new AbortController();
       controller.abort();
       await expect(
-        classifyAskIntent(modelSaying("question").model, "How is the trip looking?", controller.signal),
+        classifyAskIntent(modelSaying("question").model, "How is the trip looking?", [], controller.signal),
       ).resolves.toMatchObject({ intent: "write", failedOpen: true });
     });
   });
@@ -141,9 +141,97 @@ describe("classifyAskIntent", () => {
 
   it("records the classification's own cost and latency", async () => {
     const { model } = modelSaying("question");
-    const result = await classifyAskIntent(model, "How is the trip looking?", undefined, stepClock());
+    const result = await classifyAskIntent(model, "How is the trip looking?", [], undefined, stepClock());
     expect(result.usage).toEqual({ inputTokens: 151, outputTokens: 1, totalTokens: 152 });
     expect(result.latencyMs).toBe(10);
+  });
+
+  // ---------------------------------------------------------------------
+  // The turn that writes is often the one that says least
+  // ---------------------------------------------------------------------
+
+  // Mitchell's live thread, 2026-08-29, verbatim. The first message read the
+  // trip and proposed nothing; "Yes go ahead" made ten write calls. Classified
+  // in isolation it is a question — reasonably — and the assistant would have
+  // had no tool to act with on the one turn that mattered.
+  const MITCHELL_REQUEST =
+    "Lets fit the day trip into that day, feel free to remove any conflicting events, we can leave in the morning, hit up the temple and eat lunch in nara after seeing the deer park, and be back in kyoto that night";
+  const MITCHELL_ASSISTANT =
+    "I've drafted 8 changes for day 3 — removing the two afternoon stops that clash and adding the Nara temple, the deer park and lunch. Nothing is applied yet.";
+
+  describe("a bare agreement", () => {
+    it("keeps the write tools for “Yes go ahead”, without calling a model at all", async () => {
+      const { model, seen } = modelSaying("question");
+      const result = await classifyAskIntent(model, "Yes go ahead", [
+        { role: "user", text: MITCHELL_REQUEST },
+        { role: "assistant", text: MITCHELL_ASSISTANT },
+      ]);
+
+      expect(result).toMatchObject({ intent: "write", source: "affirmation", failedOpen: false });
+      // The rule is the point: a model that confidently answered "question"
+      // to three bare words would have been believed.
+      expect(seen).toHaveLength(0);
+    });
+
+    it("recognises the short agreements people actually type", () => {
+      for (const agreement of ["yes", "Yes.", "yep", "ok", "Okay!", "sure", "do it", "go ahead", "yes please", "sounds good", "perfect, go ahead", "Yes, apply them"]) {
+        expect(isBareAgreement(agreement)).toBe(true);
+      }
+    });
+
+    // The rule has to stop where a real instruction starts, or it stops being
+    // a rule about agreement and becomes a second classifier.
+    it("leaves anything longer than an agreement to the model", () => {
+      for (const message of [
+        "yes, but move the temple to day 4 first",
+        "which day has the most free time?",
+        MITCHELL_REQUEST,
+        "",
+      ]) {
+        expect(isBareAgreement(message)).toBe(false);
+      }
+    });
+  });
+
+  describe("conversational context", () => {
+    it("shows the classifier the two messages before this one", async () => {
+      const { model, seen } = modelSaying("write");
+      await classifyAskIntent(model, "and the same for day 4?", [
+        { role: "user", text: MITCHELL_REQUEST },
+        { role: "assistant", text: MITCHELL_ASSISTANT },
+      ]);
+
+      const user = (seen[0]!.prompt ?? []).filter((m) => m.role === "user");
+      const text = JSON.stringify(user);
+      expect(text).toContain("Lets fit the day trip into that day");
+      expect(text).toContain("I've drafted 8 changes for day 3");
+      expect(text).toContain("and the same for day 4?");
+      // Still no tools. That is where the ~3,400 tokens live, and context is
+      // prose — the whole reason this stayed affordable.
+      expect(seen[0]!.tools ?? []).toEqual([]);
+    });
+
+    it("truncates a long prior message rather than re-spending the saving", async () => {
+      const { model, seen } = modelSaying("write");
+      await classifyAskIntent(model, "and day 4?", [{ role: "assistant", text: "x".repeat(5000) }]);
+      const prompt = JSON.stringify(seen[0]!.prompt);
+      expect(prompt).toContain("…");
+      // 300 characters a message, so a paragraph-long answer cannot cost more
+      // than about 75 tokens of the ~150-token call.
+      const longestRun = Math.max(...prompt.match(/x+/g)!.map((run) => run.length));
+      expect(longestRun).toBe(300);
+    });
+
+    it("records the input it classified, so a bad verdict is separable from a bad input", async () => {
+      const withContext = await classifyAskIntent(modelSaying("write").model, "and day 4?", [
+        { role: "assistant", text: MITCHELL_ASSISTANT },
+      ]);
+      expect(withContext.context).toContain("I've drafted 8 changes");
+      expect(withContext.source).toBe("model");
+
+      const opening = await classifyAskIntent(modelSaying("question").model, "how does this look?");
+      expect(opening.context).toBeNull();
+    });
   });
 
   // The marker is how the flag-off path recognises a classification call
