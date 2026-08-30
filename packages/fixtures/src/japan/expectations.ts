@@ -39,7 +39,7 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // checking a few: add a value to either enum and this object no longer
   // typechecks until the fixture covers it, so a new kind of stop cannot ship
   // with nothing on screen that exercises it.
-  kinds: { booked: 13, hold: 5, idea: 6, planned: 39, transit: 9 },
+  kinds: { booked: 18, hold: 2, idea: 6, planned: 37, transit: 9 },
   tags: { lodging: 4, meal: 33, outdoors: 11, ticketed: 8 },
   untaggedCount: 18,
 
