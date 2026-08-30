@@ -55,7 +55,6 @@ import {
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
-import { traceModelCall } from "@/server/ai/aiTelemetry";
 import { recordCommandMetrics, type CommandMetricsRecord } from "@/server/ai/aiMetrics";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
@@ -318,27 +317,19 @@ export async function handleAiRequest(
     let result;
     const startedAt = Date.now();
     try {
-      // `gen_ai.invoke_agent`, not `gen_ai.chat`: `stopWhen` makes this a tool
-      // loop, and a multi-step planning run filed as a single chat would be
-      // absent from the one Sentry view built to show agent runs.
-      result = await traceModelCall(
-        {
-          operation: "compose_page",
-          kind: "invoke_agent",
-          modelId: requestedModelId(activeModel),
-          attributes: { agent: "command", surface: "page", "ai.simulated": simulated },
-        },
-        () =>
-          generateText({
-            model: activeModel,
-            system,
-            prompt,
-            tools,
-            stopWhen: isStepCount(maxStepsFor("page")),
-            maxRetries: AI_MAX_RETRIES,
-          }),
-        (r) => ({ usage: usageOf(r), finishReason: r.finishReason }),
-      );
+      result = await generateText({
+        model: activeModel,
+        system,
+        prompt,
+        tools,
+        stopWhen: isStepCount(maxStepsFor("page")),
+        maxRetries: AI_MAX_RETRIES,
+        // Names this run in Sentry's AI Agents view. Sentry's `VercelAI`
+        // integration emits the run's spans off the AI SDK's own telemetry
+        // channel; `functionId` is the only thing it cannot infer, and
+        // without it every run in this app is a span called `invoke_agent`.
+        telemetry: { functionId: "compose_page" },
+      });
     } catch (err) {
       return Response.json(
         {
@@ -376,24 +367,18 @@ export async function handleAiRequest(
   let gen;
   const startedAt = Date.now();
   try {
-    gen = await traceModelCall(
-      {
-        operation: "plan",
-        kind: "invoke_agent",
-        modelId: requestedModelId(activeModel),
-        attributes: { agent: "command", surface, "ai.simulated": simulated },
-      },
-      () =>
-        generateText({
-          model: activeModel,
-          system,
-          prompt,
-          tools,
-          stopWhen: isStepCount(maxStepsFor(surface)),
-          maxRetries: AI_MAX_RETRIES,
-        }),
-      (r) => ({ usage: usageOf(r), finishReason: r.finishReason }),
-    );
+    gen = await generateText({
+      model: activeModel,
+      system,
+      prompt,
+      tools,
+      stopWhen: isStepCount(maxStepsFor(surface)),
+      maxRetries: AI_MAX_RETRIES,
+      // See `compose_page` above. `surface` rather than a literal: `board` and
+      // `combined` are different tool sets and different step budgets, and
+      // averaging them together is exactly the comparison this names apart.
+      telemetry: { functionId: `plan_${surface}` },
+    });
   } catch (err) {
     return Response.json(
       {

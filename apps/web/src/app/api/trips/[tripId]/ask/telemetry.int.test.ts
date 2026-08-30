@@ -1,19 +1,27 @@
-// **The wiring test**, and it exists because the unit suites cannot see the
-// thing most likely to break.
+// **The AI-telemetry wiring test**, run against a REAL Sentry client.
 //
-// `aiTelemetry.test.ts` proves the module emits the right spans when called.
-// `aiTelemetry.envelope.test.ts` proves those spans reach a Sentry envelope.
-// Neither would notice the endpoint never calling it — and the calls run
-// through `ToolLoopAgent`'s callback plumbing, which merges constructor
-// callbacks with per-call ones (`ToolLoopAgent.stream`, ai@7) and is exactly
-// the sort of thing a minor version rearranges. `onStepStart` quietly ceasing
-// to fire would cost every per-step span and every token attribution on them,
-// with nothing red anywhere.
+// It exists because the thing being asserted is not our code. Sentry's
+// `VercelAI` integration subscribes to the AI SDK's own `ai:telemetry`
+// diagnostics channel and emits this turn's `gen_ai.*` spans; all this app
+// contributes is `telemetry.functionId` on the agent. That makes the whole
+// feature a claim about a third-party integration, two default-on switches and
+// a one-line option — none of which any unit test can see, and all of which
+// fail silently:
 //
-// So this drives the REAL handler, with the REAL agent, over the REAL simulated
-// model, and asserts what came out.
+//   * The channel is `ai` >= 7 only. On `ai` < 7 Sentry falls back to patching
+//     the module, and this app's agent calls `ToolLoopAgent`, not the patched
+//     `generateText`/`streamText` exports — a downgrade would produce nothing.
+//   * The subscriber needs Sentry's OpenTelemetry setup for its async-context
+//     binding, which `skipOpenTelemetrySetup` would remove.
+//   * `VercelAI` is a DEFAULT integration. `sentry.server.config.ts` passes an
+//     `integrations` array, which merges with the defaults — a future
+//     `defaultIntegrations: false` there would delete this silently.
+//
+// Every one of those leaves the app running, the tests green and the AI Agents
+// dashboard empty. So this asserts the spans that actually left the SDK.
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import * as Sentry from "@sentry/nextjs";
 import { executeTripCommand } from "@/server/commands";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 
@@ -23,41 +31,58 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => ({ user: { id: ACTOR_ID } })),
 }));
 
-interface StartedSpan {
-  name: string;
-  op: string;
-  attributes: Record<string, unknown>;
+interface EnvelopeItemHeader {
+  type: string;
 }
-interface EmittedMetric {
+type Envelope = [unknown, Array<[EnvelopeItemHeader, unknown]>];
+
+interface StreamedSpan {
   name: string;
+  attributes: Record<string, { value: unknown }>;
+}
+interface StreamedMetric {
+  name: string;
+  type: string;
   value: number;
-  attributes: Record<string, unknown>;
+  attributes: Record<string, { value: unknown }>;
 }
 
-const spans: StartedSpan[] = [];
-const metrics: EmittedMetric[] = [];
+const sent: Envelope[] = [];
 
-vi.mock("@sentry/nextjs", () => {
-  const span = {
-    setAttribute: () => {},
-    setAttributes: () => {},
-    setStatus: () => {},
-    end: () => {},
-  };
-  const record = (name: string, value: number, options?: { attributes?: Record<string, unknown> }) => {
-    metrics.push({ name, value, attributes: options?.attributes ?? {} });
-  };
-  return {
-    startInactiveSpan: (options: { name: string; op: string; attributes?: Record<string, unknown> }) => {
-      spans.push({ name: options.name, op: options.op, attributes: options.attributes ?? {} });
-      return span;
-    },
-    getActiveSpan: () => undefined,
-    withActiveSpan: (_span: unknown, cb: () => unknown) => cb(),
-    captureException: () => {},
-    metrics: { count: record, gauge: record, distribution: record },
-  };
-});
+/**
+ * v10 streams child spans as standalone `span` envelope items rather than
+ * embedding them in the transaction's `spans` array. A first draft of this
+ * read `transaction.spans`, found `[]`, and looked exactly like "nothing was
+ * instrumented" — it was not. Read the `span` items.
+ */
+function streamedSpans(): StreamedSpan[] {
+  return sent.flatMap(([, items]) =>
+    items.flatMap(([header, item]) =>
+      header.type === "span" ? (item as { items: StreamedSpan[] }).items : [],
+    ),
+  );
+}
+
+function streamedMetrics(): StreamedMetric[] {
+  return sent.flatMap(([, items]) =>
+    items.flatMap(([header, item]) =>
+      header.type === "trace_metric" ? (item as { items: StreamedMetric[] }).items : [],
+    ),
+  );
+}
+
+function attr(span: StreamedSpan, key: string): unknown {
+  return span.attributes[key]?.value;
+}
+
+/** Only the spans Sentry's own AI integration produced — never one of ours. */
+function aiSpans(): StreamedSpan[] {
+  return streamedSpans().filter((span) => attr(span, "sentry.origin") === "auto.vercelai.channel");
+}
+
+function aiSpansWithOp(op: string): StreamedSpan[] {
+  return aiSpans().filter((span) => attr(span, "sentry.op") === op);
+}
 
 const { handleAskRequest } = await import("@/server/ai/handleAskRequest");
 
@@ -90,96 +115,99 @@ async function seedTrip(): Promise<string> {
   return tripId;
 }
 
-function req(tripId: string, text: string) {
-  return new Request(`http://test/api/trips/${tripId}/ask`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [{ id: "m1", role: "user", parts: [{ type: "text", text }] }],
-      scope: { kind: "trip" },
+beforeAll(async () => {
+  Sentry.init({
+    // Well-formed and unreachable — the transport never leaves the process.
+    dsn: "https://0123456789abcdef0123456789abcdef@o0.ingest.us.sentry.io/0",
+    tracesSampleRate: 1,
+    enableMetrics: true,
+    // Deliberately NOT overriding `integrations` or `defaultIntegrations`:
+    // whether `VercelAI` is on by default is part of what this asserts.
+    transport: () => ({
+      send: async (envelope: unknown) => {
+        sent.push(envelope as Envelope);
+        return {};
+      },
+      flush: async () => true,
     }),
   });
-}
 
-function opsEmitted(): string[] {
-  return spans.map((span) => span.op);
-}
-
-/** One completed turn, drained — the stream's callbacks only fire as it is read. */
-async function askOnce(): Promise<void> {
   const tripId = await seedTrip();
-  const response = await handleAskRequest(
-    req(tripId, "how long is this trip?"),
-    tripId,
-    simulatedModel("ask") as unknown as Parameters<typeof handleAskRequest>[2],
-    // The analytics sink is the test seam this endpoint already has; passing a
-    // no-op keeps the `ai.ask` line out of the test output without changing
-    // which code runs — the metrics and the span close in the same sink.
-    () => {},
-  );
-  expect(response.status).toBe(200);
-  await response.text();
-}
+  await Sentry.startSpan({ name: "POST /api/trips/:tripId/ask", op: "http.server" }, async () => {
+    const response = await handleAskRequest(
+      new Request(`http://test/api/trips/${tripId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "how long is this trip?" }] }],
+          scope: { kind: "trip" },
+        }),
+      }),
+      tripId,
+      simulatedModel("ask") as unknown as Parameters<typeof handleAskRequest>[2],
+      // The endpoint's existing analytics seam — a no-op keeps the `ai.ask`
+      // line out of the test output without changing which code runs.
+      () => {},
+    );
+    expect(response.status).toBe(200);
+    // The stream's callbacks only fire as it is read.
+    await response.text();
+  });
 
-beforeEach(() => {
-  spans.length = 0;
-  metrics.length = 0;
+  await Sentry.flush(5000);
 });
 
-describe("POST /api/trips/:id/ask — telemetry wiring", () => {
-  it("opens exactly one agent run for the turn", async () => {
-    await askOnce();
-    const runs = spans.filter((span) => span.op === "gen_ai.invoke_agent");
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.name).toBe("invoke_agent ask");
-    expect(runs[0]!.attributes).toMatchObject({
-      "gen_ai.agent.name": "ask",
-      "gen_ai.operation.name": "invoke_agent",
-      agent: "ask",
-      "ai.scope": "trip",
-      "ai.turn": "opening",
-    });
+describe("POST /api/trips/:id/ask — AI telemetry", () => {
+  it("produces gen_ai spans from Sentry's own integration, not from ours", () => {
+    expect(aiSpans().length).toBeGreaterThan(0);
+    // Nothing in this app emits gen_ai spans by hand any more. If that changes,
+    // the AI Agents view starts double-counting tokens for every turn — the
+    // regression this line exists to catch (see ADR-032).
+    const handRolled = streamedSpans().filter(
+      (span) =>
+        String(attr(span, "sentry.op") ?? "").startsWith("gen_ai.") &&
+        attr(span, "sentry.origin") !== "auto.vercelai.channel",
+    );
+    expect(handRolled).toEqual([]);
   });
 
-  // The pre-turn classifier is its own round-trip on its own (possibly
-  // cheaper) model, so it gets its own span rather than being folded into the
-  // run — see `AI_CLASSIFIER_MODEL` and ADR-032 §3.
-  it("opens a chat span for the intent classifier, tagged as such", async () => {
-    await askOnce();
-    const classifier = spans.filter((span) => span.attributes["gen_ai.call.purpose"] === "classify_intent");
+  it("names the turn's run `ask`, so it is distinguishable from the classifier's and from /ai's", () => {
+    const named = aiSpansWithOp("gen_ai.invoke_agent").filter((span) => span.name.includes("ask"));
+    expect(named.length).toBeGreaterThan(0);
+  });
+
+  // The classifier is a second round-trip on every editor turn, possibly on a
+  // different model. `AI_CLASSIFIER_MODEL` buys nothing if the two cannot be
+  // told apart in the trace.
+  it("records the intent classifier as its own named run", () => {
+    const classifier = aiSpansWithOp("gen_ai.invoke_agent").filter((span) =>
+      span.name.includes("classify_intent"),
+    );
     expect(classifier).toHaveLength(1);
-    expect(classifier[0]!.op).toBe("gen_ai.chat");
   });
 
-  // The two assertions that would go quiet if `ToolLoopAgent` stopped
-  // forwarding the constructor's callbacks.
-  it("opens a chat span per model round-trip the agent actually took", async () => {
-    await askOnce();
-    const steps = spans.filter(
-      (span) => span.op === "gen_ai.chat" && span.attributes["gen_ai.step"] !== undefined,
-    );
-    expect(steps.length).toBeGreaterThan(0);
-    expect(steps.map((span) => span.attributes["gen_ai.step"])).toEqual(
-      steps.map((_, index) => index + 1),
-    );
-  });
-
-  it("opens a tool span per tool the agent executed, named for the tool", async () => {
-    await askOnce();
-    const tools = spans.filter((span) => span.op === "gen_ai.execute_tool");
+  it("records one model call and one span per tool the agent executed", () => {
+    expect(aiSpansWithOp("gen_ai.generate_content").length).toBeGreaterThan(0);
+    const tools = aiSpansWithOp("gen_ai.execute_tool");
     expect(tools.length).toBeGreaterThan(0);
     for (const tool of tools) {
-      const name = tool.attributes["gen_ai.tool.name"];
-      // Every tool this endpoint can offer is a read tool for a question.
-      expect(["read_trip", "read_day", "find_free_time"]).toContain(name);
-      expect(tool.name).toBe(`execute_tool ${name}`);
-      expect(tool.attributes["gen_ai.tool.call.id"]).toEqual(expect.any(String));
+      expect(["read_trip", "read_day", "find_free_time"]).toContain(attr(tool, "gen_ai.tool.name"));
+      expect(attr(tool, "gen_ai.tool.call.id")).toEqual(expect.any(String));
     }
   });
 
-  it("emits the turn's metrics, tool calls included", async () => {
-    await askOnce();
-    const names = new Set(metrics.map((metric) => metric.name));
+  it("carries token usage on the run, which is what the cost view reads", () => {
+    for (const run of aiSpansWithOp("gen_ai.invoke_agent")) {
+      expect(attr(run, "gen_ai.usage.input_tokens")).toEqual(expect.any(Number));
+      expect(attr(run, "gen_ai.usage.output_tokens")).toEqual(expect.any(Number));
+      expect(attr(run, "gen_ai.usage.total_tokens")).toEqual(expect.any(Number));
+    }
+  });
+
+  // Sentry emits no metrics of its own — this half is entirely ours, and it is
+  // what answers "is this getting more expensive" over a month.
+  it("emits the turn's metrics, tool calls included", () => {
+    const names = new Set(streamedMetrics().map((metric) => metric.name));
     for (const expected of [
       "ai.ask.turns",
       "ai.ask.duration",
@@ -191,21 +219,20 @@ describe("POST /api/trips/:id/ask — telemetry wiring", () => {
     ]) {
       expect(names).toContain(expected);
     }
-    expect(metrics.find((metric) => metric.name === "ai.ask.turns")!.attributes).toMatchObject({
-      agent: "ask",
-      outcome: "completed",
-      // The flag is off in every environment by default, and a simulated turn
-      // contacted no provider — the attribute anyone computing cost must filter on.
-      simulated: true,
-    });
+    const turns = streamedMetrics().find((metric) => metric.name === "ai.ask.turns")!;
+    expect(attr(turns as unknown as StreamedSpan, "agent")).toBe("ask");
+    expect(attr(turns as unknown as StreamedSpan, "outcome")).toBe("completed");
+    // The flag is off by default in every Vercel environment, and a simulated
+    // turn contacted no provider — the attribute anyone computing cost filters on.
+    expect(attr(turns as unknown as StreamedSpan, "simulated")).toBe(true);
   });
 
-  // The endpoint's own end-of-turn sink is the single writer; a second turn
-  // must not reopen or double-close the first one's run.
-  it("keeps two turns' runs separate", async () => {
-    await askOnce();
-    await askOnce();
-    expect(opsEmitted().filter((op) => op === "gen_ai.invoke_agent")).toHaveLength(2);
-    expect(metrics.filter((metric) => metric.name === "ai.ask.turns")).toHaveLength(2);
+  // The privacy rule, checked against the bytes: Sentry's integration defaults
+  // `recordInputs`/`recordOutputs` to false, and the three `sentry.*.config.ts`
+  // files say so explicitly so an SDK default-flip cannot start sending them.
+  it("sends no question text and no unbounded identifier anywhere in the payload", () => {
+    const payload = JSON.stringify(sent);
+    expect(payload).not.toContain("how long is this trip?");
+    expect(payload).not.toContain(ACTOR_ID);
   });
 });

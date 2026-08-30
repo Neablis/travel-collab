@@ -2,8 +2,8 @@
 
 What this app reports, where to look at it, and how to turn any of it down.
 The decisions and their reasoning are in
-[ADR-032](../architecture/ADR-032-sentry-telemetry-and-hand-written-gen-ai-spans.md);
-this file is the operating manual.
+[ADR-032](../architecture/ADR-032-sentry-telemetry.md); this file is the
+operating manual.
 
 ## The three places a number lives
 
@@ -34,24 +34,33 @@ is a bug, not a sampling artefact.
 **What it deliberately does not collect:** prompts, model answers, tool inputs
 and outputs, `tripId`, `userId`, or any user text. `sendDefaultPii` is off and
 `dataCollection.genAI` is `{ inputs: false, outputs: false }` in all three
-runtimes. Two tests enforce it — an attribute-key allowlist in
-`aiTelemetry.test.ts`, and a whole-payload check in
-`aiTelemetry.envelope.test.ts`.
+runtimes — set explicitly because the AI SDK defaults input/output recording
+*on* and it is Sentry's reader that currently defaults it off, which is a
+decision we would rather not inherit. `telemetry.int.test.ts` checks the actual
+payload for the question text and the user id.
 
-## The spans
+## The spans — Sentry's, not ours
 
-Emitted by `apps/web/src/server/ai/aiTelemetry.ts`.
+**This app writes no `gen_ai.*` spans.** Sentry's `VercelAI` integration (a
+default integration, on already) subscribes to the AI SDK's own `ai:telemetry`
+diagnostics channel and emits them, with `origin=auto.vercelai.channel`:
 
 | Op | When | Carries |
 |---|---|---|
-| `gen_ai.invoke_agent` | One `/ask` turn, or one `/ai` generation | model, provider, agent name, offered tools, whole-turn tokens, steps, tool-call count, outcome |
-| `gen_ai.chat` | One model round-trip; also the pre-turn intent classifier | step number, that step's tokens, finish reason, tools it called |
-| `gen_ai.execute_tool` | One tool execution | tool name, call id, and the SDK's own measured duration |
+| `gen_ai.invoke_agent` | One top-level AI SDK call — the `/ask` turn, the classifier call, an `/ai` generation | model, provider, whole-run token usage, response id, streaming flag |
+| `gen_ai.generate_content` | One provider round-trip inside that run | that call's tokens, finish reasons, response model |
+| `gen_ai.execute_tool` | One tool execution | tool name, tool call id |
 
-The classifier gets its own `gen_ai.chat` rather than being folded into the
-run's tokens — `AI_CLASSIFIER_MODEL` can point it at a cheaper model, and
-"did the classifier save more than it cost" is unanswerable if its spend is
-attributed to the answering model.
+The single thing this app contributes is `telemetry: { functionId }` on each
+call, which names the run: `ask`, `classify_intent`, `plan_<surface>`,
+`compose_page`. Without it every run in the app is a span called `invoke_agent`
+and none of them can be told apart — which matters most for the classifier,
+since `AI_CLASSIFIER_MODEL` can put it on a cheaper model and "did it save more
+than it cost" is the comparison that whole feature exists to enable.
+
+**If you are tempted to hand-write a gen_ai span, don't** — you will get two
+sets per turn and double the tokens in the AI Agents view. That happened once;
+ADR-032 records it.
 
 ## The metrics
 
@@ -101,7 +110,7 @@ turn a feature off while looking like it had been turned up.
 `SENTRY_AUTH_TOKEN` is the one secret here — build-time source-map upload only,
 read by `withSentryConfig`, never by app code.
 
-## Two traps, both already paid for
+## Three traps, all already paid for
 
 **Browser profiling is two files that have to agree.**
 `instrumentation-client.ts` adds `browserProfilingIntegration()`, and
@@ -111,18 +120,31 @@ for the session with nothing in the console outside a debug build. Deleting
 either half leaves a config that looks complete and collects nothing.
 `next.config.test.ts` is the tripwire.
 
+**The AI tracing rests on three default-on switches, and all three fail
+silently.** The `ai:telemetry` channel is `ai` >= 7 only (on v6 and below
+Sentry patches `generateText`/`streamText` instead — which this app's agent
+does not call, so a downgrade produces nothing); the subscriber needs Sentry's
+OpenTelemetry setup, so `skipOpenTelemetrySetup` would kill it; and `VercelAI`
+is a *default* integration, so `defaultIntegrations: false` in
+`sentry.server.config.ts` would delete it. Each leaves the app running, the
+tests green and the dashboard empty. `telemetry.int.test.ts` runs a real turn
+against a real Sentry client and reads the spans that actually left, which is
+the only check that sees any of this.
+
 **Sentry v10 streams child spans.** They leave as standalone `span` envelope
 items, *not* embedded in a transaction's `spans` array. If you go looking at
 raw envelopes and find `spans: []` under a transaction, that is normal — the
 children are already gone in their own envelope, correctly parented.
-`aiTelemetry.envelope.test.ts` reads both item types, and says so.
+`telemetry.int.test.ts` reads both item types, and says so.
 
 ## Verifying it end to end
 
-- `pnpm --filter web test` covers the span shapes, the metric names, the
-  privacy rules and the `Document-Policy` header. `aiTelemetry.envelope.test.ts`
-  in particular boots a real Sentry client and asserts the bytes, which is the
-  only check that would notice the whole thing being wired to nothing.
+- `pnpm --filter web test` covers the metric names, the sample-rate parsing and
+  the `Document-Policy` header. `pnpm --filter web test:int` runs
+  `telemetry.int.test.ts`, which boots a real Sentry client behind a capturing
+  transport, drives a real turn through the real agent, and asserts the spans
+  and metrics that actually left the SDK — the only check that would notice the
+  whole thing being wired to nothing.
 - From a **deployed preview**, `/sentry-example-page` is the wizard's own
   round-trip check that events actually reach the project. It is kept for that
   reason; `check-color-wall.mjs` exempts it as third-party codegen.

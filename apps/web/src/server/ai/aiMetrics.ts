@@ -1,6 +1,13 @@
 // Sentry metrics for the assistant: token spend, tool-call counts, latency and
 // outcomes, as numbers you can chart and alert on.
 //
+// **Why this exists at all, given Sentry already instruments the AI SDK.**
+// Sentry's `VercelAI` integration emits this app's `gen_ai.*` SPANS (ADR-032)
+// and it emits no metrics whatsoever. A span answers "where did this turn's
+// four seconds go"; it does not answer "are we spending more output tokens
+// than last week", which is an aggregate over thousands of turns. This module
+// is that half, and it is the half nothing upstream provides.
+//
 // **Why this exists beside `askAnalytics.ts` rather than instead of it.** The
 // `ai.ask` log line is one self-contained record per turn: a question, a tool
 // trace, a classification verdict, a failure cause. It is what you read when
@@ -22,15 +29,36 @@
 //      dropping data. Every attribute below has a small, enumerable range:
 //      an outcome, a scope kind, a tool name from a fixed set of 15, a model
 //      id from the environment.
-//   2. **No user content.** Same rule the spans keep (`aiTelemetry.ts`), for
+//   2. **No user content.** The same rule the spans keep (via
+//      `dataCollection.genAI` in the three `sentry.*.config.ts` files), for
 //      the same reason: the question goes in our own log, deliberately, and
 //      that decision does not extend to a third-party service by default.
 //
-// Like `logAskAnalytics` and `aiTelemetry.ts`, **nothing here throws.** It is
-// called from the same end-of-turn path a streaming answer runs through.
+// Like `logAskAnalytics`, **nothing here throws.** It is called from the same
+// end-of-turn path a streaming answer runs through, so a telemetry fault must
+// never become the reason an answer stops mid-sentence.
 import * as Sentry from "@sentry/nextjs";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
-import { splitModelId } from "@/server/ai/aiTelemetry";
+
+/**
+ * Split a gateway model id into provider and model.
+ *
+ * Vercel's AI Gateway addresses models as `provider/model`
+ * (`anthropic/claude-haiku-4-5`), and cost is a per-provider question — so
+ * leaving the whole string in one attribute would file every model this app
+ * can reach under a provider of "unknown". A bare id with no slash keeps the
+ * whole string as the model and reports no provider, which is the honest
+ * answer rather than a guessed one.
+ *
+ * Sentry's own `VercelAI` integration does the same split on its spans
+ * (`gen_ai.system` / `gen_ai.request.model`); this is the metrics side of the
+ * same dimension, so the two can be read against each other.
+ */
+export function splitModelId(modelId: string): { provider: string | null; model: string } {
+  const slash = modelId.indexOf("/");
+  if (slash <= 0 || slash === modelId.length - 1) return { provider: null, model: modelId };
+  return { provider: modelId.slice(0, slash), model: modelId.slice(slash + 1) };
+}
 
 /** Metric attributes are one series each — see rule 1 in this file's header. */
 type MetricAttributes = Record<string, string | number | boolean>;

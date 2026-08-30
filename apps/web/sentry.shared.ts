@@ -74,11 +74,11 @@ export function sampleRate(raw: string | undefined, fallback: number): number {
  * How much of the traffic gets a trace.
  *
  * 1.0, unchanged from what the wizard wrote, and load-bearing rather than
- * lazy: the AI agent spans (`aiTelemetry.ts`) and the Sentry AI Agents
- * dashboard built on them are only as complete as the sampling underneath
- * them, and this app's traffic is a handful of turns a day. Turn it down
- * through `SENTRY_TRACES_SAMPLE_RATE` if that ever stops being true — the
- * variable exists so that is a deployment change, not a deploy.
+ * lazy: the `gen_ai.*` spans Sentry's VercelAI integration emits — and the AI
+ * Agents dashboard built on them (ADR-032) — are only as complete as the
+ * sampling underneath them, and this app's traffic is a handful of turns a
+ * day. Turn it down through `SENTRY_TRACES_SAMPLE_RATE` if that ever stops
+ * being true; the variable exists so that is a deployment change, not a deploy.
  */
 export const tracesSampleRate = sampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE, 1);
 

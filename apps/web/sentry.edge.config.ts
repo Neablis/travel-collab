@@ -13,8 +13,8 @@ Sentry.init({
   ...sharedSentryOptions,
 
   dataCollection: {
-    // Same reasoning as the server config: stated, not defaulted, so an SDK
-    // default-flip can't start sending model inputs on its own.
+    // Same reasoning as the server config: stated, not defaulted, so a
+    // default-flip upstream cannot start sending prompts on its own.
     genAI: { inputs: false, outputs: false },
   },
 });

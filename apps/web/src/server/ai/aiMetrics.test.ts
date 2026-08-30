@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
 
-// Same reasoning as `aiTelemetry.test.ts`: the module's whole job is which
-// metric names, values and attributes get emitted, and none of that is
-// observable through a real client.
+// The module's whole job is which metric names, values and attributes get
+// emitted, and none of that is observable through a real client — so the
+// double IS the subject boundary here. `telemetry.int.test.ts` covers the
+// other half, against a real client and the real endpoint.
 const count = vi.fn();
 const gauge = vi.fn();
 const distribution = vi.fn();
@@ -16,7 +17,12 @@ vi.mock("@sentry/nextjs", () => ({
   },
 }));
 
-import { recordAskMetrics, recordCommandMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
+import {
+  recordAskMetrics,
+  recordCommandMetrics,
+  recordProposalApplyMetrics,
+  splitModelId,
+} from "@/server/ai/aiMetrics";
 
 interface Emitted {
   name: string;
@@ -79,6 +85,33 @@ beforeEach(() => {
   // implementation, and `clearAllMocks` keeps implementations — which would
   // silently poison every test declared after them in file order.
   vi.resetAllMocks();
+});
+
+describe("splitModelId", () => {
+  // The gateway addresses models as `provider/model`, and cost is a
+  // per-provider question — so this split is the difference between a cost
+  // breakdown and one bucket called "unknown".
+  it("splits a gateway id into provider and model", () => {
+    expect(splitModelId("anthropic/claude-haiku-4-5")).toEqual({
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+    });
+  });
+
+  // A guessed provider is worse than no provider: it files real spend under a
+  // vendor that never saw the request.
+  it.each(["claude-haiku-4-5", "/leading", "trailing/", ""])(
+    "reports no provider rather than guessing one for %o",
+    (id) => {
+      expect(splitModelId(id)).toEqual({ provider: null, model: id });
+    },
+  );
+
+  // The model half can itself contain slashes; only the FIRST segment is the
+  // provider.
+  it("splits on the first slash only", () => {
+    expect(splitModelId("a/b/c")).toEqual({ provider: "a", model: "b/c" });
+  });
 });
 
 describe("recordAskMetrics", () => {

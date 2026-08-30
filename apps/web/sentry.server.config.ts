@@ -47,6 +47,11 @@ async function loadNodeProfiling() {
 Sentry.init({
   ...sharedSentryOptions,
 
+  // Merged WITH Sentry's defaults, not instead of them — which matters more
+  // than it looks: `vercelAIIntegration()` is one of those defaults, and it is
+  // the entire AI Agents feature (ADR-032). Setting `defaultIntegrations:
+  // false` here would delete every gen_ai span in the app and nothing would go
+  // red; `telemetry.int.test.ts` is the tripwire for that.
   integrations: [
     ...(nodeProfiling ? [nodeProfiling] : []),
     // Node/V8 runtime health — event-loop lag, heap, GC — as metrics rather
@@ -65,12 +70,15 @@ Sentry.init({
   profileSessionSampleRate,
 
   dataCollection: {
-    // Our own AI spans carry no content by construction — `aiTelemetry.ts`'s
-    // parameter types have nowhere to put a prompt or a tool payload. These
-    // two options are the other half of that rule: they stop the SDK's OWN AI
-    // instrumentation recording inputs and outputs. Named here rather than
-    // left to the default, so an SDK default-flip cannot quietly start
-    // shipping trip questions and model answers to Sentry.
+    // **The one setting standing between Sentry and every prompt this app
+    // sends.** The `VercelAI` integration below emits the AI SDK's spans, and
+    // the AI SDK itself defaults `recordInputs`/`recordOutputs` to ON — it is
+    // Sentry's own reader that currently defaults them off. That is a default
+    // we do not control, on a value we care a lot about: `askAnalytics.ts`
+    // decided, once and explicitly, that a user's question may go into OUR
+    // structured log, and that decision does not extend to a third-party
+    // service. Named here rather than left to the default so a flip upstream
+    // cannot make it for us. `telemetry.int.test.ts` checks the bytes.
     genAI: { inputs: false, outputs: false },
   },
 });
