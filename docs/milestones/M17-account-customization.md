@@ -1,10 +1,12 @@
 # M17 — Account customization (and a real user record)
 
-**Status:** Approved 2026-08-26, not started, **and not placed in the execution
-order** — see `docs/milestones/README.md`'s Current-milestone section for the two
-facts that placement decision needs. Phase 2.
+**Status:** Approved 2026-08-26. **Re-scoped and placed 2026-08-29** — see the
+"Status — re-scoped and placed" section below, which supersedes this line and
+records both amendments. Phase 2, running after M18b.
 
-**Re-scope before scheduling (noted 2026-08-28).** The deliverable below —
+**Re-scope before scheduling (noted 2026-08-28) — DONE 2026-08-29, see below.**
+This paragraph is the analysis that the re-scope acted on; it is kept because it
+is the argument, not a live instruction. The deliverable below —
 *"a `users` table, and the decision of what it keys on"* — **has already been
 decided and shipped by M11 link 1** (PR #71, **ADR-025**): `users` is a real
 table (`apps/web/src/server/db/schema.ts`) keyed on the Auth.js user id

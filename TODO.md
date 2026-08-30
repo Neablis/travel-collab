@@ -16,12 +16,12 @@ Whichever item carries `← current milestone` is the current work; when that ma
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
-**Three items are approved but deliberately unplaced, and none is "next"
-just because it appears unchecked:** M17 (account customization, needs a
-re-scope first), **M11b Playbooks** (carved out of M11's gate 2026-08-28,
-needs its own scope and exit gate written before it opens), and **M18b Tag
-focus** (carved out of M18's gate 2026-08-29 — scope and exit gate already
-written, so this one needs only a place).
+**One item is approved but deliberately unplaced, and it is not "next" just
+because it appears unchecked:** **M11b Playbooks** (carved out of M11's gate
+2026-08-28), which needs its own scope and exit gate written before it opens —
+a product decision, not something to pick up by position. *(M18b and M17 were
+the other two until 2026-08-29, when Mitchell placed both; M17 needed a
+re-scope to be placeable and got one in the same decision.)*
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the

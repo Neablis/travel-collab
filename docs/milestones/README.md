@@ -128,7 +128,8 @@ for collaboration later landing on a product people already want to join.
   Phase 9 gate then closed on 2026-08-27. **Superseded again 2026-08-27**, when
   M11 was scheduled ahead of both M18's remaining surfaces and M16. Current
   order is `M11 → M18 (surfaces) → M16 → M12 → M13 → M14 → M9`, with **M17
-  approved and unplaced** — see Current milestone below.
+  approved and unplaced** — *superseded 2026-08-29, when M17 was re-scoped and
+  placed after M18b; see Current milestone below.*
 
 Placement notes (decided 2026-07-07):
 - The notes page appears twice on purpose: basic solo notes in M7; embeds and
@@ -226,8 +227,9 @@ built, walked, and **removed the same day** on Mitchell's call, because its
 output depended on how the fixture tagged cities — *"I don't think the shape of
 the fixture should drive functionality, that's how we get drift."* The Calendar
 now groups by city alone, equal cards plus an untitled bucket, and the day-to-day
-transition moved to the day label. **Tag focus was carved out as M18b, approved
-and unplaced.** Retro and gate evidence: `M18-stop-kind.md`.
+transition moved to the day label. **Tag focus was carved out as M18b**, and
+placed 2026-08-29 as the milestone after M16. Retro and gate evidence:
+`M18-stop-kind.md`.
 
 **M11's gate closed 2026-08-28** — all eight exit-gate boxes, the full Definition
 of Done green, the e2e suite 46/46 twice against a production build, and the two
@@ -245,10 +247,13 @@ none of its six links touched it; the four shells (`home-playbooks-strip`,
 `playbooks-route`, `insert-playbook`, `wizard-playbook-panel`) stay M11-tagged
 in `preview-registry.ts`. It needs its own scope and exit gate before it opens.
 
-**Three milestones are approved and unplaced:** M17 (see above — re-scope it
-first), M11b, and **M18b Tag focus** (carved out of M18's gate 2026-08-29;
-scope and exit gate written, so it needs only a place). None is "next" merely
-by being unchecked.
+**One milestone is approved and unplaced: M11b Playbooks**, and it is not
+"next" merely by being unchecked — it needs its own scope and exit gate before
+it opens. **M18b and M17 were the other two until 2026-08-29**, when Mitchell
+placed both; M17's placement required the re-scope recorded in its own file
+(its `users`-table deliverable had already shipped under ADR-025). Everything
+below about M17 needing a re-scope is the argument that decision acted on, kept
+because it is the reasoning, not a live instruction.
 
 **M10's Wave-2 gate closed 2026-08-27** — the full Definition of Done green, the
 e2e suite 31/31 twice against a production build, and every surface walked at

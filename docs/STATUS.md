@@ -75,9 +75,9 @@ likely to need:
   one preview-only behaviour that remains: a Deployment Protection re-challenge
   of an in-flight XHR reaches the app as a bare "Failed to fetch".
 
-**Tag focus was carved out as M18b, approved and unplaced** — SPEC §11's
-cross-lens dimming, the behaviour behind the chips M18 made settable. Its scope
-and exit gate are written, so unlike M11b it needs only a place.
+**Tag focus was carved out as M18b — now placed, and the current milestone** —
+SPEC §11's cross-lens dimming, the behaviour behind the chips M18 made
+settable.
 
 **M16 shipped and closed, and the way it happened is the thing to know.** The
 implementation landed overnight in **PR #88** (`5a362d3`) — a streaming,
@@ -111,9 +111,9 @@ worth reading before trusting the assistant's numbers:
 **Done:** M0-M8, the Phase 1 gate review, M10 (2026-08-27), M15 (2026-08-26),
 M11 (2026-08-28), M18 and M16 (both 2026-08-29).
 
-**Three milestones are approved and unplaced, none of them "next":** M17
-(re-scope it first — M11 link 1 already shipped the `users` table its file
-frames as the deliverable), **M11b Playbooks**, and **M18b Tag focus**.
+**One milestone is approved and unplaced, and it is not "next": M11b
+Playbooks** — it needs its own scope and exit gate written first, which is a
+product decision. M18b and M17 were placed 2026-08-29.
 
 **`/demo` is the real board, read-only, 2026-08-28 (PR #79) — ADR-031, closes
 KI-61.** The demo trip is the Japan fixture folded in memory and served through
