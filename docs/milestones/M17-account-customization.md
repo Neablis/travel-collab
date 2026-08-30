@@ -21,6 +21,23 @@ future milestone, account customization. We will need a new DB table, but i also
 think we are getting close to just wanting a user table rather than relying on
 the google auth jwt."*
 
+## Status — re-scoped and placed, 2026-08-29
+
+**Approved 2026-08-26 out of SPEC §12; re-scoped and placed 2026-08-29**, both
+by Mitchell's explicit decision. It had sat approved-but-unplaced because its
+headline deliverable — the `users` table and the identity decision — had
+already been shipped by M11 link 1 (ADR-025), making the milestone as written
+smaller and different from the one that was approved. Two amendments, both
+recorded in place below: **scope item 1 removed** and **exit-gate box 4
+replaced**. What remains is the preferences half: name, home airport,
+account-scope distance units through one `kmLabel`, home-time-on-hover, and
+resolving `who` to a display name.
+
+**Placed after M18b**, ahead of M12. Nothing downstream is blocked on it.
+
+**It needs one migration** — `users` today is `id`/`email`/`name`/`image`/
+`created_at`/`updated_at` and carries no preference columns.
+
 ## Why this exists
 
 SPEC §12 (design sync `fd2edd6`, 2026-08-26) asks for three things that all land
@@ -57,9 +74,17 @@ resolve against.
 
 ## Scope
 
-- A `users` table, and the decision of what it keys on (provider subject? an
-  internal id with the provider subject as a credential?) — **the decision is
-  the deliverable here, not just the DDL.**
+- ~~A `users` table, and the decision of what it keys on.~~ **Removed from
+  scope 2026-08-29 by Mitchell's explicit decision — it already shipped.**
+  M11 link 1 (PR #71, **ADR-025**) created `users` as a real table keyed on the
+  Auth.js user id verbatim — Google's `sub`, or `dev-<username>` — which is the
+  exact string already stored in `events.actor_id`, `pages.actor_id` and
+  `TripMember.userId`, so it changed no column type anywhere. JWT sessions were
+  kept rather than moving Auth.js onto a database adapter. See
+  `apps/web/src/server/db/schema.ts:25`. **What this milestone adds is
+  preference columns on that existing table**, not the table or the decision.
+  This is why the milestone needed a re-scope before it could be placed: its
+  stated headline deliverable had been built by another milestone.
 - Account settings Sheet: name, read-only email, home airport, Display section.
 - `kmLabel` — one helper owning every distance. Call sites today hardcode `km`:
   `mapRailData.ts:68`, `MapFocusCard.tsx:24`, `MapRail.tsx:358`, and
@@ -80,9 +105,17 @@ resolve against.
       through one helper, with no per-trip unit field anywhere.
 - [ ] Home time on hover is off by default, and when on shows the reference line
       without altering any stored or displayed plan time.
-- [ ] The decision on user identity (own record vs provider token) is recorded
-      as an ADR, with the migration path for existing `TripMember.userId`
-      strings.
+- [ ] **The preferences migration is written, applied locally, and its
+      production dispatch is called out in the PR body.** Merging does not
+      apply a migration — it is dispatched with
+      `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
+      and an undispatched migration is schema drift.
+      *(**Replaces the original box 4**, "the decision on user identity is
+      recorded as an ADR with the migration path for existing
+      `TripMember.userId` strings" — amended 2026-08-29 by Mitchell's explicit
+      decision, because **ADR-025 already recorded exactly that** as part of
+      M11 link 1. Citing ADR-025 satisfies the original intent; what this
+      milestone actually risks is a schema change nobody dispatches.)*
 
 ## Deliberately not here
 

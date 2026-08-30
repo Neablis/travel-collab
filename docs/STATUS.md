@@ -22,9 +22,19 @@ general setup.
 
 ## Where the work is right now
 
-**M16's gate closed 2026-08-29. M12 is the current work by the recorded order —
-but see "Next action": M18b is the cheaper and better-specified thing to do
-first, and placing it is Mitchell's call.**
+**M16's gate closed 2026-08-29. M18b is the current work**, and the order is
+now `M18b → M17 → M12 → M13 → M14 → M9`.
+
+**Mitchell placed M18b and M17 on 2026-08-29**, out of the three
+approved-but-unplaced milestones, to run as one overnight batch together with
+the activity-field descriptor refactor (project review §6.1). M17 needed a
+re-scope to be placeable and got one in the same decision: its `users` table
+and identity-decision scope are **removed**, because M11 link 1 shipped both
+under ADR-025, leaving the preferences half (name, home airport, account-scope
+distance units through one `kmLabel`, home-time-on-hover, `who` → display
+name). It needs one migration — `users` carries no preference columns today.
+**M11b Playbooks stays unplaced**: it has no scope and no exit gate written,
+and authoring those is a product decision, not overnight work.
 
 Two gates closed on 2026-08-29, M18 first and M16 second. M18's live warnings
 are immediately below because they still bite; M16's close follows them.
@@ -178,19 +188,24 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**The recorded order puts M12 Community next**, and M12 has no milestone file
-yet — writing its scope and exit gate is its first standing task, and all trust
-& safety scope lives there and nowhere earlier. Per `docs/milestones/README.md`
-the next milestone's plan re-checks the gate-close checklist, and **M16's close
-(2026-08-29) is the one being re-checked** — all four flags plus this file were
-flipped in that commit.
+**Open M18b — Tag focus** — `docs/milestones/M18b-tag-focus.md`. Six exit-gate
+boxes, no migration, no live model, and `/demo` renders the tagged Japan
+fixture with no database, so it can be walked end to end. Per
+`docs/milestones/README.md` the next milestone's plan re-checks the gate-close
+checklist, and **M16's close (2026-08-29) is the one being re-checked** — all
+four flags plus this file were flipped in commit `c489397`.
 
-**Before M12, consider M18b Tag focus.** It is approved and unplaced, its scope
-and exit gate are already written (six boxes), its only prerequisite — M18's
-gate — is closed, it needs no migration and no live model, and `/demo` renders
-the tagged Japan fixture with no database, so it can be walked end to end
-unattended. M12 by contrast is the largest unscoped milestone left. Placing
-M18b is Mitchell's call; nothing downstream is blocked either way.
+**Then M17**, re-scoped 2026-08-29 (see above). **Its migration must not be
+merged without a dispatch** — `gh workflow run migrate-production.yml -f
+confirm=migrate` from `main`.
+
+**Alongside them, the activity-field descriptor refactor** (project review
+§6.1) is scheduled by the same 2026-08-29 decision, moving off the deferred
+list below. Two facts it needs: its stated prerequisite is **already met** —
+§1.6 / KI-54 is resolved and `equality.ts:55-56` compares `city` and
+`countryCode` — and `AGENTS.md` reserves the contracts step as **its own
+reviewed PR**, which Mitchell scheduled it knowing. Keep it a separate PR from
+the two milestones.
 
 **Three things from M18's gate that will bite the next session if unread:**
 
@@ -210,15 +225,14 @@ M18b is Mitchell's call; nothing downstream is blocked either way.
   hand.** Not just the contract. M18 hit this three times; the sheet's version
   silently discarded a user's input with a green suite and a clean typecheck.
 
-**Approved and unplaced, none of them "next":** M17 (re-scope it first),
-**M11b Playbooks** (needs its own scope and exit gate), and **M18b Tag focus**
-(scope and exit gate already written — it needs only a place).
+**Approved and unplaced: M11b Playbooks only**, now that M18b and M17 were
+placed on 2026-08-29. It needs its own scope and exit gate written before it
+opens, which is a product decision.
 
 **Deliberately deferred, each recorded where it belongs rather than dropped:**
 
-1. **The activity-field descriptor refactor** (project review §6.1) — the right
-   call, but a `packages/contracts` change is its own reviewed step and it
-   touches ten sites plus the shared property generator. Its own PR.
+1. ~~**The activity-field descriptor refactor**~~ — **scheduled 2026-08-29**,
+   see "Next action" above. Still its own reviewed PR.
 2. **The test-suite overhaul's Phases 5-7.** Their resume condition — M10's
    Wave-2 gate closing — fired on 2026-08-27 and nothing resumed. Now surfaced
    in `TODO.md` under "Deferred work with a resume condition that has already
