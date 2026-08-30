@@ -65,22 +65,41 @@ export default defineConfig({
   // "pick one and write it down" instruction.
   //
   // "narrow" (Task 3.4, KI-19) runs only e2e/responsive.spec.ts, below the
-  // 1179px breakpoint where the assistant rail's overlay mode and other
+  // 1179px breakpoint where the Playbooks grid's column reflow and other
   // breakpoint-dependent behavior live — the whole suite does not need to
-  // run twice to catch that class of bug.
+  // run twice to catch that class of bug. The assistant rail used to be one
+  // of those behaviors (an overlay below this breakpoint); M16 Wave 1 made
+  // it a docked flex sibling at every width, so responsive.spec.ts now
+  // checks it explicitly at both 1280px and 1100px rather than relying on
+  // this project's own viewport to be the "below 1180px" case.
+  //
+  // "phone" (KI-84 mobile fix, PR #88): a real phone viewport, below the
+  // 768px breakpoint where the assistant rail stops being a docked flex
+  // sibling and becomes a full-screen surface (`.assistant-rail`,
+  // globals.css). 411×852 is Mitchell's own reported device — the report
+  // this fix answers, not an arbitrary choice — and e2e/m16-mobile-assistant
+  // .spec.ts is scoped to it the same way responsive.spec.ts is scoped to
+  // "narrow": one project per breakpoint-dependent behavior, not the whole
+  // suite run a third time.
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
-      testIgnore: /responsive\.spec\.ts/,
+      testIgnore: [/responsive\.spec\.ts/, /m16-mobile-assistant\.spec\.ts/],
     },
     {
       name: "narrow",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1100, height: 800 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
       testMatch: /responsive\.spec\.ts/,
+    },
+    {
+      name: "phone",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 411, height: 852 }, storageState: ".auth/alice.json" },
+      dependencies: ["setup"],
+      testMatch: /m16-mobile-assistant\.spec\.ts/,
     },
   ],
   webServer: {

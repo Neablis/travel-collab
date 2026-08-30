@@ -13,7 +13,19 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Open
 
-### KI-78 — The AI step quota's admission charge is one step, so concurrent requests can overshoot the global ceiling together
+### KI-93 — The AI handler's server-side geocoding spends the LocationIQ key without consulting the geocode quota at all
+- **Severity:** correctness (a spend gate with a second, unmetered door into the same vendor key)
+- **Area:** `apps/web/src/server/ai/handleAiRequest.ts` (the `enrichCommandLocations` call), `apps/web/src/server/ai/geocodeEnrichment.ts`, `apps/web/src/server/quota.ts` (`geocodeQuota`)
+- **Symptom:** `geocodeQuota()` has exactly one caller — `apps/web/src/app/api/geocode/route.ts`. The AI handler geocodes through a completely separate path: after the model's commands are resolved, `enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder(), …)` performs a LocationIQ lookup **per unverified location in the batch**, and nothing on that path reads or charges the geocode policy. So the daily ceilings that exist to protect `LOCATIONIQ_API_KEY` — per-user 300, global 4000, the global one deliberately set below LocationIQ's 5,000/day free tier — bound the proxy endpoint only.
+- **Why it matters more than it looks:** the AI path is the one that geocodes in *bulk*. A single planning request can resolve many new activities, each needing a lookup, and `server/ai/rateLimit.ts` exists precisely because one AI request can otherwise breach LocationIQ's **per-second** limit. That module paces the lookups; nothing counts them. The result is that the endpoint a user drives one button-press at a time is capped at 300 lookups a day, while the endpoint that can emit dozens per call is capped at nothing.
+- **Not the same defect as KI-67, which is why it is filed separately.** KI-67 was a wrong *denominator* — the AI request policies metered calls when cost varied per call. This is a missing *call site*: the denominator for geocoding is already right (one request, one lookup), the policy simply is not consulted on the path that spends the most. Fixing KI-67 does not touch this.
+- **Fix path, if taken:** charge `geocodeQuota()` for the lookups an AI request actually performs. The count is available — `enrichCommandLocations` already returns a `LocationEnrichmentReport` — so the mechanism KI-67 added (`settleAiSteps`'s post-hoc, never-refusing settlement) generalises to it directly: pre-authorise nothing, settle the real lookup count after enrichment. The open question is the same one KI-67 answered for steps and would want answering again here: enrichment is explicitly best-effort and *never fails the request*, so a geocode ceiling reached mid-batch should almost certainly stop *further lookups* rather than refuse the AI request, which means the check belongs inside the enrichment loop rather than around it.
+- **Why not fixed here:** found while fixing KI-67, and outside that change's declared scope. It also needs a decision about mid-batch behaviour that is a product call, not a mechanical one, and `docs/guidelines/` has no stated policy on partial enrichment under a quota ceiling.
+- **Cross-reference:** KI-67 (resolved — the AI step metering, and the mechanism this would reuse), ADR-007 (server-side geocode enrichment), KI-15 (the region-agreement rule enrichment applies), KI-24.
+- **First noted:** 2026-08-29, while fixing KI-67.
+
+- **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77 the same night. Renumbered to 93 on merge. Nothing outside this file references it.
+### KI-94 — The AI step quota's admission charge is one step, so concurrent requests can overshoot the global ceiling together
 - **Severity:** correctness (a burst-window hole in a spend ceiling that is otherwise sound; not a sustained bypass)
 - **Area:** `apps/web/src/server/quota.ts` (`settleAiSteps`, `consumeQuota`, `QuotaCounters.bump`), `apps/web/src/server/ai/handleAiRequest.ts` (the admission charge)
 - **Symptom:** KI-67's step metering pre-authorises **one** round-trip and settles the rest after `generateText` returns, because the real step count does not exist until then. Every request still in flight has therefore charged only 1. N requests admitted before any of them settles can together overshoot by up to `N × (budget − 1)` — with a 32-step budget, 31 per in-flight request. The global bucket is where this bites: with distinct users, enough concurrent 32-step requests can all pass the global step ceiling before any of them settles, and the ceiling is only re-asserted once they land.
@@ -28,16 +40,179 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** KI-67 (resolved — the step metering this refines), KI-24, ADR-019 (the AI kill switch).
 - **First noted:** 2026-08-29 (PR #83 review).
 
-### KI-77 — The AI handler's server-side geocoding spends the LocationIQ key without consulting the geocode quota at all
-- **Severity:** correctness (a spend gate with a second, unmetered door into the same vendor key)
-- **Area:** `apps/web/src/server/ai/handleAiRequest.ts` (the `enrichCommandLocations` call), `apps/web/src/server/ai/geocodeEnrichment.ts`, `apps/web/src/server/quota.ts` (`geocodeQuota`)
-- **Symptom:** `geocodeQuota()` has exactly one caller — `apps/web/src/app/api/geocode/route.ts`. The AI handler geocodes through a completely separate path: after the model's commands are resolved, `enrichCommandLocations(resolvedCommands, () => geocoder ?? getGeocoder(), …)` performs a LocationIQ lookup **per unverified location in the batch**, and nothing on that path reads or charges the geocode policy. So the daily ceilings that exist to protect `LOCATIONIQ_API_KEY` — per-user 300, global 4000, the global one deliberately set below LocationIQ's 5,000/day free tier — bound the proxy endpoint only.
-- **Why it matters more than it looks:** the AI path is the one that geocodes in *bulk*. A single planning request can resolve many new activities, each needing a lookup, and `server/ai/rateLimit.ts` exists precisely because one AI request can otherwise breach LocationIQ's **per-second** limit. That module paces the lookups; nothing counts them. The result is that the endpoint a user drives one button-press at a time is capped at 300 lookups a day, while the endpoint that can emit dozens per call is capped at nothing.
-- **Not the same defect as KI-67, which is why it is filed separately.** KI-67 was a wrong *denominator* — the AI request policies metered calls when cost varied per call. This is a missing *call site*: the denominator for geocoding is already right (one request, one lookup), the policy simply is not consulted on the path that spends the most. Fixing KI-67 does not touch this.
-- **Fix path, if taken:** charge `geocodeQuota()` for the lookups an AI request actually performs. The count is available — `enrichCommandLocations` already returns a `LocationEnrichmentReport` — so the mechanism KI-67 added (`settleAiSteps`'s post-hoc, never-refusing settlement) generalises to it directly: pre-authorise nothing, settle the real lookup count after enrichment. The open question is the same one KI-67 answered for steps and would want answering again here: enrichment is explicitly best-effort and *never fails the request*, so a geocode ceiling reached mid-batch should almost certainly stop *further lookups* rather than refuse the AI request, which means the check belongs inside the enrichment loop rather than around it.
-- **Why not fixed here:** found while fixing KI-67, and outside that change's declared scope. It also needs a decision about mid-batch behaviour that is a product call, not a mechanical one, and `docs/guidelines/` has no stated policy on partial enrichment under a quota ceiling.
-- **Cross-reference:** KI-67 (resolved — the AI step metering, and the mechanism this would reuse), ADR-007 (server-side geocode enrichment), KI-15 (the region-agreement rule enrichment applies), KI-24.
-- **First noted:** 2026-08-29, while fixing KI-67.
+- **Numbering:** filed as 78 on 2026-08-29, when several sibling branches each filed a different KI-78 the same night. Renumbered to 94 on merge. Nothing outside this file references it.
+### KI-84 — The docked assistant rail is a fixed 356px at every viewport, so a narrow phone loses the plan under it — MOSTLY RESOLVED
+- **Severity (as filed):** cosmetic. **Actual, once Mitchell hit it on the PR #88 preview from his own phone (411×852):** functional — the composer was unusable ("the input is unselectable", "totally broken"), not just cramped.
+- **Area:** `apps/web/src/components/assistant/AssistantRail.tsx`, `apps/web/src/app/globals.css` (`.assistant-rail`, `.assistant-open ~ .unscheduled-rack`), `apps/web/playwright.config.ts` (new `phone` project), `apps/web/e2e/m16-mobile-assistant.spec.ts` (new).
+- **What was filed:** the rail's width was a fixed 356px regardless of viewport, with no narrower breakpoint — at 375px the plan behind it was squeezed to ~19px.
+- **What Mitchell actually hit, and the root causes behind "unselectable" (found by direct click+type reproduction and `getComputedStyle` inspection, not guessed):**
+  1. **`TripHeader` painted over the rail.** `TripHeader` is `sticky z-10` with `overflow-x: visible`; at the crushed width its own content (Share, Add stop, History) didn't fit its squeezed column and overflowed sideways, and — because the docked rail carried no `z-index` of its own (`auto`) — that overflow painted *on top of* the rail rather than under it. Confirmed directly: `document.elementFromPoint()` at a coordinate inside the rail's own box returned a day-chip `<a>` from the header, not the rail.
+  2. Consistent with the composer being genuinely unclickable at some scroll/content states, not merely visually cramped.
+- **The fix:** below 768px (Tailwind's own `md` — the phone/tablet line every other breakpoint-aware rule in `globals.css` already treats the same way, and the point `SPEC.md` §13 frames mobile foundations from) the rail is no longer a 356px flex sibling. It becomes `position: fixed; inset: 0; height: 100dvh; z-index: 30` — a full-screen surface, per Mitchell's own direction ("it probably shouldn't be a modal but a full page experience"), not a modal and not a squeeze. `z-index: 30` clears both stacking competitors already on the page (TripHeader's 10, the unscheduled rack's 20), so nothing can paint over it regardless of how tall either one's content gets. `100dvh` (not the docked rule's `100vh`) tracks the browser's real visible viewport, since a phone's on-screen keyboard can change that without changing `vh` — one credible way a fixed-height composer ends up below the visible area while still reporting itself as open; this is the class of bug a synthetic click cannot prove absent (Playwright never opens a real keyboard), so it's addressed structurally rather than left to a test that cannot see it. The `.unscheduled-rack` 356px compensation is now scoped to `>=768px` too — reserving room for a docked sidebar that no longer exists below that width was the exact kind of thing this ticket was filed to stop leaving unhandled. Docked (`>=768px`) behaviour is byte-for-byte unchanged and still pinned by `responsive.spec.ts`'s "docked contract" test at 1280px and 1100px. The header's "Hide" button is now the full-screen surface's only way back and is a real 44px target (SPEC §13.1) with a border, not a bare ghost action. Verified in the browser at 411×852 (Mitchell's own size) and 375px by clicking and typing into the composer (not `fill()`, not keyboard Enter — the same discipline that would have caught the rack/Ask-button bug this file's `.unscheduled-rack` comment describes), and pinned by `e2e/m16-mobile-assistant.spec.ts` in a new `phone` (411×852) Playwright project. `pnpm --filter web test:e2e:ci-like`: 54/54 passed.
+- **What is deliberately NOT fixed here, and stays open:** the entry point is still the floating pill launcher, which `SPEC.md` §13.5 rules out outright ("Nothing floats over data. No floating action button.") — it was already off-spec before this fix and remains so after it. Redesigning the mobile entry point is a real design decision (§10's "mobile is retrieval, not planning" plus a genuine phone surface, neither of which exists yet) and out of scope for a defect fix; SPEC's two other assistant presentations (56px bubble, 364×476 floating card, §9) are still M16-deferred per Mitchell's 2026-08-25 call and are the more likely long-term answer to the launcher question, not a fixed full-screen rail.
+- **Found by:** CodeRabbit, PR #88 review, 2026-08-29 (filed); Mitchell, same PR's live preview, same day (escalated from cosmetic to functional, and set the direction — full page, not modal).
+- **Cross-reference:** `docs/milestones/M16-assistant-read-agent.md` ("Deferred, and owned by this milestone so it stays routed"), `SPEC.md` §9/§10/§13.
+- **First noted:** 2026-08-29.
+
+### KI-83 — Repeated local e2e runs exhaust the per-user AI quota, and `/ask` specs go red with 429 for a reason no code change explains
+- **Severity:** reliability of the test lane (the product ceiling is working exactly as designed; what is missing is any way to tell that from the failure)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas()`), `apps/web/e2e/m10-simulated-ai.spec.ts`, `apps/web/e2e/m16-assistant.spec.ts`, `apps/web/playwright.config.ts` (`webServer.env`), the `rate_limit_counters` table
+- **How it presents:** every `/ask` e2e fails at once. `m10-simulated-ai.spec.ts:50` fails on `expect(response.status()).toBe(200)` with **`Received: 429`**, and the proposal-card specs fail a step later on `getByRole("region", { name: "Proposed change" })` never appearing, because the turn that would have produced it was refused. `m16-assistant.spec.ts` fails on the transcript never filling. The failure **appears after several suite runs, not on a first run**, and correlates with **nothing in the diff** — the specs that break are the ones you did not touch as readily as the ones you did.
+- **The discriminator, and why it is worth stating.** It looks like a timeout and is not one. The failing STEP does move between runs — whichever `/ask` happens to cross the ceiling first depends on how many were spent before it, so a retry fails somewhere else and the adapter's "a failure whose location moves is a timeout" heuristic points the wrong way here. Two things separate it. It reproduces identically on `test:e2e:ci-like` rather than only on the dev lane (so it is not KI-27), and — the giveaway — it is not fixed by anything you would normally try. The quota is **per-user, per-hour, and persisted in Postgres** (deliberately — `quota.ts`'s header explains that an in-memory counter caps nothing on Vercel serverless), so it **survives a restarted dev server, a rebuild, a fresh `next start`, a new worktree, and a `git stash`**. Nothing else in the suite behaves that way. If restarting everything changes nothing and the failure is confined to `/ask`, this is the entry you want.
+- **The numbers.** `aiQuotas()` is 30 requests/hour and 100/day per user, 300/hour and 1000/day globally. One full `test:e2e:ci-like` run makes **~7** `/ask` calls (3 in `m10-simulated-ai`, 4 in `m16-assistant`), so **roughly four full suite runs inside one hour exhausts the hourly ceiling** — which is one afternoon of iterating on an assistant spec. Playwright's retries make it sooner. Watch the daily cap too: ~14 runs a day reaches it, and unlike the hourly one **waiting an hour does not clear it**. Every e2e run shares one account, `dev-alice`, so the ceiling is per-suite in practice, not per-spec.
+- **Diagnosis** — one query, and it is unambiguous:
+  ```bash
+  docker exec travel-collab-postgres-1 psql -U postgres -d travel \
+    -c "select bucket, window_start, hits from rate_limit_counters order by window_start desc limit 6;"
+  ```
+  Observed when this was hit (2026-08-29), against a ceiling of 30:
+  ```
+            bucket          |      window_start      | hits
+   ai-hourly:user:dev-alice | 2026-08-29 15:00:00+00 |   47
+   ai-hourly:global         | 2026-08-29 15:00:00+00 |   30
+  ```
+- **Fix, locally:** `docker exec travel-collab-postgres-1 psql -U postgres -d travel -c "delete from rate_limit_counters;"`. Safe — it is a counter table, not planning state, and the app recreates rows on demand. It does **not** violate invariant 1: rate limiting is not the planning domain (ADR-003 scopes the event log to planning; this is operational I/O, like `sessions`).
+- **The durable fix, which someone should decide deliberately.** Neither `e2e/global.setup.ts` nor `e2e/global.teardown.ts` can do it as written — both are HTTP-only by design and hold no database client, and giving the e2e hooks one is a real widening of what they may touch. The closer-grained option is to raise the ceiling for the test lane the same way `AI_LIVE=false` is already pinned, in `playwright.config.ts`'s `webServer.env`: `AI_RATE_LIMIT_PER_USER_HOURLY` and `AI_RATE_LIMIT_PER_USER_DAILY` are already env-driven (`envCeiling`), so it is two lines and no new capability. **The objection, and it is a real one:** a lane that raises the ceiling stops exercising it, and the 429 path then has no browser-level cover at all — which is how the demo-trip quota interaction in KI-79 became reasonable to miss. If the ceiling is raised, a spec that asserts the 429 on purpose should land in the same change. Recorded rather than done because it is a decision about what the e2e lane guarantees, not a cleanup.
+- **Found by:** the final fix-wave implementer, 2026-08-29, mid browser-walk — after concluding from a wandering failure point that it looked environmental, then running the query above instead of stopping there.
+- **Cross-reference:** KI-27 (the other "a red lane is not a defect" trap, and the reason this one is written down), KI-79 (the same quota, read as a security boundary), `docs/guidelines/ci-cost-and-capacity.md`, security review 2026-08-28 finding H1 (why the quota exists).
+- **First noted:** 2026-08-29.
+
+### KI-82 — The assistant can never mark a stop free: a zero cost is stripped as fabrication, and nothing distinguishes "free" from "unknown"
+- **Severity:** correctness of an expressive limit — deliberately taken, and the *opposite* trade is the one that already caused harm; recorded so the limit is visible rather than buried in a helper
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`withoutFabricatedCost`, called from `buildProposal` and `parseApprovedCommands`), `apps/web/src/server/ai/handleAskRequest.ts` (the instruction), `packages/contracts/src/money.ts`
+- **The behaviour:** an AI-proposed or AI-approved `AddActivity`/`UpdateActivity` carrying `cost.amountMinor === 0` has its `cost` **removed** before the batch is built. So a user who asks the assistant for "a free walking tour on day 2" gets a stop with no cost at all, not a stop that says £0.00. `amountMinor: 0` is simply not expressible through the assistant. (`SetTripBudget`'s zero is untouched — a different claim, normally the user's.)
+- **Why it was taken that way:** the model has no way to say *"I know this is free"* separately from *"I do not know the price"*, and the second failure has already happened for real. The **2026-08-02 dogfood run wrote `amountMinor: 0` on all nine activities it planned**, which the board renders as *free* when the truth was *unknown* — a confident wrong number on every stop. M9's exit gate names exactly this: "No activity carries a fabricated cost — unknown reads as unknown, not as `0`/free." An instruction alone could not hold it (a live model can ignore every word of the prompt), so the zero is dropped structurally. Given one signal and two meanings, "unknown" is the safe reading: a missing cost is visibly missing, a wrong zero is invisibly wrong.
+- **Why it is tolerable today:** the user can still type `0` directly into `MoneyInput` on the stop, so a genuinely free activity is one edit away and no data is unreachable — only the assistant's *route* to it is closed. Nothing is silently discarded either: a real price the model supplies survives untouched, and an explicit `null` (clear the cost) survives untouched, because clearing is a decision rather than a guess.
+- **What would resolve it properly:** give the two meanings two signals, so the strip has something to discriminate on. Options, cheapest first: (a) a `costUnknown: true` flag the model sets when it does not know, with `cost` omitted — the strip then applies only to a zero that arrives *without* an explicit "this is free"; (b) a `free: true` marker on the activity, which is arguably the honest domain concept anyway (a free stop and an unpriced stop are different facts about a trip, and `Money.nullable()` conflates them for the manual path too); (c) `SearchPlaces` grounding (KI-81), which for many venues supplies a real price and removes the guess entirely. (b) is the one worth designing — it fixes the manual path's version of the same ambiguity, not just the assistant's.
+- **Tripwire:** `withoutFabricatedCost` is unit-tested for both directions (a zero stripped, a real price and an explicit `null` kept) and end-to-end against Postgres in the apply route's suite. Whoever adds a "free" concept must update those tests deliberately rather than loosening the strip.
+- **Found by:** the Task 6 implementer, 2026-08-29, on review round 1 — flagged as the cost of the fix, not discovered afterwards.
+- **Cross-reference:** KI-81 (grounding, which supplies real prices), KI-15 (the same species: a model guess laundered into a stored fact), ADR-008 (money is integer minor units), M9's exit gate.
+- **First noted:** 2026-08-29.
+
+### KI-81 — An approved AI plan carries the model's own place names, ungrounded: `SearchPlaces` is M9's named remainder
+- **Severity:** correctness (a model guess is laundered into a stored fact — the same species as KI-15, one layer up)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`commitProposal`), `apps/web/src/server/ai/geocodeEnrichment.ts`, ADR-022 §1 (the fourth read tool it foresees)
+- **What is missing:** M9's grounding half. The assistant can now propose and commit a batch (propose → review → approve), but a proposed `AddActivity`'s `location` is still whatever the model wrote. ADR-022 already names the fix and calls it earned under its own rule: a `search_places` READ tool the model must call, and a `placeRef` it must cite, so a stored place is a place the vendor returned rather than a name the model produced.
+- **Why the floor is not zero:** an approved batch runs the SAME `enrichCommandLocations` the command endpoint runs — region-biased, "refine, never relocate", everything unverified reported (`commitProposal` is asserted to call it before the batch, in `writeTools.test.ts` and in the apply route's integration suite). So approval is not a second door around KI-15's protection, and locations from the assistant are **no worse than the command path's today**. They are also no better.
+- **Why it was not built here:** it needs LocationIQ throttling at 2 req/s inside a streaming turn, a `placeRef` the resolver understands, and a review step that shows the user which candidate was chosen. That is its own scoped unit; folding it into the write-tools task was the single largest way to not finish either.
+- **Tripwire:** the day `ai-live` is switched on for a real user, this is the entry to read first — an unreviewed model-authored place name is the failure KI-15 already cost a day to.
+- **Found by:** the Task 6 implementer, 2026-08-29, recording it as the deliberate remainder its brief named.
+- **Cross-reference:** KI-15 (the enrichment rewrite this rests on), ADR-022 §1, `docs/milestones/` M9.
+- **First noted:** 2026-08-29.
+
+### KI-80 — Two phrasings of the same command list: `summarizeBatch` (past) and `describeProposedChange` (conditional)
+- **Severity:** cleanup (a duplicated exhaustive switch; both sides read the same `BatchableCommand`s, so they cannot disagree about facts — only about wording)
+- **Area:** `apps/web/src/server/ai/planSummary.ts` (`summarizeBatch`), `apps/web/src/server/ai/writeTools.ts` (`describeProposedChange`)
+- **What the duplication is:** a twelve-case switch over `BatchableCommand["type"]` exists twice. `summarizeBatch` writes the receipt for a batch that has ALREADY applied ("Done — added a day and added “X” to day 1.") — its documented contract, and exactly right after approval. A proposal needs the same information in the conditional mood, because "Done — added a day" rendered above an Approve button claims the thing the button has not done yet.
+- **Why it was not collapsed:** `planSummary.ts`'s behaviour is pinned by ADR-022 §4 and this plan's Constraint 1 ("the command path is not modified"), so the shared `describeCommand(command, detail, mood)` that would collapse the two could not be written from the task that needed it.
+- **Fix path:** move the per-command phrasing into `planSummary.ts` as an exported `describeCommand(command, detail, mood: "applied" | "proposed")`, have `summarizeBatch` join its `"applied"` output (byte-identical, its existing tests prove it), and delete `describeProposedChange`. It is a pure refactor of one module plus one caller.
+- **One real drift channel the duplication opens** (found in review, judged not worth its own fix): the two are resolved against **different snapshots**. `describeProposedChange` labels days against the propose-time `detail` the guard captured; `summarizeBatch` labels them against the apply-time `detail`. So if the trip's day list moves between the proposal and the approval — another editor removes day 1 — the card can say "day 1" and the receipt say "day 2" for the same command. Nothing is mis-applied (the command carries a `dayId`, not a position); the two *labels* disagree. Collapsing the switch does not fix this on its own, but whoever does the refactor is the person best placed to decide whether the card should be re-derived at approval time.
+- **Tripwire:** both switches are exhaustive with no `default`, so a thirteenth `BatchableCommand` fails to compile in **two** places. Whoever hits that should collapse them rather than write the case twice.
+- **Found by:** the Task 6 implementer, 2026-08-29, while writing the proposal card.
+- **Cross-reference:** KI-73 (the same species: one computation, two copies), ADR-022 §4.
+- **First noted:** 2026-08-29.
+
+### KI-79 — `/ask` deliberately refuses the demo trip, because a viewer-gated assistant on a session-less trip is an open LLM proxy
+- **Severity:** correctness of a security boundary — currently *closed* by the refusal this entry documents; recorded so the decision is visible rather than buried in a guard clause
+- **Area:** `apps/web/src/server/ai/handleAskRequest.ts` (the `isDemoTripId` refusal), `apps/web/src/server/access/trip-access.ts` (`requireTripAccess`'s demo branch), ADR-031
+- **What the collision is:** `requireTripAccess` answers `isDemoTripId(tripId)` **before `auth()`**, returning `{ userId: "demo-visitor", role: "viewer" }` — that is what makes `/demo` public, and it is correct for every read route. `/ask` guards on `viewer` on purpose too (ADR-022: a viewer may ask about a trip they can see, unlike `/ai`, which is editor-gated because every surface it serves writes). Both decisions are right on their own. Composed, they would have made `POST /api/trips/<demo-id>/ask` an **unauthenticated, internet-facing LLM endpoint on the operator's key**.
+- **What it would have cost, with `ai-live` on:** up to 30 attacker-authored turns an hour and 100 a day (`aiQuotas()`), all of them sharing the single `demo-visitor` bucket — so one visitor exhausting it denies every other visitor, and the global ceiling is reachable by anyone with a URL. It would also have put a Postgres write (the quota counter) on a request path `demoTrip.ts` deliberately keeps free of the database, which is an architecture regression, not a missing feature. `ai-live` is off in every environment today, so nothing was ever spendable; the exposure was the shape, not a live bill.
+- **What was done:** `handleAskRequest` refuses `isDemoTripId(tripId)` with **403 `{ error, code: "demo-trip-unsupported" }`**, first thing — before the guard, before model selection, before the quota. Two integration tests cover it: the refusal signed in and signed out, and that nothing is written to `rate_limit_counters`. The rail does not render on `/demo` today (`TripBoardScreen`: `isDemo ? null`), but that is a client condition and the server no longer depends on it.
+- **What would have to be decided to open it up** (all three, not any one):
+  1. **Who pays.** A per-IP or per-session quota bucket, because `demo-visitor` is one bucket for the whole internet. `quota.ts` is keyed by actor id and has no notion of an anonymous caller.
+  2. **Whether the demo path may touch Postgres.** ADR-031's guarantee is that `/demo` needs no trip row, no stream and no share row; a quota counter is a write. Either the guarantee is narrowed deliberately or the assistant needs a counter that is not the database.
+  3. **What an anonymous prompt may reach.** Today the read tools are bounded by `toolsContext` to one fixed fixture, which is the strongest argument *for* opening it — but M9's write tools land on this same endpoint, and `minimumRoleFor` would then move the guard to `editor`, which the demo visitor is not. The order those two changes land in matters.
+- **Found by:** the Task 3 implementer, 2026-08-29, while reading `requireTripAccess` for the guard choice; escalated and ruled on in review.
+- **Cross-reference:** ADR-022 §3, ADR-031, KI-61 (the `DEMO_SHARE_TOKEN` problem the demo trip replaced).
+- **First noted:** 2026-08-29.
+
+### KI-85 — The Map lens reported as "no longer full height", not reproduced
+- **Severity:** cosmetic — and **unconfirmed**; this entry exists so the report is not lost, not because a defect is established
+- **Area:** `apps/web/src/components/lenses/MapLens.tsx`, `.map-lens` / `.map-lens-canvas` in `apps/web/src/app/globals.css`
+- **Symptom as reported:** Mitchell, on PR #89's preview (2026-08-29), with a screenshot: the map does not fill the height it used to. Seen on his own trip at `?lens=Map`, in a **3440×1271** window.
+- **What was checked, and what it rules out.** The report arrived on a PR that changed `DayChips`, which sits directly above the map, so the obvious suspect was a taller header squeezing a flex-sized lens. Measured both ways on the same page and viewport — with that change checked out, and with the previous version:
+  ```
+  pre-change   header 153px   map lens 630px   top offset 288px
+  post-change  header 153px   map lens 630px   top offset 288px
+  ```
+  Not a pixel moved. PR #89's diff also contains no change to `MapLens.tsx`, to `globals.css`, or to any container above the lens. On `/demo?lens=Map` at 1200×900 the map ran to the bottom edge with the MapLibre attribution bar on it.
+- **Why it is still filed.** Three things differ between that check and the report, any of which could carry it: a 3440px-wide window versus 1200px (a much wider aspect than anything tested), `/demo` renders a banner above the board that a real trip does not, so the offsets above the lens differ, and the report is against a Vercel preview rather than a local build. None of those were eliminated.
+- **What would settle it:** open `/demo?lens=Map` at ~3440×1271. Full height there means it is specific to a real trip's header and this is a live defect; short there means it is width-dependent and reproducible without an account. Either way it is **not** PR #89's — that much is measured — so it belongs to whatever change did it, or to `main` as it stands.
+- **Cross-reference:** KI-49 (the Map lens's tiles have never been confirmed to paint — a different and still-open claim about the same lens).
+- **First noted:** 2026-08-29 (PR #89 preview review).
+
+### KI-86 — `N to book` counts a narrower set than SPEC §12's wording, deliberately
+- **Severity:** cleanup (a recorded design delta, not a defect — the same class as KI-52)
+- **Area:** `apps/web/src/lib/needsBooking.ts`, `packages/fixtures/src/japan/kindOverrides.ts`
+- **What differs:** SPEC §12 says *"Counted as unbooked: every stop whose kind is neither `booked` nor `transit`."* The build counts `hold`, `idea`, and `planned` **only when tagged `ticketed`**.
+- **Why:** taken literally, SPEC's rule flagged **50 of the Japan fixture's 72 stops**, so all fourteen Calendar days carried a flag at once — for a line the same SPEC calls *"the one actionable thing at this zoom"*. The cause is that `planned` is the contract's zero value: a stop gets it for free, so counting it reads intent into the *absence* of intent, and every morning coffee and free shrine became outstanding work. `hold` and `idea` are the kinds a user sets deliberately to mean "not settled", which is exactly the outstanding work. The `ticketed` exception uses the tag's own designed power from the handoff's `TAGS` table — *"Wants a booking date. The assistant keeps asking until there is one."* — so the one `planned` stop that genuinely owes an action still counts. Mitchell's call, 2026-08-29.
+- **What this costs:** a user who leaves a genuinely unbooked restaurant on the default `planned` gets no nudge for it. The counter-argument, and why it was accepted: they get no nudge *today* either, because the nudge was on every stop and therefore meant nothing. A stop someone actually cares about booking is one they will mark `hold`, which is what that kind is for.
+- **Landed with a fixture pass, and the two are separable.** Five stops were re-profiled (three dinners `hold` → `booked`, two ticketed museums `planned` → `booked`) so the demo reads like a trip someone has worked on. Those diverge from the design export's own `status`, which `upstreamDrift.test.ts` guards — so they are declared in `kindOverrides.ts` with a reason each, and a further test asserts every override names a real stop, records the true upstream value, actually applies, and is not a no-op. A stale entry cannot quietly switch the drift guard off one id at a time. **Net effect on the demo: 3 of 14 days carry a flag instead of 14 of 14.**
+- **If it should be revisited:** the honest alternative is a sixth kind, or a `needsBooking` flag on the activity, so "this needs booking" is stated rather than inferred from `kind` × `tags`. That is a contract change and its own reviewed step; nothing today wants it badly enough.
+- **Cross-reference:** KI-52 (four tags not six — the same "recorded design delta" shape), KI-47 (the tags field), `docs/milestones/M18-stop-kind.md`.
+- **First noted:** 2026-08-29 (M18's gate, walking `/demo`).
+
+### KI-88 — FIXED — A reasoning model made the /ask intent classifier fail open on every turn, and the optimisation silently bought nothing
+- **Status: FIXED, 2026-08-29, PR #88.** Filed hours earlier as a theoretical consequence of `maxOutputTokens: 8`, then observed live the same evening. Kept rather than deleted because it is the rare case of a known issue that predicted a real failure before it happened, and the fix is only legible against what it broke.
+- **Severity when open:** cleanup (the turn still worked — it fails open to the full tool set by design — but the ~55% input-token saving it exists for quietly stopped happening)
+- **Area:** `apps/web/src/server/ai/askIntent.ts` (`MAX_VERDICT_TOKENS`, `classifyAskIntent`), `apps/web/src/server/ai/simulatedModel.ts` (`classifyStep`), `apps/web/src/server/config.ts` (`aiModel`, `AI_MODEL`), `apps/web/src/server/ai/gateway.ts`
+- **The live record.** Preview deployment, `ai-live` ON, `AI_MODEL=deepseek/deepseek-v4-flash-0731`:
+  ```
+  question: "What day risks being too draining or complicated?"
+  classification: { intent: "write", source: "model", verdict: "",
+                    failedOpen: true, latencyMs: 1861,
+                    usage: { inputTokens: 208, outputTokens: 8 } }
+  usageByStep[0]: 4906        // full 15-tool cost — the ~3,400-token saving did not happen
+  ```
+  An unambiguous question, classified `write`. Note the two numbers together: `outputTokens: 8` is the budget being spent *in full*, and `verdict: ""` is nothing coming back for it — the model reasoned to the ceiling and never emitted text. The classifier cost 216 tokens and 1.9s per turn and bought nothing.
+- **How it presented:** every `/ask` turn offered the full read + write tool set even for a plain question, and per-step input tokens back at ~4,900. Nothing errored and no answer was wrong — the assistant behaved exactly as it did before the classifier existed. The tell was in the `ai.ask` records and was unambiguous: `classification.failedOpen` true turn after turn while `classification.verdict` was an empty string and `classification.source` was `"model"`.
+- **Cause:** the verdict was FREE TEXT that we string-matched. `maxOutputTokens: 8` — one word plus slack — was the whole reason the call cost ~150 tokens, but a reasoning model spends its output budget on reasoning tokens before emitting anything, so the call returned empty text, `parseIntent` did not recognise it, and `classifyAskIntent` failed open to `write` (correctly — that is rule 1). The deeper defect was not the number: it was that correctness depended on the configured model's output **style**, so the same code was correct or useless depending on one environment variable. Two other spellings of the same bug were reachable without a reasoning model at all — a chatty model ("This is a question.") did not match either, because `parseIntent` normalised the whole string and required an exact `question`.
+- **The fix:** the verdict is a **schema, not a parsed string**. `classifyAskIntent` passes `Output.choice({ options: ["question", "write"] })` to `generateText` (AI SDK 7.0.34), so the provider is handed a JSON response format constraining the answer to those two values and the SDK validates it before returning. A reasoning model still populates structured output *after* it reasons. Three consequences, all deliberate:
+  - `MAX_VERDICT_TOKENS` went from 8 to **512**. It is now a *cost* ceiling rather than a *style* ceiling: it has to fit a reasoning preamble plus the ~10 tokens of `{"result":"question"}`. The real bound on spend and latency remains `CLASSIFY_TIMEOUT_MS` (4s).
+  - The entire fail-open contract is unchanged, and it absorbed one more case: `result.output` throws when the step did not finish cleanly, so a budget consumed by reasoning is now a *miss* rather than a misread, and lands in the same branch as a throw, a timeout and an abort. `verdict` records the raw structured answer (or the offending text off the error), so a bad verdict stays diagnosable; `failedOpen` is still true whenever the fallback fires; the `isBareAgreement` short-circuit is untouched.
+  - `simulatedModel`'s `classifyStep` emits through `askIntentVerdictText` rather than a bare word. This was the trap in the fix: a bare `write` is not valid JSON for the new schema, so leaving it would have failed open on **every turn of every Vercel environment**, which is the only path anyone deploys — the same failure this KI describes, moved from live to simulated. Covered by a test that drives the simulated model through the real `classifyAskIntent`.
+- **Also landed alongside, and worth knowing about:** `AI_CLASSIFIER_MODEL` now configures the classifier's model separately from `AI_MODEL`, defaulting to `AI_MODEL` so nothing changes until it is set. Both handles are still built inside `modelSelection.ts` — ADR-019's gateway chokepoint, with a lint-wall fixture for the new export — so the `ai-live` kill switch and the `denied` outcome cover the classifier too. With the fix in, pointing this at a reasoning model is a legitimate choice rather than a way to break the classifier.
+- **What to watch:** `classification.model`, `.latencyMs` and `.usage` in the `ai.ask` records, which now name which model gave the verdict. A `failedOpen` rate that climbs after a model change is this issue's shape returning in a form the schema does not cover.
+- **Found by:** branch review of the classifier work, PR #88, 2026-08-29 — then confirmed live the same evening, before the predicted failure had been fixed.
+- **First noted:** 2026-08-29. **Fixed:** 2026-08-29.
+
+### KI-87 — `/ask` and `/ai` disagree about a new stop's default `kind`, so the same model behaviour reads as unbooked on one door and booked on the other
+- **Severity:** cleanup (a recorded inconsistency between two AI doors, not a defect on the one that matters today)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`withDefaultKind`, `buildProposal`, `parseApprovedCommands`), `apps/web/src/server/ai/handleAiRequest.ts`, `apps/web/src/server/ai/batchResolver.ts`
+- **The behaviour:** a stop created through `/ask` (the assistant's write tools) defaults to `hold` when the model states no `kind`, so it counts toward the Calendar's `N to book` (KI-86). The same stop created through the older `/ai` command endpoint still defaults to `planned`, and does not count. Two AI doors, two different answers to "did I just create something that needs booking" for the identical model output.
+- **Why it is that way:** `handleAiRequest.ts` calls `resolveBatch` directly and never reaches `writeTools.ts`, so `withDefaultKind` — applied in `buildProposal` and again in `parseApprovedCommands` — never runs on that path. The seam that would fix it in one place, `batchResolver.ts` (`resolveBatch`), is deliberately pinned while M16/M9 is in flight: ADR-022 §4 requires the command path to stay untouched so write-tool work doesn't quietly reshape the endpoint both `/ai` and `/ask` share.
+- **Why it is not urgent:** `/ai` is the older path — the assistant rail no longer calls it. `/ask` is what a user reaches today, and it already carries the fix.
+- **Fix path:** whichever seam is right once the pin lifts, most likely `resolveBatch` itself so both doors agree by construction rather than by two independent copies of a default. `withoutFabricatedCost` (the zero-cost fix, M9) has the same `/ai`/`/ask` split already, for the same reason — worth closing both in the same pass.
+- **Cross-reference:** KI-86 (the `needsBooking` rule a stop's default `kind` feeds), ADR-022 (the pin this is waiting on).
+- **First noted:** 2026-08-29, while implementing M16/M9's create-time `kind` default.
+
+### KI-77 — The geocoder's name check rejects three correct venues on tokenisation, and the overlay silently loses them
+- **Severity:** cleanup (no product impact — `trip.ts` is canonical since ADR-030 and still carries 72/72 coordinates; this shrinks a cross-check, it does not move a pin)
+- **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`nameTokens`, `distinctiveTokens`)
+- **Symptom:** `placeNameVerdict` requires every distinctive token of the queried place to appear as a token of the candidate's own name, and `nameTokens` splits on every non-alphanumeric character. So a hyphen the vendor renders differently is a mismatch, and a translated suffix is a mismatch. Three of the Japan seed's stops are rejected this way — all three are the right place:
+  ```
+  "Gonpachi Nishiazabu"  vs  "Gonpachi Nishi-Azabu"   required [gonpachi, nishiazabu], candidate [gonpachi, nishi, azabu]
+  "Tenryū-ji"            vs  "Tenryū Temple"          required [tenryu, ji],           candidate [tenryu, temple]
+  "Ginkaku-ji"           vs  "Ginkakuji"              required [ginkaku, ji],          candidate [ginkakuji]
+  ```
+- **How it surfaced:** the 2026-08-29 regeneration for KI-58. These three had been in the overlay as `not-comparable` — the vendor had previously answered in local script (権八 西麻布, 天龍寺, 銀閣寺), which the check cannot read and therefore accepts. This run it answered in romaji, which the check *can* read and therefore rejects. **The verdict for a correct venue depends on which script the vendor happens to answer in**, which is not a property anyone chose.
+- **Why it matters more than three rows:** `verify.ts` only checks a canonical coordinate where the overlay has an opinion, so each false rejection quietly removes one stop from the cross-check. It fails safe — nothing wrong is stored — but the guard covers 41 of 72 stops instead of 51, and nothing says so at the point of use.
+- **Fix path:** compare on a concatenation-insensitive fold as well as a token fold, so "nishiazabu" matches "nishi"+"azabu" and "ginkakuji" matches "ginkaku"+"ji". That covers two of the three. "-ji" vs "Temple" is a translation, not a spelling, and wants either a small suffix synonym set (`-ji`/`-dera` → temple, `-jingū`/`-gū` → shrine) or acceptance that a translated name is `not-comparable` rather than `mismatch`. **Do not** simply widen `GENERIC_TOKENS` — that module's own comment warns a long list shrinks the distinctive set toward nothing.
+- **Do not fix by loosening the caller.** The script's step 4b (KI-58) is a ranking; this is about what counts as a mismatch at all, and it belongs in the shared module with tests, not in the one-off script.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58 (the run that exposed it), KI-39 (which added the check), KI-15.
+- **First noted:** 2026-08-29.
+
+### KI-78 — The geocode script reports "no results" as a retryable vendor error, on nine stops, every run
+- **Severity:** cleanup (a misleading label in a one-off script's report; no product impact)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts` (`resolveJob`'s `catch`, and the `lookup-failed` reporting block)
+- **Symptom:** LocationIQ answers a zero-result query with **HTTP 404**, not an empty list. `createLocationIQGeocoder` throws on it, `resolveJob` catches it as `reason: "lookup-failed"`, and the report prints it under `Lookup failed (rate limit or vendor error — rerun to retry)`. Nine stops hit this on every run — Hippari Dako, Koffee Mameya, Nazuna Kyoto Gosho, Omen Kodaiji, Giro Giro Hitoshina, Ippodo Kaboku, Aisunao, Zentis Osaka and Tonkatsu Maisen — and none of them is a transient failure. Rerunning changes nothing.
+- **Why it is worth fixing:** the script's whole design point is that a miss is *reported and left missing* rather than guessed (its own method comment, constraint 5). It gets that right; it then files the honest misses under a heading that tells the next reader to rerun. The distinction the report is trying to draw — "the vendor failed us" versus "the vendor has no such place" — is real and currently collapsed, and a genuine rate-limit would be invisible among the nine standing 404s.
+- **One of the nine is a symptom of another bug, not of this one:** `d14-s1-breakfast-at-the-hotel` queries `"Zentis Osaka, Kita, Tokyo, Japan"` — a real Osaka hotel with Tokyo in the string, because the day's destination city is folded into the query. That is KI-59, and it is the clearest independent evidence of it: the query is unanswerable because the data is wrong.
+- **Fix path:** have the vendor adapter distinguish 404 from other failures, or have the script inspect the error, and add a fourth outcome (`no-results`) alongside `no-candidate-in-box` / `name-mismatch` / `lookup-failed`. Touching `locationiq.ts` makes this a change to a shared seam rather than a script edit, so it wants its own scoped step.
+- **Found by:** the KI-58 fix, 2026-08-29.
+- **Cross-reference:** KI-58, KI-59 (the Zentis Osaka query), KI-15.
+- **First noted:** 2026-08-29.
 
 ### KI-76 — `pnpm check` exits 0 while running zero integration tests, because the probe is `pg_isready` and that binary need not exist
 - **Severity:** reliability, and it undermines the Definition of Done directly — `AGENTS.md` names `pnpm check` as the bar for every change, and on a machine like this one it silently clears a lower bar than it appears to
@@ -97,13 +272,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 - **Severity:** correctness — a stated-and-accepted weakening. The "nobody has run this" half of this entry was closed on 2026-08-28; see the walk below.
 - **Area:** `apps/web/next.config.ts` (the `headers()` CSP)
-- **STILL OPEN, and now open for a measured reason rather than a reasoned one (2026-08-29).** A pass over this entry set out to remove the keyword and could not, so the premise was tested in a browser instead of re-argued. Against a production build of this tree served by `next start` on Chromium, with the CSP rewritten in-flight (Playwright `page.route` → `route.fulfill`) to drop **only** `'unsafe-inline'` from `script-src` and leave every other directive byte-identical:
-  - **Every inline script on every page tested is an RSC payload chunk.** `/welcome` 15 inline `<script>` tags, `/demo` 6, `/signin` 6 — **27 of 27** containing `self.__next_f.push`. The premise below is exactly right.
-  - **Removing the keyword blocks all 27**, one violation each: `Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-OBTN3RiyCV4Bq7dFqZ5a2pAXjnCcCYeTJMO2I/LYKeo='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.` (Chromium 141's current wording; the older "Refused to execute inline script because it violates…" no longer appears.)
-  - **Hydration then dies on every page** with `Minified React error #412` (the streaming-suspense bail-out). `/welcome` and `/signin` keep their server-rendered markup as a dead photograph — React root keys go 2 → 0, no client router, no interactivity — and `/demo` loses its content outright, body text collapsing 6848 → 228 chars as the board's Suspense fallback never resolves: *"Opening the example trip…"*.
-  - **The control arm is clean.** Same three pages, unmodified served header: **zero** CSP violations, zero page errors, React hydrated. The only console output is a local-only `/_vercel/insights/script.js` **404 + MIME** refusal (`its MIME type ('text/plain') is not executable`) — not a CSP refusal; that path only exists on Vercel.
-  - Per-chunk `sha256-` hashes are not an alternative: the payload is per-page and per-build, so the hash set is not stable.
-  - **Conclusion:** `'unsafe-inline'` cannot be dropped from `script-src` by any change confined to `next.config.ts`. Closing this needs the nonce-in-middleware migration described below — a new `apps/web/src/middleware.ts` (none exists today), the CSP moving out of `headers()` into a per-request response header, the nonce threaded into the root layout, and every page opting out of static rendering. That is an app-wide change with a whole-app performance trade inside it, and it is deliberately **not** being shipped as a half-migration alongside unrelated fixes. It wants its own reviewed step, and probably its own ADR.
 - **The weakening, and why it was taken:** the App Router streams its RSC payload through inline `<script>self.__next_f.push(...)</script>` tags on **every** page, so `script-src` cannot drop `'unsafe-inline'` as written. The supported alternative is a per-request nonce minted in middleware, which opts every page out of static rendering — a whole-app performance trade. The judgement recorded in the file is that the policy's other directives (`object-src`, `base-uri`, `form-action`, `frame-ancestors 'none'`, `frame-src 'none'`) already close the classic injection escalations, and that no third-party script loads in production. That reasoning is sound; it is recorded here so it is revisited deliberately rather than inherited.
 - **The policy HAS now been exercised by a browser, and no directive needed loosening.** Walked 2026-08-28 in Chromium 141 against a local production build of `fb51486` serving the header byte-identically. Twenty surfaces, console read on every one, zero CSP violations: landing, sign-in/up, welcome, playbooks, the trips list, the **trip board** (68 cards, drag, conflict banners), the **activity editor and trip-settings Radix sheets at 1280px and 1100px**, the share popover, the assistant rail, all three lenses, the **notebook list and TipTap editor**, the account menu, and `/s/<token>` signed out.
 - **The negatives are real, because enforcement was proved first.** A deliberate control probe from the board page returned `Refused to connect to 'https://example.com/probe' because it violates the following Content Security Policy directive: "connect-src 'self' https://tiles.openfreemap.org"`. Without that probe, "no violations" would have been indistinguishable from "the policy never loaded".
@@ -171,6 +339,35 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Cross-reference:** ADR-031, ADR-026 (roles), KI-61.
 
 ### KI-59 — Seven transition stops carry their day's destination city, not the city they are physically in
+- **UNBLOCKED 2026-08-29 by M18's gate — the enabling change below has landed.
+  Two sessions reached this entry from opposite ends on the same day; this
+  paragraph reconciles them.** The other session corrected all seven rows,
+  measured the result as a regression, and reverted it — see "ATTEMPTED AND
+  REVERTED" below. Its stated prerequisite was: *"a day's city must come from
+  where the day **ends**, not from its first stop… `cityFor()` can take the
+  day's last stop instead of its first. Correct these seven rows in the **same**
+  change as that, never before it."* **`cityFor()` now reads a day's LAST
+  city-bearing stop** (M18, Mitchell's day-label rule). So the specific
+  regression that was measured — every corrected first-stop retagging its whole
+  day, Nikkō vanishing from the chips — should no longer occur, because a day's
+  label now comes from where it ends. **That is a prediction from the mechanism,
+  not a measurement: nobody has re-run the correction since `cityFor` changed.**
+  Re-run it before believing it.
+- **One half of that prerequisite did NOT land, and deliberately so.** The same
+  paragraph also expected `calendarCityCards.ts` to split a travel day at its
+  last `transit` stop. That split was built, walked, and **removed** at M18's
+  gate: it fired on one of seven travel days and got that one wrong, and its
+  output depended on this very entry's tagging convention — *"I don't think the
+  shape of the fixture should drive functionality, that's how we get drift"*
+  (Mitchell, 2026-08-29). The Calendar now groups by city alone. So a correction
+  here no longer has a transit rule to coordinate with; it only has to not break
+  day accents and the city cards, which is a smaller question than the entry has
+  carried until now. Full account: `docs/milestones/M18-stop-kind.md`.
+- **Also worth carrying forward:** KI-60 already removed the conflict-baseline
+  obstacle this entry was originally filed against, and `upstreamDrift.test.ts`
+  is the newer one — it asserts `JapanStop.city` equals the export's
+  `days[].city`, so any correction must also declare that `city` is no longer
+  carried verbatim from upstream.
 - **Severity:** cosmetic / design decision (deliberate, longstanding, and product-visible; recorded so it is a choice rather than an accident)
 - **Area:** `packages/fixtures/src/japan/trip.ts` (`JapanStop.city`), `packages/fixtures/src/japan/commands.ts` (`locationName`, which folds `city` into `Location.name`)
 - **Symptom:** a day is tagged with the city it arrives in, so a stop that begins the journey is labelled with the destination. Seven rows:
@@ -187,29 +384,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Why it is filed rather than fixed:** it is the fixture's stated convention, inherited from `db-seed.ts` where the day-14 case was reasoned out explicitly — splitting that day produced "a pile of 'same day, ~400km apart' distance warnings ... accurate but noisy for a fixture". `cityFor()` names and colours a day from its activities' `city`, and `calendarCityCards.ts` groups strictly on it, so splitting these seven would change day accents, the calendar's city cards, and the 12-conflict baseline `pnpm seed:verify` pins. That is a product decision about how a travel day is modelled, not a mechanical correction — the same class as KI-39's note that the seed's coordinates are "a product-visible data decision".
 - **The real question underneath it:** the domain has no concept of a stop that moves between two places. `ActivityKind: "transit"` says a stop *is* travel but not where it goes. Until there is a from/to, any single `city` on a transit stop is a lie in one direction or the other; the current convention at least makes the lie consistent.
 - **Fix path, if taken:** give a transit stop the city it departs from and let the day derive its label from the majority or the last stop — or model an origin/destination pair on the activity, which is a contract change and its own reviewed step.
-- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`).
+- **ATTEMPTED AND REVERTED, 2026-08-29 — the correction alone is a regression, now measured.** All seven rows were corrected to the city the stop is physically in and the day chips recomputed. `cityFor()` (`DayChips.tsx`) reads the day's **first** located activity, and all seven of these rows are their day's first stop, so each one retags its entire day:
+  ```
+  day  4  Nikkō    -> Tokyo      the Nikkō day trip stops saying Nikkō
+  day  6  Hakone   -> Tokyo
+  day  7  Kyoto    -> Hakone
+  day 11  Osaka    -> Kyoto
+  day 14  Tokyo    -> Osaka      the fly-home-from-Tokyo day says Osaka
+  ```
+  **Nikkō disappears from the trip's chips altogether** (six cities become five) and every transition badge lands one day late — Tokyo→Hakone on the Kyoto day, Kyoto→Osaka on day 12. So the data fix makes the demo visibly *wrong in a new way*, and the entry's original judgement holds after both M18 and KI-60.
+- **What has changed since it was filed, and what has not.** KI-60 removed one of the three stated obstacles: the conflict baseline is **not** affected, because conflicts are computed from `lat`/`lng`, which were always physically correct — `seed:verify` still reports 2 conflicts with all seven rows corrected. `upstreamDrift.test.ts` is a second, newer obstacle: it asserts `JapanStop.city` equals the export's `days[].city`, so any correction here must also declare that `city` is no longer carried verbatim from upstream. The day accents and the calendar cards remain the real blocker.
+- **The enabling change, and it is downstream:** a day's city must come from where the day **ends**, not from its first stop. M18 shipped `kind`, so `calendarCityCards.ts` can now do what its own comment has always said it would — split a travel day at its last `transit` stop — and `cityFor()` can take the day's last stop instead of its first. Correct these seven rows in the **same** change as that, never before it. Touching `packages/fixtures` alone cannot close this entry.
+- **Found by:** CodeRabbit's review of PR #74, 2026-08-28. Rationale restored into `trip.ts`'s `JapanStop.city` doc comment in the same PR (it had been lost when the rows moved out of `db-seed.ts`); the 2026-08-29 measurement above is recorded there too.
 - **Cross-reference:** KI-35 (`area` exists because `name` alone could not carry locality), ADR-030.
 - **First noted:** 2026-08-28 (PR #74 review).
-
-### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city
-- **Severity:** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracks the tool, not the data)
-- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`
-- **Symptom:** KI-39 hardened this script to reject candidates outside the right city's bounding box. That is a real bound, but "inside Tokyo" is a ~60km box, so a wrong *venue* within the right city still passes. Read off the overlay's own `canonicalName`, of the 12 stops where its output disagrees with the canonical coordinates, **six are simply the wrong place**:
-  ```
-  Hama-rikyū Gardens  -> "Tokyo, Chiyoda, Tokyo, Japan"          a city centroid, not a garden
-  Bread & Espresso    -> "Cawaii Bread & Coffee, Chūō, Tokyo"    a different café
-  Yoshida-ya          -> "Coffee Yoshida, Kyoto-shi"             a different venue
-  Onibus Coffee       -> "Onibus Coffee, Setagaya"               the wrong branch
-  Sushi Yoshitake     -> "Sushi Wasabi, Shinjuku"                a different restaurant, wrong ward
-  Torishiki           -> "MeGuro, Shinagawa"                     a locality, not the restaurant
-  ```
-  The other six are the right venue offset by 1.2–1.9km.
-- **What this cost while it was live:** the preview branch's reset route read this overlay directly, so a preview deployment rendered those six stops at coordinates for somewhere else, while local dev — which used `db-seed.ts`'s hand-authored values — rendered them correctly. Nobody had compared the two. **Closed as a data problem by ADR-030**: the canonical coordinates now live on the fixture rows, all 72 of them, and every caller gets the same ones.
-- **What is still open:** the script itself. Re-running it still produces these six wrong matches. It was not re-run or re-tuned as part of ADR-030 because that is separate work — changing the matching rule, re-running ~70 live lookups, and re-reviewing every result — not because it could not be run. `LOCATIONIQ_API_KEY` is set in the main checkout's `apps/web/.env.local`; a fresh worktree does not get it, because `scripts/setup-env.mjs` copies `.env.example`, where the value is empty.
-- **Why it is bounded now rather than fixed:** `packages/fixtures/src/japan/coordinateOverrides.ts` records all twelve disagreements with what the geocoder actually matched, and `verify.ts` fails on any *unlisted* disagreement. So the tool can no longer silently move a pin — a future run either agrees, or lands in that file with a reason next to it.
-- **Fix path:** a name-similarity floor between the query's `place` and the candidate's own name, rejecting "Cawaii Bread & Coffee" for "Bread & Espresso". The script already has a name-verification step (step 4 of its own method comment); it prefers a name-verified candidate but does not *require* one.
-- **Cross-reference:** KI-39 (resolved — the city-box bound this is the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), ADR-030.
-- **First noted:** 2026-08-28 (ADR-030, while checking the two seed copies against each other).
 
 ### KI-57 — `reset-demo-data/route.int.test.ts` only passes against a fresh database
 - **Severity:** cleanup (CI is unaffected — it runs against a fresh database every time; this bites local re-runs only)
@@ -659,28 +847,6 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 
 ## Resolved
 
-### KI-67 — The AI quota metered REQUESTS, so a 32-step answer cost the same allowance as a one-step one — RESOLVED, by settling the real round-trip cost after the call
-- **Severity (as filed):** correctness (the control did not bound the thing it exists to bound)
-- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas`, new `aiStepQuotas`, new `settleAiSteps`, `pgCounters`), `apps/web/src/server/ai/handleAiRequest.ts` (the quota charge and the two `buildAiMeta` sites)
-- **Symptom (as filed):** every policy was a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000. `handleAiRequest` runs a tool-using loop with a 32-step budget, so one request could burn 32 model round-trips while another burned one, and both decremented the same allowance by exactly 1.
-- **Reproduced before fixing**, against the unmodified module:
-  ```
-  1-step  request charged ai-hourly: 1
-  32-step request charged ai-hourly: 1
-  per-user hourly ceiling (requests): 30
-  model round-trips that ceiling actually permits: 960
-  ```
-  The nominal ceiling of 30 was really a ceiling of **960**, and an actor maximising spend under it only had to write prompts that provoked long tool loops.
-- **Fix (2026-08-29):** a second, **additive** layer of policies metered in model round-trips — `ai-steps-hourly` / `ai-steps-daily`, per-user 240/800 and global 2400/8000, all four operator-overridable via `AI_STEP_LIMIT_*`. The request policies keep their numbers and their meaning, so no operator's configured value silently changed unit, and a request is refused if it exceeds **either** layer — this can only tighten the ceiling, never loosen it. Measured effect: the most expensive loop an actor can drive now buys **240** round-trips an hour instead of 960, a 4× cut in maximum spend, while ordinary use (most answers finish in one to three steps) stays nowhere near the ceiling.
-- **The shape change the entry identified, resolved explicitly.** You cannot pre-authorise an unknown cost — the step count does not exist until `generateText` returns. So admission charges 1 (enough to refuse an actor already over), and `settleAiSteps` charges the remainder afterwards from `meta.steps`. Two consequences, both deliberate and both stated in the code:
-  - **The request that crosses the line mid-flight is served, and its debt lands on the actor's counter.** Failing after the provider has already been paid burns the money *and* withholds the answer. Enforcement therefore lands on the **next** request. For one actor in sequence the overshoot is at most one request's step budget — the bounded trade this entry accepted. It is **not** bounded that way under concurrency, because every in-flight request has charged only its admission step; that gap is filed as **KI-78** (found by CodeRabbit reviewing this fix) and the claim is corrected here rather than left standing.
-  - **Settlement never refuses and never throws.** The work is done, so there is no decision left, and a counter write must not turn a successful answer into an error the caller sees. A failed settlement loses that request's excess from the ledger — one window of under-counting, the same magnitude the counter table's schema comment already accepts — and it is also what makes an int4 overflow at the top of the range harmless.
-- **Steps, not tokens, and why.** `meta.usage.totalTokens` is the truer cost signal and the entry named it, but a token budget has to answer "per token or per currency?" the moment two models differ in price — a product decision. Steps are the driver `TODO.md` already names (*"Watch `meta.steps` — that is the cost driver, and it is already instrumented"*), are bounded and model-independent, and are within a small constant factor of tokens for this handler's fixed-size envelope. Changing the denominator later is a change to four numbers and one argument, not to the mechanism.
-- **Geocode was named in this entry and deliberately left alone.** One request to `/api/geocode` is exactly one LocationIQ lookup, so calls and cost are the same quantity there and a cost-proportional charge would be `1` every time. The geocode key's real unmetered exposure is a different defect and is filed separately as **KI-77**: the AI handler's own server-side enrichment geocodes without consulting the geocode policy at all. A missing call site, not a wrong denominator.
-- **Verified:** 15 new unit cases in `quota.test.ts` (including the 960 → 240 loop, the bounded-overshoot-then-refuse sequence, and clamping of a nonsensical step count) and 3 new integration cases in `quota.int.test.ts` covering the upsert's new multi-unit charge through both branches — a new window must start **at** the charge, not at 1, or a 32-step request would be free whenever it happened to open its window. `apps/web` server unit suite 246/246, `quota.int.test.ts` 10/10, AI + geocode route integration 36/36.
-- **Not changed, on purpose:** `packages/contracts/src` is untouched (invariant #5), and the AI request pipeline is not refactored — M16 rebuilds the AI read path on a new endpoint, so this is confined to quota accounting.
-- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4). **Resolved:** 2026-08-29.
-
 ### KI-62 — Report-conformance checked the wrong unit's report when units ran concurrently — RESOLVED, and the real mechanism was worse than filed
 - **Severity (as filed):** unknown-until-observed (could make the hook inert exactly where the protocol is used)
 - **Area:** `scripts/hooks/subagent-report-conformance.mjs`
@@ -710,6 +876,54 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
 - **Deliberately still not fixed, and why.** The `## Exit:` trigger can still false-positive on a subagent that merely *quotes* the protocol. The entry itself scopes that fix as conditional (*"If it becomes annoying, require the heading within the first few lines"*), it is bounded to one blocked stop by the `stop_hook_active` guard, and tightening the trigger risks making the hook inert again — which, per KI-62, is exactly what it has just been rescued from. Left as filed, on purpose.
 - **Verified:** `node --test "scripts/**/__tests__/**/*.test.mjs"` — 132/132, up from 122, with every new case confirmed failing against the unfixed code first.
 - **First noted:** 2026-08-28, task and final reviews of the subagent protocol branch. **Resolved:** 2026-08-29.
+
+### KI-67 — The AI quota metered REQUESTS, so a 32-step answer cost the same allowance as a one-step one — RESOLVED, by settling the real round-trip cost after the call
+- **Severity (as filed):** correctness (the control did not bound the thing it exists to bound)
+- **Area:** `apps/web/src/server/quota.ts` (`aiQuotas`, new `aiStepQuotas`, new `settleAiSteps`, `pgCounters`), `apps/web/src/server/ai/handleAiRequest.ts` (the quota charge and the two `buildAiMeta` sites)
+- **Symptom (as filed):** every policy was a count of calls — `AI_RATE_LIMIT_PER_USER_HOURLY` 30, `..._DAILY` 100, global 300/1000. `handleAiRequest` runs a tool-using loop with a 32-step budget, so one request could burn 32 model round-trips while another burned one, and both decremented the same allowance by exactly 1.
+- **Reproduced before fixing**, against the unmodified module:
+  ```
+  1-step  request charged ai-hourly: 1
+  32-step request charged ai-hourly: 1
+  per-user hourly ceiling (requests): 30
+  model round-trips that ceiling actually permits: 960
+  ```
+  The nominal ceiling of 30 was really a ceiling of **960**, and an actor maximising spend under it only had to write prompts that provoked long tool loops.
+- **Fix (2026-08-29):** a second, **additive** layer of policies metered in model round-trips — `ai-steps-hourly` / `ai-steps-daily`, per-user 240/800 and global 2400/8000, all four operator-overridable via `AI_STEP_LIMIT_*`. The request policies keep their numbers and their meaning, so no operator's configured value silently changed unit, and a request is refused if it exceeds **either** layer — this can only tighten the ceiling, never loosen it. Measured effect: the most expensive loop an actor can drive now buys **240** round-trips an hour instead of 960, a 4× cut in maximum spend, while ordinary use (most answers finish in one to three steps) stays nowhere near the ceiling.
+- **The shape change the entry identified, resolved explicitly.** You cannot pre-authorise an unknown cost — the step count does not exist until `generateText` returns. So admission charges 1 (enough to refuse an actor already over), and `settleAiSteps` charges the remainder afterwards from `meta.steps`. Two consequences, both deliberate and both stated in the code:
+  - **The request that crosses the line mid-flight is served, and its debt lands on the actor's counter.** Failing after the provider has already been paid burns the money *and* withholds the answer. Enforcement therefore lands on the **next** request. For one actor in sequence the overshoot is at most one request's step budget — the bounded trade this entry accepted. It is **not** bounded that way under concurrency, because every in-flight request has charged only its admission step; that gap is filed as **KI-78** (found by CodeRabbit reviewing this fix) and the claim is corrected here rather than left standing.
+  - **Settlement never refuses and never throws.** The work is done, so there is no decision left, and a counter write must not turn a successful answer into an error the caller sees. A failed settlement loses that request's excess from the ledger — one window of under-counting, the same magnitude the counter table's schema comment already accepts — and it is also what makes an int4 overflow at the top of the range harmless.
+- **Steps, not tokens, and why.** `meta.usage.totalTokens` is the truer cost signal and the entry named it, but a token budget has to answer "per token or per currency?" the moment two models differ in price — a product decision. Steps are the driver `TODO.md` already names (*"Watch `meta.steps` — that is the cost driver, and it is already instrumented"*), are bounded and model-independent, and are within a small constant factor of tokens for this handler's fixed-size envelope. Changing the denominator later is a change to four numbers and one argument, not to the mechanism.
+- **Geocode was named in this entry and deliberately left alone.** One request to `/api/geocode` is exactly one LocationIQ lookup, so calls and cost are the same quantity there and a cost-proportional charge would be `1` every time. The geocode key's real unmetered exposure is a different defect and is filed separately as **KI-77**: the AI handler's own server-side enrichment geocodes without consulting the geocode policy at all. A missing call site, not a wrong denominator.
+- **Verified:** 15 new unit cases in `quota.test.ts` (including the 960 → 240 loop, the bounded-overshoot-then-refuse sequence, and clamping of a nonsensical step count) and 3 new integration cases in `quota.int.test.ts` covering the upsert's new multi-unit charge through both branches — a new window must start **at** the charge, not at 1, or a 32-step request would be free whenever it happened to open its window. `apps/web` server unit suite 246/246, `quota.int.test.ts` 10/10, AI + geocode route integration 36/36.
+- **Not changed, on purpose:** `packages/contracts/src` is untouched (invariant #5), and the AI request pipeline is not refactored — M16 rebuilds the AI read path on a new endpoint, so this is confined to quota accounting.
+- **First noted:** 2026-08-28 (security-review remediation, findings H1/L4). **Resolved:** 2026-08-29.
+
+### KI-58 — `geocode-japan-seed.mts` still accepts the wrong venue inside the right city — RESOLVED
+- **Severity (as filed):** cleanup (no live impact since ADR-030 — the overlay is no longer read at seed time; this tracked the tool, not the data)
+- **Area:** `apps/web/scripts/geocode-japan-seed.mts`, `packages/fixtures/src/japan/coordinates.json`, `packages/fixtures/src/japan/coordinateOverrides.ts`
+- **Symptom (as filed):** of the 12 stops where the overlay disagreed with the canonical coordinates, six were simply the wrong place — a city centroid for Hama-rikyū Gardens, "Cawaii Bread & Coffee" for Bread & Espresso, "Coffee Yoshida" for Yoshida-ya, "Sushi Wasabi" for Sushi Yoshitake, "MeGuro" for Torishiki, and the Setagaya branch for Onibus Coffee. The entry's fix path was "a name-similarity floor between the query's `place` and the candidate's own name".
+- **Reproduced first, and the entry was half wrong.** Replaying `placeNameVerdict` offline against the committed overlay's own `canonicalName` for all 12 disagreements (no LocationIQ call needed — the overlay records what was matched) returns **`mismatch` for five of the six**:
+  ```
+  d2-s4-hama-rikyu-gardens     mismatch   "Hama-rikyū Gardens" -> "Tokyo"
+  d2-s5-yakitori-at-torishiki  mismatch   "Torishiki"          -> "MeGuro"
+  d3-s1-breakfast-at-bread-…   mismatch   "Bread & Espresso"   -> "Cawaii Bread & Coffee"
+  d5-s5-omakase-at-sushi-…     mismatch   "Sushi Yoshitake"    -> "Sushi Wasabi"
+  d9-s3-lunch-at-yoshida-ya    mismatch   "Yoshida-ya"         -> "Coffee Yoshida"
+  d2-s1-coffee-at-onibus       MATCH      "Onibus Coffee"      -> "Onibus Coffee"
+  ```
+  The name-similarity floor the entry asks for **already existed** — KI-39 added it as step 4 — and it already rejects five of the six. The overlay was simply never regenerated after KI-39, so it was stale output from a run that predated its own fix. "Re-running it still produces these six wrong matches" was an assumption, not a measurement.
+- **The one real residue is a different bug than the entry describes.** `d2-s1-coffee-at-onibus` scores a genuine `match`: the queried venue and the candidate are the same chain, so their names are *identical* and token identity cannot separate them. `geocodeNameMatch.ts`'s own header says so — "it cannot tell two branches of the same chain apart ... which stays the box's job and the human's" — and the box is ~60km of Tokyo. No name-similarity floor, however tight, can fix a name that matches exactly. The only field that separates the branches is the **ward**, which step 4 deliberately discounts as geography.
+- **Fix (2026-08-29):** a step **4b** in the script — an *area corroboration* tiebreak among the candidates that survive step 4. A candidate whose full display name also carries the queried `area` outranks one that does not, and a pin that wins without it is reported as `area-uncorroborated`. Deliberately a **ranking, not a filter**: plenty of correct OSM addresses render the ward in local script or omit it, so rejecting on it would lose right answers exactly the way collapsing `not-comparable` into `mismatch` would. Implemented in the script, not in `geocodeNameMatch.ts`, so the shared seam keeps its single meaning.
+- **The overlay was then regenerated against the live vendor** (~62 unique lookups, `LOCATIONIQ_API_KEY` from `apps/web/.env.local`), and every result re-reviewed. All six wrong-venue matches are gone from it:
+  - five no longer resolve at all — the name check rejects them, so the overlay simply has no entry for those stops;
+  - `d2-s1-coffee-at-onibus` still resolves to the Setagaya branch (the vendor's top 5 contained no Nakameguro candidate to rank above it) but is now **reported** rather than accepted silently, and keeps its `COORDINATE_OVERRIDES` entry.
+- **It surfaced a second instance of the same branch bug.** `d3-s3-lunch-at-afuri` used to match "WITH HARAJUKU" — a building, wrong venue, but close enough to pass the 2km tolerance unremarked. It now matches "Afuri, Minato", the right chain and the wrong branch, 2.8km from the Harajuku stop, and lands in `COORDINATE_OVERRIDES` with a reason. A wrong pin that was invisible is now written down.
+- **Overlay coverage moved 51 → 41 of 72, deliberately, and every one of the ten is accounted for:** seven were wrong or dubious matches the name check now rejects (the five above, plus "GION KIMUTAKO" for Gion Nanba and "KICHIRI" for Kichi Kichi — both wrong venues that had slipped through only because they happened to sit within the distance tolerance). **Three are false rejections and are filed as KI-77**: Gonpachi, Tenryū-ji and Ginkaku-ji are the right places, rejected on tokenisation ("Nishiazabu" vs "Nishi-Azabu", "-ji" vs "Temple"). The overlay is a *proposal* cross-checked against `trip.ts`, so a lost entry weakens a check but stores nothing wrong; `with coordinates` is still **72/72** and no coordinate the app serves changed.
+- **Verification:** `pnpm seed:verify` green (72/72 coordinates, 6 cities, **2 conflicts** — KI-60's baseline unmoved). The guard proved itself non-vacuously along the way: before `coordinateOverrides.ts` was updated, `verify.ts` failed with exactly the six findings the regeneration should produce — five "overridden but the overlay has no entry for it" and one new unexplained disagreement — so the coupling between the overlay and its override list is enforced, not asserted.
+- **Left alone deliberately:** the script reports LocationIQ's `404` as `lookup-failed (rate limit or vendor error — rerun to retry)`. LocationIQ also returns 404 for *zero results*, and nine stops hit it on every run, so that label is wrong for all nine and invites a pointless rerun. Filed as KI-78 rather than fixed here.
+- **Found by:** ADR-030, 2026-08-28, while checking the two seed copies against each other. **Resolved:** 2026-08-29.
+- **Cross-reference:** KI-39 (the city-box bound this was the residue of), KI-15 (the same "a fuzzy string match is not a confirmation" class), KI-77 and KI-78 (opened by this work), ADR-030.
 
 ### KI-75 — `m10-map-rail.spec.ts` skips a day about half the time, and a different day each time — RESOLVED, the scan was asserting an unthrottled model of a throttled feature
 - **Severity:** reliability (no product impact — the rail behaves as designed; it made "the full e2e suite is green" an unreliable signal, which is what a milestone gate rests on)
@@ -808,6 +1022,20 @@ Severity: **correctness** (wrong behavior / failing invariant) ·
   `check-case-collisions.mjs` were left alone — both still enumerate with plain
   `git ls-files` and have the identical gap. Filed as follow-up, not fixed here
   (one KI, one blast radius).
+- **A second, deliberately distinct exclusion mechanism (2026-08-29):**
+  `check-color-wall.mjs` now also carries `generatedNonProduct` — a separate
+  `Set` for files that are not product UI at all (currently just Sentry's
+  wizard-generated `sentry-example-page/page.tsx`, which shipped raw brand
+  colors straight from the scaffold). It is intentionally **not** an addition
+  to `pending` above: `pending` means legacy debt being paid down and only
+  ever shrinks; `generatedNonProduct` means "third-party codegen, permanently
+  out of scope," and neither list should be used for the other's purpose —
+  putting scaffolding in `pending` would silently redefine it as "stuff we
+  tolerate" instead of "debt we're closing." Covered by
+  `scripts/__tests__/check-color-wall.test.mjs`, which also updates the "no
+  regression test" note above for this one script — it now has one, run under
+  root `pnpm test` via `node --test "scripts/**/__tests__/**/*.test.mjs"`
+  (the pattern `check-sleep-wall.test.mjs` already used).
 
 ### KI-40 — Every `activitiesPerDay >= 2` fixture shares one time window, so `overlappingDay` is indistinguishable from its siblings — RESOLVED
 - **Severity (as filed):** cleanup (no live failure — the projection factory never runs the conflict engine, so the clash was unobservable)
@@ -1205,10 +1433,23 @@ needs action — skip this section when triaging.
   parse the milestone disqualifies. `db-seed.ts` instead carries hand-authored
   tags on all 68 stops: 33 `meal`, 11 `outdoors`, 8 `ticketed`, 4 `lodging`,
   18 untagged.
-- **Still not built (PR 2+):** the five surfaces this entry lists — chips on
-  stop cards, the tag filter row, the Add/Edit tag picker, the Notebook
-  repeater's filter, and SPEC §10's mobile column. They are unblocked, not
-  done.
+- **One of the five surfaces below no longer exists — corrected 2026-08-29.**
+  This entry was written against the 2026-08-24 handoff. **SPEC §11, dated
+  2026-08-25, deleted the tag filter row**: *"The header filter row is **gone**.
+  Tag chips on a stop are now the control: clicking 'Meal' on a stop dims
+  everything not tagged Meal to 32% opacity across Timeline, Day columns,
+  Calendar and Map… Single focus, one tag at a time — multi-select was the part
+  that earned its keep least."* So `showTagFilter` / `tagFilters` / "Show
+  everything" describe a control that was removed a day after this entry cited
+  it, and **SPEC §10's "the filter row is the only way to thin a 402px column"
+  is stale in the same way** — mobile thins a day with tag focus now. Nothing
+  should be built against either sentence. What replaced the filter row is tag
+  focus, which is **M18b**.
+- **Status after M18's PR 2+ (2026-08-29):** chips on stop cards and the
+  Add/Edit tag picker are **built**. Tag *focus* — the dimming behaviour that
+  replaced the filter row — is **M18b, approved and unplaced**. The Notebook
+  repeater's `Only stops tagged …` filter (SPEC §7) belongs to **M14**, which
+  owns the whole Notebook redesign by the 2026-08-23 routing, not to M18.
 
 - **Scheduled (2026-08-26):** this is now carried by **`docs/milestones/M18-stop-kind.md`**,
   which was widened on Mitchell's call — *"i dont want to do KIND and TAGS right
@@ -1222,12 +1463,14 @@ needs action — skip this section when triaging.
   being re-derived per surface)
 - **Area:** `packages/contracts/src/activity.ts`
 - **Symptom:** `Activity`/`ActivityView` carry no `tags`. The 2026-08-24 handoff
-  builds five things on top of tags: chips on every stop card, the tag filter
-  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything"),
-  the Add-and-Edit-stop tag picker with its per-tag "power" hint, the Notebook
-  repeater's `Only stops tagged …` filter (SPEC §7), and — most load-bearing —
-  SPEC §10's statement that on a 402px column the filter row is *the only way*
-  to thin a day.
+  builds five things on top of tags: chips on every stop card, ~~the tag filter
+  row beside the TabStrip (`showTagFilter` / `tagFilters` / "Show everything")~~
+  (**deleted by SPEC §11 the next day — see the correction at the top of this
+  entry**), the Add-and-Edit-stop tag picker with its per-tag "power" hint, the
+  Notebook repeater's `Only stops tagged …` filter (SPEC §7), and — most
+  load-bearing — ~~SPEC §10's statement that on a 402px column the filter row is
+  *the only way* to thin a day~~ (**stale for the same reason; mobile thins with
+  tag focus**).
 - **Why it belongs in the registry rather than here, eventually:** this is the
   same class as `rack-provenance` / `cost-estimate-state` / `budget-breakdown`
   in `preview-registry.ts` (designed, shelled, blocked on a missing field) — but

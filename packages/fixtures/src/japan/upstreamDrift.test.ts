@@ -16,6 +16,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseTripSeed } from "./seedSchema.ts";
+import { KIND_OVERRIDES } from "./kindOverrides.ts";
 import {
   JAPAN_BACKLOG,
   JAPAN_STOPS,
@@ -98,9 +99,34 @@ describe("the canonical copy still matches the design handoff export", () => {
     ).toEqual(
       upstreamStops.map((s) => ({
         id: s.id, day: s.day, title: s.title, place: s.place, area: s.area, city: s.city,
-        start: s.start, end: s.end, kind: s.status, costUsd: s.cost.amount, note: s.note, who: s.who,
+        start: s.start, end: s.end,
+        // `kind` is compared against the export's `status` EXCEPT where
+        // ./kindOverrides.ts declares a deliberate divergence, with a reason.
+        // Everything else on the row is still verbatim, so a re-sync that
+        // retimes or renames a stop fails here exactly as before — the override
+        // list buys five rows of latitude and no more. The next test asserts
+        // every listed override is real and actually applied, so a stale entry
+        // cannot quietly widen this.
+        kind: KIND_OVERRIDES[s.id]?.ours ?? s.status,
+        costUsd: s.cost.amount, note: s.note, who: s.who,
       })),
     );
+  });
+
+  // Without this, an override could name a stop that no longer exists, or claim
+  // an `upstream` value the export never had, and the suite above would simply
+  // stop comparing that row — the list would become a way to switch the guard
+  // off one id at a time.
+  it("declares only kind overrides that are real, applied, and still needed", () => {
+    for (const [id, override] of Object.entries(KIND_OVERRIDES)) {
+      const upstream = upstreamStops.find((s) => s.id === id);
+      expect(upstream, `${id} is not a stop in the export`).toBeDefined();
+      expect(upstream!.status, `${id}'s recorded upstream value is stale`).toBe(override.upstream);
+      const ours = JAPAN_STOPS.find((s) => s.id === id);
+      expect(ours!.kind, `${id} does not actually carry its override`).toBe(override.ours);
+      expect(override.ours, `${id} overrides to the same value it already had`).not.toBe(override.upstream);
+      expect(override.why.length, `${id} has no reason recorded`).toBeGreaterThan(20);
+    }
   });
 
   it("carries the same backlog, with `source` as the item's note", () => {

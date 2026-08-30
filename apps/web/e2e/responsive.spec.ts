@@ -7,11 +7,11 @@ import { e2eTripName } from "./tripNames";
 // defect — most famously KI-16, a full-page click sink below 1180px — was
 // invisible to the gate. This spec runs in the "narrow" project
 // (playwright.config.ts, 1100px) and is the gate condition Task 3.4 asks
-// for: five assertions covering every breakpoint-dependent behavior the app
+// for: assertions covering every breakpoint-dependent behavior the app
 // actually has, rather than running all 15 specs twice to catch a narrow
 // class of bug.
 test.describe("responsive (narrow viewport)", () => {
-  test("the assistant rail is in overlay mode and its scrim dismisses it (KI-16)", async ({ page }) => {
+  test("the assistant rail is docked, not an overlay: no scrim, and the page stays interactive with it open (KI-16)", async ({ page }) => {
     const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
@@ -19,18 +19,62 @@ test.describe("responsive (narrow viewport)", () => {
     await page.goto(`/trips/${tripId}`);
 
     // The rail is closed until asked for, at every width, so open it before
-    // asserting anything about it. (It used to default open and then race a
-    // media-query effect closed at this width; the explicit click was needed
-    // then too, for a different reason.)
+    // asserting anything about it.
     await page.getByRole("button", { name: "Assistant" }).click();
     const rail = page.getByRole("complementary", { name: "Assistant" });
     await expect(rail).toBeVisible();
 
-    // The regression itself: an aria-hidden click-catcher with no handler
-    // made every control on the page unreachable below 1180px. If the scrim
-    // doesn't dismiss the rail, this is that bug again.
-    await page.getByRole("button", { name: "Close the assistant" }).click();
+    // M16 Wave 1 (Task 4, SPEC §9): the rail is a real flex sibling now, not
+    // `position: fixed` with a scrim in front of it — there is nothing left
+    // to dismiss the rail past, so the scrim is gone outright rather than
+    // just hidden at this width. The regression this guards, KI-16, was an
+    // aria-hidden click-catcher with no handler that made every control on
+    // the page unreachable below 1180px. Proving the scrim element doesn't
+    // exist is necessary but not sufficient — the property that actually
+    // matters, and survives however the rail is implemented, is that the
+    // rest of the page keeps responding while the rail is open.
+    await expect(page.locator(".assistant-rail-scrim")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Timeline" }).click();
+    await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Hide" }).click();
     await expect(rail).toBeHidden();
+  });
+
+  test("docked contract: opening the rail shrinks the plan by exactly its own 356px, at 1280px and below 1180px", async ({ page }) => {
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    await page.goto(`/trips/${tripId}`);
+
+    // SPEC §9's whole DOCKED claim, in one number: "the plan shrinks instead
+    // of being overlaid." Checked at both a wide (1280px) and a narrow
+    // (1100px, below the 1179px breakpoint that used to gate overlay vs.
+    // column) width — 1280 is not this project's default viewport, so it's
+    // set explicitly here, the same pattern the landing-card and hero-art
+    // tests in this file already use to check more than one width from a
+    // single narrow-project test.
+    for (const width of [1280, 1100] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      const plan = page.locator(".trip-board-content");
+      await expect
+        .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(width);
+
+      await page.getByRole("button", { name: "Assistant" }).click();
+      const rail = page.getByRole("complementary", { name: "Assistant" });
+      await expect(rail).toBeVisible();
+      await expect
+        .poll(() => rail.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(356);
+      await expect
+        .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
+        .toBe(width - 356);
+
+      await page.getByRole("button", { name: "Hide" }).click();
+      await expect(rail).toBeHidden();
+    }
   });
 
   test("the trip page is interactive: a view tab click changes the lens", async ({ page }) => {
@@ -45,22 +89,22 @@ test.describe("responsive (narrow viewport)", () => {
     await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
   });
 
-  test("a sheet opens above the rail and its Close button is reachable (KI-17)", async ({ page }) => {
+  test("a sheet opens above the docked rail and its Close button is reachable (KI-17)", async ({ page }) => {
     const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
     await page.goto(`/trips/${tripId}`);
 
-    // Below 1180px the rail is a full-page-scrim overlay by design — while
-    // it's open, the scrim intentionally blocks interaction with the rest
-    // of the page (that's the point of the KI-16 fix, not a new bug). The
-    // rail is closed until asked for, at every width, so it's already out of
-    // the way here without this test doing anything; this
-    // asserts the *other* stacking claim, KI-17 — that a sheet's Close
-    // button is a real, reachable control rather than sitting under some
-    // other fixed-position layer — still holds at a narrow viewport.
-    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
+    // Opened deliberately, unlike before: KI-17 is about a Radix portal
+    // stacking underneath a fixed-position layer already on the page, and a
+    // hidden rail is not on the page to stack under anything. M16 Wave 1
+    // made the rail a docked flex sibling with no overlay/scrim mode left to
+    // gate on width (it used to be one below 1180px) — the risk this guards
+    // against is the same stacking bug in that new shape, so the rail has to
+    // actually be open for this assertion to mean anything.
+    await page.getByRole("button", { name: "Assistant" }).click();
+    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
     await page.getByRole("button", { name: "Trip settings" }).click();
     const closeButton = page.getByRole("button", { name: "Close" });

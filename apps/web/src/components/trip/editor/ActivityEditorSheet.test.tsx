@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
@@ -159,6 +159,64 @@ describe("ActivityEditorSheet", () => {
       title: "Dinner at Gonpachi",
       timeWindow: { start: "19:00", end: "20:30" },
     }));
+  });
+
+  // M18, and the reason this test exists rather than a type: both branches of
+  // `handleSave` hand-enumerate the form's fields, so a new one is dropped
+  // SILENTLY — an extra property on `value` is not read and not flagged, and
+  // every test in this file passed while the user's kind and tags went
+  // nowhere. Only an assertion on the dispatched command catches it.
+  // Mitchell, 2026-08-29: a stop being created is more likely to need booking
+  // than not, so the picker preselects "hold" rather than an empty control or
+  // the contract's "planned" zero value — and a save that never touches the
+  // control still carries that choice.
+  it("preselects Holding for a new stop, and saves it untouched", async () => {
+    const dispatch = renderEditorSheet({ mode: "create" });
+
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("hold");
+
+    await userEvent.type(screen.getByLabelText("What or where"), "Gora Kadan");
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "hold" }));
+  });
+
+  it("carries the chosen kind and tags into AddActivity", async () => {
+    const dispatch = renderEditorSheet({ mode: "create" });
+
+    await userEvent.type(screen.getByLabelText("What or where"), "Kaiseki dinner");
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    await userEvent.click(screen.getByRole("button", { name: "Meal", pressed: false }));
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "AddActivity", kind: "booked", tags: ["meal"] }),
+    );
+  });
+
+  it("carries the chosen kind and tags into UpdateActivity", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    // Wait for the real activity before touching anything. `renderEditorSheet`
+    // returns synchronously, but TripProvider's fetch has not resolved yet, so
+    // the first paint is edit mode over `initial === null` — and the sheet's
+    // `${activityId}-${loaded|pending}` key deliberately REMOUNTS
+    // ActivityEditor when the fetch lands, re-seeding every field from the
+    // activity that just arrived. Anything set before that point is discarded
+    // by design (the key exists so a blank first paint can never overwrite
+    // real fields on save — see the sheet's own comment). Not reachable in the
+    // app: the sheet is mounted inside TripBoardScreen, past its
+    // `activeTrip === null` early return, so edit mode never opens pending.
+    // This wait puts the test in the same state the user is always in.
+    await screen.findByDisplayValue("Existing stop");
+
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "hold" } });
+    await userEvent.click(screen.getByRole("button", { name: "Lodging", pressed: false }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "UpdateActivity", kind: "hold", tags: ["lodging"] }),
+    );
   });
 
   it("treats Half day as four hours", async () => {

@@ -1,4 +1,5 @@
 import {
+  BatchableCommand,
   InvitePreview,
   PageContent,
   SavedDay,
@@ -8,7 +9,6 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
-  type BatchableCommand,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type PageContext,
@@ -462,6 +462,315 @@ export async function insertSavedDay(
       method: "POST",
     });
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
+//
+// Deliberately NOT `composeAiPlan`'s shape. That endpoint applies a batch and
+// answers with a derived receipt; this one answers with the model's own prose,
+// streamed, and writes nothing. Two channels have to be handled and they are
+// easy to conflate:
+//
+//   * A **non-200 only ever happens before the stream opens**, and its body is
+//     JSON. That is every row of the endpoint's error table — 400s with
+//     actionable text, 403 `demo-trip-unsupported`, 403 `ai-not-entitled`,
+//     429, 503.
+//   * Once the stream is open the status is 200 forever, and a failure arrives
+//     as an `{"type":"error","errorText":…}` frame inside it.
+//
+// A client that only checks `res.ok` reports a mid-answer provider outage as a
+// success with a truncated answer. Both are mapped onto the same ApiResult, so
+// callers do not have to know which door the failure came through.
+//
+// No `useChat`: `@ai-sdk/react` is not a dependency of this app, and the two
+// things it would buy (thread state, a transport) are the two things the rail
+// has to own itself — the thread lives in TripBoardScreen so the queued-edit
+// and viewer refusals can happen BEFORE a turn is ever appended.
+// ---------------------------------------------------------------------------
+
+/** `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server. */
+export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
+
+/** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
+export type AskWireMessage = {
+  id: string;
+  role: "user" | "assistant";
+  parts: { type: "text"; text: string }[];
+};
+
+/**
+ * One change an approved proposal would make. `type` is the command type so a
+ * client can group them; `text` is the server's own conditional-mood sentence
+ * ("Add “Coffee” to day 2"), written where the commands are (writeTools.ts) so
+ * the UI never has to interpret a command to describe it.
+ */
+export type ProposedChange = { type: string; text: string };
+
+/**
+ * What the assistant would change, before it is true (M9).
+ *
+ * `commands` are already-resolved `BatchableCommand`s — parsed here rather than
+ * trusted, because they are posted straight back to `/ask/apply`. They are the
+ * batch that was REVIEWED: re-resolving on approval could commit a different
+ * set than the one on screen.
+ */
+export type AssistantProposal = {
+  proposalId: string;
+  changes: ProposedChange[];
+  commands: BatchableCommand[];
+  /** Changes the server could not match to this trip, as sentences. */
+  skipped: string[];
+};
+
+export type AskEvent =
+  /** A tool call, seen the moment it is issued — before any answer text. */
+  | { type: "tool"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "text"; delta: string }
+  /**
+   * Emitted once, from the response HEADER, before a byte of the body — so a
+   * turn that dies mid-answer is still badged correctly. Replaces Task 5's
+   * `answerIsSimulated`, which decided this by matching a sentence in the
+   * model's own prose.
+   */
+  | { type: "meta"; simulated: boolean }
+  /** The turn's proposal, carried on the stream's final chunk. At most one. */
+  | { type: "proposal"; proposal: AssistantProposal }
+  | { type: "error"; message: string };
+
+/** Set on the ApiError when the failure arrived inside an already-open stream. */
+export const ASK_STREAM_ERROR_CODE = "ask-stream-error";
+/** Set when the caller aborted the turn (New conversation, navigation). */
+export const ASK_ABORTED_CODE = "ask-aborted";
+/**
+ * The server's refusal code for the demo trip (`handleAskRequest`, KI-79).
+ * Duplicated as a literal rather than imported because the UI may not import
+ * `@/server/*` (AGENTS.md's dependency rules); branching on the code instead
+ * of the prose is the whole point of the server emitting one.
+ */
+export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
+/** The server's refusal code when the actor has no AI entitlement. */
+export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
+
+/**
+ * The header `/ask` sets on every turn (`SIMULATED_HEADER` in
+ * handleAskRequest.ts). Duplicated as a literal for the same reason the refusal
+ * codes above are: the UI may not import `@/server/*` (AGENTS.md's dependency
+ * rules).
+ *
+ * It replaced a prose sniff. Task 5 decided `simulated` by matching the
+ * sentence "AI is switched off on this deployment" in the model's own answer,
+ * because the stream carried no flag — a display concern derived from generated
+ * text, which breaks silently the moment the sentence is reworded, and which
+ * could not badge a turn that failed before it said anything.
+ */
+const SIMULATED_HEADER = "x-tc-ai-simulated";
+
+// One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
+// chunk vocabulary is a wire contract, and the frames this deliberately
+// IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
+// much as the ones it reads — the stream is a superset the server may grow,
+// and an unknown part type must never break a conversation.
+export function askEventFromFrame(frame: string): AskEvent | null {
+  const payload = frame
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trimStart())
+    .join("\n");
+  if (payload === "" || payload === "[DONE]") return null;
+  let chunk: unknown;
+  try {
+    chunk = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  if (typeof chunk !== "object" || chunk === null) return null;
+  const part = chunk as Record<string, unknown>;
+  if (part.type === "text-delta" && typeof part.delta === "string") {
+    return { type: "text", delta: part.delta };
+  }
+  if (part.type === "tool-input-available" && typeof part.toolName === "string") {
+    return {
+      type: "tool",
+      toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
+      toolName: part.toolName,
+      input: part.input,
+    };
+  }
+  if (part.type === "error") {
+    return {
+      type: "error",
+      message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
+    };
+  }
+  // The turn's proposal rides on the run's final chunk as message metadata —
+  // the first moment the server knows every write tool call the model made.
+  // Parsed, not cast: `commands` go straight back to `/ask/apply`, so a
+  // malformed proposal must be dropped here rather than posted.
+  if (part.type === "finish") {
+    const proposal = proposalFrom((part.messageMetadata as { proposal?: unknown } | undefined)?.proposal);
+    return proposal === null ? null : { type: "proposal", proposal };
+  }
+  return null;
+}
+
+/** `unknown` → a proposal we are willing to act on, or `null`. */
+function proposalFrom(value: unknown): AssistantProposal | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const commands = BatchableCommand.array().safeParse(raw.commands);
+  if (!commands.success || commands.data.length === 0) return null;
+  if (typeof raw.proposalId !== "string" || raw.proposalId === "") return null;
+  const changes = Array.isArray(raw.changes)
+    ? raw.changes.flatMap((change) => {
+        if (typeof change !== "object" || change === null) return [];
+        const { type, text } = change as { type?: unknown; text?: unknown };
+        return typeof type === "string" && typeof text === "string" ? [{ type, text }] : [];
+      })
+    : [];
+  const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
+  return { proposalId: raw.proposalId, changes, commands: commands.data, skipped };
+}
+
+/**
+ * Asks one turn. `messages` is the WHOLE thread — conversation state is
+ * client-held (Ruling R1, no migration), so turn N+1 is the same POST with a
+ * longer array and the server keeps nothing.
+ *
+ * `onEvent` fires as the stream arrives; the resolved value repeats the full
+ * answer text for callers that only want the end.
+ */
+export async function askAssistant(
+  tripId: string,
+  messages: AskWireMessage[],
+  scope: AskScope,
+  onEvent: (event: AskEvent) => void = () => {},
+  signal?: AbortSignal,
+): Promise<ApiResult<{ text: string }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, scope }),
+      signal,
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
+    }
+    // Before a byte of the body, so a turn that fails mid-answer is still
+    // badged. `false` when the header is absent rather than "unknown": an
+    // unbadged answer claims a model wrote it, and that is the wrong way to be
+    // wrong.
+    onEvent({ type: "meta", simulated: res.headers.get(SIMULATED_HEADER) === "true" });
+
+    if (res.body === null) {
+      return { ok: false, error: { status: res.status, message: "The assistant sent no answer." } };
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let text = "";
+    let streamError: string | null = null;
+
+    // Frames are separated by a blank line and a network read lands wherever
+    // it lands — mid-JSON as often as not — so an incomplete frame stays in
+    // the buffer until its terminator arrives. Parsing per read() instead
+    // drops deltas on exactly the connections slow enough to need streaming.
+    const drain = (final: boolean) => {
+      for (;;) {
+        const end = buffer.indexOf("\n\n");
+        if (end === -1) break;
+        const frame = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const event = askEventFromFrame(frame);
+        if (event === null) continue;
+        if (event.type === "text") text += event.delta;
+        if (event.type === "error") streamError = event.message;
+        onEvent(event);
+      }
+      // A stream that ends without a trailing blank line still owes us its
+      // last frame.
+      if (final && buffer.trim() !== "") {
+        const event = askEventFromFrame(buffer);
+        buffer = "";
+        if (event !== null) {
+          if (event.type === "text") text += event.delta;
+          if (event.type === "error") streamError = event.message;
+          onEvent(event);
+        }
+      }
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      drain(false);
+    }
+    buffer += decoder.decode();
+    drain(true);
+
+    if (streamError !== null) {
+      // 200, because that is what the server really sent. The code is how a
+      // caller tells "the answer broke half way" from "the request bounced".
+      return { ok: false, error: { status: res.status, message: streamError, code: ASK_STREAM_ERROR_CODE } };
+    }
+    return { ok: true, value: { text } };
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, error: { status: 0, message: "The answer was cancelled.", code: ASK_ABORTED_CODE } };
+    }
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Approve a proposal — the ONE atomic batch (ADR-013), one history entry, one
+ * undo.
+ *
+ * Rejecting has no counterpart here on purpose: a rejected proposal is this
+ * function not being called. Nothing is queued server-side, so there is no
+ * "discard" to get wrong, which is what makes "reject leaves the trip
+ * byte-identical" a property of the shape rather than of a code path.
+ *
+ * Answers with the same `{ detail, history }` a command batch does, plus the
+ * server's derived receipt — so the board reconciles an approved plan through
+ * `applyOutcome`, exactly as it does an undo.
+ */
+export async function applyAssistantProposal(
+  tripId: string,
+  proposal: AssistantProposal,
+): Promise<ApiResult<PlanOutcome>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask/apply`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: proposal.proposalId, commands: proposal.commands }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, code: data.code } };
+    }
+    const data = (await res.json()) as { detail: unknown; history: unknown; message?: unknown };
+    return {
+      ok: true,
+      value: {
+        ...parseOutcome(data),
+        message: typeof data.message === "string" ? data.message : "",
+        // Approving calls no model — the proposal it applies already carried
+        // whatever authorship the turn had, and this endpoint has none of its
+        // own to claim.
+        simulated: false,
+      },
+    };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
