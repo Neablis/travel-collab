@@ -64,6 +64,22 @@ At teardown, every board entry is promoted or explicitly discarded:
 | A durable tooling or repo fact | this file, or `adapter.json` |
 | True only for this run | discarded, with a one-line reason |
 
+## A fresh worktree needs two things before anything runs
+
+Both are gitignored, so `git worktree add` does not carry them over, and
+without either one a dispatched subagent's first command fails for a reason
+that looks like a code fault:
+
+1. **`pnpm install --frozen-lockfile`** — a new worktree has no `node_modules`.
+2. **`apps/web/.env.local`, copied from the main checkout.** Without it
+   `drizzle.config.ts` reaches `server/config.ts`, which throws on a missing
+   `DATABASE_URL` — so `db:generate`, `db:migrate` and the whole integration
+   lane die before running. `.gitignore:41` covers the file, so a copy cannot
+   reach a commit.
+
+Recorded 2026-08-30, after an M11a implementer hit both and had to diagnose
+them itself.
+
 ## Cleanup targets
 
 Worktrees under `.claude/worktrees/`; `.claude/launch.json` entries
