@@ -81,6 +81,17 @@ describe("resolveJob outcome classification (KI-78)", () => {
       job,
     )) as Unresolved;
     expect(noResults.detail).toBe("Error: geocode failed: 404");
+
+    // The other half of "on both". Asserting only the 404 above left this
+    // test's own name unenforced: `lookup-failed` could stop carrying `detail`
+    // and the retry report would lose the vendor status with this suite still
+    // green. Same species as KI-1 and KI-14 — a comment asserting an invariant
+    // nothing checks.
+    const retryable = (await resolveJob(
+      throwingGeocoder(new Error("geocode failed: 429")),
+      job,
+    )) as Unresolved;
+    expect(retryable.detail).toBe("Error: geocode failed: 429");
   });
 
   it("does not confuse a vendor 404 with an empty-but-successful response", async () => {

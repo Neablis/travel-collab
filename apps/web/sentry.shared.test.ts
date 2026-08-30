@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sampleRate } from "./sentry.shared";
 
@@ -230,5 +232,26 @@ describe("SENTRY_ENVIRONMENT", () => {
   it("defaults to development when none of the three is set", async () => {
     const mod = await moduleWith({});
     expect(mod.SENTRY_ENVIRONMENT).toBe("development");
+  });
+});
+
+describe("the fixture's environment registry", () => {
+  // `MODULE_ENV_NAMES` above carries a comment telling the next person to keep
+  // it in step with `sentry.shared.ts`. That was the entire enforcement: a
+  // name added to the module and forgotten here is a name `moduleWith` does
+  // not clear, which silently reinstates the exact ambient leakage KI-96 was
+  // filed for. This reads the module's own source and makes the drift fail.
+  it("lists every environment name sentry.shared.ts actually reads, and no others", () => {
+    const source = readFileSync(fileURLToPath(new URL("./sentry.shared.ts", import.meta.url)), "utf8");
+    // Comments in that file mention `process.env.NEXT_PUBLIC_*` prose-style,
+    // which a naive scan would read as a variable named `NEXT_PUBLIC_`.
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const read = [...code.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1]!);
+
+    // Equality, not containment: an extra name here is harmless to clear but
+    // means the list has drifted from the module and can no longer be trusted
+    // as a description of it. An empty `read` (a broken scan) fails this too,
+    // so the assertion cannot pass vacuously.
+    expect([...new Set(read)].sort()).toEqual([...MODULE_ENV_NAMES].sort());
   });
 });
