@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { ActivityView, TripCommand, TripDetail, TripMember } from "@tc/contracts";
+import type { ActivityTag, ActivityView, TripCommand, TripDetail, TripMember } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
@@ -26,6 +26,7 @@ import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
 import { stopsForDay } from "@/lib/savedStops";
 import { cn } from "@/lib/cn";
+import { tagFocusOpacity } from "@/components/board/activityTags";
 import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "./overlapData";
@@ -225,7 +226,7 @@ function Leg({ prevEnd, nextStart }: { prevEnd: string; nextStart: string }) {
 // with a 4px full-height accent rail, title, optional conflict Badge, place
 // line, optional note block, and a right column with an attributee avatar +
 // ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
-function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, onSelectActivity, readOnly = false }: {
+function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, focusedTag = null, onSelectActivity, readOnly = false }: {
   start: string | null;
   end: string | null;
   activity: ActivityView;
@@ -233,15 +234,23 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
   hasConflict: boolean;
   member: TripMember | undefined;
   currency: string;
+  /** SPEC §11's focused tag, or null. A stop without it renders faint. */
+  focusedTag?: ActivityTag | null;
   onSelectActivity?: (activityId: string) => void;
   readOnly?: boolean;
 }) {
+  // Dim, never hide (M18b): the whole row — its time rail as well as its card
+  // — drops to 32%, so the day keeps its shape and its rhythm. Dimming only
+  // the card would leave a full-strength clock face beside a ghost, which
+  // reads as a rendering fault rather than as focus.
+  const dimOpacity = tagFocusOpacity(activity.tags, focusedTag);
   return (
     <div
       data-testid={`timeline-item-${activity.activityId}`}
+      data-off-tag={dimOpacity !== 1 ? true : undefined}
       className="grid items-start gap-4"
-      // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-      style={{ gridTemplateColumns: "92px 1fr" }}
+      // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent (matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern), and the tag-focus dim is a shared constant with no token class
+      style={{ gridTemplateColumns: "92px 1fr", opacity: dimOpacity, transition: "opacity 150ms" }}
     >
       {/* 12-hour, via lib/time's toClockLabel — the rail stacks start over end
           rather than showing a range, so it takes the single-time formatter and
@@ -393,7 +402,7 @@ export function TimelineLens({
   // resolving blind to every other one.
   const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
   const { openCreate } = useEditor();
-  const { focusedDay, setFocusedDay } = useFocus();
+  const { focusedDay, setFocusedDay, focusedTag } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   // Every activityId named as a subject of a badge-worthy conflict — the same
@@ -667,6 +676,7 @@ export function TimelineLens({
                         hasConflict={conflictActivityIds.has(item.activityId)}
                         member={detail.members[0]}
                         currency={detail.currency}
+                        focusedTag={focusedTag}
                         onSelectActivity={onSelectActivity}
                         readOnly={readOnly}
                       />
@@ -698,6 +708,7 @@ export function TimelineLens({
                     hasConflict={conflictActivityIds.has(item.activityId)}
                     member={detail.members[0]}
                     currency={detail.currency}
+                    focusedTag={focusedTag}
                     onSelectActivity={onSelectActivity}
                     readOnly={readOnly}
                   />

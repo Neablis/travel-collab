@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, ActivityView } from "@tc/contracts";
 import { ActivityCard } from "./ActivityCard";
@@ -21,7 +22,15 @@ function activity(overrides: Partial<ActivityView> = {}): ActivityView {
   };
 }
 
-function renderCard(overrides: Partial<ActivityView> = {}, props: { readOnly?: boolean; hasConflict?: boolean } = {}) {
+function renderCard(
+  overrides: Partial<ActivityView> = {},
+  props: {
+    readOnly?: boolean;
+    hasConflict?: boolean;
+    focusedTag?: ActivityTag | null;
+    onToggleTag?: (tag: ActivityTag) => void;
+  } = {},
+) {
   return render(
     <ul>
       <ActivityCard
@@ -33,6 +42,8 @@ function renderCard(overrides: Partial<ActivityView> = {}, props: { readOnly?: b
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onDismissOverlap={vi.fn()}
+        focusedTag={props.focusedTag ?? null}
+        onToggleTag={props.onToggleTag}
         readOnly={props.readOnly ?? false}
       />
     </ul>,
@@ -100,9 +111,11 @@ describe("ActivityCard tag chips", () => {
     expect(screen.queryByTestId(`tag-chips-${ACTIVITY_ID}`)).toBeNull();
   });
 
-  // Display-only in M18: tag focus (SPEC §11) is M18b. A chip that looked
-  // clickable and did nothing would be worse than one that does not.
-  it("renders chips as text, not controls", () => {
+  // The M18 fallback, kept as a real contract rather than as history: a
+  // caller that hands down no `onToggleTag` has no focus state to drive, and a
+  // chip that looked clickable and did nothing would be worse than one that
+  // plainly reads.
+  it("renders chips as text, not controls, when no toggle is given", () => {
     renderCard({ tags: ["meal", "lodging"] });
     const chips = within(screen.getByTestId(`tag-chips-${ACTIVITY_ID}`)).getAllByTestId(/^tag-chip-/);
     for (const chip of chips) expect(chip.tagName).toBe("SPAN");
@@ -112,5 +125,82 @@ describe("ActivityCard tag chips", () => {
   it("still renders for a viewer", () => {
     renderCard({ tags: ["outdoors"] }, { readOnly: true });
     expect(screen.getByTestId(`tag-chips-${ACTIVITY_ID}`)).toBeTruthy();
+  });
+});
+
+// M18b — SPEC §11: "Tag chips on a stop are now the control".
+describe("ActivityCard tag focus", () => {
+  it("renders chips as toggle buttons once a toggle is given", () => {
+    renderCard({ tags: ["meal"] }, { onToggleTag: vi.fn() });
+    const chip = screen.getByTestId("tag-chip-meal");
+    expect(chip.tagName).toBe("BUTTON");
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("reports the clicked tag", async () => {
+    const onToggleTag = vi.fn();
+    renderCard({ tags: ["meal", "outdoors"] }, { onToggleTag });
+    await userEvent.click(screen.getByTestId("tag-chip-outdoors"));
+    expect(onToggleTag).toHaveBeenCalledExactlyOnceWith("outdoors");
+  });
+
+  // The card reports the tag and the provider decides; "click it again to
+  // clear" is one rule in FocusProvider rather than one per chip, so the chip
+  // raises the same event whether or not it is the focused one.
+  it("reports the same tag again when it is already focused, rather than clearing itself", async () => {
+    const onToggleTag = vi.fn();
+    renderCard({ tags: ["meal"] }, { onToggleTag, focusedTag: "meal" });
+    const chip = screen.getByTestId("tag-chip-meal");
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    await userEvent.click(chip);
+    expect(onToggleTag).toHaveBeenCalledExactlyOnceWith("meal");
+  });
+
+  it("rings the focused chip and only the focused chip", () => {
+    renderCard({ tags: ["meal", "lodging"] }, { onToggleTag: vi.fn(), focusedTag: "meal" });
+    expect(screen.getByTestId("tag-chip-meal").className).toContain("ring-brand");
+    expect(screen.getByTestId("tag-chip-lodging").className).not.toContain("ring-brand");
+  });
+
+  it("carries the handoff's hover hint, both ways round", () => {
+    renderCard({ tags: ["meal"] }, { onToggleTag: vi.fn() });
+    expect(screen.getByTestId("tag-chip-meal").getAttribute("title")).toBe("Dim everything that is not meal");
+
+    renderCard({ tags: ["lodging"] }, { onToggleTag: vi.fn(), focusedTag: "lodging" });
+    expect(screen.getByTestId("tag-chip-lodging").getAttribute("title")).toBe("Stop focusing on lodging");
+  });
+
+  it("dims a stop that does not carry the focused tag", () => {
+    renderCard({ tags: ["outdoors"] }, { onToggleTag: vi.fn(), focusedTag: "meal" });
+    const card = screen.getByTestId(`activity-card-${ACTIVITY_ID}`);
+    expect(card.getAttribute("data-off-tag")).toBe("true");
+    expect(Number(card.style.opacity)).toBeCloseTo(0.32);
+  });
+
+  it("leaves a matching stop, and every stop with no focus, at full strength", () => {
+    renderCard({ tags: ["meal", "outdoors"] }, { onToggleTag: vi.fn(), focusedTag: "meal" });
+    expect(screen.getByTestId(`activity-card-${ACTIVITY_ID}`).style.opacity).toBe("1");
+
+    renderCard({ tags: [] }, { onToggleTag: vi.fn(), focusedTag: null });
+    expect(screen.getAllByTestId(`activity-card-${ACTIVITY_ID}`)[1]!.style.opacity).toBe("1");
+  });
+
+  // Dim, never hide — the whole argument for replacing the filter row. An
+  // untagged stop still renders every word it rendered before.
+  it("still renders a dimmed stop in full", () => {
+    renderCard({ tags: [], title: "Colosseum" }, { onToggleTag: vi.fn(), focusedTag: "meal" });
+    expect(screen.getByText("Colosseum")).toBeTruthy();
+    expect(screen.getByTestId(`activity-card-${ACTIVITY_ID}`)).toBeTruthy();
+  });
+
+  // Focus dims a view; it does not change a trip. /demo's signed-out reader is
+  // the surface M18b's own gate is walked on, so a viewer gets the whole
+  // behaviour — unlike every affordance ADR-031 takes away.
+  it("keeps the chips live for a viewer", async () => {
+    const onToggleTag = vi.fn();
+    renderCard({ tags: ["meal"] }, { onToggleTag, readOnly: true });
+    await userEvent.click(screen.getByTestId("tag-chip-meal"));
+    expect(onToggleTag).toHaveBeenCalledExactlyOnceWith("meal");
+    expect(screen.queryByRole("button", { name: "Edit Colosseum" })).toBeNull();
   });
 });

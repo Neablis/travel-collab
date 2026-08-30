@@ -7,9 +7,10 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M18b is the current work**,
+purpose**, so read the marker, not the position: **M17 is the current work**,
 per the order set on 2026-08-29 when Mitchell placed two of the three
-approved-but-unplaced milestones: `M18b → M17 → M12 → M13 → M14 → M9`.
+approved-but-unplaced milestones — `M18b → M17 → M12 → M13 → M14 → M9`, of
+which M18b's gate closed 2026-08-30.
 **M11b Playbooks stays unplaced** — unlike the other two it has no scope and
 no exit gate written yet, and authoring those is a product decision.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
@@ -96,8 +97,16 @@ Where the work actually stands right now: `docs/STATUS.md`.
       alone now, equal cards plus an untitled bucket, and the day-to-day
       transition moved to the day label. **Tag focus was carved out as M18b.**
       Retro and evidence in the milestone file.)*
-- [ ] **M18b Tag focus** ← **current milestone** — placed 2026-08-29.
+- [x] **M18b Tag focus** — **gate closed 2026-08-30**
       The piece carved out of M18's gate.
+      *(All six boxes ticked. Built and proven on
+      `pnpm --filter web test:e2e:ci-like`, then **closed on Mitchell's walk of
+      the PR #91 preview** — the same shape as M16's close after PR #88, and
+      for the same reason: an unattended session cannot reach a protected
+      preview, so the deployed half of the gate is a human's. Two defects the
+      automated evidence missed are recorded in the milestone file: a hover
+      hint reused as the Clear control's accessible name, colliding 34 ways,
+      and a tag focus re-centring the map.)*
       → `docs/milestones/M18b-tag-focus.md`
       *(Carved out 2026-08-29 when M18's gate was amended: M18 lands both
       fields, every surface that reads `kind`, and tag chips that render and
@@ -134,7 +143,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M17 Account customization** — **re-scoped and placed 2026-08-29, after M18b**
+- [ ] **M17 Account customization** ← **current milestone** — **re-scoped and
+      placed 2026-08-29, after M18b**, whose gate closed 2026-08-30.
+      **It needs one migration, and merging does not apply it** — dispatch with
+      `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
+      and say so in the PR body.
       → `docs/milestones/M17-account-customization.md`
       *(Approved 2026-08-26 out of SPEC §12 and **never scheduled**. It was
       absent from this file entirely until 2026-08-28, which in a file whose

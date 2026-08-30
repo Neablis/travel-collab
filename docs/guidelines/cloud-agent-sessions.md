@@ -109,6 +109,27 @@ preview URL with `VERCEL_AUTOMATION_BYPASS_SECRET` set. It reports status,
 title and console errors per path, and exits non-zero if a path fails — so it
 is usable as a check, not just as a look.
 
+**The `_vercel_share` half of that did not work on 2026-08-30, and the failure
+is worth recognising rather than re-deriving.** A freshly minted share link
+redeemed as `429 Vercel Security Checkpoint` — twice, five minutes apart, at
+the redeem step, before any app response:
+
+    redeem  429  -> https://<preview>/demo
+    429  /   Vercel Security Checkpoint
+
+That is Vercel's anti-bot interstitial, not rate limiting and not Deployment
+Protection: the link is valid and the checkpoint challenges the *client*, which
+is headless Chromium on a datacenter IP. So a share link is enough for a person
+in a browser and is NOT reliably enough for the automated walk from here. It
+may pass on another day or another egress IP; treat a pass as luck, not as the
+supported route.
+
+**`VERCEL_AUTOMATION_BYPASS_SECRET` is therefore the only dependable route for
+an unattended walk**, because the bypass header is honoured before the
+checkpoint ever renders. Until that secret exists, a cloud session cannot
+produce preview evidence for a gate, and should say so rather than reporting a
+walk it could not perform.
+
 Three things had to be true at once, and each failed with an error naming none
 of the others. Worth knowing, because they bite anything else you point at the
 network from a renderer:

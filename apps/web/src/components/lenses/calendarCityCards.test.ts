@@ -53,9 +53,75 @@ describe("calendarCityCards", () => {
         window: { start: "09:00", end: "14:30" },
         span: { from: expect.closeTo(0.125, 3), to: expect.closeTo(0.469, 3) },
         firstStart: "09:00",
+        matches: null,
         toBook: 0,
       },
     ]);
+  });
+
+  // M18b. The Calendar's focus rule is a COUNT, not a per-stop dim: at a
+  // month's zoom the card is the unit, so it reports how many of its stops
+  // carry the focused tag and `CalendarLens` dims the card that carries none.
+  describe("the focused-tag match count", () => {
+    it("is null on every card when no tag is focused", () => {
+      const { day, activities } = dayOf([
+        stop("a", "Tokyo", { start: "09:00", end: "10:00" }, undefined, "planned", ["meal"]),
+        stop("b", "Kyoto", { start: "13:00", end: "14:00" }),
+      ]);
+
+      // Null rather than the stop count, so the lens can tell "nothing is
+      // focused" from "a focus everything happens to match" without being
+      // handed the focus a second time.
+      expect(calendarCityCards(day, activities).map((c) => c.matches)).toEqual([null, null]);
+      expect(calendarCityCards(day, activities, null).map((c) => c.matches)).toEqual([null, null]);
+    });
+
+    it("counts only the stops carrying the focused tag, per card", () => {
+      const { day, activities } = dayOf([
+        stop("a", "Tokyo", { start: "09:00", end: "10:00" }, undefined, "planned", ["meal"]),
+        stop("b", "Tokyo", { start: "11:00", end: "12:00" }, undefined, "planned", ["meal", "outdoors"]),
+        stop("c", "Tokyo", { start: "13:00", end: "14:00" }, undefined, "planned", ["outdoors"]),
+        stop("d", "Kyoto", { start: "18:00", end: "19:00" }, undefined, "planned", ["outdoors"]),
+      ]);
+
+      const cards = calendarCityCards(day, activities, "meal");
+      expect(cards.map((c) => [c.city, c.matches, c.stops])).toEqual([
+        ["Tokyo", 2, 3],
+        // Zero, not null — this is the card CalendarLens drops to 0.28.
+        ["Kyoto", 0, 1],
+      ]);
+    });
+
+    it("counts the untitled bucket like any other card", () => {
+      const { day, activities } = dayOf([
+        stop("a", "Tokyo", { start: "09:00", end: "10:00" }, undefined, "planned", ["meal"]),
+        stop("b", null, null, undefined, "planned", ["meal"]),
+        stop("c", null, null),
+      ]);
+
+      const cards = calendarCityCards(day, activities, "meal");
+      expect(cards[cards.length - 1]!.city).toBeNull();
+      expect(cards[cards.length - 1]!.matches).toBe(1);
+      expect(cards[cards.length - 1]!.stops).toBe(2);
+    });
+
+    // Focus never regroups: the same day yields the same cards in the same
+    // order whether or not a tag is focused. Dim, never hide — a card that
+    // matches nothing still exists, still carries its stop count, its cost and
+    // its window, and still occupies its place in the day.
+    it("changes no other field, and drops no card", () => {
+      const { day, activities } = dayOf([
+        stop("a", "Tokyo", { start: "09:00", end: "10:00" }, 1000, "planned", ["meal"]),
+        stop("b", "Kyoto", { start: "13:00", end: "14:00" }, 500),
+      ]);
+
+      const unfocused = calendarCityCards(day, activities);
+      const focused = calendarCityCards(day, activities, "meal");
+      expect(focused).toHaveLength(unfocused.length);
+      expect(focused.map(({ matches: _m, ...rest }) => rest)).toEqual(
+        unfocused.map(({ matches: _m, ...rest }) => rest),
+      );
+    });
   });
 
   // The Calendar groups purely by city — Mitchell, 2026-08-29: "I kinda always

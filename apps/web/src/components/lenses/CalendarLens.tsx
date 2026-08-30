@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
 import { useFocus } from "../trip/context/FocusProvider";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { CALENDAR_DIM_OPACITY } from "@/components/board/activityTags";
 import { calendarCityCards, type CityCard } from "./calendarCityCards";
 import { formatMoney } from "./formatMoney";
 import { formatTripDate } from "@/lib/formatDate";
@@ -146,6 +147,11 @@ function cellLabel(ordinal: number, date: string, cards: CityCard[], currency: s
       `${card.stops} stop${card.stops === 1 ? "" : "s"}`,
       card.costMinor !== null ? formatMoney(card.costMinor, currency) : null,
       card.window ? `${toClockLabel(card.window.start)} to ${toClockLabel(card.window.end)}` : null,
+      // Same reason every other line is in here: `aria-label` REPLACES the
+      // button's content, so a match count only rendered visually would be
+      // announced as nothing at all — and while a tag is focused it is the
+      // single most relevant thing the card says.
+      card.matches !== null ? `${card.matches} of ${card.stops} match` : null,
       card.toBook > 0 ? `${card.toBook} to book` : null,
     ].filter((b): b is string => b !== null);
     return bits.join(", ");
@@ -175,7 +181,7 @@ export function CalendarLens({
   // this trip's own days get probed, rather than each day resolving blind to
   // every other day.
   const accents = dayAccents(days.map((d) => d.city));
-  const { focusedDay, setFocusedDay } = useFocus();
+  const { focusedDay, setFocusedDay, focusedTag } = useFocus();
 
   if (months.length === 0) {
     return (
@@ -241,7 +247,7 @@ export function CalendarLens({
     // `day` above is chipModel's ChipDay (city/accent); the stops live on the
     // trip's own day at the same ordinal.
     const tripDay = detail.days[ordinal - 1];
-    const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities);
+    const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities, focusedTag);
 
     return (
       // Outer surface cell IS the clickable button (dc.html's own click
@@ -317,9 +323,16 @@ export function CalendarLens({
               <div
                 key={`${card.city ?? "no-city"}-${i}`}
                 data-testid="calendar-day-card"
+                // SPEC §12's Calendar rule, and the one place M18b deliberately
+                // does NOT dim per stop: at a month's zoom the card is the unit,
+                // so a card whose stops all miss the focused tag drops to 0.28
+                // and the rest keep full strength while reporting `N of M
+                // match`. Dimming individual stops here is impossible anyway —
+                // the Calendar stopped rendering them at M18.
+                data-off-tag={card.matches === 0 ? true : undefined}
                 className={cn("min-w-0", TINT_BG[accent.tint])}
-                // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent
-                style={CARD_STYLE}
+                // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent, and the no-match dim is a shared constant with no token class
+                style={{ ...CARD_STYLE, opacity: card.matches === 0 ? CALENDAR_DIM_OPACITY : 1, transition: "opacity 150ms" }}
               >
                 <div
                   data-testid="calendar-day-header"
@@ -389,6 +402,22 @@ export function CalendarLens({
                     style={MORE_STYLE}
                   >
                     {toClockRange(card.window.start, card.window.end)}
+                  </DataText>
+                )}
+
+                {/* `N of M match` — SPEC §11's focus readout at Calendar's
+                    zoom. Rendered only while a tag is focused (`matches` is
+                    null otherwise), because "5 of 5 match" on every card of a
+                    settled month is the same noise as "0 to book" above it. */}
+                {card.matches !== null && (
+                  <DataText
+                    data-testid="calendar-tag-match"
+                    size="xs"
+                    className="mt-1.5 block truncate font-semibold"
+                    // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
+                    style={MORE_STYLE}
+                  >
+                    {card.matches} of {card.stops} match
                   </DataText>
                 )}
 

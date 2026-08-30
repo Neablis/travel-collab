@@ -1,4 +1,4 @@
-import type { ActivityView, TripDetail } from "@tc/contracts";
+import type { ActivityTag, ActivityView, TripDetail } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { toMinutes } from "@/lib/time";
 
@@ -22,6 +22,16 @@ export type CityCard = {
   span: { from: number; to: number } | null;
   /** The group's first start time. */
   firstStart: string | null;
+  /**
+   * How many of this group's stops carry the focused tag (SPEC §11 / §12's
+   * `N of M match`), or null when no tag is focused.
+   *
+   * Null rather than `stops` when nothing is focused, so `CalendarLens` never
+   * has to know the focus state a second time to decide whether to render the
+   * line — "no focus" and "focus that everything matches" are different
+   * sentences and this is the field that tells them apart.
+   */
+  matches: number | null;
   /**
    * Stops in this group that still need booking — SPEC §12's `N to book`, by
    * the narrower rule in `needsBooking` (hold, idea, and ticketed-but-unbooked;
@@ -65,6 +75,14 @@ export type CityCard = {
 export function calendarCityCards(
   day: TripDetail["days"][number],
   activities: TripDetail["activities"],
+  /**
+   * SPEC §11's focused tag, or null. The Calendar's rule is a COUNT, not a
+   * per-stop dim: at this zoom a card is the unit, so it reports how many of
+   * its stops match and the lens dims the card that matches none. Passing it
+   * in here rather than filtering in the lens keeps the count derived from the
+   * same grouping that produced the card.
+   */
+  focusedTag: ActivityTag | null = null,
 ): CityCard[] {
   // Cities only. `location.name` is a display label — "Gonpachi Nishiazabu" —
   // and it used to stand in for a missing `city`, which meant a restaurant
@@ -109,7 +127,7 @@ export function calendarCityCards(
   const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
   if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
 
-  return groups.map((g) => summarise(g.city, g.stops));
+  return groups.map((g) => summarise(g.city, g.stops, focusedTag));
 }
 
 /** See `needsBooking` — narrower than SPEC §12's literal wording, and why. */
@@ -118,7 +136,7 @@ function unbookedCount(stops: ActivityView[]): number {
 }
 
 /** One group of a day's stops, reduced to the card `CalendarLens` draws. */
-function summarise(city: string | null, stops: ActivityView[]): CityCard {
+function summarise(city: string | null, stops: ActivityView[], focusedTag: ActivityTag | null): CityCard {
   const windows = stops
     .map((s) => s.timeWindow)
     .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
@@ -143,6 +161,7 @@ function summarise(city: string | null, stops: ActivityView[]): CityCard {
     window,
     span: window === null ? null : { from: clamp(toMinutes(window.start)), to: clamp(toMinutes(window.end)) },
     firstStart: window?.start ?? null,
+    matches: focusedTag === null ? null : stops.filter((s) => s.tags.includes(focusedTag)).length,
     toBook: unbookedCount(stops),
   };
 }

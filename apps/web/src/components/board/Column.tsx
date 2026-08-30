@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
-import type { ActivityView } from "@tc/contracts";
+import type { ActivityTag, ActivityView } from "@tc/contracts";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { type AccentFamily } from "@/lib/dayAccent";
@@ -56,6 +56,8 @@ export function Column({
   onSelect,
   onAddActivity,
   onDismissOverlap,
+  focusedTag = null,
+  onToggleTag,
   readOnly = false,
 }: {
   title: string;
@@ -81,6 +83,10 @@ export function Column({
   onSelect?: (clearing: boolean) => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
+  /** SPEC §11's focused tag, passed to every card so off-tag stops dim. */
+  focusedTag?: ActivityTag | null;
+  /** Passed to every card's chips; withheld leaves them plain text. */
+  onToggleTag?: (tag: ActivityTag) => void;
   /** Passed to every card: hide what writes, keep what reads (ADR-031). */
   readOnly?: boolean;
 }) {
@@ -165,6 +171,8 @@ export function Column({
               onEdit={() => onEditActivity(id)}
               onRemove={() => onRemoveActivity(id)}
               onDismissOverlap={onDismissOverlap}
+              focusedTag={focusedTag}
+              onToggleTag={onToggleTag}
               readOnly={readOnly}
             />
           );

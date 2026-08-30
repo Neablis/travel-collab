@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import type { TripDetail } from "@tc/contracts";
+import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
@@ -95,6 +95,8 @@ export function Board({
   trip,
   callbacks,
   focusedDay = null,
+  focusedTag = null,
+  onToggleTag,
   readOnly = false,
 }: {
   trip: TripDetail;
@@ -115,6 +117,11 @@ export function Board({
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
   focusedDay?: number | null;
+  /** SPEC §11's focused tag, or null — same ownership and same reasoning as
+      `focusedDay` above. Off-tag stops dim to 32%; nothing is removed. */
+  focusedTag?: ActivityTag | null;
+  /** Toggles that focus from a stop's own chip. */
+  onToggleTag?: (tag: ActivityTag) => void;
 }) {
   const { openCreate, openEdit } = useEditor();
 
@@ -276,6 +283,8 @@ export function Board({
             onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
             onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
+            focusedTag={focusedTag}
+            onToggleTag={onToggleTag}
             readOnly={readOnly}
           />
         ))}
