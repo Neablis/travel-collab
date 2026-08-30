@@ -23,7 +23,9 @@ general setup.
 ## Where the work is right now
 
 **M18b's gate closed 2026-08-30. M17 is the current work**, and the order is
-now `M17 → M12 → M13 → M14 → M9`.
+now `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
+2026-08-30** off the new design handoff, and **M11a was created the same day and
+placed in front of it**. See the next two paragraphs.
 
 **M18b shipped tag focus in PR #91** — SPEC §11's behaviour behind the chips M18
 made settable. Clicking a tag chip focuses that tag across all four lenses;
@@ -61,8 +63,69 @@ and identity-decision scope are **removed**, because M11 link 1 shipped both
 under ADR-025, leaving the preferences half (name, home airport, account-scope
 distance units through one `kmLabel`, home-time-on-hover, `who` → display
 name). It needs one migration — `users` carries no preference columns today.
-**M11b Playbooks stays unplaced**: it has no scope and no exit gate written,
-and authoring those is a product decision, not overnight work.
+**M11b Playbooks was the last unplaced milestone, and it was scoped and placed
+2026-08-30** — see immediately below.
+
+**A new design handoff merged 2026-08-30 (`a43a9a4`), and M11b is now scoped and
+placed because of it.** The substantive addition is `SPEC.md` §15 / `DRIFT.md`
+§2b — **Playbooks becomes a public library**: four routes, three of them new
+(`day`, `board`, `profile`), server-side city search, publishing, an adds
+ledger, reviews and derived public profiles. That was exactly the product
+decision M11b had been waiting on. Scope, eight links and the exit gate are in
+`docs/milestones/M11b-playbooks-public-library.md`. Four things a session
+picking it up will need:
+
+- **The scope line is not §15's line.** §15 spans M11b and M12. Mitchell's call
+  on 2026-08-30: **M11b takes everything except reviews; M12 keeps reviews,
+  ratings and moderation.** Two deltas follow from that and are recorded rather
+  than left to be rediscovered — Discover ships **two sorts, not four**, and
+  **no rating floor filter**, because both need data that does not exist until
+  M12. Do not "fix" them back to the spec text.
+- **Deferring moderation rests on a gate that is not built.** Mitchell:
+  *"we will gate on who we invite to platform... we need a community before its
+  a issue."* Sound — but **there was no gate on who signs up**: any Google
+  account that reaches `/signin` gets one, and the landing page's "Early access"
+  line is copy about *trip* invites, not signup. **That is now M11a**, scoped
+  the same day and placed in front of M11b — see below.
+- **The largest blocker is `cities: string[]`, not the routes.** Checked against
+  the tree: `SavedDay` has none of the six things §2b says a build needs. And
+  `saved_days.stops` is `jsonb` on purpose (ADR-029 — a saved day is a value,
+  never queried into), so `cities` has to be its own derived column, not a query
+  into the blob.
+- **`DRIFT.md` is stale in four places** — it was read from the build on
+  2026-08-26 and only §2b was refreshed. D1 (Caesura rename) is closed
+  (`siteMetadata.ts:17`), D2/D8 (landing page) shipped as `(front)/welcome` in
+  M15, and KI-47, KI-43, KI-44 and KI-45 are all resolved. §2b's own claim that
+  the missing `cities[]` is *"bigger than the missing tags"* rests on KI-47
+  still being open; it is not. Feed this back to design rather than editing
+  their bundle — the folder is rewritten in place on their side.
+
+**M11a — an invite gate — was scoped 2026-08-30 and placed between M17 and
+M11b.** It exists because M11b's scope split defers moderation to M12 on the
+grounds that the population is invited, and that gate did not exist. Mitchell
+asked for it as placed work rather than an immediate build: *"Dont build it yet,
+roll it as work to do before the playbook work from the designs."* Scope and
+exit gate: `docs/milestones/M11a-invite-gate.md`. Three things about it:
+
+- **Most of it is already built, which is why it is small.** `users`
+  (M11 link 1, ADR-025) already records who has been here, so *"never been to
+  the app"* is *"has no `users` row"* — no new concept. And the `signIn`
+  callback already exists and is already fail-closed: `server/auth.ts` composes
+  it from `server/users.ts`'s `recordSignIn`, which returns a boolean, and
+  `false` lands on the designed `/signin?error=` screen with its existing copy
+  map. **Do not go looking for this in `lib/authConfig.ts`** — it is composed in
+  `server/auth.ts` on purpose, so the Edge instance the proxy builds never
+  touches the database (ADR-024).
+- **Three ways through, all Mitchell's calls on 2026-08-30.** A pending M11
+  trip-invite token admits you with no code (otherwise M11's invite→accept flow
+  breaks for exactly the new collaborators it exists to serve); a **reusable
+  super code**; and **single-use codes** in a new `invite_codes` table. He asked
+  for both code kinds, not one.
+- **The one real engineering problem is that OAuth leaves the site.** A code
+  cannot be collected inside the callback — the browser has already been to
+  Google and back — so it rides a short-lived httpOnly cookie set before the
+  redirect. `proxy.ts` fills the same cookie for `/invite/<token>`, storing
+  without validating, because it runs in the Edge runtime with no database.
 
 Two gates closed on 2026-08-29, M18 first and M16 second. M18's live warnings
 are immediately below because they still bite; M16's close follows them.
@@ -139,9 +202,9 @@ worth reading before trusting the assistant's numbers:
 **Done:** M0-M8, the Phase 1 gate review, M10 (2026-08-27), M15 (2026-08-26),
 M11 (2026-08-28), M18 and M16 (both 2026-08-29), M18b (2026-08-30).
 
-**One milestone is approved and unplaced, and it is not "next": M11b
-Playbooks** — it needs its own scope and exit gate written first, which is a
-product decision. M18b and M17 were placed 2026-08-29.
+**Nothing is approved-but-unplaced any more.** M11b Playbooks was the last one
+and was scoped and placed 2026-08-30 off the new design handoff; M18b and M17
+were placed 2026-08-29.
 
 **`/demo` is the real board, read-only, 2026-08-28 (PR #79) — ADR-031, closes
 KI-61.** The demo trip is the Japan fixture folded in memory and served through
@@ -226,7 +289,10 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 ## Next action
 
 **Open M17 — Account customization** — `docs/milestones/M17-account-customization.md`,
-re-scoped 2026-08-29 (see above). **Its migration must not be merged without a
+re-scoped 2026-08-29 (see above). **Then M11a, then M11b**, both scoped and
+placed 2026-08-30 — `docs/milestones/M11a-invite-gate.md` and
+`docs/milestones/M11b-playbooks-public-library.md`. **All three carry a
+migration, and a migration is dispatched, not merged.** **Its migration must not be merged without a
 dispatch** — `gh workflow run migrate-production.yml -f confirm=migrate` from
 `main`. That is the one thing about M17 most likely to be missed, because
 merging no longer applies a migration and the PR body is the only place anyone
@@ -264,9 +330,9 @@ the two milestones.
   hand.** Not just the contract. M18 hit this three times; the sheet's version
   silently discarded a user's input with a green suite and a clean typecheck.
 
-**Approved and unplaced: M11b Playbooks only**, now that M18b and M17 were
-placed on 2026-08-29. It needs its own scope and exit gate written before it
-opens, which is a product decision.
+~~**Approved and unplaced: M11b Playbooks only**~~ — **empty as of 2026-08-30**,
+when the design handoff supplied M11b's scope and Mitchell placed it after M17.
+`docs/milestones/M11b-playbooks-public-library.md`.
 
 **Deliberately deferred, each recorded where it belongs rather than dropped:**
 

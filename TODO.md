@@ -9,20 +9,28 @@ Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 **Right now that say-so has been given and the list is out of order on
 purpose**, so read the marker, not the position: **M17 is the current work**,
 per the order set on 2026-08-29 when Mitchell placed two of the three
-approved-but-unplaced milestones — `M18b → M17 → M12 → M13 → M14 → M9`, of
-which M18b's gate closed 2026-08-30.
-**M11b Playbooks stays unplaced** — unlike the other two it has no scope and
-no exit gate written yet, and authoring those is a product decision.
+approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
+**M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
+and **M11a, an invite gate, was scoped the same day and placed in front of it**.
+The order is now `M18b ✓ → M17 → M11a → M11b → M12 → M13 → M14 → M9`.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
 
-**One item is approved but deliberately unplaced, and it is not "next" just
-because it appears unchecked:** **M11b Playbooks** (carved out of M11's gate
-2026-08-28), which needs its own scope and exit gate written before it opens —
-a product decision, not something to pick up by position. *(M18b and M17 were
-the other two until 2026-08-29, when Mitchell placed both; M17 needed a
-re-scope to be placeable and got one in the same decision.)*
+**Nothing is approved-but-unplaced any more.** M11b was the last one, and it was
+unplaced for a specific reason — it had no scope and no exit gate, and writing
+those was a product decision. The **2026-08-30 design handoff** (`SPEC.md` §15,
+`DRIFT.md` §2b — Playbooks becomes a public library) is that decision arriving,
+and Mitchell scoped and placed it the same day. **It sits immediately before
+M12 on purpose**: M11b publishes days and M12 adds reviews and moderation on
+top of them, and the scope line between the two was drawn deliberately — see
+the milestone file.
+
+**M11a was created out of that same review and runs in front of M11b.** M11b's
+scope split defers moderation on the grounds that the population is invited;
+M11a is the gate that makes that true. It is small — the `users` table and a
+fail-closed `signIn` callback already exist — and it is placed first because
+publishing must not go live on an open signup.
 
 **Scope for each milestone lives in `docs/milestones/README.md`** (the table),
 and the detail plus exit gate in that milestone's own file. This file is the
@@ -178,15 +186,36 @@ Where the work actually stands right now: `docs/STATUS.md`.
       four Playbooks `<Preview>` shells stay M11-tagged in
       `preview-registry.ts` with nothing else left in the milestone. Gate
       evidence and retro are in the milestone file.)*
-- [ ] **M11b Playbooks / templates** — **approved, unplaced** (not "next").
-      The piece carved out of M11's gate.
+- [ ] **M11a An invite gate on the front door** →
+      `docs/milestones/M11a-invite-gate.md` — **scoped and placed 2026-08-30**,
+      running after M17 and **before M11b**.
+      *(Created out of M11b's scoping review the same day. M11b publishes
+      user-authored text and leaves reporting to M12, which rests on Mitchell's
+      call that the platform is invite-gated — and it is not: any Google account
+      that reaches `/signin` gets one. Three ways through the gate, all
+      evaluated only when there is no `users` row: a pending M11 trip-invite
+      token, a reusable **super code**, and **single-use codes** in a new
+      `invite_codes` table. Small, because `users` (ADR-025) already records who
+      has been here and `recordSignIn` is already a fail-closed boolean — the
+      one real problem is that OAuth leaves the site, so the code rides a
+      short-lived cookie across the round trip. Needs a migration, and the
+      migration needs a dispatch.)*
+- [ ] **M11b Playbooks becomes a public library** →
+      `docs/milestones/M11b-playbooks-public-library.md` — **scoped and placed
+      2026-08-30**, running after M17 and immediately before M12.
       *(Carved out 2026-08-28 when M11's gate closed: the milestone's file
       said its Playbooks scope stayed, none of its eight exit-gate boxes tested
-      it, and none of the six links touched it. Still shelled and still
-      M11-tagged: `home-playbooks-strip`, `playbooks-route`, `insert-playbook`,
-      `wizard-playbook-panel` — plus a whole `/playbooks` route rendering mock
-      cards. Needs its own scope and exit gate written before it opens; saved
-      days (link 6) is the data model it would build on.)*
+      it, and none of the six links touched it. It then sat unplaced for two
+      days because it had no scope — a product decision. The **2026-08-30
+      design handoff** supplied it: `SPEC.md` §15 turns Playbooks into a
+      discovery surface over other people's days across four routes —
+      `playbooks` (Discover), `day`, `board`, `profile`, three of them new.
+      **Mitchell drew the scope line short of reviews**: M11b takes all of §15
+      except reviews and ratings, M12 keeps those plus moderation. Eight links,
+      from `cities: string[]` and a city search endpoint through publishing, an
+      adds ledger keyed by (day, trip), and the four routes. Closes DRIFT's D9
+      and deletes the last four M11-tagged `<Preview>` shells. Saved days
+      (M11 link 6, ADR-029) is the data model it builds on.)*
 - [ ] **M12 Community** — all trust & safety scope
       lives here, nowhere earlier.
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
