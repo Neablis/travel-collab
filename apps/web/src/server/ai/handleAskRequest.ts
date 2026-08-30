@@ -48,8 +48,9 @@ import {
   WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
 import type { Geocoder } from "@/server/geocoding";
-import { createAskRecorder, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
+import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { classifyAskIntent } from "@/server/ai/askIntent";
+import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 
 // Round-trips one question may take. Eight is generous for a read-only turn —
 // three tools, and the shape of a real answer is "read what you need, then
@@ -333,6 +334,14 @@ export async function handleAskRequest(
   //
   // `classifyAskIntent` is total — it fails open to `write` rather than
   // throwing — so there is deliberately no try/catch here to suggest otherwise.
+  //
+  // Sentry sees this call as its own `gen_ai.invoke_agent` run, separate from
+  // the turn's — `askIntent.ts` names it through `telemetry.functionId`. That
+  // separation is the point rather than an accident of where the call sits:
+  // `AI_CLASSIFIER_MODEL` can put the classifier on a cheaper model than the
+  // one answering, and "did the classifier save more than it cost" is
+  // unanswerable if its spend is folded into the turn's — the same argument
+  // `AskIntentRecord.model` makes for the log record.
   const classification = canWrite
     ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
     : null;
@@ -368,7 +377,19 @@ export async function handleAskRequest(
     // misclassification diagnosable after the fact rather than only visible as
     // an assistant that would not act.
     classification,
-    sink,
+    // **One writer, two consumers.** `createAskRecorder`'s single-writer latch
+    // already guarantees this fires exactly once per turn, on all three end
+    // paths (`onEnd`, abort, error) — which makes it the right place to emit
+    // the metrics too, rather than repeating that once-only logic at each of
+    // the three call sites and getting it subtly wrong at one of them.
+    //
+    // The injected `sink` stays a pure test seam: a test that passes one reads
+    // the record instead of the console, exactly as before, and
+    // `recordAskMetrics` is a no-op without a Sentry client.
+    sink: (record) => {
+      (sink ?? logAskAnalytics)(record);
+      recordAskMetrics(record);
+    },
   });
 
   const agent = new ToolLoopAgent({
@@ -381,6 +402,20 @@ export async function handleAskRequest(
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
+    // **This is the whole of our AI-agent tracing, and it is one line.**
+    //
+    // Sentry's `VercelAI` integration (on by default) subscribes to the AI
+    // SDK's own `ai:telemetry` diagnostics channel and emits the
+    // `gen_ai.invoke_agent` / `gen_ai.generate_content` / `gen_ai.execute_tool`
+    // spans for this run, with token usage, finish reasons and provider,
+    // without any wiring here. `functionId` is the one thing it cannot infer:
+    // without it the run's span is named the bare `invoke_agent`, and this
+    // endpoint's turn is indistinguishable from the classifier's call and from
+    // `/ai`'s planning run in the AI Agents view.
+    //
+    // See ADR-032 — including the version note, since the channel this rides
+    // on is `ai` >= 7 only.
+    telemetry: { functionId: "ask" },
     onStepEnd: (step) => recorder.observeStep(step),
     // `writeTools` is the SAME collection `messageMetadata`'s `buildProposal`
     // reads below — `onEnd` just runs first, before the stream's `finish`
@@ -532,7 +567,13 @@ export interface ProposalApplyRecord {
 
 export type ProposalApplySink = (record: ProposalApplyRecord) => void;
 
-const defaultApplySink: ProposalApplySink = (record) => console.info(record.event, record);
+// The log line and the counters, from the one record. Same shape, and the same
+// reasoning, as the `/ask` sink above: one writer, two consumers, and an
+// injected sink in a test still reads the record instead of the console.
+const defaultApplySink: ProposalApplySink = (record) => {
+  console.info(record.event, record);
+  recordProposalApplyMetrics(record);
+};
 
 /**
  * `POST /api/trips/:id/ask/apply` — the approval half of propose → review →

@@ -55,6 +55,7 @@ import {
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { recordCommandMetrics, type CommandMetricsRecord } from "@/server/ai/aiMetrics";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 
 const STATUS: Record<string, number> = {
@@ -164,14 +165,49 @@ function buildAiMeta(
     truncated: result.finishReason === "tool-calls",
     steps: result.steps.length,
     toolCalls: result.toolCalls.map((c) => ({ name: c.toolName, input: c.input })),
-    usage: {
-      inputTokens: result.usage.inputTokens ?? null,
-      outputTokens: result.usage.outputTokens ?? null,
-      totalTokens: result.usage.totalTokens ?? null,
-    },
+    usage: usageOf(result),
     warnings: [...(result.warnings ?? [])],
     maxRetries: AI_MAX_RETRIES,
     durationMs,
+  };
+}
+
+/**
+ * `AiCallMeta` in the shape the metrics module counts.
+ *
+ * A translation and nothing more — every field here already exists on the meta
+ * the response carries, so the counters and the `meta` a caller sees can never
+ * disagree about what a turn cost. `toolCalls[].input` is deliberately dropped:
+ * it is model-supplied and unbounded, and a metric attribute is a series.
+ */
+function commandMetricsOf(surface: AiCommandSurface, meta: AiCallMeta): CommandMetricsRecord {
+  return {
+    surface,
+    model: meta.model.requested,
+    simulated: meta.simulated,
+    finishReason: meta.finishReason,
+    truncated: meta.truncated,
+    steps: meta.steps,
+    toolNames: meta.toolCalls.map((call) => call.name),
+    usage: meta.usage,
+    durationMs: meta.durationMs,
+  };
+}
+
+/**
+ * Token counts off a `generateText` result, in the nullable shape both the
+ * response `meta` and the telemetry use.
+ *
+ * One function rather than the same three `?? null` lines written out at each
+ * of three sites. A usage mapping that drifts between the span and the
+ * response is the same species of bug as M18's hand-enumerated field list —
+ * quieter, because nothing type-checks the two against each other.
+ */
+function usageOf(result: Pick<AiResultLike, "usage">): AiCallMeta["usage"] {
+  return {
+    inputTokens: result.usage.inputTokens ?? null,
+    outputTokens: result.usage.outputTokens ?? null,
+    totalTokens: result.usage.totalTokens ?? null,
   };
 }
 
@@ -294,6 +330,11 @@ export async function handleAiRequest(
         tools,
         stopWhen: isStepCount(maxStepsFor("page")),
         maxRetries: AI_MAX_RETRIES,
+        // Names this run in Sentry's AI Agents view. Sentry's `VercelAI`
+        // integration emits the run's spans off the AI SDK's own telemetry
+        // channel; `functionId` is the only thing it cannot infer, and
+        // without it every run in this app is a span called `invoke_agent`.
+        telemetry: { functionId: "compose_page" },
       });
     } catch (err) {
       return Response.json(
@@ -312,6 +353,9 @@ export async function handleAiRequest(
     // same: the provider was paid for those steps whatever the handler decides
     // to do with the result. Never throws; see settleAiSteps.
     await settleAiSteps(aiStepQuotas(), userId, meta.steps);
+    // Same placement, same reason, different ledger: the metrics count what the
+    // turn spent whatever the handler returns below. Never throws either.
+    recordCommandMetrics(commandMetricsOf("page", meta));
     // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
     // GenerateTextResult.toolResults reflected only the last step, which
     // required manually flattening `result.steps[].toolResults` to find a
@@ -344,6 +388,10 @@ export async function handleAiRequest(
       tools,
       stopWhen: isStepCount(maxStepsFor(surface)),
       maxRetries: AI_MAX_RETRIES,
+      // See `compose_page` above. `surface` rather than a literal: `board` and
+      // `combined` are different tool sets and different step budgets, and
+      // averaging them together is exactly the comparison this names apart.
+      telemetry: { functionId: `plan_${surface}` },
     });
   } catch (err) {
     return Response.json(
@@ -359,6 +407,7 @@ export async function handleAiRequest(
   // As in the page branch above: charge the real round-trip cost here, once,
   // so every return path below is metered identically (KI-67).
   await settleAiSteps(aiStepQuotas(), userId, meta.steps);
+  recordCommandMetrics(commandMetricsOf(surface, meta));
 
   // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
   // commands in one batch-aware pass: mint new ids, resolve refs against the

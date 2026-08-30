@@ -122,6 +122,21 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
+  // Not a security header — it is the one thing that makes Sentry's browser
+  // profiling work, and it lives in this list because this list is what is
+  // already attached to every route.
+  //
+  // The JS Self-Profiling API (`new Profiler(...)`) is gated on the document
+  // having been served with this policy. Without it
+  // `Sentry.browserProfilingIntegration()` initialises, fails to construct a
+  // profiler, and turns itself off for the rest of the session — silently
+  // outside a debug build. So "we enabled browser profiling" is a claim about
+  // THIS header as much as about that integration, and `next.config.test.ts`
+  // asserts it for exactly that reason.
+  //
+  // It grants a capability to our own document only; it is not a `*` or a
+  // cross-origin grant, and it cannot be used to profile anyone else's page.
+  { key: "Document-Policy", value: "js-profiling" },
   // Sends the origin, never the path, to any other site. That already keeps
   // URL-borne tokens off cross-origin Referer headers; /s/** below goes
   // further for the ones that are the whole secret.
@@ -130,6 +145,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@tc/contracts", "@tc/domain"],
+  // `@sentry/profiling-node` resolves a prebuilt `.node` binary at require
+  // time. Bundling it would either inline a file the loader then cannot find
+  // or drop the binary from the deployment entirely, so it is marked external
+  // and left as a plain runtime require. `sentry.server.config.ts` still
+  // guards the import — this makes it work, that makes a failure survivable.
+  serverExternalPackages: ["@sentry/profiling-node"],
   headers: async () => [
     { source: "/:path*", headers: securityHeaders },
     {
