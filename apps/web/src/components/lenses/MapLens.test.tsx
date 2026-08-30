@@ -628,7 +628,12 @@ describe("MapLens tag focus", () => {
     return detail;
   }
 
-  it("keeps every pin full-strength when a tag is focused but no day is", async () => {
+  // The baseline this set is read against: nothing focused at all. Named for
+  // what it passes rather than for tag focus — it used to claim "when a tag is
+  // focused" while passing `focusedTag: null`, so it asserted the no-focus case
+  // under a tag-focus name (CodeRabbit, PR #91). The focused case is the next
+  // test.
+  it("keeps every pin full-strength when neither a day nor a tag is focused", async () => {
     markerInstances.length = 0;
     renderMap(detailWithTags(), { focusedDay: null, focusedTag: null });
     await waitFor(() => expect(markerInstances).toHaveLength(4));
@@ -692,6 +697,53 @@ describe("MapLens tag focus", () => {
       </EditorHost>,
     );
     await waitFor(() => expect(a2!.getElement().style.opacity).toBe("1"));
+  });
+
+  // The regression test for the bug this milestone introduced and CodeRabbit
+  // caught: `focusedTag` went into the deps of the effect that ALSO calls
+  // `fitBounds`, so focusing a tag re-fitted the camera to the focused day and
+  // threw away a viewport the user had panned by hand. Styling and camera are
+  // two effects now, and only the day drives the camera.
+  it("does not move the camera when only the focused TAG changes", async () => {
+    markerInstances.length = 0;
+    // `fitBoundsMock` is file-scoped and nothing resets it, so on entry it
+    // already carries every earlier test's calls — nine of them. Waiting on a
+    // bare `toHaveBeenCalled()` therefore resolves instantly against somebody
+    // else's call, and the mount's own fit then lands AFTER the clear and
+    // reads as a call this test caused. Clear first, then count.
+    fitBoundsMock.mockClear();
+    const detail = detailWithTags();
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    // The day focus legitimately fits the camera once, on mount.
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalledTimes(1));
+    fitBoundsMock.mockClear();
+
+    // Same day, new tag: the pins restyle and the viewport holds.
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0, focusedTag: "meal" });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    const [, a2] = markerInstances;
+    await waitFor(() => expect(Number(a2!.getElement().style.opacity)).toBeCloseTo(0.32));
+    expect(fitBoundsMock).not.toHaveBeenCalled();
+
+    // And the camera still follows a real day change, so the split did not
+    // simply disconnect it.
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1, focusedTag: "meal" });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
   });
 
   // Dim, never hide: a tag focus removes no marker from the map.

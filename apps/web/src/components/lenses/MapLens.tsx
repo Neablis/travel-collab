@@ -223,9 +223,10 @@ export function MapLens({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate, readOnly]);
 
-  // Focus-driven camera + opacity, kept separate from the creation effect
-  // above so clicking a rail day never tears down and rebuilds the whole map
-  // instance — only the camera and each layer's line-opacity change.
+  // Focus-driven OPACITY — routes and markers. Kept separate from the creation
+  // effect above so clicking a rail day never tears down and rebuilds the whole
+  // map instance, and separate from the camera effect below so a tag focus can
+  // restyle pins without moving the viewport (see that effect's own note).
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
@@ -272,6 +273,29 @@ export function MapLens({
       }
     }
 
+    // `focusedTag` belongs in THIS effect's deps and only this one: the marker
+    // loop above reads it. The camera lives in its own effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focusedDay, focusedTag]);
+
+  // Focus-driven CAMERA, deliberately its own effect keyed on the DAY alone.
+  //
+  // It was one effect with the opacity pass above until M18b, and folding
+  // `focusedTag` into that effect's deps silently made a tag toggle re-fit the
+  // camera: `fitBounds` sits at the end of the same body, so focusing "Meal"
+  // yanked a map the user had panned by hand back to the focused day's bounds.
+  // A comment right here claimed the opposite — "a tag focus never moves the
+  // viewport" — which was true of the intent and false of the code, the exact
+  // species AGENTS.md calls a lie with a timer on it. Caught by CodeRabbit on
+  // PR #91; the regression test is "does not move the camera when only the
+  // focused TAG changes".
+  //
+  // A tag focus is a "which of these" question, not a "where" one. Only a day
+  // change is allowed to move the viewport.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+
     // Handoff: "if the focused day has fewer than one located stop, do
     // nothing — hold the previous viewport, and let MapFocusCard explain."
     // Lurching to the whole-trip bounds on an empty day is exactly the
@@ -300,11 +324,8 @@ export function MapLens({
       maxZoom: 13,
       animate: false,
     });
-    // `focusedTag` is in here because the marker loop above reads it; the
-    // camera half below is unaffected by it (a tag focus never moves the
-    // viewport — it is a "which of these" question, not a "where" one).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focusedDay, focusedTag]);
+  }, [ready, focusedDay]);
 
   return (
     <div data-testid="map-lens" className="map-lens flex flex-col gap-2">
