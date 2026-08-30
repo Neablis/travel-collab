@@ -45,8 +45,21 @@ export const COORDINATE_GAPS: Readonly<Record<string, string>> = {
     '404 on "Giro Giro Hitoshina, Shimogyō, Kyoto, Japan" (2026-08-30). Riverside kaiseki counter; unmapped.',
   "d9-s4-tea-at-ippodo-kaboku":
     '404 on "Ippodo Kaboku, Nakagyō, Kyoto, Japan" (2026-08-30). The tearoom annexe of Ippodo; the parent shop may exist, the annexe does not.',
+  // The one entry here that is known to be WRONG rather than merely
+  // uncorroborated, which is the distinction this whole file exists to draw
+  // and the reason it is not enough on its own. Mitchell, 2026-08-30, looking
+  // at the Map lens: the pin renders in the sea. Its stored 34.4565,134.008
+  // sits INSIDE Naoshima's viewbox and ~1.2km from the nearest other stop, so
+  // neither the box nor cityGeography.test.ts could ever have flagged it —
+  // being in the right city is not the same as being on land.
+  //
+  // The real address, supplied by Mitchell: 761-1, Naoshima, Kagawa District,
+  // Kagawa 761-3110, Japan. Recorded here rather than converted, because
+  // turning it into a lat/lng needs a geocoder and inventing one is exactly
+  // the failure the note at the top of this file forbids. Whoever has the
+  // LOCATIONIQ_API_KEY should run that address, or paste the coordinate.
   "d13-s3-lunch-at-aisunao":
-    '404 on "Aisunao, Honmura, Naoshima, Japan" (2026-08-30). A house-restaurant on an island of 3,000 people.',
+    '404 on "Aisunao, Honmura, Naoshima, Japan" (2026-08-30). A house-restaurant on an island of 3,000 people. STORED COORDINATE IS WRONG — renders in the sea; real address 761-1, Naoshima, Kagawa District, Kagawa 761-3110, Japan, awaiting a lookup.',
   "d14-s3-last-lunch-at-maisen":
     '404 on "Tonkatsu Maisen, Omotesandō, Tokyo, Japan" (2026-08-30). Well known to visitors, absent from OSM under this name.',
 };
