@@ -164,6 +164,13 @@ test.describe("responsive (narrow viewport)", () => {
     expect(await columns()).toBe(2);
     await page.setViewportSize({ width: 500, height: 800 });
     expect(await columns()).toBe(1);
+
+    // Put it back. `global.teardown.ts` sweeps `[e2e]` trips and a saved day is
+    // not a trip, so a spec that keeps one and walks away grows the shared dev
+    // user's library by one row every run — which is how `SavedDaysDialog`
+    // reached nineteen days and stopped being clickable (see `ui/dialog.tsx`).
+    const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };
+    expect((await page.request.delete(`/api/saved-days/${savedDay.savedDayId}`)).ok()).toBe(true);
   });
 
   test("the hero collapses to a single column below 1024px", async ({ page }) => {

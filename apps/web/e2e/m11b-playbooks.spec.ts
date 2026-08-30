@@ -111,6 +111,23 @@ async function keepDay(page: Page, tripId: string, dayId: string, name: string):
   return ((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId;
 }
 
+/**
+ * Puts a saved day back.
+ *
+ * `global.teardown.ts` sweeps `[e2e]` TRIPS and a saved day is not a trip, so
+ * nothing else will — and a library that grows by three days a run is not a
+ * tidiness problem. `SavedDaysDialog` lists the whole thing with no pagination,
+ * and at nineteen days it made the dialog taller than the viewport; a centred
+ * `fixed` box that tall puts its FIRST row above the top edge, where nothing
+ * can scroll to it. That is what took `m11-saved-days.spec.ts` down, and
+ * `ui/dialog.tsx` now caps the height — but a spec that leaks a row per run
+ * until some other limit is reached is still a spec quietly loading a spring.
+ */
+async function forgetDay(page: Page, savedDayId: string): Promise<void> {
+  const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
+  expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
+}
+
 /** Types a city into Discover's real search box and taps the match. */
 async function pickCity(page: Page, city: string): Promise<void> {
   await page.getByLabel("Search cities").fill(city);
@@ -225,6 +242,7 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await bob.goto(`/playbooks/day/${savedDayId}`);
   await expect(bob.getByText("This day is not in the library")).toBeVisible();
 
+  await forgetDay(page, savedDayId);
   await bob.context().close();
 });
 
@@ -276,4 +294,6 @@ test("city search shows all four states against the real endpoint", async ({ pag
   // handoff says so twice and the gate restates it.
   await expect(page.getByLabel("City")).toHaveCount(0);
   await expect(page.getByRole("option", { name: "All cities" })).toHaveCount(0);
+
+  await forgetDay(page, savedDayId);
 });
