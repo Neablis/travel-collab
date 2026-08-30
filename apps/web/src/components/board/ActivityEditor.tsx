@@ -94,11 +94,15 @@ export function ActivityEditor({
   // activity already carries so existing anchors aren't silently dropped.
   const anchors: Anchor[] = initial?.anchors ?? [];
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  // "planned" is the contract's zero value, so a stop being added starts
-  // there and one being edited starts wherever it already sits. The `??`s
-  // cover `initial === null` — the bare "Add stop" with no prefill — not an
-  // absent field: `ActivityView` defaults both (contracts/src/detail.ts).
-  const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? "planned");
+  // A stop being edited starts wherever it already sits. One being CREATED
+  // starts at `hold`, not the contract's `planned` zero value: a new stop is
+  // more likely to need booking than not (Mitchell, 2026-08-29) — see
+  // ActivityEditorSheet's `createInitial` for the same call on the prefilled
+  // path. This `??` only fires for `initial === null` — the bare "Add stop"
+  // with no prefill; ActivityEditorSheet already supplies "hold" whenever it
+  // builds an initial value at all, and an edit's `initial` carries the
+  // activity's own real kind.
+  const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? (mode === "create" ? "hold" : "planned"));
   const [tags, setTags] = useState<ActivityTag[]>(initial?.tags ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   const [error, setError] = useState<string | null>(null);

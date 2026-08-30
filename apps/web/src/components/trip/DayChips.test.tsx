@@ -253,6 +253,33 @@ describe("DayChips", () => {
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 
+  // M16 Wave 2: `focusedDay` is the assistant's scope, so "no day selected"
+  // has to be reachable from the UI and not only from a fresh page load.
+  it("clears the focus when the already-focused chip is clicked again", async () => {
+    const onSelect = vi.fn();
+    render(<DayChips days={days} focusedDay={1} onSelect={onSelect} />);
+    await userEvent.click(screen.getAllByRole("button")[1]!);
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("still focuses a different day rather than clearing", async () => {
+    const onSelect = vi.fn();
+    render(<DayChips days={days} focusedDay={1} onSelect={onSelect} />);
+    await userEvent.click(screen.getAllByRole("button")[0]!);
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
+  // A toggle nobody can see is a toggle nobody uses. `aria-pressed` carries it
+  // for assistive tech; the × is what carries it for everyone else.
+  it("marks the focused chip as pressed and shows a visible clear affordance on it", () => {
+    render(<DayChips days={days} focusedDay={1} onSelect={vi.fn()} />);
+    const [first, second] = screen.getAllByRole("button");
+    expect(second!.getAttribute("aria-pressed")).toBe("true");
+    expect(second!.textContent).toContain("×");
+    expect(first!.getAttribute("aria-pressed")).toBe("false");
+    expect(first!.textContent).not.toContain("×");
+  });
+
   it("always renders the transition slot element, even when there is no transition", () => {
     render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
     const slots = screen.getAllByTestId("day-chip-transition");

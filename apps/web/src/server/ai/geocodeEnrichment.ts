@@ -29,6 +29,7 @@ import {
   distanceKm,
   plausibleCoords,
   withinBox,
+  TRIP_REGION_MARGIN_KM,
   type BoundingBox,
   type LatLng,
 } from "@/server/ai/geocodeRegion";
@@ -51,10 +52,9 @@ const MAX_LOOKUPS_PER_BATCH = 15;
 // an ocean.
 const MAX_REFINE_KM = 50;
 
-// Padding on the box drawn around the trip's existing activities, and around a
-// single model-supplied hint. The trip margin is loose because a trip legibly
-// spans a region; the hint margin is tight because it describes one place.
-const TRIP_REGION_MARGIN_KM = 150;
+// Padding around a single model-supplied hint. Tight, because it describes one
+// place — where `TRIP_REGION_MARGIN_KM` (imported above, stated once in
+// geocodeRegion.ts) is loose because a trip legibly spans a region.
 const HINT_MARGIN_KM = 50;
 
 type LocationCommand = Extract<BatchableCommand, { type: "AddActivity" | "UpdateActivity" }>;
@@ -125,7 +125,7 @@ interface Resolution {
 // geocoder's top result get reported `verified` — with a 150km trip region
 // sitting right there, unconsulted, that would have caught it. Because a
 // `verified` location is what a later request's `tripRegion` gets built from
-// (see `tripRegionOf` in handleAiRequest.ts), and bounding boxes there only
+// (see `tripRegionOf` in geocodeRegion.ts), and bounding boxes there only
 // ever grow, that one bad `verified` would have permanently widened the trip's
 // region to admit the mistake, for every future AI request on that trip.
 //

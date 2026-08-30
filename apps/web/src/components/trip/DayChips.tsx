@@ -136,7 +136,13 @@ export function chipModel(detail: TripDetail): ChipDay[] {
 export type DayChipsProps = {
   days: ChipDay[];
   focusedDay: number | null;
-  onSelect: (index: number) => void;
+  /**
+   * `null` clears the focus. The chips are the only affordance in the app that
+   * can do that, which is why the type is widened here and not just tolerated:
+   * `focusedDay` is the assistant's scope, and half of M16's gate is asked
+   * with "no day selected".
+   */
+  onSelect: (index: number | null) => void;
 };
 
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
@@ -159,6 +165,15 @@ export type DayChipsProps = {
 // Clicking a chip calls onSelect — TripBoardScreen wires this straight to
 // Task 4's useFocus().setFocusedDay; this component dispatches no trip
 // command and knows nothing about the active lens.
+//
+// Clicking the ALREADY-focused chip clears the focus (`onSelect(null)`).
+// M16 Wave 2 made that load-bearing rather than a nicety: `focusedDay` is now
+// the assistant's scope, so without a way back to "no day" the whole-trip half
+// of every question was reachable only on a fresh page load — and
+// TimelineLens's "add a day" focuses silently, so adding one locked you into
+// day scope for the session. `aria-pressed` already tells assistive tech this
+// is a toggle; the × on the focused chip is what tells everyone else, since a
+// toggle nobody can see is a toggle nobody uses.
 export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
@@ -193,7 +208,7 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""
             }, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
             aria-pressed={isFocused}
-            onClick={() => onSelect(index)}
+            onClick={() => onSelect(isFocused ? null : index)}
             className={cn(
               "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
               CHIP_BG[accent.solid],
@@ -213,6 +228,14 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
+              {isFocused && (
+                // Not a nested <button>: the whole chip already IS the toggle,
+                // and a button inside a button is invalid HTML. This is the
+                // visible half of `aria-pressed`.
+                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", INK_TEXT[accent.ink])}>
+                  ×
+                </span>
+              )}
             </div>
             {/* On a travel day the city moves down to the transition line, which
                 spells out both ends of the move — printing it here as well would

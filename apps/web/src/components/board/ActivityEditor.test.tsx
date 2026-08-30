@@ -71,14 +71,25 @@ describe("ActivityEditor kind picker", () => {
     expect(options).toEqual(["planned", "idea", "hold", "booked", "transit"]);
   });
 
-  it("defaults to planned when adding", () => {
+  // Mitchell, 2026-08-29: a stop being CREATED defaults to "hold", not the
+  // contract's "planned" zero value — more likely to need booking than not.
+  // Editing keeps its own kind; see the next test.
+  it("defaults to hold when adding, with no prefill", () => {
     renderEditor(null, "create");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("planned");
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("hold");
   });
 
   it("defaults to the stop's own kind when editing", () => {
     renderEditor(existingStop({ kind: "transit" }), "edit");
     expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("transit");
+  });
+
+  // A stated kind always wins over the create-mode default — the default only
+  // fills in for "nothing was stated", the same rule the assistant's write
+  // tool applies (writeTools.ts's withDefaultKind).
+  it("keeps an explicitly-supplied initial kind in create mode, rather than overriding to hold", () => {
+    renderEditor(existingStop({ activityId: "", kind: "idea" }), "create");
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("idea");
   });
 
   it("sends the chosen kind on save", () => {

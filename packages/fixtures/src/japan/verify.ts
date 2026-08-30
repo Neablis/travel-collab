@@ -55,6 +55,14 @@ export type JapanTripReport = {
   currencies: string[];
   conflictsByKind: Record<string, number>;
   conflictTotal: number;
+  /**
+   * Days carrying at least one stop the Calendar's `N to book` flag would
+   * count (`apps/web/src/lib/needsBooking.ts`) — KI-86's guard against this
+   * fixture drifting back toward 14 of 14 flagged. Mirrored rather than
+   * imported for the same reason `daysWithUnlocatedStops` mirrors
+   * mapRailData.ts below: apps/web imports this package, not the reverse.
+   */
+  daysNeedingBooking: number;
   /** Findings. Every one of these is expected to be empty; a non-empty list is a failure. */
   rejections: string[];
   emptyDays: number[];
@@ -85,6 +93,19 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   const h =
     Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Mirrors `apps/web/src/lib/needsBooking.ts`'s predicate exactly (`booked`
+ * and `transit` never; `hold` and `idea` always; `planned` only when
+ * `ticketed`) — a copy, not an import, for the dependency-direction reason
+ * that function's own comment and `daysWithUnlocatedStops` below both give.
+ * If that rule changes, this is the other half to change with it.
+ */
+function needsBookingMirror(kind: ActivityKind, tags: readonly ActivityTag[]): boolean {
+  if (kind === "booked" || kind === "transit") return false;
+  if (kind === "planned") return tags.includes("ticketed");
+  return true;
 }
 
 /** Folds the fixture's commands through the real domain and reports on the result. */
@@ -191,6 +212,13 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const conflicts = detectConflicts(state);
   for (const c of conflicts) conflictsByKind[c.kind] = (conflictsByKind[c.kind] ?? 0) + 1;
 
+  const daysNeedingBooking = state.days.filter((day) =>
+    day.activityIds.some((id) => {
+      const activity = state.activities[id];
+      return activity !== undefined && needsBookingMirror(activity.kind, activity.tags);
+    }),
+  ).length;
+
   // Wherever geocode-japan-seed.mts resolved a stop, the canonical row must
   // still agree with it. Without this, re-running the geocoder and pasting its
   // output over the overlay would silently diverge from the coordinates the app
@@ -248,6 +276,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     currencies: [...currencies].sort(),
     conflictsByKind,
     conflictTotal: conflicts.length,
+    daysNeedingBooking,
     rejections,
     emptyDays,
     daysOutOfChronologicalOrder,
@@ -287,6 +316,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("budget", `${report.budgetMinor / 100} ${report.currencies.join("/") || "—"}`);
   row("planned", `${report.plannedTotalMinor / 100} ${report.currencies.join("/") || "—"}`);
   row("conflicts", `${report.conflictTotal} (${histogram(report.conflictsByKind)})`);
+  row("days needing booking", `${report.daysNeedingBooking}/${report.dayCount}`);
   lines.push("");
   lines.push(findings.length === 0 ? "  OK — matches expectations." : `  ${findings.length} finding(s):`);
   for (const f of findings) lines.push(`    - ${f}`);

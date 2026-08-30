@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { scenarios, tripDetailFactory } from "@tc/factories";
 import {
   boundingBoxAround,
   distanceKm,
   plausibleCoords,
+  tripRegionOf,
+  TRIP_REGION_MARGIN_KM,
   withinBox,
 } from "./geocodeRegion";
 
@@ -91,5 +94,38 @@ describe("withinBox", () => {
 
   it("rejects an exterior point", () => {
     expect(withinBox(box, { lat: 52.9, lng: -2.89 })).toBe(false);
+  });
+});
+
+// Behavioural cover for what used to be checked by a regex over the source text
+// of `handleAiRequest.ts` and `geocodeEnrichment.ts` (writeTools.test.ts, now
+// deleted). Both of those files import this function and this constant now, so
+// the KI-15 parity claim — "an approved batch is enriched on exactly the
+// command path's terms" — is held by the module system rather than by a string
+// match that a rename would silently defeat.
+describe("tripRegionOf", () => {
+  it("is null for a trip with no locations at all", () => {
+    expect(tripRegionOf(scenarios.emptyTrip())).toBeNull();
+    const unplaced = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2 } });
+    expect(tripRegionOf(unplaced)).toBeNull();
+  });
+
+  it("is null for a trip with named locations that carry no coordinates", () => {
+    const named = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2, located: "named" } });
+    expect(tripRegionOf(named)).toBeNull();
+  });
+
+  it("pads the box around the trip's geocoded activities by the shared margin", () => {
+    const trip = tripDetailFactory.build(
+      {},
+      { transient: { dayCount: 1, activitiesPerDay: 1, located: true } },
+    );
+    const only = Object.values(trip.activities)[0]!.location!;
+    const region = tripRegionOf(trip)!;
+    expect(region).not.toBeNull();
+    // One point, so the box is that point padded — which pins the margin this
+    // function applies without restating the number.
+    expect(region).toEqual(boundingBoxAround([{ lat: only.lat!, lng: only.lng! }], TRIP_REGION_MARGIN_KM));
+    expect(withinBox(region, { lat: only.lat!, lng: only.lng! })).toBe(true);
   });
 });

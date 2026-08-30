@@ -81,7 +81,8 @@ export type BoardCallbacks = {
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
   onDragEnd: () => void;
   /** Selects a day by index — the same state the day chips above drive. */
-  onSelectDay: (index: number) => void;
+  // `null` clears the focus — see Column's header comment and DayChips.
+  onSelectDay: (index: number | null) => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
   onAddActivity: (value: ActivityFormValue) => void;
@@ -272,7 +273,7 @@ export function Board({
             // that, rather than teaching Column a second way to be quiet.
             onRemoveDay={readOnly ? undefined : () => callbacks.onRemoveDay(day.dayId)}
             isFocused={focusedDay === index}
-            onSelect={() => callbacks.onSelectDay(index)}
+            onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
             onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
             readOnly={readOnly}
