@@ -273,7 +273,7 @@ describe("TripHeader restyle (Task 9)", () => {
   });
 });
 
-// The "View only" badge was, until CodeRabbit read PR #71, the entire viewer
+// The "Viewer" badge was, until CodeRabbit read PR #71, the entire viewer
 // treatment in this header — its own comment claimed the UI was what stopped
 // a viewer clicking into a write, and Share, Add stop, undo/redo and Revert
 // were all still live. The server refused them, so nothing was writable; what
@@ -285,7 +285,7 @@ describe("TripHeader viewer gating", () => {
     myRole = "viewer";
     await renderHeader();
 
-    expect(await screen.findByText("View only")).toBeTruthy();
+    expect(await screen.findByText("Viewer")).toBeTruthy();
     // Sharing is an editor capability (ADR-027), so it is absent rather than
     // disabled — the way Delete is absent for a non-owner in the settings
     // sheet. A disabled Share still reads as an offer.
@@ -309,7 +309,7 @@ describe("TripHeader viewer gating", () => {
   it("leaves all of them live for an owner", async () => {
     await renderHeader();
 
-    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.queryByText("Viewer")).toBeNull();
     expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
 
@@ -332,8 +332,8 @@ describe("TripHeader — the access read failed", () => {
     await renderHeader();
 
     expect(await screen.findByText("Access unknown")).toBeTruthy();
-    // Not "View only": an unknown role is not a viewer.
-    expect(screen.queryByText("View only")).toBeNull();
+    // Not "Viewer": an unknown role is not a viewer.
+    expect(screen.queryByText("Viewer")).toBeNull();
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
   });
 

@@ -27,7 +27,7 @@ test.describe("the demo trip", () => {
 
     // The real fixture through the real trip header.
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-    await expect(page.getByText("View only")).toBeVisible();
+    await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
     await expect(page.getByText("This is an example trip — look around.")).toBeVisible();
 
     // The four lenses, each rendering the fixture's own content.
@@ -111,7 +111,7 @@ test.describe("the demo trip", () => {
     // get redirected back to the sample board, and you need to click again").
     await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-    await expect(page.getByText("View only")).toHaveCount(0);
+    await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
   });
 });
 
@@ -123,13 +123,13 @@ test("a signed-in visitor makes the demo trip theirs, and can edit it", async ({
   test.slow();
   await page.goto("/demo");
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-  await expect(page.getByText("View only")).toBeVisible();
+  await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Make this trip mine" }).click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/);
 
   // Now it is theirs: the same 14 days, and the read-only badge is gone.
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-  await expect(page.getByText("View only")).toHaveCount(0);
+  await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add stop" })).toBeEnabled();
 });

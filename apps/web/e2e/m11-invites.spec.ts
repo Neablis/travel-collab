@@ -100,9 +100,9 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
     await expect(bob.getByText("You'll be able to change the plan.")).toBeVisible();
     await bob.getByRole("button", { name: "Join this trip" }).click();
 
-    // Lands on the trip, editable, with no "View only" badge.
+    // Lands on the trip, editable, with no "Viewer" badge.
     await expect(bob.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-    await expect(bob.getByText("View only")).toHaveCount(0);
+    await expect(bob.getByText("Viewer", { exact: true })).toHaveCount(0);
 
     // …and can actually change it. "Add a day" lives in the board's trailing
     // "One more day?" column (Board.tsx).
@@ -159,7 +159,11 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     await carol.getByRole("button", { name: "Join this trip" }).click();
 
     await expect(carol.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-    await expect(carol.getByText("View only")).toBeVisible();
+    // `exact` matters here and nowhere else in this file: this test's own trip
+    // is named "Viewer", so once the badge's copy became the single word
+    // "Viewer" (2026-08-30 design pass, was "View only") a substring match
+    // found the heading too and the assertion stopped being about the badge.
+    await expect(carol.getByText("Viewer", { exact: true })).toBeVisible();
 
     // The badge was the whole of this assertion until
     // docs/reviews/2026-08-28-m11-pr71-review.md §5: it passed while the board

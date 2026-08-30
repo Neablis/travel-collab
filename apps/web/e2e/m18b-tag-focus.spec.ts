@@ -57,7 +57,7 @@ test.describe("tag focus", () => {
   test("a chip focuses its tag, dims everything else, and survives every lens", async ({ page }) => {
     await page.goto("/demo");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-    await expect(page.getByText("View only")).toBeVisible();
+    await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
     const gonpachi = card(page, "Dinner at Gonpachi");
     const haneda = card(page, "Land at Haneda");

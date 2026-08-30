@@ -4,8 +4,9 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Thirteen threads, twelve of them from one sitting. Ten are fixed on this
-branch; one is open pending a repro; two are proposals waiting on a decision.
+Fifteen threads. Eleven are fixed on this branch; one is open pending a
+repro; two are proposals waiting on a decision; one — the Map lens on a
+phone — is scoped below but not started.
 
 ## How this pass was run
 
@@ -36,6 +37,8 @@ branch; one is open pending a repro; two are proposals waiting on a decision.
 | 11 | Activity location | Full geocoded address shown everywhere | Fixed |
 | 12 | Trip board (default lens) | Can scroll far past the bottom, intermittently | **Open — needs a repro** |
 | 13 | `/welcome` hero art | Fake map should read as Kyoto | **Proposal — needs a decision** |
+| 14 | Trip header badges (446px) | Two-word badges wrap mid-label | Fixed |
+| 15 | Map lens (411px) | Broken on a phone: legend, day rail, scrolling | **Scoped — needs a decision** |
 
 ### 1 — Enter in the dev-login field looked inert (and ate the input)
 
@@ -180,6 +183,35 @@ Real design work rather than a defect, and the one item here that should not
 be done unilaterally — "iconic Kyoto" has several defensible readings and the
 current art is a deliberate stripped-back abstraction that the responsive
 suite pins at four widths. Waiting on a direction.
+
+### 14 — Badges wrapping mid-label on a phone
+
+> "dont use two words when one will do, word wraps cause issues. Readonly, I
+> don't like these tags double lines on small screens"
+
+Two changes, because the report has two halves. The copy: "View only" is now
+**"Viewer"** — one word, and it names the role the badge stands in for, in the
+same word the invite flow and TravelersPanel already use. The mechanism: a
+badge is a chip, and a chip that breaks across two lines reads as broken
+layout, so `Badge` is now `whitespace-nowrap` — every badge, not just this
+one. The row that holds them wraps as whole items instead.
+
+One trap this sprang, worth recording: `m11-invites.spec.ts` names its own
+fixture trip "Viewer", so a substring match on the badge's new copy also
+matched the trip heading and the assertion stopped being about the badge. The
+locators are `exact` now.
+
+### 15 — The Map lens on a phone (scoped, not started)
+
+> "map view pretty broken on mobile, maybe remove legend on mobile, and figure
+> out a different static location for the days, have less info and make that
+> where you scroll so map jumping still works"
+
+Reported at 411×760. This is a mobile layout for the Map lens rather than a
+fix — three overlays (rail, focus card, legend) are all positioned for a
+desktop canvas, and the rail is both the day list and the scroll surface that
+drives map jumping, so it cannot simply be hidden. Waiting on a direction
+before building it.
 
 ## What this pass did not cover
 
