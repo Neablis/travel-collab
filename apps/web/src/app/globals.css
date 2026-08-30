@@ -138,15 +138,6 @@
      `xl:` (1280px). A real `@media` rule is required either way; Tailwind
      bracket syntax (`xl:grid-cols-[...]`) would trip the element wall's
      "no arbitrary values" check. */
-  .playbooks-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (min-width: 1180px) {
-    .playbooks-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
-  }
-
   /* Lens content needs its own clearance from the bottom of the page — a
      day-column/timeline row otherwise ends flush against the viewport edge.
      24px matches PageContainer's own px-6 gutter, so the content ends with
@@ -251,8 +242,8 @@
      probably shouldn't be a modal but a full page experience"). Docked
      (>=768px — Tailwind's own `md`, which every other breakpoint-aware rule
      in this file already treats as the line between "narrow but still a
-     shrinkable plan" and "phone": see `.playbooks-grid`'s 1180px and the
-     hero's 1024px for wider breakpoints, and SPEC.md §13's mobile-foundations
+     shrinkable plan" and "phone": see the hero's 1024px and the assistant
+     rail's own 1180px for wider breakpoints, and SPEC.md §13's mobile-foundations
      framing for why phone gets its own rules rather than a squeeze of
      desktop's) is UNCHANGED — 356px width, sticky under the header, a real
      flex sibling per SPEC §9. e2e pins this exactly

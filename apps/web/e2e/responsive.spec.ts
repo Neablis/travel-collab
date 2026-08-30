@@ -114,12 +114,56 @@ test.describe("responsive (narrow viewport)", () => {
     await expect(closeButton).toBeHidden();
   });
 
-  test("the Playbooks strip reflows to two columns below 1180px", async ({ page }) => {
-    await page.goto("/");
-    const columns = await page
-      .locator(".playbooks-grid")
-      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
-    expect(columns).toBe(2);
+  // Was "the Playbooks strip reflows to two columns below 1180px", against
+  // home's `.playbooks-grid`. M11b deleted that strip — it was a `<Preview>`
+  // shell over fabricated cards — and its hand-written 1180px media query with
+  // it. The app's breakpoint-gated CARD GRID is now Discover's results list,
+  // and the property KI-19 exists for is unchanged: a grid whose column count
+  // depends on width must be exercised BELOW the suite's 1280px default, where
+  // the whole class of defect KI-16 belongs to lives.
+  //
+  // Its own day, in the `Yours` scope, so the grid has something to lay out
+  // without this spec publishing anything into the shared public library.
+  test("the Discover card grid reflows below the desktop breakpoints", async ({ page }) => {
+    const { tripId } = await page.request
+      .post("/api/trips", { data: { name: e2eTripName("Responsive") } })
+      .then((r) => r.json());
+    const dayId = crypto.randomUUID();
+    await page.request.post(`/api/trips/${tripId}/commands`, { data: { type: "AddDay", tripId, dayId } });
+    await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: {
+        type: "AddActivity",
+        tripId,
+        activityId: crypto.randomUUID(),
+        dayId,
+        title: "A stop",
+        timeWindow: { start: "09:00", end: "10:00" },
+        location: { name: "Somewhere", city: "Kyoto" },
+      },
+    });
+    const kept = await page.request.post("/api/saved-days", {
+      data: { name: `Responsive day ${Date.now()}`, tripId, dayId },
+    });
+    expect(kept.ok()).toBe(true);
+
+    await page.goto("/playbooks");
+    await page.getByRole("radio", { name: "Yours" }).click();
+    await expect(page.getByTestId("discover-results")).toBeVisible();
+
+    const columns = () =>
+      page
+        .getByTestId("discover-results")
+        .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+
+    // The narrow project's own 1100px is above Tailwind's `lg` (1024px), so
+    // the reflow this is about happens below it — set the width explicitly for
+    // the second half rather than adding a third project, exactly as the hero
+    // test below does for its own 1024px breakpoint.
+    expect(await columns()).toBe(3);
+    await page.setViewportSize({ width: 800, height: 800 });
+    expect(await columns()).toBe(2);
+    await page.setViewportSize({ width: 500, height: 800 });
+    expect(await columns()).toBe(1);
   });
 
   test("the hero collapses to a single column below 1024px", async ({ page }) => {
