@@ -288,15 +288,28 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Open M17 — Account customization** — `docs/milestones/M17-account-customization.md`,
-re-scoped 2026-08-29 (see above). **Then M11a, then M11b**, both scoped and
-placed 2026-08-30 — `docs/milestones/M11a-invite-gate.md` and
-`docs/milestones/M11b-playbooks-public-library.md`. **All three carry a
-migration, and a migration is dispatched, not merged.** **Its migration must not be merged without a
-dispatch** — `gh workflow run migrate-production.yml -f confirm=migrate` from
-`main`. That is the one thing about M17 most likely to be missed, because
-merging no longer applies a migration and the PR body is the only place anyone
-will look for it.
+**M17 was jumped on 2026-08-30 and the current work is M11a — an invite gate**
+— `docs/milestones/M11a-invite-gate.md`, **then M11b**
+(`docs/milestones/M11b-playbooks-public-library.md`), **then M17**
+(`docs/milestones/M17-account-customization.md`, unchanged and un-cancelled).
+Mitchell's call the same day, asked for as *"finishing out the rest of M11"*.
+The reorder note is in `docs/milestones/README.md`.
+
+**Jumping M17 is free for M11a and not free for M11b**, and the difference is
+worth knowing before either is opened. M11a's file already said M17 was
+sequencing rather than a dependency, and it is — nothing in the gate reads a
+preference. M11b's prerequisite was real: its author strip and its public
+profile both display a person's name, and M17's preferences half is what
+resolves `who` to a display name. Both now build against today's identifier
+**behind one resolver seam**, so M17 later fills it in one function instead of
+two routes. That amendment is recorded against the prerequisite in M11b's own
+file.
+
+**All three carry a migration, and a migration is dispatched, not merged** —
+`gh workflow run migrate-production.yml -f confirm=migrate` from `main`, said so
+in the PR body. M11a's is `invite_codes`; M11b's carries `cities`, visibility
+and the adds ledger. This is the thing most likely to be missed, because merging
+no longer applies a migration and the PR body is the only place anyone looks.
 
 Per `docs/milestones/README.md` the next milestone's plan re-checks the
 gate-close checklist, and **M18b's close (2026-08-30) is the one being

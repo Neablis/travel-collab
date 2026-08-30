@@ -12,7 +12,10 @@ per the order set on 2026-08-29 when Mitchell placed two of the three
 approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
 **M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
 and **M11a, an invite gate, was scoped the same day and placed in front of it**.
-The order is now `M18b ✓ → M17 → M11a → M11b → M12 → M13 → M14 → M9`.
+The order was `M18b ✓ → M17 → M11a → M11b → M12 → M13 → M14 → M9`, and on
+**2026-08-30 Mitchell jumped M17** — asking for "the rest of M11" first — so it
+is now `M18b ✓ → M11a → M11b → M17 → M12 → M13 → M14 → M9`. The reorder note,
+and the one consequence it carries for M11b, are in `docs/milestones/README.md`.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
@@ -151,8 +154,13 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M17 Account customization** ← **current milestone** — **re-scoped and
-      placed 2026-08-29, after M18b**, whose gate closed 2026-08-30.
+- [ ] **M17 Account customization** — **re-scoped and placed 2026-08-29, after
+      M18b**, whose gate closed 2026-08-30, and then **jumped on 2026-08-30**:
+      Mitchell asked for "the rest of M11" first, so M11a and M11b run ahead of
+      it and M17 follows M11b. The reorder note is in
+      `docs/milestones/README.md`; the one consequence it carries is recorded
+      against M11b's prerequisites, because M17 was to resolve `who` to a
+      display name and M11b's author strip and profile both show one.
       **It needs one migration, and merging does not apply it** — dispatch with
       `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
       and say so in the PR body.
@@ -186,9 +194,13 @@ Where the work actually stands right now: `docs/STATUS.md`.
       four Playbooks `<Preview>` shells stay M11-tagged in
       `preview-registry.ts` with nothing else left in the milestone. Gate
       evidence and retro are in the milestone file.)*
-- [ ] **M11a An invite gate on the front door** →
+- [ ] **M11a An invite gate on the front door** ← **current milestone** →
       `docs/milestones/M11a-invite-gate.md` — **scoped and placed 2026-08-30**,
-      running after M17 and **before M11b**.
+      then **moved ahead of M17 the same day** on Mitchell's call, so it runs
+      first and **before M11b**. **It needs one migration (`invite_codes`), and
+      merging does not apply it** — dispatch with
+      `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
+      and say so in the PR body.
       *(Created out of M11b's scoping review the same day. M11b publishes
       user-authored text and leaves reporting to M12, which rests on Mitchell's
       call that the platform is invite-gated — and it is not: any Google account

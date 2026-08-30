@@ -188,16 +188,38 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M17 — Account customization**
-(`M17-account-customization.md`), as of **M18b's gate closing 2026-08-30**.
-Order from here: `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped
-and placed 2026-08-30, and M11a was created the same day and placed in front of
-it**, see below.
+Current milestone: **M11a — An invite gate on the front door**
+(`M11a-invite-gate.md`), as of **Mitchell's 2026-08-30 decision to jump M17**
+(see the reorder note immediately below). Order from here:
+`M11a → M11b → M17 → M12 → M13 → M14 → M9`.
 
-**M17 needs one migration and it must not be merged without a dispatch** —
-`gh workflow run migrate-production.yml -f confirm=migrate`, from `main`. Its
-re-scope (2026-08-29) already removed the `users` table and the identity
-decision, so what remains is the preferences half.
+**M11a and M11b each need a migration, and neither must be merged without a
+dispatch** — `gh workflow run migrate-production.yml -f confirm=migrate`, from
+`main`. M17 keeps its own migration for whenever it is picked up; its re-scope
+(2026-08-29) already removed the `users` table and the identity decision, so
+what remains is the preferences half.
+
+### 2026-08-30 — M17 is jumped; M11a and M11b run first
+
+**Mitchell's decision, 2026-08-30**, asked for as *"finishing out the rest of
+M11"*: build the two remaining milestones of the M11 access family — **M11a**
+then **M11b** — ahead of **M17**, which was the placed current milestone as of
+M18b's gate close the same day. M17 is not cancelled and not re-scoped; it
+keeps its file, its scope and its migration, and moves to after M11b.
+
+Why it is safe for M11a: `M11a-invite-gate.md` already states that M17 is
+**sequencing, not a dependency** — nothing in the invite gate reads a
+preference, a display name or a home airport.
+
+**Why it is not free for M11b, recorded here rather than discovered mid-build.**
+M11b's own prerequisites say *"M17 closes first"* for one concrete reason: link
+6's author strip and link 8's public profile both display a person's name, and
+resolving `who` to a display name is exactly what M17's preferences half was to
+supply. Jumping M17 therefore means **M11b builds those two surfaces against the
+identifier that exists today**, behind one seam, so that M17 fills it later by
+changing one resolver rather than two routes. That is a consequence accepted
+with the decision, not an implementation miss — see `M11b`'s file, where the
+same note is recorded against the prerequisite it amends.
 
 **M18b and M17 were placed 2026-08-29 by Mitchell**, both out of the
 approved-but-unplaced set, to be built as one overnight batch alongside the

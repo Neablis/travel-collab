@@ -239,9 +239,17 @@ invited.
 
 ## Prerequisites
 
-- **M17 closes first.** The author strip and the profile both show a person's
-  name, and M17 is what resolves `who` to a display name. Building profiles
-  first means building them against an identifier.
+- ~~**M17 closes first.**~~ **Amended 2026-08-30, and this is the one
+  consequence of jumping M17 that costs something.** The reason for the
+  prerequisite stands: link 6's author strip and link 8's profile both show a
+  person's name, and M17's preferences half is what resolves `who` to a display
+  name. With M17 moved to after this milestone, **both surfaces build against
+  the identifier that exists today**, behind a single resolver seam — one
+  function that today returns the identifier and after M17 returns the display
+  name — so M17 fills it by changing that resolver rather than two routes.
+  Accepted with the decision, not an implementation miss. Do not scatter the
+  fallback across the two routes; if a second call site appears, the seam has
+  been built wrong. Reorder note: `docs/milestones/README.md`.
 - **M11a closes first**, and unlike M17 this one is a real dependency, not just
   sequencing — see the publishing gate box. `M11a-invite-gate.md`.
 - **M11 link 6 is done** — `savedDays`, `SavedDay`, `SavedStop`, ADR-029.

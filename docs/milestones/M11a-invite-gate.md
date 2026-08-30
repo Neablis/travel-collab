@@ -145,8 +145,11 @@ to do next. Project rule 6: this is the failure state of the front door.
 
 ## Prerequisites and traps
 
-- **M17 closes first**, per the placed order. Nothing here depends on it; it is
-  sequencing, not a dependency.
+- ~~**M17 closes first**, per the placed order.~~ **Superseded 2026-08-30**:
+  Mitchell jumped M17 and this milestone runs first. That is safe precisely
+  because of what this line already said — nothing here depends on M17; it was
+  sequencing, not a dependency. No link below reads a preference, a display
+  name or a home airport. Reorder note: `docs/milestones/README.md`.
 - **Rotating the super code needs a redeploy.** Vercel injects environment
   variables at build, so changing the value does not take effect until the next
   deployment. That is the practical argument for minting single-use codes for
