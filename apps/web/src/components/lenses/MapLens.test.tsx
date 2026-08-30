@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripDetail } from "@tc/contracts";
+import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
@@ -146,6 +146,28 @@ vi.mock("maplibre-gl", () => {
 });
 
 const useFocusMock = vi.fn();
+
+// The whole FocusProvider contract, in one place. A mock that returns only the
+// day half leaves `focusedTag` as `undefined` rather than `null`, which is a
+// different value from the one the real provider ever produces — and every
+// stop then reads as "does not carry the focused tag", so every marker ghosts
+// and three ghosting tests fail for a reason that has nothing to do with what
+// they assert. Spread this, override the one field a test is about.
+function focusDefaults(): {
+  focusedDay: number | null;
+  setFocusedDay: (i: number | null) => void;
+  focusedTag: ActivityTag | null;
+  toggleFocusedTag: (tag: ActivityTag) => void;
+  clearFocusedTag: () => void;
+} {
+  return {
+    focusedDay: null,
+    setFocusedDay: vi.fn(),
+    focusedTag: null,
+    toggleFocusedTag: vi.fn(),
+    clearFocusedTag: vi.fn(),
+  };
+}
 vi.mock("@/components/trip/context/FocusProvider", () => ({
   useFocus: () => useFocusMock(),
 }));
@@ -299,10 +321,10 @@ function detailWithEmptyDay(): TripDetail {
 
 function renderMap(
   detail: TripDetail,
-  overrides: { focusedDay?: number | null; setFocusedDay?: (i: number | null) => void } = {},
+  overrides: Partial<ReturnType<typeof focusDefaults>> = {},
   readOnly = false,
 ) {
-  useFocusMock.mockReturnValue({ focusedDay: null, setFocusedDay: vi.fn(), ...overrides });
+  useFocusMock.mockReturnValue({ ...focusDefaults(), ...overrides });
   return render(
     <EditorHost>
       <MapLens detail={detail} onSelectActivity={vi.fn()} readOnly={readOnly} />
@@ -317,7 +339,7 @@ describe("MapLens", () => {
     // shouldn't nag about the backlog's missing locations either. Only
     // unlocated1 (on d1) counts.
     const onSelectActivity = vi.fn();
-    useFocusMock.mockReturnValue({ focusedDay: null, setFocusedDay: vi.fn() });
+    useFocusMock.mockReturnValue(focusDefaults());
     const { container } = render(
       <EditorHost>
         <MapLens detail={detailFixture()} onSelectActivity={onSelectActivity} />
@@ -453,7 +475,7 @@ describe("MapLens", () => {
       // wait for this render's own effects, not a leftover call.
       setPaintPropertyMock.mockClear();
       const detail = detailWithTwoDays();
-      useFocusMock.mockReturnValue({ focusedDay: 0, setFocusedDay: vi.fn() });
+      useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
       const { rerender } = render(
         <EditorHost>
           <MapLens detail={detail} onSelectActivity={vi.fn()} />
@@ -461,7 +483,7 @@ describe("MapLens", () => {
       );
       await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
 
-      useFocusMock.mockReturnValue({ focusedDay: 1, setFocusedDay: vi.fn() });
+      useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
       rerender(
         <EditorHost>
           <MapLens detail={detail} onSelectActivity={vi.fn()} />
@@ -513,7 +535,7 @@ describe("MapLens", () => {
       markerInstances.length = 0;
       const onSelectActivity = vi.fn();
       const detail = detailWithTwoDays();
-      useFocusMock.mockReturnValue({ focusedDay: 0, setFocusedDay: vi.fn() });
+      useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
       const { rerender } = render(
         <EditorHost>
           <MapLens detail={detail} onSelectActivity={onSelectActivity} />
@@ -524,7 +546,7 @@ describe("MapLens", () => {
       expect(a1!.getElement().style.opacity).toBe("1");
       expect(Number(b1!.getElement().style.opacity)).toBeLessThan(1);
 
-      useFocusMock.mockReturnValue({ focusedDay: 1, setFocusedDay: vi.fn() });
+      useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
       rerender(
         <EditorHost>
           <MapLens detail={detail} onSelectActivity={onSelectActivity} />
@@ -591,5 +613,94 @@ describe("MapLens — a viewer's map", () => {
     expect(openCreateCalls[0]).toMatchObject({
       location: { lat: 41.8902, lng: 12.4922 },
     });
+  });
+});
+
+// M18b — the Map's half of SPEC §11. A pin can be dimmed on two independent
+// counts (its day is not the focused one; it does not carry the focused tag),
+// which is a case none of the other lenses has.
+describe("MapLens tag focus", () => {
+  function detailWithTags(): TripDetail {
+    const detail = detailWithTwoDays();
+    detail.activities.a1!.tags = ["meal"];
+    detail.activities.b1!.tags = ["meal"];
+    // a2 and b2 stay untagged.
+    return detail;
+  }
+
+  it("keeps every pin full-strength when a tag is focused but no day is", async () => {
+    markerInstances.length = 0;
+    renderMap(detailWithTags(), { focusedDay: null, focusedTag: null });
+    await waitFor(() => expect(markerInstances).toHaveLength(4));
+    for (const marker of markerInstances) expect(marker.getElement().style.opacity).toBe("1");
+  });
+
+  it("dims only the pins that do not carry the focused tag", async () => {
+    markerInstances.length = 0;
+    renderMap(detailWithTags(), { focusedDay: null, focusedTag: "meal" });
+    await waitFor(() => expect(markerInstances).toHaveLength(4));
+    const [a1, a2, b1, b2] = markerInstances;
+
+    // Tagged, on either day — a tag focus is not a day focus.
+    expect(a1!.getElement().style.opacity).toBe("1");
+    expect(b1!.getElement().style.opacity).toBe("1");
+    expect(Number(a2!.getElement().style.opacity)).toBeCloseTo(0.32);
+    expect(Number(b2!.getElement().style.opacity)).toBeCloseTo(0.32);
+  });
+
+  // The two dims compose by taking the fainter, not by multiplying: 0.35 ×
+  // 0.32 is 0.11, which is invisible, and "dim, never hide" is the rule.
+  it("takes the fainter of the day dim and the tag dim, never their product", async () => {
+    markerInstances.length = 0;
+    renderMap(detailWithTags(), { focusedDay: 0, focusedTag: "meal" });
+    await waitFor(() => expect(markerInstances).toHaveLength(4));
+    const [a1, a2, b1, b2] = markerInstances;
+
+    // Focused day, focused tag.
+    expect(a1!.getElement().style.opacity).toBe("1");
+    // Focused day, wrong tag — the tag dim (0.32) is the fainter.
+    expect(Number(a2!.getElement().style.opacity)).toBeCloseTo(0.32);
+    // Other day, right tag — only the day dim (0.35) applies.
+    expect(Number(b1!.getElement().style.opacity)).toBeCloseTo(0.35);
+    // Other day, wrong tag — both apply, and 0.32 wins over 0.35.
+    expect(Number(b2!.getElement().style.opacity)).toBeCloseTo(0.32);
+    expect(Number(b2!.getElement().style.opacity)).toBeGreaterThan(0.35 * 0.32);
+  });
+
+  it("un-dims when the tag focus clears", async () => {
+    markerInstances.length = 0;
+    const detail = detailWithTags();
+    // One stable `onSelectActivity` across both renders: it is a dep of the
+    // map-creation effect, so a fresh `vi.fn()` on the rerender tears the map
+    // down and rebuilds it, and the marker captured below is then a detached
+    // one from the previous instance.
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedTag: "meal" });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(4));
+    const [, a2] = markerInstances;
+    expect(Number(a2!.getElement().style.opacity)).toBeCloseTo(0.32);
+
+    useFocusMock.mockReturnValue(focusDefaults());
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(a2!.getElement().style.opacity).toBe("1"));
+  });
+
+  // Dim, never hide: a tag focus removes no marker from the map.
+  it("plots every stop regardless of the focused tag", async () => {
+    markerInstances.length = 0;
+    renderMap(detailWithTags(), { focusedDay: null, focusedTag: "lodging" });
+    await waitFor(() => expect(markerInstances).toHaveLength(4));
+    for (const marker of markerInstances) {
+      expect(Number(marker.getElement().style.opacity)).toBeCloseTo(0.32);
+    }
   });
 });

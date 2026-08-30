@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
+import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
@@ -49,7 +50,7 @@ export function MapLens({
   readOnly?: boolean;
 }) {
   const { openCreate } = useEditor();
-  const { focusedDay, setFocusedDay } = useFocus();
+  const { focusedDay, setFocusedDay, focusedTag } = useFocus();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -59,7 +60,13 @@ export function MapLens({
   // once in the "load" handler's marker loop, read (never mutated in place)
   // by the focus effect. Backlog-located pins (belong to no day) are never
   // added here, so they're structurally excluded from ghosting.
-  const markersByDayRef = useRef<Map<number, import("maplibre-gl").Marker[]>>(new Map());
+  //
+  // Each entry carries its `activityId` as well as its Marker: M18b's tag
+  // focus dims a single STOP, and a day-keyed array of bare Markers cannot say
+  // which stop any of them is. Storing the id here rather than re-deriving it
+  // from marker order keeps the pairing true even if the marker loop ever
+  // skips one.
+  const markersByDayRef = useRef<Map<number, { activityId: string; marker: import("maplibre-gl").Marker }[]>>(new Map());
   const pins = activityPins(detail);
   // activityPins includes backlog-located stops (dayId: null) for callers
   // that need the full set; this lens draws day-attached stops only (see the
@@ -180,7 +187,7 @@ export function MapLens({
         // location used to get a neutral-brand marker here too; that loop is
         // gone — the map no longer plots anything that isn't on a day.
         for (const day of days) {
-          const dayMarkers: import("maplibre-gl").Marker[] = [];
+          const dayMarkers: { activityId: string; marker: import("maplibre-gl").Marker }[] = [];
           for (const stop of day.stops) {
             const marker = new Marker(accentVar(day.accent) ? { color: accentVar(day.accent) } : undefined)
               .setLngLat([stop.lng, stop.lat])
@@ -190,7 +197,7 @@ export function MapLens({
               marker.getElement().style.cursor = "pointer";
             }
             marker.getElement().style.transition = "opacity 150ms";
-            dayMarkers.push(marker);
+            dayMarkers.push({ activityId: stop.activityId, marker });
           }
           markersByDayRef.current.set(day.index, dayMarkers);
         }
@@ -251,8 +258,16 @@ export function MapLens({
       // write visibly took effect for a frame and then silently reverted to
       // full strength once the map's next render pass ran. setOpacity feeds
       // the value maplibre itself re-applies, so it survives those renders.
-      const markerOpacity = focused ? 1 : 0.35;
-      for (const marker of markersByDayRef.current.get(day.index) ?? []) {
+      const dayOpacity = focused ? 1 : 0.35;
+      for (const { activityId, marker } of markersByDayRef.current.get(day.index) ?? []) {
+        // Two independent dims can apply to the same pin — its day is not the
+        // focused one (0.35), and it does not carry the focused tag (0.32) —
+        // so the pin takes whichever is fainter rather than their product.
+        // Multiplying would put a stop that is off on both counts at 0.11,
+        // effectively invisible, which is the hiding M18b's "dim, never hide"
+        // rule exists to prevent.
+        const tags = detail.activities[activityId]?.tags ?? [];
+        const markerOpacity = isOffTag(tags, focusedTag) ? Math.min(dayOpacity, TAG_DIM_OPACITY) : dayOpacity;
         marker.setOpacity(String(markerOpacity));
       }
     }
@@ -285,8 +300,11 @@ export function MapLens({
       maxZoom: 13,
       animate: false,
     });
+    // `focusedTag` is in here because the marker loop above reads it; the
+    // camera half below is unaffected by it (a tag focus never moves the
+    // viewport — it is a "which of these" question, not a "where" one).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focusedDay]);
+  }, [ready, focusedDay, focusedTag]);
 
   return (
     <div data-testid="map-lens" className="map-lens flex flex-col gap-2">

@@ -32,6 +32,26 @@ function renderLens(detail: ReturnType<typeof tripDetailFixture>) {
   );
 }
 
+/**
+ * The same render plus a control that sets tag focus, since no chip is
+ * reachable from this lens — the Calendar renders city cards, not stops, so
+ * the only way in from here is the focus state itself.
+ */
+function TagFocusControl({ tag }: { tag: "meal" | "lodging" }) {
+  const { toggleFocusedTag } = useFocus();
+  return <button onClick={() => toggleFocusedTag(tag)}>focus {tag}</button>;
+}
+
+function renderLensWithTagControl(detail: ReturnType<typeof tripDetailFixture>, tag: "meal" | "lodging" = "meal") {
+  return render(
+    <FocusProvider>
+      <TagFocusControl tag={tag} />
+      <CalendarLens detail={detail} />
+      <FocusProbe />
+    </FocusProvider>,
+  );
+}
+
 // A trip whose days hold no stops at all. `calendarMonths` pads the grid out
 // to whole weeks, so this fixture also supplies the out-of-trip cells the
 // empty-day copy must NOT reach.
@@ -491,5 +511,95 @@ describe("CalendarLens", () => {
       expect(within(cards[1]!).getByTestId("calendar-day-header").textContent).toBe("");
       expect(cards[1]!.textContent).toContain("1 stop");
     });
+  });
+});
+
+// M18b — SPEC §12's Calendar rule, which is deliberately a different rule from
+// the other three lenses': a count per card, and a dim on the card that
+// matches nothing. The Calendar stopped rendering individual stops at M18, so
+// there is nothing here to dim per stop even if the rule wanted it.
+describe("CalendarLens tag focus", () => {
+  function taggedDetail() {
+    const detail = detailFixture();
+    detail.activities[rome]!.tags = ["meal"];
+    // `forum` (Rome) and `flight` (the untitled bucket) stay untagged.
+    return detail;
+  }
+
+  it("shows no match line at all until a tag is focused", () => {
+    renderLens(taggedDetail());
+    expect(screen.queryByTestId("calendar-tag-match")).toBeNull();
+  });
+
+  it("reports N of M match on each card once a tag is focused", async () => {
+    renderLensWithTagControl(taggedDetail());
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+
+    const matches = screen.getAllByTestId("calendar-tag-match").map((el) => el.textContent);
+    // Rome holds `rome` (tagged) and `forum` (not); the untitled bucket holds
+    // `flight` alone, which is untagged.
+    expect(matches).toEqual(["1 of 2 match", "0 of 1 match"]);
+  });
+
+  it("dims the card that matches nothing, and only that card", async () => {
+    renderLensWithTagControl(taggedDetail());
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+
+    const cards = screen.getAllByTestId("calendar-day-card");
+    expect(cards).toHaveLength(2);
+    expect(cards[0]!.getAttribute("data-off-tag")).toBeNull();
+    expect(cards[0]!.style.opacity).toBe("1");
+    expect(cards[1]!.getAttribute("data-off-tag")).toBe("true");
+    expect(Number(cards[1]!.style.opacity)).toBeCloseTo(0.28);
+  });
+
+  // Dim, never hide: a dimmed card keeps every card there was, in place, with
+  // its stop count and its window intact.
+  it("drops no card and no line from a dimmed card", async () => {
+    renderLensWithTagControl(taggedDetail());
+    const before = screen.getAllByTestId("calendar-day-card").map((c) => c.textContent);
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+    const after = screen.getAllByTestId("calendar-day-card");
+
+    expect(after).toHaveLength(before.length);
+    // Everything the card said before is still in it; the match line is added.
+    for (const [i, card] of after.entries()) expect(card.textContent).toContain(before[i]!);
+  });
+
+  it("counts zero across the board for a tag no stop carries", async () => {
+    renderLensWithTagControl(taggedDetail(), "lodging");
+    await userEvent.click(screen.getByRole("button", { name: "focus lodging" }));
+
+    expect(screen.getAllByTestId("calendar-tag-match").map((el) => el.textContent)).toEqual([
+      "0 of 2 match",
+      "0 of 1 match",
+    ]);
+    for (const card of screen.getAllByTestId("calendar-day-card")) {
+      expect(card.getAttribute("data-off-tag")).toBe("true");
+    }
+  });
+
+  // The cell IS a button, so `aria-label` replaces its content — a count only
+  // rendered visually would be announced as nothing at all (the same trap
+  // CodeRabbit found on PR #89 for the rest of the card's lines).
+  it("puts the count in the cell's accessible name", async () => {
+    renderLensWithTagControl(taggedDetail());
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+
+    const cell = screen.getAllByTestId("calendar-cell").find((c) => c.getAttribute("data-in-trip") === "true");
+    expect(cell!.getAttribute("aria-label")).toContain("1 of 2 match");
+    expect(cell!.getAttribute("aria-label")).toContain("0 of 1 match");
+  });
+
+  // Two focuses, one page: picking a day must not clear a tag, and a tag must
+  // not clear a day. The exit gate's fifth box, at this lens.
+  it("keeps the day ring while a tag is focused", async () => {
+    renderLensWithTagControl(taggedDetail());
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+    const cell = screen.getAllByTestId("calendar-cell").find((c) => c.getAttribute("data-in-trip") === "true");
+    await userEvent.click(cell!);
+
+    expect(screen.getByTestId("focused-day").textContent).toBe("0");
+    expect(screen.getAllByTestId("calendar-tag-match").length).toBeGreaterThan(0);
   });
 });

@@ -44,3 +44,49 @@ export function toggleTag(tags: readonly ActivityTag[], tag: ActivityTag): Activ
   if (!next.delete(tag)) next.add(tag);
   return TAG_ORDER.filter((t) => next.has(t));
 }
+
+/**
+ * The opacity an off-tag stop renders at while a tag is focused (SPEC §11).
+ *
+ * **Dim, never hide.** The filter row this replaced removed non-matching
+ * stops, and the whole argument for replacing it was that the shape of a day
+ * has to survive the filter — a day with one matching stop still shows all its
+ * stops, just faint. Anything that returns `display: none` here is rebuilding
+ * the filter row (M18b, "Explicitly not in scope").
+ *
+ * A number rather than an opacity class because it is applied through an
+ * inline style in several places (a maplibre Marker takes a string, not a
+ * class) and one constant is what keeps those agreeing.
+ */
+export const TAG_DIM_OPACITY = 0.32;
+
+/**
+ * SPEC §12's Calendar rule is a different number on purpose: a city card is a
+ * bigger, tinted surface than a stop row, so the same 0.32 left it reading as
+ * "slightly quieter" rather than "not what you asked for".
+ */
+export const CALENDAR_DIM_OPACITY = 0.28;
+
+/** True when this stop should be dimmed — i.e. a tag is focused and it lacks it. */
+export function isOffTag(tags: readonly ActivityTag[], focusedTag: ActivityTag | null): boolean {
+  return focusedTag !== null && !tags.includes(focusedTag);
+}
+
+/**
+ * The opacity to render a stop at: 1 unless a tag is focused and this stop
+ * does not carry it. Written as a function rather than a ternary at each call
+ * site so "dim, never hide" has exactly one implementation to audit.
+ */
+export function tagFocusOpacity(tags: readonly ActivityTag[], focusedTag: ActivityTag | null): number {
+  return isOffTag(tags, focusedTag) ? TAG_DIM_OPACITY : 1;
+}
+
+/**
+ * The chip's hover hint, from M18b's scope ("the hover hint the handoff
+ * writes"). It names the raw tag, not `TAG_LABEL` — the handoff's copy is
+ * `Dim everything that is not meal`, lowercase, reading as the tag rather than
+ * as a proper noun.
+ */
+export function tagFocusHint(tag: ActivityTag, isFocused: boolean): string {
+  return isFocused ? `Stop focusing on ${tag}` : `Dim everything that is not ${tag}`;
+}

@@ -13,6 +13,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
+import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
@@ -85,7 +86,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) below the tab strip both read and
   // set it.
-  const { focusedDay, setFocusedDay } = useFocus();
+  const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
@@ -731,7 +732,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             go below. */}
         <div className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}>
           <TripHeader tripId={tripId}>
-            <TripViewTabs />
+            {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
+                the tabs' own `shrink-0` are what keep that true at a phone's
+                width: the line drops onto its own line rather than squeezing
+                the tab strip, which is the control you need most. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* `shrink-0` on the wrapper, not inside TabStrip: TabStrip is a
+                  primitive with no className seam, and the tab strip is the
+                  control you least want squeezed when the focus line appears
+                  beside it. */}
+              <div className="shrink-0">
+                <TripViewTabs />
+              </div>
+              <TagFocusLine />
+            </div>
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}
@@ -778,6 +792,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // is the difference between an inert board and one whose
                     // cards move and snap back.
                     readOnly={readOnly}
+                    // Focus is a view state, not a command, so it is threaded
+                    // past the read-only gate deliberately: a viewer's board
+                    // and `/demo`'s signed-out reader both get the whole
+                    // behaviour. Nothing here reaches `dispatch`.
+                    focusedTag={focusedTag}
+                    onToggleTag={toggleFocusedTag}
                     callbacks={{
                       onSelectDay: setFocusedDay,
                       onMove: moveActivity,

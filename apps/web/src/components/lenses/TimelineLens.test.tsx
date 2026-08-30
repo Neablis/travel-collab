@@ -702,3 +702,77 @@ describe("a read-only timeline", () => {
     expect(screen.getAllByTestId(/^timeline-add-/).length).toBeGreaterThan(0);
   });
 });
+
+// M18b — SPEC §11: "off-tag stops render at 32% opacity. Dim, never hide."
+describe("TimelineLens tag focus", () => {
+  function twoStopDetail() {
+    return tripDetailFixture({
+      startDate: "2027-06-01",
+      days: [{ dayId: "d1", activityIds: ["meal1", "walk1"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        meal1: { activityId: "meal1", title: "Lunch at Kagari", timeWindow: { start: "12:00", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: ["meal"] as const, cost: null },
+        walk1: { activityId: "walk1", title: "Philosopher's Path", timeWindow: { start: "15:00", end: "16:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: ["outdoors"] as const, cost: null },
+      },
+    });
+  }
+
+  // No chip is reachable from this lens (M18 put chips on the day-column card
+  // only), so the harness sets the focus the way the chip would.
+  function renderWithTagControl(detail = twoStopDetail()) {
+    function Harness() {
+      const { toggleFocusedTag } = useFocus();
+      return (
+        <>
+          <button onClick={() => toggleFocusedTag("meal")}>focus meal</button>
+          <TimelineLens detail={detail} />
+        </>
+      );
+    }
+    return render(
+      <FocusProvider>
+        <EditorHost>
+          <Harness />
+        </EditorHost>
+      </FocusProvider>,
+    );
+  }
+
+  it("leaves every stop at full strength while nothing is focused", () => {
+    renderWithTagControl();
+    for (const id of ["meal1", "walk1"]) {
+      const row = screen.getByTestId(`timeline-item-${id}`);
+      expect(row.style.opacity).toBe("1");
+      expect(row.getAttribute("data-off-tag")).toBeNull();
+    }
+  });
+
+  it("dims the stop that does not carry the focused tag", async () => {
+    renderWithTagControl();
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+
+    expect(screen.getByTestId("timeline-item-meal1").style.opacity).toBe("1");
+    const off = screen.getByTestId("timeline-item-walk1");
+    expect(off.getAttribute("data-off-tag")).toBe("true");
+    expect(Number(off.style.opacity)).toBeCloseTo(0.32);
+  });
+
+  // The whole reason focus replaced the filter row: a day with one matching
+  // stop still shows all its stops.
+  it("still renders the dimmed stop, in place and in full", async () => {
+    renderWithTagControl();
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+
+    expect(screen.getByTestId("timeline-item-walk1")).toBeTruthy();
+    expect(screen.getByText("Philosopher's Path")).toBeTruthy();
+    // Its time rail goes with it — dimming only the card would leave a
+    // full-strength clock face beside a ghost.
+    expect(within(screen.getByTestId("timeline-item-walk1")).getByText("3 pm")).toBeTruthy();
+  });
+
+  it("un-dims when the focus clears", async () => {
+    renderWithTagControl();
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+    await userEvent.click(screen.getByRole("button", { name: "focus meal" }));
+    expect(screen.getByTestId("timeline-item-walk1").style.opacity).toBe("1");
+  });
+});
