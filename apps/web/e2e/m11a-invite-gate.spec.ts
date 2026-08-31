@@ -50,7 +50,7 @@ function freshUsername(): string {
  * spec that waits for a URL nothing produces any more.
  */
 function refusalUrl(reason: AdmissionRefusal): RegExp {
-  return new RegExp(`/signin\\?error=${reason}$`);
+  return new RegExp(`/signup\\?error=${reason}$`);
 }
 
 /** The exact sentence the screen owes this refusal — from the copy map itself. */
@@ -114,7 +114,7 @@ async function pendingAdmissionCookie(context: BrowserContext): Promise<Cookie |
  * username, and whatever the gate decides.
  *
  * Waits only for the screen to change, because both outcomes are legitimate
- * results of this walk — Home if admitted, `/signin?error=` if not. Asserting
+ * results of this walk — Home if admitted, `/signup?error=` if not. Asserting
  * which one is each test's job.
  */
 async function signUp(page: Page, username: string, code?: string): Promise<void> {
@@ -122,7 +122,14 @@ async function signUp(page: Page, username: string, code?: string): Promise<void
   if (code !== undefined) await page.getByLabel("Invite code").fill(code);
   await page.fill('input[name="username"]', username);
   await Promise.all([
-    page.waitForURL((url) => url.pathname !== "/signup"),
+    // Wait for the sign-in ATTEMPT to settle, which is not the same as leaving
+    // `/signup`. Since refusals redirect back to `/signup?error=` — so the
+    // person lands on the one screen with a code box to correct — "the
+    // pathname changed" is true for an admission and false for a refusal, and
+    // waiting on it hangs the refusal walk for 30s. Wait for either outcome:
+    // somewhere else entirely (admitted), or the same screen now carrying an
+    // error (refused).
+    page.waitForURL((url) => url.pathname !== "/signup" || url.searchParams.has("error")),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
 }
@@ -141,6 +148,16 @@ test("a brand-new account with no invite is refused, and leaves no users row beh
   // The raw code is never shown to the person — it is a routing token, and the
   // screen owes them a sentence instead.
   await expect(page.getByText(AdmissionRefusal.enum.MISSING_INVITE_CODE)).toHaveCount(0);
+  // The refusal has to be ACTIONABLE, not merely correct. Everything above
+  // passes just as well on a screen with no way to try again — which is what
+  // shipped: refusals landed on `/signin`, whose form has no invite-code box,
+  // so the message told you what was wrong on a page that could not take the
+  // answer. Mitchell found it walking the preview on 2026-08-31; no assertion
+  // here could, because they all read text rather than asking whether the
+  // person can act.
+  await expect(page.getByLabel("Invite code")).toBeVisible();
+  await expect(page.getByLabel("Invite code")).toBeEditable();
+
   // "…and leaves no `users` row behind": the gate runs before `upsertUser`, so
   // a refused sign-in must create nothing at all.
   expect(await hasUserRow(`dev-${username}`)).toBe(false);

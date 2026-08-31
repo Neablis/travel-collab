@@ -119,7 +119,16 @@ export function matchesSuperCode(configured: string | undefined, presented: stri
  * the only way three refusals reach three different sentences.
  */
 export function refusalRedirect(reason: AdmissionRefusal): string {
-  return `/signin?error=${reason}`;
+  // `/signup`, NOT `/signin` — the invite-code field is on the signup screen
+  // only, so a refusal that lands on `/signin` is a dead end: the message says
+  // what is wrong and the screen has no box to correct it in. Every refusal
+  // here is by definition someone with no `users` row, which is exactly who
+  // `/signup` is for.
+  //
+  // Found by Mitchell walking the preview on 2026-08-31, not by the suite —
+  // the tests assert the error code and its copy, and a test can read the
+  // right sentence on a screen a person cannot act on.
+  return `/signup?error=${reason}`;
 }
 
 /**

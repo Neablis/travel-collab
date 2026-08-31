@@ -96,7 +96,7 @@ async function hasUserRow(id: string): Promise<boolean> {
  * Auth.js `signIn` callback. Wired in `server/auth.ts`; deliberately fail-closed
  * on every path, because the point of the table is that no session can exist
  * for a person who has no row. A payload with no id is refused (`false` → the
- * designed `/signin?error=` screen), and a database failure propagates rather
+ * designed `/signup?error=` screen), and a database failure propagates rather
  * than being swallowed into a session with no durable identity behind it.
  *
  * **M11a widens the return to `boolean | string`** (ADR-025 amendment
