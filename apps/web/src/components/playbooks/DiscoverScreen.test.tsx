@@ -180,10 +180,15 @@ describe("Discover", () => {
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
 
+    const callsBeforeRetry = searchPlaybooksMock.mock.calls.length;
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
     );
     await waitFor(() => expect(screen.queryByTestId("library-sync-failure")).toBeNull());
+    // "retries for real" means a SECOND read happened. The banner clearing on
+    // the click alone would satisfy the assertion above, because the base mock
+    // already resolves and only the first call was made to fail.
+    expect(searchPlaybooksMock.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
   });
 
   // Project rule 6, the conflict half — and the half of it Discover gets WRONG

@@ -130,10 +130,17 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // `sql.param` binds the whole array as a single `text[]` parameter, which is
   // what the containment operator and the GIN index need.
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  // `at time zone 'UTC'` is load-bearing, not decoration. `created_at` is
+  // `timestamptz`, and `extract(month from <timestamptz>)` resolves against the
+  // SESSION's TimeZone — so the same row can answer a different month depending
+  // on where the connection thinks it is. `SharedDayScreen` formats the month
+  // with `getUTCMonth()`, so the filter has to be pinned to UTC or a day saved
+  // near a month boundary is filtered out of the month it displays.
+  // Raised by review on pull request 102.
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
-    and (${query.month ?? null}::int is null or extract(month from d.created_at) = ${query.month ?? null}::int)
+    and (${query.month ?? null}::int is null or extract(month from d.created_at at time zone 'UTC') = ${query.month ?? null}::int)
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
   `;
 }
@@ -239,6 +246,13 @@ async function siblingCities(query: DiscoverQuery): Promise<CityMatch[]> {
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  // `at time zone 'UTC'` is load-bearing, not decoration. `created_at` is
+  // `timestamptz`, and `extract(month from <timestamptz>)` resolves against the
+  // SESSION's TimeZone — so the same row can answer a different month depending
+  // on where the connection thinks it is. `SharedDayScreen` formats the month
+  // with `getUTCMonth()`, so the filter has to be pinned to UTC or a day saved
+  // near a month boundary is filtered out of the month it displays.
+  // Raised by review on pull request 102.
   const rows = await db.execute<DiscoverRow>(sql`
     select
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds,

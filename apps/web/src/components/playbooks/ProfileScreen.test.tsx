@@ -157,6 +157,11 @@ describe("a public profile", () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
+    // The test is named for the Retry, so it has to assert the Retry: a banner
+    // that lost its button passed this before.
+    expect(
+      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
+    ).toBeTruthy();
   });
 });
 

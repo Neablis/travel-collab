@@ -36,7 +36,12 @@ const SKELETON_ROWS = 5;
 export function LeaderboardScreen() {
   const read = useCallback(() => fetchLeaderboard(), []);
   const signature = useCallback(
-    (value: LeaderboardResponse) => value.authors.map((a) => `${a.userId}:${a.adds}`).join(","),
+    // `daysShared` is in the signature because the row RENDERS it: publishing or
+    // withdrawing a day moves it without moving `adds`, and a board that
+    // refreshed under a reader without raising `LibraryMoved` is the thing this
+    // signature exists to prevent. Raised by review on pull request 102.
+    (value: LeaderboardResponse) =>
+      value.authors.map((a) => `${a.userId}:${a.daysShared}:${a.adds}`).join(","),
     [],
   );
   const feed = useLibraryRead(read, signature);

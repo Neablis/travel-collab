@@ -39,7 +39,12 @@ describe("useLibraryRead's changed signal", () => {
     await waitFor(() => expect(result.current.data).toBe("a"));
 
     act(() => result.current.reload());
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    // `read`'s call count moves when it is INVOKED, and `reload()` invokes it
+    // synchronously — so waiting on the count is not waiting for the answer, and
+    // `changed` was read before the hook had compared anything. `loading` going
+    // back to false is the settle point.
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(read).toHaveBeenCalledTimes(2);
     expect(result.current.changed).toBe(false);
   });
 

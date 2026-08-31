@@ -132,11 +132,18 @@ describe("a shared day", () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true }));
     renderDay();
     const unpublish = await screen.findByRole("button", { name: "Unpublish" });
+    // The baseline has to be taken AFTER the second render. The mock resets in
+    // `beforeEach` only, and this test renders twice, so the count was already 2
+    // before the click — `toBeGreaterThan(1)` held even if the screen patched
+    // `visibility` locally and never re-read at all.
+    const readsBeforeClick = fetchSavedDayMock.mock.calls.length;
     await userEvent.click(unpublish);
     await waitFor(() => expect(unpublishMock).toHaveBeenCalledWith(DAY_ID));
     // Re-read rather than patched locally: publishing moves a number the author
     // strip gets from the server.
-    await waitFor(() => expect(fetchSavedDayMock.mock.calls.length).toBeGreaterThan(1));
+    await waitFor(() =>
+      expect(fetchSavedDayMock.mock.calls.length).toBeGreaterThan(readsBeforeClick),
+    );
   });
 
   it("says Publish on the author's own private day", async () => {

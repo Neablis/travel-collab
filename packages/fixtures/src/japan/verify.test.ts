@@ -52,6 +52,16 @@ describe("the canonical Japan fixture", () => {
       const values = owners.map(([, owner]) => owner[field]);
       expect(new Set(values).size, `${field} is the same for both owners`).toBe(values.length);
     }
+
+    // The half the loop above never covered, and the comment above it claimed
+    // anyway: a swap WITHIN one owner. The profile header renders "days shared"
+    // and "added to trips" side by side, so alice's days 3 / adds 3 was a pair a
+    // page could read the wrong way round and still add up — three assertions
+    // passed over it. Raised by review on pull request 102.
+    for (const [id, owner] of owners) {
+      const values = [owner.days, owner.published, owner.adds];
+      expect(new Set(values).size, `two of ${id}'s own numbers are equal`).toBe(values.length);
+    }
   });
 
   it("shares exactly one city between the two owners", () => {

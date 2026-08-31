@@ -79,14 +79,25 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const [adding, setAdding] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   const [busy, setBusy] = useState(false);
+  // A refused publish used to clear `busy` and say nothing, so the button
+  // simply did not move and the author had no way to tell a failure from a
+  // no-op. Raised by review on pull request 102.
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
   async function setVisibility(next: "public" | "private") {
     setBusy(true);
+    setVisibilityError(null);
     const result = next === "public" ? await publishSavedDay(savedDayId) : await unpublishSavedDay(savedDayId);
     setBusy(false);
     // Re-read rather than patching local state from the response: the author
     // strip's numbers are computed server-side and a publish moves one of them.
-    if (result.ok) feed.reload();
+    if (result.ok) {
+      feed.reload();
+      return;
+    }
+    setVisibilityError(
+      next === "public" ? "That day could not be published." : "That day could not be withdrawn.",
+    );
   }
 
   // The day is gone — never yours, withdrawn by its author, or deleted. All
@@ -182,6 +193,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               </Button>
             )}
           </Card>
+
+          {visibilityError !== null && (
+            <Banner variant="danger" data-testid="visibility-failed">
+              {visibilityError} Nothing changed — try again.
+            </Banner>
+          )}
 
           {day.stops.length === 0 ? (
             <EmptyState

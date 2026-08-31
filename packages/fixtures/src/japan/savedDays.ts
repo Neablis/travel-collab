@@ -12,7 +12,14 @@
 // One owner would make the agreement check vacuous: a Discover query and a
 // profile would trivially agree if there were only ever one person's days to
 // disagree about. So there are two, and no two numbers that a bug could swap
-// are equal — day counts are 3 and 2, published counts 2 and 1, adds 3 and 4.
+// are equal WHERE A SWAP IS POSSIBLE. Two properties, both asserted in
+// `verify.test.ts` rather than only stated here: no field is equal across the
+// two owners (days 3 vs 2, published 2 vs 1, adds 5 vs 4), and within one owner
+// no two of the three are equal. The second is the one the profile header needs
+// — it renders "days shared" and "added to trips" together, so alice's days 3 /
+// adds 3 was a swap that still added up. The one pair deliberately left equal
+// is alice's published (2) and bob's days (2): no surface renders those two
+// together, so no swap between them is reachable.
 // If any pair of those becomes equal, the seed stops being able to catch the
 // bug it exists to catch.
 //
@@ -148,7 +155,15 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     ownerId: ALICE,
     name: "Tokyo to Hakone, slowly",
     visibility: "public",
-    addedBy: [{ tripId: "bb000000-0000-4000-8000-000000000003", addedBy: BOB }],
+    // Three rows, not one. Alice's total has to differ from her own DAY count
+    // as well as from Bob's total: the profile header renders "days shared" and
+    // "added to trips" side by side, so days 3 / adds 3 was a pair a bug could
+    // swap and still add up. Raised by review on pull request 102.
+    addedBy: [
+      { tripId: "bb000000-0000-4000-8000-000000000003", addedBy: BOB },
+      { tripId: "bb000000-0000-4000-8000-000000000006", addedBy: BOB },
+      { tripId: "bb000000-0000-4000-8000-000000000007", addedBy: "dev-carol" },
+    ],
     // A travel day, and the reason this fixture is not six single-city days:
     // Discover's per-card line ("Kyoto matched · also Uji") and its sibling
     // chips have nothing to render unless some day touches more than one city.

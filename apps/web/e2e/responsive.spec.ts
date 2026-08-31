@@ -159,18 +159,23 @@ test.describe("responsive (narrow viewport)", () => {
     // the reflow this is about happens below it — set the width explicitly for
     // the second half rather than adding a third project, exactly as the hero
     // test below does for its own 1024px breakpoint.
-    expect(await columns()).toBe(3);
-    await page.setViewportSize({ width: 800, height: 800 });
-    expect(await columns()).toBe(2);
-    await page.setViewportSize({ width: 500, height: 800 });
-    expect(await columns()).toBe(1);
-
-    // Put it back. `global.teardown.ts` sweeps `[e2e]` trips and a saved day is
-    // not a trip, so a spec that keeps one and walks away grows the shared dev
-    // user's library by one row every run — which is how `SavedDaysDialog`
-    // reached nineteen days and stopped being clickable (see `ui/dialog.tsx`).
+    // Read before the assertions so the `finally` below can always reach it.
     const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };
-    expect((await page.request.delete(`/api/saved-days/${savedDay.savedDayId}`)).ok()).toBe(true);
+    try {
+      expect(await columns()).toBe(3);
+      await page.setViewportSize({ width: 800, height: 800 });
+      expect(await columns()).toBe(2);
+      await page.setViewportSize({ width: 500, height: 800 });
+      expect(await columns()).toBe(1);
+    } finally {
+      // Unconditional. `global.teardown.ts` sweeps `[e2e]` trips and a saved day
+      // is not a trip, so a spec that keeps one and walks away grows the shared
+      // dev user's library by one row every run — which is how `SavedDaysDialog`
+      // reached nineteen days and stopped being clickable (see `ui/dialog.tsx`).
+      // A responsive assertion is exactly the one most likely to fail, and the
+      // cleanup used to sit after it, so the failure that mattered also leaked.
+      expect((await page.request.delete(`/api/saved-days/${savedDay.savedDayId}`)).ok()).toBe(true);
+    }
   });
 
   test("the hero collapses to a single column below 1024px", async ({ page }) => {
@@ -311,6 +316,10 @@ test.describe("responsive (Map lens on a phone)", () => {
     // The three desktop overlays are gone — not merely hidden, since the rail
     // runs scroll machinery that should not be observing a zero-height box.
     await expect(page.locator("[data-rail-track]")).toHaveCount(0);
+    // "Rest of trip" is the LEGEND's own key (`MapLegend.tsx`), so this line is
+    // the legend assertion. The focus card's is below, AFTER a day is focused —
+    // asserting it here would pass on any build, because the card only renders
+    // for a focused day and nothing is focused yet.
     await expect(page.getByText("Rest of trip")).toHaveCount(0);
 
     // "make that where you scroll so map jumping still works": tapping a day
@@ -324,6 +333,12 @@ test.describe("responsive (Map lens on a phone)", () => {
     // maplibre exposes no camera state to query from here (CodeRabbit, PR #98).
     await strip.getByRole("button", { name: /Day 2/ }).click();
     await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop/);
+    // The third overlay, asserted where the assertion means something: a day is
+    // focused now, which is the only state that renders a focus card at all, so
+    // a build that kept the card on a phone would fail here. Before the tap this
+    // passed on every build. Raised by review on pull request 102, and the first
+    // fix for it made exactly that mistake.
+    await expect(page.getByTestId("map-focus-card")).toHaveCount(0);
 
     // The focused chip's ring must not be clipped by the track's own scroll
     // container. `overflow-x-auto` forces overflow-y to compute as `auto`
@@ -360,6 +375,11 @@ test.describe("responsive (Map lens on a phone)", () => {
 
     await expect(page.locator("[data-rail-track]")).toHaveCount(1);
     await expect(page.getByTestId("map-day-strip")).toHaveCount(0);
+    // The test is named "keeps the rail AND LEGEND" and asserted only the rail.
+    // No focus-card assertion here: the card renders only for a focused day and
+    // nothing is focused on load, so at desktop width there are legitimately
+    // zero. Its phone counterpart is asserted after a day IS focused.
+    await expect(page.getByText("Rest of trip")).toBeVisible();
   });
 });
 

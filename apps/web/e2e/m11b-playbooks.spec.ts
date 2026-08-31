@@ -296,7 +296,13 @@ test("city search shows all four states against the real endpoint", async ({ pag
   await expect(page.getByTestId("city-search-failed")).toBeVisible();
   await page.unroute("**/api/cities?*");
   await page.getByTestId("city-search-failed").getByRole("button", { name: "Retry" }).click();
-  await expect(page.getByTestId("city-search-results")).toBeVisible();
+  // The minted city itself, not merely "some results": the library is shared and
+  // holds days from earlier runs, so a Retry that CLEARED the box and searched
+  // something else would still have shown results and passed.
+  await expect(
+    page.getByTestId("city-search-results").getByRole("button", { name: new RegExp(`^${city}`) }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Search cities")).toHaveValue(city);
 
   // The static `<option>` city list is gone and must not come back — the
   // handoff says so twice and the gate restates it.
