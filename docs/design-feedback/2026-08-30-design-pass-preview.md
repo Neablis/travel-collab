@@ -4,9 +4,8 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Fifteen threads. Eleven are fixed on this branch; one is open pending a
-repro; two are proposals waiting on a decision; one — the Map lens on a
-phone — is scoped below but not started.
+Fifteen threads. Thirteen are fixed on this branch; one is open pending a
+repro; one is a proposal waiting on a decision.
 
 ## How this pass was run
 
@@ -38,7 +37,7 @@ phone — is scoped below but not started.
 | 12 | Trip board (default lens) | Can scroll far past the bottom, intermittently | **Open — needs a repro** |
 | 13 | `/welcome` hero art | Fake map should read as Kyoto | **Proposal — needs a decision** |
 | 14 | Trip header badges (446px) | Two-word badges wrap mid-label | Fixed |
-| 15 | Map lens (411px) | Broken on a phone: legend, day rail, scrolling | **Scoped — needs a decision** |
+| 15 | Map lens (411px) | Broken on a phone: legend, day rail, scrolling | Fixed |
 
 ### 1 — Enter in the dev-login field looked inert (and ate the input)
 
@@ -201,17 +200,49 @@ fixture trip "Viewer", so a substring match on the badge's new copy also
 matched the trip heading and the assertion stopped being about the badge. The
 locators are `exact` now.
 
-### 15 — The Map lens on a phone (scoped, not started)
+### 15 — The Map lens on a phone
 
 > "map view pretty broken on mobile, maybe remove legend on mobile, and figure
 > out a different static location for the days, have less info and make that
 > where you scroll so map jumping still works"
 
-Reported at 411×760. This is a mobile layout for the Map lens rather than a
-fix — three overlays (rail, focus card, legend) are all positioned for a
-desktop canvas, and the rail is both the day list and the scroll surface that
-drives map jumping, so it cannot simply be hidden. Waiting on a direction
-before building it.
+Reported at 411×760. A mobile layout for the Map lens rather than a fix: three
+overlays (rail, focus card, legend) are all positioned for a desktop canvas,
+and the 268px rail is both the day list and the scroll surface that drives map
+jumping, so it could not simply be hidden. Two shapes were put to Mitchell —
+a horizontal chip strip, or a peek-height bottom sheet — and he chose the
+**strip**.
+
+Below 768px the Map lens now mounts `MapDayStrip` in place of all three:
+
+- **Days** are a horizontal chip strip pinned to the top of the canvas, the
+  same idiom `DayChips` uses everywhere else, so there is one thing to learn
+  rather than two. Focus is by **tap**, not scroll position — the rail's
+  gearing exists to make a deliberate landing possible while scrubbing a
+  vertical list, and scroll-driven focus on a horizontal strip would fight the
+  sideways scroll needed to reach day 14.
+- **The focus card** is gone; its one line of detail (stop count, distance, or
+  the empty/unlocated note) moves under the strip, for the focused day only.
+  Its height is reserved rather than conditional, so focusing a day does not
+  shove the map down by a line.
+- **The legend** is dropped outright. It is a key for colours the chips
+  already carry, and it was the one overlay that cost canvas and returned
+  nothing.
+- **The camera's clearance** moves with the control: the rail's 284px of left
+  padding would be two thirds of a 411px screen, so on a phone `fitBounds`
+  reserves the strip's height at the top and a plain 24px on the other three
+  sides.
+
+Mounted by branch (`useIsPhone`, a JS media query) rather than hidden with
+CSS, because the rail runs a ResizeObserver and a scroll listener over real
+DOM — rendering it and hiding it would leave that machinery live against a
+zero-height box.
+
+**Guarded by:** four unit tests in `MapLens.test.tsx` (the swap in both
+directions, the detail line, and the camera padding) and two e2e tests in
+`responsive.spec.ts` at Mitchell's own 411px and at 1280px. The e2e also
+asserts the document does not scroll at phone width, since the strip is a
+control *on* the map, not a band the page scrolls past.
 
 ## What this pass did not cover
 

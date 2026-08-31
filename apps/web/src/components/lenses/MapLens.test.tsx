@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
@@ -800,5 +800,88 @@ describe("MapLens tag focus", () => {
     for (const marker of markerInstances) {
       expect(Number(marker.getElement().style.opacity)).toBeCloseTo(0.32);
     }
+  });
+});
+
+// Mitchell, 2026-08-30 design pass: "map view pretty broken on mobile … remove
+// legend on mobile, and figure out a different static location for the days,
+// have less info and make that where you scroll so map jumping still works."
+//
+// jsdom ships no `matchMedia`, so every test above this block takes the
+// desktop branch by way of `useIsPhone`'s feature detection — which is what
+// keeps them meaningful as *desktop* tests rather than accidentally passing.
+// These two install one.
+describe("MapLens on a phone", () => {
+  function setViewportMatches(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  it("swaps the rail, focus card and legend for one day strip below 768px", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    // The rail is the thing the strip replaces; both at once is the bug.
+    expect(screen.queryByRole("button", { name: /Day 1/ })).toBeTruthy();
+    expect(document.querySelector("[data-rail-track]")).toBeNull();
+    // The legend's copy is its own; nothing else on the lens says this.
+    expect(screen.queryByText("Rest of trip")).toBeNull();
+  });
+
+  it("keeps all three on a desktop viewport", async () => {
+    setViewportMatches(false);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(document.querySelector("[data-rail-track]")).toBeTruthy());
+    expect(screen.queryByTestId("map-day-strip")).toBeNull();
+    expect(screen.getByText("Rest of trip")).toBeTruthy();
+  });
+
+  // Without this the camera would still reserve the rail's 284px of left
+  // clearance on a 411px screen — two thirds of the width given to a panel
+  // that is no longer there, which would squeeze every focused day into the
+  // right-hand third.
+  it("moves the camera's clearance from the rail's left edge to the strip's top", async () => {
+    setViewportMatches(true);
+    fitBoundsMock.mockClear();
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+    const padding = fitBoundsMock.mock.calls.at(-1)![1].padding as {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+    expect(padding.left).toBeLessThan(MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX);
+    expect(padding.top).toBeGreaterThan(padding.bottom);
+  });
+
+  // The strip carries the detail the rail rows and the focus card used to,
+  // for the focused day only — that is the "have less info" half of the ask,
+  // and the reason dropping the focus card loses nothing.
+  it("shows the focused day's stop count and distance in the strip", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    expect(screen.getByTestId("map-day-strip-detail").textContent).toMatch(/2 stops/);
   });
 });

@@ -10,6 +10,8 @@ import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
+import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
 
@@ -64,6 +66,7 @@ export function MapLens({
 }) {
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  const isPhone = useIsPhone();
   const containerRef = useRef<HTMLDivElement>(null);
   // Distance from the top of the viewport to the top of the map canvas —
   // the sticky trip header, the tab strip and the day-chip rail, whose
@@ -377,13 +380,21 @@ export function MapLens({
     // rail's own footprint (MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX) plus the
     // same 100px breathing room the other sides already had, instead of the
     // bare 100 they keep.
+    //
+    // On a phone the day control is the strip across the TOP, not the rail on
+    // the left, so the clearance moves with it: the left inset goes back to
+    // the plain 100px every other side gets, and the top absorbs the strip.
+    // Reserving the rail's 284px on a 411px screen would leave the camera
+    // almost no width to fit a day into.
     map.fitBounds(bounds, {
-      padding: { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
+      padding: isPhone
+        ? { top: MAP_DAY_STRIP_HEIGHT_PX + 24, right: 24, bottom: 24, left: 24 }
+        : { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
       maxZoom: 13,
       animate: false,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focusedDay]);
+  }, [ready, focusedDay, isPhone]);
 
   return (
     <div data-testid="map-lens" className="map-lens flex flex-col gap-2">
@@ -419,9 +430,24 @@ export function MapLens({
           }}
         >
           <div ref={containerRef} className="h-full w-full" />
-          <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
-          <MapFocusCard day={focusedMapDay} />
-          <MapLegend />
+          {/* One day control, not two (Mitchell, 2026-08-30 design pass). On a
+              phone the rail's 268px panel and the floating focus card are most
+              of the screen, and the map is the content — so the days become a
+              chip strip across the top and the focus card's one line of detail
+              folds into it. The legend goes entirely: it is a key for colours
+              the chips already carry, and it is the one overlay that costs
+              canvas and returns nothing. Mounted by branch rather than hidden
+              by CSS because the rail runs real scroll machinery — see
+              useIsPhone for why. */}
+          {isPhone ? (
+            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+          ) : (
+            <>
+              <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+              <MapFocusCard day={focusedMapDay} />
+              <MapLegend />
+            </>
+          )}
         </div>
       ) : (
         <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
