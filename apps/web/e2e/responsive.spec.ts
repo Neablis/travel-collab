@@ -279,13 +279,20 @@ test.describe("responsive (Map lens on a phone)", () => {
     // too, so the container clips on every side; without vertical padding the
     // ring is cut off against the top edge. DayChips hit this three times and
     // this strip a fourth, so it is measured rather than eyeballed.
+    //
+    // Both edges, not just the top: the container clips symmetrically, so a
+    // top-only assertion passes while the ring is cut off underneath
+    // (CodeRabbit, PR #98).
     const ringClearance = await page.evaluate(() => {
       const track = document.querySelector('[data-testid="map-day-strip"] [role="group"]')!;
       const focused = track.querySelector('[aria-pressed="true"]')!;
-      return focused.getBoundingClientRect().top - track.getBoundingClientRect().top;
+      const trackBox = track.getBoundingClientRect();
+      const focusedBox = focused.getBoundingClientRect();
+      return { top: focusedBox.top - trackBox.top, bottom: trackBox.bottom - focusedBox.bottom };
     });
     // ring-2 is 2px; anything less than that and the ring is being cut.
-    expect(ringClearance).toBeGreaterThanOrEqual(2);
+    expect(ringClearance.top).toBeGreaterThanOrEqual(2);
+    expect(ringClearance.bottom).toBeGreaterThanOrEqual(2);
 
     // The strip is a control on the map, not a band the page scrolls past:
     // the canvas still owns the viewport, so the document must not scroll.
