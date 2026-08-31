@@ -144,7 +144,16 @@ normal weeks, not for an indefinite sprint — if that tempo becomes the norm, t
 contingency ladder at the bottom of this file is the next move, not another
 round of tuning. There is very little tuning left.
 
-Three details that are easy to get wrong and were got wrong once:
+Four details that are easy to get wrong and were each got wrong once:
+
+- **`paths-ignore` is evaluated against the whole PR diff, not the push.** For
+  `pull_request` events GitHub compares the filter against every file the PR
+  changes against base — never against the commits in the triggering push. So
+  the `~80 min` saving above only ever materialises on PRs that are prose-only
+  **end to end**; a documentation commit pushed onto a PR that already contains
+  code re-runs everything. Verified 2026-08-31 on PR #103: a commit touching
+  seven prose files ran `static-and-unit` and `integration-e2e` in full. This
+  is also why `AGENTS.md`'s Tier 1 is defined on the branch, not the commit.
 
 - **`ci.yml` cancels unconditionally; `migrate-production.yml` never does.**
   `ci.yml` only runs on pull requests now, and nothing there touches production,

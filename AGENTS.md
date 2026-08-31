@@ -233,8 +233,21 @@ guaranteed would never report.
 
 Classify the change by what it touches, then run **only** that tier.
 
-**Tier 1 — prose only.** Every changed path is under `docs/**`, `.claude/**`,
-`.agents/**`, or is a root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
+**Tier 1 — prose only.** Every path changed **by the whole branch**, not just
+by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
+root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
+
+> **The "whole branch" is load-bearing, and was got wrong once — here, while
+> writing this.** For `pull_request` events GitHub evaluates `paths-ignore`
+> against the **entire PR diff against base**, never against the push that
+> triggered the run. So a docs-only commit pushed onto a PR that already
+> contains code re-runs the full suite, every time. Verified on PR #103:
+> a commit touching seven prose files ran `static-and-unit` **and**
+> `integration-e2e` to completion.
+>
+> Practical consequence: once a branch has any code in it, it is Tier 2 for
+> the rest of its life, however prose-only the next commit looks. Tier 1 is a
+> property of the branch, not of the change in front of you.
 
 > Run nothing. No `pnpm check`, no test lane, no typecheck, no e2e, no browser.
 > `.github/workflows/ci.yml`'s `paths-ignore` and `.coderabbit.yaml`'s
@@ -345,8 +358,10 @@ That ordering rule has a second half, and skipping it is how a session spends
 ten minutes on a documentation edit. `--watch` is right **when checks will
 exist**. Two cases where they will not:
 
-- **A Tier 1 PR.** `ci.yml` skips it by path and `.coderabbit.yaml` filters it
-  out, so there is no terminating event to wait for.
+- **A Tier 1 PR** — meaning the *whole PR* is prose, per the caveat in Tier 1
+  above. `ci.yml` skips it by path and `.coderabbit.yaml` filters it out, so
+  there is no terminating event to wait for. A prose commit on a PR that also
+  carries code is **not** this case: that run happens, and you wait for it.
 - **A draft PR.** `auto_review.drafts: false` and the `if:` guards in `ci.yml`
   mean nothing runs until `gh pr ready <n>`. Push freely; do not watch.
 
