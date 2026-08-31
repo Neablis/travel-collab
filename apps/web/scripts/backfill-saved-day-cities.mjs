@@ -43,12 +43,14 @@ import { savedDays } from "../src/server/db/schema.ts";
 
 /**
  * @param {ReturnType<typeof drizzle>} db
- * @returns {Promise<{ scanned: number; updated: number; unreadable: string[] }>}
+ * @returns {Promise<{ scanned: number; updated: number; unreadable: string[]; refused: string[] }>}
  */
 export async function backfillSavedDayCities(db) {
   const rows = await db.select().from(savedDays);
   /** @type {string[]} */
   const unreadable = [];
+  /** @type {string[]} */
+  const refused = [];
   let updated = 0;
 
   for (const row of rows) {
@@ -63,11 +65,32 @@ export async function backfillSavedDayCities(db) {
     const cities = savedDayCities(row.stops);
     const current = row.cities ?? [];
     if (cities.length === current.length && cities.every((city, i) => city === current[i])) continue;
+
+    // `Array.isArray` above admits an array of malformed stops — `[{}]` passes
+    // it, while `SavedStop.array().safeParse` (what `fromRow` uses on this same
+    // column) would reject it. The script cannot run that parse: plain Node
+    // resolves neither `@tc/contracts` nor its source by path, because the
+    // package's internal re-exports are extensionless. Measured, not assumed —
+    // both fail with ERR_MODULE_NOT_FOUND.
+    //
+    // So bound the harm instead of pretending to validate. A malformed stop
+    // derives no city, and this backfill exists to FILL an empty `cities`, never
+    // to clear a populated one: every row it targets was written before 0012 and
+    // carries the column default. An empty derivation over a non-empty stored
+    // value is therefore always wrong, whatever made the stops unreadable.
+    // Reported for a person to look at, on the same terms as a non-array.
+    //
+    // Raised by review on pull request 100.
+    if (cities.length === 0 && current.length > 0) {
+      refused.push(row.id);
+      continue;
+    }
+
     await db.update(savedDays).set({ cities }).where(eq(savedDays.id, row.id));
     updated += 1;
   }
 
-  return { scanned: rows.length, updated, unreadable };
+  return { scanned: rows.length, updated, unreadable, refused };
 }
 
 // Only when run as a script. The export above is what the integration suite
@@ -83,13 +106,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const result = await backfillSavedDayCities(drizzle(pool));
   await pool.end();
 
-  const current = result.scanned - result.updated - result.unreadable.length;
+  const current = result.scanned - result.updated - result.unreadable.length - result.refused.length;
   console.log(
     `saved_days.cities: scanned ${result.scanned}, updated ${result.updated}, already current ${current}`,
   );
   if (result.unreadable.length > 0) {
     console.error(`${result.unreadable.length} row(s) left alone — their stops are not an array:`);
     for (const id of result.unreadable) console.error(`  ${id}`);
-    process.exit(1);
   }
+  if (result.refused.length > 0) {
+    console.error(
+      `${result.refused.length} row(s) left alone — their stops yield no city but the row already has some:`,
+    );
+    for (const id of result.refused) console.error(`  ${id}`);
+  }
+  if (result.unreadable.length > 0 || result.refused.length > 0) process.exit(1);
 }
