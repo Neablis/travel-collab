@@ -27,8 +27,12 @@ const SOLID_BG: Record<AccentFamily, string> = {
 
 // Height the strip occupies at the top of the canvas, so MapLens can keep the
 // camera's top padding clear of it the way it already clears the rail on the
-// left. Measured against the rendered chip: 8px top inset + chip + detail line.
-export const MAP_DAY_STRIP_HEIGHT_PX = 92;
+// left. Measured in a real browser at 411px: 81px for a chip carrying a city
+// line, which is the tall case — the city label is `truncate`, so it never
+// wraps and no name makes the strip taller than this. Rounded up to 84 for the
+// focus ring, and deliberately a ceiling: over-reserving costs a few pixels of
+// map, under-reserving puts a pin under the strip.
+export const MAP_DAY_STRIP_HEIGHT_PX = 84;
 
 /**
  * The phone replacement for `MapRail` (Mitchell, 2026-08-30 design pass: "map

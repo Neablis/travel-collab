@@ -25,20 +25,70 @@ import { cn } from "@/lib/cn";
 
 // `dc.html:1861-1866` — the hero's decorative contour grid. Kept as data
 // because six near-identical <path> elements read as noise inline.
+// The hero's fake map. Mitchell, 2026-08-30 design pass: "Could we create a
+// more real 'Fake' Map background that better reflects Kyoto? It has a very
+// iconic city style, and this just looks like a random river. Still keep this
+// stripped down esthetic though."
+//
+// What it was: six lines, every one of them slightly skewed off-axis
+// ("M-6 30 L 166 24"), plus one thick curve. Skew is what made it read as
+// random — a handful of drifting lines around a river could be anywhere.
+//
+// What makes Kyoto legible from above is the opposite of skew. Heian-kyō was
+// laid out on a strict Chinese-style lattice in 794 and the modern city still
+// follows it, which is unusual enough among Japanese cities to carry the
+// identity on its own. So the grid is now exactly orthogonal, and dense enough
+// to read as city blocks rather than as ruling. The two things that break the
+// lattice — the Kamo running north-south, and the Higashiyama ridge east of it
+// — are what stop a grid from looking like graph paper.
+//
+// Still stripped down, which was the other half of the ask: hairlines for the
+// blocks, one weight up for four arterials, no labels and no landmarks. It is
+// a ground for LandingHeroArt's route and pins, not an illustration competing
+// with them.
+//
+// Geometry is in the SVG's own 0-160 x 0-100 space. `xMidYMid slice` (on the
+// element below) means it is cropped rather than stretched, so the blocks stay
+// square-ish at every viewport instead of shearing on a wide one.
+const HERO_BLOCK_SPACING = 10;
 const HERO_GRID_LINES = [
-  "M-6 30 L 166 24",
-  "M-6 58 L 166 54",
-  "M-6 84 L 166 79",
-  "M64 -6 L 70 106",
-  "M124 -6 L 130 106",
-  "M148 -6 L 152 106",
+  // Verticals then horizontals, strictly axis-aligned. Extended past the
+  // viewBox on both ends so no line appears to stop short of the crop.
+  ...Array.from({ length: 17 }, (_, i) => `M${(i + 1) * HERO_BLOCK_SPACING} -6 V 106`),
+  ...Array.from({ length: 9 }, (_, i) => `M-6 ${(i + 1) * HERO_BLOCK_SPACING} H 166`),
 ] as const;
 
-// `dc.html:1867-1869` — translucent plots scattered over the grid.
+// Everything below is placed against one constraint that is easy to miss:
+// `xMidYMid slice` crops rather than stretches, so a tall narrow viewport sees
+// only a slice of this 160-wide box. Measured at 402x1014, the visible band is
+// x 60-100 — a quarter of the width, centred. Anything that carries the
+// identity therefore has to live near x=80 or it simply is not there on a
+// phone, which is what happened to the first attempt: the river and the ridge
+// sat out at x 113-152 and mobile got a bare lattice.
+
+// Karasuma and Kawaramachi north-south, Shijō and Gojō east-west: the four a
+// visitor actually navigates by. Heavier, so the lattice has a hierarchy — and
+// two of the four sit inside the phone band so that hierarchy survives there.
+const HERO_ARTERIALS = ["M70 -6 V 106", "M95 -6 V 106", "M-6 40 H 166", "M-6 70 H 166"] as const;
+
+// The Kamo, with the slight south-west lean the real river has. It is the one
+// element allowed to ignore the grid — which is the whole reason it is here —
+// and it is inside the phone band, because a grid alone reads as ruled paper.
+const HERO_RIVER = "M92 -6 C 88 22, 84 44, 81 62 S 76 86, 73 106";
+
+// Higashiyama, east of the river. Two contour arcs, no fill — the hills are
+// why the grid stops where it does on that side. These are the one identity
+// element left outside the phone band: three features in a 40-unit slice would
+// crowd it, and the hills are the most readily spared.
+const HERO_RIDGE = ["M112 6 C 120 20, 122 36, 117 50", "M109 58 C 118 72, 120 86, 115 100"] as const;
+
+// Translucent blocks, aligned to the lattice rather than scattered over it
+// (`dc.html:1867-1869` had them free-floating). On the grid they read as city
+// blocks; off it they read as stray rectangles.
 const HERO_PLOTS = [
-  { x: 70, y: 24, width: 18, height: 14, opacity: 0.5 },
-  { x: 132, y: 54, width: 16, height: 25, opacity: 0.4 },
-  { x: 106, y: 79, width: 22, height: 18, opacity: 0.45 },
+  { x: 60, y: 20, width: 10, height: 20, opacity: 0.5 },
+  { x: 30, y: 50, width: 20, height: 10, opacity: 0.4 },
+  { x: 120, y: 70, width: 20, height: 20, opacity: 0.45 },
 ] as const;
 
 export function LandingScreen() {
@@ -67,17 +117,35 @@ export function LandingScreen() {
             aria-hidden
             className="pointer-events-none absolute inset-0 h-full w-full"
           >
-            <path
-              d="M96 -6 C 92 22, 104 40, 99 62 S 108 88, 104 106"
-              strokeWidth="4.4"
-              className="fill-none stroke-info-tint"
-            />
+            {/* Blocks first, so the river and the route above it read as
+                crossing the city rather than being fenced in by it. */}
             {HERO_GRID_LINES.map((d) => (
-              <path key={d} d={d} strokeWidth="0.55" className="fill-none stroke-hairline" />
+              <path key={d} d={d} strokeWidth="0.4" className="fill-none stroke-hairline" />
             ))}
             {HERO_PLOTS.map((plot) => (
               <rect key={`${plot.x}-${plot.y}`} {...plot} className="fill-surface" />
             ))}
+            {HERO_ARTERIALS.map((d) => (
+              <path key={d} d={d} strokeWidth="0.9" className="fill-none stroke-hairline" />
+            ))}
+            {HERO_RIDGE.map((d) => (
+              <path key={d} d={d} strokeWidth="0.5" className="fill-none stroke-hairline" />
+            ))}
+            {/* `non-scaling-stroke`, unlike everything above it, because the
+                river is the one element whose weight has to read the same at
+                every viewport. `slice` scales user units by the larger of the
+                two axis ratios, which is ~9x on a desktop hero but ~10x on a
+                tall phone — and 402px is a quarter the width, so the same
+                stroke went from 1.4% of the screen to 5.5% and turned back
+                into the band this was replacing. In screen pixels it is 9px
+                everywhere. (The grid keeps user units on purpose: hairlines
+                pinned to 1px would vanish on desktop.) */}
+            <path
+              d={HERO_RIVER}
+              strokeWidth="9"
+              vectorEffect="non-scaling-stroke"
+              className="fill-none stroke-info-tint"
+            />
           </svg>
           <div className="landing-hero-veil pointer-events-none absolute inset-0" />
 

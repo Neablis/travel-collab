@@ -4,8 +4,8 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Fifteen threads. Thirteen are fixed on this branch; one is open pending a
-repro; one is a proposal waiting on a decision.
+Fifteen threads. Fourteen are fixed on this branch; one is open pending a
+repro.
 
 ## How this pass was run
 
@@ -172,16 +172,54 @@ flight. That is a guess, and it is recorded as one.
 **Needs:** which lens, and what you had just done — in particular whether a
 drag had happened on that page.
 
-### 13 — A Kyoto-shaped hero map (proposal)
+### 13 — A Kyoto-shaped hero map
 
 > "Could we create a more real 'Fake' Map background that better reflects
 > Kyoto? It has a very iconic city style, and this just looks like a random
 > river. Still keep this stripped down esthetic though"
 
-Real design work rather than a defect, and the one item here that should not
-be done unilaterally — "iconic Kyoto" has several defensible readings and the
-current art is a deliberate stripped-back abstraction that the responsive
-suite pins at four widths. Waiting on a direction.
+Three directions were put to Mitchell — the street grid, the river and hills,
+or landmark silhouettes. He took the grid, with the river for the one diagonal
+that keeps a lattice from reading as graph paper.
+
+The diagnosis was as useful as the ask. The thing being complained about was
+**not** in `LandingHeroArt` — that component draws the route and pins. It was
+`LandingScreen`'s own section-wide backdrop: six lines, every one of them
+skewed slightly off-axis (`M-6 30 L 166 24`), plus one 4.4-unit curve. Skew is
+what made it read as random, and a lone meandering curve on an otherwise empty
+ground can only be a river. A first attempt that added a grid inside
+`LandingHeroArt` was thrown away for this reason: it produced two grids and
+two rivers, which is worse than one of each.
+
+What replaced it, all in `LandingScreen.tsx`:
+
+- A **strictly orthogonal lattice** at 10-unit spacing. Heian-kyō was laid out
+  on a Chinese-style grid in 794 and the modern city still follows it, which
+  is unusual enough among Japanese cities to carry the identity alone. The
+  straightness *is* the point — it is the one thing the old art got wrong.
+- **Four arterials** a weight heavier, so the lattice has a hierarchy rather
+  than being uniform ruling.
+- **The Kamo**, leaning south-west, the only element allowed to ignore the
+  grid.
+- **Two Higashiyama contours** east of the river.
+- **Plots aligned to the grid** instead of free-floating, so they read as city
+  blocks rather than stray rectangles.
+
+Two things the screenshots caught that reasoning alone did not:
+
+1. `preserveAspectRatio="xMidYMid slice"` **crops** rather than stretches, and
+   at 402×1014 the visible band is only x 60–100 of a 160-wide box. The first
+   placement put the river and ridge at x 113–152, so a phone got a bare
+   lattice with no Kyoto in it at all. They moved inward.
+2. `slice` scales user units by the larger axis ratio — ~9× on a desktop hero
+   but ~10× on a tall phone, which is a quarter the width. The river went from
+   1.4% of the screen to 5.5% and turned back into the band it was replacing.
+   It is now `vectorEffect="non-scaling-stroke"` at a flat 9px. The grid keeps
+   user units deliberately: hairlines pinned to 1px would vanish on desktop.
+
+Verified by screenshot at 1440×900 and 402×844, and the four responsive tests
+that pin the hero (no overflow at 320/375/402px, map labels kept at desktop
+width) still pass.
 
 ### 14 — Badges wrapping mid-label on a phone
 
