@@ -449,6 +449,30 @@ async function addActivities(cookie: string, tripId: string, stops: SeedStop[]):
   for (const commands of byDay.values()) await batch(cookie, tripId, commands);
 }
 
+// ---- the demo library (M11b) -------------------------------------------
+
+/**
+ * Seeds the saved days in `@tc/fixtures` — five days across two owners, with
+ * their adds ledger.
+ *
+ * One POST, not a per-day loop, and it deliberately does NOT go through
+ * `POST /api/saved-days`. That endpoint takes `{ name, tripId, dayId }` and
+ * reads the stops off a trip the caller can see, which is exactly right for a
+ * person keeping a day out of their own plan and exactly wrong here: these days
+ * belong to two different accounts, and their `source_trip_id` is a snapshot of
+ * a trip that is deliberately not in the database (see the fixture's note). So
+ * the write is a dev-gated route that reads the fixture SERVER-side and goes
+ * through `newSavedDayRow` and `recordAdd` — the same derivation and the same
+ * ledger-plus-counter pair a real save and a real add use.
+ *
+ * Nothing about it needs `SEED_USER`: the fixture names its own owners
+ * (`dev-alice`, `dev-bob`), because M11b's gate box wants two people whose
+ * numbers could disagree.
+ */
+async function seedSavedDays(cookie: string): Promise<{ savedDays: number; adds: number }> {
+  return api(cookie, "POST", "/api/dev/saved-days");
+}
+
 // ---- run --------------------------------------------------------------
 
 async function main() {
@@ -461,9 +485,14 @@ async function main() {
   await seedJapanTrip(cookie);
   await seedRochesterTrip(cookie);
   await seedPortlandTrip(cookie);
+  const library = await seedSavedDays(cookie);
   console.log(
     "Seeded 3 trips: \"Japan: Tokyo → Kyoto → Osaka\" (14 days, 68 stops, 4 backlog items), " +
       "\"Rochester to Niagara\" (4 days, one intentionally empty), and \"Portland Weekend\" (2 days).",
+  );
+  console.log(
+    `Seeded the demo library: ${library.savedDays} saved days across two owners, ` +
+      `${library.adds} adds-ledger rows.`,
   );
 }
 

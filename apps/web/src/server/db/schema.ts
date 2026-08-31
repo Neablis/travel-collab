@@ -248,6 +248,19 @@ export const savedDays = pgTable(
     // Nothing may increment it except the path that inserts a ledger row, or
     // the two disagree and the board's credibility goes with them.
     adds: integer("adds").notNull().default(0),
+    // When this day was last made public — null while it is private, set when
+    // `visibility` flips to "public", cleared on unpublish. The two only ever
+    // move together, in `setSavedDayVisibility` and nowhere else.
+    //
+    // It exists because Discover's "newest" sort has nothing else honest to
+    // read. `created_at` is SAVE time, so a day kept in June and published this
+    // morning would sort as June, six weeks below days nobody could see yet —
+    // on the one sort whose whole job is to surface what has just arrived.
+    // Nullable rather than defaulted, because "never published" is a real state
+    // and a default would have to invent a date for it.
+    //
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
     sourceTripId: uuid("source_trip_id").notNull(),
     sourceTripName: text("source_trip_name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),

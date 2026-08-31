@@ -16,6 +16,7 @@ import {
   deleteSavedDay,
   duplicateTrip,
   fetchInvitePreview,
+  fetchSavedDay,
   fetchSavedDays,
   fetchSharedTrip,
   fetchTripAccess,
@@ -24,11 +25,14 @@ import {
   fetchTripHistory,
   fetchTripShares,
   insertSavedDay,
+  publishSavedDay,
   resetDemoData,
   revokeTripInvite,
   revokeTripShare,
+  searchCities,
   sendTripCommand,
   sendTripCommandBatch,
+  unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
@@ -192,6 +196,10 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
   deleteSavedDay: () => deleteSavedDay(UUID),
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
+  fetchSavedDay: () => fetchSavedDay(UUID),
+  publishSavedDay: () => publishSavedDay(UUID),
+  unpublishSavedDay: () => unpublishSavedDay(UUID),
+  searchCities: () => searchCities("Kyo"),
   askAssistant: () =>
     askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
   applyAssistantProposal: () =>

@@ -152,7 +152,34 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // resulting events under ONE batchId, so groupBatches/buildHistoryEntries
 // treat the whole batch as a single history entry (ADR-005-adjacent: undo
 // unwinds the batch as a unit). Any rejection appends nothing.
-export async function executeTripCommandBatch(input: unknown, actorId: string): Promise<CommandResult> {
+//
+// `alsoInSameTransaction` is a seam for a NON-PLANNING write that has to be the
+// same fact as the batch — today, exactly one caller: `insertSavedDay` writing
+// the adds ledger row and its denormalised counter (M11b link 4). It runs after
+// the events are appended and the projections written, still inside the
+// pipeline's transaction, and only when the batch succeeded; throwing out of it
+// rolls the whole batch back with it.
+//
+// It is a hook rather than a call after `executeTripCommandBatch` returns
+// because the alternative is two transactions and therefore a window: a ledger
+// row against a batch that then lost its optimistic-concurrency check is an add
+// of a day that is not in the trip, and a committed batch whose ledger write
+// failed is an add nobody is credited for. `SPEC.md` §15 is explicit that the
+// leaderboard's credibility is exactly this count being right.
+//
+// It is NOT a general "run anything here" extension point. It may not append
+// events, write a planning projection, or decide a command — invariant 1 says
+// planning state is only ever written by the sequence above it. A second
+// caller wanting anything of that shape is a signal the seam is wrong, not an
+// invitation to widen it.
+export async function executeTripCommandBatch(
+  input: unknown,
+  actorId: string,
+  alsoInSameTransaction?: (
+    tx: Parameters<typeof upsertTripDetail>[0],
+    committed: { tripId: string; detail: TripDetail },
+  ) => Promise<void>,
+): Promise<CommandResult> {
   // 1. validate the batch shape against the contract
   const parsed = BatchBody.safeParse(input);
   if (!parsed.success) {
@@ -227,6 +254,11 @@ export async function executeTripCommandBatch(input: unknown, actorId: string): 
       tripId,
     );
 
-    return { ok: true, tripId, detail: withMembers(detail, members), history: historyDto };
+    // 8. the non-planning write that has to commit with this batch, if any.
+    //    Last, so it sees the trip exactly as this batch left it.
+    const answer = withMembers(detail, members);
+    if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
+
+    return { ok: true, tripId, detail: answer, history: historyDto };
   });
 }
