@@ -1,5 +1,4 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Lens, ScheduleView } from "./context/LensRouter";
 
@@ -52,61 +51,30 @@ describe("TripViewTabs", () => {
     expect(screen.queryByRole("button", { name: /more/i })).toBeNull();
   });
 
-  it("selects Day columns by default (Board is LensRouter's own default lens)", () => {
-    renderTabs();
-    expect(screen.getByRole("tab", { name: "Day columns" }).getAttribute("aria-selected")).toBe("true");
+  // One table rather than four near-identical renders: the assertion is the
+  // same in each, only the (lens, view) input changes. It also pins which tab
+  // each lens owns, which the KI-20 test below deliberately does not — that one
+  // proves the selection is disjoint and covers the strip, not that Board maps
+  // to "Day columns" specifically.
+  it.each([
+    ["Board", "Timeline", "Day columns"],
+    ["Schedule", "Timeline", "Timeline"],
+    ["Schedule", "Calendar", "Calendar"],
+    ["Map", "Timeline", "Map"],
+  ] as const)("lens=%s view=%s selects the %s tab", (lens, view, tab) => {
+    renderTabs({ lens, view });
+    expect(screen.getByRole("tab", { name: tab }).getAttribute("aria-selected")).toBe("true");
   });
 
-  it("selects Timeline when lens=Schedule and view=Timeline", () => {
-    renderTabs({ lens: "Schedule", view: "Timeline" });
-    expect(screen.getByRole("tab", { name: "Timeline" }).getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("selects Calendar when lens=Schedule and view=Calendar", () => {
-    renderTabs({ lens: "Schedule", view: "Calendar" });
-    expect(screen.getByRole("tab", { name: "Calendar" }).getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("selects the Map tab when the Map lens is active", () => {
-    renderTabs({ lens: "Map" });
-    expect(screen.getByRole("tab", { name: "Map" }).getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("switches to the Map lens when the Map tab is clicked", async () => {
-    const setLens = vi.fn();
-    renderTabs({ setLens });
-
-    await userEvent.click(screen.getByRole("tab", { name: "Map" }));
-
-    expect(setLens).toHaveBeenCalledWith("Map");
-  });
-
-  it("clicking Day columns calls setLens with Board", async () => {
-    const setLens = vi.fn();
-    renderTabs({ lens: "Map", setLens });
-
-    await userEvent.click(screen.getByRole("tab", { name: "Day columns" }));
-
-    expect(setLens).toHaveBeenCalledWith("Board");
-  });
-
-  it("clicking Calendar calls setLensAndView with Schedule, Calendar", async () => {
-    const setLensAndView = vi.fn();
-    renderTabs({ setLensAndView });
-
-    await userEvent.click(screen.getByRole("tab", { name: "Calendar" }));
-
-    expect(setLensAndView).toHaveBeenCalledWith("Schedule", "Calendar");
-  });
-
-  it("clicking Timeline calls setLensAndView with Schedule, Timeline", async () => {
-    const setLensAndView = vi.fn();
-    renderTabs({ lens: "Map", setLensAndView });
-
-    await userEvent.click(screen.getByRole("tab", { name: "Timeline" }));
-
-    expect(setLensAndView).toHaveBeenCalledWith("Schedule", "Timeline");
-  });
+  // The four "clicking X calls setLens/setLensAndView with Y" tests that used
+  // to sit here were removed 2026-08-30. They asserted that a mock had been
+  // called; `e2e/m10-growth.spec.ts` clicks all four tabs for real and asserts
+  // the lens that actually renders — timeline rows, day columns, calendar
+  // cells, the map rail — which proves the same wiring end to end and cannot
+  // pass against a mock that drifted from the real `useLens`. `m11-demo.spec.ts`
+  // walks three of the four again on the demo trip. See
+  // docs/plans/test-overhaul/phase-5-inventory-2026-08-30.md §3, the one
+  // cross-layer duplicate that survived reading.
 
   // KI-20's regression guard, and the reason the entry could be closed by
   // retirement rather than by a fifth tab: every lens LensRouter accepts is

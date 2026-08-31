@@ -1,5 +1,14 @@
 # Phase 6 — Rewrite the survivors so they stop breaking on copy changes
 
+> **ABSORBED 2026-08-31. Do not execute as a phase.**
+>
+> Task 6.4 landed as `scripts/check-sleep-wall.mjs`. Task 6.5 landed as
+> `AGENTS.md`'s "Testing model" property-test rule plus the per-package
+> `witness.ts`; its last gap — three `fast-check` files carrying no witness
+> floor — was closed 2026-08-30 with measured, non-vacuity-proven floors.
+> Tasks 6.1-6.3 were substantially met by the tests M10/M11 actually shipped.
+> See `phase-5-inventory-2026-08-30.md` §5 for the residue.
+
 **Scope: only tests that survived Phase 5.** Do not de-brittle something you
 are about to delete — that is why 5 comes first.
 

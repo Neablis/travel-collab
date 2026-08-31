@@ -20,9 +20,26 @@ Plan:
 
 ## Verification actually performed
 
-<!-- Tick only what you actually ran. For anything not run, say so on the
-     "Not run" line with the reason — "no interactive browser in this
-     container" is a perfectly good reason; leaving it blank is not. -->
+<!-- State the tier first, then tick only what you actually ran. For anything
+     not run, say so on the "Not run" line with the reason — "no interactive
+     browser in this container" is a perfectly good reason; leaving it blank
+     is not.
+
+     Tiers are defined in AGENTS.md → Definition of Done → "Verification
+     scales to the change":
+
+       Tier 1  prose only (docs/**, .claude/**, root *.md) — run NOTHING.
+               Every box below stays unchecked and that is the complete,
+               correct answer. Do not watch checks: CI and CodeRabbit both
+               filter these paths, so none will run.
+       Tier 2  scoped code — the minimal-check-subset only. Name the exact
+               commands on the "Subset run" line. Not `pnpm check`.
+       Tier 3  final review, leaving draft — `pnpm check` once, plus e2e if a
+               user flow changed and seed:verify if a fixture/contract did. -->
+
+Tier: <!-- 1 / 2 / 3 -->
+
+Subset run (Tier 2): <!-- the exact commands -->
 
 - [ ] `pnpm check` green locally (typecheck + lint + unit)
 - [ ] `pnpm --filter web test:int` green (needs Postgres)
@@ -70,4 +87,10 @@ Closes:
      commit's checks, all green. Confirm the run exists for your real HEAD
      first:
 
-       gh run list --commit "$(git rev-parse HEAD)" --limit 1 -->
+       gh run list --commit "$(git rev-parse HEAD)" --limit 1
+
+     And do not watch what cannot run. A Tier 1 PR is skipped by ci.yml's
+     paths-ignore and filtered out by .coderabbit.yaml; a draft PR runs
+     nothing until `gh pr ready <n>`. In both cases there is no terminating
+     event, so watching is an open-ended loop. No run for your HEAD, and none
+     expected, is the finished state — say so and move on. -->

@@ -15,7 +15,7 @@ Quick orientation:
 - Known issues & tech debt (unfixed-but-known): `docs/known-issues/` (one file per entry; `open/` is the list)
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 
-Two rules that are cheap to state and were expensive to relearn:
+Three rules that are cheap to state and were expensive to relearn:
 
 1. **An e2e result only counts from `pnpm --filter web test:e2e:ci-like`.**
    Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
@@ -27,3 +27,10 @@ Two rules that are cheap to state and were expensive to relearn:
    entry describing it (KI-27) already existed and went unread. A failure whose
    location *moves between runs* is a timeout; a real defect fails in the same
    place every time.
+3. **Verification scales to the change; it is not one flat list.** A prose-only
+   change (`docs/**`, `.claude/**`, root `*.md`) runs **nothing** — CI and
+   CodeRabbit both filter those paths, so there is no check to wait for either.
+   Scoped code runs the `minimal-check-subset` skill's output, not `pnpm check`.
+   The full suite is a **final-review** cost, paid once when the branch leaves
+   draft. `AGENTS.md`'s Definition of Done has the three tiers and the trap
+   (`.design-sync/**` is a build input, not prose).

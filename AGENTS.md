@@ -221,7 +221,79 @@ carries the full accounting.
 
 ## Definition of Done (every change)
 
-- Typecheck, lint, and all tests pass locally (`pnpm check` once M0 lands).
+### Verification scales to the change
+
+This section used to open with a single line — *"typecheck, lint, and all tests
+pass locally (`pnpm check`)"* — under a header that says **every change**. It
+was followed literally, including on changes that touched nothing but prose.
+Running the full suite to fix a typo in `TODO.md` is not caution; it spends
+local wall clock, Claude tokens reading the output, and — once a PR is open and
+someone starts watching it — time waiting for checks that `paths-ignore`
+guaranteed would never report.
+
+Classify the change by what it touches, then run **only** that tier.
+
+**Tier 1 — prose only.** Every path changed **by the whole branch**, not just
+by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
+root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
+
+> **The "whole branch" is load-bearing, and was got wrong once — here, while
+> writing this.** For `pull_request` events GitHub evaluates `paths-ignore`
+> against the **entire PR diff against base**, never against the push that
+> triggered the run. So a docs-only commit pushed onto a PR that already
+> contains code re-runs the full suite, every time. Verified on PR #103:
+> a commit touching seven prose files ran `static-and-unit` **and**
+> `integration-e2e` to completion.
+>
+> Practical consequence: once a branch has any code in it, it is Tier 2 for
+> the rest of its life, however prose-only the next commit looks. Tier 1 is a
+> property of the branch, not of the change in front of you.
+
+> Run nothing. No `pnpm check`, no test lane, no typecheck, no e2e, no browser.
+> `.github/workflows/ci.yml`'s `paths-ignore` and `.coderabbit.yaml`'s
+> `path_filters` already exclude exactly these paths, so there is no check to
+> wait for and no review to collect — see *Do not watch what cannot run* below.
+>
+> **The trap:** `.design-sync/**` is **not** prose. It is a real build input —
+> `api/dev/reset-demo-data/route.ts` imports its seed JSON — so a change there
+> is Tier 2 even when only its markdown moved. `ci.yml` gets this right by
+> listing `*.md` rather than `**/*.md`; classify the same way.
+
+**Tier 2 — code, mid-branch.** Any change that is not Tier 1, before the branch
+is ready.
+
+> Run the `minimal-check-subset` skill's output **and nothing more** —
+> typically `pnpm --filter <pkg> typecheck`, that package's lint, and the
+> specific test files covering what you touched. The KI workflow has been doing
+> this correctly for months; read any check-subset line in
+> `docs/known-issues/resolved/` for the shape. It is now the rule rather than
+> one skill's preference.
+>
+> "Narrowest sufficient" is not "smallest": for a change under
+> `packages/contracts/src` the skill says do not narrow at all, because the
+> consumers span packages — there, the sufficient subset genuinely *is*
+> `pnpm check`. That is the skill deciding, not a reflex, and it is the only
+> way a full run gets earned before Tier 3.
+>
+> Record the subset you ran in the PR body. "Not run, and why" still applies.
+
+**Tier 3 — final review.** The branch is finished and about to leave draft.
+
+> Run `pnpm check` **once, here**. Add `pnpm --filter web test:e2e:ci-like` if a
+> user flow changed, and `pnpm seed:verify` if a contract field or fixture
+> changed. This is the single full-suite run a branch pays for. Then
+> `gh pr ready <n>` and let CI be the second opinion — that is what CI is for,
+> and `ready_for_review` is exactly when `ci.yml` starts paying attention.
+
+A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
+genuinely need one — you are chasing a failure whose blast radius you cannot
+bound — say so in the PR body rather than running it silently.
+
+### What the change itself must carry
+
+Independent of tier. Most of these are no-ops for a Tier 1 change, which is the
+point: they describe the change, not the ceremony around it.
+
 - New domain logic has unit tests; new endpoints have contract + integration
   tests; new user flows extend the milestone e2e script.
 - The projection-rebuild golden test still passes if events or reducers changed.
@@ -241,10 +313,12 @@ carries the full accounting.
   production schema drift waiting to happen, and the PR body is the only place
   anyone will look for it. See `docs/guidelines/environments-and-deploys.md`.
 - The PR uses `.github/PULL_REQUEST_TEMPLATE.md` and its **Verification
-  actually performed** section is filled in honestly. A step you did not run
-  is recorded on the "Not run, and why" line. Four consecutive M10 phases
-  shipped with a verification step skipped and nothing on the PR saying so;
-  an unchecked box is a fine outcome, a silent skip is not.
+  actually performed** section is filled in honestly — including which tier you
+  ran and why. A step you did not run is recorded on the "Not run, and why"
+  line. Four consecutive M10 phases shipped with a verification step skipped
+  and nothing on the PR saying so; an unchecked box is a fine outcome, a silent
+  skip is not. A tier stated plainly ("Tier 1, prose only, nothing run") is a
+  complete answer, not an admission.
 
 ### Waiting on PR checks — do not hand-poll
 
@@ -277,6 +351,23 @@ gh run list --commit <sha> --limit 1
 ```
 
 Then watch. Waiting for the run to appear is the only reliable ordering.
+
+### Do not watch what cannot run
+
+That ordering rule has a second half, and skipping it is how a session spends
+ten minutes on a documentation edit. `--watch` is right **when checks will
+exist**. Two cases where they will not:
+
+- **A Tier 1 PR** — meaning the *whole PR* is prose, per the caveat in Tier 1
+  above. `ci.yml` skips it by path and `.coderabbit.yaml` filters it out, so
+  there is no terminating event to wait for. A prose commit on a PR that also
+  carries code is **not** this case: that run happens, and you wait for it.
+- **A draft PR.** `auto_review.drafts: false` and the `if:` guards in `ci.yml`
+  mean nothing runs until `gh pr ready <n>`. Push freely; do not watch.
+
+So: check whether a run exists for your HEAD *before* watching. If none does
+and, by the rules above, none should — that is the finished state, not a
+problem to poll at. Say so and move on.
 
 ## Milestone discipline and drift detection
 

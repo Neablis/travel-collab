@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { ActivityKind, TimeWindow } from "@tc/contracts";
+import { witness } from "./support/witness";
 import {
   detectConflicts,
   GEO_INFEASIBLE_KM,
@@ -245,42 +246,60 @@ const arbPoint = fc.record({
 
 describe("conflict engine properties", () => {
   it("windowsOverlap is symmetric", () => {
+    const w = witness("windowsOverlap symmetry");
     fc.assert(
-      fc.property(arbWindow, arbWindow, (a, b) => windowsOverlap(a, b) === windowsOverlap(b, a)),
+      fc.property(arbWindow, arbWindow, (a, b) => {
+        w.tick();
+        return windowsOverlap(a, b) === windowsOverlap(b, a);
+      }),
     );
+    w.atLeast(100); // exactly numRuns; no guard clause
   });
 
   it("haversine is symmetric, non-negative, zero on identity", () => {
+    const w = witness("haversine metric laws");
     fc.assert(
       fc.property(arbPoint, arbPoint, (a, b) => {
+        w.tick();
         const d1 = haversineKm(a, b);
         const d2 = haversineKm(b, a);
         return d1 >= 0 && Math.abs(d1 - d2) < 1e-6 && haversineKm(a, a) < 1e-6;
       }),
     );
+    w.atLeast(100); // exactly numRuns; no guard clause
   });
 
   it("conflicts always pair two distinct, sorted subjects — never self-conflicts", () => {
+    // Ticks per conflict *examined*, not per run: `.every` on an empty array is
+    // vacuously true, so a generator that stopped producing overlaps would keep
+    // this green while checking nothing. The floor counts real conflicts.
+    const w = witness("conflict subject pairing");
     fc.assert(
       fc.property(fc.array(arbWindow, { maxLength: 6 }), (windows) => {
         const state = boardState(windows.map((window, i) => ({ id: `a${i}`, window })));
-        return detectConflicts(state).every(
-          (c) => c.subjects.length === 2 && c.subjects[0]! < c.subjects[1]!,
-        );
+        return detectConflicts(state).every((c) => {
+          w.tick();
+          return c.subjects.length === 2 && c.subjects[0]! < c.subjects[1]!;
+        });
       }),
     );
+    w.atLeast(130); // observed 266-334 conflicts examined
   });
 
   it("conflict ids are invariant under activity insertion order", () => {
+    // Ticks only when the forward pass actually found a conflict. Both sides
+    // empty makes this `"[]" === "[]"` — true, and proving nothing about order
+    // invariance. The floor counts the runs where the comparison had content.
+    const w = witness("conflict id order-invariance");
     fc.assert(
       fc.property(fc.array(arbWindow, { maxLength: 6 }), (windows) => {
         const specs = windows.map((window, i) => ({ id: `a${i}`, window }));
         const ids = (s: TripState) => detectConflicts(s).map((c) => c.id);
-        return (
-          JSON.stringify(ids(boardState(specs))) ===
-          JSON.stringify(ids(boardState([...specs].reverse())))
-        );
+        const forward = ids(boardState(specs));
+        if (forward.length > 0) w.tick();
+        return JSON.stringify(forward) === JSON.stringify(ids(boardState([...specs].reverse())));
       }),
     );
+    w.atLeast(24); // observed 49-64 non-empty comparisons
   });
 });

@@ -138,11 +138,45 @@ callers, which does touch component test files — but mechanically (a changed
 import and a shorter setup block), not structurally. If an M10 phase is
 in flight on a file, take the merge; do not defer the whole phase for it.
 
-**Resuming Phases 5–7.** Preconditions: M10 Wave 2 Phase 9's gate has closed,
-`docs/STATUS.md` says so, and Phases 0–4 are merged to `main`. Re-run the
-Phase 0 inventory against the post-M10 tree before executing Phase 5 — M10
-Phases 5–8 will have added tests of their own, and the verdicts must reflect
-what is actually there, not what was there in August.
+**Resuming Phases 5–7 — CLOSED OUT 2026-08-31.** The precondition (M10 Wave 2
+Phase 9's gate) closed 2026-08-27 and nothing resumed. The required Phase 0
+re-inventory was run on 2026-08-30 —
+`test-overhaul/phase-5-inventory-2026-08-30.md` — and its finding is that these
+three phases should not be executed as written. Per phase:
+
+- **Phase 5 (prune) — SUPERSEDED.** The inventory applied this plan's own four
+  categories to the post-M10 tree after *reading* the candidates rather than
+  ranking them. Category (c) is empty (no component test imports `@tc/domain`);
+  (a) is 7 assertions; (b) is 60; and (d), the phase's big lever at a claimed
+  152 tests, is **nine false positives** — the `render() >= tests` heuristic
+  cannot distinguish "one render per prop" from "one render per independent
+  behaviour", and these files are the second. `TripBoardScreen.test.tsx`, this
+  plan's named flagship, is no longer "581 lines of near-duplicate renders" but
+  1,579 lines with 292 comment lines in intent-scoped describes. The executed
+  residue was 5 tests removed, 4 merged into 1, one strengthened, ~15
+  assertions dropped. **The suite tripled because the product tripled.**
+- **Phase 6 (de-brittle) — ABSORBED.** 6.4 landed as
+  `scripts/check-sleep-wall.mjs`. 6.5 landed as `AGENTS.md`'s "Testing model"
+  property-test rule plus `witness.ts`, and its last gap — three `fast-check`
+  files with no witness floor — was closed 2026-08-30 with measured,
+  non-vacuity-proven floors. 6.1–6.3 (locator ladder, testid contract, assert
+  behaviour not presentation) were substantially met by the tests M10/M11
+  actually shipped; the inventory's §5 records the residue.
+- **Phase 7 (guidelines) — PARTIALLY DONE, and NOT closed.** 7.1 landed (four
+  lint walls in `scripts/`). 7.3 landed (`AGENTS.md` "Testing model"). But
+  **7.2 (`docs/guidelines/testing.md`) and 7.4 (a `write-a-test` skill) have
+  not been done**, and neither depends on the prune. They are real, still-
+  wanted work and are explicitly *not* superseded by this close-out — see
+  `TODO.md`.
+
+**The non-goal at the top of this index is worth re-reading in light of this.**
+It says "if a phase ends with more tests than it started with, it did the wrong
+thing." That was the right instinct for a suite full of `className` assertions
+in August. It is the wrong metric for the suite that exists now, where the
+count grew because M11 sharing, M15's front door, M16's assistant and M18's
+tags each arrived with coverage that earns its place. The real cost was never
+the test count — it was running all of them for a one-file change, which
+`AGENTS.md`'s tiered Definition of Done now fixes directly.
 
 ## Phase files — execute in this order
 

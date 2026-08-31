@@ -37,6 +37,11 @@ on:
       # `japanTripImporter.test.ts` reads it — so that tree must keep
       # triggering CI even when only its prose moves.
       - '*.md'
+      # `.github`'s own prose — PULL_REQUEST_TEMPLATE.md and any issue
+      # templates. Not covered by `*.md` above, which is root-level only, so
+      # editing the PR template used to cost a full run. Scoped to `*.md` so
+      # `.github/workflows/**` and `.github/dependabot.yml` keep triggering.
+      - '.github/**/*.md'
 
 # Supersede an in-flight run when a newer commit lands on the same PR. Safe to
 # make unconditional now that this workflow only ever runs on pull requests —

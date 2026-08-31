@@ -302,12 +302,6 @@ describe("Board", () => {
   });
 
   // Handoff README §"Day columns view": compact cards (12px padding).
-  it("activity cards use 12px padding", () => {
-    renderBoard(fixture(), noopCallbacks());
-    const card = screen.getByTestId(`activity-card-${A1}`);
-    expect(card.className).toContain("p-3");
-  });
-
   // ---------------------------------------------------------------------
   // Phase 6: the trailing "One more day?" column, and the day column's
   // rack hint.
@@ -324,17 +318,18 @@ describe("Board", () => {
 
   // Design values from the phase file: 15px/600 --color-ink title in a dashed
   // column matching the day columns' own 268px width.
-  it("shapes the trailing column like a day column, dashed, with a 15px/600 title", () => {
+  // Trimmed 2026-08-30: the title's `15px`/`font-semibold`/`text-ink` are pure
+  // type tokens that break on any restyle and assert no behaviour. What is
+  // load-bearing here is that the trailing column is the *same width* as a real
+  // day column — a mismatch is a visible layout break — and that it stays
+  // dashed, which is what marks it a placeholder rather than a real day.
+  it("sizes the trailing column to match a day column, and keeps it dashed", () => {
     renderBoard(fixture(), noopCallbacks());
     const column = screen.getByTestId("one-more-day-column");
+    expect(column.style.width).toBe(screen.getAllByTestId("day-column")[0]!.style.width);
     expect(column.style.width).toBe("268px");
-    expect(screen.getAllByTestId("day-column")[0]!.style.width).toBe("268px");
     expect(column.className).toContain("border-dashed");
-
-    const title = screen.getByText("One more day?");
-    expect(title.style.fontSize).toBe("15px");
-    expect(title.className).toContain("font-semibold");
-    expect(title.className).toContain("text-ink");
+    expect(screen.getByText("One more day?")).toBeDefined();
   });
 
   // The same two actions EndOfTrip carries: a real "Add a day", and an inert
