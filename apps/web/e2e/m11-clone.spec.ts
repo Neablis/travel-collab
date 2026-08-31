@@ -88,7 +88,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
     await expect(
       erin.getByRole("heading", { name: `${tripName} (copy)`, level: 2 }),
     ).toBeVisible();
-    await expect(erin.getByText("View only")).toHaveCount(0);
+    await expect(erin.getByText("Viewer", { exact: true })).toHaveCount(0);
     await Promise.all([
       erin.waitForResponse(
         (r) =>

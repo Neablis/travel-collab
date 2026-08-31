@@ -341,15 +341,12 @@ function WizardBody({
                 this one has no description, so a description here pushed this
                 row's input down out of alignment with Currency's select
                 (Mitchell, preview comment on PR #60). This is the identical
-                defect, with the identical fix, that TripMoneySettings already
-                carries for the same two fields — see the matching comment
-                there. Both fields' Label→input distance is now the same; the
-                helper copy just moves to below the input. */}
-            <FormField
-              id="wizard-budget"
-              label="Total for the trip"
-              hint="Used for the over-budget warning across lenses."
-            >
+                defect that TripMoneySettings already carries for the same
+                two fields — see the matching comment there. Neither field
+                has helper copy now: "Used for the over-budget warning across
+                lenses." was dropped from both in the 2026-08-30 design pass,
+                which keeps their Label→input distance identical. */}
+            <FormField id="wizard-budget" label="Total for the trip">
               <MoneyInput id="wizard-budget" value={budget} currency={currency} onChange={setBudget} />
             </FormField>
             <FormField id="wizard-currency" label="Currency">

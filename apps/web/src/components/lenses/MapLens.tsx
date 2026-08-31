@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
 import { Text } from "../ui/text";
@@ -8,8 +8,10 @@ import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
 import { useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
-import { mapDays, routeLine, type MapDay } from "./mapRailData";
+import { mapDays, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
+import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
 
@@ -31,9 +33,22 @@ function ghostRouteColor(): string {
   return getComputedStyle(document.documentElement).getPropertyValue("--color-slate").trim();
 }
 
-function layerIdFor(dayId: string): string {
-  return `route-${dayId}`;
+// A day draws up to two route layers: its ordinary legs, and the legs that
+// touch a `transit` stop, which are dashed. They have to be separate layers
+// because MapLibre's `line-dasharray` is a plain paint property and takes no
+// data-driven expression — see routeLegs() (mapRailData.ts) for the split.
+// Every route paint change below therefore applies to both.
+const ROUTE_VARIANTS = ["rest", "travel"] as const;
+type RouteVariant = (typeof ROUTE_VARIANTS)[number];
+
+function layerIdFor(dayId: string, variant: RouteVariant): string {
+  return `route-${variant}-${dayId}`;
 }
+
+// Dash pattern in line-width multiples, so it holds its proportions if the
+// route width changes: a 2x dash with a 1.6x gap reads as dotted at 3px
+// without turning into a dotted-line-shaped smear when the map zooms out.
+const TRAVEL_DASHARRAY = [2, 1.6];
 
 export function MapLens({
   detail,
@@ -51,7 +66,32 @@ export function MapLens({
 }) {
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  const isPhone = useIsPhone();
   const containerRef = useRef<HTMLDivElement>(null);
+  // Distance from the top of the viewport to the top of the map canvas —
+  // the sticky trip header, the tab strip and the day-chip rail, whose
+  // combined height is not a constant (the chips wrap, the header grows a
+  // line at narrow widths). Measured rather than assumed so the canvas can
+  // be exactly the rest of the window: it used to be a flat `70vh`, which
+  // left a strip of page visible under the map on a tall window and pushed
+  // the document just past one viewport on a short one, so the whole page
+  // scrolled a little. Both were reported together on the preview
+  // (Mitchell, 2026-08-30 design pass).
+  const [canvasTop, setCanvasTop] = useState<number | null>(null);
+  const canvasRef = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return;
+    const measure = () => setCanvasTop(node.getBoundingClientRect().top + window.scrollY);
+    measure();
+    // The canvas's own box does not change when the header above it does, so
+    // observing the canvas would never fire; the body is what reflows.
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
@@ -77,6 +117,22 @@ export function MapLens({
   const plottedPins = pins.filter((p) => p.dayId !== null);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
+  // Everything the map's appearance depends on, as one string: per day, its
+  // accent and its stops in order with their coordinates and kind. See the
+  // creation effect's dependency list for why kind and order have to be in
+  // here. `accent` is in it because a day's colour is derived from its city
+  // (chipModel -> dayAccents), so editing a stop's city repaints every route
+  // and marker on that day without touching an id, a coordinate or a kind —
+  // and both the line colour at creation and the marker colour read it
+  // (CodeRabbit, PR #98). Keyed on the accent rather than the city itself:
+  // two cities that hash to the same family look identical, and rebuilding
+  // the map for a change nobody can see is worse than not rebuilding.
+  const routeKey = days
+    .map(
+      (day) =>
+        `${day.dayId}:${day.accent}[${day.stops.map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}`).join(",")}]`,
+    )
+    .join("|");
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 
   useEffect(() => {
@@ -161,24 +217,40 @@ export function MapLens({
         // ready synchronously after `new Map(...)`.
         for (const day of days) {
           if (day.stops.length < 2) continue;
-          const id = layerIdFor(day.dayId);
-          map.addSource(id, {
-            type: "geojson",
-            data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: routeLine(day) } },
-          });
-          map.addLayer({
-            id,
-            type: "line",
-            source: id,
-            paint: {
-              "line-color": accentVar(day.accent),
-              "line-width": 3,
-              // No focused day yet on first paint (see the focus effect
-              // below for what happens once one is picked) — every route
-              // draws at full strength until a focus dims the others.
-              "line-opacity": 1,
-            },
-          });
+          const legs = routeLegs(day);
+          for (const variant of ROUTE_VARIANTS) {
+            const coordinates = legs[variant];
+            // A day can be all travel or none of it, and an empty
+            // MultiLineString is a valid but pointless layer.
+            if (coordinates.length === 0) continue;
+            const id = layerIdFor(day.dayId, variant);
+            map.addSource(id, {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                properties: {},
+                // MultiLineString, not LineString: the legs of one variant
+                // are not necessarily contiguous — a day can go stop, train,
+                // stop, stop, train — so joining them into a single path
+                // would draw lines across gaps that no one travels.
+                geometry: { type: "MultiLineString", coordinates },
+              },
+            });
+            map.addLayer({
+              id,
+              type: "line",
+              source: id,
+              paint: {
+                "line-color": accentVar(day.accent),
+                "line-width": 3,
+                ...(variant === "travel" ? { "line-dasharray": TRAVEL_DASHARRAY } : {}),
+                // No focused day yet on first paint (see the focus effect
+                // below for what happens once one is picked) — every route
+                // draws at full strength until a focus dims the others.
+                "line-opacity": 1,
+              },
+            });
+          }
         }
 
         // Day-attached located stops only (Mitchell, preview review,
@@ -220,8 +292,17 @@ export function MapLens({
     // registered once, inside this effect: without it, a map mounted before
     // the access read resolves would keep the editor's handler after the
     // answer came back "viewer".
+    //
+    // The key covers each day's stops IN ORDER and WITH THEIR KIND, not just
+    // the flat set of pins. Routes are split into a solid layer and a dashed
+    // one by `routeLegs`, which reads `kind` — so with a pins-only key
+    // (`activityId:lat:lng`), changing a stop from planned to transit without
+    // moving it left the layers untouched and the leg stayed solid. Order
+    // matters for the same reason: the legs are consecutive pairs, so
+    // reordering two stops changes which legs exist without changing any
+    // coordinate (CodeRabbit, PR #98).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate, readOnly]);
+  }, [routeKey, onSelectActivity, openCreate, readOnly]);
 
   // Focus-driven OPACITY — routes and markers. Kept separate from the creation
   // effect above so clicking a rail day never tears down and rebuilds the whole
@@ -235,7 +316,6 @@ export function MapLens({
       const focused = focusedDay === null || day.index === focusedDay;
 
       if (day.stops.length >= 2) {
-        const layerId = layerIdFor(day.dayId);
         // Ghosting a non-focused route is two changes together: a lower
         // opacity floor than pins get (a thin line reads even fainter than a
         // pin at the same opacity, so it needs to drop further — tuned live
@@ -243,8 +323,14 @@ export function MapLens({
         // accent hue to a shared neutral, since the accent hue alone at
         // reduced opacity still read as "that day's colour, just fainter"
         // rather than genuinely de-emphasized.
-        map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
-        map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+        for (const variant of ROUTE_VARIANTS) {
+          const layerId = layerIdFor(day.dayId, variant);
+          // A day with no travel legs (or nothing but travel legs) never had
+          // the other layer added.
+          if (map.getLayer(layerId) === undefined) continue;
+          map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
+          map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+        }
       }
 
       // Pins read smaller than a route line and sit on a coloured basemap, so
@@ -319,13 +405,21 @@ export function MapLens({
     // rail's own footprint (MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX) plus the
     // same 100px breathing room the other sides already had, instead of the
     // bare 100 they keep.
+    //
+    // On a phone the day control is the strip across the TOP, not the rail on
+    // the left, so the clearance moves with it: the left inset goes back to
+    // the plain 100px every other side gets, and the top absorbs the strip.
+    // Reserving the rail's 284px on a 411px screen would leave the camera
+    // almost no width to fit a day into.
     map.fitBounds(bounds, {
-      padding: { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
+      padding: isPhone
+        ? { top: MAP_DAY_STRIP_HEIGHT_PX + 24, right: 24, bottom: 24, left: 24 }
+        : { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
       maxZoom: 13,
       animate: false,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focusedDay]);
+  }, [ready, focusedDay, isPhone]);
 
   return (
     <div data-testid="map-lens" className="map-lens flex flex-col gap-2">
@@ -341,14 +435,44 @@ export function MapLens({
       )}
       {plottedPins.length > 0 ? (
         <div
+          ref={canvasRef}
           className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
-          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling the viewport below the header/tabs. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
-          style={{ minHeight: 480, height: "70vh" }}
+          // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling exactly the viewport left below the header/tabs and above the unscheduled rack. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
+          style={{
+            // `dvh`, not `vh`: on mobile the two differ by the browser
+            // chrome's height, and `vh` is the one that overflows.
+            // `--rack-height` is set by TripBoardScreen on
+            // `.trip-board-content` above, so the map stops at the top of
+            // the Unscheduled bar instead of running under it, and follows
+            // the bar as it opens and closes. The floor keeps a very short
+            // window showing a usable map (and scrolling) rather than a
+            // sliver.
+            minHeight: 320,
+            height:
+              canvasTop === null
+                ? "70vh"
+                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px))`,
+          }}
         >
           <div ref={containerRef} className="h-full w-full" />
-          <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
-          <MapFocusCard day={focusedMapDay} />
-          <MapLegend />
+          {/* One day control, not two (Mitchell, 2026-08-30 design pass). On a
+              phone the rail's 268px panel and the floating focus card are most
+              of the screen, and the map is the content — so the days become a
+              chip strip across the top and the focus card's one line of detail
+              folds into it. The legend goes entirely: it is a key for colours
+              the chips already carry, and it is the one overlay that costs
+              canvas and returns nothing. Mounted by branch rather than hidden
+              by CSS because the rail runs real scroll machinery — see
+              useIsPhone for why. */}
+          {isPhone ? (
+            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+          ) : (
+            <>
+              <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+              <MapFocusCard day={focusedMapDay} />
+              <MapLegend />
+            </>
+          )}
         </div>
       ) : (
         <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">

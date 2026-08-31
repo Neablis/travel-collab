@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ActivityTag, TripDetail } from "@tc/contracts";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ActivityKind, ActivityTag, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
@@ -129,13 +130,23 @@ vi.mock("maplibre-gl", () => {
     }
     addLayer(...args: unknown[]) {
       addLayerMock(...args);
+      this.#layerIds.add((args[0] as { id: string }).id);
     }
     setPaintProperty(...args: unknown[]) {
       setPaintPropertyMock(...args);
     }
-    getLayer() {
-      return undefined;
+    // Real MapLibre returns the layer for an id it holds and `undefined`
+    // otherwise; this used to return `undefined` unconditionally, which was
+    // harmless only while nothing called it. MapLens now asks before painting
+    // a route layer — a day can have travel legs, ordinary legs or both, so
+    // one of its two layers may never have been added — and against the old
+    // stub every one of those guards took the "not there" branch and no route
+    // was ever painted. Tracking what addLayer() was given is what makes the
+    // guard testable at all.
+    getLayer(id: string) {
+      return this.#layerIds.has(id) ? { id } : undefined;
     }
+    #layerIds = new Set<string>();
     resize() {}
     fitBounds(...args: unknown[]) {
       fitBoundsMock(...args);
@@ -218,7 +229,7 @@ function detailFixture() {
 // is what `dayAccents` colours the routes by. It used to come out of the
 // `?? name` fallback that grouping no longer does; naming it here keeps these
 // route-colour tests about colour rather than about city derivation.
-function locatedActivity(id: string, lat: number, lng: number, city = id) {
+function locatedActivity(id: string, lat: number, lng: number, city = id, kind: ActivityKind = "planned") {
   return {
     activityId: id,
     title: id,
@@ -226,10 +237,26 @@ function locatedActivity(id: string, lat: number, lng: number, city = id) {
     location: { name: id, city, lat, lng },
     notes: null,
     anchors: [],
-    kind: "planned" as const,
+    kind,
     tags: [],
     cost: null,
   };
+}
+
+// One day whose middle stop is a train: the first and last legs both touch it,
+// so both are travel, and a fourth stop after it gives the day one ordinary
+// leg as well. Without that fourth stop the day would be entirely travel and
+// the "rest is still solid" half of the assertion would pass vacuously.
+function detailWithTransitStop(): TripDetail {
+  return tripDetailFixture({
+    days: [{ dayId: "d1", activityIds: ["a1", "t1", "a2", "a3"], date: "2027-06-01", costSubtotal: 0 }],
+    activities: {
+      a1: locatedActivity("a1", 41.89, 12.49, "a1"),
+      t1: locatedActivity("t1", 42.5, 12.6, "a1", "transit"),
+      a2: locatedActivity("a2", 43.0, 12.7, "a1"),
+      a3: locatedActivity("a3", 43.1, 12.8, "a1"),
+    },
+  });
 }
 
 // Both stops on a day share that day's city, which is what a day normally
@@ -363,6 +390,26 @@ describe("MapLens", () => {
     expect(lineLayers).toHaveLength(2);
   });
 
+  // Mitchell, 2026-08-30 design pass: "Travel activity kinds should be dotted
+  // line, not solid." The dash cannot be a data-driven expression in
+  // MapLibre, so it is a second layer per day rather than a property on the
+  // feature — this asserts the split actually happens and that only the
+  // travel half is dashed.
+  it("draws travel legs as a separate dashed layer, leaving the rest solid", async () => {
+    renderMap(detailWithTransitStop());
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const byId = new Map(
+      addLayerMock.mock.calls
+        .map(([layer]) => layer as { id: string; paint: Record<string, unknown> })
+        .filter((layer) => layer.id.startsWith("route-"))
+        .map((layer) => [layer.id, layer]),
+    );
+
+    expect(byId.get("route-travel-d1")?.paint["line-dasharray"]).toBeDefined();
+    expect(byId.get("route-rest-d1")?.paint["line-dasharray"]).toBeUndefined();
+  });
+
   it("does not move the camera for a focused day with no coordinates", async () => {
     renderMap(detailWithEmptyDay(), { focusedDay: 2 });
     await waitFor(() => expect(mapOnLoad).toHaveBeenCalled());
@@ -452,14 +499,14 @@ describe("MapLens", () => {
       const lastCall = (layerId: string, prop: string) =>
         setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === prop).at(-1)!;
 
-      const focusedOpacity = lastCall("route-d1", "line-opacity");
-      const ghostedOpacity = lastCall("route-d2", "line-opacity");
+      const focusedOpacity = lastCall("route-rest-d1", "line-opacity");
+      const ghostedOpacity = lastCall("route-rest-d2", "line-opacity");
       expect(focusedOpacity[2]).toBe(1);
       expect(ghostedOpacity[2]).toBeLessThan(0.55); // strictly ghostier than the old faint-fade value
       expect(ghostedOpacity[2]).toBeGreaterThan(0);
 
-      const focusedColor = lastCall("route-d1", "line-color");
-      const ghostedColor = lastCall("route-d2", "line-color");
+      const focusedColor = lastCall("route-rest-d1", "line-color");
+      const ghostedColor = lastCall("route-rest-d2", "line-color");
       // The focused day keeps its own accent colour; the non-focused day
       // shifts to a shared neutral tone rather than its accent at low opacity.
       expect(ghostedColor[2]).not.toBe(focusedColor[2]);
@@ -492,12 +539,12 @@ describe("MapLens", () => {
 
       await waitFor(() => {
         const latestOpacity = setPaintPropertyMock.mock.calls
-          .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-opacity")
+          .filter(([layerId, prop]) => layerId === "route-rest-d2" && prop === "line-opacity")
           .at(-1)!;
         expect(latestOpacity[2]).toBe(1);
       });
       const latestColor = setPaintPropertyMock.mock.calls
-        .filter(([layerId, prop]) => layerId === "route-d2" && prop === "line-color")
+        .filter(([layerId, prop]) => layerId === "route-rest-d2" && prop === "line-color")
         .at(-1)!;
       expect(latestColor[2]).toBe("TEST-SUCCESS");
     });
@@ -754,5 +801,195 @@ describe("MapLens tag focus", () => {
     for (const marker of markerInstances) {
       expect(Number(marker.getElement().style.opacity)).toBeCloseTo(0.32);
     }
+  });
+});
+
+// Mitchell, 2026-08-30 design pass: "map view pretty broken on mobile … remove
+// legend on mobile, and figure out a different static location for the days,
+// have less info and make that where you scroll so map jumping still works."
+//
+// jsdom ships no `matchMedia`, so every test above this block takes the
+// desktop branch by way of `useIsPhone`'s feature detection — which is what
+// keeps them meaningful as *desktop* tests rather than accidentally passing.
+// These two install one.
+describe("MapLens on a phone", () => {
+  function setViewportMatches(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  it("swaps the rail, focus card and legend for one day strip below 768px", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    // The rail is the thing the strip replaces; both at once is the bug.
+    expect(screen.queryByRole("button", { name: /Day 1/ })).toBeTruthy();
+    expect(document.querySelector("[data-rail-track]")).toBeNull();
+    // The legend's copy is its own; nothing else on the lens says this.
+    expect(screen.queryByText("Rest of trip")).toBeNull();
+  });
+
+  it("keeps all three on a desktop viewport", async () => {
+    setViewportMatches(false);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(document.querySelector("[data-rail-track]")).toBeTruthy());
+    expect(screen.queryByTestId("map-day-strip")).toBeNull();
+    expect(screen.getByText("Rest of trip")).toBeTruthy();
+  });
+
+  // Without this the camera would still reserve the rail's 284px of left
+  // clearance on a 411px screen — two thirds of the width given to a panel
+  // that is no longer there, which would squeeze every focused day into the
+  // right-hand third.
+  it("moves the camera's clearance from the rail's left edge to the strip's top", async () => {
+    setViewportMatches(true);
+    fitBoundsMock.mockClear();
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+    const padding = fitBoundsMock.mock.calls.at(-1)![1].padding as {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+    expect(padding.left).toBeLessThan(MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX);
+    expect(padding.top).toBeGreaterThan(padding.bottom);
+  });
+
+  // CodeRabbit, PR #98: the creation effect keyed on pins only
+  // (activityId:lat:lng), so flipping a stop to `transit` without moving it
+  // left the route layers untouched and the leg stayed solid. The dashed
+  // layer is only correct if a kind change rebuilds them.
+  it("rebuilds the route layers when a stop's kind changes but nothing moves", async () => {
+    setViewportMatches(false);
+    const before = detailWithTwoDays();
+    // One stable callback across both renders. Handing `rerender` a fresh
+    // `vi.fn()` changes `onSelectActivity`, which is itself a dependency of
+    // the creation effect — the effect would then re-run for that reason and
+    // the test would pass against the very bug it exists to catch. (It did,
+    // the first time this was written.)
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue(focusDefaults());
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const travelLayers = () =>
+      addLayerMock.mock.calls.filter(([layer]) => (layer as { id: string }).id.startsWith("route-travel-")).length;
+    expect(travelLayers()).toBe(0);
+
+    // Same ids, same coordinates, same order — only the kind moves.
+    const after = {
+      ...before,
+      activities: {
+        ...before.activities,
+        a2: { ...before.activities.a2!, kind: "transit" as const },
+      },
+    };
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+
+    await waitFor(() => expect(travelLayers()).toBeGreaterThan(0));
+  });
+
+  // CodeRabbit, PR #98, on the fix above: a day's colour comes from its city
+  // (chipModel -> dayAccents), so editing a stop's city repaints its routes
+  // and markers without touching an id, a coordinate or a kind. Keying on
+  // stops alone left those the old colour.
+  it("rebuilds the route layers when a day's accent changes but no stop moves", async () => {
+    setViewportMatches(false);
+    document.documentElement.style.setProperty("--color-danger", "TEST-DANGER");
+    document.documentElement.style.setProperty("--color-success", "TEST-SUCCESS");
+    const before = detailWithTwoDays();
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue(focusDefaults());
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const day1Colour = () =>
+      addLayerMock.mock.calls
+        .map(([layer]) => layer as { id: string; paint: Record<string, unknown> })
+        .filter((layer) => layer.id === "route-rest-d1")
+        .at(-1)?.paint["line-color"];
+    const first = day1Colour();
+
+    // Day 1's stops keep their ids, coordinates and kinds; only the city they
+    // sit in changes, which moves the day onto day 2's accent family.
+    const after = {
+      ...before,
+      activities: {
+        ...before.activities,
+        a1: { ...before.activities.a1!, location: { ...before.activities.a1!.location!, city: "b1" } },
+        a2: { ...before.activities.a2!, location: { ...before.activities.a2!.location!, city: "b1" } },
+      },
+    };
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+
+    await waitFor(() => expect(day1Colour()).not.toBe(first));
+  });
+
+  // The e2e test at 411px asserts that tapping a chip updates the strip's
+  // detail line, which a broken onFocus -> fitBounds handoff would still
+  // satisfy. This is the half that actually pins "map jumping still works".
+  it("moves the camera when a day is tapped in the strip", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: null });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    fitBoundsMock.mockClear();
+
+    // useFocus is mocked, so the click's own setFocusedDay cannot drive a
+    // rerender here — assert the strip calls it, then that the resulting
+    // focusedDay is what moves the camera.
+    const onFocus = useFocusMock.mock.results.at(-1)!.value.setFocusedDay as ReturnType<typeof vi.fn>;
+    await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+    expect(onFocus).toHaveBeenCalledWith(1);
+
+    renderMap(detailWithTwoDays(), { focusedDay: 1 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+  });
+
+  // The strip carries the detail the rail rows and the focus card used to,
+  // for the focused day only — that is the "have less info" half of the ask,
+  // and the reason dropping the focus card loses nothing.
+  it("shows the focused day's stop count and distance in the strip", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    expect(screen.getByTestId("map-day-strip-detail").textContent).toMatch(/2 stops/);
   });
 });

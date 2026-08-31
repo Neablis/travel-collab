@@ -17,6 +17,7 @@ import { formatMoney } from "@/components/lenses/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { kindBadge } from "./activityKind";
 import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "./activityTags";
+import { displayPlace } from "@/lib/place";
 
 export function ActivityCard({
   activity,
@@ -176,7 +177,7 @@ export function ActivityCard({
       {activity.timeWindow && (
         <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
       )}
-      {activity.location && <Text as="span" variant="muted"> · {activity.location.name}</Text>}
+      {activity.location && <Text as="span" variant="muted"> · {displayPlace(activity.location)}</Text>}
       {/* One footer row carries every status the card shows — kind, tags, cost
           (Mitchell, on the preview: the kind badge was "kinda floating in
           middle of card… really messing with the card spacing", and the cost

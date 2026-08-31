@@ -1,9 +1,13 @@
-import type { TripDetail } from "@tc/contracts";
+import type { ActivityKind, TripDetail } from "@tc/contracts";
 import { chipModel } from "@/components/trip/DayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 
-export type MapStop = { activityId: string; title: string; lat: number; lng: number };
+// `kind` rides along so the map can draw travel legs differently from the
+// rest of the day (Mitchell, 2026-08-30 design pass: "Travel activity kinds
+// should be dotted line, not solid"). MapLens is the only consumer; the rail
+// and focus card ignore it.
+export type MapStop = { activityId: string; title: string; lat: number; lng: number; kind: ActivityKind };
 
 export type MapDay = {
   index: number;
@@ -37,7 +41,7 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
     const activity = activities[activityId];
     const location = activity?.location;
     if (location?.lat !== undefined && location.lng !== undefined) {
-      stops.push({ activityId, title: activity!.title, lat: location.lat, lng: location.lng });
+      stops.push({ activityId, title: activity!.title, lat: location.lat, lng: location.lng, kind: activity!.kind });
     }
   }
   return stops;
@@ -107,6 +111,36 @@ export function mapDays(detail: TripDetail): MapDay[] {
 // GeoJSON order: [lng, lat], the opposite of maplibre's Marker#setLngLat
 // argument order in some call sites. Getting this backwards puts every route
 // in the ocean off West Africa.
-export function routeLine(day: MapDay): [number, number][] {
-  return day.stops.map((s) => [s.lng, s.lat]);
+/**
+ * The day's route split into two sets of legs — the ones that touch a
+ * `transit` stop, and the ones that don't — so MapLens can draw the first
+ * dashed and the second solid (Mitchell, 2026-08-30 design pass: "Travel
+ * activity kinds should be dotted line, not solid"). Two sets rather than a
+ * per-leg flag because `line-dasharray` is a plain paint property in
+ * MapLibre: it takes no data-driven expression, so a dashed leg and a solid
+ * one cannot share a layer however the feature is tagged.
+ *
+ * A leg counts as travel when **either** end of it is a transit stop, not
+ * just the one it arrives at. A "Train to Kyoto" stop is the movement itself,
+ * so the hop that reaches it and the hop that leaves it are both part of
+ * that movement; dashing only one side left a solid half-leg hanging off
+ * every train.
+ *
+ * Legs are consecutive pairs in stop order, the same pairing `legKms()` uses.
+ * A day with fewer than two located stops has no legs and yields two empty
+ * lists.
+ */
+export function routeLegs(day: MapDay): { travel: [number, number][][]; rest: [number, number][][] } {
+  const travel: [number, number][][] = [];
+  const rest: [number, number][][] = [];
+  for (let i = 1; i < day.stops.length; i++) {
+    const from = day.stops[i - 1]!;
+    const to = day.stops[i]!;
+    const leg: [number, number][] = [
+      [from.lng, from.lat],
+      [to.lng, to.lat],
+    ];
+    (from.kind === "transit" || to.kind === "transit" ? travel : rest).push(leg);
+  }
+  return { travel, rest };
 }

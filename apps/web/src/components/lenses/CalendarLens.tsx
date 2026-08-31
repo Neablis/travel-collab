@@ -10,7 +10,7 @@ import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { CALENDAR_DIM_OPACITY } from "@/components/board/activityTags";
 import { calendarCityCards, type CityCard } from "./calendarCityCards";
 import { formatMoney } from "./formatMoney";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatTripDate, ordinalDayOfMonth } from "@/lib/formatDate";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
@@ -222,7 +222,9 @@ export function CalendarLens({
           style={CELL_STYLE}
         >
           <div className="flex items-center justify-between">
-            <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
+            {/* Same ordinal form as an in-trip cell's date, so the grid does
+                not switch between "13" and "14th" down a single column. */}
+            <DataText size="xs">{ordinalDayOfMonth(Number(cell.date.slice(-2)))}</DataText>
           </div>
         </div>
       );
@@ -286,13 +288,22 @@ export function CalendarLens({
         // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
         style={CELL_STYLE}
       >
-        {/* Two lines, not one (Mitchell, on the preview: "day of trip, and day
-            of month should be on separate lines"). dc.html:668 puts "Day N" on
-            the cell's top-right, opposite the date; side by side they read as
-            one run-together number — "8Day 1" — which is what a screen reader
-            gets from them too. A recorded delta from the handoff. */}
-        <div className="flex flex-col">
-          <DataText size="xs">{Number(cell.date.slice(-2))}</DataText>
+        {/* One line — date left, "Day N" right — to give the cards below it
+            the height back (Mitchell, 2026-08-30 design pass: "Align the
+            month date (14th) with the Day of trip side by side to save
+            room"). This reverses an earlier two-line change, and
+            deliberately: that one was made because a bare number butted
+            against "Day N" read as one run-together number ("8Day 1"), for a
+            screen reader as much as on screen. Two things fix that without
+            going back to two lines — the ordinal suffix ("14th", not "14"),
+            and `justify-between`, which puts the cell's whole width between
+            them instead of a space. No separator glyph: this cell already
+            spends "·" on city/time and "–" on the time range itself, and a
+            third would be one more thing to decode. That is also dc.html:668
+            exactly — date left, "Day N" top-right — so this returns to the
+            handoff rather than inventing a third layout. */}
+        <div className="flex items-baseline justify-between gap-1">
+          <DataText size="xs">{ordinalDayOfMonth(Number(cell.date.slice(-2)))}</DataText>
           <span
             data-testid="calendar-day-label"
             className={cn("font-semibold", INK_TEXT[accent.ink])}

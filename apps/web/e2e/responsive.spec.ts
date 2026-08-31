@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // KI-19: the whole suite used to run at exactly one viewport (Playwright's
@@ -238,6 +239,79 @@ test.describe("responsive (narrow viewport)", () => {
 
 // The landing page is the one surface a signed-out phone actually reaches, and
 // its feature grid is breakpoint-gated — the class of thing KI-19 says the
+// Mitchell, 2026-08-30 design pass, on a 411px Android: "map view pretty
+// broken on mobile, maybe remove legend on mobile, and figure out a different
+// static location for the days, have less info and make that where you scroll
+// so map jumping still works."
+//
+// Here rather than in the "phone" project because that project is scoped to
+// m16-mobile-assistant.spec.ts, and this file already owns the
+// set-your-own-width pattern (the hero-art and money-figure tests below do
+// the same). The width is his: 411px.
+test.describe("responsive (Map lens on a phone)", () => {
+  test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("MapPhone"), 3);
+    await page.setViewportSize({ width: 411, height: 760 });
+    await page.goto(`/trips/${tripId}?lens=Map`);
+
+    const strip = page.getByTestId("map-day-strip");
+    await expect(strip).toBeVisible();
+
+    // The three desktop overlays are gone — not merely hidden, since the rail
+    // runs scroll machinery that should not be observing a zero-height box.
+    await expect(page.locator("[data-rail-track]")).toHaveCount(0);
+    await expect(page.getByText("Rest of trip")).toHaveCount(0);
+
+    // "make that where you scroll so map jumping still works": tapping a day
+    // in the strip is what focuses it now, and the detail line is where the
+    // rail's per-row detail and the focus card's content went.
+    //
+    // This asserts the strip's own half only. A broken onFocus -> fitBounds
+    // handoff would still satisfy it, so the camera half is pinned in
+    // MapLens.test.tsx ("moves the camera when a day is tapped in the strip"),
+    // where the map is a test double whose fitBounds calls can be read —
+    // maplibre exposes no camera state to query from here (CodeRabbit, PR #98).
+    await strip.getByRole("button", { name: /Day 2/ }).click();
+    await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop/);
+
+    // The focused chip's ring must not be clipped by the track's own scroll
+    // container. `overflow-x-auto` forces overflow-y to compute as `auto`
+    // too, so the container clips on every side; without vertical padding the
+    // ring is cut off against the top edge. DayChips hit this three times and
+    // this strip a fourth, so it is measured rather than eyeballed.
+    //
+    // Both edges, not just the top: the container clips symmetrically, so a
+    // top-only assertion passes while the ring is cut off underneath
+    // (CodeRabbit, PR #98).
+    const ringClearance = await page.evaluate(() => {
+      const track = document.querySelector('[data-testid="map-day-strip"] [role="group"]')!;
+      const focused = track.querySelector('[aria-pressed="true"]')!;
+      const trackBox = track.getBoundingClientRect();
+      const focusedBox = focused.getBoundingClientRect();
+      return { top: focusedBox.top - trackBox.top, bottom: trackBox.bottom - focusedBox.bottom };
+    });
+    // ring-2 is 2px; anything less than that and the ring is being cut.
+    expect(ringClearance.top).toBeGreaterThanOrEqual(2);
+    expect(ringClearance.bottom).toBeGreaterThanOrEqual(2);
+
+    // The strip is a control on the map, not a band the page scrolls past:
+    // the canvas still owns the viewport, so the document must not scroll.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("keeps the rail and legend at desktop width", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("MapDesktop"), 3);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/trips/${tripId}?lens=Map`);
+
+    await expect(page.locator("[data-rail-track]")).toHaveCount(1);
+    await expect(page.getByTestId("map-day-strip")).toHaveCount(0);
+  });
+});
+
 // 1280px default viewport will not exercise. Own describe, because the front
 // door needs the signed-out state and the narrow project supplies alice's.
 test.describe("responsive (narrow viewport, signed out)", () => {

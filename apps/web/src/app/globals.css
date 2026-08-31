@@ -160,10 +160,38 @@
      flex layout does that job directly — the reservation and its breakpoint
      are dead weight once the thing they compensated for no longer exists. */
   .trip-board-content {
-    padding-bottom: 24px;
+    /* 24px of clearance from the *unscheduled rack*, not from the viewport.
+       The rack is `position: fixed` (see below), so it reserves no space in
+       normal flow — with a bare 24px here, a day column's last card ended
+       flush underneath the "Unscheduled" bar (Mitchell, 2026-08-30 design
+       pass). `--rack-height` is the rack's measured height, set by
+       TripBoardScreen from the same ResizeObserver the assistant launcher's
+       bottom offset uses; it falls back to 0px, which is the old behavior,
+       for any render before the rack is measured or mounted. */
+    padding-bottom: calc(24px + var(--rack-height, 0px));
   }
   .trip-board-content.full-bleed {
     padding-bottom: 0;
+  }
+
+  /* MapLibre puts its attribution in the canvas's bottom-right corner (which
+     is why MapLegend sits top-right instead — see that file). The assistant
+     launcher is a `position: fixed` pill in the *viewport's* bottom-right,
+     and the Map lens is full-bleed, so the two corners are the same corner:
+     the pill sat on top of the attribution links, reported on the preview
+     (Mitchell, 2026-08-30 design pass) and, being a fixed element over a
+     canvas, it made them unclickable rather than merely untidy.
+     Moving the attribution left of the pill keeps both on the same baseline,
+     which reads better than stacking them. 158px is the pill's own footprint:
+     `right-6` (24px) plus its measured ~134px width at the default text size.
+     Keyed on `.assistant-launcher`, which TripBoardScreen sets under exactly
+     the condition that renders the pill (`!isDemo && !assistant.open`). An
+     earlier version keyed on the *absence* of `.assistant-open` instead, which
+     is not the same predicate: on /demo no launcher is rendered at all, and
+     that version still reserved 158px of canvas for it — a gap in front of
+     nothing (CodeRabbit, PR #98). */
+  .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
+    padding-right: 158px;
   }
 
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies

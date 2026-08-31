@@ -721,7 +721,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           fixed element ignores this row's flex sizing entirely and needs its
           own compensation to stop short of the docked rail instead of
           running underneath it. */}
-      <div className={cn("flex items-start", !isDemo && assistant.open && "assistant-open")}>
+      <div
+        className={cn(
+          "flex items-start",
+          !isDemo && assistant.open && "assistant-open",
+          // `assistant-launcher` marks the row while the closed-state pill is
+          // actually on screen — the same condition that renders it below.
+          // The Map lens reserves canvas for it (globals.css), and keying that
+          // off "not .assistant-open" was wrong on /demo, where the launcher
+          // never renders at all and the reservation was pure empty gap
+          // (CodeRabbit, PR #98).
+          !isDemo && !assistant.open && "assistant-launcher",
+        )}
+      >
         {/* .trip-board-content (globals.css): gives lens content a bottom
             margin against the page, dropped via .full-bleed for the Map
             lens, which is deliberately full-bleed (same `isFullLens` this
@@ -730,7 +742,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             min-width of their content's intrinsic width, which a
             horizontally-scrolling day-columns row would otherwise refuse to
             go below. */}
-        <div className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}>
+        <div
+          className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}
+          // The rack is `position: fixed`, so it is outside normal flow and
+          // reserves no space: the day columns' own 24px bottom padding was
+          // measured against the viewport, not against the bar sitting on
+          // top of it, and a card's bottom edge ended up flush under the
+          // "Unscheduled" bar (Mitchell, 2026-08-30 design pass). Feeding the
+          // already-measured rack height in as a custom property lets
+          // `.trip-board-content` keep its 24px gap *above the bar* instead,
+          // and it tracks the rack opening, closing and changing item count
+          // for free — the same measurement the assistant launcher's `bottom`
+          // offset reads.
+          // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
+          style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
+        >
           <TripHeader tripId={tripId}>
             {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
                 the tabs' own `shrink-0` are what keep that true at a phone's

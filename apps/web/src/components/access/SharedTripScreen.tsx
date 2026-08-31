@@ -17,6 +17,7 @@ import { formatTripDate } from "@/lib/formatDate";
 import { toClockRange } from "@/lib/time";
 import { cloneSharedTrip, fetchSharedTrip } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
+import { displayPlace } from "@/lib/place";
 
 // The read side of M11 link 4. Read-only by construction rather than by
 // disabling things: there is no dispatch, no TripProvider and no command
@@ -186,7 +187,7 @@ export function SharedTripScreen({ token }: { token: string }) {
                         </Text>
                         {activity.location !== null && (
                           <Text as="span" variant="muted">
-                            {activity.location.name}
+                            {displayPlace(activity.location)}
                           </Text>
                         )}
                         {activity.cost !== null && (

@@ -153,7 +153,11 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               what the button does. Playwright's getByRole name matching is
               substring-and-case-insensitive, so the e2e specs that click
               { name: "Trip settings" } keep working against this. */}
-          <div className="flex items-center gap-2">
+          {/* `flex-wrap` and `gap-y-1`: on a phone the trip name plus its
+              badges do not fit one line, and badges no longer wrap inside
+              themselves (see Badge). They have to be able to wrap as whole
+              items instead, or the row overflows — 2026-08-30 design pass. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* The button goes INSIDE the h2, not around it. The other way
                 round renders `<button><h2>…</h2></button>`, which is invalid
                 (a button's content model is phrasing content) and, worse,
@@ -187,7 +191,12 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                 CodeRabbit read PR #71 — Share, Add stop, undo/redo and Revert
                 were all still live for a viewer, so this comment was making a
                 promise the header did not keep. */}
-            {readOnly && <Badge variant="info">View only</Badge>}
+            {/* "Viewer", not "View only" — one word rather than two
+                (Mitchell, 2026-08-30 design pass: "dont use two words when
+                one will do, word wraps cause issues"). It also names the
+                role, which is what the badge stands in for, in the same word
+                the invite flow and TravelersPanel already use. */}
+            {readOnly && <Badge variant="info">Viewer</Badge>}
             {/* The access read failed, so this board is live on an assumption
                 rather than on an answer (TripProvider's `load` explains why
                 that is the deliberate choice). Said out loud here, beside the
@@ -255,7 +264,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   on /demo — and splitting it is the design decision that entry
                   names. Consistency now, per the rule already written down; the
                   split stays available if the Travelers UI (SPEC §8) wants it.
-                  The "View only" badge is what still explains the quiet page. */}
+                  The "Viewer" badge is what still explains the quiet page. */}
               {!readOnly && (
                 <Button variant="primary" onClick={() => openCreate()}>
                   Add stop
@@ -332,7 +341,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
           2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
           justify-between. */}
       <div className="mt-2 flex flex-wrap items-stretch justify-between gap-3">
-        <TripMetaPill detail={activeTrip} onOpenSettings={() => setSettingsOpen(true)} />
+        <TripMetaPill detail={activeTrip} />
         <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
 
