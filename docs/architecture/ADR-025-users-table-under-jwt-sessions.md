@@ -151,3 +151,51 @@ red and this reasoning being re-read.
   only as those users next sign in.** There is no backfill; an `actor_id` in a
   pre-M11 event may have no `users` row, and any surface that resolves an actor
   to a person must tolerate a miss. Link 3 is the first code that will care.
+
+## Amendment (2026-08-30) — `recordSignIn` returns `boolean | string`
+
+Decision 4 above specifies `recordSignIn` as a fail-closed **boolean**. M11a
+widens it to `Promise<boolean | string>`. Recorded here rather than changed
+above, because the original reasoning is still the reasoning — only its return
+type moved.
+
+**What changed.** M11a puts an invite gate in the same callback
+(`docs/milestones/M11a-invite-gate.md`, link 1). It has three distinct
+refusals — nothing presented, presented but not recognised, and a single-use
+code already redeemed — and each one is a different sentence on the `/signin`
+screen, because "the refusal is a designed screen, not a stack trace".
+
+**Why a string is the only way to say which.** `@auth/core@0.41.3`'s
+`handleAuthorized` (`lib/actions/callback/index.js:393-409`) collapses **every**
+falsy return into one `AccessDenied` code; `false`, `null` and `undefined` are
+indistinguishable to anything downstream. The same function passes a **string**
+return through the `redirect` callback instead, and the default redirect honours
+any value starting with `/` (`init.js:13-19`). So the refusal reason travels as
+a returned path — `` `/signin?error=${AdmissionRefusal.enum.…}` `` — and there
+is no second hook that could carry it. The three codes are a closed Zod enum in
+`packages/contracts` (`AdmissionRefusal`), not free strings, so an arbitrary
+`?error=` value cannot pose as a refusal this app produced.
+
+**Fail-closed is preserved, and is what the widening is for.**
+
+- A payload with no usable id still returns `false`, before the gate is
+  consulted at all. Auth.js still turns that into the designed
+  `/signin?error=` screen.
+- A database failure still propagates rather than being swallowed. The gate
+  reads the `users` row and may claim an `invite_codes` row; if either throws,
+  no session is minted — the same property Decision 4 states, now covering one
+  more query.
+- Every non-`true` return ends at `/signin`. Nothing returns `true` on a path
+  the gate did not clear, and a refusal writes no `users` row, so a refused
+  account leaves nothing behind.
+
+**What did not change.** Sessions are still JWT-only, Auth.js still does not
+read the `users` table, and `actor_id` is still upheld at the sign-in seam
+rather than by a foreign key. The gate strengthens that last property rather
+than weakening it: there is now one more reason a session cannot exist without
+a row behind it.
+
+**One consequence worth naming.** Decision 4's "the app cannot serve a trip
+without Postgres anyway" now also covers admission, so a database outage
+refuses *new* sign-ups as well as new sessions. That is the intended direction
+— a gate that fails open is not a gate.

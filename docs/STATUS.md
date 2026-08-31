@@ -22,6 +22,109 @@ general setup.
 
 ## Where the work is right now
 
+**M11a and M11b are built and in review as a three-PR stack, 2026-08-30.**
+None of their gates has closed; nothing below is ticked anywhere yet.
+
+| PR | What | Base | State |
+|---|---|---|---|
+| #99 | **M11a** — the invite gate | `main` | `pnpm check` + **two `test:e2e:ci-like` runs**, all exit 0. 3/3 review threads resolved |
+| #100 | **M11b PR1** — `cities`, visibility, the adds ledger, migration `0012` | #99 | `pnpm check` exit 0. 2/2 threads resolved |
+| #101 | **M11b PR2** — publishing, `GET /cities`, the ledger write path, migration `0013` | #100 | `pnpm check` exit 0, 402 integration tests. 5/5 threads resolved |
+| #102 | **M11b PR3** — Discover, shared day, board, profile; the four shells deleted | #101 | `pnpm check` exit 0, **two `test:e2e:ci-like` runs at 66 passed**. 10/10 threads resolved |
+
+**PR #98 (the 2026-08-30 design pass) and this stack compose cleanly — tested
+on 2026-08-31, not assumed.** #98 targets `main`, is not a draft, and touches
+eight files this stack also touches, including `AuthScreen.tsx` and four e2e
+specs whose sign-in M11a rewrote. It also disables the dev-login submit button
+until hydration (`disabled={!hydrated}`), which is exactly the kind of change
+that survives a clean textual merge and then breaks a Playwright click. So the
+two were merged in a scratch worktree and run: **zero conflicts, `pnpm check`
+exit 0 (1908 unit, 426 integration), and `test:e2e:ci-like` 70 passed.**
+Whichever merges second inherits no known integration work. Re-check if either
+side moves.
+
+**All four are open, stacked, green, and carry no open review threads.** They are
+drafts by Mitchell's choice; CI is skipped on drafts by design
+(`ci.yml`), so `static-and-unit` and `integration-e2e` showing "skipped" is
+the cost control working, not a failure.
+
+**Each branch contains its base** — the bases were merged forward deliberately.
+Do not skip that when adding to the stack: PR2's implementer read
+`playwright.config.ts` from a checkout cut before M11a's Unit C landed and
+correctly reported `INVITE_SUPER_CODE` missing, which was true of that
+checkout and false of M11a's branch.
+
+**Five things are Mitchell's before any of this can close**, and the first two
+block the M11a gate outright:
+
+1. **`INVITE_SUPER_CODE` in Vercel Preview *and* Production**, a CSPRNG value.
+   Absent means closed — an unset variable refuses every new account — and
+   Vercel injects env at build, so **rotation needs a redeploy**.
+2. **KI-50.** The gate's three "walked in a browser" boxes need a real Google
+   round trip, which no CI lane can drive from an unregistered preview host.
+   Either register that branch's callback URI or set `AUTH_REDIRECT_PROXY_URL`
+   on Preview once, for every future branch.
+3. **Three migrations dispatched after merge** — `0011`, `0012`, `0013` — plus
+   `pnpm --filter web db:backfill-cities`. Merging applies none of them.
+4. **The colour wall now rejects any PR reference from #100 up** in a comment;
+   see the known-issue entry for three ranked fixes. Not fixed unilaterally,
+   because a wall that blocks you is a finding to report.
+5. **Two `/signup` copy strings await design sign-off**
+   (`ADMISSION_FIELD_COPY`), and the handoff's own `sub` line — *"Your account
+   takes about four seconds to make"* — is now false with the gate in place.
+
+**A second decision, smaller: sibling chip counts ignore the budget band.**
+`siblingCities()` counts the whole SQL matched set while the band is applied in
+application code afterwards, so `Osaka · 9` can sit above two cards. Recorded
+rather than fixed because all three defensible answers contradict a decision
+already written into that function —
+`docs/known-issues/open/KI-20260831-sibling-chip-counts-ignore-the-budget-band.md`.
+
+**One gate box cannot be satisfied as written and needs a decision.** M11b's
+*"no M11-tagged entry remains"* in `preview-registry.ts` was written believing
+the four Playbooks shells were the only ones. There are **nine**. The other
+five (`rack-provenance`, `cost-estimate-state`, `budget-breakdown`,
+`wizard-destination-chips`, `wizard-longer-chip`) are each blocked on a
+contract field nobody has built, so M11b was never going to wire them and
+there is no milestone to retag them to. Narrowing the box to *"no M11-tagged
+**Playbooks** entry remains"* is a gate-definition change, which is Mitchell's
+alone.
+
+**Review found nineteen issues across the four PRs, and fourteen were the same
+defect: a test that passes while proving nothing.** Five were real product bugs
+— among them a `truncated` flag that under-reported, so a Discover query
+matching 25-199 days showed 24 cards as the complete result with no way to
+reach the rest; a filter change that raised the "someone else changed this"
+banner; and a dialog taller than the viewport that hid its own top, leaving the
+first row unreachable **by mouse, keyboard and Playwright alike** — latent for
+every dialog in the app, surfaced only because a leaking e2e spec had grown the
+saved-days library past one screen.
+
+**Every one of the nineteen was green locally.** `pnpm check` cannot catch this
+class by construction, which is the argument for triggering CodeRabbit on
+drafts — it does not review them by default. It was also confidently wrong
+twice, both times about runtime behaviour it researched rather than ran
+(Vitest's `it.each` on a mixed array; `__dirname` under ESM), and both times the
+tell was identical: **the suite was green, which the claimed failure could not
+be.** Verify before applying.
+
+**Two of the four PRs also found defects this session's own work introduced**, all the same
+species — a test that passes while proving nothing — and none visible to a
+local run, because all three were green: a smoke spec that filled an invite
+code then signed in as a *returning* user, so the code was dead; two saved-day
+tests asserting on the in-memory object rather than the stored row; and a
+property test witnessing that it ran rather than that it reached its named
+path. All three now proven load-bearing by mutation probe. **CodeRabbit found
+all three**, which is the argument for triggering it on drafts rather than
+waiting — it does not review drafts by default.
+
+**M11a also broke `pnpm db:reseed` and it was fixed in the same PR.**
+`db:reset` derives its table list from the schema, so it truncates `users`;
+the seed then signs in for real and the gate refuses a brand-new account. It
+stayed invisible because with `users` intact the seed succeeds with no code at
+all — the returning-user path again.
+
+
 **M18b's gate closed 2026-08-30. M17 is the current work**, and the order is
 now `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
 2026-08-30** off the new design handoff, and **M11a was created the same day and
@@ -288,15 +391,28 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Open M17 — Account customization** — `docs/milestones/M17-account-customization.md`,
-re-scoped 2026-08-29 (see above). **Then M11a, then M11b**, both scoped and
-placed 2026-08-30 — `docs/milestones/M11a-invite-gate.md` and
-`docs/milestones/M11b-playbooks-public-library.md`. **All three carry a
-migration, and a migration is dispatched, not merged.** **Its migration must not be merged without a
-dispatch** — `gh workflow run migrate-production.yml -f confirm=migrate` from
-`main`. That is the one thing about M17 most likely to be missed, because
-merging no longer applies a migration and the PR body is the only place anyone
-will look for it.
+**M17 was jumped on 2026-08-30 and the current work is M11a — an invite gate**
+— `docs/milestones/M11a-invite-gate.md`, **then M11b**
+(`docs/milestones/M11b-playbooks-public-library.md`), **then M17**
+(`docs/milestones/M17-account-customization.md`, unchanged and un-cancelled).
+Mitchell's call the same day, asked for as *"finishing out the rest of M11"*.
+The reorder note is in `docs/milestones/README.md`.
+
+**Jumping M17 is free for M11a and not free for M11b**, and the difference is
+worth knowing before either is opened. M11a's file already said M17 was
+sequencing rather than a dependency, and it is — nothing in the gate reads a
+preference. M11b's prerequisite was real: its author strip and its public
+profile both display a person's name, and M17's preferences half is what
+resolves `who` to a display name. Both now build against today's identifier
+**behind one resolver seam**, so M17 later fills it in one function instead of
+two routes. That amendment is recorded against the prerequisite in M11b's own
+file.
+
+**All three carry a migration, and a migration is dispatched, not merged** —
+`gh workflow run migrate-production.yml -f confirm=migrate` from `main`, said so
+in the PR body. M11a's is `invite_codes`; M11b's carries `cities`, visibility
+and the adds ledger. This is the thing most likely to be missed, because merging
+no longer applies a migration and the PR body is the only place anyone looks.
 
 Per `docs/milestones/README.md` the next milestone's plan re-checks the
 gate-close checklist, and **M18b's close (2026-08-30) is the one being

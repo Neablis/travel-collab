@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { E2E_SUPER_CODE } from "./admission";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // M11 link 5's exit-gate line: "A shared trip can be cloned into the
@@ -42,10 +43,18 @@ async function signedInAs(browser: import("@playwright/test").Browser, username:
   // cloning alice's own trip.
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
-  await page.goto("/signin");
+  // `/signup` with the super code, because M11a's gate refuses an account with
+  // no `users` row and nothing to present — and erin is a stranger by design,
+  // which is exactly that account on a fresh database. She holds no trip
+  // invite (this spec is about a *share* link, which admits nobody), so the
+  // super code is the only path open to her. The share link itself is
+  // deliberately not an admission credential: sharing a plan to read is not
+  // the same as inviting someone in.
+  await page.goto("/signup");
+  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
   await page.fill('input[name="username"]', username);
   await Promise.all([
-    page.waitForURL((url) => !url.pathname.startsWith("/signin")),
+    page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
   return page;

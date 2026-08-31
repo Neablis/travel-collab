@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { E2E_SUPER_CODE } from "./admission";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -21,6 +23,21 @@ import { e2eTripName } from "./tripNames";
 // command API (the `createMappedTrip` idiom in helpers.ts) rather than the
 // new-trip wizard, because the wizard is m8's territory and re-walking it here
 // is pure cost.
+
+/**
+ * A dev username the app has genuinely never seen.
+ *
+ * The three guests here used to be the fixed "bob", "carol" and "dan", which
+ * was fine while sign-in was unconditional. M11a makes "has this person been
+ * here before?" the whole question: against a persistent local database a
+ * fixed name is new exactly once, and every run after the first would have
+ * quietly admitted them as returning users and stopped exercising the invite
+ * path this spec now exists to prove. Same fresh-identity-per-test convention
+ * KI-69 already established for the integration suites, for the same reason.
+ */
+function newcomer(prefix: string): string {
+  return `${prefix}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
 
 async function createTrip(page: Page, name: string): Promise<string> {
   const response = await page.request.post("/api/trips", { data: { name } });
@@ -54,21 +71,55 @@ async function inviteLinkFor(page: Page, role: "Can edit" | "Can view"): Promise
 }
 
 /**
- * A second signed-in person, in their own context.
+ * A second person, brand new to the app, in their own context.
  *
  * `storageState: undefined` is explicit rather than assumed: the "desktop"
  * project's `use` pins alice's saved session, and inheriting it here would
- * make this spec silently test alice inviting alice. Sign-in goes straight to
- * /signin rather than through the landing page — the front door is m15's
- * spec, and this one only needs the session.
+ * make this spec silently test alice inviting alice.
+ *
+ * **M11a turned this into the milestone's own evidence.** These three are
+ * exactly the population the invite gate refuses — dev users with no `users`
+ * row — so signing them in straight at `/signin` with nothing to present now
+ * lands on the refusal screen. Rather than exempt them, they come in the way a
+ * real invited collaborator does:
+ *
+ * `followInvite` opens `/invite/<token>` while signed out. `proxy.ts` banks
+ * the token in the `pending_admission` cookie on the redirect to `/signin`,
+ * and `recordSignIn` reads it back and admits them by link 2 — **with no code
+ * typed anywhere**. That is the milestone's "M11's invite→accept→edit flow
+ * still works end to end for a person who has never signed in" box, walked by
+ * CI instead of by hand.
+ *
+ * It only works for someone holding a *pending* invite, which is why `dan`
+ * (whose link is revoked before he ever sees it — that is the point of his
+ * test) comes in on the super code instead. Link 2 would refuse him, correctly.
  */
-async function signedInAs(browser: Browser, username: string): Promise<Page> {
+async function signedInAs(
+  browser: Browser,
+  username: string,
+  admission: { followInvite: string } | { superCode: true },
+): Promise<Page> {
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
-  await page.goto("/signin");
+
+  if ("followInvite" in admission) {
+    // The proxy redirects to /signin?callbackUrl=/invite/<token> and banks the
+    // token on the way past, so this screen needs no code field at all.
+    await page.goto(admission.followInvite);
+    await expect(page).toHaveURL(/\/signin\?/);
+  } else {
+    // No pending invite to ride in on, so the super code it is — presented on
+    // /signup, the only screen carrying the field.
+    await page.goto("/signup");
+    await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  }
+
   await page.fill('input[name="username"]', username);
   await Promise.all([
-    page.waitForURL((url) => !url.pathname.startsWith("/signin")),
+    // Both front-door routes, not just `/signin`: the super-code path starts on
+    // `/signup`, where a `/signin`-only predicate is already satisfied before
+    // the click and would return a page that has not signed in yet.
+    page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
   return page;
@@ -93,7 +144,8 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
 
   const link = await inviteLinkFor(page, "Can edit");
 
-  const bob = await signedInAs(browser, "bob");
+  const bobName = newcomer("bob");
+  const bob = await signedInAs(browser, bobName, { followInvite: link });
   try {
     await bob.goto(link);
     await expect(bob.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -129,7 +181,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   // membership listing fails here rather than being masked by the invite row.
   await page.reload();
   await openTripSettings(page, tripName);
-  await expect(page.getByTestId("traveller-dev-bob")).toContainText("editor");
+  await expect(page.getByTestId(`traveller-dev-${bobName}`)).toContainText("editor");
   await expect(page.getByTestId("traveller-dev-alice")).toContainText("owner");
   await expect(page.getByTestId(/^traveller-/)).toHaveCount(2);
 });
@@ -152,7 +204,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can view");
 
-  const carol = await signedInAs(browser, "carol");
+  const carol = await signedInAs(browser, newcomer("carol"), { followInvite: link });
   try {
     await carol.goto(link);
     await expect(carol.getByText("You'll be able to look, but not change anything.")).toBeVisible();
@@ -223,7 +275,7 @@ test("a revoked link stops working", async ({ page, browser }) => {
     page.getByRole("button", { name: "Revoke invite" }).first().click(),
   ]);
 
-  const dan = await signedInAs(browser, "dan");
+  const dan = await signedInAs(browser, newcomer("dan"), { superCode: true });
   try {
     await dan.goto(link);
     await expect(dan.getByText("This invite has been revoked.")).toBeVisible();

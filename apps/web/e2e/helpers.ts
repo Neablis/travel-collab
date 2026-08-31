@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { E2E_SUPER_CODE } from "./admission";
 
 // @atlaskit/pragmatic-drag-and-drop is built on the browser's native HTML5
 // Drag and Drop API. Locator.dragTo() drives it with a single mouse-down /
@@ -65,9 +66,22 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // drop landed; the app's own rendered state is the real signal.
 }
 
+/**
+ * Signs a dev user in and leaves them on Home.
+ *
+ * Goes through `/signup` rather than `/signin`, and presents the super code,
+ * because M11a's gate refuses anyone with no `users` row and no credential —
+ * and against a fresh database every dev user this suite uses is exactly that
+ * person. The build plan's decision 3 routes dev login through the gate rather
+ * than exempting it, so this is the admission path, not a workaround for one.
+ * The invite-code field lives on `/signup` only (AuthScreen's `mode`), which
+ * is why the landing-page "Sign in" walk moved here; `smoke.spec.ts` still
+ * covers the front door from `/` and `m11a-invite-gate.spec.ts` covers
+ * `/signin` for someone who already has a row.
+ */
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {
-  await page.goto("/");
-  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.goto("/signup");
+  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
   await page.fill('input[name="username"]', username);
   // Wait for the post-sign-in page's first authenticated /api/trips fetch —
   // it only fires after React hydrates, so the form's onSubmit is attached.

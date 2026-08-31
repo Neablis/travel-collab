@@ -49,6 +49,9 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // 30+ seconds later.
   await expect(page).toHaveURL(/\/signin$/);
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  // No invite code: `/signin` has no field for one, and M11a's gate only asks
+  // someone with no `users` row — alice has had one since `auth.setup.ts`,
+  // which every project here depends on.
   const username = page.getByLabel(/username/i);
   await username.fill("alice");
   await expect(username).toHaveValue("alice");

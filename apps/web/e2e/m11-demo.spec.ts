@@ -116,6 +116,10 @@ test.describe("the demo trip", () => {
     // what tells the demo to finish the job when they land back on it.
     await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%3Fclone%3D1$/);
 
+    // No invite code, deliberately: M11a's gate only asks for one from someone
+    // with no `users` row, and alice has had one since `auth.setup.ts` — which
+    // every project here depends on. This is the returning-user path, and its
+    // being unremarkable is the point.
     await page.fill('input[name="username"]', "alice");
     await page.getByRole("button", { name: /sign in with dev login/i }).click();
 

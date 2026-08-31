@@ -65,10 +65,36 @@ Both storage choices below are Mitchell's, 2026-08-30 — he asked for both, not
 one: *"i want a super code i can share that gets you invite, and unique codes
 that are one-off."*
 
-**Link 1 — The admission rule, in one module.** `server/admission.ts`. Called
+**Link 1 — The admission rule, in one module.** `server/admission.ts`. ~~Called
 twice: once from the signup form for immediate "that code isn't valid" feedback,
-once from `recordSignIn` as the authoritative validate-and-redeem. The rule is
+once from `recordSignIn` as the authoritative validate-and-redeem.~~ The rule is
 written once even though it is asked twice.
+
+> **Amended 2026-08-30, during the build — it is called once.** Mitchell's
+> ruling, on two findings the scoping session did not have.
+>
+> **It is not buildable as written.** The advisory call was to come from the
+> signup form, but the lint wall forbids a page file importing `@/server/*`,
+> and `signup/page.tsx` is a page file. The form therefore *stores* the code
+> without validating it, exactly as `proxy.ts` does with a token. Routing it
+> through an `src/app/api/**` handler would be legal — that directory is
+> exempt from the wall — which is what made this a decision rather than a
+> blocker.
+>
+> **And on inspection we do not want the endpoint.** An unauthenticated
+> "is this code valid?" route is a brute-force oracle: it lets anyone
+> enumerate `invite_codes` without ever attempting a sign-in, against a table
+> whose entire security property is that a code is unguessable. It is
+> mitigable — `consumeQuota` already rate-limits `/api/geocode` — but the
+> mitigation is a tuning problem with a real false-positive cost, and the
+> check is inherently TOCTOU besides: it can answer "valid" for a code another
+> person spends a second later, so it can never be the gate.
+>
+> **What ships instead:** a wrong code is caught authoritatively at sign-in
+> and lands on the designed `INVALID_INVITE_CODE` screen, which already says
+> what to do next. The cost is one wasted OAuth round trip for someone who
+> mistypes. `checkAdmission` remains in the module, exported and tested, so
+> restoring the advisory path later is wiring rather than rewriting.
 
 **Link 2 — A trip invite is an invitation.** Mitchell's explicit call,
 2026-08-30: holding a **pending, unrevoked** M11 invite token admits you with no
@@ -145,16 +171,25 @@ to do next. Project rule 6: this is the failure state of the front door.
 
 ## Prerequisites and traps
 
-- **M17 closes first**, per the placed order. Nothing here depends on it; it is
-  sequencing, not a dependency.
+- ~~**M17 closes first**, per the placed order.~~ **Superseded 2026-08-30**:
+  Mitchell jumped M17 and this milestone runs first. That is safe precisely
+  because of what this line already said — nothing here depends on M17; it was
+  sequencing, not a dependency. No link below reads a preference, a display
+  name or a home airport. Reorder note: `docs/milestones/README.md`.
 - **Rotating the super code needs a redeploy.** Vercel injects environment
   variables at build, so changing the value does not take effect until the next
   deployment. That is the practical argument for minting single-use codes for
   most people and keeping the super code for active onboarding — and a reason
   not to treat the super code as revocable in an emergency.
-- **Only two places in the e2e suite actually sign in** — `auth.setup.ts` and
-  `smoke.spec.ts`; every other spec reuses saved storage state. The blast radius
-  is small, but it is not zero, and `auth.setup.ts` runs before every project.
+- ~~**Only two places in the e2e suite actually sign in** — `auth.setup.ts` and
+  `smoke.spec.ts`.~~ **Wrong, corrected 2026-08-30 during the build: there are
+  six.** The other four are `m11-invites.spec.ts`'s `signedInAs`,
+  `m11-clone.spec.ts`'s `signedInAs` (erin), `m11-demo.spec.ts:106` and
+  `m15-front-door.spec.ts` (both alice). Every *other* spec does reuse saved
+  storage state, and `auth.setup.ts` does run before every project, so the
+  shape of the warning was right and the count was not. Taking the two on
+  trust would have left `m11-clone`'s erin red on a fresh database — she holds
+  no invite, so she needs the super code.
 - **`server/admission.ts` must not be imported from `proxy.ts`.** The proxy
   builds its own Edge-runtime Auth.js instance from `lib/authConfig.ts`
   precisely so no database reaches it (ADR-024). The cookie write is Edge-safe;
