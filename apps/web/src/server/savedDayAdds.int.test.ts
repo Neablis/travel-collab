@@ -253,6 +253,37 @@ describe("the 0012 cities backfill", () => {
     // integration suite — a real failure signal, spent on a fixture.
     await db.delete(savedDays).where(eq(savedDays.id, id));
   });
+
+  it("refuses to clear a populated cities when the stops derive none", async () => {
+    const id = randomUUID();
+    await db.insert(savedDays).values({
+      id,
+      ownerId: OWNER,
+      // An ARRAY of malformed stops — the case `Array.isArray` admits and
+      // `SavedStop.array().safeParse` would not. The script cannot run that
+      // parse (plain Node resolves neither `@tc/contracts` nor its source by
+      // path, both measured as ERR_MODULE_NOT_FOUND), so the guard is on the
+      // damage instead: a derivation of `[]` must never overwrite cities that
+      // are already there.
+      stops: [{ nothing: "usable" }] as never,
+      name: "Malformed stops",
+      cities: ["Kyoto", "Osaka"],
+      sourceTripId: randomUUID(),
+      sourceTripName: "Kansai",
+      createdAt: new Date("2026-08-01T00:00:00.000Z"),
+    });
+
+    const result = await backfillSavedDayCities(db);
+
+    expect(result.refused).toContain(id);
+    // Both assertions were checked against a build with the guard removed:
+    // the first reads `[]`, and this one reads `[]` where it wants Kyoto/Osaka.
+    expect(await citiesOf(id)).toEqual(["Kyoto", "Osaka"]);
+
+    // Cleans up for the same reason the non-array row above does: it would
+    // otherwise make a real backfill run exit non-zero.
+    await db.delete(savedDays).where(eq(savedDays.id, id));
+  });
 });
 
 // A `text` column with a `$type<SavedDayVisibility>()` cast is typed at compile
