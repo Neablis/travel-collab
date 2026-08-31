@@ -341,7 +341,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
           2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
           justify-between. */}
       <div className="mt-2 flex flex-wrap items-stretch justify-between gap-3">
-        <TripMetaPill detail={activeTrip} onOpenSettings={() => setSettingsOpen(true)} />
+        <TripMetaPill detail={activeTrip} />
         <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
 

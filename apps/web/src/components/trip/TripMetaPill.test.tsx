@@ -1,6 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { TripMetaPill } from "./TripMetaPill";
@@ -51,24 +50,25 @@ function fixture(): TripDetail {
 afterEach(cleanup);
 
 describe("TripMetaPill", () => {
-  it("renders the date range, day/stop/city counts, and a member avatar per member", () => {
-    render(<TripMetaPill detail={fixture()} onOpenSettings={() => {}} />);
+  it("renders the date range and the day/stop/city counts", () => {
+    render(<TripMetaPill detail={fixture()} />);
 
     expect(screen.getByText(/Jun 1/)).toBeTruthy();
     expect(screen.getByText(/Jun 2/)).toBeTruthy();
     expect(screen.getByText("2 days")).toBeTruthy();
     expect(screen.getByText("2 stops")).toBeTruthy();
     expect(screen.getByText("2 cities")).toBeTruthy();
-    expect(screen.getByText("DA")).toBeTruthy();
-    expect(screen.getByText("DB")).toBeTruthy();
   });
 
-  it("opens settings when the crew control is clicked", async () => {
-    const onOpenSettings = vi.fn();
-    render(<TripMetaPill detail={fixture()} onOpenSettings={onOpenSettings} />);
+  // Mitchell, 2026-08-30 design pass: "Can we drop this ownership tile all
+  // togther? DA?" The pill carried stacked member avatars that doubled as a
+  // third way into Trip settings. Who is on the trip is answered in the
+  // Travellers panel; this pill answers what the trip *is*.
+  it("shows no member avatars and no crew control", () => {
+    render(<TripMetaPill detail={fixture()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /crew|travellers|2 travellers/i }));
-
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("DA")).toBeNull();
+    expect(screen.queryByText("DB")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

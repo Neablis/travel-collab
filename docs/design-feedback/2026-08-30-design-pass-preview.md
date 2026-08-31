@@ -4,7 +4,7 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Sixteen threads. Fifteen are fixed on this branch; one is open pending a
+Seventeen threads. Sixteen are fixed on this branch; one is open pending a
 repro.
 
 ## How this pass was run
@@ -65,6 +65,23 @@ stays — it is how the pill opens Trip settings — with the count as its
 `aria-label`, now correctly singular for a solo trip ("1 traveller", which
 the visible text had wrong anyway). The last avatar's stacking margin needed
 cancelling once the text was no longer there to absorb it.
+
+### 17 — The ownership tile
+
+> "Can we drop this ownership tile all togther? DA?"
+
+The pill's stacked member avatars, which also doubled as a third way into Trip
+settings. The "DA?" is Mitchell reading a member's initials and not knowing
+what they were for, which is the argument in one word.
+
+Gone entirely — this is the second pass over the same control. Finding 2
+dropped the "N travellers" text beside the avatars and kept the avatars as the
+control; this drops the control. The pill answers *what this trip is* (dates,
+days, stops, cities); *who is on it* is a different question, answered
+properly by Trip settings' Travellers panel rather than by two grey initials.
+
+Nothing is stranded: Trip settings had three entrances and keeps two — the
+trip title, and the header's own ghost "Trip settings" button.
 
 ### 3 — "Used for the over-budget warning across lenses."
 
