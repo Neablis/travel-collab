@@ -241,8 +241,22 @@ investigation started from was never the number of tests — it was **running al
 of them for a one-file change**, which the tiered Definition of Done in
 `AGENTS.md` now addresses directly.
 
-Recommendation: close Phases 5-7 as **superseded** and let the verification
-ladder carry the cost argument.
+Recommendation, **actioned 2026-08-31** — and note it is per phase, not
+wholesale, because closing all three by association would have discarded real
+undone work:
+
+- **Phase 5 — superseded.** Everything above.
+- **Phase 6 — absorbed.** 6.4 is `scripts/check-sleep-wall.mjs`; 6.5 is
+  AGENTS.md's property-test rule plus `witness.ts`, whose last gap closed with
+  §2's floors. 6.1-6.3 were met by what M10/M11 shipped.
+- **Phase 7 — NOT closed.** 7.1 (lint walls) and 7.3 (AGENTS.md's Testing
+  model) landed, but **7.2 `docs/guidelines/testing.md` and 7.4 a
+  `write-a-test` skill were never done**, and neither depends on the prune.
+  Both are now live items in `TODO.md`. Testing is the only "how we work" area
+  with no guideline file, and the missing skill is part of why the suite grew
+  unattended — which is the actual lesson of this inventory.
+
+The verification ladder in `AGENTS.md` carries the cost argument from here.
 
 ## 8. The cleanup that was actually executed (2026-08-30)
 

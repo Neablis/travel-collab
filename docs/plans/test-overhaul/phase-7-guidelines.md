@@ -1,5 +1,14 @@
 # Phase 7 — Make it stick: guidance a smaller model can follow
 
+> **PARTIALLY DONE 2026-08-31 — NOT superseded.**
+>
+> **Task 7.1 landed** (four lint walls in `scripts/`). **Task 7.3 landed**
+> (`AGENTS.md`'s "Testing model" section). **Tasks 7.2
+> (`docs/guidelines/testing.md`) and 7.4 (a `write-a-test` skill) have not
+> been done**, and neither depends on the prune that Phase 5 was closed for.
+> They are still wanted. Do not close this file by association with Phases 5
+> and 6 — see `TODO.md`.
+
 **The stated goal:** a new test gets written correctly *without* frontier-model
 guidance. That is a real constraint on how this phase is written — prose that
 sounds wise but requires judgment to apply will not survive contact with a

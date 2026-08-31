@@ -1,7 +1,80 @@
 # CI cost and capacity
 
-**The constraint:** `Neablis/travel-collab` is a **private repo on a GitHub Free
-plan**, which includes **2,000 Linux Actions minutes per month** and no more.
+> **STATUS 2026-08-31: the repo is public. The minutes constraint below no
+> longer binds.** Mitchell made `Neablis/travel-collab` public to get free
+> runs. Public repos get **unlimited GitHub-hosted standard-runner minutes**,
+> which is the outcome the "Still open" section at the bottom of this document
+> asked for — so the arithmetic in the body is now *history*, not a budget.
+>
+> Three things that did **not** stop mattering, and one that got worse:
+>
+> 1. **The levers stay, for different reasons.** Draft-gating and
+>    `paths-ignore` were justified here by minutes. They are still justified by
+>    **CodeRabbit review passes and Claude tokens**, neither of which went
+>    unlimited — a full CI run on a prose edit still costs a session the time
+>    spent waiting for it. `AGENTS.md`'s tiered Definition of Done now carries
+>    that argument directly, and does not depend on this document.
+> 2. **The required-status-check trap is now LIVE.** See the new section
+>    immediately below. This is the one thing to act on before anything else.
+> 3. **CodeQL was never in the accounting at all** — also below.
+>
+> Do not delete the body. It is the measurement and reasoning behind the
+> workflow's current shape, and the shape is still what we want.
+
+## The trap that going public just armed
+
+The "Still open" section below ends with a warning, written while it was
+hypothetical:
+
+> *going public **or** upgrading to Pro turns on branch protection, and at that
+> moment `paths-ignore` acquires the required-status-check trap: a required
+> check that never runs blocks the merge forever. Convert the filters to a
+> skip-job pattern before enabling required checks, not after.*
+
+That condition has fired. Confirmed 2026-08-31:
+`gh api repos/Neablis/travel-collab/branches/main/protection` now returns
+**`Branch not protected` (404)** — previously it returned *"Upgrade to GitHub
+Pro or make this repository public"*. Branch protection is available and simply
+not switched on yet.
+
+**So there is a window, and we are in it.** The moment `static-and-unit` or
+`integration-e2e` is made a *required* status check, every prose-only PR — the
+exact Tier 1 case `AGENTS.md` now tells agents to expect — will sit unmergeable
+forever, because `paths-ignore` means the required job never reports at all. A
+skipped job reports; a job that never ran does not.
+
+**Do the conversion before enabling required checks**: drop `paths-ignore`,
+keep the workflow always-triggering, and move the filter into a `changes` job
+(`dorny/paths-filter` or a `git diff` step) whose output each real job reads in
+its `if:`. The jobs then *run and skip*, which satisfies a required check.
+
+## CodeQL: real spend that no measurement here has ever counted
+
+Every table in this document was built from the `ci` and `migrate-production`
+workflows. **CodeQL is neither**, and it has been running the whole time:
+
+- It is **not in `.github/workflows/`** — it is GitHub's *default setup*,
+  configured in repository settings, so nothing in the tree reveals it.
+- Its runs are named **`PR #103`** and **`Push on main`**, not `CodeQL`. That
+  is why it is invisible to the re-measuring recipe at the bottom of this file,
+  and why filtering `.name=="CodeQL"` returns zero.
+- Measured 2026-08-31 over the most recent 100 workflow runs: **42 CodeQL runs**
+  alongside 54 `ci` runs, at **~2.9 billed minutes per run** (sampled 20 runs,
+  40 jobs, 57 billed minutes) — call it **~122 minutes** in that window.
+- **It still runs on pushes to `main`**, which `ci.yml` deliberately stopped
+  doing to save ~456 min/month. That saving was real but smaller in net terms
+  than this document claims, because CodeQL kept paying it.
+
+Now that minutes are unlimited this is no longer a cost problem, and CodeQL is
+a security tool — turning it down is Mitchell's call, the same species as the
+disclosure decision that made the repo public. It is recorded here so the next
+person who measures this repo's spend does not repeat the omission.
+
+---
+
+**The original constraint (historical, superseded by the status block above):**
+`Neablis/travel-collab` was a **private repo on a GitHub Free plan**, which
+includes **2,000 Linux Actions minutes per month** and no more.
 (Confirmed the plan tier the blunt way: `gh api repos/Neablis/travel-collab/
 branches/main/protection` returns *"Upgrade to GitHub Pro or make this
 repository public"*. That same fact means there are **no required status checks
@@ -178,9 +251,13 @@ surfaces immediately — a broken *test* does not.
 
 ## Still open — Mitchell's call
 
-**Make the repo public.** Public repos get unlimited GitHub-hosted standard-
-runner minutes; it moots this entire document. A disclosure decision, not an
-engineering one.
+**Make the repo public. — DONE, 2026-08-31.** Mitchell made the repo public
+to get free runs; public repos get unlimited GitHub-hosted standard-runner
+minutes, which moots the budget this document was written to defend. The
+contingency ladder below is therefore **not needed** and is kept only as the
+record of what was priced. See the status block at the top — going public
+armed the required-status-check trap this section warns about two paragraphs
+down, and that is now the live item.
 
 If the cuts above stop being enough — and the tempo row in the table says that
 is a live possibility — the contingency ladder in order of cost:

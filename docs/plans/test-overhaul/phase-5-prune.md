@@ -1,5 +1,20 @@
 # Phase 5 — Prune to the minimum set that catches regressions
 
+> **SUPERSEDED 2026-08-31. Do not execute this phase.**
+>
+> Its required precondition — a fresh Phase 0 inventory — was run on
+> 2026-08-30 (`phase-5-inventory-2026-08-30.md`) and found the criteria below
+> no longer describe this tree. Category (c) is empty, (a) is 7 assertions,
+> (b) is 60, and (d) — the big lever, claimed at 152 tests — is **nine false
+> positives**. `TripBoardScreen.test.tsx`, named below as the flagship case at
+> "581 lines", is now 1,579 lines with 292 comment lines organised into
+> intent-scoped describes. Read the inventory, not this file, and note in
+> particular the two recorded false positives (`MapLens` and category (d))
+> which exist so the same seductive heuristic is not re-derived and mis-cut.
+>
+> Kept for the reasoning and the safety protocol in Task 5.3, which remain
+> correct and should govern any future prune.
+
 **Do not start this phase until 0–4 have landed AND M10 Wave 2's gate has
 closed** (see the index's Sequencing section). Two reasons: you are deleting
 tests on the strength of the layers beneath them, which Phases 3 and 4 make

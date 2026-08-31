@@ -534,34 +534,41 @@ behind a named trigger, where the trigger has since happened. Listed here
 because the only thing that recorded it was a paragraph in `docs/STATUS.md`
 marked "history", so nothing live surfaced it and nobody resumed.
 
-- **Test-suite overhaul, Phases 5-7** (`docs/plans/2026-08-23-test-suite-overhaul.md`
-  and `docs/plans/test-overhaul/phase-5-prune.md`, `-6-debrittle.md`,
-  `-7-guidelines.md`). Phases 0-4 landed 2026-08-23; 5-7 were gated on **M10
-  Wave 2's gate closing**, because Wave 2 Phases 5-8 were about to rewrite eight
-  of the components whose tests Phase 5 would otherwise prune or rewrite twice.
-  **That gate closed 2026-08-27 and nothing resumed.** Measured 2026-08-28: the
-  web unit suite is **111 files / 894 tests** against the overhaul's own
-  baseline of 95 / 569 — +16 files, +325 tests, +4,603 test LOC, and an
-  `environment` cost now *worse* than the number the overhaul was launched to
-  fix. `TimelineLens.test.tsx`, flagged then as the canonical brittleness case,
-  grew 15 → 41 tests.
-  **The Phase 0 re-inventory is now done** —
-  `docs/plans/test-overhaul/phase-5-inventory-2026-08-30.md`. Headline: the
-  suite is **138 files / 1,908 tests**, 3.3x the overhaul's 95/569 baseline —
-  **and the prune is mostly obsolete.** Reading the candidates rather than
-  ranking them: category (c) is empty, (a) is 7 assertions, (b) is 60, and (d)
-  — billed as the big lever at 152 tests — turned out to be **nine false
-  positives**, all well-isolated behavioural tests that the `render() >= tests`
-  heuristic cannot distinguish from per-prop bloat. `TripBoardScreen`, the
-  plan's named flagship, is now 1,579 lines with 292 comment lines organised
-  into intent-scoped describes. The suite tripled because the product tripled.
-  **Volume is real; waste is not.** The three `fast-check` files with no
-  `witness` floor were the one genuine finding and are **fixed** (measured
-  floors, proven non-vacuous, plus a tautological assertion removed from
-  `dates.property.test.ts`). What remains is ~70 assertions and 4 tests of
-  opportunistic cleanup. **Recommend closing Phases 5-7 as superseded** — the
-  cost problem was running the whole suite for a one-file change, which
-  `AGENTS.md`'s tiered Definition of Done now handles.
+- **Test-suite overhaul, Phases 5-7 — CLOSED OUT 2026-08-31.** Phases 0-4
+  landed 2026-08-23; 5-7 were gated on M10 Wave 2's gate, which closed
+  2026-08-27 with nothing resuming. The required Phase 0 re-inventory was run
+  (`docs/plans/test-overhaul/phase-5-inventory-2026-08-30.md`) and the verdict
+  is per phase, not wholesale:
+  **Phase 5 superseded** — the suite is 138 files / 1,908 tests against the
+  overhaul's 95/569 baseline, but reading the candidates rather than ranking
+  them, category (c) is empty, (a) is 7 assertions, (b) is 60, and (d), the big
+  lever at a claimed 152 tests, is nine false positives. The suite tripled
+  because the product tripled; volume is real, waste is not.
+  **Phase 6 absorbed** — 6.4 is `check-sleep-wall.mjs`, 6.5 is AGENTS.md's
+  property-test rule plus `witness.ts`, whose last gap (three `fast-check`
+  files with no floor) was closed 2026-08-30 with measured, non-vacuity-proven
+  floors.
+  **Phase 7 is NOT closed** — see the two live items below.
+
+## Live, and previously hidden inside a closed-out plan
+
+- **`docs/guidelines/testing.md` does not exist** (test-overhaul Task 7.2).
+  Every other "how we work" area has a guideline file; testing does not, and
+  `AGENTS.md`'s "Testing model" section is a summary, not the procedure. This
+  does not depend on the prune that Phase 5 was closed for. Own PR.
+- **No `write-a-test` skill** (test-overhaul Task 7.4). The repo has
+  `minimal-check-subset`, `ci-triage`, `worktree-hygiene` and `ai-usage`;
+  the one that would shape *new* tests is the one missing, which is part of why
+  the suite grew unattended. Own PR, and worth doing after 7.2 so it has a
+  document to point at.
+- **Convert `ci.yml`'s `paths-ignore` to a skip-job pattern BEFORE enabling
+  branch protection.** The repo went public 2026-08-31, so branch protection is
+  now available (`gh api .../branches/main/protection` returns "Branch not
+  protected", not the old "Upgrade to GitHub Pro"). The moment a path-filtered
+  job is made a *required* status check, every prose-only PR is unmergeable
+  forever — a required check that never runs never reports. A job that runs and
+  skips does report, which is the fix. `docs/guidelines/ci-cost-and-capacity.md`
+  carries the detail. **Do this before flipping required checks on, not after.**
 
 ## Standing tasks (every milestone)
 
