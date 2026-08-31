@@ -4,8 +4,9 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Eighteen threads. Seventeen are fixed on this branch; one is open pending a
-repro.
+Eighteen threads, all resolved. Seventeen are fixed on this branch; one
+(finding 12) was closed by Mitchell without a reproduction, so it is closed
+rather than solved.
 
 ## How this pass was run
 
@@ -34,10 +35,13 @@ repro.
 | 9 | Map lens | MapLibre attribution sits under the assistant button | Fixed |
 | 10 | Map lens | Travel legs should be dotted, not solid | Fixed |
 | 11 | Activity location | Full geocoded address shown everywhere | Fixed |
-| 12 | Trip board (default lens) | Can scroll far past the bottom, intermittently | **Open — needs a repro** |
-| 13 | `/welcome` hero art | Fake map should read as Kyoto | **Proposal — needs a decision** |
+| 12 | Trip board (default lens) | Can scroll far past the bottom, intermittently | **Closed, not reproduced** |
+| 13 | `/welcome` hero art | Fake map should read as Kyoto | Rebuilt — two dials still offered |
 | 14 | Trip header badges (446px) | Two-word badges wrap mid-label | Fixed |
 | 15 | Map lens (411px) | Broken on a phone: legend, day rail, scrolling | Fixed |
+| 16 | `/welcome` hero footer | Stat line restates what the map already shows | Fixed |
+| 17 | Trip meta pill | Ownership tile / member avatars not wanted | Fixed |
+| 18 | Map day strip (411px) | Focused chip's ring clipped by the track | Fixed |
 
 ### 1 — Enter in the dev-login field looked inert (and ate the input)
 
@@ -172,7 +176,7 @@ line needs.
 The geocoder **results list** deliberately still shows the full label: it is a
 disambiguation surface, and two nearby matches can shorten to the same string.
 
-### 12 — Scrolling far past the bottom (open)
+### 12 — Scrolling far past the bottom (closed, not reproduced)
 
 > "I was able to scroll way past the bottom, not sure how, its not a always
 > thing"
@@ -186,8 +190,17 @@ The likeliest candidate is a drag: pragmatic-drag-and-drop appends a drag
 preview to `<body>`, which can extend document height while a drag is in
 flight. That is a guess, and it is recorded as one.
 
-**Needs:** which lens, and what you had just done — in particular whether a
-drag had happened on that page.
+The drag hypothesis was then **refuted by measurement** rather than left
+standing. Overflow by view on a 14-day fixture at his own 1728x836, before and
+after a drag: default board 0, Money 0, Places 0, Map 0 — and
+Schedule/Timeline 3595px, which is a long list legitimately scrolling. No
+state reached from this session extended the document.
+
+Mitchell resolved the thread himself on 2026-08-31 without a repro, so it is
+closed unfixed rather than fixed. Recorded here because a closed thread and a
+solved problem are not the same thing: if it recurs, the useful capture is
+`document.body` height against `window.innerHeight` at that moment, plus which
+lens was on screen.
 
 ### 13 — A Kyoto-shaped hero map
 
@@ -322,6 +335,21 @@ directions, the detail line, and the camera padding) and two e2e tests in
 `responsive.spec.ts` at Mitchell's own 411px and at 1280px. The e2e also
 asserts the document does not scroll at phone width, since the strip is a
 control *on* the map, not a band the page scrolls past.
+
+### 16 — The hero's stat line
+
+> "Drop this line"
+
+Anchored to the `font-mono` footer under the `/welcome` hero art. Dropped in
+`52833fa`: the map above it already shows the day, the three numbered pins and
+the route between them, so restating the count and the distance underneath was
+the same facts a second time, in words.
+
+Timeline's and Notebook's footers were deliberately left alone, because
+theirs are not the same kind of thing — Timeline's is a presence pill, and
+Notebook's is a caption making a claim the art cannot make on its own ("Times
+come from the plan — move the day and they follow"). That was offered to
+Mitchell and he has not asked for them.
 
 ### 18 — The focused chip's ring, clipped at the top
 
