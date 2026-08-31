@@ -337,9 +337,9 @@ and the focused chip's `ring-2` gets cut against the edge.
 before all four were there. The new `MapDayStrip` copied the pattern and
 dropped `pt-1`, which is how it became a fourth report.
 
-Now measured rather than eyeballed: the phone e2e asserts the focused chip's
-top sits at least `ring-2`'s 2px below the track's own top. Without `pt-1`
-that clearance is 0.
+Now measured rather than eyeballed: the phone e2e asserts the focused chip sits
+at least `ring-2`'s 2px inside the track on both the top and the bottom.
+Without `pt-1` the top clearance is 0; without `pb-1` the bottom is.
 
 ## Review findings on the pass itself
 
@@ -376,6 +376,15 @@ than the city, because two cities that hash to the same family look identical
 and rebuilding for an invisible change is worse than not rebuilding. This one
 predates the PR (the old pins-only key missed it as well); it is fixed here
 because the key is now this PR's to own.
+
+A fourth finding landed on the regression test for the clipping fix itself: it
+measured only the focused chip's *top* clearance. Fair, and the reason matters
+more than the fix — the clipping is symmetric. `overflow-x: auto` forces the
+paired `overflow-y` to compute as `auto`, so the track clips on every side; the
+bottom edge is the same defect seen from the other end, and a test that names
+that cause should cover both. The assertion now returns `{ top, bottom }` and
+requires 2px of each. Checked the way the others were: built with `pb-1`
+removed, the top assertion passes and the new bottom one reads 0.
 
 A further finding — move `@tc/contracts` imports out of the component layer —
 was declined. The repo's lint wall bans `@tc/domain` and `@/server/*` from UI
