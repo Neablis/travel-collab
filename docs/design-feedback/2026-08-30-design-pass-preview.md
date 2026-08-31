@@ -350,7 +350,16 @@ re-ran for that reason and the test passed against the exact bug it existed to
 catch. Running it against the pre-fix code is what exposed that. It now uses
 one stable callback, and fails on the old key.
 
-A third finding — move `@tc/contracts` imports out of the component layer —
+A follow-up review of the fix itself found a third, in the same key: a day's
+colour comes from its city (`chipModel` → `dayAccents`), so editing a stop's
+city repaints every route and marker on that day without touching an id, a
+coordinate or a kind. The key now carries `accent` too — the accent rather
+than the city, because two cities that hash to the same family look identical
+and rebuilding for an invisible change is worse than not rebuilding. This one
+predates the PR (the old pins-only key missed it as well); it is fixed here
+because the key is now this PR's to own.
+
+A further finding — move `@tc/contracts` imports out of the component layer —
 was declined. The repo's lint wall bans `@tc/domain` and `@/server/*` from UI
 and deliberately permits `@tc/contracts`, which is the shared type layer the UI
 is meant to read; `MapLens` imported it before this PR and so does most of

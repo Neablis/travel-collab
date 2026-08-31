@@ -117,11 +117,21 @@ export function MapLens({
   const plottedPins = pins.filter((p) => p.dayId !== null);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
-  // Everything the map's geometry depends on, as one string: per day, its
-  // stops in order with their coordinates and kind. See the creation effect's
-  // dependency list for why kind and order have to be in here.
+  // Everything the map's appearance depends on, as one string: per day, its
+  // accent and its stops in order with their coordinates and kind. See the
+  // creation effect's dependency list for why kind and order have to be in
+  // here. `accent` is in it because a day's colour is derived from its city
+  // (chipModel -> dayAccents), so editing a stop's city repaints every route
+  // and marker on that day without touching an id, a coordinate or a kind —
+  // and both the line colour at creation and the marker colour read it
+  // (CodeRabbit, PR #98). Keyed on the accent rather than the city itself:
+  // two cities that hash to the same family look identical, and rebuilding
+  // the map for a change nobody can see is worse than not rebuilding.
   const routeKey = days
-    .map((day) => `${day.dayId}[${day.stops.map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}`).join(",")}]`)
+    .map(
+      (day) =>
+        `${day.dayId}:${day.accent}[${day.stops.map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}`).join(",")}]`,
+    )
     .join("|");
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 

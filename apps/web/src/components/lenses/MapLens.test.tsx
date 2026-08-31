@@ -917,6 +917,50 @@ describe("MapLens on a phone", () => {
     await waitFor(() => expect(travelLayers()).toBeGreaterThan(0));
   });
 
+  // CodeRabbit, PR #98, on the fix above: a day's colour comes from its city
+  // (chipModel -> dayAccents), so editing a stop's city repaints its routes
+  // and markers without touching an id, a coordinate or a kind. Keying on
+  // stops alone left those the old colour.
+  it("rebuilds the route layers when a day's accent changes but no stop moves", async () => {
+    setViewportMatches(false);
+    document.documentElement.style.setProperty("--color-danger", "TEST-DANGER");
+    document.documentElement.style.setProperty("--color-success", "TEST-SUCCESS");
+    const before = detailWithTwoDays();
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue(focusDefaults());
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const day1Colour = () =>
+      addLayerMock.mock.calls
+        .map(([layer]) => layer as { id: string; paint: Record<string, unknown> })
+        .filter((layer) => layer.id === "route-rest-d1")
+        .at(-1)?.paint["line-color"];
+    const first = day1Colour();
+
+    // Day 1's stops keep their ids, coordinates and kinds; only the city they
+    // sit in changes, which moves the day onto day 2's accent family.
+    const after = {
+      ...before,
+      activities: {
+        ...before.activities,
+        a1: { ...before.activities.a1!, location: { ...before.activities.a1!.location!, city: "b1" } },
+        a2: { ...before.activities.a2!, location: { ...before.activities.a2!.location!, city: "b1" } },
+      },
+    };
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+
+    await waitFor(() => expect(day1Colour()).not.toBe(first));
+  });
+
   // The e2e test at 411px asserts that tapping a chip updates the strip's
   // detail line, which a broken onFocus -> fitBounds handoff would still
   // satisfy. This is the half that actually pins "map jumping still works".
