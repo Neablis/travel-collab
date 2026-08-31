@@ -24,10 +24,44 @@ export function backTarget(params: {
   from?: string | null;
   /** The day to return to, when `from` is `day`. */
   day?: string | null;
+  /** The person whose profile to return to, when `from` is `profile`. */
+  profile?: string | null;
 }): BackTarget {
   if (params.from === "board") return { href: "/playbooks/board", label: "Who shares the most" };
   if (params.from === "day" && params.day) {
     return { href: `/playbooks/day/${encodeURIComponent(params.day)}`, label: "the day" };
   }
+  // A day opened from somebody's profile returns to that profile. Without this
+  // the only origin a day link could carry was none, so every day went back to
+  // Discover — including the ones reached from a profile, which is the case
+  // §15's "returns to whichever it came from" names (CodeRabbit, PR 102).
+  if (params.from === "profile" && params.profile) {
+    return {
+      href: `/playbooks/profile/${encodeURIComponent(params.profile)}`,
+      label: "the profile",
+    };
+  }
   return DISCOVER;
+}
+
+/**
+ * The origin a link INTO a library page carries, so that page's back link can
+ * name where it came from.
+ *
+ * The write half of `backTarget`, here rather than spelled at each call site:
+ * the two have to agree about the parameter names, and a link that spelled
+ * `?person=` would produce a back link to Discover with nothing to say it had
+ * gone wrong.
+ */
+export type BackOrigin =
+  | { from: "playbooks" }
+  | { from: "board" }
+  | { from: "day"; day: string }
+  | { from: "profile"; profile: string };
+
+export function backQuery(origin: BackOrigin): string {
+  const params = new URLSearchParams({ from: origin.from });
+  if (origin.from === "day") params.set("day", origin.day);
+  if (origin.from === "profile") params.set("profile", origin.profile);
+  return `?${params.toString()}`;
 }

@@ -341,6 +341,31 @@ describe("GET /api/playbooks", () => {
     expect(day.isMine).toBe(false);
   });
 
+  // `truncated` is the only thing standing between a reader and a silently
+  // short page: there is no pagination, and the page's answer to it is "narrow
+  // the cities". It used to report ONLY the 200-row candidate window, so a
+  // query matching 25 to 199 days returned 24 cards flagged as the complete set
+  // (CodeRabbit, PR 102). 25 days is one over the page.
+  it("says a page is truncated when more days matched than fit on it", async () => {
+    currentUserId = `disc-many-${RUN}`;
+    const only = city("many");
+    for (let i = 0; i < 25; i += 1) {
+      await publish(await saveDay(`Many ${i} ${RUN}`, [{ city: only }]));
+    }
+
+    const { body } = await discover(`city=${only}`);
+    expect(body.days).toHaveLength(24);
+    expect(body.truncated).toBe(true);
+
+    // …and it is not simply always true: the same query narrowed to a city with
+    // one day is a complete answer and says so.
+    const single = city("one");
+    await publish(await saveDay(`Single ${RUN}`, [{ city: single }]));
+    const exact = await discover(`city=${single}`);
+    expect(exact.body.days).toHaveLength(1);
+    expect(exact.body.truncated).toBe(false);
+  });
+
   it("marks your own day as yours in the everyone scope", async () => {
     const only = city("own");
     const name = `Own ${RUN}`;

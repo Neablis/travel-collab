@@ -186,23 +186,34 @@ describe("Discover", () => {
     await waitFor(() => expect(screen.queryByTestId("library-sync-failure")).toBeNull());
   });
 
-  // Project rule 6, the conflict half. Conflicts are data (invariant 3): the
-  // new results are shown, and a line says they are new.
-  it("says so when the library moved under it, without blocking anything", async () => {
+  // Project rule 6, the conflict half — and the half of it Discover gets WRONG
+  // if the banner is not scoped to one query. Changing a filter re-asks a
+  // different question, and a different answer to a different question is not
+  // the library moving; this used to raise the banner on every filter change,
+  // which is the "retrain everyone to ignore the line" failure the hook's own
+  // doc comment warns about (CodeRabbit, PR 102).
+  //
+  // The banner's real behaviour — a reload of the SAME query answering
+  // differently — is `useLibraryRead.test.tsx`'s, because on this screen every
+  // re-read is a new query and there is nothing here that can produce the
+  // genuine case.
+  it("does not call a filter change the library moving", async () => {
     render(<DiscoverScreen />);
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.queryByTestId("library-moved")).toBeNull();
 
-    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [day({ adds: 9 })] })));
+    // A wholly different result set, which is the ordinary outcome of narrowing
+    // a filter rather than evidence that anything moved.
+    searchPlaybooksMock.mockResolvedValue(
+      ok(response({ days: [day({ savedDayId: "aa000000-0000-4000-8000-000000000009", adds: 9 })] })),
+    );
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       screen.getByRole("radio", { name: "Yours" }),
     );
-    await waitFor(() => expect(screen.getByTestId("library-moved")).toBeTruthy());
-    expect(screen.getByTestId("discover-results")).toBeTruthy();
-
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      within(screen.getByTestId("library-moved")).getByRole("button", { name: "Got it" }),
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "yours" })),
     );
+    expect(screen.getByTestId("discover-results")).toBeTruthy();
     expect(screen.queryByTestId("library-moved")).toBeNull();
   });
 

@@ -157,6 +157,29 @@ describe("a shared day", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`));
   });
 
+  // The dialog stays mounted between openings, so the trip it remembers can
+  // have been deleted since. It used to keep the id anyway — a select with no
+  // matching option, and an Add that posted a dead trip id whose 404 this
+  // screen then reported as "the day was withdrawn" (CodeRabbit, PR 102).
+  it("drops a remembered trip that is no longer in the list", async () => {
+    const OTHER_TRIP = "9c2f1b44-1c9e-4a2c-8c7a-3d5e6f7a8b9c";
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Add to a trip" }));
+    await screen.findByLabelText("Which trip");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Japan is gone; only a trip this dialog has never seen remains.
+    fetchTripsMock.mockResolvedValue(
+      ok([{ tripId: OTHER_TRIP, name: "Peru", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }]),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add to a trip" }));
+    const select = await screen.findByLabelText("Which trip");
+    expect((select as HTMLSelectElement).value).toBe(OTHER_TRIP);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    await waitFor(() => expect(insertSavedDayMock).toHaveBeenCalledWith(OTHER_TRIP, DAY_ID));
+  });
+
   // Project rule 6, the conflict half for this route: the author withdrew the
   // day while the dialog was open. Reported in place, never as a modal.
   it("says the day was withdrawn when the insert 404s", async () => {

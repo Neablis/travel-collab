@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { fetchLeaderboard } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
 import type { LeaderboardResponse } from "@/lib/playbooks";
 import { cn } from "@/lib/cn";
+import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 
@@ -59,12 +61,23 @@ export function LeaderboardScreen() {
       <SyncFailure read={feed} what="the board" />
       <LibraryMoved read={feed}>The board has moved since you opened it.</LibraryMoved>
 
-      {feed.data === null ? (
+      {/* Gated on `loading`, not on `data === null` alone: a first read that
+          FAILS leaves both null and false, and the board used to pulse skeleton
+          rows forever under its own sync banner (CodeRabbit, PR 102). */}
+      {feed.loading && feed.data === null ? (
         <ul className="flex flex-col gap-2" data-testid="board-skeleton">
           {Array.from({ length: SKELETON_ROWS }, (_, i) => (
             <Card key={i} as="li" className="h-14 animate-pulse rounded-lg bg-moss" aria-hidden />
           ))}
         </ul>
+      ) : feed.data === null ? (
+        // Not the §15 "no empty state" case — that rules out a board with no
+        // ROWS, which cannot happen. This is a board that never arrived, and
+        // the Retry for it is in the banner above.
+        <EmptyState
+          title="The board could not be loaded"
+          body="Nothing has been shown yet. Retry above, or go back to Discover."
+        />
       ) : (
         <ol className="flex flex-col gap-2" data-testid="board-rows">
           {feed.data.authors.map((author, index) => {
@@ -87,7 +100,7 @@ export function LeaderboardScreen() {
                 </DataText>
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/playbooks/profile/${encodeURIComponent(author.userId)}?from=board`}
+                    href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "board" })}`}
                     className="font-semibold text-ink hover:underline"
                   >
                     {displayNameFor({ userId: author.userId })}

@@ -9,6 +9,7 @@ import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
+import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
 // it. The same component in both places on purpose: the exit gate asks that a
@@ -32,8 +33,14 @@ export function matchLine(day: Pick<DiscoverDay, "cities" | "matchedCities">): s
   return others.length === 0 ? matched : `${matched} · also ${others.join(", ")}`;
 }
 
-export function DiscoverCard({ day }: { day: DiscoverDay }) {
+/**
+ * `origin` is where this card is being rendered, and it rides both links out of
+ * it so the page they open knows the way back. A profile renders these cards
+ * too, so "the day came from Discover" is not something the card may assume.
+ */
+export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOrigin }) {
   const line = matchLine(day);
+  const back = backQuery(origin);
   return (
     <Card
       raised
@@ -44,7 +51,7 @@ export function DiscoverCard({ day }: { day: DiscoverDay }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Heading level={4} className="leading-snug">
-          <Link href={`/playbooks/day/${day.savedDayId}`} className="hover:underline">
+          <Link href={`/playbooks/day/${day.savedDayId}${back}`} className="hover:underline">
             {day.name}
           </Link>
         </Heading>
@@ -93,7 +100,7 @@ export function DiscoverCard({ day }: { day: DiscoverDay }) {
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
         {/* The M17 seam, and the only place this card names a person. */}
         <Link
-          href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}?from=playbooks`}
+          href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
           className="text-xs text-slate hover:underline"
         >
           {displayNameFor({ userId: day.ownerId })}

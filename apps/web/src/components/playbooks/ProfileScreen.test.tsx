@@ -8,7 +8,7 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 
 import { ProfileScreen } from "./ProfileScreen";
-import { backTarget } from "./backLink";
+import { backQuery, backTarget } from "./backLink";
 
 function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
@@ -61,7 +61,57 @@ describe("a public profile", () => {
 
     const cards = within(screen.getByTestId("profile-days")).getAllByTestId("discover-card");
     expect(cards).toHaveLength(profile.author.daysShared);
-    expect(profile.days.reduce((sum, d) => sum + d.adds, 0)).toBe(profile.author.adds);
+    // Both sides RENDERED. This used to sum the fixture and compare it to the
+    // fixture, which held whatever the fixture said and never touched the page
+    // (CodeRabbit, PR 102) — the agreement being claimed is between the
+    // headline number and the cards under it, so both have to be read off the
+    // screen.
+    const addsOnCards = cards.map((card) => {
+      const shown = /Added to (\d+) trips?/.exec(card.textContent ?? "");
+      expect(shown, `a card does not say how often it was added: ${card.textContent}`).not.toBeNull();
+      return Number(shown![1]);
+    });
+    expect(addsOnCards).toHaveLength(2);
+    expect(addsOnCards.reduce((sum, n) => sum + n, 0)).toBe(
+      Number(screen.getByTestId("profile-number-added-to-trips").textContent!.replace(/\D+$/, "")),
+    );
+  });
+
+  // The day list is a PAGE (`discoverDays` caps it), and `daysShared` counts
+  // every published day. When they disagree the page says which it is showing
+  // rather than letting the card count read as the total.
+  it("says so when it is showing fewer days than the person has shared", async () => {
+    fetchPublicProfileMock.mockResolvedValue(
+      ok({ ...profile, author: { ...profile.author, daysShared: 30 } }),
+    );
+    renderProfile();
+    expect((await screen.findByTestId("profile-day-page")).textContent).toBe(
+      "Showing the 2 newest of 30 days shared.",
+    );
+  });
+
+  it("says nothing about paging when every shared day is on the page", async () => {
+    renderProfile();
+    await screen.findByTestId("profile-days");
+    expect(screen.queryByTestId("profile-day-page")).toBeNull();
+  });
+
+  // A first read that FAILS leaves `loading` false and `data` null. The page
+  // used to sit under its own sync banner pulsing a skeleton at a profile that
+  // was never coming (CodeRabbit, PR 102).
+  it("stops pretending to load when the first read failed", async () => {
+    fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
+    renderProfile();
+    await screen.findByText("This profile could not be loaded");
+    expect(screen.queryByTestId("profile-skeleton")).toBeNull();
+    // The Retry is the banner's, and there is exactly one of it.
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  });
+
+  it("shows the skeleton only while the first read is still in flight", () => {
+    fetchPublicProfileMock.mockReturnValue(new Promise(() => {}));
+    renderProfile();
+    expect(screen.getByTestId("profile-skeleton")).toBeTruthy();
   });
 
   // §15: no bio, no follow, no avatar, no public user record — and no rating
@@ -121,9 +171,39 @@ describe("the contextual back link", () => {
     });
   });
 
+  it("returns to the profile it was opened from", () => {
+    expect(backTarget({ from: "profile", profile: "dev-alice" })).toEqual({
+      href: "/playbooks/profile/dev-alice",
+      label: "the profile",
+    });
+  });
+
   it("falls back to Discover for anything it does not recognise", () => {
-    for (const from of [undefined, null, "", "nonsense", "day"]) {
+    for (const from of [undefined, null, "", "nonsense", "day", "profile"]) {
       expect(backTarget({ from })).toEqual({ href: "/playbooks", label: "Discover" });
     }
+  });
+
+  // The write half. A card on a profile has to hand the day route the origin
+  // that route reads back, and the two used to be spelled at opposite ends of
+  // the codebase with nothing tying them together.
+  it("round-trips an origin from the link that carries it", () => {
+    expect(backQuery({ from: "profile", profile: "dev-alice" })).toBe(
+      "?from=profile&profile=dev-alice",
+    );
+    const params = new URLSearchParams(backQuery({ from: "profile", profile: "dev alice" }));
+    expect(backTarget({ from: params.get("from"), profile: params.get("profile") })).toEqual({
+      href: "/playbooks/profile/dev%20alice",
+      label: "the profile",
+    });
+  });
+
+  it("sends a day link on a profile back to that profile, not to Discover", async () => {
+    renderProfile();
+    const days = await screen.findByTestId("profile-days");
+    const link = within(days).getByRole("link", { name: "Kyoto temples on foot" });
+    expect(link.getAttribute("href")).toBe(
+      "/playbooks/day/aa000000-0000-4000-8000-000000000001?from=profile&profile=dev-alice",
+    );
   });
 });

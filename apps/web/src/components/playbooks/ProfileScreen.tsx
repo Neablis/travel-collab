@@ -52,8 +52,26 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
         These numbers changed while you were looking — a day was published, withdrawn or taken.
       </LibraryMoved>
 
-      {feed.data === null ? (
-        <Card className="h-32 animate-pulse rounded-lg bg-moss" aria-hidden data-testid="profile-skeleton" />
+      {/* Gated on `loading`, not on `data === null` alone. A first read that
+          FAILS leaves both null and false, and the page used to sit under the
+          sync banner pulsing a skeleton at a profile that was never coming
+          (CodeRabbit, PR 102) — Discover already gated it this way. */}
+      {feed.loading && feed.data === null ? (
+        <>
+          <Card className="h-32 animate-pulse rounded-lg bg-moss" aria-hidden data-testid="profile-skeleton" />
+          <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
+            {Array.from({ length: SKELETON_COUNT }, (_, i) => (
+              <Card key={i} as="li" className="h-40 animate-pulse rounded-lg bg-moss" />
+            ))}
+          </ul>
+        </>
+      ) : feed.data === null ? (
+        // Nothing ever arrived. The Retry lives in the banner above rather than
+        // being duplicated here, so there is one control and not two.
+        <EmptyState
+          title="This profile could not be loaded"
+          body="Nothing has been shown yet. Retry above, or go back to Discover."
+        />
       ) : (
         <>
           <div>
@@ -93,6 +111,17 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
             </div>
           )}
 
+          {/* The day list is a PAGE of `discoverDays`, and `daysShared` counts
+              every published day — so when the two disagree the page says which
+              one it is showing rather than letting a reader read the card count
+              as the total. */}
+          {feed.data.days.length < feed.data.author.daysShared && (
+            <Text variant="muted" className="text-xs" data-testid="profile-day-page">
+              Showing the {feed.data.days.length} newest of {feed.data.author.daysShared} days
+              shared.
+            </Text>
+          )}
+
           {feed.data.days.length === 0 ? (
             <EmptyState
               title="Nothing shared yet"
@@ -101,19 +130,15 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
           ) : (
             <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="profile-days">
               {feed.data.days.map((day) => (
-                <DiscoverCard key={day.savedDayId} day={day} />
+                <DiscoverCard
+                  key={day.savedDayId}
+                  day={day}
+                  origin={{ from: "profile", profile: userId }}
+                />
               ))}
             </ul>
           )}
         </>
-      )}
-
-      {feed.data === null && (
-        <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
-          {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <Card key={i} as="li" className="h-40 animate-pulse rounded-lg bg-moss" />
-          ))}
-        </ul>
       )}
     </div>
   );

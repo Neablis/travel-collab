@@ -273,7 +273,14 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     days: filtered.slice(0, PAGE_LIMIT),
     siblings: await siblingCities(query),
     budgetCurrency,
-    truncated: rows.rows.length === CANDIDATE_LIMIT,
+    // BOTH caps, not just the candidate window. There is no pagination — the
+    // page's answer to truncation is "narrow the cities" — so a query matching
+    // 25 to 199 days used to return 24 cards flagged as the complete set, with
+    // no way to reach the rest and nothing on screen saying they existed
+    // (CodeRabbit, PR 102). The profile day list is this same function, and
+    // it says the same thing there by comparing its card count against
+    // `daysShared`.
+    truncated: rows.rows.length === CANDIDATE_LIMIT || filtered.length > PAGE_LIMIT,
   };
 }
 

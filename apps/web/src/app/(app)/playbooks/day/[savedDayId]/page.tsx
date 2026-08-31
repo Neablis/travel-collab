@@ -9,10 +9,10 @@ export default async function SharedDayPage({
   searchParams,
 }: {
   params: Promise<{ savedDayId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; profile?: string }>;
 }) {
-  const [{ savedDayId }, { from }] = await Promise.all([params, searchParams]);
-  const back = backTarget({ from });
+  const [{ savedDayId }, { from, profile }] = await Promise.all([params, searchParams]);
+  const back = backTarget({ from, profile });
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       <SharedDayScreen savedDayId={savedDayId} backHref={back.href} backLabel={back.label} />

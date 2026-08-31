@@ -23,6 +23,7 @@ import { displayNameFor } from "@/lib/displayName";
 import type { PublicAuthor } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { toClockRange } from "@/lib/time";
+import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { AddToTripDialog } from "./AddToTripDialog";
@@ -160,7 +161,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
           <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
             <div className="min-w-0">
               <Link
-                href={`/playbooks/profile/${encodeURIComponent(author.userId)}?from=day&day=${day.savedDayId}`}
+                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: day.savedDayId })}`}
                 className="font-semibold text-ink hover:underline"
               >
                 {displayNameFor({ userId: author.userId })}

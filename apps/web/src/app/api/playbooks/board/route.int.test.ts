@@ -167,6 +167,13 @@ describe("GET /api/playbooks/board", () => {
     currentUserId = TAKER;
     const { body } = await board();
     const adds = body.authors.map((a) => a.adds);
+    // The witness. "Already sorted" is true of a single row and of any run of
+    // equal values, so without a floor this held whatever the board returned,
+    // including one row (CodeRabbit, PR 102). The floors are what this run's
+    // own seed guarantees rather than a guess: POPULAR sits at 2 adds and QUIET
+    // at 0, so there are at least two rows carrying at least two values.
+    expect(adds.length, "a one-row board is sorted by accident").toBeGreaterThan(1);
+    expect(new Set(adds).size, "an all-equal board is sorted by accident").toBeGreaterThan(1);
     expect(adds).toEqual([...adds].sort((x, y) => y - x));
   });
 });

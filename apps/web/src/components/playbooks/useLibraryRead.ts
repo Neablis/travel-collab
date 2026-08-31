@@ -28,6 +28,15 @@ import type { ApiResult } from "@/lib/apiClient";
  * list. Comparing whole payloads would fire on every irrelevant field and
  * retrain everyone to ignore the line, which is the disease `witness.ts`
  * describes for flapping test floors.
+ *
+ * **A new `read` is a new QUESTION, and an answer to a different question is
+ * not the library moving.** Discover rebuilds `read` on every filter change, so
+ * comparing the new query's answer against the old query's signature made the
+ * banner fire on essentially every interaction — the same "retrain everyone to
+ * ignore the line" failure, arrived at from the other side (CodeRabbit,
+ * PR 102). The baseline is therefore reset whenever `read` changes identity, and
+ * kept across `reload()`, which is the only call that re-asks the SAME
+ * question.
  */
 export type LibraryRead<T> = {
   data: T | null;
@@ -84,6 +93,11 @@ export function useLibraryRead<T>(
   }, [read, signature]);
 
   useEffect(() => {
+    // Not inside `run`: `reload()` calls it too, and that is exactly the call
+    // whose baseline must survive. This effect fires only when `read` (or
+    // `signature`) changes identity — a new question.
+    onScreen.current = null;
+    setChanged(false);
     void run();
   }, [run]);
 

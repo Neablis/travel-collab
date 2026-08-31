@@ -266,7 +266,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
       ) : (
         <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="discover-results">
           {days.map((day) => (
-            <DiscoverCard key={day.savedDayId} day={day} />
+            <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
           ))}
         </ul>
       )}

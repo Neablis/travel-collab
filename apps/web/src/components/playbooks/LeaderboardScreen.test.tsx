@@ -76,6 +76,17 @@ describe("the leaderboard", () => {
     expect(screen.getByTestId("board-skeleton")).toBeTruthy();
   });
 
+  // A first read that FAILS leaves `loading` false and `data` null. The board
+  // used to pulse skeleton rows forever under its own sync banner (CodeRabbit,
+  // PR 102) — which reads as "still loading", not as "this did not work".
+  it("stops pretending to load when the first read failed", async () => {
+    fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
+    render(<LeaderboardScreen />);
+    await screen.findByText("The board could not be loaded");
+    expect(screen.queryByTestId("board-skeleton")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  });
+
   it("offers a Retry when the board cannot be reached", async () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);

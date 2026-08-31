@@ -62,7 +62,16 @@ export function AddToTripDialog({
     // ShareButton and SavedDaysDialog all took).
     setError(null);
     setTrips(result.value);
-    setTripId((current) => (current === "" ? (result.value[0]?.tripId ?? "") : current));
+    // Kept only if the refreshed list still HAS it. This dialog stays mounted
+    // between openings, so a trip deleted in another tab while it was closed
+    // would otherwise leave `tripId` pointing at a row with no `<option>` — a
+    // select rendering blank and an Add that posts a dead id, whose 404 this
+    // component then reports as "the day was withdrawn" (CodeRabbit, PR 102).
+    setTripId((current) =>
+      result.value.some((trip) => trip.tripId === current)
+        ? current
+        : (result.value[0]?.tripId ?? ""),
+    );
   }, []);
 
   useEffect(() => {

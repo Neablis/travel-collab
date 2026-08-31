@@ -235,7 +235,15 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
     page.getByRole("button", { name: "Unpublish" }).click(),
   ]);
 
+  // Reached by URL rather than by `pickCity`, so the seed has to be asserted
+  // BEFORE the absence is: if `?city=` stopped seeding the search, Discover
+  // would answer with an unfiltered page — 24 cards of a cumulative library —
+  // and this day would be absent from it for the wrong reason, passing without
+  // testing unpublish at all (CodeRabbit, PR 102).
   await bob.goto(`/playbooks?city=${encodeURIComponent(city)}`);
+  await expect(
+    bob.getByTestId("selected-cities").getByRole("button", { name: `Remove ${city}` }),
+  ).toBeVisible();
   await expect(bob.getByTestId("discover-card").filter({ hasText: dayName })).toHaveCount(0);
   // And the day itself is now the same 404 a private day has always been — a
   // withdrawn day and one that never existed are deliberately indistinguishable.
