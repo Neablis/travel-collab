@@ -4,7 +4,7 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Seventeen threads. Sixteen are fixed on this branch; one is open pending a
+Eighteen threads. Seventeen are fixed on this branch; one is open pending a
 repro.
 
 ## How this pass was run
@@ -322,6 +322,24 @@ directions, the detail line, and the camera padding) and two e2e tests in
 `responsive.spec.ts` at Mitchell's own 411px and at 1280px. The e2e also
 asserts the document does not scroll at phone width, since the strip is a
 control *on* the map, not a band the page scrolls past.
+
+### 18 — The focused chip's ring, clipped at the top
+
+> "top border is cut off"
+
+The fourth report of one bug. `overflow-x-auto` sets overflow-x to a
+non-`visible` value, and the CSS overflow spec forces the paired overflow-y to
+compute as `auto` too — so a horizontally-scrolling row clips on *every* side,
+and the focused chip's `ring-2` gets cut against the edge.
+
+`DayChips` carries all four of the classes that fix it (`px-1`, `-mx-1`,
+`pt-1`, `pb-1`) and a comment recording that it was reported three times
+before all four were there. The new `MapDayStrip` copied the pattern and
+dropped `pt-1`, which is how it became a fourth report.
+
+Now measured rather than eyeballed: the phone e2e asserts the focused chip's
+top sits at least `ring-2`'s 2px below the track's own top. Without `pt-1`
+that clearance is 0.
 
 ## Review findings on the pass itself
 

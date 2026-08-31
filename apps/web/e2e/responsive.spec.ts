@@ -274,6 +274,19 @@ test.describe("responsive (Map lens on a phone)", () => {
     await strip.getByRole("button", { name: /Day 2/ }).click();
     await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop/);
 
+    // The focused chip's ring must not be clipped by the track's own scroll
+    // container. `overflow-x-auto` forces overflow-y to compute as `auto`
+    // too, so the container clips on every side; without vertical padding the
+    // ring is cut off against the top edge. DayChips hit this three times and
+    // this strip a fourth, so it is measured rather than eyeballed.
+    const ringClearance = await page.evaluate(() => {
+      const track = document.querySelector('[data-testid="map-day-strip"] [role="group"]')!;
+      const focused = track.querySelector('[aria-pressed="true"]')!;
+      return focused.getBoundingClientRect().top - track.getBoundingClientRect().top;
+    });
+    // ring-2 is 2px; anything less than that and the ring is being cut.
+    expect(ringClearance).toBeGreaterThanOrEqual(2);
+
     // The strip is a control on the map, not a band the page scrolls past:
     // the canvas still owns the viewport, so the document must not scroll.
     const overflow = await page.evaluate(

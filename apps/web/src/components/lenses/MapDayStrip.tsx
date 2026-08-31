@@ -108,11 +108,22 @@ export function MapDayStrip({
       // eslint-disable-next-line no-restricted-syntax -- z-index 4 matches MapRail's own, so the strip sits over the canvas and under the assistant rail; it has no token equivalent
       style={{ zIndex: 4 }}
     >
+      {/* `pt-1`/`pb-1` with `px-1` and a matching `-mx-1`, all four of them
+          load-bearing: `overflow-x-auto` sets overflow-x to a non-`visible`
+          value, and the CSS overflow spec forces the paired overflow-y to
+          compute as `auto` too — so this container clips on every side even
+          though only the x-axis is meant to scroll, and the focused chip's
+          `ring-2` gets cut against the edge. DayChips carries the same four
+          classes and a comment recording that it was reported three times
+          before all four were there; this strip copied the pattern and
+          dropped `pt-1`, so it was reported a fourth ("top border is cut
+          off", 411px, 2026-08-30). The negative margin gives the ring its
+          gutter back without indenting the row. */}
       <div
         ref={trackRef}
         role="group"
         aria-label="Days"
-        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
+        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pt-1 pb-1"
       >
         {days.map((day) => {
           const isFocused = day.index === focusedDay;
