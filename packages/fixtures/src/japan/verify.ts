@@ -17,6 +17,7 @@
 import type { ActivityKind, ActivityTag, TripEvent } from "@tc/contracts";
 import { ActivityKind as ActivityKindEnum, ActivityTag as ActivityTagEnum } from "@tc/contracts";
 import {
+  citiesOfStops,
   decideCreateTrip,
   decideTripCommand,
   detectConflicts,
@@ -28,6 +29,7 @@ import { deterministicMintId, japanTripCommands } from "./commands.ts";
 import { COORDINATE_OVERRIDES } from "./coordinateOverrides.ts";
 import { COORDINATE_GAPS } from "./coordinateGaps.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
+import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
 import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, REFERENCE_START_DATE } from "./trip.ts";
 
 export { REFERENCE_START_DATE };
@@ -64,6 +66,23 @@ export type JapanTripReport = {
    * mapRailData.ts below: apps/web imports this package, not the reverse.
    */
   daysNeedingBooking: number;
+  /**
+   * The demo library (M11b), measured per owner.
+   *
+   * Per OWNER rather than in total because the gate box is an agreement
+   * between two surfaces about one person — "a profile's day count and adds
+   * agree with the same person's numbers in Discover" — and a total cannot
+   * catch a build that credits one person's days to the other.
+   *
+   * `cities` here is derived by the domain's `citiesOfStops`, the same rule
+   * `saveDay` stores with. That is the point of measuring it rather than
+   * reading it off the fixture: if the rule changes, this moves and the
+   * expectations say so.
+   */
+  savedDaysByOwner: Record<string, SavedDayOwnerReport>;
+  savedDayCount: number;
+  /** Every city the library touches, sorted. Discover searches this set. */
+  savedDayCities: string[];
   /** Findings. Every one of these is expected to be empty; a non-empty list is a failure. */
   rejections: string[];
   emptyDays: number[];
@@ -73,6 +92,31 @@ export type JapanTripReport = {
   daysWithUnlocatedStops: string[];
   coordinateDisagreements: string[];
   staleOverrides: string[];
+  /**
+   * Saved days no city search could ever return. A day with no located,
+   * city-bearing stop is invisible in Discover, which is the only surface
+   * M11b gives a saved day — so one in the demo library is the same defect as
+   * a stop with no coordinates on the Map lens, and is listed the same way.
+   */
+  savedDaysWithNoCities: string[];
+  /**
+   * Ledger rows the add rule says cannot exist: *an add only counts once per
+   * trip, and copying your own day into your own trip does not count.* The
+   * database enforces the first half — `saved_day_adds`' primary key is
+   * (day, trip) — so a fixture that broke it would fail at seed time rather
+   * than here. Both are listed because the fixture is what a build reads to
+   * learn what a correct ledger looks like.
+   */
+  savedDayLedgerViolations: string[];
+};
+
+export type SavedDayOwnerReport = {
+  days: number;
+  /** Days this person has published. Private is the default, so this is a subset. */
+  published: number;
+  /** Ledger rows across all of this person's days — what the leaderboard ranks on. */
+  adds: number;
+  cities: string[];
 };
 
 const KM_TOLERANCE = 1;
@@ -213,6 +257,39 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const conflicts = detectConflicts(state);
   for (const c of conflicts) conflictsByKind[c.kind] = (conflictsByKind[c.kind] ?? 0) + 1;
 
+  // --- The demo library (M11b) --------------------------------------------
+  const savedDaysByOwner: Record<string, SavedDayOwnerReport> = {};
+  const savedDayCities = new Set<string>();
+  const savedDaysWithNoCities: string[] = [];
+  const savedDayLedgerViolations: string[] = [];
+  const seenAdds = new Set<string>();
+
+  for (const saved of JAPAN_SAVED_DAYS) {
+    const cities = citiesOfStops(saved.stops);
+    if (cities.length === 0) {
+      savedDaysWithNoCities.push(`"${saved.name}" (${saved.ownerId}) would never match a city search`);
+    }
+    for (const city of cities) savedDayCities.add(city);
+
+    const owner = (savedDaysByOwner[saved.ownerId] ??= { days: 0, published: 0, adds: 0, cities: [] });
+    owner.days += 1;
+    if (saved.visibility === "public") owner.published += 1;
+    owner.adds += saved.addedBy.length;
+    for (const city of cities) if (!owner.cities.includes(city)) owner.cities.push(city);
+
+    for (const add of saved.addedBy) {
+      const key = `${saved.savedDayId}:${add.tripId}`;
+      if (seenAdds.has(key)) {
+        savedDayLedgerViolations.push(`"${saved.name}" is added twice into trip ${add.tripId}`);
+      }
+      seenAdds.add(key);
+      if (add.addedBy === saved.ownerId) {
+        savedDayLedgerViolations.push(`"${saved.name}" is added by its own owner (${add.addedBy})`);
+      }
+    }
+  }
+  for (const owner of Object.values(savedDaysByOwner)) owner.cities.sort();
+
   const daysNeedingBooking = state.days.filter((day) =>
     day.activityIds.some((id) => {
       const activity = state.activities[id];
@@ -296,6 +373,9 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     conflictsByKind,
     conflictTotal: conflicts.length,
     daysNeedingBooking,
+    savedDaysByOwner,
+    savedDayCount: JAPAN_SAVED_DAYS.length,
+    savedDayCities: [...savedDayCities].sort(),
     rejections,
     emptyDays,
     daysOutOfChronologicalOrder,
@@ -304,6 +384,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     daysWithUnlocatedStops,
     coordinateDisagreements,
     staleOverrides,
+    savedDaysWithNoCities,
+    savedDayLedgerViolations,
   };
 }
 
@@ -336,6 +418,11 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("planned", `${report.plannedTotalMinor / 100} ${report.currencies.join("/") || "—"}`);
   row("conflicts", `${report.conflictTotal} (${histogram(report.conflictsByKind)})`);
   row("days needing booking", `${report.daysNeedingBooking}/${report.dayCount}`);
+  row("saved days", report.savedDayCount);
+  row("saved-day cities", report.savedDayCities.join(", "));
+  for (const [ownerId, owner] of Object.entries(report.savedDaysByOwner).sort()) {
+    row(`  ${ownerId}`, `${owner.days} days / ${owner.published} public / ${owner.adds} adds / ${owner.cities.join(", ")}`);
+  }
   lines.push("");
   lines.push(findings.length === 0 ? "  OK — matches expectations." : `  ${findings.length} finding(s):`);
   for (const f of findings) lines.push(`    - ${f}`);

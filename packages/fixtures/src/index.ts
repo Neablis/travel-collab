@@ -38,6 +38,17 @@ export {
 } from "./japan/commands.ts";
 
 export { CITY_OVERRIDES } from "./japan/cityOverrides.ts";
+// The demo library (M11b). On the public surface for the same reason the trip
+// rows are: data plus @tc/contracts types, with no @tc/domain and no generator
+// behind it. `cities` is deliberately absent — it is derived by the domain's
+// `citiesOfStops`, so whoever seeds these rows derives it exactly as `saveDay`
+// does instead of reading an authored copy that could disagree.
+export {
+  JAPAN_SAVED_DAYS,
+  JAPAN_SOURCE_TRIP,
+  type JapanSavedDay,
+  type JapanSavedDayAdd,
+} from "./japan/savedDays.ts";
 
 export { parseTripSeed, TripSeedV1 } from "./japan/seedSchema.ts";
 

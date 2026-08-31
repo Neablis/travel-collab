@@ -8,7 +8,7 @@
 // See docs/guidelines/fixtures-and-seed-data.md for the procedure.
 
 import type { ActivityKind, ActivityTag } from "@tc/contracts";
-import type { JapanTripReport } from "./verify.ts";
+import type { JapanTripReport, SavedDayOwnerReport } from "./verify.ts";
 
 export type JapanTripExpectations = {
   dayCount: number;
@@ -27,6 +27,9 @@ export type JapanTripExpectations = {
   conflictsByKind: Record<string, number>;
   conflictTotal: number;
   daysNeedingBooking: number;
+  savedDayCount: number;
+  savedDayCities: string[];
+  savedDaysByOwner: Record<string, SavedDayOwnerReport>;
 };
 
 export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
@@ -91,6 +94,32 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // silently push this back toward 14 — the fixture always states `kind`
   // explicitly per stop (commands.ts) and never rides a command's default.
   daysNeedingBooking: 3,
+
+  // The demo library (M11b). Five days across TWO owners, because the exit
+  // gate wants "a profile's day count and adds agree with Discover — checked
+  // against a seed where they could disagree", and one owner cannot disagree
+  // with itself.
+  //
+  // **No two numbers a bug could swap are equal**, and that is the property to
+  // preserve when editing `savedDays.ts`: days 3 vs 2, published 2 vs 1, adds
+  // 3 vs 4. Make any pair equal and this stops catching the bug it is here for
+  // — a profile that reads the wrong person's rows would still add up.
+  //
+  // The two owners share Kyoto and share nothing else, so a Kyoto query has to
+  // return both people's days while a Hakone or a Naoshima query returns one.
+  // `cities` is DERIVED by `citiesOfStops` in verify.ts, never authored beside
+  // the stops — so a change to a stop's city, or to the rule, lands here as a
+  // mismatch rather than in two places that quietly agree.
+  savedDayCount: 5,
+  savedDayCities: ["Hakone", "Kyoto", "Naoshima", "Osaka", "Tokyo"],
+  savedDaysByOwner: {
+    // "Tokyo to Hakone, slowly" is the two-city day. Without one, Discover's
+    // per-card line ("Kyoto matched · also Uji") and its sibling chips have
+    // nothing in the demo data to render — M18's tag chips against a
+    // zero-tag preview, again.
+    "dev-alice": { days: 3, published: 2, adds: 3, cities: ["Hakone", "Kyoto", "Tokyo"] },
+    "dev-bob": { days: 2, published: 1, adds: 4, cities: ["Kyoto", "Naoshima", "Osaka"] },
+  },
 };
 
 /**
@@ -140,6 +169,9 @@ export function diffAgainstExpectations(
   scalar("conflictsByKind", report.conflictsByKind, expected.conflictsByKind);
   scalar("conflictTotal", report.conflictTotal, expected.conflictTotal);
   scalar("daysNeedingBooking", report.daysNeedingBooking, expected.daysNeedingBooking);
+  scalar("savedDayCount", report.savedDayCount, expected.savedDayCount);
+  scalar("savedDayCities", report.savedDayCities, expected.savedDayCities);
+  scalar("savedDaysByOwner", report.savedDaysByOwner, expected.savedDaysByOwner);
 
   // Coverage, stated separately from the counts above so the failure message
   // says WHY a zero matters rather than just that a number moved.
@@ -148,6 +180,22 @@ export function diffAgainstExpectations(
   }
   for (const [tag, n] of Object.entries(report.tags)) {
     if (n === 0) findings.push(`no activity has tag "${tag}" — every ActivityTag must be exercised by the fixture`);
+  }
+
+  // The library's coverage, stated for the same reason the histograms' zeroes
+  // are: a count that drifted says a number moved, and these say WHY it
+  // matters. Each is a property M11b's gate rests on, not a preference.
+  const owners = Object.keys(report.savedDaysByOwner);
+  if (owners.length < 2) {
+    findings.push(
+      `the demo library has ${owners.length} owner(s) — a profile agreeing with Discover proves nothing unless two people's days could be confused`,
+    );
+  }
+  if (!Object.values(report.savedDaysByOwner).some((o) => o.published > 0)) {
+    findings.push("no saved day is public — Discover would be empty in the demo");
+  }
+  if (!Object.values(report.savedDaysByOwner).some((o) => o.adds > 0)) {
+    findings.push("no saved day has ever been added — the leaderboard would rank an all-zero column");
   }
 
   // Lists that must be empty. Each one is a defect, not a count that drifted.
@@ -160,6 +208,8 @@ export function diffAgainstExpectations(
     ['days that would render "N stops have no place yet" in the Map lens', report.daysWithUnlocatedStops],
     ["canonical coordinates disagreeing with the geocode overlay", report.coordinateDisagreements],
     ["COORDINATE_OVERRIDES entries that no longer explain anything", report.staleOverrides],
+    ["saved days no city search could return", report.savedDaysWithNoCities],
+    ["adds the ledger rule forbids", report.savedDayLedgerViolations],
   ];
   for (const [label, list] of mustBeEmpty) {
     if (list.length > 0) findings.push(`${label}: ${list.join("; ")}`);

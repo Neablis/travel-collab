@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { SavedStop, type BatchableCommand, type SavedDay, type TripDetail } from "@tc/contracts";
+import {
+  SavedDayVisibility,
+  SavedStop,
+  type BatchableCommand,
+  type SavedDay,
+  type TripDetail,
+} from "@tc/contracts";
+import { citiesOfStops } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
@@ -36,6 +43,9 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
     ownerId: row.ownerId,
     name: row.name,
     stops,
+    cities: row.cities,
+    visibility: row.visibility,
+    adds: row.adds,
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
     createdAt: row.createdAt.toISOString(),
@@ -72,6 +82,24 @@ function fromRow(row: SavedDayRow): SavedDay | null {
     console.error("saved_days.stops failed SavedStop[] parse", {
       savedDayId: row.id,
       issues: stops.error.issues,
+    });
+    return null;
+  }
+  // `visibility` gets the same treatment as `stops`, and for the same reason.
+  // The column is `text` with a `$type<SavedDayVisibility>()` cast, which is
+  // compile-time only — nothing stops a row holding any other string, and
+  // without this parse `toDto` would hand that string out as a typed contract
+  // value. Once M11b link 3 makes visibility decide who can READ a day, a row
+  // that is neither "private" nor "public" is a value no caller has a branch
+  // for; dropping it is the same fail-closed choice `stops` already makes.
+  //
+  // Raised independently by PR1's implementer and by review on pull request 100 — two
+  // readers finding the same hole is not a coincidence to leave open.
+  const visibility = SavedDayVisibility.safeParse(row.visibility);
+  if (!visibility.success) {
+    console.error("saved_days.visibility is not a SavedDayVisibility", {
+      savedDayId: row.id,
+      value: row.visibility,
     });
     return null;
   }
@@ -122,6 +150,23 @@ export async function saveDay(
     ownerId,
     name,
     stops: validated.data,
+    // Derived HERE, once, at save time — the snapshot ADR-029 already takes of
+    // `sourceTripName`, for the reason link 1 gives: `stops` is jsonb because a
+    // saved day is never queried into, and Discover has to search on cities.
+    //
+    // `citiesOfStops` is the domain's single rule, the same one `citiesOfDay`
+    // folds for the trip readout. A second implementation over `SavedStop[]`
+    // would be free to drift, and a profile whose cities disagree with
+    // Discover's is a gate box, not a rounding error.
+    cities: citiesOfStops(validated.data),
+    // Private until its author says otherwise (M11b link 3). Spelled through
+    // the contract's enum rather than as the literal "private", so the set of
+    // visibilities has exactly one definition — the rule M11a set for
+    // `AdmissionRefusal`.
+    visibility: SavedDayVisibility.enum.private,
+    // Nobody has taken this day yet. It is only ever moved by the path that
+    // writes a `saved_day_adds` row (PR2); see the schema note.
+    adds: 0,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
     createdAt: new Date(now),
