@@ -545,9 +545,23 @@ marked "history", so nothing live surfaced it and nobody resumed.
   `environment` cost now *worse* than the number the overhaul was launched to
   fix. `TimelineLens.test.tsx`, flagged then as the canonical brittleness case,
   grew 15 → 41 tests.
-  **Re-run the Phase 0 inventory first**, as the plan itself requires — the
-  current `docs/testing-inventory.md` predates Wave 2 Phases 5-8 and does not
-  know about the tests they added. Its own PR, not a remediation-wave task.
+  **The Phase 0 re-inventory is now done** —
+  `docs/plans/test-overhaul/phase-5-inventory-2026-08-30.md`. Headline: the
+  suite is **138 files / 1,908 tests**, 3.3x the overhaul's 95/569 baseline —
+  **and the prune is mostly obsolete.** Reading the candidates rather than
+  ranking them: category (c) is empty, (a) is 7 assertions, (b) is 60, and (d)
+  — billed as the big lever at 152 tests — turned out to be **nine false
+  positives**, all well-isolated behavioural tests that the `render() >= tests`
+  heuristic cannot distinguish from per-prop bloat. `TripBoardScreen`, the
+  plan's named flagship, is now 1,579 lines with 292 comment lines organised
+  into intent-scoped describes. The suite tripled because the product tripled.
+  **Volume is real; waste is not.** The three `fast-check` files with no
+  `witness` floor were the one genuine finding and are **fixed** (measured
+  floors, proven non-vacuous, plus a tautological assertion removed from
+  `dates.property.test.ts`). What remains is ~70 assertions and 4 tests of
+  opportunistic cleanup. **Recommend closing Phases 5-7 as superseded** — the
+  cost problem was running the whole suite for a one-file change, which
+  `AGENTS.md`'s tiered Definition of Done now handles.
 
 ## Standing tasks (every milestone)
 
