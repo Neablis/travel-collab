@@ -50,7 +50,7 @@ type TripCtx = {
   // The signed-in user's role on this trip (M11 link 3), or null while it is
   // still loading or the read failed. ADVISORY ONLY: the server refuses every
   // write from a viewer regardless (accessPolicy.ts + pages-guard.ts), and
-  // this exists so the board can say "View only" instead of letting someone
+  // this exists so the board can say "Viewer" instead of letting someone
   // drag a card and watch it snap back with a 403.
   myRole: TripRole | null;
   readOnly: boolean;

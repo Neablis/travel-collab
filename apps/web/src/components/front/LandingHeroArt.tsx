@@ -296,9 +296,14 @@ function MapView(): React.ReactElement {
         </Text>
       </div>
 
-      <DataText className={cn(FOOT_LABEL, "left-0 text-2xs")}>
-        Day 6 · 3 stops · 4.2 km on foot · 5 hr gap
-      </DataText>
+      {/* No footer stat line on this view (Mitchell, 2026-08-30 design pass:
+          "Drop this line", on the map's own "Day 6 · 3 stops · 4.2 km on foot
+          · 5 hr gap"). The map already shows the day, the three numbered pins
+          and the route; restating the count and the distance underneath was
+          the same facts in words. The other two views keep their footers
+          because theirs are not that — Timeline's is a presence pill, and
+          Notebook's is a caption making a claim the art cannot make on its
+          own ("Times come from the plan — move the day and they follow"). */}
     </>
   );
 }

@@ -61,7 +61,7 @@ const DEV_USERNAME = /^[A-Za-z0-9_-]{1,32}$/;
  * address a name produces) is entirely here.
  *
  * Returns null for anything the charset rejects, which Auth.js turns into a
- * failed sign-in and the designed `/signin?error=` screen.
+ * failed sign-in and the designed `/signup?error=` screen.
  */
 export function devLoginIdentity(
   raw: unknown,

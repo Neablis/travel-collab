@@ -37,6 +37,7 @@ export {
   type MintId,
 } from "./japan/commands.ts";
 
+export { CITY_OVERRIDES } from "./japan/cityOverrides.ts";
 // The demo library (M11b). On the public surface for the same reason the trip
 // rows are: data plus @tc/contracts types, with no @tc/domain and no generator
 // behind it. `cities` is deliberately absent — it is derived by the domain's

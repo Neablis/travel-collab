@@ -101,21 +101,23 @@ export function UnscheduledRack({
         // eslint-disable-next-line no-restricted-syntax -- 9px/26px toggle-row padding is design-fixed geometry with no token equivalent, matching DayChips/TimelineLens' computed-geometry pattern
         style={{ padding: "9px 26px" }}
       >
+        {/* The "Show"/"Hide" word that used to sit between the caret and
+            the label is gone (Mitchell, 2026-08-30 design pass) — it said
+            what the caret already says, in 11.5px grey, and the bar still
+            did not read as clickable. What replaces it is contrast, not
+            copy: the caret and label are `text-ink` rather than `text-slate`
+            and the caret is a size up, so the row reads as a control at
+            rest instead of only on hover. `aria-expanded` on the Button
+            carries the open/closed state that the word used to carry, so
+            nothing is lost for a screen reader. */}
         <Caret
           aria-hidden
-          className="shrink-0 text-slate"
-          // eslint-disable-next-line no-restricted-syntax -- the design's caret is 11px wide in a 13px line box; neither is on the spacing scale
-          style={{ width: "11px", height: "13px" }}
+          className="shrink-0 text-ink"
+          // eslint-disable-next-line no-restricted-syntax -- 13px caret in a 15px line box: one step up from the design's 11/13, neither of which is on the spacing scale
+          style={{ width: "13px", height: "15px" }}
         />
         <span
-          className="text-slate"
-          // eslint-disable-next-line no-restricted-syntax -- 11.5px toggle label is below Tailwind's text-xs (12px) floor
-          style={{ fontSize: "11.5px" }}
-        >
-          {open ? "Hide" : "Show"}
-        </span>
-        <span
-          className="text-xs font-semibold uppercase text-slate"
+          className="text-xs font-semibold uppercase text-ink"
           // eslint-disable-next-line no-restricted-syntax -- 0.04em tracking sits between Tailwind's tracking-wide (0.025em) and tracking-wider (0.05em)
           style={{ letterSpacing: "0.04em" }}
         >

@@ -122,7 +122,7 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
 
   // Unchanged by M11a and deliberately so: the no-id path is refused with
   // `false`, before the gate is even consulted, and `false` still means the
-  // designed /signin?error= screen. Fail-closed was widened, not weakened.
+  // designed /signup?error= screen. Fail-closed was widened, not weakened.
   it("refuses a payload with no usable id rather than creating an anonymous row", async () => {
     await expect(recordSignIn({ user: { id: "  ", name: "Nobody" } })).resolves.toBe(false);
     await expect(recordSignIn({ user: null })).resolves.toBe(false);
@@ -159,7 +159,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     const id = signInId();
 
     await expect(recordSignIn({ user: { id, name: "Nobody" } }, fakeJar(null))).resolves.toBe(
-      `/signin?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
+      `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
     );
     expect(await readUser(id)).toBeNull();
   });
@@ -169,7 +169,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
 
     await expect(
       recordSignIn({ user: { id, name: "Nobody" } }, fakeJar(`code-${randomUUID()}`)),
-    ).resolves.toBe(`/signin?error=${AdmissionRefusal.enum.INVALID_INVITE_CODE}`);
+    ).resolves.toBe(`/signup?error=${AdmissionRefusal.enum.INVALID_INVITE_CODE}`);
     expect(await readUser(id)).toBeNull();
   });
 
@@ -180,7 +180,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     await recordSignIn({ user: { id: first, name: "First" } }, fakeJar(code));
 
     await expect(recordSignIn({ user: { id: second, name: "Second" } }, fakeJar(code))).resolves.toBe(
-      `/signin?error=${AdmissionRefusal.enum.SPENT_INVITE_CODE}`,
+      `/signup?error=${AdmissionRefusal.enum.SPENT_INVITE_CODE}`,
     );
     expect(await readUser(second)).toBeNull();
     expect(await readUser(first)).not.toBeNull();

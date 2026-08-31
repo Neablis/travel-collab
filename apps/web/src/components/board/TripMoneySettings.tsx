@@ -39,13 +39,15 @@ export function TripMoneySettings({
       // eslint-disable-next-line no-restricted-syntax -- the redesign's 1fr/130px budget-input split has no token equivalent, matching BudgetChip's computed-geometry pattern
       style={{ gridTemplateColumns: "1fr 130px" }}
     >
-      {/* `hint` (renders below the input), not `description` (renders
-          between the label and the input) — the Currency field beside this
-          one has no description, so a description here pushed this row's
-          input down out of alignment with Currency's (Mitchell, reviewing
-          the preview). Both fields' Label→input distance is now identical;
-          the same helper copy just moves to below the input instead. */}
-      <FormField id="trip-budget" label="Total for the trip" hint="Used for the over-budget warning across lenses.">
+      {/* No helper copy: "Used for the over-budget warning across lenses."
+          was dropped in the 2026-08-30 design pass (Mitchell, on the
+          preview). It previously sat in `hint` rather than `description`
+          precisely so it rendered *below* the input — a `description` here
+          pushed this row's input out of vertical alignment with Currency's,
+          which has no helper copy of its own. Removing it keeps that
+          alignment for the same reason: neither field carries any now. The
+          matching field in NewTripWizard lost the same sentence. */}
+      <FormField id="trip-budget" label="Total for the trip">
         <div className="relative">
           <MoneyInput
             id="trip-budget"

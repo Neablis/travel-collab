@@ -1,13 +1,13 @@
 import type { TripDetail } from "@tc/contracts";
-import { Button } from "@/components/ui/button";
 import { formatTripDate } from "@/lib/formatDate";
-import { initialsFor } from "@/lib/initials";
 import { chipModel } from "./DayChips";
 
 // Handoff `current/…dc.html:255-296`: a bordered pill — accent dot, date
-// range, then (each separated by a divider) day/stop/city counts, then a
-// crew control (stacked avatars + label) that opens Trip settings.
-export function TripMetaPill({ detail, onOpenSettings }: { detail: TripDetail; onOpenSettings: () => void }) {
+// range, then (each separated by a divider) day/stop/city counts. The
+// handoff also put a crew control here (stacked avatars + label, opening
+// Trip settings); it was dropped in the 2026-08-30 design pass — see the
+// comment where it used to sit.
+export function TripMetaPill({ detail }: { detail: TripDetail }) {
   const days = detail.days;
   const stops = days.reduce((sum, d) => sum + d.activityIds.length, 0);
   const cities = new Set(chipModel(detail).map((d) => d.city).filter((c): c is string => c !== null));
@@ -35,28 +35,17 @@ export function TripMetaPill({ detail, onOpenSettings }: { detail: TripDetail; o
       <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
       <span className="font-mono text-xs text-slate">{cities.size} cities</span>
 
-      <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
-      <Button
-        variant="ghost"
-        onClick={onOpenSettings}
-        aria-label={`${detail.members.length} travellers`}
-        className="h-auto gap-2 rounded-full p-0 font-normal"
-      >
-        <span className="flex items-center">
-          {detail.members.map((member) => (
-            <span
-              key={member.userId}
-              aria-hidden
-              className="-mr-1.5 grid size-5 shrink-0 place-items-center rounded-full bg-moss font-semibold text-slate"
-              // eslint-disable-next-line no-restricted-syntax -- 9px avatar-initial size and the 1.5px ring have no token equivalent, matching AssistantRail's mark-glyph computed-geometry pattern
-              style={{ fontSize: "9px", boxShadow: "0 0 0 1.5px var(--color-surface)" }}
-            >
-              {initialsFor(member.userId)}
-            </span>
-          ))}
-        </span>
-        <span className="font-mono text-xs text-slate">{detail.members.length} travellers</span>
-      </Button>
+      {/* No member avatars, and no crew control at all: "Can we drop this
+          ownership tile all togther? DA?" (Mitchell, 2026-08-30 design pass —
+          the "DA?" is him reading a member's initials and not knowing what
+          they were for, which is the whole argument). This pill answers "what
+          is this trip" — dates, days, stops, cities — and who is on it is a
+          different question, answered properly in Trip settings' Travellers
+          panel rather than by two grey initials.
+
+          Nothing is stranded by removing it. It used to be one of three ways
+          into Trip settings; the other two — the trip title and the header's
+          own ghost "Trip settings" button — are untouched. */}
     </div>
   );
 }

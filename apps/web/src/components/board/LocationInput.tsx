@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { displayPlace } from "@/lib/place";
 
 type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string; area?: string };
 
@@ -41,7 +42,7 @@ export function LocationInput({
     <div className="grid gap-1.5">
       {value?.name != null && (
         <div className="flex items-center gap-1.5">
-          <Text as="span">{value.name}</Text>
+          <Text as="span">{displayPlace(value)}</Text>
           <Button variant="ghost" onClick={() => onChange(null)}>
             Clear
           </Button>

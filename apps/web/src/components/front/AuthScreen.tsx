@@ -107,6 +107,28 @@ export function AuthScreen({
   // never drew, where the line would otherwise assert something false.
   const showFootnote = googleAvailable || mode !== "signin";
   const [username, setUsername] = useState("");
+  // The dev-login form's only submit path is `signIn()`, which is
+  // client-side — so between this server-rendered HTML painting and React
+  // hydrating it, the form is a plain `<form>` with no `action`. Pressing
+  // Enter in the username field then triggers the browser's *native*
+  // implicit submission: a GET to this same URL, which reloads /signin,
+  // wipes the typed username out of the controlled input, and (because the
+  // input has `name="username"`) writes what was typed into the address bar
+  // as `?username=…`, where it lands in history and server logs. On screen
+  // that reads as "Enter does nothing" — reported from a cold preview
+  // deployment on 2026-08-30, where the hydration gap is widest.
+  //
+  // Gating the submit button on hydration closes it: HTML's implicit
+  // submission does nothing when the form's default button is disabled, so
+  // Enter is inert until the handler that gives it meaning actually exists,
+  // instead of firing a navigation that destroys the user's input. After
+  // hydration Enter and a click run the identical path.
+  //
+  // This is deliberately not "make the form work without JS" — that would
+  // mean a server action posting to Auth.js, which is a real change to the
+  // auth flow rather than a fix to this defect.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   // Defaults to "/" until AuthSearchParams' effect resolves the real
   // `?callbackUrl=` (or confirms there isn't one) — same default `signIn`
   // calls hardcoded before this fix, so a click that somehow beats the
@@ -235,7 +257,7 @@ export function AuthScreen({
                     onChange={(event) => setUsername(event.target.value)}
                   />
                 </FormField>
-                <Button type="submit" variant="ghost">Sign in with dev login</Button>
+                <Button type="submit" variant="ghost" disabled={!hydrated}>Sign in with dev login</Button>
               </form>
             )}
 

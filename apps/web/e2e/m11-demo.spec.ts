@@ -27,7 +27,7 @@ test.describe("the demo trip", () => {
 
     // The real fixture through the real trip header.
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-    await expect(page.getByText("View only")).toBeVisible();
+    await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
     await expect(page.getByText("This is an example trip — look around.")).toBeVisible();
 
     // The four lenses, each rendering the fixture's own content.
@@ -55,7 +55,20 @@ test.describe("the demo trip", () => {
         /^Day 1, \w{3}, \w{3} \d{1,2}\. Tokyo, 4 stops, \$990\.00, 2:30 pm to 10:30 pm, 2 to book$/,
       ),
     ).toBeVisible();
-    await expect(page.getByLabel(/^Day 14, \w{3}, \w{3} \d{1,2}\. Tokyo, /)).toBeVisible();
+    // Day 14 is the trip's one two-city cell, and that is the point of
+    // asserting it: the traveller wakes in Osaka (breakfast at the hotel, then
+    // the Shinkansen out) and lands the last three stops in Tokyo, so the cell
+    // renders a card per city in TIME order. Until KI-59 every stop on a
+    // travel day carried the day's DESTINATION, so this read "Tokyo, 5 stops"
+    // and the morning in Osaka was invisible.
+    //
+    // Pinning both cards and their counts, not just the first city: the whole
+    // behaviour KI-59 changed is that this cell stopped being one card, and an
+    // assertion on the head alone would pass again the moment it collapsed
+    // back.
+    await expect(
+      page.getByLabel(/^Day 14, \w{3}, \w{3} \d{1,2}\. Osaka, 2 stops, .*\. Tokyo, 3 stops, /),
+    ).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
     await expect(page).toHaveURL(/lens=Map/);
@@ -115,7 +128,7 @@ test.describe("the demo trip", () => {
     // get redirected back to the sample board, and you need to click again").
     await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-    await expect(page.getByText("View only")).toHaveCount(0);
+    await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
   });
 });
 
@@ -127,13 +140,13 @@ test("a signed-in visitor makes the demo trip theirs, and can edit it", async ({
   test.slow();
   await page.goto("/demo");
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-  await expect(page.getByText("View only")).toBeVisible();
+  await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Make this trip mine" }).click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/);
 
   // Now it is theirs: the same 14 days, and the read-only badge is gone.
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
-  await expect(page.getByText("View only")).toHaveCount(0);
+  await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add stop" })).toBeEnabled();
 });

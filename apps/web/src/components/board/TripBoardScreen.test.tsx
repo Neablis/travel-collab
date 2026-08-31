@@ -1184,13 +1184,13 @@ describe("assistant ask — unsent work blocks the ask", () => {
 // The server refuses each of these commands independently (accessPolicy.ts);
 // this is defence in depth and a legible read-only board, never the boundary.
 describe("TripBoardScreen — a viewer's board", () => {
-  it("says View only and offers no way to change the trip", async () => {
+  it("says Viewer and offers no way to change the trip", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.getByText("View only")).toBeTruthy();
+    expect(screen.getByText("Viewer")).toBeTruthy();
 
     expect(screen.queryByTestId("one-more-day-column")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
@@ -1207,7 +1207,7 @@ describe("TripBoardScreen — a viewer's board", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.queryByText("View only")).toBeNull();
+    expect(screen.queryByText("Viewer")).toBeNull();
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a day" })).toBeTruthy();
   });

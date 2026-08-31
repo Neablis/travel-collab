@@ -101,13 +101,13 @@ describe("refusalRedirect", () => {
   // never as literals — a literal here is a second copy of the contract.
   it("sends each refusal to the designed screen with its own code", () => {
     expect(refusalRedirect(AdmissionRefusal.enum.MISSING_INVITE_CODE)).toBe(
-      "/signin?error=MISSING_INVITE_CODE",
+      "/signup?error=MISSING_INVITE_CODE",
     );
     expect(refusalRedirect(AdmissionRefusal.enum.INVALID_INVITE_CODE)).toBe(
-      "/signin?error=INVALID_INVITE_CODE",
+      "/signup?error=INVALID_INVITE_CODE",
     );
     expect(refusalRedirect(AdmissionRefusal.enum.SPENT_INVITE_CODE)).toBe(
-      "/signin?error=SPENT_INVITE_CODE",
+      "/signup?error=SPENT_INVITE_CODE",
     );
   });
 

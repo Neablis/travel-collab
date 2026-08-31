@@ -134,7 +134,7 @@ import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts"
 import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
 import { placeNameVerdict, nameTokens, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
 import { mapRateLimited } from "../src/server/ai/rateLimit.ts";
-import { parseTripSeed, locationName, unscheduledLocationName } from "@tc/fixtures";
+import { parseTripSeed, locationName, unscheduledLocationName, CITY_OVERRIDES } from "@tc/fixtures";
 
 const SEED_PATH = fileURLToPath(new URL("../../../.design-sync/handoff/data/japan-trip-seed.json", import.meta.url));
 const OUTPUT_PATH = fileURLToPath(new URL("../../../packages/fixtures/src/japan/coordinates.json", import.meta.url));
@@ -159,6 +159,22 @@ const CITY_VIEWBOXES: Record<string, BoundingBox> = {
   Kyoto: { minLat: 34.85, maxLat: 35.1, minLng: 135.6, maxLng: 135.85 },
   Osaka: { minLat: 34.55, maxLat: 34.75, minLng: 135.35, maxLng: 135.6 },
   Naoshima: { minLat: 34.4, maxLat: 34.52, minLng: 133.9, maxLng: 134.05 },
+  // The two cities KI-59 introduced. Neither is a place the trip SLEEPS in;
+  // both are where a travel morning physically starts, so they only appear
+  // via CITY_OVERRIDES below.
+  //
+  // Odawara sits just east of Hakone's box (max 139.15) rather than inside it,
+  // which is right: Odawara Station is ~10km from Hakone-Yumoto and a
+  // different city. minLng is held at 139.10 rather than widened toward
+  // Hakone, so a Hakone venue cannot be accepted as an Odawara one.
+  Odawara: { minLat: 35.2, maxLat: 35.33, minLng: 139.1, maxLng: 139.25 },
+  // Tamano's box OVERLAPS Naoshima's, and that is unavoidable rather than
+  // sloppy: Uno Port (34.4903, 133.9491) is the mainland ferry terminal ~5km
+  // of water from the island, and sits inside Naoshima's box as drawn. The
+  // box is biased north of the island to reduce it; the name-identity check
+  // (placeNameVerdict) is what actually separates a port from an island
+  // venue, as it does for every other pair the boxes cannot.
+  Tamano: { minLat: 34.46, maxLat: 34.56, minLng: 133.89, maxLng: 134.0 },
 };
 const ALL_CITY_BOXES = Object.values(CITY_VIEWBOXES);
 
@@ -225,12 +241,28 @@ function buildJobs(seed: ReturnType<typeof parseTripSeed>): Job[] {
   const jobs = new Map<string, Job>();
 
   for (const day of seed.days) {
-    const box = CITY_VIEWBOXES[day.city];
-    if (!box) throw new Error(`no viewbox configured for city "${day.city}" (day ${day.index})`);
     for (const stop of day.stops) {
-      const query = locationName(stop.place, stop.area, day.city);
-      const job = { query, place: stop.place, area: stop.area, context: [stop.area, day.city, "Japan"], viewbox: box, acceptBoxes: [box] };
-      addJob(jobs, `stop|${day.city}|${stop.place}|${stop.area}`, job, stop.id);
+      // The city the stop is PHYSICALLY IN, not the day's destination (KI-59).
+      //
+      // The upstream export models city per DAY, and a travel day is tagged
+      // with where it ends — so reading `day.city` here asked LocationIQ for
+      // "Kyoto Station, Shimogyō, Osaka" and "Zentis Osaka, Kita, Tokyo",
+      // queries no vendor can satisfy because the venue is not in the city or
+      // the box. On the 2026-08-30 live run that was seven of the thirty-one
+      // unresolved stops, and for `d11-s1` LocationIQ returned Kyoto Station
+      // correctly and this script's own box rejected it.
+      //
+      // `CITY_OVERRIDES` is the same record `trip.ts` applies, so the query,
+      // the viewbox and the stored row now agree by construction rather than
+      // by two places happening to say the same thing.
+      const city = CITY_OVERRIDES[stop.id]?.ours ?? day.city;
+      const box = CITY_VIEWBOXES[city];
+      if (!box) throw new Error(`no viewbox configured for city "${city}" (day ${day.index}, stop ${stop.id})`);
+      const query = locationName(stop.place, stop.area, city);
+      const job = { query, place: stop.place, area: stop.area, context: [stop.area, city, "Japan"], viewbox: box, acceptBoxes: [box] };
+      // The key carries the effective city, so two stops that share a place
+      // and area but sit in different cities stay separate lookups.
+      addJob(jobs, `stop|${city}|${stop.place}|${stop.area}`, job, stop.id);
     }
   }
 
@@ -461,5 +493,5 @@ const invokedDirectly =
   process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) await main();
 
-export { resolveJob, vendorErrorStatus };
+export { resolveJob, vendorErrorStatus, buildJobs, CITY_VIEWBOXES };
 export type { Job, Resolved, Unresolved };
