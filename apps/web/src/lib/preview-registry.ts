@@ -14,8 +14,22 @@
 // saves a real day into a real library) and "add-saved-day" — which also
 // empties `preview-registry.test.ts`'s PARKED escape hatch, since the file
 // that parked it is rendered now.
+//
+// M11b removed the four PLAYBOOKS shells — "home-playbooks-strip",
+// "playbooks-route", "insert-playbook" and "wizard-playbook-panel" — deleted
+// rather than re-pointed, along with the mock fixtures and the two components
+// that existed only to hold them.
+//
+// **Five M11-tagged entries remain, and they are not Playbooks.**
+// "rack-provenance", "cost-estimate-state", "budget-breakdown",
+// "wizard-destination-chips" and "wizard-longer-chip" are each blocked on a
+// contract field that does not exist — read their `wiredUpBy` lines. The M11b
+// exit gate says "no M11-tagged entry remains", which these five make false;
+// the build plan's finding 1 records that as **Mitchell's call** and recommends
+// retagging them to the milestone that will actually wire each one, since they
+// are mis-tagged rather than owed. Retagging them from here would be deciding
+// it rather than raising it, so they are left exactly as they were.
 export const PREVIEW_REGISTRY = {
-  "home-playbooks-strip": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   // The rail's chrome (header/Hide) and ask box are real as of the M10
   // redesign-feedback follow-up — composeAiPlan, the same real M7 feature
   // the board's old ComposePanel used to expose directly. The quick-ask
@@ -29,8 +43,6 @@ export const PREVIEW_REGISTRY = {
   // panel has no such block, only the conversation and the ask box. Nothing
   // to wire up in M9 because there is nothing there to wire.
   "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
-  "playbooks-route": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
-  "insert-playbook": { milestone: "M11", wiredUpBy: "M11 insert-a-Playbook" },
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
   "rack-provenance": { milestone: "M11", wiredUpBy: "Who parked a stop, and which day it came from — no field models either" },
   "cost-estimate-state": { milestone: "M11", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
@@ -38,7 +50,6 @@ export const PREVIEW_REGISTRY = {
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
   "wizard-destination-chips": { milestone: "M11", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from" },
-  "wizard-playbook-panel": { milestone: "M11", wiredUpBy: "M11 Playbooks" },
   "wizard-longer-chip": { milestone: "M11", wiredUpBy: "Manual day-count entry beyond the four preset lengths — no UI for it yet" },
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },

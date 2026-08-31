@@ -19,9 +19,6 @@ import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
-import { PlaybooksStrip } from "@/components/home/PlaybooksStrip";
-import { PREVIEW_PLAYBOOKS } from "@/components/home/preview-fixtures";
-import { Preview } from "@/components/ui/preview";
 import { ShareButton } from "@/components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -256,10 +253,15 @@ export default function Home() {
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>
-            {/* README §1 head: "New trip" primary + a real (not Preview-wrapped)
-                "Start from a Playbook" link — the link itself navigates for
-                real; it's the /playbooks route's own content that's the Preview
-                seam (Task 18). */}
+            {/* README §1 head: "New trip" primary + "Start from a Playbook".
+                The link was already real; as of M11b so is what it opens —
+                Discover, over other people's published days. This is also the
+                home page's whole Playbooks surface now: the "Your Playbooks"
+                strip below it was a `<Preview>` shell over six fabricated
+                cards, and M11b deletes those shells rather than re-pointing
+                them. Your own days are the `Yours` scope on Discover, which is
+                where §15 puts them (a filter on that page, never a second
+                page). */}
             <div className="flex items-center gap-2">
               <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
                 Start from a Playbook
@@ -381,21 +383,6 @@ export default function Home() {
             </>
           )}
         </div>
-
-        {/* Task 16 Preview shell (README §1 home layout): the "Your
-            Playbooks" strip after the all-trips grid. A cross-trip surface,
-            not a per-trip one, so — unlike NextTripHero/the trips grid above
-            — it renders unconditionally rather than gating on
-            `visibleTrips`. Real fixture data + no-op: entirely inert inside
-            its own <Preview> seam (Task 3), which shields pointer events and
-            stamps the "Preview · M11" chip.
-
-            "Worth your attention" used to sit below it and is gone: Mitchell,
-            preview feedback on PR #55 — "Removed 'Worth your attention' in
-            the designs". */}
-        <Preview id="home-playbooks-strip" size="container">
-          <PlaybooksStrip playbooks={PREVIEW_PLAYBOOKS} />
-        </Preview>
       </div>
 
       <Dialog open={confirmTrip !== null} onOpenChange={(open) => !open && setConfirmTrip(null)} title="Delete trip">

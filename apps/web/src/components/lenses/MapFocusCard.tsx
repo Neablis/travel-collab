@@ -25,6 +25,7 @@ export function MapFocusCard({ day }: { day: MapDay | null }) {
 
   return (
     <div
+      data-testid="map-focus-card"
       className="absolute flex flex-col gap-1.5 rounded-xl border border-hairline bg-surface p-3.5 shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- computed position/width/z-index (300px left, 18px bottom, 256px wide, z 3) has no token equivalent, matching AssistantRail's computed-geometry pattern
       style={{ left: "300px", bottom: "18px", width: "256px", zIndex: 3 }}

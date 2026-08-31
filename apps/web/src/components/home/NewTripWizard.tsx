@@ -245,19 +245,15 @@ function WizardBody({
               ))}
             </Preview>
           </div>
-          <Preview id="wizard-playbook-panel" size="container" className="p-3.5">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <Text className="font-semibold text-ink">Start from a Playbook</Text>
-                <Text variant="secondary" className="mt-0.5">
-                  You have 5 saved days. Build the trip around one.
-                </Text>
-              </div>
-              <Button type="button" variant="secondary" size="sm">
-                Browse
-              </Button>
-            </div>
-          </Preview>
+          {/* M11b deleted the "Start from a Playbook" panel that stood here.
+              It was `<Preview id="wizard-playbook-panel">` whose entire content
+              was a fabricated count ("You have 5 saved days") beside an inert
+              Browse button, and the milestone's line is that the four Playbooks
+              shells are deleted rather than re-pointed. Nothing replaces it in
+              the wizard: this step runs BEFORE the trip a day would go into
+              exists, so the honest entry points are the home page's "Start from
+              a Playbook" link and the end-of-trip block — both of which now
+              open the real library. */}
         </div>
       )}
 

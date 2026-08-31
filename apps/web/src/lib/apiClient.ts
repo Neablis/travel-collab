@@ -9,6 +9,7 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
+  TripSummary,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type PageContext,
@@ -16,6 +17,14 @@ import {
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
 import { CitySearchResponse, type CityMatch } from "@/lib/cities";
+import {
+  DiscoverResponse,
+  LeaderboardResponse,
+  PublicProfileResponse,
+  type BudgetBand,
+  type DiscoverScope,
+  type DiscoverSort,
+} from "@/lib/playbooks";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -69,6 +78,25 @@ export async function createTrip(input: { name: string }): Promise<ApiResult<{ t
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Your trips, newest first — the list `/api/trips` has always returned.
+ *
+ * A helper rather than the raw `fetch` the home page still hand-rolls, because
+ * M11b's "Add to a trip" needs the same list from a page that is not a trip and
+ * has no TripProvider to ask. Parsed against the contract here so the second
+ * caller cannot quietly disagree with the first about the shape.
+ */
+export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
+  try {
+    const res = await fetch(apiUrl("/api/trips"));
+    return await readJson(res, (data) =>
+      ((data as { trips: unknown[] }).trips ?? []).map((t) => TripSummary.parse(t)),
+    );
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -524,6 +552,54 @@ export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
   try {
     const res = await fetch(apiUrl(`/api/cities?q=${encodeURIComponent(q)}`));
     return await readJson(res, (data) => CitySearchResponse.parse(data).cities);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Discover's day search (M11b link 5).
+ *
+ * `city` is repeated rather than comma-joined — a city name may contain a
+ * comma, and splitting on one would invent a city called " Japan". The caller
+ * debounces the text box that feeds it; this does not.
+ */
+export async function searchPlaybooks(query: {
+  cities?: readonly string[];
+  scope?: DiscoverScope;
+  sort?: DiscoverSort;
+  budget?: BudgetBand;
+  month?: number | null;
+}): Promise<ApiResult<DiscoverResponse>> {
+  const params = new URLSearchParams();
+  for (const city of query.cities ?? []) params.append("city", city);
+  if (query.scope) params.set("scope", query.scope);
+  if (query.sort) params.set("sort", query.sort);
+  if (query.budget) params.set("budget", query.budget);
+  if (query.month != null) params.set("month", String(query.month));
+  try {
+    const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
+    return await readJson(res, (data) => DiscoverResponse.parse(data));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The leaderboard (M11b link 7): everyone, ranked on the adds ledger. */
+export async function fetchLeaderboard(): Promise<ApiResult<LeaderboardResponse>> {
+  try {
+    const res = await fetch(apiUrl("/api/playbooks/board"));
+    return await readJson(res, (data) => LeaderboardResponse.parse(data));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** One person's public profile (M11b link 8) — every number derived. */
+export async function fetchPublicProfile(userId: string): Promise<ApiResult<PublicProfileResponse>> {
+  try {
+    const res = await fetch(apiUrl(`/api/playbooks/profile/${encodeURIComponent(userId)}`));
+    return await readJson(res, (data) => PublicProfileResponse.parse(data));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

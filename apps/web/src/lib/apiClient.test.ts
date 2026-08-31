@@ -21,6 +21,7 @@ import {
   fetchSharedTrip,
   fetchTripAccess,
   fetchTripDetail,
+  fetchTrips,
   fetchTripDetailAt,
   fetchTripHistory,
   fetchTripShares,
@@ -30,6 +31,9 @@ import {
   revokeTripInvite,
   revokeTripShare,
   searchCities,
+  searchPlaybooks,
+  fetchLeaderboard,
+  fetchPublicProfile,
   sendTripCommand,
   sendTripCommandBatch,
   unpublishSavedDay,
@@ -173,6 +177,7 @@ const UUID = "22222222-2222-4222-8222-222222222222";
 const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createTrip: () => createTrip({ name: "Rome" }),
   fetchTripDetail: () => fetchTripDetail(TRIP_ID),
+  fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
   fetchTripDetailAt: () => fetchTripDetailAt(TRIP_ID, 1),
   sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
@@ -200,6 +205,9 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   publishSavedDay: () => publishSavedDay(UUID),
   unpublishSavedDay: () => unpublishSavedDay(UUID),
   searchCities: () => searchCities("Kyo"),
+  searchPlaybooks: () => searchPlaybooks({ cities: ["Kyoto"] }),
+  fetchLeaderboard: () => fetchLeaderboard(),
+  fetchPublicProfile: () => fetchPublicProfile("dev-alice"),
   askAssistant: () =>
     askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
   applyAssistantProposal: () =>

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { JAPAN_STOPS } from "@tc/fixtures";
 import { PREVIEW_REGISTRY, type PreviewId } from "./preview-registry";
 
 const SRC = join(__dirname, "..");
@@ -113,6 +114,38 @@ function previewIdsIn(file: string): string[] {
   return previewIdsInSource(readFileSync(file, "utf8"));
 }
 
+/**
+ * Every `<option>` in a file, as the literal strings it would put on screen —
+ * its quoted `value=` and its own static text.
+ *
+ * An interpolated option (`<option value={c}>{c}</option>`) has no literal and
+ * contributes nothing: that is the DYNAMIC list, which the `aria-label="City"`
+ * half of the guard below is what catches.
+ */
+function optionLiteralsIn(src: string): string[] {
+  return [...stripComments(src).matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/g)].flatMap(
+    ([, attrs, text]) => {
+      const value = /\bvalue=["']([^"']*)["']/.exec(attrs!)?.[1];
+      const own = text!.includes("{") ? "" : text!.trim();
+      return [value ?? "", own].filter((s) => s !== "");
+    },
+  );
+}
+
+// The city vocabulary the app's own demo data uses — not a guessed list of
+// famous places. A static city control in this repo would be built out of these
+// names, because these are the only cities any of its fixtures knows.
+const DEMO_CITIES = new Set(JAPAN_STOPS.map((stop) => stop.city));
+
+/** Why a file breaks the "no static city list" rule, or an empty list. */
+function cityListOffences(src: string): string[] {
+  const offences = new Set(/aria-label="City"|All cities/.test(src) ? ["a city-labelled select"] : []);
+  for (const literal of optionLiteralsIn(src)) {
+    if (DEMO_CITIES.has(literal)) offences.add(`<option> for "${literal}"`);
+  }
+  return [...offences];
+}
+
 // Skip the Preview component itself and *.test.tsx fixtures: this sync test
 // is about real app usage (shells), not the component's own definition or
 // unit-test render fixtures like `<Preview id="assistant-rail">` in
@@ -160,6 +193,57 @@ describe("preview registry ↔ usage", () => {
         `registry entry "${id}" is unused — remove it (a <Preview id> inside a component nothing imports does not count)`,
       ).toContain(id);
     }
+  });
+
+  // M11b's exit-gate line: "All four Playbooks `<Preview>` shells are DELETED
+  // from preview-registry.ts" — deleted, not re-pointed. Named literally on
+  // purpose, unlike the scanner test below: these four ids are a decision that
+  // was made, and the failure mode this guards is somebody reintroducing one
+  // under the same name, which no derived assertion can see.
+  //
+  // The five OTHER M11-tagged entries are deliberately still here. None of them
+  // is Playbooks and each is blocked on a contract field that does not exist —
+  // see the registry's own note, and the build plan's finding 1, which records
+  // retagging them as Mitchell's call rather than PR3's.
+  it("has no Playbooks shell left, in the registry or in the tree", () => {
+    for (const id of ["home-playbooks-strip", "playbooks-route", "insert-playbook", "wizard-playbook-panel"]) {
+      expect(PREVIEW_REGISTRY, `"${id}" is back in the registry`).not.toHaveProperty(id);
+      expect(declared, `"${id}" is back in the tree`).not.toContain(id);
+    }
+  });
+
+  // The other half of the same gate box: "No `<option>` city list exists
+  // anywhere in the tree." The handoff says it twice and the milestone restates
+  // it, because the dropdown is what the server-side city search replaces —
+  // and a static list of cities is the obvious thing to reach for when the
+  // endpoint is inconvenient.
+  //
+  // It has to look at the `<option>` elements themselves. Matching only the
+  // deleted control's own strings (`aria-label="City"`, "All cities") let
+  // `<option value="Kyoto">Kyoto</option>` straight through — a static city
+  // list under a different label, which is the thing forbidden rather than the
+  // spelling it happened to use (CodeRabbit, PR 102).
+  it("has no static city <option> list anywhere in src", () => {
+    const sources = files
+      .filter((f) => f.endsWith(".tsx") && !isTest(f))
+      .map((f) => [relative(SRC, f), readFileSync(f, "utf8")] as const);
+    const offenders = sources.flatMap(([rel, src]) =>
+      cityListOffences(src).map((why) => `${rel}: ${why}`),
+    );
+    expect(offenders).toEqual([]);
+
+    // The witness, in two halves. A scanner that saw no `<option>` at all would
+    // report an empty offender list forever, and a guard that never fired on a
+    // city option would too. The floor is measured, not guessed: 8 literal
+    // options in the tree today (Discover's sort and month controls, the share
+    // roles, the rack's day picker), so it sits at half.
+    expect(
+      sources.flatMap(([, src]) => optionLiteralsIn(src)).length,
+      "no literal <option> found anywhere — the option scanner has broken",
+    ).toBeGreaterThan(4);
+    expect(
+      cityListOffences('<select aria-label="Where"><option value="Kyoto">Kyoto</option></select>'),
+    ).toEqual(['<option> for "Kyoto"']);
   });
 
   // Keeps the PARKED escape hatch honest: an entry is only legitimate while its
@@ -222,11 +306,37 @@ describe("the orphan scanner itself", () => {
     expect(previewIdsInSource(source.get("components/Shelved.tsx")!)).toEqual(["shelved-shell"]);
   });
 
-  it("still counts a <Preview id> in a component the app imports", () => {
-    const rendered = join(SRC, "components/trip/EndOfTrip.tsx");
-    expect(isRendered(rendered)).toBe(true);
-    expect(previewIdsIn(rendered)).toContain("insert-playbook");
-    expect(usedByRenderedCode).toContain("insert-playbook");
+  // Rewritten in M11b, and the reason is the point. This used to name
+  // `EndOfTrip.tsx` and `insert-playbook` as a literal pair — and M11b deleted
+  // that shell, so the test failed for a reason that had nothing to do with
+  // what it checks. A guard whose subject is a hardcoded fixture expires the
+  // day its fixture does; the property it was after ("a `<Preview id>` in a
+  // file the router can reach IS counted") is true of every such file, so it is
+  // asserted over all of them.
+  it("counts every <Preview id> that sits in a component the app renders", () => {
+    const carriers = scanned.filter((f) => isRendered(f) && previewIdsIn(f).length > 0);
+    // The witness: with no carriers there is nothing below to compare and the
+    // assertion passes on an empty set both ways, which is the exact failure
+    // `test-support/witness.ts` exists for. Registered ids all have to be used,
+    // so this is also a floor of one.
+    expect(
+      carriers.length,
+      "no rendered file carries a <Preview id> — the scanner or the resolver has broken",
+    ).toBeGreaterThan(0);
+
+    // Compared against the REGISTRY — a hand-maintained literal — and not
+    // against `usedByRenderedCode`, which is the same
+    // `scanned.filter(isRendered).flatMap(previewIdsIn)` expression these
+    // carriers come from. Asserting one against the other held whatever the
+    // scanner did, including nothing (CodeRabbit, PR 102). With an independent
+    // right-hand side this fails if the resolver stops reaching files, if the
+    // id regex stops matching, or if a rendered file grows a `<Preview id>` the
+    // registry does not know about.
+    const carried = [...new Set(carriers.flatMap(previewIdsIn))].sort();
+    const registered = (Object.keys(PREVIEW_REGISTRY) as PreviewId[])
+      .filter((id) => !(id in PARKED))
+      .sort();
+    expect(carried).toEqual(registered);
   });
 
   it("treats a Next.js entry point as rendered even though nothing imports it", () => {

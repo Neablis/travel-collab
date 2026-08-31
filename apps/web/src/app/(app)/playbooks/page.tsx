@@ -1,18 +1,23 @@
-import { PlaybooksScreen } from "@/components/playbooks/PlaybooksScreen";
-import { PREVIEW_PLAYBOOK_CARDS } from "@/components/playbooks/preview-fixtures";
-import { Preview } from "@/components/ui/preview";
+import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
 
-// The `/playbooks` route (README §3): reachable for real from the home
-// page's "Start from a Playbook" link (app/page.tsx head), but its content
-// is entirely inert — the whole screen mounts inside
-// <Preview id="playbooks-route"> (Task 3's seam), same pattern as home's
-// "home-playbooks-strip"/"home-worth-attention" shells (Task 16).
-export default function PlaybooksPage() {
+// `/playbooks` — Discover (M11b link 5). This route used to be an 18-line shell
+// rendering mock cards inside `<Preview id="playbooks-route">`; that shell is
+// deleted, not re-pointed.
+//
+// Nested routes (`day`, `board`, `profile`) sit under this path so `proxy.ts`'s
+// existing `/playbooks/:path*` matcher covers them with no change, and they are
+// signed-in surfaces rather than anonymous ones — the exit gate's wording is
+// "findable by another signed-in account".
+export default async function PlaybooksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ city?: string | string[] }>;
+}) {
+  const { city } = await searchParams;
+  const initialCities = city === undefined ? [] : Array.isArray(city) ? city : [city];
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <Preview id="playbooks-route" size="container">
-        <PlaybooksScreen playbooks={PREVIEW_PLAYBOOK_CARDS} />
-      </Preview>
+      <DiscoverScreen initialCities={initialCities} />
     </main>
   );
 }

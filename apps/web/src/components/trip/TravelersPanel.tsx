@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Text } from "@/components/ui/text";
+import { displayNameFor } from "@/lib/displayName";
 import {
   createTripInvite,
   fetchTripAccess,
@@ -21,8 +22,13 @@ import {
 // Button, Badge), and there is no new visual language to unpick when the real
 // design lands. Expect this to be the surface most likely to be redesigned.
 
+// Delegates to the single resolver rather than spelling the fallback out a
+// second time: M11b's author strip and public profile need the same question
+// answered from strictly less data, and the milestone's M17 amendment is
+// explicit that a second call site means the seam is built wrong. See
+// `lib/displayName.ts`.
 function displayName(member: TripAccess["members"][number]): string {
-  return member.name ?? member.email ?? member.userId;
+  return displayNameFor(member);
 }
 
 function statusLabel(invite: TripInvite): string {

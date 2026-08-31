@@ -114,12 +114,68 @@ test.describe("responsive (narrow viewport)", () => {
     await expect(closeButton).toBeHidden();
   });
 
-  test("the Playbooks strip reflows to two columns below 1180px", async ({ page }) => {
-    await page.goto("/");
-    const columns = await page
-      .locator(".playbooks-grid")
-      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
-    expect(columns).toBe(2);
+  // Was "the Playbooks strip reflows to two columns below 1180px", against
+  // home's `.playbooks-grid`. M11b deleted that strip — it was a `<Preview>`
+  // shell over fabricated cards — and its hand-written 1180px media query with
+  // it. The app's breakpoint-gated CARD GRID is now Discover's results list,
+  // and the property KI-19 exists for is unchanged: a grid whose column count
+  // depends on width must be exercised BELOW the suite's 1280px default, where
+  // the whole class of defect KI-16 belongs to lives.
+  //
+  // Its own day, in the `Yours` scope, so the grid has something to lay out
+  // without this spec publishing anything into the shared public library.
+  test("the Discover card grid reflows below the desktop breakpoints", async ({ page }) => {
+    const { tripId } = await page.request
+      .post("/api/trips", { data: { name: e2eTripName("Responsive") } })
+      .then((r) => r.json());
+    const dayId = crypto.randomUUID();
+    await page.request.post(`/api/trips/${tripId}/commands`, { data: { type: "AddDay", tripId, dayId } });
+    await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: {
+        type: "AddActivity",
+        tripId,
+        activityId: crypto.randomUUID(),
+        dayId,
+        title: "A stop",
+        timeWindow: { start: "09:00", end: "10:00" },
+        location: { name: "Somewhere", city: "Kyoto" },
+      },
+    });
+    const kept = await page.request.post("/api/saved-days", {
+      data: { name: `Responsive day ${Date.now()}`, tripId, dayId },
+    });
+    expect(kept.ok()).toBe(true);
+
+    await page.goto("/playbooks");
+    await page.getByRole("radio", { name: "Yours" }).click();
+    await expect(page.getByTestId("discover-results")).toBeVisible();
+
+    const columns = () =>
+      page
+        .getByTestId("discover-results")
+        .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+
+    // The narrow project's own 1100px is above Tailwind's `lg` (1024px), so
+    // the reflow this is about happens below it — set the width explicitly for
+    // the second half rather than adding a third project, exactly as the hero
+    // test below does for its own 1024px breakpoint.
+    // Read before the assertions so the `finally` below can always reach it.
+    const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };
+    try {
+      expect(await columns()).toBe(3);
+      await page.setViewportSize({ width: 800, height: 800 });
+      expect(await columns()).toBe(2);
+      await page.setViewportSize({ width: 500, height: 800 });
+      expect(await columns()).toBe(1);
+    } finally {
+      // Unconditional. `global.teardown.ts` sweeps `[e2e]` trips and a saved day
+      // is not a trip, so a spec that keeps one and walks away grows the shared
+      // dev user's library by one row every run — which is how `SavedDaysDialog`
+      // reached nineteen days and stopped being clickable (see `ui/dialog.tsx`).
+      // A responsive assertion is exactly the one most likely to fail, and the
+      // cleanup used to sit after it, so the failure that mattered also leaked.
+      expect((await page.request.delete(`/api/saved-days/${savedDay.savedDayId}`)).ok()).toBe(true);
+    }
   });
 
   test("the hero collapses to a single column below 1024px", async ({ page }) => {
@@ -260,6 +316,10 @@ test.describe("responsive (Map lens on a phone)", () => {
     // The three desktop overlays are gone — not merely hidden, since the rail
     // runs scroll machinery that should not be observing a zero-height box.
     await expect(page.locator("[data-rail-track]")).toHaveCount(0);
+    // "Rest of trip" is the LEGEND's own key (`MapLegend.tsx`), so this line is
+    // the legend assertion. The focus card's is below, AFTER a day is focused —
+    // asserting it here would pass on any build, because the card only renders
+    // for a focused day and nothing is focused yet.
     await expect(page.getByText("Rest of trip")).toHaveCount(0);
 
     // "make that where you scroll so map jumping still works": tapping a day
@@ -273,6 +333,12 @@ test.describe("responsive (Map lens on a phone)", () => {
     // maplibre exposes no camera state to query from here (CodeRabbit, PR #98).
     await strip.getByRole("button", { name: /Day 2/ }).click();
     await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop/);
+    // The third overlay, asserted where the assertion means something: a day is
+    // focused now, which is the only state that renders a focus card at all, so
+    // a build that kept the card on a phone would fail here. Before the tap this
+    // passed on every build. Raised by review on pull request 102, and the first
+    // fix for it made exactly that mistake.
+    await expect(page.getByTestId("map-focus-card")).toHaveCount(0);
 
     // The focused chip's ring must not be clipped by the track's own scroll
     // container. `overflow-x-auto` forces overflow-y to compute as `auto`
@@ -309,6 +375,11 @@ test.describe("responsive (Map lens on a phone)", () => {
 
     await expect(page.locator("[data-rail-track]")).toHaveCount(1);
     await expect(page.getByTestId("map-day-strip")).toHaveCount(0);
+    // The test is named "keeps the rail AND LEGEND" and asserted only the rail.
+    // No focus-card assertion here: the card renders only for a focused day and
+    // nothing is focused on load, so at desktop width there are legitimately
+    // zero. Its phone counterpart is asserted after a day IS focused.
+    await expect(page.getByText("Rest of trip")).toBeVisible();
   });
 });
 

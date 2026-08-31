@@ -100,10 +100,20 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // against a seed where they could disagree", and one owner cannot disagree
   // with itself.
   //
-  // **No two numbers a bug could swap are equal**, and that is the property to
-  // preserve when editing `savedDays.ts`: days 3 vs 2, published 2 vs 1, adds
-  // 3 vs 4. Make any pair equal and this stops catching the bug it is here for
-  // — a profile that reads the wrong person's rows would still add up.
+  // **No two numbers a bug could swap are equal** — and the previous wording of
+  // this comment overclaimed, which review on pull request 102 caught. It listed
+  // only the CROSS-OWNER pairs (days 3 vs 2, published 2 vs 1, adds 5 vs 4) while
+  // claiming the general property, and alice's own days (3) and adds (3) were
+  // equal. The profile header renders those two side by side, so a page reading
+  // the wrong field for alice still added up.
+  //
+  // Two properties now, both asserted in `verify.test.ts` instead of only stated
+  // here: no field equal across owners, and within an owner no two of the three
+  // equal. Preserve both when editing `savedDays.ts`.
+  //
+  // Alice's published (2) and Bob's days (2) are deliberately still equal: no
+  // surface renders those together, so that swap is not reachable. Left rather
+  // than fixed, because the honest property is the one a test can enforce.
   //
   // The two owners share Kyoto and share nothing else, so a Kyoto query has to
   // return both people's days while a Hakone or a Naoshima query returns one.
@@ -117,7 +127,7 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
     // per-card line ("Kyoto matched · also Uji") and its sibling chips have
     // nothing in the demo data to render — M18's tag chips against a
     // zero-tag preview, again.
-    "dev-alice": { days: 3, published: 2, adds: 3, cities: ["Hakone", "Kyoto", "Tokyo"] },
+    "dev-alice": { days: 3, published: 2, adds: 5, cities: ["Hakone", "Kyoto", "Tokyo"] },
     "dev-bob": { days: 2, published: 1, adds: 4, cities: ["Kyoto", "Naoshima", "Osaka"] },
   },
 };
@@ -209,6 +219,7 @@ export function diffAgainstExpectations(
     ["canonical coordinates disagreeing with the geocode overlay", report.coordinateDisagreements],
     ["COORDINATE_OVERRIDES entries that no longer explain anything", report.staleOverrides],
     ["saved days no city search could return", report.savedDaysWithNoCities],
+    ["published saved days that state no budget each", report.publishedSavedDaysWithNoPrice],
     ["adds the ledger rule forbids", report.savedDayLedgerViolations],
   ];
   for (const [label, list] of mustBeEmpty) {
