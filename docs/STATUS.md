@@ -32,6 +32,17 @@ None of their gates has closed; nothing below is ticked anywhere yet.
 | #101 | **M11b PR2** — publishing, `GET /cities`, the ledger write path, migration `0013` | #100 | `pnpm check` exit 0, 402 integration tests. 5/5 threads resolved |
 | #102 | **M11b PR3** — Discover, shared day, board, profile; the four shells deleted | #101 | `pnpm check` exit 0, **two `test:e2e:ci-like` runs at 66 passed**. 10/10 threads resolved |
 
+**PR #98 (the 2026-08-30 design pass) and this stack compose cleanly — tested
+on 2026-08-31, not assumed.** #98 targets `main`, is not a draft, and touches
+eight files this stack also touches, including `AuthScreen.tsx` and four e2e
+specs whose sign-in M11a rewrote. It also disables the dev-login submit button
+until hydration (`disabled={!hydrated}`), which is exactly the kind of change
+that survives a clean textual merge and then breaks a Playwright click. So the
+two were merged in a scratch worktree and run: **zero conflicts, `pnpm check`
+exit 0 (1908 unit, 426 integration), and `test:e2e:ci-like` 70 passed.**
+Whichever merges second inherits no known integration work. Re-check if either
+side moves.
+
 **All four are open, stacked, green, and carry no open review threads.** They are
 drafts by Mitchell's choice; CI is skipped on drafts by design
 (`ci.yml`), so `static-and-unit` and `integration-e2e` showing "skipped" is
