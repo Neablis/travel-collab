@@ -25,70 +25,88 @@ import { cn } from "@/lib/cn";
 
 // `dc.html:1861-1866` — the hero's decorative contour grid. Kept as data
 // because six near-identical <path> elements read as noise inline.
-// The hero's fake map. Mitchell, 2026-08-30 design pass: "Could we create a
-// more real 'Fake' Map background that better reflects Kyoto? It has a very
-// iconic city style, and this just looks like a random river. Still keep this
-// stripped down esthetic though."
+// The hero's fake map: the Kamo river where it runs through central Kyoto,
+// with its bridges.
 //
-// What it was: six lines, every one of them slightly skewed off-axis
-// ("M-6 30 L 166 24"), plus one thick curve. Skew is what made it read as
-// random — a handful of drifting lines around a river could be anywhere.
+// Two rounds of feedback got here. First: "Could we create a more real 'Fake'
+// Map background that better reflects Kyoto? ... this just looks like a random
+// river." What was there then was six lines, every one skewed slightly
+// off-axis, plus one thick curve — a meandering line on empty ground can only
+// read as a river, so that is what it read as.
 //
-// What makes Kyoto legible from above is the opposite of skew. Heian-kyō was
-// laid out on a strict Chinese-style lattice in 794 and the modern city still
-// follows it, which is unusual enough among Japanese cities to carry the
-// identity on its own. So the grid is now exactly orthogonal, and dense enough
-// to read as city blocks rather than as ruling. The two things that break the
-// lattice — the Kamo running north-south, and the Higashiyama ridge east of it
-// — are what stop a grid from looking like graph paper.
+// The first answer was a city-wide Heian-kyō lattice, on the reasoning that
+// the 794 grid is what makes Kyoto legible from above. Mitchell's follow-up
+// corrected it: "more what i meant as iconic section in kyoto thats
+// recognizable — the river with the bridges." A whole-city grid is an
+// abstraction of anywhere gridded; what is recognisable is a *place*. So this
+// is zoomed in on one: the Kamo, the Takase canal running parallel a block
+// west, the bridges crossing at the big east-west streets, and the grid
+// stopping dead at both banks.
 //
-// Still stripped down, which was the other half of the ask: hairlines for the
-// blocks, one weight up for four arterials, no labels and no landmarks. It is
-// a ground for LandingHeroArt's route and pins, not an illustration competing
-// with them.
+// The bridges are the load-bearing detail. An east-west street that simply
+// runs across a river reads as a line drawn over a line; one that stops at the
+// bank everywhere *except* where a heavier bar carries it over is what makes
+// the water look like water. That is why the rows below are drawn as two
+// segments with hardcoded endpoints rather than as full-width lines.
 //
-// Geometry is in the SVG's own 0-160 x 0-100 space. `xMidYMid slice` (on the
-// element below) means it is cropped rather than stretched, so the blocks stay
-// square-ish at every viewport instead of shearing on a wide one.
-const HERO_BLOCK_SPACING = 10;
-const HERO_GRID_LINES = [
-  // Verticals then horizontals, strictly axis-aligned. Extended past the
-  // viewBox on both ends so no line appears to stop short of the crop.
-  ...Array.from({ length: 17 }, (_, i) => `M${(i + 1) * HERO_BLOCK_SPACING} -6 V 106`),
-  ...Array.from({ length: 9 }, (_, i) => `M-6 ${(i + 1) * HERO_BLOCK_SPACING} H 166`),
+// Style stays as asked — hairlines and tokens, no labels, no landmarks, no
+// illustration. Mitchell sent an illustrated tourist map as a reference for
+// the *idea* and said explicitly it is not the style he wants.
+//
+// Geometry is in the SVG's own 0-160 x 0-100 space, and placed against one
+// constraint that is easy to miss: `xMidYMid slice` crops rather than
+// stretches, so a tall narrow viewport sees only a slice. Measured at
+// 402x1014 the visible band is x 60-100 — a quarter of the width, centred.
+// The river, the canal and the bridges all sit inside it, because on a phone
+// they are the whole subject.
+
+// The river, leaning south-west as the real Kamo does. Taking it as a function
+// of a horizontal offset gives the centreline and both banks from one shape,
+// so they cannot drift apart when the curve is tuned. (A true parallel offset
+// would be a different curve; over a lean this gentle a horizontal shift is
+// within a fraction of a unit of it, and this is scenery.)
+const kamoAt = (dx: number) =>
+  `M${79 + dx} -6 C ${77 + dx} 24, ${75 + dx} 50, ${73 + dx} 78 S ${71 + dx} 96, ${70 + dx} 106`;
+const KAMO = kamoAt(0);
+// Half the channel width, in user units — how far each bank sits from centre.
+const KAMO_HALF_WIDTH = 2.6;
+
+// The Takase canal, a block west and parallel. Kyoto has two waterways
+// through this stretch, not one, and the narrow second one is a large part of
+// why the area looks like itself — so it is drawn in `info` rather than the
+// river's `info-tint`: at tint weight and 0.6 units wide it was invisible.
+const TAKASE = "M70 -6 C 68 24, 66 50, 64 78 S 62 96, 61 106";
+
+// East-west streets, as (y, centre-of-river-at-that-y) pairs. The centre is
+// sampled off KAMO so each row stops exactly at the bank.
+const CROSS_STREETS = [
+  { y: 10, cx: 77.7 },
+  { y: 20, cx: 76.9 },
+  { y: 30, cx: 76.1 },
+  { y: 40, cx: 75.3 },
+  { y: 50, cx: 74.5 },
+  { y: 60, cx: 73.7 },
+  { y: 70, cx: 72.9 },
+  { y: 80, cx: 72.1 },
+  { y: 90, cx: 71.3 },
 ] as const;
 
-// Everything below is placed against one constraint that is easy to miss:
-// `xMidYMid slice` crops rather than stretches, so a tall narrow viewport sees
-// only a slice of this 160-wide box. Measured at 402x1014, the visible band is
-// x 60-100 — a quarter of the width, centred. Anything that carries the
-// identity therefore has to live near x=80 or it simply is not there on a
-// phone, which is what happened to the first attempt: the river and the ridge
-// sat out at x 113-152 and mobile got a bare lattice.
+// Which of those cross the water. Three, spaced out, the way Sanjō, Shijō and
+// Gojō are — not every street gets a bridge, and that is the point.
+const BRIDGE_ROWS = new Set([20, 50, 80]);
 
-// Karasuma and Kawaramachi north-south, Shijō and Gojō east-west: the four a
-// visitor actually navigates by. Heavier, so the lattice has a hierarchy — and
-// two of the four sit inside the phone band so that hierarchy survives there.
-const HERO_ARTERIALS = ["M70 -6 V 106", "M95 -6 V 106", "M-6 40 H 166", "M-6 70 H 166"] as const;
+// North-south streets, which run parallel to the river and so never need to
+// stop for it. Kept clear of the channel on both sides: the west bank sits at
+// x 67.8 at its furthest and the east bank at 81.2, so 60 and 90 are the
+// innermost safe columns.
+const NORTH_SOUTH = [10, 20, 30, 40, 50, 60, 90, 100, 110, 120, 130, 140, 150] as const;
 
-// The Kamo, with the slight south-west lean the real river has. It is the one
-// element allowed to ignore the grid — which is the whole reason it is here —
-// and it is inside the phone band, because a grid alone reads as ruled paper.
-const HERO_RIVER = "M92 -6 C 88 22, 84 44, 81 62 S 76 86, 73 106";
-
-// Higashiyama, east of the river. Two contour arcs, no fill — the hills are
-// why the grid stops where it does on that side. These are the one identity
-// element left outside the phone band: three features in a 40-unit slice would
-// crowd it, and the hills are the most readily spared.
-const HERO_RIDGE = ["M112 6 C 120 20, 122 36, 117 50", "M109 58 C 118 72, 120 86, 115 100"] as const;
-
-// Translucent blocks, aligned to the lattice rather than scattered over it
-// (`dc.html:1867-1869` had them free-floating). On the grid they read as city
-// blocks; off it they read as stray rectangles.
+// Blocks, on the grid rather than scattered over it, and only on the west
+// bank — the built-up side.
 const HERO_PLOTS = [
-  { x: 60, y: 20, width: 10, height: 20, opacity: 0.5 },
-  { x: 30, y: 50, width: 20, height: 10, opacity: 0.4 },
-  { x: 120, y: 70, width: 20, height: 20, opacity: 0.45 },
+  { x: 30, y: 20, width: 20, height: 20, opacity: 0.5 },
+  { x: 40, y: 60, width: 20, height: 10, opacity: 0.4 },
+  { x: 10, y: 40, width: 10, height: 20, opacity: 0.45 },
 ] as const;
 
 export function LandingScreen() {
@@ -117,35 +135,46 @@ export function LandingScreen() {
             aria-hidden
             className="pointer-events-none absolute inset-0 h-full w-full"
           >
-            {/* Blocks first, so the river and the route above it read as
-                crossing the city rather than being fenced in by it. */}
-            {HERO_GRID_LINES.map((d) => (
-              <path key={d} d={d} strokeWidth="0.4" className="fill-none stroke-hairline" />
+            {/* The water first, so everything else reads as sitting on it,
+                then its two banks — without an edge it is a pale column
+                rather than a river. */}
+            <path d={KAMO} strokeWidth={KAMO_HALF_WIDTH * 2} className="fill-none stroke-info-tint" />
+            <path d={kamoAt(-KAMO_HALF_WIDTH)} strokeWidth="0.35" className="fill-none stroke-info" />
+            <path d={kamoAt(KAMO_HALF_WIDTH)} strokeWidth="0.35" className="fill-none stroke-info" />
+
+            {NORTH_SOUTH.map((x) => (
+              <path key={`ns${x}`} d={`M${x} -6 V 106`} strokeWidth="0.55" className="fill-none stroke-hairline" />
             ))}
+
+            {/* Each cross street in two pieces, stopping at the banks. */}
+            {CROSS_STREETS.map(({ y, cx }) => (
+              <g key={`ew${y}`} className="fill-none stroke-hairline">
+                <path d={`M-6 ${y} H ${cx - KAMO_HALF_WIDTH}`} strokeWidth="0.55" />
+                <path d={`M${cx + KAMO_HALF_WIDTH} ${y} H 166`} strokeWidth="0.55" />
+              </g>
+            ))}
+
+            <path d={TAKASE} strokeWidth="0.6" className="fill-none stroke-info" />
+
             {HERO_PLOTS.map((plot) => (
               <rect key={`${plot.x}-${plot.y}`} {...plot} className="fill-surface" />
             ))}
-            {HERO_ARTERIALS.map((d) => (
-              <path key={d} d={d} strokeWidth="0.9" className="fill-none stroke-hairline" />
+
+            {/* The bridges, last so they sit over the water rather than under
+                it. Only a step heavier than a street and in the same family as
+                one: they are a street continuing, not a separate object, and
+                heavy enough to be darker than the water — at `border-strong`
+                they were lighter than it and read as three gaps, not three
+                crossings. Each overhangs the bank by 2 units so it lands on
+                solid ground instead of stopping at the edge. */}
+            {CROSS_STREETS.filter(({ y }) => BRIDGE_ROWS.has(y)).map(({ y, cx }) => (
+              <path
+                key={`bridge${y}`}
+                d={`M${cx - KAMO_HALF_WIDTH - 2} ${y} H ${cx + KAMO_HALF_WIDTH + 2}`}
+                strokeWidth="0.9"
+                className="fill-none stroke-slate"
+              />
             ))}
-            {HERO_RIDGE.map((d) => (
-              <path key={d} d={d} strokeWidth="0.5" className="fill-none stroke-hairline" />
-            ))}
-            {/* `non-scaling-stroke`, unlike everything above it, because the
-                river is the one element whose weight has to read the same at
-                every viewport. `slice` scales user units by the larger of the
-                two axis ratios, which is ~9x on a desktop hero but ~10x on a
-                tall phone — and 402px is a quarter the width, so the same
-                stroke went from 1.4% of the screen to 5.5% and turned back
-                into the band this was replacing. In screen pixels it is 9px
-                everywhere. (The grid keeps user units on purpose: hairlines
-                pinned to 1px would vanish on desktop.) */}
-            <path
-              d={HERO_RIVER}
-              strokeWidth="9"
-              vectorEffect="non-scaling-stroke"
-              className="fill-none stroke-info-tint"
-            />
           </svg>
           <div className="landing-hero-veil pointer-events-none absolute inset-0" />
 

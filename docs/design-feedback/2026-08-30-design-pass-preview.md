@@ -4,7 +4,7 @@ Findings from a design pass run by hand against PR #98's Vercel preview,
 reported through the Vercel toolbar (which anchors each comment to the element
 and route it was written on) and recorded here as they were worked.
 
-Fifteen threads. Fourteen are fixed on this branch; one is open pending a
+Sixteen threads. Fifteen are fixed on this branch; one is open pending a
 repro.
 
 ## How this pass was run
@@ -179,8 +179,32 @@ drag had happened on that page.
 > river. Still keep this stripped down esthetic though"
 
 Three directions were put to Mitchell — the street grid, the river and hills,
-or landmark silhouettes. He took the grid, with the river for the one diagonal
-that keeps a lattice from reading as graph paper.
+or landmark silhouettes. He took the grid first, then corrected the whole
+premise after seeing it: *"more what i meant as iconic section in kyoto thats
+recognizable — the river with the bridges."* He sent an illustrated tourist map
+as a reference for the idea and said explicitly it was not the style he
+wanted.
+
+That correction is the useful part of this entry. A city-wide lattice is an
+abstraction of *anywhere gridded*; what is recognisable is a **place**. So the
+second version zooms in on one — the Kamo through central Kyoto, the Takase
+canal a block west, three bridges at the big cross streets, and the grid
+stopping dead at both banks.
+
+The bridges are the load-bearing detail. A street that simply runs across a
+river reads as a line drawn over a line; one that stops at the bank everywhere
+*except* where a heavier bar carries it over is what makes water look like
+water. That is why the cross streets are drawn as two segments with explicit
+endpoints rather than as full-width lines.
+
+Three things the screenshots caught in that second version, none of which
+reasoning would have: the river at 7 units was a flat pale column and needed
+banks to read as a river at all; the bridges at `border-strong` came out
+*lighter* than the water, so they read as three gaps rather than three
+crossings; and the Takase at `info-tint` and 0.6 units was simply invisible.
+
+The first version's history is kept below because its two measurement traps
+still apply to anything edited in this SVG.
 
 The diagnosis was as useful as the ask. The thing being complained about was
 **not** in `LandingHeroArt` — that component draws the route and pins. It was
