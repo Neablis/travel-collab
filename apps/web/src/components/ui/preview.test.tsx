@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { PREVIEW_REGISTRY } from "@/lib/preview-registry";
 import { Preview } from "./preview";
 
 describe("Preview", () => {
@@ -66,7 +67,14 @@ describe("Preview", () => {
     // it (`pt-7` = 28px >= 6px + the chip's measured 18.5px height). Changing
     // either one alone re-opens the overlap, so both are asserted here.
     expect(screen.getByRole("group").className).toMatch(/\bpt-7\b/);
-    expect(screen.getByText(/Preview · M11/).className).toMatch(/\btop-1\.5\b/);
+    // Read the milestone from the registry rather than spelling it: this
+    // assertion is about the chip's POSITION, and hardcoding a tag made it fail
+    // when `budget-breakdown` was retagged M11 -> M19 (2026-08-31) — a green
+    // suite broken by an edit that changed nothing this test is about.
+    expect(
+      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["budget-breakdown"].milestone}`))
+        .className,
+    ).toMatch(/\btop-1\.5\b/);
   });
   it("does not force position:relative when the caller positions itself", () => {
     render(

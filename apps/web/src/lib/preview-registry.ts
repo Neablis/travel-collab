@@ -20,15 +20,26 @@
 // rather than re-pointed, along with the mock fixtures and the two components
 // that existed only to hold them.
 //
-// **Five M11-tagged entries remain, and they are not Playbooks.**
+// **The five leftover M11 entries were retagged on 2026-08-31, by Mitchell.**
 // "rack-provenance", "cost-estimate-state", "budget-breakdown",
-// "wizard-destination-chips" and "wizard-longer-chip" are each blocked on a
-// contract field that does not exist — read their `wiredUpBy` lines. The M11b
-// exit gate says "no M11-tagged entry remains", which these five make false;
-// the build plan's finding 1 records that as **Mitchell's call** and recommends
-// retagging them to the milestone that will actually wire each one, since they
-// are mis-tagged rather than owed. Retagging them from here would be deciding
-// it rather than raising it, so they are left exactly as they were.
+// "wizard-destination-chips" and "wizard-longer-chip" were tagged M11 and are
+// not Playbooks — each is blocked on a contract field that does not exist, so
+// they were mis-tagged rather than owed, and M11b's "no M11-tagged entry
+// remains" was false for reasons M11b could not fix. Where each went:
+//
+//   * `rack-provenance` -> **M13**, which already holds `add-stop-who` for the
+//     same missing per-stop attribution field.
+//   * `cost-estimate-state` and `budget-breakdown` -> **M19**, minted for them
+//     the same day (`docs/milestones/M19-cost-model.md`). No existing milestone
+//     owned cost classification; M4 closed long ago.
+//   * The two wizard shells -> **"unplaced"**, deliberately. No milestone will
+//     wire them, and tagging them to one that merely sounds adjacent would move
+//     the false claim rather than remove it. `unplaced` is the honest value and
+//     nothing validates the field's format.
+//
+// The rule this follows: a shell's milestone tag is a claim that that milestone
+// will wire it up. Retag when the claim stops being true; do not retag to make
+// a gate box pass.
 export const PREVIEW_REGISTRY = {
   // The rail's chrome (header/Hide) and ask box are real as of the M10
   // redesign-feedback follow-up — composeAiPlan, the same real M7 feature
@@ -44,13 +55,13 @@ export const PREVIEW_REGISTRY = {
   // to wire up in M9 because there is nothing there to wire.
   "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
-  "rack-provenance": { milestone: "M11", wiredUpBy: "Who parked a stop, and which day it came from — no field models either" },
-  "cost-estimate-state": { milestone: "M11", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
-  "budget-breakdown": { milestone: "M11", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
+  "rack-provenance": { milestone: "M13", wiredUpBy: "Who parked a stop, and which day it came from — no field models either. Sits with `add-stop-who`, the same absence from the other side; whichever milestone lands per-stop attribution unblocks both" },
+  "cost-estimate-state": { milestone: "M19", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
+  "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
-  "wizard-destination-chips": { milestone: "M11", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from" },
-  "wizard-longer-chip": { milestone: "M11", wiredUpBy: "Manual day-count entry beyond the four preset lengths — no UI for it yet" },
+  "wizard-destination-chips": { milestone: "unplaced", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from — and no milestone owns adding one. `unplaced` rather than a guess: see the note above the registry" },
+  "wizard-longer-chip": { milestone: "unplaced", wiredUpBy: "Manual day-count entry beyond the four preset lengths. NOT blocked on a field — the only shell here that is purely unbuilt UI, so any milestone could take it" },
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
 } as const;
