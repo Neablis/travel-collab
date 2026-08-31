@@ -265,6 +265,12 @@ test.describe("responsive (Map lens on a phone)", () => {
     // "make that where you scroll so map jumping still works": tapping a day
     // in the strip is what focuses it now, and the detail line is where the
     // rail's per-row detail and the focus card's content went.
+    //
+    // This asserts the strip's own half only. A broken onFocus -> fitBounds
+    // handoff would still satisfy it, so the camera half is pinned in
+    // MapLens.test.tsx ("moves the camera when a day is tapped in the strip"),
+    // where the map is a test double whose fitBounds calls can be read —
+    // maplibre exposes no camera state to query from here (CodeRabbit, PR #98).
     await strip.getByRole("button", { name: /Day 2/ }).click();
     await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop/);
 

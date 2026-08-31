@@ -117,6 +117,12 @@ export function MapLens({
   const plottedPins = pins.filter((p) => p.dayId !== null);
   const unlocated = unlocatedActivities(detail);
   const days = mapDays(detail);
+  // Everything the map's geometry depends on, as one string: per day, its
+  // stops in order with their coordinates and kind. See the creation effect's
+  // dependency list for why kind and order have to be in here.
+  const routeKey = days
+    .map((day) => `${day.dayId}[${day.stops.map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}`).join(",")}]`)
+    .join("|");
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
 
   useEffect(() => {
@@ -276,8 +282,17 @@ export function MapLens({
     // registered once, inside this effect: without it, a map mounted before
     // the access read resolves would keep the editor's handler after the
     // answer came back "viewer".
+    //
+    // The key covers each day's stops IN ORDER and WITH THEIR KIND, not just
+    // the flat set of pins. Routes are split into a solid layer and a dashed
+    // one by `routeLegs`, which reads `kind` — so with a pins-only key
+    // (`activityId:lat:lng`), changing a stop from planned to transit without
+    // moving it left the layers untouched and the leg stayed solid. Order
+    // matters for the same reason: the legs are consecutive pairs, so
+    // reordering two stops changes which legs exist without changing any
+    // coordinate (CodeRabbit, PR #98).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plottedPins.map((p) => `${p.activityId}:${p.lat}:${p.lng}`).join(","), onSelectActivity, openCreate, readOnly]);
+  }, [routeKey, onSelectActivity, openCreate, readOnly]);
 
   // Focus-driven OPACITY — routes and markers. Kept separate from the creation
   // effect above so clicking a rail day never tears down and rebuilds the whole

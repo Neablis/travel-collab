@@ -323,6 +323,40 @@ directions, the detail line, and the camera padding) and two e2e tests in
 asserts the document does not scroll at phone width, since the strip is a
 control *on* the map, not a band the page scrolls past.
 
+## Review findings on the pass itself
+
+CodeRabbit reviewed the branch once it left draft and found two real defects in
+the fixes above. Both were mine and both are fixed:
+
+- **The Map lens attribution offset was keyed on the wrong predicate.**
+  Finding 9 reserves 158px of canvas for the assistant launcher. It keyed that
+  on the *absence* of `.assistant-open`, but the launcher renders under
+  `!isDemo && !assistant.open` — so `/demo`, which never renders a launcher,
+  still got 158px of gap in front of nothing. TripBoardScreen now sets an
+  `assistant-launcher` class under exactly the render condition, and the CSS
+  keys on that.
+- **Route layers went stale on a kind-only change.** Finding 10 splits a day's
+  route into solid and dashed layers by reading each stop's `kind`, but the
+  map-creation effect keyed on pins alone (`activityId:lat:lng`). Flipping a
+  stop to `transit` without moving it left the layers untouched and the leg
+  stayed solid. The key now covers each day's stops in order and with their
+  kind — order too, since legs are consecutive pairs and a reorder changes
+  which legs exist without changing any coordinate.
+
+Worth recording how the second one was verified, because the first attempt at
+its regression test was worthless: it handed `rerender` a fresh `vi.fn()` for
+`onSelectActivity`, which is itself a dependency of that effect, so the effect
+re-ran for that reason and the test passed against the exact bug it existed to
+catch. Running it against the pre-fix code is what exposed that. It now uses
+one stable callback, and fails on the old key.
+
+A third finding — move `@tc/contracts` imports out of the component layer —
+was declined. The repo's lint wall bans `@tc/domain` and `@/server/*` from UI
+and deliberately permits `@tc/contracts`, which is the shared type layer the UI
+is meant to read; `MapLens` imported it before this PR and so does most of
+`components/`. Acting on it would be a repo-wide architecture change, not a
+review fix.
+
 ## What this pass did not cover
 
 Only the routes reached in one sitting: `/signin`, `/welcome`, and the trip

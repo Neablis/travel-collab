@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
@@ -872,6 +873,69 @@ describe("MapLens on a phone", () => {
     };
     expect(padding.left).toBeLessThan(MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX);
     expect(padding.top).toBeGreaterThan(padding.bottom);
+  });
+
+  // CodeRabbit, PR #98: the creation effect keyed on pins only
+  // (activityId:lat:lng), so flipping a stop to `transit` without moving it
+  // left the route layers untouched and the leg stayed solid. The dashed
+  // layer is only correct if a kind change rebuilds them.
+  it("rebuilds the route layers when a stop's kind changes but nothing moves", async () => {
+    setViewportMatches(false);
+    const before = detailWithTwoDays();
+    // One stable callback across both renders. Handing `rerender` a fresh
+    // `vi.fn()` changes `onSelectActivity`, which is itself a dependency of
+    // the creation effect — the effect would then re-run for that reason and
+    // the test would pass against the very bug it exists to catch. (It did,
+    // the first time this was written.)
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue(focusDefaults());
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(addLayerMock).toHaveBeenCalled());
+
+    const travelLayers = () =>
+      addLayerMock.mock.calls.filter(([layer]) => (layer as { id: string }).id.startsWith("route-travel-")).length;
+    expect(travelLayers()).toBe(0);
+
+    // Same ids, same coordinates, same order — only the kind moves.
+    const after = {
+      ...before,
+      activities: {
+        ...before.activities,
+        a2: { ...before.activities.a2!, kind: "transit" as const },
+      },
+    };
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} readOnly={false} />
+      </EditorHost>,
+    );
+
+    await waitFor(() => expect(travelLayers()).toBeGreaterThan(0));
+  });
+
+  // The e2e test at 411px asserts that tapping a chip updates the strip's
+  // detail line, which a broken onFocus -> fitBounds handoff would still
+  // satisfy. This is the half that actually pins "map jumping still works".
+  it("moves the camera when a day is tapped in the strip", async () => {
+    setViewportMatches(true);
+    renderMap(detailWithTwoDays(), { focusedDay: null });
+
+    await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
+    fitBoundsMock.mockClear();
+
+    // useFocus is mocked, so the click's own setFocusedDay cannot drive a
+    // rerender here — assert the strip calls it, then that the resulting
+    // focusedDay is what moves the camera.
+    const onFocus = useFocusMock.mock.results.at(-1)!.value.setFocusedDay as ReturnType<typeof vi.fn>;
+    await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+    expect(onFocus).toHaveBeenCalledWith(1);
+
+    renderMap(detailWithTwoDays(), { focusedDay: 1 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
   });
 
   // The strip carries the detail the rail rows and the focus card used to,

@@ -184,14 +184,14 @@
      Moving the attribution left of the pill keeps both on the same baseline,
      which reads better than stacking them. 158px is the pill's own footprint:
      `right-6` (24px) plus its measured ~134px width at the default text size.
-     When the assistant rail is open there is no pill — TripBoardScreen only
-     renders it while the rail is closed — so the reservation is dropped, via
-     the same `.assistant-open` marker the rack's right inset reads. */
-  .map-lens-canvas .maplibregl-ctrl-bottom-right {
+     Keyed on `.assistant-launcher`, which TripBoardScreen sets under exactly
+     the condition that renders the pill (`!isDemo && !assistant.open`). An
+     earlier version keyed on the *absence* of `.assistant-open` instead, which
+     is not the same predicate: on /demo no launcher is rendered at all, and
+     that version still reserved 158px of canvas for it — a gap in front of
+     nothing (CodeRabbit, PR #98). */
+  .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
     padding-right: 158px;
-  }
-  .assistant-open .map-lens-canvas .maplibregl-ctrl-bottom-right {
-    padding-right: 0;
   }
 
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies

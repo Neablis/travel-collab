@@ -721,7 +721,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           fixed element ignores this row's flex sizing entirely and needs its
           own compensation to stop short of the docked rail instead of
           running underneath it. */}
-      <div className={cn("flex items-start", !isDemo && assistant.open && "assistant-open")}>
+      <div
+        className={cn(
+          "flex items-start",
+          !isDemo && assistant.open && "assistant-open",
+          // `assistant-launcher` marks the row while the closed-state pill is
+          // actually on screen — the same condition that renders it below.
+          // The Map lens reserves canvas for it (globals.css), and keying that
+          // off "not .assistant-open" was wrong on /demo, where the launcher
+          // never renders at all and the reservation was pure empty gap
+          // (CodeRabbit, PR #98).
+          !isDemo && !assistant.open && "assistant-launcher",
+        )}
+      >
         {/* .trip-board-content (globals.css): gives lens content a bottom
             margin against the page, dropped via .full-bleed for the Map
             lens, which is deliberately full-bleed (same `isFullLens` this
