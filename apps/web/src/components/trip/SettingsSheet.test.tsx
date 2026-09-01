@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
+import type { TripCounts } from "./TripMetaPill";
 import type { TripSpend } from "@/lib/cost";
 
 const pushMock = vi.fn();
@@ -11,9 +12,20 @@ vi.mock("next/navigation", () => ({
 
 const sendTripCommandMock = vi.fn();
 const duplicateTripMock = vi.fn();
+// The sheet mounts a real ShareButton now (under "Who is invited"), and that
+// component reads four more exports off this module. A factory mock replaces
+// the WHOLE module, so a missing export is a runtime throw the first time the
+// share panel is opened — these are stubbed rather than the component being
+// mocked out, because "Share is really there and really gated" is the thing
+// these tests exist to say.
+const fetchTripSharesMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
   duplicateTrip: (...args: unknown[]) => duplicateTripMock(...args),
+  fetchTripShares: (...args: unknown[]) => fetchTripSharesMock(...args),
+  createTripShare: vi.fn(),
+  revokeTripShare: vi.fn(),
+  shareLink: (token: string) => `http://test/s/${token}`,
 }));
 
 // The Travelers section is TravelersPanel's own surface (and its own test
@@ -33,6 +45,7 @@ beforeEach(() => {
   pushMock.mockReset();
   sendTripCommandMock.mockReset();
   duplicateTripMock.mockReset();
+  fetchTripSharesMock.mockReset().mockResolvedValue({ ok: true, value: [] });
 });
 
 const defaultSpend: TripSpend = {
@@ -58,7 +71,12 @@ function renderSheet(
     // budget — the clear-X, and a currency select worth changing — cannot be
     // exercised without this.
     budget?: Money | null;
+    /** The trip's genesis — for a copy, the moment it was taken. */
+    createdAt?: string;
     onCommand?: (command: TripCommand) => void;
+    // The header's meta-pill figures, restated in the sheet so hiding that
+    // pill below 768px loses nothing (TripHeader).
+    counts?: TripCounts;
   } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
@@ -71,10 +89,12 @@ function renderSheet(
       startDate={null}
       endDate={null}
       dayCount={0}
+      counts={overrides.counts ?? { days: 3, stops: 12, cities: 2 }}
       currency="USD"
       budget={overrides.budget ?? null}
       spend={overrides.spend ?? defaultSpend}
       forkedFrom={overrides.forkedFrom ?? null}
+      createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
       onDeleted={onDeleted}
@@ -285,9 +305,17 @@ describe("SettingsSheet lineage", () => {
     expect(screen.queryByText("Where this came from")).toBeNull();
   });
 
-  it("names the ancestor and the history point it was copied from", () => {
+  // The ancestor and the DATE, never the ancestor's sequence number: "as it was
+  // at change 14" was an internal coordinate on a settings screen, and nobody
+  // outside this codebase knows what change 14 was (Mitchell, 2026-09-01).
+  // `atSeq` is still carried on `forkedFrom`; it is simply not rendered.
+  it("names the ancestor and the day it was copied", () => {
     renderSheet(vi.fn(), {
       forkedFrom: { tripId, atSeq: 14, name: "Kyoto in spring" },
+      // Midday UTC so the rendered local date is the 31st in every zone the
+      // suite might run in — a midnight instant would be the 30th west of
+      // Greenwich and make this assertion depend on TZ.
+      createdAt: "2026-08-31T12:00:00.000Z",
     });
     expect(screen.getByText("Where this came from")).toBeTruthy();
     // The copy is split across text nodes by the JSX interpolation, so match
@@ -297,7 +325,8 @@ describe("SettingsSheet lineage", () => {
       .map((node) => node.textContent)
       .join(" ");
     expect(line).toContain("Kyoto in spring");
-    expect(line).toContain("as it was at change 14");
+    expect(line).toContain("on August 31st 2026");
+    expect(line).not.toContain("change");
   });
 });
 
@@ -422,5 +451,69 @@ describe("SettingsSheet role gating", () => {
     renderSheet(vi.fn(), { myRole: null });
     expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
+  });
+});
+
+// Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
+// 411x760: "all three columns from share, trip overview to budget are really
+// crowded and ugly on mobile, if we hid them here would they still be
+// accessible in trip settings?" — the honest answer was "budget and dates yes,
+// Share and the stop/city counts no". This block is the "no" half being made
+// true, and it is the half worth pinning: TripHeader hides the pill, the
+// budget chip and Share below 768px, and a regression that quietly dropped
+// either of these from the sheet would make those things unreachable on a
+// phone rather than merely relocated.
+describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
+  it("states the day, stop and city counts the header pill states", () => {
+    renderSheet(vi.fn(), { counts: { days: 5, stops: 14, cities: 3 } });
+
+    expect(screen.getByText("5 days")).toBeTruthy();
+    expect(screen.getByText("14 stops")).toBeTruthy();
+    expect(screen.getByText("3 cities")).toBeTruthy();
+  });
+
+  // Read-only by design: every figure is derived from the plan, so it is a
+  // statement rather than a field. Asserted so "make them editable" is a
+  // deliberate decision rather than an accident.
+  it("shows them to a viewer too, since they are a statement and not a control", () => {
+    renderSheet(vi.fn(), { myRole: "viewer", counts: { days: 5, stops: 14, cities: 3 } });
+
+    expect(screen.getByText("5 days")).toBeTruthy();
+    expect(screen.getByText("14 stops")).toBeTruthy();
+    expect(screen.getByText("3 cities")).toBeTruthy();
+  });
+});
+
+describe("SettingsSheet share", () => {
+  // The whole point of mounting it here: below 768px this is the ONLY Share
+  // in the app for the trip you are looking at (ShareButton has exactly two
+  // mount points, this sheet and TripHeader, and the header's is hidden on a
+  // phone).
+  it("offers Share, and it opens its own panel inside the sheet", async () => {
+    renderSheet();
+
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+
+    // Nested Radix overlays: the popover portals out of the sheet's own
+    // subtree, so this also pins that it renders and stays operable at all.
+    expect(await screen.findByTestId("share-panel")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create a share link" })).toBeTruthy();
+  });
+
+  // Same rule as the header's `!readOnly`, which is TripProvider's identical
+  // `myRole === "viewer"` — withheld, not disabled, exactly as Delete is for a
+  // non-owner (a disabled Share still reads as an offer, KI-64). This is also
+  // what keeps /demo honest: a demo visitor resolves as a `viewer`
+  // server-side (ADR-031, server/access/trip-access.ts), so they lose Share in
+  // the sheet exactly as they already lose it in the header.
+  it("withholds Share from a viewer and offers it to an editor and an owner", () => {
+    renderSheet(vi.fn(), { myRole: "viewer" });
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+
+    for (const myRole of ["editor", "owner"] as const) {
+      cleanup();
+      renderSheet(vi.fn(), { myRole });
+      expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    }
   });
 });

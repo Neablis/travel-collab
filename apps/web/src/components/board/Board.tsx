@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -10,6 +10,12 @@ import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
+import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
+import {
+  useDayScrollSpy,
+  useFollowFocusedDay,
+  type DaySync,
+} from "@/components/trip/context/FocusProvider";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccents } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
@@ -103,6 +109,7 @@ export function Board({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  sync,
 }: {
   trip: TripDetail;
   callbacks: BoardCallbacks;
@@ -127,8 +134,88 @@ export function Board({
   focusedTag?: ActivityTag | null;
   /** Toggles that focus from a stop's own chip. */
   onToggleTag?: (tag: ActivityTag) => void;
+  /**
+   * This row's half of the day-sync contract (`FocusProvider`'s header):
+   * scrolling the columns moves the selection, and a day selected anywhere else
+   * scrolls its column back into view here.
+   *
+   * A handle passed in rather than `useDaySync()` read from context, for the
+   * same reason `focusedDay` is a prop — Board stays renderable on its own in
+   * tests, which construct it with no provider. Optional: without it the
+   * columns still render and still select, they just do not scroll-sync.
+   */
+  sync?: DaySync;
 }) {
   const { openCreate, openEdit } = useEditor();
+
+  // The horizontal twin of the timeline's scroll spy, and the "Left/Right in
+  // the days column" half of the same request (Mitchell, 2026-09-01). The
+  // columns scroll inside their OWN box rather than the window, so the viewport
+  // here is that box and the reading line is its true centre — see
+  // `READING_LINE` for why the two axes differ.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const columnRefs = useRef<Array<HTMLElement | null>>([]);
+
+  const onScroll = useDayScrollSpy(sync, () => {
+    const box = scrollRef.current;
+    if (box === null) return null;
+    const boxRect = box.getBoundingClientRect();
+    const spans: { start: number; size: number }[] = [];
+    for (let index = 0; index < trip.days.length; index++) {
+      const rect = columnRefs.current[index]?.getBoundingClientRect();
+      // A day whose column has not mounted yet: bail rather than measure a
+      // shorter list, which would map positions onto the wrong indexes.
+      if (rect === undefined) return null;
+      spans.push({ start: rect.left, size: rect.width });
+    }
+    return centralDayIndex(
+      { start: boxRect.left, size: boxRect.width },
+      spans,
+      READING_LINE.horizontal,
+    );
+  });
+
+  // Contract clauses 2 and 3: a day picked on the chips row above (or arrowed
+  // to below, which is an explicit pick) centres its column here, and switching
+  // to this lens arrives already scrolled to the selected day.
+  useFollowFocusedDay(sync, focusedDay, trip.days.length, (index) => columnRefs.current[index]);
+
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      // A modified arrow is somebody's own shortcut, and an arrow inside a
+      // text field is a caret move. Neither is a day change. (No column
+      // currently holds a text field; the guard is here so one added later
+      // does not silently start stealing keystrokes.)
+      if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+
+      const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, trip.days.length);
+      if (next === null) return;
+      // Claimed for EVERY handled arrow, including one that does not move the
+      // selection — the two boundary cases, ArrowLeft on day 1 and ArrowRight
+      // on the last day. CodeRabbit, reviewing this branch: the old
+      // `if (next === null || next === focusedDay) return;` returned BEFORE
+      // this line at both ends, so the browser scrolled this box natively
+      // instead — and the spy above then replaced day 1 with whatever landed on
+      // the reading line. An arrow key that means "you are already at the end"
+      // must still be ours, or the selection walks off the end anyway by a
+      // different route. `DayChips`'s own arrow handler already got this right
+      // (it preventDefaults before the equality check); the two now read the
+      // same and mean the same.
+      event.preventDefault();
+      if (next === focusedDay) return;
+      // Explicit, so it really is a selection and not a reading position: the
+      // person pressed a key naming a day. Bringing it into view is the
+      // contract's clause 2 (`FocusProvider`) and happens in the follow effect
+      // above — for this column AND for the chip above it — rather than in a
+      // scroll call of this handler's own.
+      callbacks.onSelectDay(next);
+    },
+    [callbacks, focusedDay, trip.days.length],
+  );
 
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
   // the warning attaches to. A stop can be the later half of more than one
@@ -266,7 +353,18 @@ export function Board({
           `-mx-1` with the `px-1` so the row keeps the header's own gutter
           rather than indenting from it — same pairing as DayChips and
           ui/sheet.tsx, which needed it for exactly this. */}
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1">
+      <div
+        ref={scrollRef}
+        // A scrollable region is focusable so it can be scrolled from the
+        // keyboard at all; that is also what gives the arrow keys below a
+        // resting place before anything inside has been tabbed to.
+        tabIndex={0}
+        role="group"
+        aria-label="Day columns"
+        onScroll={onScroll}
+        onKeyDown={onKeyDown}
+        className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1"
+      >
         {trip.days.map((day, index) => (
           <Column
             key={day.dayId}
@@ -286,6 +384,9 @@ export function Board({
             onRemoveDay={readOnly ? undefined : () => callbacks.onRemoveDay(day.dayId)}
             isFocused={focusedDay === index}
             onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
+            columnRef={(node) => {
+              columnRefs.current[index] = node;
+            }}
             onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
             onDismissOverlap={callbacks.onDismissConflict}
             focusedTag={focusedTag}

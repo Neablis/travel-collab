@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { centralDayIndex, READING_LINE } from "@/components/trip/centralDay";
+import {
+  useDayScrollSpy,
+  useFollowFocusedDay,
+  type DaySync,
+} from "@/components/trip/context/FocusProvider";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { MapDay } from "./mapRailData";
@@ -46,48 +52,85 @@ export const MAP_DAY_STRIP_HEIGHT_PX = 84;
  * chip strip pinned to the top of the canvas: the same idiom `DayChips` uses
  * everywhere else, which means one thing to learn rather than two.
  *
- * Two deliberate differences from the rail, both from "have less info":
+ * One deliberate difference from the rail, from "have less info": the per-day
+ * detail the rail carries on every row (stop count, transition, distance) is
+ * not on the chips. It appears once, under the strip, for the focused day only
+ * — which is also where `MapFocusCard`'s content goes, since that card is a
+ * desktop overlay with nowhere to sit on a phone.
  *
- * - Focus is by **tap**, not by scroll position. The rail's gearing exists to
- *   make a deliberate landing possible in a vertical list you are scrubbing;
- *   a chip is a tap target, and scroll-driven focus on a horizontal strip
- *   would fight the sideways scroll needed to reach day 14.
- * - The per-day detail the rail carries on every row (stop count, transition,
- *   distance) is not on the chips. It appears once, under the strip, for the
- *   focused day only — which is also where `MapFocusCard`'s content goes,
- *   since that card is a desktop overlay with nowhere to sit on a phone.
+ * There used to be a second one: focus here was by **tap only**, on the
+ * reasoning that scroll-driven focus on a horizontal strip would fight the
+ * sideways scroll needed to reach day 14. Mitchell overruled that from the
+ * preview, 2026-09-01: *"scrolling here on mobile should change the selected
+ * day"* — and on a phone, where this strip is the only day control on the lens,
+ * scrubbing to a day and choosing it really are one gesture. The strip now
+ * obeys the day-sync contract in `FocusProvider`'s header like every other day
+ * container; the jump lock is what keeps its own scroll-into-view from being
+ * read back as a scrub, which is the fight the old comment was worried about.
  */
 export function MapDayStrip({
   days,
   focusedDay,
   onFocus,
+  sync,
 }: {
   days: MapDay[];
   focusedDay: number | null;
   onFocus: (index: number | null) => void;
+  /**
+   * This strip's half of the day-sync contract (`FocusProvider`'s header).
+   * Passed down from `MapLens` rather than read from context here, so this
+   * component stays renderable on its own — the same shape `DayChips` and
+   * `Board` use.
+   */
+  sync?: DaySync;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Keep the focused chip in view when focus changes from somewhere other than
-  // a tap on this strip — the day chips above the board, or the camera landing
-  // on a day. Without this, focusing day 12 leaves the strip showing days 1-4
-  // and the strip stops agreeing with the map.
+  // Contract clause 1: scrolling the strip selects the day on its reading line,
+  // which on a horizontal row of equal chips is its true centre (`READING_LINE`).
   //
-  // Found by attribute rather than by a ref map: the `Button` primitive does
-  // not forward refs, and reaching for a raw <button> to get one would give up
-  // the shared focus ring and hit-target sizing for a single scroll call.
-  useEffect(() => {
-    if (focusedDay === null) return;
-    const el = trackRef.current?.querySelector(`[data-day-index="${focusedDay}"]`);
-    // Feature-detected: jsdom implements no `scrollIntoView` at all, and this
-    // is a convenience — the strip is already correct without it, the focused
-    // chip is just off-screen. Throwing here would take the whole lens down in
-    // tests for the sake of a scroll position.
-    if (!el || typeof el.scrollIntoView !== "function") return;
-    // `nearest` rather than `center`: scrolling a chip that is already visible
-    // into the middle of the strip is motion the user did not ask for.
-    el.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focusedDay]);
+  // Chips are found by attribute rather than through a ref map: the `Button`
+  // primitive does not forward refs, and reaching for a raw <button> to get one
+  // would give up the shared focus ring and hit-target sizing. DOM order is
+  // `days` order, so the nth span is `days[n]` — and `day.index` is read off it
+  // rather than assumed to equal n, because `MapDay.index` is the trip-day
+  // index and nothing here guarantees the two stay the same list.
+  const onScroll = useDayScrollSpy(sync, () => {
+    const track = trackRef.current;
+    if (track === null) return null;
+    const trackRect = track.getBoundingClientRect();
+    const chips = track.querySelectorAll("[data-day-index]");
+    if (chips.length !== days.length) return null;
+    const spans = Array.from(chips, (chip) => {
+      const rect = chip.getBoundingClientRect();
+      return { start: rect.left, size: rect.width };
+    });
+    const nth = centralDayIndex(
+      { start: trackRect.left, size: trackRect.width },
+      spans,
+      READING_LINE.horizontal,
+    );
+    return nth === null ? null : (days[nth]?.index ?? null);
+  });
+
+  // Contract clauses 2 and 3: keep the focused chip in view when the focus
+  // changed from somewhere other than this strip's own scrolling — the camera
+  // landing on a day, or arriving on this lens with a day already selected.
+  // Without it, focusing day 12 leaves the strip showing days 1-4 and the strip
+  // stops agreeing with the map.
+  //
+  // `inline: "nearest"` overrides the hook's `"center"`: scrolling a chip that
+  // is already visible into the middle of the strip is motion the user did not
+  // ask for, and this strip's chips are small enough that several are on screen
+  // at once.
+  useFollowFocusedDay(
+    sync,
+    focusedDay,
+    days.length,
+    (index) => trackRef.current?.querySelector(`[data-day-index="${index}"]`),
+    { inline: "nearest" },
+  );
 
   const focused = days.find((d) => d.index === focusedDay) ?? null;
   const detail =
@@ -123,6 +166,7 @@ export function MapDayStrip({
         ref={trackRef}
         role="group"
         aria-label="Days"
+        onScroll={onScroll}
         className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pt-1 pb-1"
       >
         {days.map((day) => {

@@ -14,8 +14,14 @@ import { Preview } from "@/components/ui/preview";
 import { EndOfTrip } from "@/components/trip/EndOfTrip";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { chipModel } from "@/components/trip/DayChips";
+import { centralDayIndex, READING_LINE } from "@/components/trip/centralDay";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { useFocus } from "@/components/trip/context/FocusProvider";
+import {
+  useDayScrollSpy,
+  useDaySync,
+  useFocus,
+  useFollowFocusedDay,
+} from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/ghost-proposal-fixtures";
 import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
@@ -403,6 +409,7 @@ export function TimelineLens({
   const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  const sync = useDaySync("timeline");
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   // Every activityId named as a subject of a badge-worthy conflict — the same
@@ -469,10 +476,71 @@ export function TimelineLens({
     setFocusedDay(rows.length);
   };
 
+  // Contract clauses 2 and 3 (`FocusProvider`): scroll the selected day's header
+  // into view whenever the selection did not come from this lens's own
+  // scrolling — which is also what makes "add a day" land on the new day, and
+  // what makes switching back to Timeline arrive at the day you had selected
+  // elsewhere. `rows.length` is the dayCount argument for the append case: the
+  // new day's header ref only attaches on the render that brings the day in.
+  //
+  // `block: "center"` overrides the hook's `"nearest"` default on purpose. This
+  // is the one day container that scrolls the WINDOW rather than a box of its
+  // own, so there is no page-scroll side effect to avoid here — centring the
+  // day header IS the intended page scroll.
+  useFollowFocusedDay(sync, focusedDay, rows.length, (index) => headerRefs.current[index], {
+    block: "center",
+  });
+
+  /**
+   * The day the reader is on, from where the page is scrolled to.
+   *
+   * The timeline scrolls the WINDOW — it is a column of sections in normal
+   * flow, not its own scrollport — so the viewport is the window and the spans
+   * are the day headers' own viewport-relative rects. `centralDayIndex` decides
+   * which one sits on the reading line; this only measures.
+   */
+  const onScroll = useDayScrollSpy(sync, () => {
+    const headers = headerRefs.current;
+    const spans: { start: number; size: number }[] = [];
+    for (let index = 0; index < headers.length; index++) {
+      const rect = headers[index]?.getBoundingClientRect();
+      // A hole means a day whose header has not mounted (or has just been
+      // removed). Bail rather than measure a shorter list, which would map
+      // positions onto the wrong indexes.
+      if (rect === undefined) return null;
+      spans.push({ start: rect.top, size: rect.height });
+    }
+    return centralDayIndex({ start: 0, size: window.innerHeight }, spans, READING_LINE.vertical);
+  });
+
   useEffect(() => {
-    if (focusedDay === null) return;
-    headerRefs.current[focusedDay]?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusedDay, rows.length]);
+    if (typeof window === "undefined") return;
+    const onDocumentScroll = (event: Event) => {
+      // Capture catches every scroll on the page, and on this lens that
+      // includes the day-chips row above — which is a scrollport of its own and
+      // a day container in its own right. Reading its scroll here would be this
+      // lens answering a question about somebody else's box: while the user
+      // drags the chips row, the timeline would keep re-reporting the window's
+      // position and steal the selection's SOURCE from the chips, which then
+      // makes the chips row follow — i.e. it would scroll itself out from under
+      // the thumb. The design guards the same way, by name
+      // (`dc.html:3659`: `if (t && t.id === 'maprail') return;`).
+      //
+      // Asked as containment rather than by identity so it stays true for any
+      // ancestor scrollport this page grows later: a scroller that actually
+      // moves these day headers contains them; one that does not, does not.
+      // The document itself is the window scroll, which is this lens's own.
+      const target = event.target;
+      const anchor = headerRefs.current.find((header): header is HTMLDivElement => header !== null);
+      const isOurs =
+        target === document || (anchor !== undefined && target instanceof Node && target.contains(anchor));
+      if (isOurs) onScroll();
+    };
+    // Capture, because the scroll may come from the window OR from an ancestor
+    // scrollport — scroll events do not bubble, but they do capture.
+    document.addEventListener("scroll", onDocumentScroll, true);
+    return () => document.removeEventListener("scroll", onDocumentScroll, true);
+  }, [onScroll]);
 
   if (rows.length === 0) {
     return <EmptyState title="No days yet." />;

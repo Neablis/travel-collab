@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import {
   SavedDayVisibility,
   SavedStop,
@@ -208,15 +208,29 @@ export function newSavedDayRow(input: {
     // Moves with `visibility` and only with it (see `setSavedDayVisibility`):
     // a row that is public has a publish time, a row that is private has none.
     publishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
+    // Never deleted. Only `deleteSavedDay` ever moves this, and nothing moves
+    // it back yet — the restore path the column exists for is a future button,
+    // not a code path (see the schema note).
+    deletedAt: null,
     sourceTripId: input.sourceTripId,
     sourceTripName: input.sourceTripName,
     createdAt: input.createdAt,
   };
 }
 
-/** Newest first — what you just saved is what you are most likely to reach for. */
+/**
+ * Newest first — what you just saved is what you are most likely to reach for.
+ *
+ * `deleted_at is null`, like every other read of this table: a soft-deleted day
+ * is gone from its owner's own library too. "It just removes it here" is the
+ * whole of what the button promises, and a day that reappeared in the one list
+ * its owner deletes from would make the promise false.
+ */
 export async function listSavedDays(ownerId: string): Promise<SavedDay[]> {
-  const rows = await db.select().from(savedDays).where(eq(savedDays.ownerId, ownerId));
+  const rows = await db
+    .select()
+    .from(savedDays)
+    .where(and(eq(savedDays.ownerId, ownerId), isNull(savedDays.deletedAt)));
   return rows
     .map(fromRow)
     // A row this server can no longer read is left out rather than allowed to
@@ -225,12 +239,24 @@ export async function listSavedDays(ownerId: string): Promise<SavedDay[]> {
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 }
 
-/** Owner-scoped: your own day, whatever its visibility. Nobody else's, ever. */
+/**
+ * Owner-scoped: your own day, whatever its visibility. Nobody else's, ever.
+ *
+ * And not a deleted one — the `deleted_at is null` clause is in the WHERE for
+ * the same reason the owner clause is, so a deleted day is "no row" rather than
+ * a row a caller has to remember to check.
+ */
 export async function getSavedDay(savedDayId: string, ownerId: string): Promise<SavedDay | null> {
   const rows = await db
     .select()
     .from(savedDays)
-    .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId)));
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        eq(savedDays.ownerId, ownerId),
+        isNull(savedDays.deletedAt),
+      ),
+    );
   return rows[0] === undefined ? null : fromRow(rows[0]);
 }
 
@@ -257,6 +283,11 @@ export async function readableSavedDay(
     .where(
       and(
         eq(savedDays.id, savedDayId),
+        // A deleted day is not readable by ANYONE, its author included, and it
+        // is refused the same way a private one is: by producing no row, so the
+        // route's 404 cannot tell the two apart. `saved-day-access.ts` records
+        // why that indistinguishability is load-bearing.
+        isNull(savedDays.deletedAt),
         or(
           eq(savedDays.ownerId, readerId),
           eq(savedDays.visibility, SavedDayVisibility.enum.public),
@@ -300,7 +331,18 @@ export async function setSavedDayVisibility(
           ? sql`coalesce(${savedDays.publishedAt}, ${at})`
           : null,
     })
-    .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId)))
+    // `deleted_at is null` as well as owner-scoped: a deleted day cannot be
+    // published back into Discover. Without this an author could delete a day
+    // and then publish it — the row is still there and the publish route only
+    // ever knew "is it yours" — putting a day nobody can open onto the front of
+    // the library.
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        eq(savedDays.ownerId, ownerId),
+        isNull(savedDays.deletedAt),
+      ),
+    )
     .returning();
   if (updated[0] === undefined) return null;
   const day = fromRow(updated[0]);
@@ -320,12 +362,82 @@ export async function setSavedDayVisibility(
   return day;
 }
 
-export async function deleteSavedDay(savedDayId: string, ownerId: string): Promise<boolean> {
+/**
+ * What `deleteSavedDay` answered with. Three outcomes, because two of them are
+ * different refusals and the route owes them different words.
+ *
+ *   * `deleted` — the row is soft-deleted and gone from every read;
+ *   * `published` — the day is public, so it must be unpublished first;
+ *   * `not-found` — there is no such day of yours, and this is deliberately
+ *     also the answer for somebody else's day and for one already deleted.
+ */
+export type SavedDayDeletion = "deleted" | "published" | "not-found";
+
+/**
+ * Delete one of your own days — a SOFT delete (Mitchell, 2026-09-01: *"for now
+ * we can even just add a new db column deletedAt and set the deleted at date,
+ * and set a filter to not return deletedAt activities so we have a way to
+ * restore in the future"*).
+ *
+ * **What this does not touch, and must never touch.** The adds ledger
+ * (`saved_day_adds`) is a record of what happened, not a grant, so no row is
+ * removed from it — the same reasoning `scopePredicate` already records for the
+ * `saved` scope. And a day somebody has already taken stays in their trip:
+ * `insertCommands` mints fresh ids and appends real events into THAT trip's
+ * stream, so the copy is a value with nothing pointing back here (ADR-029).
+ * *"It doesn't remove it from anyone, it just removes it here."*
+ *
+ * **Published days are refused rather than silently unpublished.** Deleting a
+ * day that is out in the library is two decisions — withdraw it, then remove
+ * it — and doing both off one button would take a day out of everyone's
+ * Discover results as a side effect of an action whose stated scope is "just
+ * removes it here". The author unpublishes first, deliberately, and the refusal
+ * says so.
+ *
+ * **Owner-scoped in the WHERE clause**, the construction every other write on
+ * this table uses: somebody else's day is "no row", so a refusal never confirms
+ * that an id names something. The published check is expressed as a predicate
+ * on the same UPDATE rather than as a read-then-write, so a publish landing
+ * between the two cannot slip a public day past it.
+ *
+ * Idempotent by omission: deleting an already-deleted day matches nothing and
+ * answers `not-found`, which is what every read of it already says.
+ */
+export async function deleteSavedDay(
+  savedDayId: string,
+  ownerId: string,
+  now: string = new Date().toISOString(),
+): Promise<SavedDayDeletion> {
   const deleted = await db
-    .delete(savedDays)
-    .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId)))
-    .returning();
-  return deleted.length > 0;
+    .update(savedDays)
+    .set({ deletedAt: new Date(now) })
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        eq(savedDays.ownerId, ownerId),
+        isNull(savedDays.deletedAt),
+        eq(savedDays.visibility, SavedDayVisibility.enum.private),
+      ),
+    )
+    .returning({ id: savedDays.id });
+  if (deleted.length > 0) return "deleted";
+
+  // Nothing moved. Two reasons are possible and the caller needs to tell them
+  // apart, so the row is re-read under the SAME owner scope — a day that is not
+  // yours still comes back as no row here, so this second query cannot turn a
+  // non-disclosure into a disclosure. Only a day that is genuinely yours, still
+  // present, and public can produce "published".
+  const rows = await db
+    .select({ visibility: savedDays.visibility })
+    .from(savedDays)
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        eq(savedDays.ownerId, ownerId),
+        isNull(savedDays.deletedAt),
+      ),
+    );
+  return rows[0]?.visibility === SavedDayVisibility.enum.public ? "published" : "not-found";
 }
 
 /**

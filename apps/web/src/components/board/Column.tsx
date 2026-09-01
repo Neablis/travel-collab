@@ -54,6 +54,7 @@ export function Column({
   onRemoveDay,
   isFocused = false,
   onSelect,
+  columnRef,
   onAddActivity,
   onDismissOverlap,
   focusedTag = null,
@@ -81,6 +82,13 @@ export function Column({
   /** Selects this day, exactly as clicking its chip above does. */
   /** Receives `true` when the click should CLEAR the focus (see the header). */
   onSelect?: (clearing: boolean) => void;
+  /**
+   * The column's own element, handed up so `Board` can measure where it sits
+   * along the row (its scroll spy) and scroll it into view on an arrow key.
+   * A callback ref rather than a `RefObject`, because the caller keeps one
+   * entry per day rather than one ref.
+   */
+  columnRef?: (node: HTMLElement | null) => void;
   onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
   /** SPEC §11's focused tag, passed to every card so off-tag stops dim. */
@@ -117,6 +125,7 @@ export function Column({
 
   return (
     <section
+      ref={columnRef}
       data-testid="day-column"
       className={cn(
         "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",

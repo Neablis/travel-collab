@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { submitOnEnter } from "@/lib/submitOnEnter";
 
 type Status = "loading" | "ready" | "error";
 
@@ -130,10 +131,26 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             <Card as="li" key={page.id} className="flex items-center justify-between gap-3">
               {renamingId === page.id ? (
                 <div className="flex flex-1 items-center gap-2">
+                  {/* Enter saves the rename, Escape abandons it — the two
+                      keys an inline rename is expected to answer to, and
+                      neither did (Mitchell, 2026-09-01). Escape is handled
+                      here rather than through `submitOnEnter` because it is a
+                      cancel, not a submit, and because stopping propagation
+                      matters: this row can sit inside an overlay whose own
+                      Escape would close the whole surface out from under a
+                      half-typed name. */}
                   <Input
                     aria-label={`Rename ${page.title}`}
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.stopPropagation();
+                        setRenamingId(null);
+                        return;
+                      }
+                      submitOnEnter(() => saveRename(page.id))(event);
+                    }}
                     autoFocus
                   />
                   <Button size="sm" onClick={() => saveRename(page.id)}>

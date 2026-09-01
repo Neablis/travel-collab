@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { useFocus } from "@/components/trip/context/FocusProvider";
+import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
 import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
@@ -87,6 +87,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // returns below — the day chips (Task 8) below the tab strip both read and
   // set it.
   const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
+  // The two day containers this screen owns, per the day-sync contract in
+  // `FocusProvider`'s header. Taken here rather than inside `DayChips` and
+  // `Board` because both of those are props-only by design — their own tests
+  // render them with no provider — and because this screen is already where
+  // every other piece of their focus wiring lives.
+  const chipsSync = useDaySync("chips");
+  const columnsSync = useDaySync("columns");
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
@@ -775,7 +782,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}
-            {lens !== "Map" && <DayChips days={chipModel(activeTrip)} focusedDay={focusedDay} onSelect={setFocusedDay} />}
+            {lens !== "Map" && (
+              <DayChips
+                days={chipModel(activeTrip)}
+                focusedDay={focusedDay}
+                onSelect={setFocusedDay}
+                sync={chipsSync}
+              />
+            )}
           </TripHeader>
           {error !== null && (
             <PageContainer width="full">
@@ -824,6 +838,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // behaviour. Nothing here reaches `dispatch`.
                     focusedTag={focusedTag}
                     onToggleTag={toggleFocusedTag}
+                    // Scrolling the columns moves the header's selected day
+                    // too (Mitchell, 2026-09-01), but as a reading position
+                    // rather than a pick — and a day picked anywhere else
+                    // scrolls its column into view here. See the day-sync
+                    // contract in `FocusProvider`.
+                    sync={columnsSync}
                     callbacks={{
                       onSelectDay: setFocusedDay,
                       onMove: moveActivity,

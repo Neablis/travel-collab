@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JAPAN_SAVED_DAYS } from "@tc/fixtures";
+import { JAPAN_SAVED_DAYS, STARTER_SAVED_DAYS } from "@tc/fixtures";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
 
@@ -14,14 +14,28 @@ const EXPECTED_CITIES: Record<string, string[]> = {
   "Nakameguro, unhurried": ["Tokyo"],
   "Kyoto, then an evening in Osaka": ["Kyoto", "Osaka"],
   "Naoshima in one day": ["Naoshima"],
+  // The starter library (2026-09-01), read off its stops the same way. The
+  // interesting ones are "Sintra without the queue", which starts in Lisbon and
+  // spends itself in Sintra, and "Porto: bridge, cellar, sunset", which crosses
+  // the river into a different municipality mid-day.
+  "Lisbon: Alfama downhill, all day": ["Lisbon"],
+  "Sintra without the queue": ["Lisbon", "Sintra"],
+  "Mexico City: Coyoacán, slowly": ["Mexico City"],
+  "Glen Coe on foot, then a fire": ["Glencoe"],
+  "New York: uptown museums in the cold": ["New York"],
+  "Porto: bridge, cellar, sunset": ["Porto", "Vila Nova de Gaia"],
 };
 
 // The demo library's seeder — what `pnpm --filter web db:seed` calls so the
 // demo DATABASE carries the same saved days the demo FIXTURE declares.
 //
-// This is the one file here that legitimately touches fixed ids: the fixture
-// names them, and re-seeding over them is the idempotency the route provides.
-// Every assertion is scoped to exactly those five rows.
+// This is the one file here that legitimately touches fixed ids: the fixtures
+// name them, and re-seeding over them is the idempotency the route provides.
+// Every assertion is scoped to exactly those rows.
+//
+// Both fixtures, because the route seeds both: the gate's five Japan days and
+// the starter library's six. `SEEDED` is the concatenation the route itself
+// builds, so a day added to either file is covered here without a second loop.
 
 let currentUserId: string | null = `seed-caller-${randomUUID()}`;
 
@@ -32,8 +46,9 @@ vi.mock("@/server/auth", () => ({
 const { POST } = await import("./route");
 
 const ORIGINAL_ENV = { ...process.env };
-const IDS = JAPAN_SAVED_DAYS.map((day) => day.savedDayId);
-const EXPECTED_ADDS = JAPAN_SAVED_DAYS.reduce((n, day) => n + day.addedBy.length, 0);
+const SEEDED = [...JAPAN_SAVED_DAYS, ...STARTER_SAVED_DAYS];
+const IDS = SEEDED.map((day) => day.savedDayId);
+const EXPECTED_ADDS = SEEDED.reduce((n, day) => n + day.addedBy.length, 0);
 
 function openGate() {
   process.env.AUTH_DEV_LOGIN = "true";
@@ -76,7 +91,7 @@ describe("POST /api/dev/saved-days", () => {
     const rows = await db.select().from(savedDays).where(inArray(savedDays.id, IDS));
     expect(rows).toHaveLength(IDS.length);
 
-    for (const fixture of JAPAN_SAVED_DAYS) {
+    for (const fixture of SEEDED) {
       const row = rows.find((r) => r.id === fixture.savedDayId);
       expect(row, `no row for ${fixture.name}`).toBeDefined();
       expect(row!.ownerId).toBe(fixture.ownerId);
@@ -97,11 +112,57 @@ describe("POST /api/dev/saved-days", () => {
     }
   });
 
+  // The starter days author WHEN they were kept, and the route must write that
+  // rather than "now". Discover's season filter buckets from this exact column
+  // (`Season`, apps/web/src/lib/playbooks.ts), so a route that stamped every row
+  // with the seed time would put all eleven days in one season and leave three
+  // quarters of that control returning nothing — with the seed still looking
+  // correct in every other respect.
+  it("writes each starter day's authored kept-on date, not the seed time", async () => {
+    openGate();
+    expect((await POST()).status).toBe(200);
+
+    const rows = await db
+      .select()
+      .from(savedDays)
+      .where(inArray(savedDays.id, STARTER_SAVED_DAYS.map((d) => d.savedDayId)));
+
+    for (const fixture of STARTER_SAVED_DAYS) {
+      const row = rows.find((r) => r.id === fixture.savedDayId);
+      expect(row, `no row for ${fixture.name}`).toBeDefined();
+      expect(fixture.keptOn, `${fixture.name} has no keptOn`).toBeDefined();
+      expect(row!.createdAt.toISOString()).toBe(new Date(fixture.keptOn!).toISOString());
+    }
+
+    // And the point of authoring them: all four seasons are occupied, so every
+    // option of the filter has something behind it in a fresh database.
+    const months = new Set(STARTER_SAVED_DAYS.map((d) => new Date(d.keptOn!).getUTCMonth() + 1));
+    const seasons = new Set(
+      [...months].map((m) => (m <= 2 || m === 12 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "fall")),
+    );
+    expect(seasons).toEqual(new Set(["spring", "summer", "fall", "winter"]));
+  });
+
+  // "Kept out of …" is the line every shared day leads with. Eleven days all
+  // naming the same source trip is a library that reads as one trip cut up.
+  it("gives the starter days source trips of their own", async () => {
+    openGate();
+    expect((await POST()).status).toBe(200);
+
+    const rows = await db
+      .select()
+      .from(savedDays)
+      .where(inArray(savedDays.id, STARTER_SAVED_DAYS.map((d) => d.savedDayId)));
+    const sources = new Set(rows.map((r) => r.sourceTripName));
+    expect(sources.size).toBeGreaterThan(1);
+    expect([...sources]).not.toContain("Japan: Tokyo → Kyoto → Osaka");
+  });
+
   it("writes the ledger, and the counter agrees with it row for row", async () => {
     openGate();
     expect((await POST()).status).toBe(200);
 
-    for (const fixture of JAPAN_SAVED_DAYS) {
+    for (const fixture of SEEDED) {
       const ledger = await db
         .select()
         .from(savedDayAdds)
@@ -133,7 +194,7 @@ describe("POST /api/dev/saved-days", () => {
     expect(
       await db.select().from(savedDayAdds).where(inArray(savedDayAdds.savedDayId, IDS)),
     ).toHaveLength(EXPECTED_ADDS);
-    for (const fixture of JAPAN_SAVED_DAYS) {
+    for (const fixture of SEEDED) {
       const row = await db
         .select({ adds: savedDays.adds })
         .from(savedDays)

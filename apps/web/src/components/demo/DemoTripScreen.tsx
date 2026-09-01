@@ -13,7 +13,8 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
-import { DEMO_CLONE_PARAM, DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { rememberDemoClone, takeDemoClone } from "@/lib/pendingDemoClone";
 import { cn } from "@/lib/cn";
 
 // `/demo` — the real board, read-only, for someone who has no account yet
@@ -103,14 +104,19 @@ function DemoBanner() {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * `signInOn401` is false for the automatic run below, and that asymmetry is
-   * the point: a click by someone signed out should take them to sign in,
-   * while a 401 on the way BACK from signing in means something is wrong with
-   * the session, and bouncing them to sign in again is the start of a loop.
-   * There, the honest outcome is the button and a message.
+   * `pressed` tells a click apart from the automatic run below, and the two
+   * differ only in what a 401 means.
+   *
+   * A click by somebody signed out is a request to sign in: bank the intent and
+   * send them. The automatic run cannot know why it is signed out — it fires
+   * whenever a live marker is found, which includes somebody who pressed the
+   * button, thought better of it and hit Back — so it puts the marker back and
+   * says nothing, leaving the button exactly as it found it. Bouncing them to
+   * sign in a second time would be the start of a loop; an error message would
+   * be shouting about something they did not just ask for.
    */
   const makeItMine = useCallback(
-    async ({ signInOn401 }: { signInOn401: boolean }) => {
+    async ({ pressed }: { pressed: boolean }) => {
       setCopying(true);
       setError(null);
       // The ordinary duplicate endpoint. Signed out it answers 401, which is the
@@ -121,8 +127,22 @@ function DemoBanner() {
         router.push(`/trips/${result.value.tripId}`);
         return;
       }
-      if (result.error.status === 401 && signInOn401) {
-        router.push(`/signin?callbackUrl=${encodeURIComponent(`${DEMO_PATH}?${DEMO_CLONE_PARAM}=1`)}`);
+      if (result.error.status === 401) {
+        // The marker is the ONLY carrier of this intent (see
+        // `lib/pendingDemoClone.ts`). It used to travel alongside a
+        // `?clone=1` on the callbackUrl, and that param is gone: a URL is
+        // forgeable and shareable, so a link could make a signed-in stranger
+        // take a copy they never asked for. Low harm — `duplicateTrip` goes
+        // through the ordinary access seam, so it could only ever have cloned
+        // the public demo — but it was a whole class of thing that did not
+        // need to exist, and it was redundant with the marker anyway
+        // (Mitchell, 2026-09-01). `localStorage` is same-origin, so nobody
+        // else's page can set it.
+        rememberDemoClone();
+        setCopying(false);
+        if (pressed) {
+          router.push(`/signin?callbackUrl=${encodeURIComponent(DEMO_PATH)}`);
+        }
         return;
       }
       // Released only on the paths that STAY on this page: `router.push` does not
@@ -130,11 +150,7 @@ function DemoBanner() {
       // button while this page is still on screen, and a second click there is a
       // second trip in their list rather than a no-op (CodeRabbit, PR #71).
       setCopying(false);
-      setError(
-        result.error.status === 401
-          ? "Sign in first, then take a copy — this one is not yours to change."
-          : result.error.message,
-      );
+      setError(result.error.message);
     },
     [router],
   );
@@ -143,28 +159,28 @@ function DemoBanner() {
   //
   // Without this, the 401 round trip cost the visitor their click: they pressed
   // "Make this trip mine", signed in, landed back on the demo, and had to press
-  // it again — with nothing on the page saying so (Mitchell, 2026-08-28). The
-  // sign-in detour carries the intent in its `callbackUrl` and this finishes it.
+  // it again — with nothing on the page saying so (Mitchell, 2026-08-28).
   //
-  // Read from `window.location` in an effect rather than `useSearchParams()`:
-  // this page is prerendered, and a `useSearchParams()` call here would pull
-  // the banner — the CTA included — behind the board's Suspense boundary and
-  // out of the first paint, which is the one thing the boundary was placed to
-  // avoid. The auto-clone is a post-hydration action either way.
+  // The marker decides, not the URL. This used to require `?clone=1` on the
+  // way back, which meant the page could only finish a copy for somebody the
+  // callbackUrl had survived for — and made the intent something a shared link
+  // could assert. `takeDemoClone` is read-and-clear, so this and the trip list
+  // (`(app)/page.tsx`, where anyone who SIGNED UP actually lands) race for one
+  // marker and exactly one of them wins.
+  //
+  // No `useSearchParams()` here even now that there is no param to read: this
+  // page is prerendered, and that hook would pull the banner — the CTA included
+  // — behind the board's Suspense boundary and out of the first paint, which is
+  // the one thing the boundary was placed to avoid.
   const autoCloned = useRef(false);
   useEffect(() => {
     if (autoCloned.current) return;
-    if (new URLSearchParams(window.location.search).get(DEMO_CLONE_PARAM) !== "1") return;
     // Once per mount, before the await: StrictMode runs effects twice in dev,
-    // and a second pass here is a second trip in somebody's list.
+    // and a second pass here is a second trip in somebody's list. The
+    // read-and-clear makes that true on its own; this is the cheaper guard.
     autoCloned.current = true;
-    // Dropped from the URL first, so a reload after a failure is an ordinary
-    // `/demo` rather than another attempt. `history.replaceState`, not
-    // `router.replace`: this is a URL tidy-up, not a navigation, and a router
-    // navigation queued here would race the `router.push` that `makeItMine` is
-    // about to make on success.
-    window.history.replaceState(null, "", DEMO_PATH);
-    void makeItMine({ signInOn401: false });
+    if (!takeDemoClone()) return;
+    void makeItMine({ pressed: false });
   }, [makeItMine]);
 
   return (
@@ -185,7 +201,7 @@ function DemoBanner() {
               {error}
             </Text>
           )}
-          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ signInOn401: true })}>
+          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ pressed: true })}>
             {copying ? "Making it yours…" : "Make this trip mine"}
           </Button>
         </div>

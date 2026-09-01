@@ -10,6 +10,7 @@ const publishMock = vi.fn();
 const unpublishMock = vi.fn();
 const fetchTripsMock = vi.fn();
 const insertSavedDayMock = vi.fn();
+const deleteSavedDayMock = vi.fn();
 const pushMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/apiClient", () => ({
   unpublishSavedDay: (...a: unknown[]) => unpublishMock(...a),
   fetchTrips: (...a: unknown[]) => fetchTripsMock(...a),
   insertSavedDay: (...a: unknown[]) => insertSavedDayMock(...a),
+  deleteSavedDay: (...a: unknown[]) => deleteSavedDayMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 
@@ -76,6 +78,7 @@ beforeEach(() => {
     ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }]),
   );
   insertSavedDayMock.mockReset().mockResolvedValue(ok({ detail: {}, history: {} }));
+  deleteSavedDayMock.mockReset().mockResolvedValue(ok({ ok: true }));
   pushMock.mockReset();
 });
 
@@ -99,8 +102,53 @@ describe("a shared day", () => {
     const rail = await screen.findByTestId("day-facts");
     expect(within(rail).getByText("2")).toBeTruthy();
     expect(within(rail).getByText("$23.00")).toBeTruthy();
+    expect(within(rail).getByText("Budget")).toBeTruthy();
+    expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
-    expect(within(rail).getByText("August 2026")).toBeTruthy();
+    // Season, and the month it was bucketed from — "Kept in August 2026" became
+    // "Season: Summer · August 2026" (Mitchell, 2026-09-01). Both halves,
+    // because Discover filters on the first and the second is the fact behind
+    // it: a rail showing only the bucket makes the filter unexplainable.
+    expect(within(rail).getByText("Summer · August 2026")).toBeTruthy();
+    expect(within(rail).queryByText("Kept in")).toBeNull();
+    // Length, from the window the rail already shows: 07:30 to 11:30 is four
+    // hours, and exactly four hours is Medium rather than Short — the boundary
+    // `dayLength` documents, asserted here so the rail cannot start rounding
+    // it the other way (Mitchell, 2026-09-01).
+    expect(within(rail).getByText("Length")).toBeTruthy();
+    expect(within(rail).getByText("Medium")).toBeTruthy();
+  });
+
+  // A day with no times has no window and therefore no length. The Window row
+  // still explains itself; the Length row is simply not there, rather than
+  // claiming a day that says nothing about when it runs is "Short".
+  it("shows no Length at all for a day with no times", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({
+        savedDay: savedDay({ stops: [stop({ timeWindow: null }), stop({ timeWindow: null })] }),
+        isAuthor: false,
+      }),
+    );
+    renderDay();
+    const rail = await screen.findByTestId("day-facts");
+    expect(within(rail).getByText("No times set")).toBeTruthy();
+    expect(within(rail).queryByText("Length")).toBeNull();
+  });
+
+  it("tags a day over twelve hours as Long", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({
+        savedDay: savedDay({
+          stops: [
+            stop({ timeWindow: { start: "08:20", end: "09:30" } }),
+            stop({ timeWindow: { start: "19:00", end: "20:30" } }),
+          ],
+        }),
+        isAuthor: false,
+      }),
+    );
+    renderDay();
+    expect(within(await screen.findByTestId("day-facts")).getByText("Long")).toBeTruthy();
   });
 
   // M12's, and their absence is the milestone's decision rather than an
@@ -117,10 +165,25 @@ describe("a shared day", () => {
     renderDay();
     const strip = await screen.findByTestId("author-strip");
     expect(within(strip).getByText("2 days shared · added to 3 trips")).toBeTruthy();
-    expect(within(strip).getByRole("link", { name: "dev-alice" }).getAttribute("href")).toContain(
+    // A readable handle, never the raw identifier — the link still CARRIES the
+    // id, which is the distinction: `displayNameFor` decides what the link
+    // says, not where it goes.
+    expect(within(strip).getByRole("link", { name: "Alice" }).getAttribute("href")).toContain(
       "/playbooks/profile/dev-alice",
     );
+    expect(within(strip).queryByText("dev-alice")).toBeNull();
     expect(fetchPublicProfileMock).toHaveBeenCalledWith("dev-alice");
+  });
+
+  // The report that started it: on your OWN day, the strip beside the Publish
+  // button was your own account id. "You" is both shorter and the only thing
+  // that reader needs (Mitchell, 2026-09-01).
+  it("says You beside the Publish button on your own day", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true }));
+    renderDay();
+    const strip = await screen.findByTestId("author-strip");
+    expect(within(strip).getByRole("link", { name: "You" })).toBeTruthy();
+    expect(within(strip).getByRole("button", { name: "Unpublish" })).toBeTruthy();
   });
 
   it("offers Unpublish only to the author", async () => {
@@ -222,5 +285,75 @@ describe("a shared day", () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ stops: [] }), isAuthor: false }));
     renderDay();
     expect(await screen.findByText("This day has nothing on it")).toBeTruthy();
+  });
+});
+
+// Deleting your own day (Mitchell, 2026-09-01). The server decides all three
+// rules — owner, unpublished, soft — and these assert only what the rail
+// offers and what it does with the answer.
+describe("deleting your own day", () => {
+  const authorsPrivateDay = () =>
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay({ visibility: "private" }), isAuthor: true }),
+    );
+
+  it("is not offered on somebody else's day", async () => {
+    renderDay();
+    await screen.findByTestId("day-facts");
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
+  // Greyed with the reason attached, not withheld — the departure from
+  // ADR-031's "hidden, not greyed" that the component's own comment argues:
+  // this control IS the author's to use, and the only thing in the way is the
+  // Unpublish button in the same viewport.
+  it("is disabled with a reason while the day is published", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true }));
+    renderDay();
+    const button = await screen.findByRole("button", { name: "Delete this day" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.getAttribute("title")).toBe("Unpublish it first");
+    expect(screen.getByText(/Unpublish it first/)).toBeTruthy();
+    expect(deleteSavedDayMock).not.toHaveBeenCalled();
+  });
+
+  it("confirms first, then deletes and returns to Discover", async () => {
+    authorsPrivateDay();
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Delete this day" }));
+    // The confirmation is a Dialog with a destructive button — SettingsSheet's
+    // delete-trip idiom, not a second confirmation shape.
+    expect(await screen.findByText(/Anyone who already added it to a trip keeps their copy/)).toBeTruthy();
+    expect(deleteSavedDayMock).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteSavedDayMock).toHaveBeenCalledWith(DAY_ID));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/playbooks"));
+  });
+
+  it("does nothing on Cancel", async () => {
+    authorsPrivateDay();
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Delete this day" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(deleteSavedDayMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  // The race the 409 exists for: published between the page load and the
+  // click. Reported in the rail rather than inside the dialog, because the
+  // dialog was covering the Unpublish button that is the answer.
+  it("reports a refusal in place and stays on the page", async () => {
+    authorsPrivateDay();
+    deleteSavedDayMock.mockResolvedValue({
+      ok: false,
+      error: { status: 409, message: "Unpublish this day before deleting it.", code: "published" },
+    });
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Delete this day" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const banner = await screen.findByTestId("delete-failed");
+    expect(banner.textContent).toContain("Unpublish it first");
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });

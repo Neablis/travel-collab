@@ -124,6 +124,17 @@ async function keepDay(page: Page, tripId: string, dayId: string, name: string):
  * until some other limit is reached is still a spec quietly loading a spring.
  */
 async function forgetDay(page: Page, savedDayId: string): Promise<void> {
+  // Unpublish FIRST, because deleting a published day is refused with a 409
+  // ("Unpublish this day before deleting it") as of 2026-09-01 — Mitchell's
+  // own rule for the delete button: *"It should require it to be unpublished
+  // first"*. This helper is test cleanup, so it walks the same two steps a
+  // person does rather than reaching around the rule; a delete that bypassed
+  // it would leave the suite unable to notice if the rule stopped holding.
+  //
+  // Unconditional, and the response is not asserted: most callers never
+  // published, and unpublishing an already-private day is a no-op. What must
+  // hold is the delete below.
+  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
 }
@@ -217,11 +228,16 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await expect(
     bob.getByText(/An add only counts once per trip, and only after the trip has dates/),
   ).toBeVisible();
-  await expect(bob.getByTestId("board-row").filter({ hasText: "dev-alice" })).toBeVisible();
+  // "Alice", not "dev-alice": since 2026-09-01 `displayNameFor` never hands a
+  // raw identifier to a reader, and a dev-login id carries the username inside
+  // it. The id is still what the ROW links to, which is the distinction — see
+  // the profile URL two lines below, which is unchanged.
+  await expect(bob.getByTestId("board-row").filter({ hasText: "Alice" })).toBeVisible();
+  await expect(bob.getByText("dev-alice")).toHaveCount(0);
 
   // ── A profile, derived — and it agrees with Discover ──────────────────────
   await bob.goto("/playbooks/profile/dev-alice?from=board");
-  await expect(bob.getByRole("heading", { name: "dev-alice", level: 1 })).toBeVisible();
+  await expect(bob.getByRole("heading", { name: "Alice", level: 1 })).toBeVisible();
   await expect(bob.getByTestId("profile-days").getByText(dayName)).toBeVisible();
   // Contextual back link: entered from the board, returns to the board.
   await expect(bob.getByRole("link", { name: "← Who shares the most" })).toBeVisible();
@@ -306,7 +322,16 @@ test("city search shows all four states against the real endpoint", async ({ pag
 
   // The static `<option>` city list is gone and must not come back — the
   // handoff says so twice and the gate restates it.
-  await expect(page.getByLabel("City")).toHaveCount(0);
+  //
+  // `exact: true`, and that is a real fix rather than tightening for its own
+  // sake. `getByLabel` matches by SUBSTRING by default, so this asserted "no
+  // accessible name anywhere on the page contains the word city" — which the
+  // page has no obligation to satisfy and which stopped holding the moment
+  // `Everyone` became a superset including your own private days (2026-09-01):
+  // an earlier spec's factory-built day sits in a city literally named
+  // "City 1", so its sibling chip "Add City 1" failed this line. The thing the
+  // gate cares about is a control LABELLED City, and that is what this now says.
+  await expect(page.getByLabel("City", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("option", { name: "All cities" })).toHaveCount(0);
 
   await forgetDay(page, savedDayId);

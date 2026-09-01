@@ -6,7 +6,7 @@ import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
-import { useFocus } from "../trip/context/FocusProvider";
+import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
@@ -66,6 +66,16 @@ export function MapLens({
 }) {
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  // The phone strip's half of the day-sync contract (`FocusProvider`'s header).
+  // Taken unconditionally rather than inside the `isPhone` branch — hooks are
+  // not conditional — which costs nothing on desktop, where the strip is not
+  // mounted and so nothing ever scrolls or is scrolled.
+  //
+  // There is deliberately no handle for `MapRail`: the desktop rail already
+  // drives focus from its own geared scroll machinery, it is the only day
+  // container on its lens (the chips row is hidden in Map view), and a second
+  // spy over the same box would be two mechanisms fighting. See `DayContainer`.
+  const stripSync = useDaySync("map-strip");
   const isPhone = useIsPhone();
   const containerRef = useRef<HTMLDivElement>(null);
   // Distance from the top of the viewport to the top of the map canvas —
@@ -134,6 +144,33 @@ export function MapLens({
     )
     .join("|");
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
+
+  /**
+   * Arriving at the map with nothing selected picks the first day.
+   *
+   * Mitchell, 2026-09-01: *"When navigating to map view, always use the current
+   * select day, but if no day is selected, default to first day. Dont go to
+   * zoomed out full trip view."* The zoomed-out view was the mount camera below
+   * — a static `center` on the first located pin at zoom 9, which is what you
+   * got whenever `focusedDay` was null, because the camera effect has nothing
+   * to fit and holds the viewport.
+   *
+   * Fixed by giving it a day rather than by teaching the camera a second mode:
+   * one selection drives the camera, the rail, the day strip and the route
+   * opacity, so a "day the map is on" that the rail did not agree with would be
+   * a second kind of selected day. Explicit, not scrolled — it is the answer to
+   * "which day am I looking at", and switching back to the timeline should land
+   * on that day rather than wherever the page happened to be.
+   *
+   * Runs once per mount and only into an empty selection, so it never overrides
+   * a day somebody picked, and never fights the rail after the first paint.
+   */
+  const defaultedDay = useRef(false);
+  useEffect(() => {
+    if (defaultedDay.current || focusedDay !== null || days.length === 0) return;
+    defaultedDay.current = true;
+    setFocusedDay(0);
+  }, [focusedDay, days.length, setFocusedDay]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -465,7 +502,7 @@ export function MapLens({
               by CSS because the rail runs real scroll machinery — see
               useIsPhone for why. */}
           {isPhone ? (
-            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} sync={stripSync} />
           ) : (
             <>
               <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />

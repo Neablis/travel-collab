@@ -36,8 +36,8 @@
 // fixture would be lying about the shape if it carried the two independently.
 //
 // --- Why some stops carry a cost ---
-// M11b's shared-day rail states "budget each" and Discover filters on it, both
-// derived by `savedDayFacts` from the priced stops. A fixture where every stop
+// M11b's shared-day rail states the day's total cost and Discover filters on
+// it, both derived by `savedDayFacts` from the priced stops. A fixture where every stop
 // is unpriced would make that fact "—" in every demo and every screenshot, and
 // the budget filter a control with nothing to act on — which is M18's tag-chip
 // failure, the one AGENTS.md's Definition of Done names by name. So the three
@@ -130,7 +130,7 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       { tripId: "bb000000-0000-4000-8000-000000000002", addedBy: "dev-carol" },
     ],
     stops: [
-      // Under the Discover filter's lower band edge ($50 each) once summed —
+      // Under the Discover filter's lower band edge ($50 for the day) once summed —
       // the cheap end of the three ranges has to have an occupant in the demo
       // or the band is a control nobody can see work.
       stop("Fushimi Inari at opening", "07:30", "09:30", { name: "Fushimi Inari Taisha", city: "Kyoto" }, {
@@ -168,7 +168,7 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     // Discover's per-card line ("Kyoto matched · also Uji") and its sibling
     // chips have nothing to render unless some day touches more than one city.
     stops: [
-      // Over the upper band edge ($150 each): a travel day costs more than a
+      // Over the upper band edge ($150 for the day): a travel day costs more than a
       // walking day, and the top band needs an occupant for the same reason the
       // bottom one does.
       stop("Breakfast in Nakameguro", "08:00", "09:00", { name: "Onibus Coffee", city: "Tokyo" }, {
@@ -216,7 +216,9 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     stops: [
       // The middle band. The Shinkansen stop below stays UNPRICED on purpose:
       // a day with some priced stops and some not is the ordinary case, and
-      // "budget each" has to be readable as a floor rather than a total.
+      // the rail's Budget figure has to be readable as a FLOOR — it sums the
+      // stops that carry a price and says nothing about the ones that do not,
+      // which is what `unpricedStops` sits beside it to admit.
       stop("Nishiki Market", "10:00", "11:30", { name: "Nishiki Market", city: "Kyoto" }, {
         cost: money(2_500),
       }),

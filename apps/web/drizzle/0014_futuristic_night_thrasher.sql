@@ -1,0 +1,1 @@
+ALTER TABLE "saved_days" ADD COLUMN "deleted_at" timestamp with time zone;

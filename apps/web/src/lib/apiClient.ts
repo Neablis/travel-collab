@@ -24,6 +24,7 @@ import {
   type BudgetBand,
   type DiscoverScope,
   type DiscoverSort,
+  type Season,
 } from "@/lib/playbooks";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -472,6 +473,14 @@ export async function createSavedDay(input: CreateSavedDayInput): Promise<ApiRes
   }
 }
 
+/**
+ * Remove one of your own saved days. A SOFT delete server-side (2026-09-01) —
+ * the row survives so it can be restored later — and it refuses a PUBLISHED
+ * day with a 409 carrying `code: "published"`, which is what the shared-day
+ * rail branches on. Anything else is the usual 404: not yours, gone, or never
+ * there. No change was needed here for either: `readJson` already forwards
+ * `code`, and the URL is the same one this always called.
+ */
 export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok: true }>> {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`), { method: "DELETE" });
@@ -569,14 +578,14 @@ export async function searchPlaybooks(query: {
   scope?: DiscoverScope;
   sort?: DiscoverSort;
   budget?: BudgetBand;
-  month?: number | null;
+  season?: Season | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
   if (query.scope) params.set("scope", query.scope);
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);
-  if (query.month != null) params.set("month", String(query.month));
+  if (query.season != null) params.set("season", query.season);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));

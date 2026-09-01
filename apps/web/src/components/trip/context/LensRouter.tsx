@@ -48,6 +48,12 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
     const view = (SCHEDULE_VIEWS as readonly string[]).includes(params.get("view") ?? "")
       ? (params.get("view") as ScheduleView)
       : "Timeline";
+    // `scroll: false` is load-bearing for the day-sync contract's clause 3
+    // ("changing the tab jumps to the selected day" — see `FocusProvider`'s
+    // header), not just a nicety: Next's default scrolls the window to the top
+    // on a navigation, and it would land AFTER the newly-mounted lens has
+    // scrolled itself to the selected day, undoing it. The lens owns where the
+    // page sits after a tab change; the router leaves it alone.
     const write = (next: URLSearchParams) => router.replace(`${pathname}?${next.toString()}`, { scroll: false });
     return {
       lens,

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
+import { submitOnEnter } from "@/lib/submitOnEnter";
 import { toClockRange } from "@/lib/time";
 
 // Handoff README §"Keep this day": the pennant flag opens this dialog. Real as
@@ -99,10 +100,20 @@ export function KeepDayDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title="Keep this day">
       <div className="flex flex-col gap-3">
         <FormField id={nameId} label="Name">
+          {/* Enter saves. This dialog opens with the name already filled in
+              and the field focused, so the whole interaction is "accept it and
+              press Enter" — which did nothing until now (Mitchell, 2026-09-01).
+              Guarded the same way the Save button is: an empty day cannot be
+              kept, and `save()` itself refuses a blank name with the same
+              message either way. */}
           <Input
             id={nameId}
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={submitOnEnter(() => {
+              if (busy || stops.length === 0) return;
+              void save();
+            })}
             placeholder="e.g. A day in Nakameguro"
           />
         </FormField>

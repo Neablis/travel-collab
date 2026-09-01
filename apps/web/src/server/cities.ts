@@ -49,6 +49,12 @@ export async function searchCities(q: string): Promise<CityMatch[]> {
     select city, count(*)::int as days
     from ${savedDays}, unnest(${savedDays.cities}) as city
     where ${savedDays.visibility} = ${SavedDayVisibility.enum.public}
+      -- A day its owner deleted is out of the index too. This is one of the
+      -- reads the soft delete has to be filtered out of, and the schema's
+      -- deleted_at note lists every one of them: a city chip counting a day
+      -- nobody can open would send a searcher to a Discover page holding one
+      -- fewer day than the chip promised.
+      and ${savedDays.deletedAt} is null
       and city ilike ${prefix}
     group by city
     order by days desc, city asc

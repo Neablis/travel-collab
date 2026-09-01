@@ -58,6 +58,103 @@ describe("AuthScreen", () => {
     expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/trips/abc-123" });
   });
 
+  // One of the three places the "Make this trip mine" intent was being dropped
+  // (Mitchell, 2026-09-01): you press it on `/demo`, land on
+  // `/signin?callbackUrl=/demo`, follow "Create an account" because you
+  // have none — and arrive at a bare `/signup` that has forgotten where you
+  // were going. Someone with no account is exactly who that CTA sends here, so
+  // this hop is the common path.
+  it("carries the callbackUrl across the sign-in / sign-up swap", async () => {
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123?lens=Map");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+        `/signup?callbackUrl=${encodeURIComponent("/trips/abc-123?lens=Map")}`,
+      ),
+    );
+  });
+
+  // CodeRabbit (pull request 104): `next/link` renders a real anchor in the
+  // server-rendered HTML, and `AuthSearchParams`' effect only resolves the
+  // real callbackUrl post-render — so before this fix a click that beat the
+  // effect landed on a bare `/signup`. `initialCallbackUrl` is what
+  // `signin/page.tsx` / `signup/page.tsx` compute server-side from the same
+  // `?callbackUrl=` and pass down, so it should already be correct on the
+  // very FIRST render, with no wait for anything to resolve — unlike the
+  // three tests around this one (which rely on `AuthSearchParams`' effect
+  // and so all `await waitFor`), this assertion is synchronous on purpose:
+  // if the fix regressed to reading the value only from the effect, this
+  // is the test that would start needing a `waitFor` to pass, and that
+  // regression is exactly what this test exists to catch.
+  it("renders the swap link correctly on the very first render, from initialCallbackUrl", () => {
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123?lens=Map");
+    render(
+      <AuthScreen
+        mode="signin"
+        devLoginEnabled={false}
+        googleAvailable
+        initialCallbackUrl="/trips/abc-123?lens=Map"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+      `/signup?callbackUrl=${encodeURIComponent("/trips/abc-123?lens=Map")}`,
+    );
+  });
+
+  it("leaves the swap link plain when there is nowhere in particular to go back to", async () => {
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+        "/signup",
+      ),
+    );
+  });
+
+  // A hostile `?callbackUrl=` is normalised to "/" before anything reads it
+  // (`safeCallbackUrl`), and the swap link is built from the NORMALISED value —
+  // so an open-redirect attempt cannot ride across the hop either.
+  it("does not carry a hostile callbackUrl across the swap", async () => {
+    searchParams = new URLSearchParams("callbackUrl=//evil.example/steal");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+        "/signup",
+      ),
+    );
+  });
+
+  // "Pressing enter in many fields doesnt submit — Signin (input from code)"
+  // (Mitchell, 2026-09-01). The invite code is the only field on the screen and
+  // the button under it is the only thing to do with what you typed, so Enter
+  // has to mean that button — including the code reaching the cookie writer
+  // first, which is the whole ordering this mechanism exists for.
+  it("continues with Google when Enter is pressed in the invite-code field", async () => {
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable
+        storeAdmissionCode={storeAdmissionCodeMock}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Invite code"), "LET-ME-IN{Enter}");
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+    expect(storeAdmissionCodeMock).toHaveBeenCalledWith("LET-ME-IN");
+  });
+
+  it("does not sign in on Enter when Google is not configured", async () => {
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable={false}
+        storeAdmissionCode={storeAdmissionCodeMock}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Invite code"), "LET-ME-IN{Enter}");
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
   it("carries a same-origin callbackUrl through to the dev-login sign-in", async () => {
     searchParams = new URLSearchParams("callbackUrl=/trips/abc-123");
     render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);

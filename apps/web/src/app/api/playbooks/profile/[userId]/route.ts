@@ -33,13 +33,21 @@ export async function GET(
     // author — a profile is what other people see, and showing its owner a
     // different page than everybody else is how a profile starts disagreeing
     // with itself.
+    //
+    // `publishedOnly` is what keeps that true now that `everyone` is a superset
+    // including the reader's OWN private days (2026-09-01). It used to be
+    // implied by the scope; it is stated here because the scope no longer says
+    // it. The two really are different questions — "whose days may I see" and
+    // "is this page the public one" — and this is the page where the second
+    // one has an answer of its own.
     discoverDays({
       cities: [],
       scope: "everyone",
       authorId: userId,
+      publishedOnly: true,
       sort: "newest",
       budget: "any",
-      month: null,
+      season: null,
       readerId: session.user.id,
     }),
   ]);

@@ -22,6 +22,64 @@ general setup.
 
 ## Where the work is right now
 
+**Signup and onboarding feedback is on `claude/signup-onboarding-feedback-lx1qvx`
+(pull request 104), 2026-09-01.** Fifteen items Mitchell brought back from
+walking three people through signing up, then a second round from CodeRabbit
+and his own Vercel toolbar comments on the preview. Not a milestone, and it
+does not move the order below.
+
+Four things a fresh session should know, because they changed a rule rather
+than a string:
+
+1. **`savedDayFacts.budgetPerPerson` is `totalCost`.** It was never per person
+   — it adds up a day's priced stops and divides by nothing — so the name
+   asserted a semantic the computation did not have, and the Discover card
+   rendered "$27.00 each" for a total. This is the second half of M19's own
+   gate box (*"either divides by a real person count or no longer claims to"*);
+   **no gate box was ticked** and the cost model is still entirely M19's.
+2. **Discover's `Everyone` is a superset**, including your own unpublished
+   days. That silently broke the public profile, which had been getting
+   "published only" for free from the old scope meaning — an author saw three
+   days where everybody else saw two. The rule is stated on the query
+   (`publishedOnly`) now instead of implied.
+3. **`displayNameFor` never returns a raw identifier.** `dev-alice` renders as
+   "Alice", an opaque `sub` or UUID as `Traveler <6 chars>`. The id still
+   travels in every link; only what the link SAYS changed.
+4. **One day selection, for every tab that can scroll** — scrolling a day
+   container moves it, selecting scrolls every container to it, switching
+   lenses jumps. Each container therefore both drives and is driven, which is a
+   jitter loop without the per-container jump lock in `FocusProvider`. Sync
+   scrolls are **instant, not smooth**, deliberately: smooth's duration is
+   browser-defined, so the lock would be a guess that lengthens with the trip.
+
+**Two things were asked for and deliberately not built that way. Both are
+Mitchell's to overrule and neither is a gap.** The first-run wizard does **not**
+open itself — a self-opening modal covers the page-head "New trip" button and
+whether it fired at all would depend on whether the account has a trip yet,
+which across the e2e suite is a function of which spec ran first; the empty
+state was rebuilt instead (`components/home/FirstTripStart.tsx`). And the
+**calendar drives nothing** in the day-selection contract: it scrolls and its
+cells select days, but neither axis is the trip-day axis, so a reading line has
+no honest answer there. It still follows.
+
+**Two open questions are with Mitchell**, both on Vercel toolbar threads: the
+Discover budget bands moved to $200/$500/$1,000 and **three of the four now
+have no occupant** (every seeded day is under $200), and whether "Add stop"
+should join the header controls hidden on a phone.
+
+**It carries migration `0014`** (`saved_days.deleted_at`, for the soft delete),
+which merging does not apply — see `environments-and-deploys.md`.
+
+Verified at `617b3fe`: `pnpm check` (typecheck across 8 packages, lint plus all
+four walls, 2,100+ unit, 440 integration), `pnpm seed:verify`, and
+`pnpm --filter web test:e2e:ci-like` at **78 passed**. Two red runs along the
+way were both identified from their recorded entries rather than guessed:
+**KI-83** (the AI hourly quota, exhausted by repeated local suite runs) and
+**KI-20260830** (the colour wall reading a `#104` PR reference as a hex
+literal).
+
+---
+
 **M11a's and M11b's gates both closed 2026-08-31, and M17 is the current
 work** — M11a nine of nine, its three admission paths walked on **production**
 (KI-50 blocks the OAuth round trip on a preview); M11b eleven of eleven, with

@@ -243,16 +243,25 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`city=${only}`)).body)).not.toContain(name);
   });
 
-  it("shows YOUR private day in the Yours scope and nobody else's anywhere", async () => {
+  // `Everyone` is a SUPERSET of the other two, not "the public half" (Mitchell,
+  // 2026-09-01: "Everyone tab for playbooks should also include my trips, it's
+  // an 'Everyone' superset"). It was public-only, which made the widest option
+  // of the segment narrower than `Yours`: your own private day appeared under
+  // `Yours` and vanished under `Everyone`, which reads as the filter losing it.
+  //
+  // The half that must NOT change is the other one: somebody else's private day
+  // is still unreachable in every scope.
+  it("shows YOUR private day in both Yours and Everyone, and nobody else's anywhere", async () => {
     const only = city("mine");
     const name = `Private ${RUN}`;
     await saveDay(name, [{ city: only }]);
 
     expect(names((await discover(`city=${only}&scope=yours`)).body)).toContain(name);
-    expect(names((await discover(`city=${only}&scope=everyone`)).body)).not.toContain(name);
+    expect(names((await discover(`city=${only}&scope=everyone`)).body)).toContain(name);
 
     currentUserId = READER;
     expect(names((await discover(`city=${only}&scope=yours`)).body)).not.toContain(name);
+    expect(names((await discover(`city=${only}&scope=everyone`)).body)).not.toContain(name);
   });
 
   // "Saved" is the adds ledger, and it is not a grant: an author who withdraws
@@ -273,22 +282,45 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`scope=saved&city=${only}`)).body)).not.toContain(name);
   });
 
-  it("filters on budget per person, and reports the currency it compared in", async () => {
+  it("filters on a day's total cost, and reports the currency it compared in", async () => {
     const only = city("bud");
     const cheap = `Cheap ${RUN}`;
     const dear = `Dear ${RUN}`;
     await publish(await saveDay(cheap, [{ city: only, costMinor: 1_000 }]));
-    await publish(await saveDay(dear, [{ city: only, costMinor: 20_000 }]));
+    await publish(await saveDay(dear, [{ city: only, costMinor: 150_000 }]));
 
     currentUserId = READER;
-    const under = await discover(`city=${only}&budget=under`);
+    const under = await discover(`city=${only}&budget=under200`);
     expect(names(under.body)).toContain(cheap);
     expect(names(under.body)).not.toContain(dear);
     expect(under.body.budgetCurrency).toBe("USD");
 
-    const over = await discover(`city=${only}&budget=over`);
+    const over = await discover(`city=${only}&budget=over1000`);
     expect(names(over.body)).toEqual([dear]);
-    expect(over.body.days[0]!.budgetPerPerson).toEqual({ amountMinor: 20_000, currency: "USD" });
+    expect(over.body.days[0]!.totalCost).toEqual({ amountMinor: 150_000, currency: "USD" });
+  });
+
+  // The four bands' edges are $200/$500/$1,000 (Mitchell, Vercel toolbar
+  // comment on `/playbooks` at 411px, 2026-09-01 — see `BudgetBand` in
+  // lib/playbooks.ts for the mutually-exclusive-ranges reading). Each band's
+  // lower edge is inclusive and its upper edge is exclusive, so a day priced
+  // at EXACTLY one of the three edges belongs to the band ABOVE it, not the
+  // one below — pinned here at all three, since that is a decision a query
+  // string alone does not make visible.
+  it("puts a day priced at exactly $200, $500 or $1,000 in the band above, not below", async () => {
+    const only = city("edge");
+    const at200 = `AtTwoHundred ${RUN}`;
+    const at500 = `AtFiveHundred ${RUN}`;
+    const at1000 = `AtOneThousand ${RUN}`;
+    await publish(await saveDay(at200, [{ city: only, costMinor: 20_000 }]));
+    await publish(await saveDay(at500, [{ city: only, costMinor: 50_000 }]));
+    await publish(await saveDay(at1000, [{ city: only, costMinor: 100_000 }]));
+
+    currentUserId = READER;
+    expect(names((await discover(`city=${only}&budget=under200`)).body)).toEqual([]);
+    expect(names((await discover(`city=${only}&budget=200to500`)).body)).toEqual([at200]);
+    expect(names((await discover(`city=${only}&budget=500to1000`)).body)).toEqual([at500]);
+    expect(names((await discover(`city=${only}&budget=over1000`)).body)).toEqual([at1000]);
   });
 
   // A day with nothing priced is not "under" any budget — it does not say what
@@ -300,12 +332,17 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     expect(names((await discover(`city=${only}&budget=any`)).body)).toContain(name);
-    expect(names((await discover(`city=${only}&budget=under`)).body)).not.toContain(name);
-    expect((await discover(`city=${only}`)).body.days[0]!.budgetPerPerson).toBeNull();
+    expect(names((await discover(`city=${only}&budget=under200`)).body)).not.toContain(name);
+    expect((await discover(`city=${only}`)).body.days[0]!.totalCost).toBeNull();
   });
 
   // A link written against §15's four sorts, or from the future, shows results
   // rather than a broken page — and never reaches a query as a raw string.
+  // `budget=mid` is also, deliberately, an "unrecognised" value now: it was
+  // the old three-band enum's middle option, and the new four-band enum has
+  // no member by that name (see `BudgetBand` in lib/playbooks.ts) — a stale
+  // link should fall back to `any` rather than silently landing on whichever
+  // new band happens to occupy that string.
   it("falls back on an unrecognised sort, scope or budget instead of failing", async () => {
     const only = city("fall");
     const name = `Fallback ${RUN}`;
@@ -313,10 +350,69 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     const { status, body } = await discover(
-      `city=${only}&sort=highest-rated&scope=galaxy&budget=free&month=99`,
+      `city=${only}&sort=highest-rated&scope=galaxy&budget=mid&season=harvest`,
     );
     expect(status).toBe(200);
     expect(names(body)).toContain(name);
+  });
+
+  // The season filter (Mitchell, 2026-09-01), which replaced a twelve-entry
+  // month dropdown. There is no season column — it is bucketed from
+  // `created_at`'s month in UTC — so this asserts the bucketing end to end:
+  // a day saved now is returned by THIS season and by no other.
+  //
+  // The expected season is computed from a table written out HERE rather than
+  // by calling `seasonOfMonth`. Deriving it with the same function the server
+  // uses would make this a tautology: get the buckets wrong and both sides move
+  // together while the test stays green.
+  it("filters by season, bucketed from the month the day was kept", async () => {
+    const only = city("season");
+    const name = `Seasonal ${RUN}`;
+    await publish(await saveDay(name, [{ city: only }]));
+
+    // The month comes from the SAVED ROW's own `createdAt`, not from a fresh
+    // clock read here. `saveDay` persists `created_at` before this line runs,
+    // so a UTC month rollover between that write and `new Date()` here would
+    // put `mine` in the new month while the row is still stamped with the
+    // old one — an intermittent failure on the new-season assertion below
+    // (CodeRabbit, PR 104). Reading the row's own timestamp back through an
+    // unfiltered discover keeps the expectation and the data in the same
+    // month no matter when the rollover lands.
+    const seeded = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
+    const month = new Date(seeded.createdAt).getUTCMonth() + 1;
+    const seasonOf = (m: number) =>
+      m === 12 || m <= 2 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "fall";
+    const mine = seasonOf(month);
+    const others = ["spring", "summer", "fall", "winter"].filter((s) => s !== mine);
+    expect(others).toHaveLength(3);
+
+    currentUserId = READER;
+    expect(names((await discover(`city=${only}&season=${mine}`)).body)).toContain(name);
+    for (const season of others) {
+      expect(names((await discover(`city=${only}&season=${season}`)).body), season).not.toContain(name);
+    }
+    // And no season at all is "any season", not "no season".
+    expect(names((await discover(`city=${only}`)).body)).toContain(name);
+  });
+
+  // `sharedDayCount` is what decides whether Discover shows the leaderboard
+  // link at all ("Who shares the most should be hidden when nothing to share").
+  // It must ignore every filter on the query — a Hakone search that matches
+  // nothing is not an empty library — which is exactly what a count derived
+  // from `days.length` would get wrong.
+  it("reports the whole library's published count, unaffected by the query", async () => {
+    const only = city("count");
+    await publish(await saveDay(`Counted ${RUN}`, [{ city: only }]));
+
+    currentUserId = READER;
+    const matching = await discover(`city=${only}`);
+    expect(matching.body.days.length).toBeGreaterThan(0);
+    expect(matching.body.sharedDayCount).toBeGreaterThanOrEqual(matching.body.days.length);
+
+    // A query that matches nothing at all, in the same library.
+    const empty = await discover(`city=${city("nomatch")}`);
+    expect(empty.body.days).toHaveLength(0);
+    expect(empty.body.sharedDayCount).toBe(matching.body.sharedDayCount);
   });
 
   it("derives the card's facts from the day's stops", async () => {
@@ -334,7 +430,7 @@ describe("GET /api/playbooks", () => {
     const day = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
     expect(day.stopCount).toBe(3);
     expect(day.window).toEqual({ start: "08:00", end: "11:00" });
-    expect(day.budgetPerPerson).toEqual({ amountMinor: 6_500, currency: "USD" });
+    expect(day.totalCost).toEqual({ amountMinor: 6_500, currency: "USD" });
     // The day touches one city, twice — `citiesOfStops` collapses duplicates,
     // so this is "how many cities", not "how many placed stops".
     expect(day.cities).toEqual([only]);

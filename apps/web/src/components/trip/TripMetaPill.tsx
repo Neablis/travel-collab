@@ -2,6 +2,33 @@ import type { TripDetail } from "@tc/contracts";
 import { formatTripDate } from "@/lib/formatDate";
 import { chipModel } from "./DayChips";
 
+/** The three figures this pill states beside the date range. */
+export type TripCounts = { days: number; stops: number; cities: number };
+
+// Exported because this pill is HIDDEN below 768px now (TripHeader), and the
+// same three counts have to stay readable in Trip settings or hiding it would
+// silently cost them. Mitchell, Vercel toolbar comment on
+// `/trips/:id?lens=Map&view=Calendar` at 411x760: "all three columns from
+// share, trip overview to budget are really crowded and ugly on mobile, if we
+// hid them here would they still be accessible in trip settings?" — for the
+// stop and city counts the honest answer was *no*, nothing in the sheet
+// showed them, so they moved there before anything was hidden here.
+//
+// One rule called twice, not a second derivation in the sheet: `chipModel` is
+// where a day's city is decided (it walks that day's activities and resolves
+// one city per day), so "how many cities" is only well defined in terms of it.
+// A hand-rolled count in SettingsSheet would be free to disagree with the pill
+// about the same trip, which is exactly the kind of drift that makes the
+// settings copy untrustworthy the first time the two numbers differ.
+export function tripCounts(detail: TripDetail): TripCounts {
+  const cities = new Set(chipModel(detail).map((d) => d.city).filter((c): c is string => c !== null));
+  return {
+    days: detail.days.length,
+    stops: detail.days.reduce((sum, d) => sum + d.activityIds.length, 0),
+    cities: cities.size,
+  };
+}
+
 // Handoff `current/…dc.html:255-296`: a bordered pill — accent dot, date
 // range, then (each separated by a divider) day/stop/city counts. The
 // handoff also put a crew control here (stacked avatars + label, opening
@@ -9,8 +36,7 @@ import { chipModel } from "./DayChips";
 // comment where it used to sit.
 export function TripMetaPill({ detail }: { detail: TripDetail }) {
   const days = detail.days;
-  const stops = days.reduce((sum, d) => sum + d.activityIds.length, 0);
-  const cities = new Set(chipModel(detail).map((d) => d.city).filter((c): c is string => c !== null));
+  const { stops, cities } = tripCounts(detail);
 
   const start = days[0]?.date ?? detail.startDate;
   const end = days[days.length - 1]?.date ?? null;
@@ -33,7 +59,7 @@ export function TripMetaPill({ detail }: { detail: TripDetail }) {
       <span className="font-mono text-xs text-slate">{stops} stops</span>
 
       <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
-      <span className="font-mono text-xs text-slate">{cities.size} cities</span>
+      <span className="font-mono text-xs text-slate">{cities} cities</span>
 
       {/* No member avatars, and no crew control at all: "Can we drop this
           ownership tile all togther? DA?" (Mitchell, 2026-08-30 design pass —

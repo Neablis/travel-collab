@@ -166,11 +166,16 @@ describe("the library is per-person", () => {
     if (!saved.ok) return;
 
     expect(await getSavedDay(saved.value.savedDayId, OTHER)).toBeNull();
-    expect(await deleteSavedDay(saved.value.savedDayId, OTHER)).toBe(false);
+    // "not-found", NOT "published": the outcome for somebody else's day is the
+    // same one a nonexistent id gets, so the refusal cannot be read as a
+    // confirmation that the id names something (2026-09-01, the soft delete).
+    expect(await deleteSavedDay(saved.value.savedDayId, OTHER)).toBe("not-found");
     expect(await getSavedDay(saved.value.savedDayId, OWNER)).not.toBeNull();
 
-    expect(await deleteSavedDay(saved.value.savedDayId, OWNER)).toBe(true);
+    expect(await deleteSavedDay(saved.value.savedDayId, OWNER)).toBe("deleted");
     expect(await getSavedDay(saved.value.savedDayId, OWNER)).toBeNull();
+    // Deleting it again is the same answer every read now gives.
+    expect(await deleteSavedDay(saved.value.savedDayId, OWNER)).toBe("not-found");
   });
 });
 

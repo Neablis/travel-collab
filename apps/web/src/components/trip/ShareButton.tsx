@@ -32,9 +32,17 @@ function pinLabel(share: TripShare): string {
 export function ShareButton({
   tripId,
   variant = "ghost",
+  size,
 }: {
   tripId: string;
   variant?: VariantProps<typeof buttonVariants>["variant"];
+  // Same reason `variant` is here: the third call site (SettingsSheet's "Who
+  // is invited" heading, where Share moved so a phone still has one — see
+  // TripHeader) sits in a dense sheet whose every other control is `sm`, and
+  // a default `md` trigger next to TravelersPanel's own buttons reads as a
+  // different class of thing. Undefined leaves Button's own default, so the
+  // header and the home hero are untouched.
+  size?: VariantProps<typeof buttonVariants>["size"];
 }) {
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState<TripShare[] | null>(null);
@@ -123,7 +131,7 @@ export function ShareButton({
       // where a fixed 384px overlay would clip its own controls off-screen.
       contentClassName="w-96 max-w-[calc(100vw-2rem)]"
       trigger={
-        <Button type="button" variant={variant}>
+        <Button type="button" variant={variant} size={size}>
           Share
         </Button>
       }

@@ -491,7 +491,9 @@ async function main() {
       "\"Rochester to Niagara\" (4 days, one intentionally empty), and \"Portland Weekend\" (2 days).",
   );
   console.log(
-    `Seeded the demo library: ${library.savedDays} saved days across two owners, ` +
+    `Seeded the library: ${library.savedDays} saved days across five owners ` +
+      `(the M11b gate's Japan set plus the starter days — Lisbon, Sintra, ` +
+      `Mexico City, Glen Coe, New York, Porto — spread across all four seasons), ` +
       `${library.adds} adds-ledger rows.`,
   );
 }

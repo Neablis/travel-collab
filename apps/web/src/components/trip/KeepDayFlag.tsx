@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Flag } from "lucide-react";
 import type { SavedStop } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,27 @@ export function KeepDayFlag({
 }) {
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  // The design's `wave` (`Trip Planner Redesign.dc.html:4839`): the pennant
+  // tips as you click it. Missing from the build until now — Mitchell,
+  // 2026-09-01, "The click flag 'Save a day' animation from timeline view is
+  // missing".
+  //
+  // A CSS class toggled off `animationend` rather than `Element.animate()` (the
+  // design's own mechanism): the animation lives in globals.css where
+  // `prefers-reduced-motion` can drop it in one place, and a WAAPI call would
+  // run regardless of that preference unless every call site remembered to ask.
+  // Removing the class on `animationend` is what makes it re-triggerable — a
+  // class left behind is an animation that plays exactly once per mount.
+  const [waving, setWaving] = useState(false);
   const empty = stops.length === 0;
+
+  // Two things on one click, and the order matters only in that the wave must
+  // not wait for the dialog: the dialog opens over the flag, and an animation
+  // queued behind a React commit that unmounts nothing still reads as late.
+  const keep = useCallback(() => {
+    setWaving(true);
+    setOpen(true);
+  }, []);
 
   return (
     <>
@@ -59,7 +79,7 @@ export function KeepDayFlag({
         aria-label={`Keep day ${dayIndex + 1}`}
         disabled={empty}
         title={empty ? "Add a stop to this day first" : "Keep this day"}
-        onClick={() => setOpen(true)}
+        onClick={keep}
         className={cn(
           "shrink-0 rounded-full border-transparent bg-surface p-0 hover:bg-surface",
           INK_TEXT[accent],
@@ -67,7 +87,17 @@ export function KeepDayFlag({
         // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
         style={{ height: "30px", width: "30px" }}
       >
-        <Flag className="h-4 w-4" aria-hidden />
+        {/* The glyph waves, not the button: the design animates the `svg`
+            inside the control, so the 30px circle and its focus ring stay put
+            while the pennant tips. `onAnimationEnd` is on the same element the
+            class is, so it cannot be fired by some other animation bubbling up
+            from a child — a bare `<svg>` has none. */}
+        <span
+          className={cn("inline-flex", waving && "flag-wave")}
+          onAnimationEnd={() => setWaving(false)}
+        >
+          <Flag className="h-4 w-4" aria-hidden />
+        </span>
       </Button>
       <KeepDayDialog
         open={open}

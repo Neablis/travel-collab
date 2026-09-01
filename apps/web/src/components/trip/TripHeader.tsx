@@ -19,7 +19,7 @@ import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { SettingsSheet } from "./SettingsSheet";
 import { ShareButton } from "./ShareButton";
-import { TripMetaPill } from "./TripMetaPill";
+import { TripMetaPill, tripCounts } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
@@ -245,7 +245,42 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   copies and turns off pinned share links. It needs the tripId
                   it is sharing; everything else about this call site is
                   unchanged. */}
-              {!readOnly && <ShareButton tripId={tripId} />}
+              {/* `hidden md:block`: Share leaves the header on a phone —
+                  Mitchell, Vercel toolbar comment on
+                  `/trips/:id?lens=Map&view=Calendar` at 411x760, "all three
+                  columns from share, trip overview to budget are really
+                  crowded and ugly on mobile, if we hid them here would they
+                  still be accessible in trip settings?". It is hidden only
+                  because it now HAS somewhere to go: SettingsSheet mounts a
+                  ShareButton of its own, under "Who is invited", at every
+                  width. Hiding it before that existed would have left a phone
+                  user with no way to share the trip they are looking at —
+                  ShareButton had exactly two mount points in the app, this one
+                  and the home hero's.
+
+                  768px, not a new number: it is the line this app already
+                  draws between "narrow but still a shrinkable plan" and
+                  "phone" — `.assistant-rail` and `.unscheduled-rack` in
+                  globals.css, `useIsPhone`'s PHONE_MAX_WIDTH_PX, and
+                  Tailwind's own `md`, which is the same 768px.
+
+                  CSS, not `useIsPhone`: the JS hook exists because the Map
+                  lens mounts a genuinely DIFFERENT day control below the
+                  breakpoint and must not leave the desktop one's
+                  ResizeObserver alive against a zero-height box (see that
+                  file). Nothing here observes anything — hiding a button is
+                  what CSS is for, and a JS breakpoint would add a
+                  false-on-first-render flash to a control that has none. */}
+              {!readOnly && (
+                // The testid is on the WRAPPER, not the button: it is the
+                // wrapper that carries the breakpoint, and the e2e assertion
+                // ("Share is not in the header on a phone") has to name the
+                // header's copy unambiguously now that a second Share exists
+                // in the settings sheet.
+                <div data-testid="trip-header-share" className="hidden md:block">
+                  <ShareButton tripId={tripId} />
+                </div>
+              )}
               {/* HIDDEN for a reader, not greyed (KI-64). This was the one
                   disabled control left on an otherwise quiet page: ADR-031 took
                   every other write affordance away from a read-only board —
@@ -340,7 +375,26 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
           either being pinned to a hardcoded height). This is also what the
           2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
           justify-between. */}
-      <div className="mt-2 flex flex-wrap items-stretch justify-between gap-3">
+      {/* Hidden below 768px, same breakpoint and same report as Share above:
+          these two are the "trip overview to budget" half of "really crowded
+          and ugly on mobile". They are the right things to cut first because
+          they are pure INFORMATION — a phone loses a statement it can go and
+          read, not an action it can no longer perform. What is kept beside the
+          title is deliberately the opposite: "Add stop" and History are
+          actions with no equivalent in Trip settings (History is a different
+          surface entirely, and re-homing the primary write into a sheet would
+          make adding a stop a three-tap operation on the device most likely to
+          be adding one), and the tab strip and day chips are the phone's
+          primary navigation — the chips row is now its main day control.
+
+          Nothing here becomes unreachable. Dates and budget were already
+          editable in the sheet (its Dates row and TripMoneySettings); the day,
+          stop and city counts are now stated there under "Trip overview".
+          BudgetChip's no-budget state renders as a "Set a budget" button whose
+          only job is to open that same sheet, and the trip title is still the
+          door to it, so the one affordance that disappears on a phone is a
+          second doorbell on the same door. */}
+      <div data-testid="trip-meta-row" className="mt-2 hidden flex-wrap items-stretch justify-between gap-3 md:flex">
         <TripMetaPill detail={activeTrip} />
         <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
@@ -359,10 +413,16 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
         startDate={activeTrip.startDate}
         endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
         dayCount={activeTrip.days.length}
+        // The pill's own three figures, derived by the pill's own function
+        // (TripMetaPill.tsx) — so what the sheet states below `md` and what
+        // the pill states above it are the same numbers by construction, not
+        // by two implementations agreeing.
+        counts={tripCounts(activeTrip)}
         currency={activeTrip.currency}
         budget={activeTrip.budget}
         spend={tripSpend(activeTrip)}
         forkedFrom={activeTrip.forkedFrom}
+        createdAt={activeTrip.createdAt}
         myRole={myRole}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
