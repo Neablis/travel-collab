@@ -22,8 +22,54 @@ general setup.
 
 ## Where the work is right now
 
-**M11a and M11b are built and in review as a three-PR stack, 2026-08-30.**
-None of their gates has closed; nothing below is ticked anywhere yet.
+**M11a's and M11b's gates both closed 2026-08-31, and M17 is the current
+work** — M11a nine of nine, its three admission paths walked on **production**
+(KI-50 blocks the OAuth round trip on a preview); M11b eleven of eleven, with
+the two-actor publish → discover → add walk and the `cities` backfill run
+against production. Retros and gate evidence are in
+`docs/milestones/M11a-invite-gate.md` and
+`docs/milestones/M11b-playbooks-public-library.md`.
+
+**Order from here: `M17 → M9 → M12 → M13 → M14 → M19`** — **reordered
+2026-09-01 by Mitchell**, moving M9 from last to second. M9 turned out to be
+four-sevenths built and both of ADR-022's grounds for placing it last (polish
+first, sharing first) have since happened. The reorder note is in
+`docs/milestones/README.md`; the working is in
+`docs/reviews/2026-09-01-milestone-audit.md`.
+
+**M12, M13 and M14 were scoped the same day** and now have files and exit
+gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
+`M14-rich-layer.md`. They had none before, against the README's rule that each
+milestone gets one before work begins. **Every milestone in the order now has a
+written gate except M19**, which is deliberately placed-but-not-scoped.
+
+**Two prerequisites are ADRs, and both are due before their milestone opens**,
+not during it: **M13's realtime transport ADR** and **M14's repeaters ADR**.
+Neither is a deliverable to write mid-build.
+
+**All twelve open AI known issues are assigned to M9** (2026-09-01) — three
+promoted to gate boxes (KI-12, KI-93, KI-94 with KI-97), nine carried. The
+split rule, and why it is not all twelve: a gate box is something whose absence
+means the milestone is not done. See `M9-ai-planning-partner.md`.
+
+**M19 — a cost knows who and what it is for** was minted and placed last on
+2026-08-31 and is the newest milestone: `docs/milestones/M19-cost-model.md`.
+It is **placed but not scoped** — the exit gate is deliberately unwritten until
+link 1's design question is answered.
+
+> **This section was two gates stale from 2026-08-31 to 2026-09-01**, still
+> describing M11a and M11b as open PRs in review. The cause was structural:
+> the gate-close checklist in `docs/milestones/README.md` had four steps and
+> **this file was not one of them**, so nothing made it anyone's job. It is now
+> step 5. If you are reading this file first — as `CLAUDE.md` tells you to —
+> and it disagrees with `TODO.md` or the milestone README, that is the failure
+> recurring; trust the milestone README's **Current milestone** line and say so.
+
+### The three-PR stack that closed them, 2026-08-30 (historical)
+
+Kept because the composition evidence below is still the record of how #98 and
+this stack were proven to merge cleanly. All four PRs have since merged and
+both gates have closed.
 
 | PR | What | Base | State |
 |---|---|---|---|
@@ -54,8 +100,10 @@ Do not skip that when adding to the stack: PR2's implementer read
 correctly reported `INVITE_SUPER_CODE` missing, which was true of that
 checkout and false of M11a's branch.
 
-**Five things are Mitchell's before any of this can close**, and the first two
-block the M11a gate outright:
+**Five things were Mitchell's before any of this could close** — **all
+discharged; both gates closed 2026-08-31** (marked 2026-09-01). Kept as the
+record of what a gate of this shape costs a human, not as open asks. The first
+two blocked the M11a gate outright:
 
 1. **`INVITE_SUPER_CODE` in Vercel Preview *and* Production**, a CSPRNG value.
    Absent means closed — an unset variable refuses every new account — and
@@ -80,7 +128,12 @@ rather than fixed because all three defensible answers contradict a decision
 already written into that function —
 `docs/known-issues/open/KI-20260831-sibling-chip-counts-ignore-the-budget-band.md`.
 
-**One gate box cannot be satisfied as written and needs a decision.** M11b's
+**One gate box could not be satisfied as written — RESOLVED 2026-08-31.**
+Mitchell retagged the five leftover shells rather than narrowing the box:
+`rack-provenance` → **M13**, `cost-estimate-state` and `budget-breakdown` →
+**M19** (minted for them the same day), and the two wizard shells → `unplaced`,
+deliberately. `preview-registry.ts` now carries no M11 tag and M11b closed
+eleven of eleven. The original finding, kept as the argument: M11b's
 *"no M11-tagged entry remains"* in `preview-registry.ts` was written believing
 the four Playbooks shells were the only ones. There are **nine**. The other
 five (`rack-provenance`, `cost-estimate-state`, `budget-breakdown`,
@@ -101,8 +154,16 @@ every dialog in the app, surfaced only because a leaking e2e spec had grown the
 saved-days library past one screen.
 
 **Every one of the nineteen was green locally.** `pnpm check` cannot catch this
-class by construction, which is the argument for triggering CodeRabbit on
-drafts — it does not review them by default. It was also confidently wrong
+class by construction, which is the argument for triggering CodeRabbit at all.
+*(**The stated cause is wrong, corrected 2026-09-01 — KI-2026-09-01.** The
+draft rule is real but is not why it skipped: this repo is below CodeRabbit's
+**10-star OSS gate**, so auto-review is off on **ready** PRs too, and the
+status it posts is **green either way** — and on a second push it may not
+appear in the rollup at all while it still says `success`. Check presence,
+state **and** description; `--json reviews` returning `[]` is the blunt
+confirmation. **Trigger a real one with a `@coderabbitai review` comment** —
+it works, but budget ~21 minutes, and an empty `reviews` inside that window is
+not a failed trigger.)* It was also confidently wrong
 twice, both times about runtime behaviour it researched rather than ran
 (Vitest's `it.each` on a mixed array; `__dirname` under ESM), and both times the
 tell was identical: **the suite was green, which the claimed failure could not
@@ -115,8 +176,9 @@ code then signed in as a *returning* user, so the code was dead; two saved-day
 tests asserting on the in-memory object rather than the stored row; and a
 property test witnessing that it ran rather than that it reached its named
 path. All three now proven load-bearing by mutation probe. **CodeRabbit found
-all three**, which is the argument for triggering it on drafts rather than
-waiting — it does not review drafts by default.
+all three**, which is the argument for triggering it rather than waiting.
+*(Same correction as above — **KI-2026-09-01**: the cause is the 10-star gate,
+not the draft rule, and a skipped review still reports `success`.)*
 
 **M11a also broke `pnpm db:reseed` and it was fixed in the same PR.**
 `db:reset` derives its table list from the schema, so it truncates `users`;
@@ -125,10 +187,12 @@ stayed invisible because with `users` intact the seed succeeds with no code at
 all — the returning-user path again.
 
 
-**M18b's gate closed 2026-08-30. M17 is the current work**, and the order is
-now `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
+**M18b's gate closed 2026-08-30**, and the order *at that moment* was
+`M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
 2026-08-30** off the new design handoff, and **M11a was created the same day and
-placed in front of it**. See the next two paragraphs.
+placed in front of it**. See the next two paragraphs. *(Twice superseded since:
+M11a and M11b jumped M17 on 2026-08-30 and both closed on 2026-08-31, and M9
+moved to second on 2026-09-01. The live order is at the top of this file.)*
 
 **M18b shipped tag focus in PR #91** — SPEC §11's behaviour behind the chips M18
 made settable. Clicking a tag chip focuses that tag across all four lenses;
@@ -391,12 +455,26 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M17 was jumped on 2026-08-30 and the current work is M11a — an invite gate**
-— `docs/milestones/M11a-invite-gate.md`, **then M11b**
-(`docs/milestones/M11b-playbooks-public-library.md`), **then M17**
-(`docs/milestones/M17-account-customization.md`, unchanged and un-cancelled).
-Mitchell's call the same day, asked for as *"finishing out the rest of M11"*.
-The reorder note is in `docs/milestones/README.md`.
+**The current work is M17 — account preferences**
+(`docs/milestones/M17-account-customization.md`), since both M11a's and M11b's
+gates closed on 2026-08-31.
+
+Two things to read before opening it, both from the 2026-09-01 audit
+(`docs/reviews/2026-09-01-milestone-audit.md`):
+
+- **M17 is smaller than its file's "Why this exists" section claimed.** That
+  section asserted the schema had no user row; `users` has existed since
+  ADR-025 and already carries `name`. What is missing is **preference columns**
+  on it. The claim is corrected in place; the milestone is retitled **Account
+  preferences**, since the "real user record" half shipped in M11.
+- **M9 follows it, as of the 2026-09-01 reorder** — not M12. M9 is now the
+  smallest remaining milestone and the one that unblocks `ai-live`, so the
+  handoff out of M17 is into grounding, not into reviews.
+
+*(Superseded, kept as the record: "M17 was jumped on 2026-08-30 and the current
+work is M11a — an invite gate, then M11b, then M17." Mitchell's call that day,
+asked for as "finishing out the rest of M11". The reorder note is in
+`docs/milestones/README.md`.)*
 
 **Jumping M17 is free for M11a and not free for M11b**, and the difference is
 worth knowing before either is opened. M11a's file already said M17 was

@@ -15,3 +15,4 @@
   may want to keep. Recorded here as an open decision rather than a bug;
   revisit if `AI_LIVE` is ever set on Vercel by accident, or if Mitchell
   decides the escape hatch isn't worth the risk.
+- **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: defense-in-depth on a switch that works. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".

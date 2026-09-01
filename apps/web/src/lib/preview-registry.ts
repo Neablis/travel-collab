@@ -53,8 +53,26 @@ export const PREVIEW_REGISTRY = {
   // than left shelved — Mitchell, preview feedback on PR #55: the design's
   // panel has no such block, only the conversation and the ask box. Nothing
   // to wire up in M9 because there is nothing there to wire.
-  "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
-  "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
+  // The stated blocker here SHIPPED in PR #88 — propose→review→approve is real,
+  // in the assistant rail (`ProposalCard`, `POST /ask/apply`). This shell is
+  // still genuinely unbuilt, but what it is waiting on is narrower than it was:
+  // rendering an approved-or-pending proposal INLINE IN THE TIMELINE, not the
+  // approval mechanism itself. Corrected 2026-09-01 per the rule below — a tag
+  // is a claim, and so is the reason attached to it.
+  "timeline-ghost": { milestone: "M9", wiredUpBy: "Proposals rendered inline in the timeline — the approval mechanism itself shipped in PR #88" },
+  // RETAGGED M9 -> "unplaced", 2026-09-01, on Mitchell's call. M9's scope has no
+  // transport-mode link, no contract change and no migration, so "M9 will wire
+  // this up" was not a claim M9's file supported — the same species as the cost
+  // shells that were tagged M11 until M11b's sweep caught them and minted M19.
+  // The consequence of leaving it: M9's gate would have had to either wire a
+  // surface outside its scope or narrow a box to close, which is exactly how
+  // M11b's gate got stuck on "no M11-tagged entry remains".
+  //
+  // Transport mode per leg is a real product idea with no owner — it is in
+  // TODO.md's Candidate ideas so it is not lost. `unplaced` is the honest value
+  // per the rule below; do not retag it to a milestone that merely sounds
+  // adjacent. See docs/reviews/2026-09-01-milestone-audit.md §3b.
+  "map-legend-modes": { milestone: "unplaced", wiredUpBy: "Transport mode per leg — no field models it today, and no milestone owns adding one" },
   "rack-provenance": { milestone: "M13", wiredUpBy: "Who parked a stop, and which day it came from — no field models either. Sits with `add-stop-who`, the same absence from the other side; whichever milestone lands per-stop attribution unblocks both" },
   "cost-estimate-state": { milestone: "M19", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
   "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },

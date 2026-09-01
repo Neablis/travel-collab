@@ -75,10 +75,24 @@ Closes:
 
 ## Waiting on checks
 
-<!-- Do not hand-poll. One blocking command covers all of them, CodeRabbit
-     included — it is a registered status check, not just a comment stream:
+<!-- Do not hand-poll. One blocking command covers all of them:
 
        gh pr checks <n> --watch --fail-fast
+
+     BUT a green CodeRabbit status no longer means it reviewed anything
+     (KI-2026-09-01). This repo is below CodeRabbit's 10-star OSS gate, so
+     auto-review is off and it posts `success` with the description
+     "Review skipped: manual review required for this OSS repository".
+     --fail-fast exits 0 on a PR it never read, and after a second push
+     CodeRabbit may vanish from the rollup entirely while it still says
+     success. Check presence, state AND description:
+
+       gh pr view <n> --json statusCheckRollup,reviews
+
+     To get a real review, comment `@coderabbitai review`. It works, but
+     takes ~21 min (not the 2-11 a normal review takes), so an empty
+     `reviews` inside that window is not a failed trigger. Do not claim a
+     PR was reviewed when it was not.
 
      CodeRabbit's summary comment lands ~30s in, but its actual review verdict
      takes 2-11 minutes. --watch exits non-zero the moment anything fails.
