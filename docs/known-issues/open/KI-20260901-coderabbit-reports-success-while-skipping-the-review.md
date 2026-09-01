@@ -74,9 +74,23 @@
      path.
 
      It is still a step someone must remember on **every** PR — the class of
-     trailing manual step the gate-close checklist exists to abolish — and it
-     does not survive a new push. But it is not human-only, and an unattended
-     session can and should do it.
+     trailing manual step the gate-close checklist exists to abolish. But it is
+     not human-only, and an unattended session can and should do it.
+
+     **A push during the review window aborts it, and the window is ~21
+     minutes.** Observed immediately: the review of `426b414` was cancelled
+     mid-flight when `c19be7e` landed, CodeRabbit editing its own reply to
+     *"⚠️ Action not completed — Head commit changed."* Combined with the long
+     latency this is an easy race to lose — the natural reflex on receiving a
+     finding is to push the fix, which kills the review of the fix.
+
+     **So sequence it: land every push you intend to make, THEN trigger, then
+     leave the head alone for ~21 minutes.** A finding that arrives while you
+     still have work queued is better answered by finishing the work first and
+     triggering once, than by pushing per-finding and re-triggering each time.
+     Note also that CodeRabbit is incremental and *"does not re-review already
+     reviewed commits"*, so a re-trigger after an abort reviews the delta, not
+     the whole PR.
 
      **It earned its keep immediately.** The review caught a tautological
      assertion in this PR's own test fix that `pnpm check` passed: the test
