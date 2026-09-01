@@ -161,9 +161,9 @@ draft rule is real but is not why it skipped: this repo is below CodeRabbit's
 status it posts is **green either way** — and on a second push it may not
 appear in the rollup at all while it still says `success`. Check presence,
 state **and** description; `--json reviews` returning `[]` is the blunt
-confirmation. **Getting a review may be human-only**: a `@coderabbitai review`
-comment was tried and did nothing, leaving the `Trigger review` checkbox in
-CodeRabbit's own comment as the only offered path.)* It was also confidently wrong
+confirmation. **Trigger a real one with a `@coderabbitai review` comment** —
+it works, but budget ~21 minutes, and an empty `reviews` inside that window is
+not a failed trigger.)* It was also confidently wrong
 twice, both times about runtime behaviour it researched rather than ran
 (Vitest's `it.each` on a mixed array; `__dirname` under ESM), and both times the
 tell was identical: **the suite was green, which the claimed failure could not

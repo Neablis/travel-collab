@@ -354,12 +354,17 @@ it is why this is written down rather than left to each session to rediscover.
 > rollup still said `success`. `gh pr view <n> --json reviews` returning `[]`
 > is the blunt confirmation nothing read the code.
 >
-> **Getting a real review may be human-only.** A comment reading
-> `@coderabbitai review` was tried on #105 and produced nothing. The only
-> affordance offered is the `🔍 Trigger review` checkbox inside CodeRabbit's
-> own comment — a click in the GitHub UI. **An unattended session probably
-> cannot obtain a CodeRabbit review at all**; say so rather than implying the
-> PR was reviewed.
+> **To get a real review, comment `@coderabbitai review` on the PR.** This
+> works and an agent can do it — but **budget ~21 minutes, not the 2-11 above**
+> (measured on #105: comment 15:22Z, review 15:43Z). Inside that window
+> `reviews` is `[]` and the skip comment still says skipped; **that is not a
+> failed trigger**, and #105 briefly recorded it as one. It is a manual step on
+> *every* PR and does not survive a new push.
+>
+> It is worth the step: on #105 that review caught a tautological assertion
+> `pnpm check` passed — a test reading its expected value from the same
+> registry entry the component reads, so a component ignoring the registry
+> would still have passed.
 >
 > Do not "fix" this by triggering only on drafts. The draft rule
 > (`auto_review.drafts: false`) is real and unrelated: the star gate applies

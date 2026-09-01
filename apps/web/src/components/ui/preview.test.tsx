@@ -5,21 +5,40 @@ import { PREVIEW_REGISTRY } from "@/lib/preview-registry";
 import { Preview } from "./preview";
 
 describe("Preview", () => {
-  it("renders children and a milestone chip", () => {
-    render(
-      <Preview id="map-legend-modes" size="container">
-        {<span>rail body</span>}
-      </Preview>,
-    );
-    expect(screen.getByText("rail body")).toBeTruthy();
-    // Read the milestone from the registry rather than hardcoding it — this is
-    // a test of the chip, not of who owns this shell. The literal "M9" was here
-    // until 2026-09-01, when retagging `map-legend-modes` to "unplaced" broke a
-    // Preview component test that has nothing to do with milestone ownership.
-    // The assertion two `it`s down already used this idiom; this one now matches.
-    expect(
-      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["map-legend-modes"].milestone}`)),
-    ).toBeTruthy();
+  // A sentinel nothing else can produce: if this string reaches the chip, the
+  // only path it can have taken is the registry.
+  const SENTINEL_MILESTONE = "M-SENTINEL-0";
+
+  it("renders children, and the chip shows whatever milestone the registry holds", () => {
+    // Why a sentinel and not `PREVIEW_REGISTRY[id].milestone` — CodeRabbit, PR
+    // #105, 2026-09-01. Reading the expected value from the same entry `Preview`
+    // reads makes the assertion tautological: a component that ignored the
+    // registry and rendered the literal "unplaced" would still pass. This test
+    // exists to prove the registry-to-chip data flow, so it has to control the
+    // input. (The `budget-breakdown` lookup further down is NOT this mistake —
+    // there the lookup only LOCATES the chip and the assertion is about its
+    // position class.)
+    //
+    // The literal "M9" lived here until 2026-09-01, when retagging
+    // `map-legend-modes` to "unplaced" broke a test that has nothing to do with
+    // who owns the shell. The sentinel fixes both problems at once: ownership
+    // can change freely, and the data flow stays load-bearing.
+    //
+    // `as const` is compile-time only, so the entry is mutable at runtime.
+    const entry = PREVIEW_REGISTRY["map-legend-modes"] as { milestone: string };
+    const original = entry.milestone;
+    entry.milestone = SENTINEL_MILESTONE;
+    try {
+      render(
+        <Preview id="map-legend-modes" size="container">
+          {<span>rail body</span>}
+        </Preview>,
+      );
+      expect(screen.getByText("rail body")).toBeTruthy();
+      expect(screen.getByText(new RegExp(`Preview · ${SENTINEL_MILESTONE}`))).toBeTruthy();
+    } finally {
+      entry.milestone = original;
+    }
   });
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();

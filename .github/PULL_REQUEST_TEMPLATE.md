@@ -89,10 +89,10 @@ Closes:
 
        gh pr view <n> --json statusCheckRollup,reviews
 
-     Getting a real review may be human-only — a `@coderabbitai review`
-     comment did nothing on #105; the `Trigger review` checkbox in
-     CodeRabbit's own comment is the only offered path. Do not claim a PR
-     was reviewed when it was not.
+     To get a real review, comment `@coderabbitai review`. It works, but
+     takes ~21 min (not the 2-11 a normal review takes), so an empty
+     `reviews` inside that window is not a failed trigger. Do not claim a
+     PR was reviewed when it was not.
 
      CodeRabbit's summary comment lands ~30s in, but its actual review verdict
      takes 2-11 minutes. --watch exits non-zero the moment anything fails.

@@ -58,23 +58,33 @@
   unilaterally:
   1. **Restore the paid plan**, if the trial lapsing is what changed. Cheapest
      in process terms — everything written down becomes true again.
-  2. **Trigger manually on every PR** — but **it is not confirmed that an
-     agent can.** Tried on PR #105 at 15:22Z: a comment reading
-     `@coderabbitai review` produced **no review**. Eight minutes later
-     `get_reviews` was still `[]`, and CodeRabbit's skip comment had been
-     re-rendered (15:25Z) still saying skipped, with its `- [ ] 🔍 Trigger
-     review` checkbox **unticked**. A push at 15:29Z then superseded that
-     head, so the attempt is not perfectly clean — but nothing suggests the
-     command was accepted.
+  2. **Trigger manually on every PR** with a comment reading
+     `@coderabbitai review`. **This works, and an agent can do it** —
+     confirmed on PR #105, where it produced a real review that found a real
+     defect (see below).
 
-     **The only affordance CodeRabbit offers on this tier is that checkbox**,
-     which is ticked by editing its comment — in practice a human clicking it
-     in the GitHub UI. So this remedy may be **human-only**, which makes it a
-     trailing manual step of exactly the class the gate-close checklist exists
-     to abolish, and one an unattended session cannot perform at all.
+     **But budget ~21 minutes, not the 2-11 the docs claim.** The comment was
+     posted 15:22Z and the review landed 15:43Z. In between, `get_reviews` was
+     `[]`, the skip comment had been re-rendered still saying skipped, and its
+     `🔍 Trigger review` checkbox sat unticked — so at the 8-minute mark this
+     entry wrongly recorded the trigger as having failed. **Do not read an
+     absent review inside 20 minutes as a failed trigger.** CodeRabbit's own
+     note: *"This command is applicable only when automatic reviews are
+     paused"* — which is exactly this repo's state, so it is the supported
+     path.
 
-     **Verify before relying on it.** If the checkbox does work, it still has
-     to be ticked per PR, and it does not survive a new push.
+     It is still a step someone must remember on **every** PR — the class of
+     trailing manual step the gate-close checklist exists to abolish — and it
+     does not survive a new push. But it is not human-only, and an unattended
+     session can and should do it.
+
+     **It earned its keep immediately.** The review caught a tautological
+     assertion in this PR's own test fix that `pnpm check` passed: the test
+     read its expected value from the same registry entry the component reads,
+     so a component that ignored the registry entirely would still have passed
+     it. Proven by probe, not taken on faith — hardcoding the literal in
+     `preview.tsx` left the old assertion green. Nineteen-in-four-PRs, one more
+     time.
   3. **Get to 10 stars.** Out of the project's control and not a plan.
   4. **Drop CodeRabbit from the documented process** and replace it with
      something that does run. Honest, and loses the only check that has caught

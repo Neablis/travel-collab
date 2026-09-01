@@ -111,10 +111,9 @@ description `Review skipped: manual review required for this OSS repository`.
 CodeRabbit may not appear in the rollup at all while it still reports
 `success`. Check presence, state **and** description: `gh pr view <n> --json
 statusCheckRollup`, with `--json reviews` returning `[]` as the blunt
-confirmation nothing reviewed. Obtaining a real review may be **human-only**:
-a `@coderabbitai review` comment was tried and did nothing, leaving the
-`🔍 Trigger review` checkbox in CodeRabbit's own comment as the only offered
-path. When a review does run, its
+confirmation nothing reviewed. To get a real review, comment `@coderabbitai review` — it works, an agent can
+do it, but it took **~21 minutes** on #105, so an empty `reviews` inside that
+window is not a failed trigger. When a review does run, its
 summary comment appears within about 30 seconds and its verdict takes 2-11
 minutes. Treat its findings as bug reports to verify against the code — it
 caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and
