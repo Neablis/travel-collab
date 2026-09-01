@@ -242,6 +242,12 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
               day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""
             }, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
             aria-pressed={isFocused}
+            // The chip's own index, so a test can ask WHICH day is selected
+            // rather than parsing a weekday out of the label — the labels
+            // depend on the trip's dates, which move (the demo fixture is dated
+            // relative to today). Not a test-only hook in spirit: it is the
+            // same identity the click handler and the ring already use.
+            data-day-index={index}
             onClick={() => onSelect(isFocused ? null : index)}
             className={cn(
               "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",

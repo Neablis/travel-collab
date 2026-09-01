@@ -220,3 +220,39 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
     )
     .toEqual({ clippedAbovePx: 0, clippedBelowPx: 0 });
 });
+
+// Mitchell, 2026-09-01: *"When navigating to map view, always use the current
+// select day, but if no day is selected, default to first day. Dont go to
+// zoomed out full trip view."*
+//
+// The zoomed-out view was the mount camera — a static centre on the first
+// located pin at zoom 9, which is what you got whenever no day was focused,
+// because the camera effect had nothing to fit and held the viewport. Asserted
+// through the RAIL's own current-day marker rather than through the camera:
+// the map is a WebGL canvas with nothing to read, and the rail, the day strip
+// and the camera are all driven by the same one selection — which is the point
+// of fixing it by giving that selection a value rather than teaching the camera
+// a second mode.
+test("map: opens on the current day, and on the first one when none is chosen", async ({ page }) => {
+  test.setTimeout(90_000);
+  const tripName = e2eTripName("MapDefault");
+  const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
+
+  // Straight to the map with nothing selected — a fresh load, so `focusedDay`
+  // starts null exactly as it does for somebody clicking through to a trip.
+  await page.goto(`/trips/${tripId}?lens=Map`);
+  const rail = page.locator('[aria-label="Days"]');
+  await expect(rail).toBeVisible();
+  await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(1);
+
+  // And a day picked elsewhere is the day the map opens on — the "always use
+  // the current select day" half, which the default must not override.
+  await page.goto(`/trips/${tripId}?lens=Board`);
+  const columns = page.getByTestId("day-column");
+  await expect(columns.first()).toBeVisible();
+  await columns.nth(4).getByRole("button", { name: /^Day 5/ }).click();
+  await page.getByRole("tab", { name: "Map" }).click();
+  await expect(rail).toBeVisible();
+  await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(5);
+});
+

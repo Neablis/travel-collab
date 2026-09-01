@@ -1,4 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { E2E_SUPER_CODE } from "./admission";
+
+/**
+ * A dev username nobody has used before, so the invite gate sees a genuinely
+ * new account every run — which is the whole point of the sign-up walk below.
+ *
+ * Hex only and short, because `devLoginIdentity` bounds the charset to
+ * `^[A-Za-z0-9_-]{1,32}$`; a name that failed it would fail the sign-in for the
+ * wrong reason, and the refusal screen looks identical either way. Same shape
+ * as `m11a-invite-gate.spec.ts`'s own `freshUsername`.
+ */
+function freshDemoUsername(): string {
+  return `demo${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+}
 
 // `/demo` is the real trip board, read-only, for someone with no account
 // (ADR-031). The point of this spec is that it is the REAL board — the same
@@ -129,6 +144,48 @@ test.describe("the demo trip", () => {
     await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
+  });
+
+  // The path Mitchell walked on 2026-09-01 and arrived from with no trip:
+  // *"If you have never signed up, it askes you to sign up, and after you sign
+  // up ... you dont have the trip from the demo you tried to clone."*
+  //
+  // It is a different walk from the one above in exactly the way that broke it.
+  // The returning user goes `/demo` → `/signin` → back to `/demo?clone=1`, and
+  // the `?callbackUrl=` carries the whole intent. Somebody with NO account has
+  // to follow "Create an account" to reach the only screen with an invite-code
+  // field — and that hop, plus the sign-up they then complete, is where the
+  // callback was being dropped. So this asserts both carriers: the swap link
+  // still holds the callbackUrl, and the copy happens even though a brand-new
+  // account lands on the trip list rather than back on `/demo`.
+  test("finishes the copy for somebody who had to make an account first", async ({ page }) => {
+    test.slow();
+
+    await page.goto("/demo");
+    await page.getByRole("button", { name: "Make this trip mine" }).click();
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%3Fclone%3D1$/);
+
+    // The hop that used to lose it. The link is built from the NORMALISED
+    // callbackUrl, so this is also the assertion that a hostile one could not
+    // ride across.
+    const swap = page.getByRole("link", { name: "Create an account" });
+    await expect(swap).toHaveAttribute("href", "/signup?callbackUrl=%2Fdemo%3Fclone%3D1");
+    await swap.click();
+    await expect(page).toHaveURL(/\/signup\?callbackUrl=/);
+
+    // A genuinely new account: M11a's gate refuses anyone with no `users` row
+    // and no credential, so this is the real sign-up, super code and all.
+    await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await page.fill('input[name="username"]', freshDemoUsername());
+    await page.getByRole("button", { name: /sign in with dev login/i }).click();
+
+    // And they arrive holding the trip. Where they land on the way is
+    // deliberately not asserted — the whole point of the browser-side marker is
+    // that it does not depend on which of `/demo` or `/` the round trip chose.
+    await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
+    await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add stop" })).toBeEnabled();
   });
 });
 

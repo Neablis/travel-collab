@@ -81,3 +81,68 @@ test("adding a day appends it and every view renders it as an empty day", async 
   await rail.locator("[data-day-index]").last().click();
   await expect(page.getByText("No stops yet")).toBeVisible();
 });
+
+// Mitchell, 2026-09-01: *"Scrolling down the timeline or Left/Right in the days
+// column should change the selected day in the header bar."*
+//
+// Only a real browser can prove either half — jsdom has no layout, so the
+// scroll spy has nothing to measure there and the pure arithmetic behind it
+// (`centralDay.ts`) is all a unit test can reach. What this asserts is the
+// wiring: a scroll and an arrow key both move the ring on the day-chips row.
+test("the header's selected day follows the timeline's scroll and the columns' arrow keys", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const tripName = e2eTripName("FollowDay");
+  // Enough days that the last one is far off the bottom of any viewport, so
+  // scrolling to it is a real scroll rather than a no-op.
+  const tripId = await createMappedTrip(page, tripName, 12);
+
+  /** The 0-based index of the chip currently ringed, or null. */
+  const selectedChip = () =>
+    page.locator('[aria-label="Days"] button[aria-pressed="true"]');
+
+  // ── The timeline, vertically ──────────────────────────────────────────────
+  await page.goto(`/trips/${tripId}?lens=Schedule&view=Timeline`);
+  await expect(page.getByTestId("timeline-lens")).toBeVisible();
+  // Every day header, not merely the lens: the spy measures the headers, and
+  // scrolling before the last one has laid out scrolls a document that is still
+  // one screen tall — which lands back on day 1 and fires no further event to
+  // correct it. That is a race in the TEST, not in the page, and waiting for
+  // the count is what removes it.
+  await expect(page.locator('[data-testid^="timeline-dayhead-"]')).toHaveCount(12);
+  // Nothing is selected on arrival — the ring only appears once something has
+  // said which day you are on, which is exactly what the scroll is about to do.
+  await expect(selectedChip()).toHaveCount(0);
+
+  await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight }));
+  // The spy coalesces to one measurement per frame, so these are retrying
+  // assertions rather than waits on a duration.
+  await expect
+    .poll(async () => Number(await selectedChip().getAttribute("data-day-index")))
+    .toBeGreaterThan(0);
+  const atBottom = Number(await selectedChip().getAttribute("data-day-index"));
+
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+  await expect
+    .poll(async () => Number(await selectedChip().getAttribute("data-day-index")))
+    .toBeLessThan(atBottom);
+
+  // ── The day columns, horizontally ─────────────────────────────────────────
+  await page.goto(`/trips/${tripId}?lens=Board`);
+  const columns = page.getByTestId("day-column");
+  await expect(columns.first()).toBeVisible();
+
+  // Pick day 1 from its own column header, then walk right with the keyboard.
+  await columns.first().getByRole("button", { name: /^Day 1/ }).click();
+  await expect(selectedChip()).toHaveAttribute("data-day-index", "0");
+  await page.keyboard.press("ArrowRight");
+  await expect(selectedChip()).toHaveAttribute("data-day-index", "1");
+  await page.keyboard.press("ArrowLeft");
+  await expect(selectedChip()).toHaveAttribute("data-day-index", "0");
+  // Clamped, not wrapped: arrowing off the first day back to the last would be
+  // a jump the length of the trip.
+  await page.keyboard.press("ArrowLeft");
+  await expect(selectedChip()).toHaveAttribute("data-day-index", "0");
+});
+
