@@ -20,12 +20,18 @@ last the same day**, so the order is now
 note, and the one consequence it carries for M11b, are in
 `docs/milestones/README.md`.
 
-**A reorder is recommended and not applied (2026-09-01).** An audit against
-`main` found M9 much smaller than its file claims and both of ADR-022's stated
-reasons for placing it last now met —
-`docs/reviews/2026-09-01-milestone-audit.md` proposes
-`M17 → M9 → M12 → M13 → M14 → M19`. **The order above stands until Mitchell
-decides**, per this file's own rule.
+**Reordered again 2026-09-01 — M9 moves from last to second.** Mitchell's call
+on the audit (`docs/reviews/2026-09-01-milestone-audit.md`): M9 turned out to be
+four-sevenths built, and both of ADR-022's grounds for placing it last — polish
+first, sharing first — have since happened. **The order is now
+`M17 → M9 → M12 → M13 → M14 → M19`.** M19 stays last regardless: its link 3
+overlaps M13's `add-stop-who`. Note the list below is in file order, not
+execution order — read the `← current milestone` marker, per the rule above.
+
+**M12, M13 and M14 were scoped the same day**, each getting the file and exit
+checklist `docs/milestones/README.md` requires "before work on it begins" and
+none of them had. Every milestone in the order now has a written gate except
+M19, which is deliberately *placed but not scoped*.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
@@ -246,20 +252,34 @@ Where the work actually stands right now: `docs/STATUS.md`.
       (M11 link 6, ADR-029) is the data model it builds on.)*
 - [ ] **M12 Reviews and moderation** — all trust & safety scope
       lives here, nowhere earlier.
-      *(**Retitled 2026-09-01** — was "Community". The public gallery and
-      discovery that name promised **shipped in M11b**; what M12 keeps from
-      `SPEC.md` §15 is reviews, ratings everywhere they surface, and
-      moderation. **No milestone file or exit gate exists yet**, so it cannot
-      be opened without a scoping pass first.)*
+      → `docs/milestones/M12-reviews-and-moderation.md`
+      *(**Retitled and scoped 2026-09-01** — was "Community", with no file and
+      no exit gate. The public gallery and discovery that name promised
+      **shipped in M11b**; what M12 keeps from `SPEC.md` §15 is reviews,
+      ratings everywhere they surface, and moderation. Six links, nine gate
+      boxes. It exists to delete one line from §15: **"Until the reviews table
+      exists, every rating here is fixture data"** — still true in `main`.
+      Needs a migration.)*
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
-      conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
-      into M11, because they are the same `AccessPolicy` change as share links
-      and opening that boundary twice costs twice.)*
+      conflicts. → `docs/milestones/M13-collaboration.md`
+      *(**Narrowed 2026-08-27**: invites, roles and revocation moved into M11,
+      because they are the same `AccessPolicy` change as share links and opening
+      that boundary twice costs twice. **Scoped 2026-09-01** — five links, and
+      the transport ADR is a prerequisite rather than a deliverable. Link 3 is
+      the *"adopt this outcome, re-predict what is queued"* reducer **KI-90
+      already names as the fix** for KI-90, KI-5 and KI-77 at once. It also owns
+      per-stop attribution, which **M19's link 3 depends on** — if M13 ships
+      without it, that link returns to M19.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
-      *(**No milestone file or exit gate exists yet** — noted 2026-09-01. Same
-      for M12 and M13; three of the next four milestones need a scoping pass
-      before they can open, against `docs/milestones/README.md`'s rule that
-      each gets a file "before work on it begins".)*
+      → `docs/milestones/M14-rich-layer.md`
+      *(**Scoped 2026-09-01** — six links, and the **repeaters ADR is a
+      prerequisite**, not a mid-build deliverable. Checked against the tree:
+      `MacroKind` is `"inline" | "block"` with no repeat kind, and every macro
+      is `NoParams` — the registry's `params` seam exists and has never been
+      used, which is exactly what that ADR is for. **Two items on this row need
+      a call before it opens**: the M8 macro vocabulary, and **external calendar
+      sync**, which has no design, no ADR and no relationship to the Notebook,
+      and may deserve its own milestone.)*
       *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
       `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
       macro with an author-supplied row template is the one genuinely new
@@ -292,8 +312,13 @@ Where the work actually stands right now: `docs/STATUS.md`.
       **both of which have since been met**; the placement has not been
       re-examined. `ai-live` defaults off and grounding is what would let it be
       turned on, so the biggest built feature in the product is dark while this
-      waits. A reorder to `M17 → M9 → …` is **recommended and not applied** —
-      it is Mitchell's call: `docs/reviews/2026-09-01-milestone-audit.md`.)*
+      waits. **Reordered 2026-09-01 on Mitchell's call: M9 now runs SECOND,
+      immediately after M17**, superseding ADR-022's placement of it last —
+      both grounds ADR-022 named have since happened. **All twelve open AI
+      known issues are assigned here the same day**, three of them promoted to
+      gate boxes (KI-12, KI-93, KI-94+97) and nine carried; the rationale for
+      the split is in the milestone file:
+      `docs/reviews/2026-09-01-milestone-audit.md`.)*
 
 - [ ] **M19 A cost knows who and what it is for** →
       `docs/milestones/M19-cost-model.md`
@@ -342,6 +367,23 @@ Captured so they aren't lost; not committed to a milestone yet.
   Deliberately not done in PR #89 — that PR closed M18's gate, and removing a
   control from a different surface would have made the gate evidence harder to
   read.
+
+- **Transport mode per leg — the map legend's modes (2026-09-01, out of the
+  milestone audit).** `map-legend-modes` in `preview-registry.ts` was tagged
+  **M9** and is not M9's work: M9's scope has no transport-mode link, no
+  contract change and no migration. It was **retagged `unplaced`** rather than
+  moved to a milestone that merely sounds adjacent — the registry's own rule is
+  that a tag is a claim the milestone will wire the shell up, and a false claim
+  costs a future gate, which is how M11b's *"no M11-tagged entry remains"* box
+  got stuck.
+  What it would need: a field modelling how you get from one stop to the next.
+  **`ActivityKind` already carries `transit`** (M18), so the stop knows it *is*
+  travel — what nothing records is *by what*. `activity.ts` warns explicitly
+  against a second field that could disagree with `kind`, so this is the same
+  design question M19's link 1 has to answer about costs: inherit, or carry its
+  own. Worth deciding once for both.
+  Not scoped, not placed, and deliberately not attached to a milestone until
+  someone wants it.
 
 - **Timeline: scrolling should move the day chips, the way the map rail
   already does (2026-08-28, Mitchell, walking PR #71's preview — "Add this to

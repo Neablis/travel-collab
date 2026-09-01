@@ -185,25 +185,50 @@ point.
 
 Nothing has re-examined the placement since the conditions lapsed.
 
-### 4b. Three of the next four milestones have no file and no exit gate
+### 4b. Three of the next four milestones have no file and no exit gate — FIXED 2026-09-01
 
 `docs/milestones/` has files for M17, M19 and M9. **M12, M13 and M14 are table
 rows only** — no scope document, no exit checklist. `README.md`'s own rule:
 *"Each milestone gets its own file here with an exit checklist before work on it
 begins."*
 
-So the order after M17 runs `M12 → M13 → M14`, and none of the three can be
+So the order after M17 ran `M12 → M13 → M14`, and none of the three could be
 opened without a scoping pass first — the same condition that held M11b unplaced
-for two days. M9, by contrast, has a written scope and a written gate today.
+for two days. M9, by contrast, had a written scope and a written gate.
+
+**Scoped 2026-09-01 on Mitchell's call** (*"we should do the milestone
+planning"*): `M12-reviews-and-moderation.md`, `M13-collaboration.md` and
+`M14-rich-layer.md` now exist, each with links and an exit gate. Three things
+the scoping surfaced that were not visible from the table rows:
+
+- **M12 has one line to delete**, and it is in the design: `SPEC.md` §15 ends
+  *"Until the reviews table exists, every rating here is fixture data."* Still
+  true in `main` — `saved_days` has no `rating`, no `review_count`, and there is
+  no reviews table. Discover's missing sorts are already promised in code:
+  `api/playbooks/route.ts` answers `?sort=highest-rated` with the default and
+  calls it *"a link from the future"*.
+- **M13's hardest link is already written down.** KI-90 names the fix — widening
+  `confirmHead` into *"adopt this outcome, re-predict what is queued"* — and says
+  it *"would fix KI-77, KI-5's `applyOutcome` precondition and this at once, and
+  that is a design pass, not a line."* That design pass is the same machinery a
+  remote edit arriving mid-queue needs, so doing realtime first and the
+  reconcile after would build it twice.
+- **M14 carries something that may not belong to it.** **External calendar sync**
+  has been on its row since 2026-07-07, has no design, no ADR and no
+  relationship to the Notebook redesign that is the rest of the milestone. It is
+  flagged in the file as needing a call — scope it deliberately or split it out.
+  The repeaters ADR is confirmed a real prerequisite: `MacroKind` is
+  `"inline" | "block"` with no repeat kind, and every macro is `NoParams`, so
+  the registry's `params` seam has never once been used.
 
 ### 4c. Recommended order
 
 ```
-current:      M17 → M12 → M13 → M14 → M9 → M19
-recommended:  M17 → M9 → M12 → M13 → M14 → M19
+was:      M17 → M12 → M13 → M14 → M9 → M19
+now:      M17 → M9 → M12 → M13 → M14 → M19     (Mitchell, 2026-09-01)
 ```
 
-**Move M9 to immediately after M17.** Four reasons:
+**M9 moved to immediately after M17.** Four reasons:
 
 1. **It turns the lights on.** Grounding is the one thing standing between a
    built assistant and `ai-live` being flippable. Every milestone ahead of M9
@@ -240,21 +265,60 @@ is blocked on it, by its own file's admission.
 
 ---
 
-## 6. Decisions for Mitchell
+## 6. Decisions — all made 2026-09-01
 
-Findings above are recorded. These need a call, and a gate definition changes
-only by explicit decision:
+Mitchell's calls on the findings above, and what was done.
 
-1. **Re-scope and retitle M9** to grounding + conversation durability + the eval
-   harness, and **annotate boxes 3 and 5 as already met** rather than leaving
-   them to be re-proven at the gate. Ticking them is a gate close and is not
-   done here.
-2. **Move M9 to after M17** (§4c), or before it.
-3. **Assign the nine orphan AI known issues** (§3a). KI-12, KI-93 and KI-94 are
-   the ones that most look like M9 gate boxes.
-4. **Retag `map-legend-modes`** off M9 — to `unplaced`, or to a milestone that
-   will actually wire it (§3b).
-5. **Add STATUS.md to the gate-close checklist** as a fifth step, or delete its
-   claim to be updated at every milestone boundary. One of the two must give.
-6. **Give KI-34 a home.** It is a correctness entry, deferred by M10, now living
-   only in `TODO.md`'s Candidate ideas with no milestone.
+| # | Decision | State |
+|---|---|---|
+| 1 | **Re-scope and retitle M9**, annotating the met boxes rather than ticking them | **Done.** Now "The assistant cites what it plans". Boxes 2, 3 and 5 annotated, not ticked |
+| 2 | **Move M9 to second, after M17** — *"reorder as you see fit"* | **Done.** `M17 → M9 → M12 → M13 → M14 → M19`, recorded as a reorder note in `docs/milestones/README.md` |
+| 3 | **Assign every AI known issue to M9** — *"why not put all the ai known issues in the ai milestone"* | **Done, with a split.** All twelve owned by M9; **three promoted to gate boxes** (KI-12, KI-93, KI-94 with KI-97), nine carried. See below |
+| 4 | **Retag `map-legend-modes`** | **Done** — `unplaced`, with the idea preserved in `TODO.md`'s Candidate ideas so it is not lost |
+| 5 | **Add STATUS.md to the gate-close checklist** | **Done** — step 5 |
+| 6 | **Scope M12, M13 and M14** — *"we should do the milestone planning"* | **Done.** Three new files with exit gates. Every milestone in the order now has a written gate except M19, deliberately placed-but-not-scoped |
+| 7 | **Give KI-34 a home** | **Open.** Still the one correctness entry with no milestone; see §3 |
+
+### On decision 3: why all twelve are owned but only three gate
+
+The question was *"why not put all the ai known issues in the ai milestone"* —
+and the answer is that they all should be **owned** there, which is now true.
+Nine of them had no milestone at all and that was the real defect.
+
+**Gating is the separate question.** A gate box is something whose absence means
+the milestone is not done. M9 was just cut from a seven-item architecture
+replacement down to three real pieces of work; adding twelve boxes would rebuild
+that grab-bag by another route and the milestone would stop being small — which
+was the entire finding.
+
+The test used to split them: **does this have to be true before `ai-live` can be
+turned on?** That is what M9 is for.
+
+- **KI-12** — the planning flow cannot finish the job it advertises. This
+  milestone exists to make that flow trustworthy.
+- **KI-93** — geocoding spends the LocationIQ key through a second door that
+  never consults the quota. Grounding multiplies traffic through that same
+  vendor, so it closes with grounding rather than after it.
+- **KI-94** (with **KI-97**) — a burst hole in a spend ceiling, which is the
+  wrong thing to have when the switch flips.
+
+The nine carried entries are owned, findable, and a fixer working in that code
+should take them — but the gate does not wait on them. Two could not be gate
+boxes even if wanted: **KI-22** is a contracts change, which `AGENTS.md`
+reserves as its own reviewed PR, and **KI-10**'s fix is in `resolveBatch`, which
+M9's own file says explicitly not to rewrite.
+
+### On decision 4: what the mis-tag actually cost
+
+This was the finding whose implications were least obvious, so stated plainly:
+`preview-registry.ts` is the spine for "not built yet" — `DRIFT.md` reconciles
+design against it. **A shell's milestone tag is a promise that that milestone
+will wire it up**, and gates are written against it: M11b's box was *"no
+M11-tagged entry remains"*.
+
+So a wrong tag is a **future blocked gate**. M11b hit exactly this — its box was
+written believing four shells were M11's when there were nine, and closing it
+required either wiring surfaces outside its scope or narrowing the box, a
+gate-definition change that had to go back to Mitchell. `map-legend-modes`
+tagged M9 set up the same collision for M9's gate. Retagging now costs one line;
+discovering it at the gate costs a decision under time pressure.

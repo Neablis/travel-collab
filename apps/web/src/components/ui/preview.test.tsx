@@ -12,7 +12,14 @@ describe("Preview", () => {
       </Preview>,
     );
     expect(screen.getByText("rail body")).toBeTruthy();
-    expect(screen.getByText(/Preview · M9/)).toBeTruthy();
+    // Read the milestone from the registry rather than hardcoding it — this is
+    // a test of the chip, not of who owns this shell. The literal "M9" was here
+    // until 2026-09-01, when retagging `map-legend-modes` to "unplaced" broke a
+    // Preview component test that has nothing to do with milestone ownership.
+    // The assertion two `it`s down already used this idiom; this one now matches.
+    expect(
+      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["map-legend-modes"].milestone}`)),
+    ).toBeTruthy();
   });
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();

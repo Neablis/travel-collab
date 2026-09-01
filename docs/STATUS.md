@@ -30,12 +30,27 @@ against production. Retros and gate evidence are in
 `docs/milestones/M11a-invite-gate.md` and
 `docs/milestones/M11b-playbooks-public-library.md`.
 
-Order from here:
-`M17 → M12 → M13 → M14 → M9 → M19` — **and a reorder is recommended and not
-applied.** `docs/reviews/2026-09-01-milestone-audit.md` found M9 far smaller
-than its file claimed (four of seven scope items shipped) and both of ADR-022's
-stated grounds for placing it last now met; it proposes
-`M17 → M9 → M12 → M13 → M14 → M19`. Reordering is Mitchell's call.
+**Order from here: `M17 → M9 → M12 → M13 → M14 → M19`** — **reordered
+2026-09-01 by Mitchell**, moving M9 from last to second. M9 turned out to be
+four-sevenths built and both of ADR-022's grounds for placing it last (polish
+first, sharing first) have since happened. The reorder note is in
+`docs/milestones/README.md`; the working is in
+`docs/reviews/2026-09-01-milestone-audit.md`.
+
+**M12, M13 and M14 were scoped the same day** and now have files and exit
+gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
+`M14-rich-layer.md`. They had none before, against the README's rule that each
+milestone gets one before work begins. **Every milestone in the order now has a
+written gate except M19**, which is deliberately placed-but-not-scoped.
+
+**Two prerequisites are ADRs, and both are due before their milestone opens**,
+not during it: **M13's realtime transport ADR** and **M14's repeaters ADR**.
+Neither is a deliverable to write mid-build.
+
+**All twelve open AI known issues are assigned to M9** (2026-09-01) — three
+promoted to gate boxes (KI-12, KI-93, KI-94 with KI-97), nine carried. The
+split rule, and why it is not all twelve: a gate box is something whose absence
+means the milestone is not done. See `M9-ai-planning-partner.md`.
 
 **M19 — a cost knows who and what it is for** was minted and placed last on
 2026-08-31 and is the newest milestone: `docs/milestones/M19-cost-model.md`.
@@ -163,10 +178,12 @@ stayed invisible because with `users` intact the seed succeeds with no code at
 all — the returning-user path again.
 
 
-**M18b's gate closed 2026-08-30. M17 is the current work**, and the order is
-now `M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
+**M18b's gate closed 2026-08-30**, and the order *at that moment* was
+`M17 → M11a → M11b → M12 → M13 → M14 → M9` — **M11b was scoped and placed
 2026-08-30** off the new design handoff, and **M11a was created the same day and
-placed in front of it**. See the next two paragraphs.
+placed in front of it**. See the next two paragraphs. *(Twice superseded since:
+M11a and M11b jumped M17 on 2026-08-30 and both closed on 2026-08-31, and M9
+moved to second on 2026-09-01. The live order is at the top of this file.)*
 
 **M18b shipped tag focus in PR #91** — SPEC §11's behaviour behind the chips M18
 made settable. Clicking a tag chip focuses that tag across all four lenses;
@@ -441,10 +458,9 @@ Two things to read before opening it, both from the 2026-09-01 audit
   ADR-025 and already carries `name`. What is missing is **preference columns**
   on it. The claim is corrected in place; the milestone is retitled **Account
   preferences**, since the "real user record" half shipped in M11.
-- **A reorder is on the table and not applied.** The audit recommends
-  `M17 → M9 → M12 → M13 → M14 → M19`, because M9 turned out to be four-sevenths
-  built and both of ADR-022's grounds for placing it last have lapsed. If
-  Mitchell takes it, M9 follows M17 rather than M14.
+- **M9 follows it, as of the 2026-09-01 reorder** — not M12. M9 is now the
+  smallest remaining milestone and the one that unblocks `ai-live`, so the
+  handoff out of M17 is into grounding, not into reviews.
 
 *(Superseded, kept as the record: "M17 was jumped on 2026-08-30 and the current
 work is M11a — an invite gate, then M11b, then M17." Mitchell's call that day,

@@ -69,9 +69,9 @@ for collaboration later landing on a product people already want to join.
 | M11 | Fork & remix / Sharing and invites | **Done, gate closed 2026-08-28** — eight of eight boxes, e2e 46/46 twice against a production build, and the invite→accept→edit and pinned-share flows walked on a Vercel preview as two actors. **Playbooks/templates was carved out at the gate by Mitchell and is M11b — scoped and placed 2026-08-30.** Links 1-6 landed 2026-08-28 (PR #71), remediated by PR #78; retro and gate evidence in `M11-sharing-and-invites.md`. Scheduled 2026-08-27 ahead of M18's remaining surfaces and M16, and **absorbed M13's invites/roles/revocation scope** in the same decision. Clone-with-lineage, day- and trip-level templates, share links with read access. Moved ahead of Collaboration on 2026-07-28 — this is the "social" thing actually wanted, and it needs no realtime transport. **Also owns the landing page's "Look around a real trip" CTA** (2026-08-23 design sync): it needs unauthenticated read of a real trip, which is this milestone's share-link work and nothing smaller |
 | M11a | An invite gate on the front door | **Scoped and placed 2026-08-30**, running after M17 and **before M11b**. Created out of M11b's scoping review the same day: M11b publishes user-authored text and leaves reporting to M12, which rests on Mitchell's call that the platform is invite-gated — *"we will gate on who we invite to platform... we need a community before its a issue"* — and today it is not, since any Google account that reaches `/signin` gets one. **Three ways through, evaluated only when there is no `users` row**: a pending M11 trip-invite token (Mitchell's call — a trip invite *is* an invitation, or M11's invite→accept flow breaks for the new collaborators it exists to serve), a **reusable super code**, and **single-use codes** in a new `invite_codes` table. Small because most of it exists: `users` (ADR-025) already records who has been here, so "never been to the app" is "has no `users` row", and `recordSignIn` is already a fail-closed boolean landing on the designed `/signin?error=` screen. The one real problem is that OAuth leaves the site, so the code rides a short-lived httpOnly cookie across the round trip. Needs a migration, and the migration needs a dispatch: `M11a-invite-gate.md` |
 | M11b | Playbooks becomes a public library | **Scoped and placed 2026-08-30**, running after M17 and immediately before M12. Carved out of M11's gate 2026-08-28 and unplaced for two days because it had no scope — a product decision. The **2026-08-30 design handoff** supplied it: `SPEC.md` §15 / `DRIFT.md` §2b turn Playbooks from a private grid into a discovery surface over other people's days, across four routes — `playbooks` (Discover), `day`, `board` and `profile`, three of them new. **Mitchell drew the scope line short of reviews**: M11b takes all of §15 except reviews and ratings; M12 keeps those plus moderation, which is why M11b sits immediately before it. Eight links — `cities: string[]`, a `GET /cities?q=` endpoint, publishing (private by default, author can unpublish), an adds ledger keyed by (day, trip) without which the board's ranking rule is gameable, and the four routes. Closes DRIFT's **D9** and deletes the last four M11-tagged `<Preview>` shells. Two deltas from the spec text and one precondition — a platform signup gate that does not exist in code — are recorded in: `M11b-playbooks-public-library.md` |
-| M12 | Reviews and moderation | **Retitled 2026-09-01** (was "Community"): the gallery and discovery halves of that name shipped in M11b, so the title promised a milestone that no longer exists. Originally public gallery, discovery, voting, reporting (all trust & safety scope quarantined here). **Narrowed 2026-08-30 by M11b's placement**: the public gallery and discovery are M11b's, and what M12 keeps from `SPEC.md` §15 is **reviews** (the table, stars, the ≤140-char note, the live average, the three review states), **ratings everywhere they surface** (the shared day's 5→1 histogram, the `rating`/`reviewCount` counters, the profile's average, Discover's rating floor filter and its highest-rated / most-reviewed sorts), and moderation |
-| M13 | Collaboration | **Narrowed 2026-08-27: invites, roles and revocation moved to M11** — what is left is near-real-time sync (transport ADR due here) and concurrent-edit conflicts as resolvable data. **It also owns per-stop attribution** (`add-stop-who` and `rack-provenance` in `preview-registry.ts`) — *no field records who a stop is for* — and **M19's link 3 depends on this milestone landing that field**, which is the whole reason M19 is placed after it. If M13 ships without it, that link returns to M19. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it |
-| M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7) |
+| M12 | Reviews and moderation | **Retitled 2026-09-01** (was "Community"): the gallery and discovery halves of that name shipped in M11b, so the title promised a milestone that no longer exists. Originally public gallery, discovery, voting, reporting (all trust & safety scope quarantined here). **Narrowed 2026-08-30 by M11b's placement**: the public gallery and discovery are M11b's, and what M12 keeps from `SPEC.md` §15 is **reviews** (the table, stars, the ≤140-char note, the live average, the three review states), **ratings everywhere they surface** (the shared day's 5→1 histogram, the `rating`/`reviewCount` counters, the profile's average, Discover's rating floor filter and its highest-rated / most-reviewed sorts), and moderation. **Scoped 2026-09-01** — it had no file and no exit gate until then: `M12-reviews-and-moderation.md` |
+| M13 | Collaboration | **Narrowed 2026-08-27: invites, roles and revocation moved to M11** — what is left is near-real-time sync (transport ADR due here) and concurrent-edit conflicts as resolvable data. **It also owns per-stop attribution** (`add-stop-who` and `rack-provenance` in `preview-registry.ts`) — *no field records who a stop is for* — and **M19's link 3 depends on this milestone landing that field**, which is the whole reason M19 is placed after it. If M13 ships without it, that link returns to M19. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it. **Scoped 2026-09-01** — it had no file and no exit gate until then; the transport ADR is a prerequisite, and link 3 (the re-prediction reducer KI-90 names) closes the KI-5 optimistic-loss class: `M13-collaboration.md` |
+| M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7). **Scoped 2026-09-01** — it had no file and no exit gate until then. Two items on this row need a call before it opens: the M8 macro vocabulary, and **external calendar sync**, which has no design, no ADR and no relationship to the Notebook and may deserve its own milestone: `M14-rich-layer.md` |
 | M19 | A cost knows who and what it is for | **Minted and placed 2026-08-31 by Mitchell — runs last, after M9.** Opened by M11b's `preview-registry` sweep: `cost-estimate-state` and `budget-breakdown` were tagged M11, are not M11's, and belong to no existing milestone — *"it does feel very much like a tacked on concept ... splitting cost, cost per person based on whos attached to what activity, better sharing cost in the shared day ui."* The whole model today is `Money = {amountMinor, currency}`, one optional `cost` on an activity and one `budget` on a trip. Five links: a cost's **kind** (unblocks `budget-breakdown`), a cost's **settled-vs-estimate** state (unblocks `cost-estimate-state`), **who an activity is for** (overlaps M13's `add-stop-who` — must land in exactly one), **splits** derived from that, and the **shared-day** presentation. Its anchor finding: `savedDayFacts.budgetPerPerson` is a plain sum of stop costs with nothing to divide by, so a shipped field asserts a per-person meaning it does not have: `M19-cost-model.md` |
 | M15 | Front door | **Gate closed 2026-08-26, PR #56.** Approved 2026-08-23 (ADR-021); ADR-022 (2026-08-25) placed it after M16, but it in fact **ran ahead of both M10's Phase 9 gate and M16** — decided by Mitchell 2026-08-26, superseding ADR-021/ADR-022's stated ordering (see the reorder note below). The unauthenticated surface the product had never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, and the header account menu (already shipped in M10 Phase 8b). The designed first-run screen was dropped — `NewTripWizard`'s "Create empty" already creates a trip from a name alone. Scope, exit gate and retro: `M15-front-door.md` |
 
@@ -201,14 +201,40 @@ Current milestone: **M17 — Account preferences**
 gates both closed** — M11a nine of nine with its admission paths walked on
 production, M11b eleven of eleven with the two-actor publish walk and the
 `cities` backfill. Order from here:
-`M11a ✓ → M11b ✓ → M17 → M12 → M13 → M14 → M9 → M19`.
+`M11a ✓ → M11b ✓ → M17 → M9 → M12 → M13 → M14 → M19`.
 
-### 2026-09-01 — milestone audit; a reorder is proposed and NOT applied
+### 2026-09-01 — reorder: M9 moves from last to second, by Mitchell's decision
+
+**Mitchell's call, 2026-09-01**, on the audit below: *"reorder as you see fit."*
+**New execution order: `M17 → M9 → M12 → M13 → M14 → M19`.** Milestone numbers
+are unchanged — this is a placement, the same shape as ADR-018, ADR-021 and
+ADR-022.
+
+**What it supersedes.** ADR-022 (2026-08-25) moved M9 to last, after M14, on two
+stated grounds: the data layer beneath a planning partner should exist first,
+and UI polish and sharing come before it. **Both have since been met** — M10's
+Wave-2 gate (2026-08-27) for polish; M11, M11a and M11b (all closed) for
+sharing; M18, M18b and M16 for the data layer and the read agent. ADR-022's
+reasoning is not overturned, it is **spent**: the conditions it named have
+happened.
+
+**Why second rather than first.** M17 stays ahead of M9 because it is already
+the current milestone and is small, and because M14's insert picker needs its
+account-scope fields. Nothing in M9 reads a preference.
+
+**Why not later.** `ai-live` defaults to false and the assistant is built and
+dark; grounding is what would let it be turned on. Every milestone placed ahead
+of M9 extends that. M9 is also now the **smallest** of the four remaining
+non-M17 milestones and the only one that was scoped before this session.
+
+**M19 keeps its place last, unchanged.** Its link 3 (who an activity is for)
+overlaps M13's `add-stop-who`, and running after M13 is what stops both from
+adding the same field.
+
+### 2026-09-01 — milestone audit
 
 `docs/reviews/2026-09-01-milestone-audit.md` checked every remaining milestone
-against `main` at `dd61c44`. **The order above is unchanged** — reordering is
-Mitchell's call and no decision has been recorded. What the audit found that
-bears on it:
+against `main` at `dd61c44`. What it found:
 
 - **M9 is no longer the milestone its file described**, and it has been
   retitled accordingly (**"The assistant cites what it plans"**). Four of seven
@@ -224,10 +250,13 @@ bears on it:
   file's own rule that each gets one "before work on it begins". M9 and M19 are
   scoped today; three of the next four are not.
 
-**Recommended order, for a decision:**
-`M17 → M9 → M12 → M13 → M14 → M19`. M19 stays last regardless — its link 3
-overlaps M13's `add-stop-who` and running after M13 is what stops both from
-adding the field.
+**All four findings are now acted on.** The reorder is above. M12, M13 and M14
+were scoped the same day and have files and exit gates
+(`M12-reviews-and-moderation.md`, `M13-collaboration.md`, `M14-rich-layer.md`),
+so no milestone in the order is unscoped except M19, which is deliberately
+*placed but not scoped* pending its link-1 design question. The nine orphan AI
+known issues are assigned to M9, three of them as gate boxes.
+`map-legend-modes` was retagged off M9.
 
 **M19 was placed last on 2026-08-31** ("just put at end for now" — Mitchell),
 the same day it was minted. Last is a real position here, not a shrug: M19's
