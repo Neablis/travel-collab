@@ -22,6 +22,55 @@ general setup.
 
 ## Where the work is right now
 
+**Signup and onboarding feedback is on `claude/signup-onboarding-feedback-lx1qvx`,
+2026-09-01.** Fifteen items Mitchell brought back from walking three people
+through signing up — not a milestone, and it does not move the M17 order below.
+
+Three of them are worth a fresh session knowing about, because they changed a
+rule rather than a string:
+
+1. **Discover's `Everyone` is a superset now**, including your own unpublished
+   days. That is what Mitchell asked for, and it silently broke the public
+   profile, which had been getting "published only" for free from the old
+   meaning — an author saw three days where everybody else saw two. The rule is
+   now stated on the query (`publishedOnly`) instead of implied by the scope. It
+   also broke an e2e assertion that read `getByLabel("City")` as "no accessible
+   name contains the word city".
+2. **`displayNameFor` never returns a raw identifier.** `dev-alice` renders as
+   "Alice", an opaque `sub` or UUID as `Traveler <4 chars>`, and your own saved
+   day says "You" beside Publish. The id still travels in every link; only what
+   the link SAYS changed. Four tests and two e2e assertions read the old value.
+3. **The header's selected day now follows scrolling and arrow keys.** One
+   `focusedDay` with a `FocusOrigin`, not a second indicator state — the design
+   splits them (`dc.html:3630-3666`) and this deliberately does not. The origin
+   is what stops the timeline's scroll-to-focused-day feeding back into the spy.
+
+**One thing was asked for and deliberately not built that way, and it is
+Mitchell's to overrule.** "The first time walkthrough ... is not working, i get
+the empty landing screen" reads as *open the wizard on a first run*. It is not
+auto-opened: a modal that opens itself covers the page-head "New trip" button
+and Radix's overlay swallows the click, and whether it opened at all depends on
+whether the account has a trip yet — which across the e2e suite is a function of
+which spec ran first. The empty state was rebuilt instead
+(`components/home/FirstTripStart.tsx`: what the wizard will ask, and all three
+ways in), and the wizard opens full screen when you have no trips. Say the word
+and it can open itself.
+
+**The library got six curated starter days** (`packages/fixtures/src/library/`),
+seeded beside the Japan set rather than merged into it — that set's counts are
+what M11b's exit gate checks, and two of its invariants are asserted in
+`verify.test.ts`. They carry authored `keptOn` dates so all four seasons are
+occupied in a fresh database, which is what makes the new season filter
+demonstrable at all.
+
+Verified: `pnpm typecheck` (7 packages), `pnpm lint` (eslint + all four walls),
+`pnpm test` (1974 unit), `pnpm test:int` (431 integration), `pnpm seed:verify`,
+and `pnpm --filter web test:e2e:ci-like` at **73 passed**. One earlier e2e run
+went red on `m16-assistant` — that was KI-83, confirmed by its own diagnostic
+query rather than assumed, and cleared with the entry's documented fix.
+
+---
+
 **M11a and M11b are built and in review as a three-PR stack, 2026-08-30.**
 None of their gates has closed; nothing below is ticked anywhere yet.
 
