@@ -16,6 +16,12 @@
 # none of it makes one happen on its own. That comment works and takes about
 # 21 minutes on this tier.
 #
+# DECIDED 2026-09-01: CodeRabbit is no longer an automated step. It is a human
+# step before merging — see AGENTS.md, "CodeRabbit is Mitchell's step". Note
+# `auto_review.enabled` below is deliberately left TRUE even though the gate
+# ignores it: flipping it to false would silently suppress reviews if the plan
+# is ever restored, which is a worse trap than a setting that currently no-ops.
+#
 # See AGENTS.md for the invariants referenced below.
 language: en-US
 

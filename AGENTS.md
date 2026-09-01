@@ -322,59 +322,58 @@ point: they describe the change, not the ceremony around it.
 
 ### Waiting on PR checks — do not hand-poll
 
-One blocking command covers every check that actually runs:
+One blocking command covers every check that runs automatically:
 
 ```
 gh pr checks <n> --watch --fail-fast
 ```
 
-CodeRabbit posts a **legacy commit status** ("CodeRabbit"), not a check run, so
-`--watch` waits for it. Its summary comment lands ~30 seconds after the PR
-opens, but its actual review verdict takes **2-11 minutes** — that gap is what
-makes hand-polling with repeated `gh pr checks` such a reliable time sink, and
-it is why this is written down rather than left to each session to rediscover.
+Hand-polling with repeated `gh pr checks` is a reliable time sink; that is why
+this is written down rather than left to each session to rediscover.
 
-> **⚠ A green CodeRabbit status no longer means CodeRabbit reviewed anything
-> — KI-2026-09-01.** Since the plan lapsed, this repo (public, 0 stars) is
-> below CodeRabbit's 10-star OSS gate and **auto-review is off**. It still
-> posts a status, and that status is still `success`:
->
-> | PR | `state` | `description` |
-> |---|---|---|
-> | #102, 2026-08-31 | success | `Review completed` |
-> | #105, 2026-09-01 | success | `Review skipped: manual review required for this OSS repository` |
->
-> So `--watch --fail-fast` **exits 0 on a PR CodeRabbit never read.** This is
-> the trap in the next paragraph, one level up and with no net behind it.
->
-> **Check three things, not one:** `gh pr view <n> --json statusCheckRollup`
-> — is CodeRabbit *present at all*, is its `state` success, and does its
-> `description` read `Review completed`? `Review skipped: …` is not a review,
-> and on this PR's second head CodeRabbit was **absent entirely** while the
-> rollup still said `success`. `gh pr view <n> --json reviews` returning `[]`
-> is the blunt confirmation nothing read the code.
->
-> **To get a real review, comment `@coderabbitai review` on the PR.** This
-> works and an agent can do it — but **budget ~21 minutes, not the 2-11 above**
-> (measured on #105: comment 15:22Z, review 15:43Z). Inside that window
-> `reviews` is `[]` and the skip comment still says skipped; **that is not a
-> failed trigger**, and #105 briefly recorded it as one. It is a manual step on
-> *every* PR and does not survive a new push.
->
-> It is worth the step: on #105 that review caught a tautological assertion
-> `pnpm check` passed — a test reading its expected value from the same
-> registry entry the component reads, so a component ignoring the registry
-> would still have passed.
->
-> Do not "fix" this by triggering only on drafts. The draft rule
-> (`auto_review.drafts: false`) is real and unrelated: the star gate applies
-> to ready PRs too, which is how #105 — ready, not draft — was skipped.
-> `docs/STATUS.md` recorded the draft rule as the cause twice; it was wrong.
+### CodeRabbit is Mitchell's step, not an automated one
 
-CodeRabbit's findings are bug reports worth verifying against the code, not
-noise — it caught a real fire-and-forget navigation race in M10 Wave 2 Phase 7
-that no test covered. Its scope and verbosity are configured in
-`.coderabbit.yaml`; tune that file rather than ignoring comments in bulk.
+**Decided 2026-09-01. Do not wait on CodeRabbit, and never read its status as
+evidence.** It is out of the automated loop entirely — `--watch` above covers
+CI, not this.
+
+Why, in one line each. Auto-review is **off** for this repo (public, 0 stars,
+below CodeRabbit's 10-star OSS gate), it posts a **green status while
+skipping** so `--fail-fast` exits 0 on a PR it never read, a review takes
+**~21 minutes**, and **any push during that window aborts it** — so an agent
+that triggers mid-work reliably gets nothing. The full evidence, including the
+two status descriptions that differ only in wording, is `KI-2026-09-01`.
+
+**The flow instead:**
+
+1. **Agent finishes the work** — CI green on the real head, review threads
+   answered, nothing left to push.
+2. **Agent hands off to Mitchell in chat** (not as a PR comment): *"PR #N is
+   green and ready — trigger CodeRabbit before merging."* This is the only
+   step that replaces the automated check, so it is not optional and not a
+   footnote at the end of a long message.
+3. **Mitchell triggers it**, by commenting `@coderabbitai review` on the PR or
+   ticking `🔍 Trigger review` in CodeRabbit's own comment.
+4. **Nobody pushes for ~21 minutes.** A push aborts the review and the abort
+   only shows up as an edit to an existing comment, which is easy to miss.
+5. **Findings get addressed**, and the agent says plainly whether the fix was
+   substantive enough to want a re-trigger, or small enough to merge on. That
+   judgement is the agent's to state and Mitchell's to take.
+6. **Mitchell merges.**
+
+**An agent may trigger it itself only when it is certain it is done pushing** —
+same rule, since the ~21-minute quiet window is the real constraint. If in
+doubt, hand off instead; a review that aborts is worse than one not yet asked
+for.
+
+**Its findings are bug reports, not noise.** It caught a fire-and-forget
+navigation race in M10 Wave 2 Phase 7 that no test covered, and on #105 a
+tautological assertion that `pnpm check` passed — a test reading its expected
+value from the same registry entry the component reads, so a component
+ignoring the registry entirely would still have passed it. Verify each finding
+against the code, then fix it. Scope and verbosity live in `.coderabbit.yaml`;
+tune that file rather than ignoring comments in bulk.
+
 
 **One trap, hit while writing this down:** immediately after a push, `--watch`
 can return in about a second reporting the *previous* commit's checks, all

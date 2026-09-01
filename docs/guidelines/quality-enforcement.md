@@ -102,22 +102,22 @@ Do not hand-poll `gh pr checks` in a loop. One command blocks on all of them:
 gh pr checks <n> --watch --fail-fast
 ```
 
-CodeRabbit posts a legacy commit status, so `--watch` waits for it — **but a
-green CodeRabbit status no longer means it reviewed anything
-(KI-2026-09-01).** This repo is public with 0 stars, below CodeRabbit's
-10-star OSS gate, so auto-review is off; it still reports `success`, with the
-description `Review skipped: manual review required for this OSS repository`.
-`--fail-fast` therefore exits 0 on a PR it never read — and on a second push
-CodeRabbit may not appear in the rollup at all while it still reports
-`success`. Check presence, state **and** description: `gh pr view <n> --json
-statusCheckRollup`, with `--json reviews` returning `[]` as the blunt
-confirmation nothing reviewed. To get a real review, comment `@coderabbitai review` — it works, an agent can
-do it, but it took **~21 minutes** on #105, so an empty `reviews` inside that
-window is not a failed trigger. When a review does run, its
-summary comment appears within about 30 seconds and its verdict takes 2-11
-minutes. Treat its findings as bug reports to verify against the code — it
-caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and
-per-path focus live in `.coderabbit.yaml`.
+**CodeRabbit is not in that set, by decision (2026-09-01).** Auto-review is
+off for this repo and it posts a **green status while skipping**, so
+`--fail-fast` exits 0 on a PR it never read; never treat that status as
+evidence of a review.
+
+It is now **Mitchell's step before merging**, not an automated one. The agent
+gets CI green and hands off in chat — *"PR #N is green and ready, trigger
+CodeRabbit before merging"* — Mitchell triggers it, **nobody pushes for ~21
+minutes** (a push aborts the review), findings are addressed, then Mitchell
+merges. An agent may trigger it itself only when certain it is done pushing.
+Full rationale and evidence: `AGENTS.md` and `KI-2026-09-01`.
+
+Treat its findings as bug reports to verify against the code — it caught a
+genuine navigation race in M10 Wave 2 Phase 7, and on #105 a tautological test
+assertion that `pnpm check` passed. Its verbosity and per-path focus live in
+`.coderabbit.yaml`.
 
 Run straight after a push, `--watch` may return in ~1s with the *previous*
 commit's checks — all green, indistinguishable from your push having passed.
