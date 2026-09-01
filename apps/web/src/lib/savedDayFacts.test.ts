@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { SavedStop } from "@tc/contracts";
-import { savedDayFacts } from "./savedDayFacts";
+import { dayLength, savedDayFacts } from "./savedDayFacts";
 import { witness } from "@/test-support/witness";
 
 function stop(over: Partial<SavedStop> = {}): SavedStop {
@@ -109,5 +109,57 @@ describe("savedDayFacts", () => {
     // No guard clause in the property, so it ticks exactly `numRuns` times —
     // the one case witness.ts says may use the run count exactly.
     w.atLeast(200);
+  });
+});
+
+// Mitchell, 2026-09-01: "also add length, with a tag short medium long if the
+// duration is <4h, 4-12h, 12h+". The two edges are asserted from BOTH sides,
+// because the spoken ranges overlap at exactly twelve hours and the seam is a
+// decision this function makes rather than one the request settled — see its
+// doc comment. If either of these four flips, the rail and the Discover card
+// stop agreeing about the same day.
+describe("dayLength", () => {
+  it("is Short under four hours", () => {
+    expect(dayLength({ start: "09:00", end: "09:30" })).toBe("short");
+    expect(dayLength({ start: "09:00", end: "12:59" })).toBe("short");
+  });
+
+  it("puts exactly four hours in Medium, not Short", () => {
+    expect(dayLength({ start: "09:00", end: "12:59" })).toBe("short");
+    expect(dayLength({ start: "09:00", end: "13:00" })).toBe("medium");
+  });
+
+  it("puts exactly twelve hours in Medium, not Long", () => {
+    expect(dayLength({ start: "08:00", end: "20:00" })).toBe("medium");
+    expect(dayLength({ start: "08:00", end: "20:01" })).toBe("long");
+  });
+
+  it("is Long past twelve hours", () => {
+    // Mitchell's own example from the rail: 8:20 am – 8:30 pm, 12 h 10 m.
+    expect(dayLength({ start: "08:20", end: "20:30" })).toBe("long");
+  });
+
+  // A day with no times has no window and therefore no length. Rendering
+  // "Short" here would state a fact about a day that says nothing about when
+  // it runs — the same reason `savedDayFacts` returns a null window rather
+  // than treating an untimed stop as midnight.
+  it("has no length for a day with no window", () => {
+    expect(dayLength(null)).toBeNull();
+    expect(dayLength(savedDayFacts([stop(), stop()]).window)).toBeNull();
+  });
+
+  // Stored order, not clock order — nothing forces the two to agree, and a
+  // negative span must not fall through the comparisons to an arbitrary answer.
+  it("clamps a window that ends before it starts", () => {
+    expect(dayLength({ start: "18:00", end: "09:00" })).toBe("short");
+  });
+
+  // The composed path the rail actually takes: stops in, tag out.
+  it("reads the length off a real day's derived window", () => {
+    const facts = savedDayFacts([
+      stop({ timeWindow: { start: "08:20", end: "09:30" } }),
+      stop({ timeWindow: { start: "19:00", end: "20:30" } }),
+    ]);
+    expect(dayLength(facts.window)).toBe("long");
   });
 });

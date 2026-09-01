@@ -31,6 +31,14 @@ import { readableSavedDay } from "../savedDays";
  *   * another signed-in account reads a **published** day;
  *   * another signed-in account gets a 404 for a **private** one.
  *
+ * A day its owner soft-deleted joins that last case, author included: the
+ * `deleted_at is null` clause lives in `readableSavedDay`'s WHERE beside the
+ * visibility test, so a deleted day produces no row and this seam answers 404
+ * without ever having to know the column exists. That is the property worth
+ * preserving — the number of things a caller here can distinguish stays at
+ * exactly one ("you may read this day, or you may not"), and every new reason a
+ * day is unreadable is spelled in the query rather than as another branch.
+ *
  * `isAuthor` rides along because every caller needs it and re-deriving
  * `day.ownerId === readerId` at each of them is how one of them eventually
  * gets it backwards.

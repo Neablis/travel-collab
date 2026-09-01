@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { DataText } from "@/components/ui/data-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import {
+  deleteSavedDay,
   fetchPublicProfile,
   fetchSavedDay,
   publishSavedDay,
@@ -21,7 +24,7 @@ import {
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
 import { SEASON_LABELS, seasonOfMonth, type PublicAuthor } from "@/lib/playbooks";
-import { savedDayFacts } from "@/lib/savedDayFacts";
+import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockRange } from "@/lib/time";
 import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
@@ -105,6 +108,9 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   // simply did not move and the author had no way to tell a failure from a
   // no-op. Raised by review on pull request 102.
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const router = useRouter();
 
   async function setVisibility(next: "public" | "private") {
     setBusy(true);
@@ -120,6 +126,42 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
     setVisibilityError(
       next === "public" ? "That day could not be published." : "That day could not be withdrawn.",
     );
+  }
+
+  /**
+   * Delete this day (Mitchell, 2026-09-01). Owner-only and unpublished-only,
+   * both of which the server decides — this is the same shape `SettingsSheet`'s
+   * delete-trip flow takes: call the API directly, not through any queue, and
+   * leave the page on success.
+   *
+   * The dialog is closed on BOTH outcomes, and the failure is reported in the
+   * rail rather than inside a dialog that has gone: a refusal here is almost
+   * always "you published this since the page loaded", and the answer to it is
+   * the Unpublish button four rows up, which the dialog was covering.
+   *
+   * `feed.reload()` on failure, so the rail catches up with whatever moved
+   * underneath it — the same reason `setVisibility` re-reads instead of
+   * patching local state.
+   */
+  async function handleDelete() {
+    setBusy(true);
+    setDeleteError(null);
+    const result = await deleteSavedDay(savedDayId);
+    setBusy(false);
+    setConfirmingDelete(false);
+    if (result.ok) {
+      // Back to Discover, not to `backHref`: this day is what the previous page
+      // was showing, and returning to a profile or a Discover result set that
+      // still lists it would show the reader the thing they just deleted.
+      router.push("/playbooks");
+      return;
+    }
+    setDeleteError(
+      result.error.code === "published"
+        ? "That day is published. Unpublish it first, then delete it."
+        : "That day could not be deleted.",
+    );
+    feed.reload();
   }
 
   // The day is gone — never yours, withdrawn by its author, or deleted. All
@@ -159,6 +201,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
 
   const { day, isAuthor, author } = feed.data;
   const facts = savedDayFacts(day.stops);
+  const length = dayLength(facts.window);
 
   return (
     <div className="flex flex-col gap-4">
@@ -269,6 +312,27 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               label="Window"
               value={facts.window === null ? "No times set" : toClockRange(facts.window.start, facts.window.end)}
             />
+            {/* Length, as its OWN row rather than appended to the Window value
+                (Mitchell, 2026-09-01: "also add length, with a tag short medium
+                long if the duration is <4h, 4-12h, 12h+" — said with the Window
+                fact selected, so this is the elapsed span of that window).
+
+                Two reasons for the extra row rather than "8:20 am – 8:30 pm ·
+                Long" in one cell. At 411px the rail is full width and either
+                fits, but the rail is `lg:w-72` on a desktop — 288px minus
+                padding, where the label column plus a 17-character range plus a
+                tag wraps the value onto a second line and the range stops
+                reading as one thing. And a day with no times has no length at
+                all (`dayLength` returns null): a separate row simply is not
+                rendered, where a combined cell would need to suppress a
+                dangling separator as well.
+
+                Withheld entirely rather than shown as "—" for that untimed
+                case, which is consistent with what `dayLength` refuses to do:
+                a day that says nothing about when it runs must not be labelled
+                "Short". The Window row above already says "No times set", so
+                the rail is not silent about why. */}
+            {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
             {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
                 is the only place that string was actually VISIBLE, since
                 Discover's matching label is an aria-label over a select that
@@ -301,9 +365,86 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             >
               Add to a trip
             </Button>
+
+            {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to
+                delete a notebook activity you own"). The `Dialog` +
+                `variant="destructive"` pair is the repo's one idiom for this —
+                `SettingsSheet`'s delete-trip flow — rather than a second
+                confirmation shape.
+
+                **DISABLED with a reason for a published day, not withheld —
+                and that is a deliberate departure from ADR-031's "hidden, not
+                greyed".** ADR-031's rule is about a control the actor may
+                never use: a viewer's "Add stop" is greyed forever, so it only
+                ever says "there is something here for you" untruthfully, and
+                hiding it is the honest answer. This is the opposite case.
+                Delete IS this person's to use — the only thing standing
+                between them and it is one click on the Unpublish button four
+                rows up, in the same viewport. A control that vanished when
+                they published would read as the feature being gone, and would
+                say nothing about how to get it back; greyed with the reason
+                attached is exactly the "says what promotion would buy them"
+                reading ADR-031's closing section left open, with the argument
+                against it (that `readOnly` cannot tell two audiences apart —
+                TripHeader.tsx's KI-64 note) not applying here, because
+                `isAuthor` and `visibility` say precisely who this reader is
+                and what is blocking them.
+
+                The reason is on `title` AND in a visible line below, because a
+                `title` tooltip needs a hover and Mitchell filed this walking a
+                411px phone, where there is none. */}
+            {isAuthor && (
+              <>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-center"
+                  disabled={busy || day.visibility === "public"}
+                  title={
+                    day.visibility === "public" ? "Unpublish it first" : undefined
+                  }
+                  onClick={() => {
+                    setDeleteError(null);
+                    setConfirmingDelete(true);
+                  }}
+                >
+                  Delete this day
+                </Button>
+                {day.visibility === "public" && (
+                  <Text variant="muted" className="text-xs">
+                    Unpublish it first — a day in the library cannot be deleted from here.
+                  </Text>
+                )}
+                {deleteError !== null && (
+                  <Banner variant="danger" data-testid="delete-failed">
+                    {deleteError}
+                  </Banner>
+                )}
+              </>
+            )}
           </Card>
         </aside>
       </div>
+
+      {/* The confirmation. Its copy says the two things the request itself
+          settled — the copies already taken stay taken ("it doesn't remove it
+          from anyone, it just removes it here"), and this is not the undoable
+          delete a trip gets, because there is no restore surface yet, only the
+          column that makes one possible. Saying "you can undo this" here, the
+          way SettingsSheet's dialog does, would be a promise nothing keeps. */}
+      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete} title="Delete this day">
+        <Text variant="secondary">
+          Delete &quot;{day.name}&quot; from your library? Anyone who already added it to a trip
+          keeps their copy. This cannot be undone from here.
+        </Text>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={busy} onClick={() => void handleDelete()}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       <AddToTripDialog
         open={adding}

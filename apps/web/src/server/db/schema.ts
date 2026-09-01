@@ -261,6 +261,35 @@ export const savedDays = pgTable(
     //
     // `mode: "date"` — see the `savedDays` note above (KI-53).
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    // A SOFT delete: when the owner removes this day from their library, the
+    // row stays and this takes the moment. Mitchell, 2026-09-01: *"add a button
+    // to delete a notebook activity you own ... for now we can even just add a
+    // new db column deletedAt and set the deleted at date, and set a filter to
+    // not return deletedAt activities so we have a way to restore in the
+    // future"* — the restore path is the whole reason the row survives, and
+    // there is no code that writes it back to null yet.
+    //
+    // **Nullable, never defaulted, and no backfill.** "Never deleted" is a real
+    // state and a default would have to invent a date for it — the same
+    // argument `published_at` above makes for itself.
+    //
+    // **This does NOT unwind anything.** The adds ledger keeps every row, and a
+    // copy already taken into somebody's trip stays in their trip: an inserted
+    // day is a VALUE, minted with fresh ids into that trip's own event stream
+    // (ADR-029, and `insertCommands`' remapping), so there is nothing pointing
+    // back here to remove. Mitchell's words for the same rule: *"it doesn't
+    // remove it from anyone, it just removes it here."*
+    //
+    // **Every read filters on it, and missing one is the whole risk.** The list
+    // is in `savedDays.ts` (`listSavedDays`, `getSavedDay`, `readableSavedDay`,
+    // `setSavedDayVisibility`), `playbooks.ts` (`matchPredicate`, which covers
+    // Discover and the sibling chips, plus `publishedDayCount`, `leaderboard`,
+    // `publicAuthor` and `citiesKnownBy`) and `cities.ts` (`searchCities`). A
+    // deleted day must 404 exactly the way a private one does — see
+    // `access/saved-day-access.ts` on why those two answers must be the same.
+    //
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
     sourceTripId: uuid("source_trip_id").notNull(),
     sourceTripName: text("source_trip_name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),

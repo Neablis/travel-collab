@@ -123,6 +123,24 @@ function isoOf(value: unknown): string | null {
 }
 
 /**
+ * The soft-delete filter, spelled once and pasted into every query in this file.
+ *
+ * A day its owner deleted is gone from Discover, from the sibling chips, from
+ * the shared-day count, from the leaderboard's numbers, from a profile's counts
+ * and from its "Knows" chips — because `deleted_at` means the day is not in the
+ * library any more, and a surface that still counted it would be reporting a
+ * day nobody can open. It leads with `and` so it drops into a predicate the
+ * same way at every site; `leaderboard` is the one caller that has to supply
+ * its own `where true` to receive it.
+ *
+ * One constant rather than seven literals: the whole risk of this column is a
+ * read that forgets it, and `grep notDeleted` is how the next person checks
+ * whether a query they are adding has one. Note that `d` is the alias every
+ * query in this file gives `saved_days`.
+ */
+const notDeleted = sql`and d.deleted_at is null`;
+
+/**
  * Which rows this scope may see at all — the one place the segment's meaning
  * lives, shared by the day query and the sibling-chip query so the chips can
  * never describe a set the cards are drawn from a different version of.
@@ -174,6 +192,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
   const seasonMonths = sql`${sql.param(query.season === null ? [] : [...SEASON_MONTHS[query.season]])}::int[]`;
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
+    ${notDeleted}
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
     and (cardinality(${seasonMonths}) = 0 or extract(month from d.created_at at time zone 'UTC') = any(${seasonMonths}))
@@ -294,6 +313,7 @@ async function publishedDayCount(): Promise<number> {
     select count(*)::int as days
     from saved_days d
     where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
   `);
   return Number(rows.rows[0]?.days ?? 0);
 }
@@ -380,6 +400,12 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
       count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
+    -- "where true" so the shared filter drops in with its leading "and"; this
+    -- is the only query here with no predicate of its own. The LEFT JOIN keeps
+    -- every ledger row of a day that still exists, which is the point: deleting
+    -- a day drops it out of days_shared, and does NOT erase adds somebody
+    -- genuinely made against the days that remain.
+    where true ${notDeleted}
     group by d.owner_id
     having count(a.saved_day_id) > 0
         or count(*) filter (where d.visibility = ${SavedDayVisibility.enum.public}) > 0
@@ -419,6 +445,7 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     where d.owner_id = ${userId}
+      ${notDeleted}
   `);
   const row = rows.rows[0];
   return row === undefined
@@ -439,6 +466,7 @@ export async function citiesKnownBy(userId: string): Promise<CityMatch[]> {
     select city, count(*)::int as days
     from saved_days d, unnest(d.cities) as city
     where d.owner_id = ${userId} and d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
     group by city
     order by days desc, city asc
   `);

@@ -473,6 +473,14 @@ export async function createSavedDay(input: CreateSavedDayInput): Promise<ApiRes
   }
 }
 
+/**
+ * Remove one of your own saved days. A SOFT delete server-side (2026-09-01) —
+ * the row survives so it can be restored later — and it refuses a PUBLISHED
+ * day with a 409 carrying `code: "published"`, which is what the shared-day
+ * rail branches on. Anything else is the usual 404: not yours, gone, or never
+ * there. No change was needed here for either: `readJson` already forwards
+ * `code`, and the URL is the same one this always called.
+ */
 export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok: true }>> {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`), { method: "DELETE" });
