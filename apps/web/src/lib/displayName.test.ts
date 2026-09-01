@@ -39,7 +39,7 @@ describe("displayNameFor", () => {
     expect(a).not.toBe(b);
   });
 
-  // CodeRabbit (PR #104): the old 4-character suffix meant two ids that
+  // CodeRabbit (pull request 104): the old 4-character suffix meant two ids that
   // merely shared their LAST four characters rendered as the exact same
   // label — these two differ only in the fifth-from-last character
   // (`...5a44` vs `...9a44`), a collision the old width could not see past.

@@ -51,8 +51,9 @@ export function displayNameFor(who: NameableUser): string {
  *     readable name really is in there and nothing is invented by taking it.
  *   * anything else → `Traveler 4f2a91`. Six hex-ish characters off the end of
  *     the id: short enough to still read as a name and not an identifier, and
- *     stable across renders and deploys. Widened from four (CodeRabbit, PR
- *     #104): a UUID's trailing characters are close to uniformly distributed,
+ *     stable across renders and deploys. Widened from four (CodeRabbit, pull
+ *     request 104): a UUID's trailing characters are close to uniformly
+ *     distributed,
  *     so four of them collide across two different ids far too easily for
  *     what this label is used for — the leaderboard and public profiles rank
  *     people against each other by it, and two people rendering as the exact

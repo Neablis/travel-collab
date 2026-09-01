@@ -51,7 +51,7 @@ export async function generateMetadata({
 //
 // `initialCallbackUrl` is the same `searchParams` read `generateMetadata`
 // above already does — this route is request-rendered either way, so reading
-// it a second time here costs nothing new (CodeRabbit, PR #104). It seeds
+// it a second time here costs nothing new (CodeRabbit, pull request 104). It seeds
 // AuthScreen's `callbackUrl` state so the mode-swap link is right in the
 // server-rendered HTML itself, closing the pre-hydration window where a fast
 // click on that link (the common path for someone arriving from `/demo`'s

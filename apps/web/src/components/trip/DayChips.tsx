@@ -1,7 +1,12 @@
 import { useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
-import { stepDay } from "@/components/trip/centralDay";
+import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
+import {
+  useDayScrollSpy,
+  useFollowFocusedDay,
+  type DaySync,
+} from "@/components/trip/context/FocusProvider";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
@@ -145,6 +150,19 @@ export type DayChipsProps = {
    * with "no day selected".
    */
   onSelect: (index: number | null) => void;
+  /**
+   * This row's half of the day-sync contract (`FocusProvider`'s header):
+   * scrolling the row moves the selection, and a selection made anywhere else
+   * scrolls the matching chip back into view here.
+   *
+   * A handle passed down rather than `useDaySync()` read from context, because
+   * this component is props-only by design — its own tests render it bare, with
+   * no provider — and `TripBoardScreen`, which does live under one, is where
+   * every other surface's focus wiring already is. Optional for the same
+   * reason: without it the row still renders and still selects, it just does
+   * not scroll-sync.
+   */
+  sync?: DaySync;
 };
 
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
@@ -176,12 +194,40 @@ export type DayChipsProps = {
 // day scope for the session. `aria-pressed` already tells assistive tech this
 // is a toggle; the × on the focused chip is what tells everyone else, since a
 // toggle nobody can see is a toggle nobody uses.
-export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
+export function DayChips({ days, focusedDay, onSelect, sync }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
   // each day resolving blind to every other one.
   const accents = dayAccents(days.map((d) => d.city));
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Contract clause 1 (`FocusProvider`), and the surface Mitchell was actually
+  // touching when he asked for it: on a phone this row is the primary day
+  // control. The horizontal twin of the timeline's spy — the row scrolls inside
+  // its OWN box, so the viewport is that box and the reading line is its true
+  // centre (see `READING_LINE` for why the two axes differ).
+  const onScroll = useDayScrollSpy(sync, () => {
+    const row = rowRef.current;
+    if (row === null) return null;
+    const rowRect = row.getBoundingClientRect();
+    const spans: { start: number; size: number }[] = [];
+    for (let index = 0; index < days.length; index++) {
+      const rect = chipRefs.current[index]?.getBoundingClientRect();
+      // A chip that has not mounted: bail rather than measure a shorter list,
+      // which would map positions onto the wrong indexes.
+      if (rect === undefined) return null;
+      spans.push({ start: rect.left, size: rect.width });
+    }
+    return centralDayIndex({ start: rowRect.left, size: rowRect.width }, spans, READING_LINE.horizontal);
+  });
+
+  // Contract clauses 2 and 3: a day picked in a column, a cell or the timeline
+  // brings its chip back into view here, and switching lenses does the same on
+  // arrival. `inline: "center"` with `block: "nearest"` is the hook's default —
+  // this row sits in a sticky header, where a vertical scroll would move the
+  // whole page for a chip that was never off-screen.
+  useFollowFocusedDay(sync, focusedDay, days.length, (index) => chipRefs.current[index]);
 
   /**
    * Left/Right walk the row — the header-bar half of "Left/Right in the days
@@ -203,7 +249,11 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
     // selection stays put is the two behaviours fighting.
     event.preventDefault();
     if (next !== focusedDay) onSelect(next);
-    chipRefs.current[next]?.focus();
+    // `preventScroll` because the follow effect above owns the scrolling now.
+    // The browser's own "reveal the newly focused control" scroll is not ours,
+    // so it is not covered by the jump lock — the spy would read it as the user
+    // scrolling and could land the selection on a neighbouring chip.
+    chipRefs.current[next]?.focus({ preventScroll: true });
   };
   return (
     // Reported three times ("top border cut off"/"still cut off"/"border on
@@ -223,9 +273,11 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
     // moving where the chips sit. Same pairing as `ui/sheet.tsx`, which needed
     // it for the same reason on the vertical axis.
     <div
+      ref={rowRef}
       role="group"
       aria-label="Days"
       onKeyDown={onKeyDown}
+      onScroll={onScroll}
       className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-1"
     >
       {days.map((day, index) => {

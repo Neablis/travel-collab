@@ -6,7 +6,7 @@ import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
 import { Text } from "../ui/text";
 import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
-import { useFocus } from "../trip/context/FocusProvider";
+import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
@@ -66,6 +66,16 @@ export function MapLens({
 }) {
   const { openCreate } = useEditor();
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  // The phone strip's half of the day-sync contract (`FocusProvider`'s header).
+  // Taken unconditionally rather than inside the `isPhone` branch — hooks are
+  // not conditional — which costs nothing on desktop, where the strip is not
+  // mounted and so nothing ever scrolls or is scrolled.
+  //
+  // There is deliberately no handle for `MapRail`: the desktop rail already
+  // drives focus from its own geared scroll machinery, it is the only day
+  // container on its lens (the chips row is hidden in Map view), and a second
+  // spy over the same box would be two mechanisms fighting. See `DayContainer`.
+  const stripSync = useDaySync("map-strip");
   const isPhone = useIsPhone();
   const containerRef = useRef<HTMLDivElement>(null);
   // Distance from the top of the viewport to the top of the map canvas —
@@ -492,7 +502,7 @@ export function MapLens({
               by CSS because the rail runs real scroll machinery — see
               useIsPhone for why. */}
           {isPhone ? (
-            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} sync={stripSync} />
           ) : (
             <>
               <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />

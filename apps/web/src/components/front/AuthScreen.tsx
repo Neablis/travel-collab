@@ -98,7 +98,7 @@ export function AuthScreen({
   // read server-side by `signin/page.tsx` / `signup/page.tsx` and handed down
   // already normalised — this file does not re-normalise it (one
   // `safeCallbackUrl`, not two). Exists so the mode-swap link is right in the
-  // server-rendered HTML itself (CodeRabbit, PR #104): `next/link` renders a
+  // server-rendered HTML itself (CodeRabbit, pull request 104): `next/link` renders a
   // real anchor before hydration, and `AuthSearchParams` below only learns the
   // real callbackUrl from a post-render effect — a click that beats that
   // effect used to land on a bare `/signup` or `/signin`, dropping exactly the
@@ -146,7 +146,7 @@ export function AuthScreen({
   // Seeded from `initialCallbackUrl` — the server-rendered, already-safe
   // value — rather than a hardcoded "/", so the mode-swap `<Link>` below is
   // correct in the HTML the server sends, not just after `AuthSearchParams`'
-  // effect runs (CodeRabbit, PR #104; see the prop's own comment above).
+  // effect runs (CodeRabbit, pull request 104; see the prop's own comment above).
   // `AuthSearchParams` still owns reconciling this on the client: it's the
   // only piece of this screen that has to be inside a Suspense boundary
   // (`useSearchParams()`), so it stays the source of truth for anything that

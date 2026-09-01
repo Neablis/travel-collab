@@ -124,6 +124,17 @@ async function keepDay(page: Page, tripId: string, dayId: string, name: string):
  * until some other limit is reached is still a spec quietly loading a spring.
  */
 async function forgetDay(page: Page, savedDayId: string): Promise<void> {
+  // Unpublish FIRST, because deleting a published day is refused with a 409
+  // ("Unpublish this day before deleting it") as of 2026-09-01 — Mitchell's
+  // own rule for the delete button: *"It should require it to be unpublished
+  // first"*. This helper is test cleanup, so it walks the same two steps a
+  // person does rather than reaching around the rule; a delete that bypassed
+  // it would leave the suite unable to notice if the rule stopped holding.
+  //
+  // Unconditional, and the response is not asserted: most callers never
+  // published, and unpublishing an already-private day is a no-op. What must
+  // hold is the delete below.
+  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
 }

@@ -106,7 +106,7 @@ describe("TravelersPanel", () => {
       }),
     });
     render(<TravelersPanel tripId={tripId} />);
-    // Six trailing digits, not four (CodeRabbit, PR #104): `displayNameFor`
+    // Six trailing digits, not four (CodeRabbit, pull request 104): `displayNameFor`
     // widened its suffix because four characters collided too easily for a
     // label the leaderboard and public profiles rank people by. See
     // `lib/displayName.ts`.

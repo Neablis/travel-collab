@@ -715,7 +715,7 @@ describe("Home finishing a demo clone", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  // CodeRabbit, PR #104: submitting the wizard while the demo copy is still in
+  // CodeRabbit, pull request 104: submitting the wizard while the demo copy is still in
   // flight created a second, unwanted trip — the wizard's own `createTrip` has
   // no idea a copy is already headed for this same list. Holds the duplicate
   // response open (rather than letting `stubEmptyListAndDuplicate` resolve it

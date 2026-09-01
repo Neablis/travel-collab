@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
+import type { DaySync } from "./context/FocusProvider";
 import { chipModel, cityFor, DayChips } from "./DayChips";
 
 afterEach(cleanup);
@@ -481,3 +482,74 @@ describe("DayChips keyboard navigation", () => {
   });
 });
 
+
+
+// ── The day-sync contract (FocusProvider's header) ───────────────────────────
+//
+// The row's scroll SPY cannot be tested here — jsdom has no layout, so every
+// chip rect is 0×0 and there is no reading line to sit on. That is exactly why
+// the arithmetic lives in a pure module with its own tests (`centralDay.ts`)
+// and the wiring is proved in a browser (`e2e/m10-growth.spec.ts`). What is
+// testable in jsdom is the other half: whether the row asks to be scrolled, and
+// which chip it names.
+
+describe("DayChips day-sync", () => {
+  const chips = [
+    { dow: "Mon", dateNum: "1", city: "Tokyo", transitionFrom: null, transitionTo: null, stops: 2 },
+    { dow: "Tue", dateNum: "2", city: "Kyoto", transitionFrom: "Tokyo", transitionTo: "Kyoto", stops: 3 },
+    { dow: "Wed", dateNum: "3", city: "Kyoto", transitionFrom: null, transitionTo: null, stops: 1 },
+  ];
+
+  function stubSync(shouldFollow: boolean): { sync: DaySync; jumped: Array<Element | null | undefined> } {
+    const jumped: Array<Element | null | undefined> = [];
+    return {
+      jumped,
+      sync: {
+        shouldFollow,
+        isOwnScroll: () => false,
+        reportScrolled: vi.fn(),
+        jumpTo: (element) => {
+          jumped.push(element);
+          return true;
+        },
+      },
+    };
+  }
+
+  // Clause 2: a day picked in a column, a calendar cell or the timeline brings
+  // its chip back into view here — which is the half of Mitchell's request the
+  // chips row was missing entirely.
+  it("scrolls the chip for a day selected somewhere else into view", () => {
+    const { sync, jumped } = stubSync(true);
+    const { rerender } = render(
+      <DayChips days={chips} focusedDay={null} onSelect={() => {}} sync={sync} />,
+    );
+    expect(jumped).toHaveLength(0);
+    rerender(<DayChips days={chips} focusedDay={2} onSelect={() => {}} sync={sync} />);
+    expect(jumped).toEqual([screen.getAllByRole("button")[2]]);
+  });
+
+  // Clause 1's other side: the row that produced the selection by being
+  // scrolled must not then scroll itself, which is the loop the jump lock and
+  // this flag exist to break.
+  it("does not scroll itself back for a selection its own scrolling produced", () => {
+    const { sync, jumped } = stubSync(false);
+    const { rerender } = render(
+      <DayChips days={chips} focusedDay={0} onSelect={() => {}} sync={sync} />,
+    );
+    // One jump on mount, unconditionally — clause 3, "changing the tab jumps to
+    // the selected day".
+    expect(jumped).toHaveLength(1);
+    rerender(<DayChips days={chips} focusedDay={2} onSelect={() => {}} sync={sync} />);
+    expect(jumped).toHaveLength(1);
+  });
+
+  it("renders and selects with no sync at all", async () => {
+    // The prop is optional so the row stays renderable outside the provider —
+    // this whole file does exactly that.
+    const onSelect = vi.fn();
+    render(<DayChips days={chips} focusedDay={null} onSelect={onSelect} />);
+    await userEvent.click(screen.getAllByRole("button")[1]!);
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+});

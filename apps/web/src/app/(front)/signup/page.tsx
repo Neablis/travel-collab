@@ -67,7 +67,7 @@ async function storeAdmissionCode(code: string) {
 // *inside* whatever this page's own rendering strategy produces, not the
 // strategy itself.
 //
-// `searchParams` is new here (CodeRabbit, PR #104): `initialCallbackUrl` lets
+// `searchParams` is new here (CodeRabbit, pull request 104): `initialCallbackUrl` lets
 // AuthScreen seed its swap-link state with the real, already-`safeCallbackUrl`
 // -normalised value instead of "/", so the sign-in ⇄ sign-up swap link is
 // correct in the server-rendered HTML itself and a click that beats

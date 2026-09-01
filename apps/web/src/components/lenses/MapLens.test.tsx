@@ -179,8 +179,22 @@ function focusDefaults(): {
     clearFocusedTag: vi.fn(),
   };
 }
-vi.mock("@/components/trip/context/FocusProvider", () => ({
+// Partial, not a bare factory: a `vi.mock` factory replaces the WHOLE module,
+// and this one also exports the day-sync contract's hooks (see FocusProvider's
+// header), which MapLens and MapDayStrip both take. Replacing only `useFocus`
+// keeps the rest real — and they are inert here anyway, because jsdom has no
+// layout for a scroll spy to measure and no `scrollIntoView` for a jump to
+// call. The real `useDaySync` needs a provider, so it is stubbed: these tests
+// drive focus through `useFocusMock` instead of mounting one.
+vi.mock("@/components/trip/context/FocusProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/trip/context/FocusProvider")>()),
   useFocus: () => useFocusMock(),
+  useDaySync: () => ({
+    shouldFollow: true,
+    isOwnScroll: () => false,
+    reportScrolled: vi.fn(),
+    jumpTo: () => false,
+  }),
 }));
 
 function detailFixture() {

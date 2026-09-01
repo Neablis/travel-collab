@@ -245,7 +245,7 @@ describe("GET /api/playbooks/profile/:userId", () => {
       // what `displayNameFor` makes of it, which since 2026-09-01 is never the
       // raw identifier ("Dont show the UUID"). Asserted as the derived handle
       // rather than as the id, so a regression that started printing the id
-      // again fails here. Six characters, not four (CodeRabbit, PR #104):
+      // again fails here. Six characters, not four (CodeRabbit, pull request 104):
       // `displayNameFor` widened its suffix because four hex characters
       // collided too easily for a label the leaderboard ranks people by — see
       // `lib/displayName.ts`. `board-ghost-${RUN}` has no other non-alphanumeric

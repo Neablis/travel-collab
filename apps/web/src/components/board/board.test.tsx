@@ -489,6 +489,49 @@ describe("selecting a day from its column", () => {
     expect(headerOf(columns[1]!).getAttribute("aria-pressed")).toBe("true");
     expect(headerOf(columns[0]!).getAttribute("aria-pressed")).toBe("false");
   });
+
+  // CodeRabbit, reviewing this branch: the handler used to return before
+  // `preventDefault()` whenever the index did not move, which is both boundaries
+  // — ArrowLeft on day 1 and ArrowRight on the last day. The browser then
+  // scrolled the columns row natively instead, and the scroll spy replaced day 1
+  // with whatever landed on the reading line. So the arrow undid the selection
+  // it was supposed to be holding still.
+  //
+  // `fireEvent` rather than `userEvent` because the assertion IS the event
+  // object: `defaultPrevented` is what the browser reads, and userEvent hands
+  // back nothing to inspect.
+  it("claims the arrow key at both ends, where it changes nothing", () => {
+    const callbacks = noopCallbacks();
+    renderBoard(twoDays(), callbacks, 0);
+    const row = screen.getByRole("group", { name: "Day columns" });
+
+    const atStart = fireEvent.keyDown(row, { key: "ArrowLeft" });
+    // fireEvent returns false when the event was defaultPrevented.
+    expect(atStart).toBe(false);
+    expect(callbacks.onSelectDay).not.toHaveBeenCalled();
+
+    cleanup();
+    renderBoard(twoDays(), callbacks, 1);
+    expect(fireEvent.keyDown(screen.getByRole("group", { name: "Day columns" }), { key: "ArrowRight" })).toBe(false);
+    expect(callbacks.onSelectDay).not.toHaveBeenCalled();
+  });
+
+  it("leaves an arrow it does not handle to the browser", () => {
+    // The negative half: without it the test above passes against a handler
+    // that preventDefaults every keystroke it sees.
+    renderBoard(twoDays(), noopCallbacks(), 0);
+    const row = screen.getByRole("group", { name: "Day columns" });
+    expect(fireEvent.keyDown(row, { key: "ArrowDown" })).toBe(true);
+    expect(fireEvent.keyDown(row, { key: "ArrowRight", altKey: true })).toBe(true);
+  });
+
+  it("selects the next day when the arrow actually moves", async () => {
+    const callbacks = noopCallbacks();
+    renderBoard(twoDays(), callbacks, 0);
+    await userEvent.click(screen.getByRole("group", { name: "Day columns" }));
+    await userEvent.keyboard("{ArrowRight}");
+    expect(callbacks.onSelectDay).toHaveBeenCalledWith(1);
+  });
 });
 
 // A viewer's board, and the public demo's (ADR-031). The rule is one line —

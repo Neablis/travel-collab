@@ -11,6 +11,11 @@ import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel } from "@/components/trip/DayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
+import {
+  useDayScrollSpy,
+  useFollowFocusedDay,
+  type DaySync,
+} from "@/components/trip/context/FocusProvider";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccents } from "@/lib/dayAccent";
 import { type ActivityFormValue } from "./ActivityEditor";
@@ -95,15 +100,6 @@ export type BoardCallbacks = {
   onUpdateActivity: (activityId: string, value: ActivityFormValue) => void;
   onRemoveActivity: (activityId: string) => void;
   onDismissConflict: (conflictId: string) => void;
-  /**
-   * The day the columns are scrolled to — a reading position, not a pick.
-   *
-   * Separate from `onSelectDay` because the two mean different things to the
-   * timeline's scroll-into-view effect (`FocusOrigin`). Optional so Board's own
-   * tests, which render it with a hand-written callbacks object, do not all
-   * have to grow a field they do not exercise.
-   */
-  onScrollDay?: (index: number) => void;
 };
 
 export function Board({
@@ -113,6 +109,7 @@ export function Board({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  sync,
 }: {
   trip: TripDetail;
   callbacks: BoardCallbacks;
@@ -137,6 +134,17 @@ export function Board({
   focusedTag?: ActivityTag | null;
   /** Toggles that focus from a stop's own chip. */
   onToggleTag?: (tag: ActivityTag) => void;
+  /**
+   * This row's half of the day-sync contract (`FocusProvider`'s header):
+   * scrolling the columns moves the selection, and a day selected anywhere else
+   * scrolls its column back into view here.
+   *
+   * A handle passed in rather than `useDaySync()` read from context, for the
+   * same reason `focusedDay` is a prop — Board stays renderable on its own in
+   * tests, which construct it with no provider. Optional: without it the
+   * columns still render and still select, they just do not scroll-sync.
+   */
+  sync?: DaySync;
 }) {
   const { openCreate, openEdit } = useEditor();
 
@@ -147,39 +155,30 @@ export function Board({
   // `READING_LINE` for why the two axes differ.
   const scrollRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Array<HTMLElement | null>>([]);
-  const scrollFrame = useRef<number | null>(null);
 
-  const onScroll = useCallback(() => {
+  const onScroll = useDayScrollSpy(sync, () => {
     const box = scrollRef.current;
-    if (box === null) return;
-    // One measurement per frame — `scroll` fires far more often than the
-    // browser paints and each pass reads a rect per column.
-    if (scrollFrame.current !== null) return;
-    scrollFrame.current = window.requestAnimationFrame(() => {
-      scrollFrame.current = null;
-      const boxRect = box.getBoundingClientRect();
-      const spans: { start: number; size: number }[] = [];
-      for (let index = 0; index < trip.days.length; index++) {
-        const rect = columnRefs.current[index]?.getBoundingClientRect();
-        // A day whose column has not mounted yet: bail rather than measure a
-        // shorter list, which would map positions onto the wrong indexes.
-        if (rect === undefined) return;
-        spans.push({ start: rect.left, size: rect.width });
-      }
-      const index = centralDayIndex(
-        { start: boxRect.left, size: boxRect.width },
-        spans,
-        READING_LINE.horizontal,
-      );
-      if (index !== null) callbacks.onScrollDay?.(index);
-    });
-  }, [callbacks, trip.days.length]);
+    if (box === null) return null;
+    const boxRect = box.getBoundingClientRect();
+    const spans: { start: number; size: number }[] = [];
+    for (let index = 0; index < trip.days.length; index++) {
+      const rect = columnRefs.current[index]?.getBoundingClientRect();
+      // A day whose column has not mounted yet: bail rather than measure a
+      // shorter list, which would map positions onto the wrong indexes.
+      if (rect === undefined) return null;
+      spans.push({ start: rect.left, size: rect.width });
+    }
+    return centralDayIndex(
+      { start: boxRect.left, size: boxRect.width },
+      spans,
+      READING_LINE.horizontal,
+    );
+  });
 
-  useEffect(() => {
-    return () => {
-      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
-    };
-  }, []);
+  // Contract clauses 2 and 3: a day picked on the chips row above (or arrowed
+  // to below, which is an explicit pick) centres its column here, and switching
+  // to this lens arrives already scrolled to the selected day.
+  useFollowFocusedDay(sync, focusedDay, trip.days.length, (index) => columnRefs.current[index]);
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -194,15 +193,26 @@ export function Board({
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
 
       const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, trip.days.length);
-      if (next === null || next === focusedDay) return;
-      // The browser's own arrow-key scrolling of this box would fight the
-      // scroll below, so this key is ours once it means a day change.
+      if (next === null) return;
+      // Claimed for EVERY handled arrow, including one that does not move the
+      // selection — the two boundary cases, ArrowLeft on day 1 and ArrowRight
+      // on the last day. CodeRabbit, reviewing this branch: the old
+      // `if (next === null || next === focusedDay) return;` returned BEFORE
+      // this line at both ends, so the browser scrolled this box natively
+      // instead — and the spy above then replaced day 1 with whatever landed on
+      // the reading line. An arrow key that means "you are already at the end"
+      // must still be ours, or the selection walks off the end anyway by a
+      // different route. `DayChips`'s own arrow handler already got this right
+      // (it preventDefaults before the equality check); the two now read the
+      // same and mean the same.
       event.preventDefault();
-      callbacks.onSelectDay(next);
+      if (next === focusedDay) return;
       // Explicit, so it really is a selection and not a reading position: the
       // person pressed a key naming a day. Bringing it into view is the
-      // counterpart of the timeline's own scroll-to-focused-day.
-      columnRefs.current[next]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      // contract's clause 2 (`FocusProvider`) and happens in the follow effect
+      // above — for this column AND for the chip above it — rather than in a
+      // scroll call of this handler's own.
+      callbacks.onSelectDay(next);
     },
     [callbacks, focusedDay, trip.days.length],
   );

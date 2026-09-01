@@ -1,11 +1,12 @@
 "use client";
 
+import { useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
-import { useFocus } from "../trip/context/FocusProvider";
+import { useDaySync, useFocus, useFollowFocusedDay } from "../trip/context/FocusProvider";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { CALENDAR_DIM_OPACITY } from "@/components/board/activityTags";
 import { calendarCityCards, type CityCard } from "./calendarCityCards";
@@ -183,6 +184,31 @@ export function CalendarLens({
   const accents = dayAccents(days.map((d) => d.city));
   const { focusedDay, setFocusedDay, focusedTag } = useFocus();
 
+  // The calendar is DRIVEN by the day-sync contract (`FocusProvider`'s header)
+  // and deliberately never drives it — clauses 2 and 3 without clause 1.
+  //
+  // That is a decision about this lens, not an omission from Mitchell's "every
+  // tab that can scroll and a day is selectable": the calendar does scroll and
+  // its cells do select days, but neither of its axes IS the trip-day axis.
+  // Sideways moves through the seven days of one week (x is a weekday, and the
+  // same x holds a different trip day in every row); downwards moves through
+  // weeks and months (y is a week). A reading line on either names a weekday or
+  // a week, so a spy here would have no honest day to report. Scrolling the
+  // calendar therefore leaves the selection where it is.
+  const sync = useDaySync("calendar");
+  const gridRef = useRef<HTMLElement>(null);
+  // `block: "center"` and `inline: "center"`, unlike the horizontal rows: a
+  // cell can be off-screen on BOTH axes here (a later month is a page scroll
+  // away, a Friday is a sideways scroll away inside its week), so this is one
+  // of the two containers that genuinely wants the page to move.
+  useFollowFocusedDay(
+    sync,
+    focusedDay,
+    days.length,
+    (index) => gridRef.current?.querySelector(`[data-day-index="${index}"]`),
+    { block: "center", inline: "center" },
+  );
+
   if (months.length === 0) {
     return (
       <section>
@@ -262,6 +288,10 @@ export function CalendarLens({
         variant="ghost"
         data-testid="calendar-cell"
         data-in-trip={true}
+        // The 0-based day index this cell is, so the contract's clauses 2 and 3
+        // can find it — the same identity the ring and the click handler use,
+        // and the same attribute the chips row and the map strip carry.
+        data-day-index={ordinal - 1}
         aria-label={cellLabel(ordinal, cell.date, cityCards, detail.currency)}
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
@@ -456,7 +486,7 @@ export function CalendarLens({
   }
 
   return (
-    <section>
+    <section ref={gridRef}>
       <div
         className="mt-2 flex flex-col"
         // eslint-disable-next-line no-restricted-syntax -- 26px month-block gap (handoff spec) has no token equivalent, matching UnscheduledRack's computed-geometry pattern

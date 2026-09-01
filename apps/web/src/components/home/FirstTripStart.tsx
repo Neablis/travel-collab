@@ -43,7 +43,7 @@ export function FirstTripStart({
   // empty list is what both "no trips yet" and "the clone hasn't resolved
   // yet" look like), and starting the wizard here races the same
   // already-in-flight `duplicateTrip` this button's sibling on the page head
-  // is guarded against (CodeRabbit, PR #104).
+  // is guarded against (CodeRabbit, pull request 104).
   disabled?: boolean;
 }) {
   return (

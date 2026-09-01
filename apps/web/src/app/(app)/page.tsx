@@ -74,7 +74,7 @@ export default function Home() {
   // open (the effect below force-closes it the moment cloning starts) and
   // against being opened — because a submit of that wizard while the clone
   // request is in flight creates an extra trip nobody asked for (CodeRabbit,
-  // PR #104): the wizard's own `createTrip` has no idea a copy is already
+  // pull request 104): the wizard's own `createTrip` has no idea a copy is already
   // headed for this same list. Both launchers into the wizard — the page-head
   // "New trip" button and `FirstTripStart`'s "Name your trip" — are disabled
   // below for the same reason.
@@ -145,7 +145,7 @@ export default function Home() {
     // has answered, and someone can click "New trip" in that same window. A
     // trip they're actively naming is about to be blown away by a navigation
     // to the demo copy, so close it rather than let the submit race the
-    // clone (CodeRabbit, PR #104).
+    // clone (CodeRabbit, pull request 104).
     setNewTripOpen(false);
     void duplicateTrip(DEMO_TRIP_ID).then((result) => {
       if (result.ok) {

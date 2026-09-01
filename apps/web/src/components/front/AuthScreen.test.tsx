@@ -74,7 +74,7 @@ describe("AuthScreen", () => {
     );
   });
 
-  // CodeRabbit (PR #104): `next/link` renders a real anchor in the
+  // CodeRabbit (pull request 104): `next/link` renders a real anchor in the
   // server-rendered HTML, and `AuthSearchParams`' effect only resolves the
   // real callbackUrl post-render — so before this fix a click that beat the
   // effect landed on a bare `/signup`. `initialCallbackUrl` is what
