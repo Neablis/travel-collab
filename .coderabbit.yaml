@@ -11,9 +11,11 @@
 # `auto_review.enabled: true` below is no longer sufficient. This repo is
 # public with 0 stars, below CodeRabbit's 10-star OSS gate, so auto-review is
 # OFF. It still posts a green status while skipping, and PR #105 merged-clean
-# with no review, so nothing here blocks. Every setting below still applies
-# to a review that is MANUALLY triggered with `@coderabbitai review`; none of
-# it makes one happen on its own.
+# with no review, so nothing here blocks. Every setting below still applies to
+# a review that is manually triggered; none of it makes one happen on its own
+# — and triggering may be human-only, since a `@coderabbitai review` comment
+# did nothing on #105 and the `Trigger review` checkbox in CodeRabbit's own
+# comment is the only offered path.
 #
 # See AGENTS.md for the invariants referenced below.
 language: en-US
