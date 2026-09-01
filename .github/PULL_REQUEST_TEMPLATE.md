@@ -75,31 +75,12 @@ Closes:
 
 ## Waiting on checks
 
-<!-- Do not hand-poll. One blocking command covers all of them:
+<!-- Do not hand-poll. One blocking command covers the automated checks:
 
        gh pr checks <n> --watch --fail-fast
 
-     BUT a green CodeRabbit status no longer means it reviewed anything
-     (KI-2026-09-01). This repo is below CodeRabbit's 10-star OSS gate, so
-     auto-review is off and it posts `success` with the description
-     "Review skipped: manual review required for this OSS repository".
-     --fail-fast exits 0 on a PR it never read, and after a second push
-     CodeRabbit may vanish from the rollup entirely while it still says
-     success. Check presence, state AND description:
-
-       gh pr view <n> --json statusCheckRollup,reviews
-
-     To get a real review, comment `@coderabbitai review`. It works, but
-     takes ~21 min (not the 2-11 a normal review takes), so an empty
-     `reviews` inside that window is not a failed trigger. Do not claim a
-     PR was reviewed when it was not.
-
-     CodeRabbit's summary comment lands ~30s in, but its actual review verdict
-     takes 2-11 minutes. --watch exits non-zero the moment anything fails.
-
      Straight after a push, --watch can return in ~1s with the PREVIOUS
-     commit's checks, all green. Confirm the run exists for your real HEAD
-     first:
+     commit's checks, all green. Confirm the run exists for your real HEAD:
 
        gh run list --commit "$(git rev-parse HEAD)" --limit 1
 
@@ -108,3 +89,22 @@ Closes:
      nothing until `gh pr ready <n>`. In both cases there is no terminating
      event, so watching is an open-ended loop. No run for your HEAD, and none
      expected, is the finished state — say so and move on. -->
+
+## CodeRabbit — Mitchell's step before merging
+
+<!-- Decided 2026-09-01. CodeRabbit is NOT an automated check here and its
+     status is not evidence: auto-review is off for this repo and it posts a
+     GREEN status while skipping, so --fail-fast exits 0 on a PR it never
+     read. See AGENTS.md and KI-2026-09-01.
+
+     Tick the first box when you have handed off. Do not tick the second
+     yourself unless you triggered the review AND were certain you were done
+     pushing — a push during the ~21-minute window aborts it. -->
+
+- [ ] CI is green on the real HEAD, and I have told Mitchell in chat: **"PR #N is green and ready — trigger CodeRabbit before merging."**
+- [ ] Review has run (`Review completed`, not `Review skipped`) and its findings are addressed or answered
+
+After addressing findings, say which this was, because it decides whether the review still counts:
+
+- [ ] The fix was small — merge on the existing review
+- [ ] The fix was substantive — worth a re-trigger before merging

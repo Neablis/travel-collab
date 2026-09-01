@@ -1,5 +1,17 @@
 ### KI-2026-09-01 — CodeRabbit posts a GREEN status while skipping the review entirely, so `gh pr checks --watch` reports a review that never happened
 
+> **DECIDED 2026-09-01 (Mitchell): drop CodeRabbit as an automated step.** It
+> is now a human step before merging — the agent gets CI green and hands off
+> in chat, Mitchell triggers the review, nobody pushes for ~21 minutes,
+> findings are addressed, Mitchell merges. Written into `AGENTS.md`,
+> `docs/guidelines/quality-enforcement.md` and the PR template.
+>
+> **This entry stays OPEN** because the decision removes our *dependence* on
+> the lying status, not the lying status itself. Anyone reading a green
+> CodeRabbit status on this repo is still being told something false, and the
+> fix for that is not ours to make. What changed is that nothing in our
+> process asks the question any more.
+
 - **Severity:** correctness of the process itself — this is not a code defect,
   it is the repo's documented safety net silently reporting success. Filed at
   the severity the thing it protects would carry, because the failure is
@@ -53,60 +65,26 @@
   3. `.coderabbit.yaml`: *"It stays a required check."* It is not blocking —
      #105 reports `mergeable_state: "clean"` with the review skipped — so
      nothing stops a PR merging unreviewed.
-- **Why it is not fixed here:** every real fix is Mitchell's call and costs
-  either money or a habit change. Four options, ranked, none taken
-  unilaterally:
-  1. **Restore the paid plan**, if the trial lapsing is what changed. Cheapest
-     in process terms — everything written down becomes true again.
-  2. **Trigger manually on every PR** with a comment reading
-     `@coderabbitai review`. **This works, and an agent can do it** —
-     confirmed on PR #105, where it produced a real review that found a real
-     defect (see below).
+- **Why the lying status is not fixed here:** it is CodeRabbit's behaviour, not
+  ours. The four options were: restore the paid plan; trigger manually on
+  every PR; reach 10 stars; or drop it from the documented process.
+  **Mitchell chose a fifth that is the second and fourth combined** — drop it
+  as an *automated* step, keep it as a *human* one before merging. That is the
+  right shape given the evidence:
+  - An agent triggering mid-work reliably gets **nothing**, because a push
+    aborts the review and the ~21-minute window is longer than the gap
+    between an agent's pushes. Observed twice on #105.
+  - A human triggering when they are ready to merge has a branch that is
+    quiet **by definition**, so the window is never the constraint.
+  - It keeps the value. On #105 the review caught a tautological assertion
+    that `pnpm check` passed, and the fix for that finding then broke a lint
+    wall — two defects in one PR that the automated lane could not catch and
+    did not.
+  - What it costs: one step a human must remember, and no review at all on a
+    PR merged without it. #105 itself merged that way — the re-triggered
+    review never ran, so the sentinel save/restore in `preview.test.tsx`
+    landed unreviewed.
 
-     **But budget ~21 minutes, not the 2-11 the docs claim.** The comment was
-     posted 15:22Z and the review landed 15:43Z. In between, `get_reviews` was
-     `[]`, the skip comment had been re-rendered still saying skipped, and its
-     `🔍 Trigger review` checkbox sat unticked — so at the 8-minute mark this
-     entry wrongly recorded the trigger as having failed. **Do not read an
-     absent review inside 20 minutes as a failed trigger.** CodeRabbit's own
-     note: *"This command is applicable only when automatic reviews are
-     paused"* — which is exactly this repo's state, so it is the supported
-     path.
-
-     It is still a step someone must remember on **every** PR — the class of
-     trailing manual step the gate-close checklist exists to abolish. But it is
-     not human-only, and an unattended session can and should do it.
-
-     **A push during the review window aborts it, and the window is ~21
-     minutes.** Observed immediately: the review of `426b414` was cancelled
-     mid-flight when `c19be7e` landed, CodeRabbit editing its own reply to
-     *"⚠️ Action not completed — Head commit changed."* Combined with the long
-     latency this is an easy race to lose — the natural reflex on receiving a
-     finding is to push the fix, which kills the review of the fix.
-
-     **So sequence it: land every push you intend to make, THEN trigger, then
-     leave the head alone for ~21 minutes.** A finding that arrives while you
-     still have work queued is better answered by finishing the work first and
-     triggering once, than by pushing per-finding and re-triggering each time.
-     Note also that CodeRabbit is incremental and *"does not re-review already
-     reviewed commits"*, so a re-trigger after an abort reviews the delta, not
-     the whole PR.
-
-     **It earned its keep immediately.** The review caught a tautological
-     assertion in this PR's own test fix that `pnpm check` passed: the test
-     read its expected value from the same registry entry the component reads,
-     so a component that ignored the registry entirely would still have passed
-     it. Proven by probe, not taken on faith — hardcoding the literal in
-     `preview.tsx` left the old assertion green. Nineteen-in-four-PRs, one more
-     time.
-  3. **Get to 10 stars.** Out of the project's control and not a plan.
-  4. **Drop CodeRabbit from the documented process** and replace it with
-     something that does run. Honest, and loses the only check that has caught
-     the "green locally, wrong anyway" class.
-
-  Until one is chosen, **the docs are corrected to describe what actually
-  happens** rather than what used to, so no session trusts a green CodeRabbit
-  status again.
 - **How to check whether this is still true:** `gh pr view <n> --json
   statusCheckRollup` and read CodeRabbit's *`description`*, not its state.
   `Review completed` is a real review; `Review skipped: …` is not. A check run

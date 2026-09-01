@@ -155,15 +155,14 @@ saved-days library past one screen.
 
 **Every one of the nineteen was green locally.** `pnpm check` cannot catch this
 class by construction, which is the argument for triggering CodeRabbit at all.
-*(**The stated cause is wrong, corrected 2026-09-01 — KI-2026-09-01.** The
-draft rule is real but is not why it skipped: this repo is below CodeRabbit's
+*(**Superseded 2026-09-01 — KI-2026-09-01.** The stated cause was wrong: the
+draft rule is real but is not why it skipped — this repo is below CodeRabbit's
 **10-star OSS gate**, so auto-review is off on **ready** PRs too, and the
-status it posts is **green either way** — and on a second push it may not
-appear in the rollup at all while it still says `success`. Check presence,
-state **and** description; `--json reviews` returning `[]` is the blunt
-confirmation. **Trigger a real one with a `@coderabbitai review` comment** —
-it works, but budget ~21 minutes, and an empty `reviews` inside that window is
-not a failed trigger.)* It was also confidently wrong
+status it posts is **green either way**. **Mitchell's decision the same day:
+CodeRabbit is no longer an automated step at all.** The agent gets CI green and
+hands off; Mitchell triggers the review before merging, nobody pushes for ~21
+minutes, findings are addressed, then he merges. The process is in `AGENTS.md`;
+never read the CodeRabbit status as evidence.)* It was also confidently wrong
 twice, both times about runtime behaviour it researched rather than ran
 (Vitest's `it.each` on a mixed array; `__dirname` under ESM), and both times the
 tell was identical: **the suite was green, which the claimed failure could not
