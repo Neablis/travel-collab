@@ -58,10 +58,23 @@
   unilaterally:
   1. **Restore the paid plan**, if the trial lapsing is what changed. Cheapest
      in process terms — everything written down becomes true again.
-  2. **Trigger manually on every PR** (`@coderabbitai review` as a comment).
-     Works — it is what PR #105 did — but it is a step a human or agent must
-     remember on every PR, which is exactly the class of trailing manual step
-     the gate-close checklist exists to abolish.
+  2. **Trigger manually on every PR** — but **it is not confirmed that an
+     agent can.** Tried on PR #105 at 15:22Z: a comment reading
+     `@coderabbitai review` produced **no review**. Eight minutes later
+     `get_reviews` was still `[]`, and CodeRabbit's skip comment had been
+     re-rendered (15:25Z) still saying skipped, with its `- [ ] 🔍 Trigger
+     review` checkbox **unticked**. A push at 15:29Z then superseded that
+     head, so the attempt is not perfectly clean — but nothing suggests the
+     command was accepted.
+
+     **The only affordance CodeRabbit offers on this tier is that checkbox**,
+     which is ticked by editing its comment — in practice a human clicking it
+     in the GitHub UI. So this remedy may be **human-only**, which makes it a
+     trailing manual step of exactly the class the gate-close checklist exists
+     to abolish, and one an unattended session cannot perform at all.
+
+     **Verify before relying on it.** If the checkbox does work, it still has
+     to be ticked per PR, and it does not survive a new push.
   3. **Get to 10 stars.** Out of the project's control and not a plan.
   4. **Drop CodeRabbit from the documented process** and replace it with
      something that does run. Honest, and loses the only check that has caught
@@ -77,6 +90,15 @@
   not a check run, so `pull_request_read`'s `get_check_runs` returns six or
   seven entries with no CodeRabbit among them and that is normal, not evidence
   of absence. Use the combined status.
+
+  **And check that CodeRabbit appears at all — reading the description is not
+  enough.** On this PR's second head (`57eaf61`) the combined status came back
+  `state: "success"` with `total_count: 1`: **Vercel only, no CodeRabbit entry
+  of any kind.** So the rollup reports green both when CodeRabbit skipped and
+  when it never ran, and there is no description to read in the second case.
+  The check is three-part: CodeRabbit present, `state` success, **and**
+  `description` saying `Review completed`. `get_reviews` returning `[]` is the
+  blunter confirmation that nothing reviewed the code.
 - **Cross-reference:** `.coderabbit.yaml` (the config that still says
   `auto_review.enabled: true`, which is true and no longer sufficient),
   `AGENTS.md` §"Waiting on PR checks", KI-24 (the same species one domain over

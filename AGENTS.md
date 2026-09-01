@@ -347,11 +347,19 @@ it is why this is written down rather than left to each session to rediscover.
 > So `--watch --fail-fast` **exits 0 on a PR CodeRabbit never read.** This is
 > the trap in the next paragraph, one level up and with no net behind it.
 >
-> **Read the `description`, never the state:**
-> `gh pr view <n> --json statusCheckRollup`. `Review completed` is a review;
-> `Review skipped: …` is not. **To actually get one, comment
-> `@coderabbitai review` on the PR** — this is a manual step on *every* PR
-> until the plan or the gate changes.
+> **Check three things, not one:** `gh pr view <n> --json statusCheckRollup`
+> — is CodeRabbit *present at all*, is its `state` success, and does its
+> `description` read `Review completed`? `Review skipped: …` is not a review,
+> and on this PR's second head CodeRabbit was **absent entirely** while the
+> rollup still said `success`. `gh pr view <n> --json reviews` returning `[]`
+> is the blunt confirmation nothing read the code.
+>
+> **Getting a real review may be human-only.** A comment reading
+> `@coderabbitai review` was tried on #105 and produced nothing. The only
+> affordance offered is the `🔍 Trigger review` checkbox inside CodeRabbit's
+> own comment — a click in the GitHub UI. **An unattended session probably
+> cannot obtain a CodeRabbit review at all**; say so rather than implying the
+> PR was reviewed.
 >
 > Do not "fix" this by triggering only on drafts. The draft rule
 > (`auto_review.drafts: false`) is real and unrelated: the star gate applies

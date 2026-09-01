@@ -107,9 +107,14 @@ green CodeRabbit status no longer means it reviewed anything
 (KI-2026-09-01).** This repo is public with 0 stars, below CodeRabbit's
 10-star OSS gate, so auto-review is off; it still reports `success`, with the
 description `Review skipped: manual review required for this OSS repository`.
-`--fail-fast` therefore exits 0 on a PR it never read. Read the description
-rather than the state — `gh pr view <n> --json statusCheckRollup` — and
-comment `@coderabbitai review` to get a real one. When a review does run, its
+`--fail-fast` therefore exits 0 on a PR it never read — and on a second push
+CodeRabbit may not appear in the rollup at all while it still reports
+`success`. Check presence, state **and** description: `gh pr view <n> --json
+statusCheckRollup`, with `--json reviews` returning `[]` as the blunt
+confirmation nothing reviewed. Obtaining a real review may be **human-only**:
+a `@coderabbitai review` comment was tried and did nothing, leaving the
+`🔍 Trigger review` checkbox in CodeRabbit's own comment as the only offered
+path. When a review does run, its
 summary comment appears within about 30 seconds and its verdict takes 2-11
 minutes. Treat its findings as bug reports to verify against the code — it
 caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and

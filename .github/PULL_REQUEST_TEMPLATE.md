@@ -83,12 +83,16 @@ Closes:
      (KI-2026-09-01). This repo is below CodeRabbit's 10-star OSS gate, so
      auto-review is off and it posts `success` with the description
      "Review skipped: manual review required for this OSS repository".
-     --fail-fast exits 0 on a PR it never read. Read the description, not
-     the state:
+     --fail-fast exits 0 on a PR it never read, and after a second push
+     CodeRabbit may vanish from the rollup entirely while it still says
+     success. Check presence, state AND description:
 
-       gh pr view <n> --json statusCheckRollup
+       gh pr view <n> --json statusCheckRollup,reviews
 
-     To get a real review, comment `@coderabbitai review` on the PR.
+     Getting a real review may be human-only — a `@coderabbitai review`
+     comment did nothing on #105; the `Trigger review` checkbox in
+     CodeRabbit's own comment is the only offered path. Do not claim a PR
+     was reviewed when it was not.
 
      CodeRabbit's summary comment lands ~30s in, but its actual review verdict
      takes 2-11 minutes. --watch exits non-zero the moment anything fails.
