@@ -1,7 +1,14 @@
 # M19 — A cost knows who and what it is for
 
-**Status:** Approved 2026-08-31 by Mitchell. **Minted, not placed** — creating
-it was the decision; where it runs in the order is a separate one.
+**Status:** Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
+M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+
+Last is a real position rather than a shrug. Link 3 (who an activity is for)
+overlaps **M13**'s `add-stop-who`, and running after M13 lets M13 land that
+field while M19 builds splits on top of it — instead of two milestones each
+adding a per-stop person field, which is the drift `AGENTS.md` invariant 5
+exists to stop. Move M19 earlier and that link has to be reassigned, not
+duplicated.
 
 **Opened by:** M11b's gate sweep of `preview-registry.ts`. Two shells,
 `cost-estimate-state` and `budget-breakdown`, had been tagged M11 since M10 and
@@ -111,9 +118,10 @@ them.
 
 ## Exit gate
 
-Not written — this milestone is minted, not scoped. Writing the gate is part of
-placing it, and the shape of links 1 and 3 (inherit vs carry; participation in
-this milestone vs M13) has to be decided first.
+Not written — this milestone is **placed but not scoped**, and those are
+different things. Placing it fixed when it runs; the gate needs the shape of
+link 1 decided first (does a cost inherit its category from `ActivityKind` or
+carry its own), which is a design question nobody has answered yet.
 
 **Two boxes are already known**, because they are why it exists:
 
@@ -124,10 +132,12 @@ this milestone vs M13) has to be decided first.
 
 ## Prerequisites
 
-**Link 3 overlaps M13.** M13 owns collaboration and already holds
-`add-stop-who`. Whether participation lands here or there is a placement
-decision, but it must land in exactly one — two milestones each adding a
-per-stop person field is the drift `AGENTS.md` invariant 5 exists to stop.
+**Link 3 overlaps M13, and the placement settled which way.** M13 owns
+collaboration and already holds `add-stop-who` for the same missing per-stop
+person field. M19 now runs **after** M13, so the expectation is that M13 lands
+that field and M19 builds splits on top of it. What must not happen is both
+adding one — that is the drift `AGENTS.md` invariant 5 exists to stop. If M13
+ships without it, link 3 comes back here and this note is what says so.
 
 **Nothing else blocks it.** Trip members, roles and the money primitives all
 exist; this milestone adds fields to them rather than needing anything new

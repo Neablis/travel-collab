@@ -135,10 +135,11 @@ Everything below is **M12's**, by the 2026-08-30 scope decision:
   the population is invited and small. See "Moderation waits on the invite
   gate" for the precondition that makes that true.
 
-### Two deltas from `SPEC.md` §15, and why
+### Three deltas from `SPEC.md` §15, and why
 
-Both are consequences of the reviews carve-out, recorded here so a build session
-does not read them as an implementation miss:
+The first two are consequences of the reviews carve-out; the third is a data
+model that does not exist. All three are recorded here so a build session does
+not read them as an implementation miss:
 
 1. **Discover ships two sorts, not four.** §15 specifies *most added / highest
    rated / most reviewed / newest*. Two of those have no data until M12. M11b
@@ -152,6 +153,34 @@ does nothing (project rule 2) and a number the product cannot stand behind.
 §15 itself says *"until the reviews table exists, every rating here is fixture
 data"* — this milestone's answer to that is to not ship the control, rather than
 to ship it against a fixture.
+
+3. **`GET /cities` returns `{ city, days }` and no region.** §15 shows a region
+   beside each city ("Kyoto, Kansai"). **Nothing in the data model holds one**,
+   and the gap is deeper than a missing column:
+
+   * The only geographic qualifier on a `Location` is `countryCode`
+     (`packages/contracts/src/activity.ts`) — country, not region.
+   * The geocoder **does** have the data and discards it. LocationIQ is
+     Nominatim-derived and its `addressdetails=1` response carries `state` and
+     `county`; `apps/web/src/server/geocoding/locationiq.ts` reads only
+     `country_code`, `city`/`town`/`village`/`hamlet` and
+     `suburb`/`neighbourhood`/`quarter`/`city_district`. So closing this starts
+     at the geocoder, not at the endpoint.
+   * It would then need a contract field (its own PR, invariant 5), a
+     **snapshotted column** — `stops` is jsonb ADR-029 says is never queried
+     into, which is exactly why `cities` is a column and not a derivation — and
+     a backfill, because every location already geocoded was captured without
+     it.
+   * `region` is already taken. It means a geocoding **bounding box** in this
+     tree (`geocodeRegion.ts`, `TRIP_REGION_MARGIN_KM`). A second meaning would
+     be a genuine ambiguity; `state` or `adminArea` is the name.
+
+   Shipped without it deliberately. A field nothing can populate would be null
+   in every demo, preview and screenshot — the M18 tag-chip failure the
+   Definition of Done names by name — and the response shape extends without a
+   breaking change whenever the chain above is built. **Mitchell's call,
+   2026-08-31.** That chain is milestone-sized rather than a follow-up, and no
+   milestone owns it yet.
 
 ### Moderation waits on the invite gate, not on good luck
 
