@@ -342,7 +342,16 @@ describe("GET /api/playbooks", () => {
     const name = `Seasonal ${RUN}`;
     await publish(await saveDay(name, [{ city: only }]));
 
-    const month = new Date().getUTCMonth() + 1;
+    // The month comes from the SAVED ROW's own `createdAt`, not from a fresh
+    // clock read here. `saveDay` persists `created_at` before this line runs,
+    // so a UTC month rollover between that write and `new Date()` here would
+    // put `mine` in the new month while the row is still stamped with the
+    // old one — an intermittent failure on the new-season assertion below
+    // (CodeRabbit, PR 104). Reading the row's own timestamp back through an
+    // unfiltered discover keeps the expectation and the data in the same
+    // month no matter when the rollover lands.
+    const seeded = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
+    const month = new Date(seeded.createdAt).getUTCMonth() + 1;
     const seasonOf = (m: number) =>
       m === 12 || m <= 2 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "fall";
     const mine = seasonOf(month);

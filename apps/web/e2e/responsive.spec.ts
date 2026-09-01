@@ -1,7 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
+
+/**
+ * A dev username nobody has used before. Same shape as
+ * `m11a-invite-gate.spec.ts`'s own `freshUsername` (not exported from
+ * there, so duplicated rather than reached across spec files) — hex only
+ * and short, because `devLoginIdentity` rejects anything outside
+ * `^[A-Za-z0-9_-]{1,32}$`.
+ */
+function freshUsername(): string {
+  return `e2e${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+}
 
 // KI-19: the whole suite used to run at exactly one viewport (Playwright's
 // 1280x720 default, above the 1179px breakpoint), so a whole class of real
@@ -550,4 +562,66 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       expect(scrollWidth, `widest element: ${widest}`).toBeLessThanOrEqual(clientWidth);
     });
   }
+});
+
+// `FirstTripStart` (Mitchell, 2026-09-01 — see its own file header) is the
+// first authenticated screen for anyone with zero trips, and its four-step
+// grid is `sm:grid-cols-2` — collapsed to one column below Tailwind's 640px
+// `sm`, a width nothing in this suite exercised (CodeRabbit, PR 104).
+//
+// Reaching "zero trips" honestly needs a genuinely new account: the shared
+// dev user every other test in this file signs in as (`.auth/alice.json`,
+// via the narrow project's own `storageState`) has trips from every prior
+// spec run. Signed out here for the same reason the landing-page block
+// above is, and then signed IN as a one-off `freshUsername()` account, which
+// M11a's invite gate admits only with the super code `signInAsDevUser`
+// already presents — see that helper's own comment for why dev login goes
+// through the gate rather than around it.
+test.describe("responsive (narrow viewport, first trip)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("all four steps and all three actions stay visible and operable below sm", async ({ page }) => {
+    // Set before signing in, matching this file's own pattern for a
+    // breakpoint below the narrow project's own 1100px — 375px is a real
+    // phone width already used elsewhere in this file (the hero-art and
+    // sideways-scroll tests), comfortably below the 640px `sm` this grid
+    // reflows at.
+    await page.setViewportSize({ width: 375, height: 800 });
+    await signInAsDevUser(page, freshUsername());
+
+    const card = page.getByTestId("first-trip-start");
+    await expect(card).toBeVisible();
+
+    // Four steps, every one of them actually on screen — not just present in
+    // the DOM, which a `grid-cols-2` collapse that clipped rather than
+    // reflowed would still satisfy.
+    const steps = page.getByTestId("first-trip-steps").getByRole("listitem");
+    await expect(steps).toHaveCount(4);
+    for (const step of await steps.all()) {
+      await expect(step).toBeInViewport();
+    }
+
+    // The three actions, scoped to the card: `FirstTripStart`'s own file
+    // header says the library link used to live at the page head too (M11b),
+    // and it still does — an unscoped `getByRole("link", { name: "Start
+    // from a Playbook" })` here resolves two elements and trips Playwright's
+    // strict mode. The two links are checked for their real destination
+    // rather than clicked — clicking either would navigate away from this
+    // screen, which is what "Name your trip" is checked by doing below
+    // instead.
+    const nameButton = card.getByRole("button", { name: "Name your trip" });
+    const playbookLink = card.getByRole("link", { name: "Start from a Playbook" });
+    const demoLink = card.getByRole("link", { name: "Look around an example trip" });
+    await expect(nameButton).toBeVisible();
+    await expect(nameButton).toBeEnabled();
+    await expect(playbookLink).toBeVisible();
+    await expect(playbookLink).toHaveAttribute("href", "/playbooks");
+    await expect(demoLink).toBeVisible();
+    await expect(demoLink).toHaveAttribute("href", "/demo");
+
+    // Operable, not just visible: the click has to actually reach the
+    // button and open the wizard at this width.
+    await nameButton.click();
+    await expect(page.getByLabel("Trip name")).toBeVisible();
+  });
 });

@@ -61,13 +61,31 @@ describe("submitOnEnter", () => {
     const event = keyEvent("Enter", { repeat: true });
     submitOnEnter(run)(event);
     expect(run).not.toHaveBeenCalled();
+    // Not calling `preventDefault` is as much the point as not calling `run`:
+    // a held key that autorepeats into a browser (or IME) default the caller
+    // never asked to swallow is a regression this assertion alone would miss
+    // (CodeRabbit, PR 104) — `run` staying uncalled is also true of a handler
+    // that swallows every repeat and does nothing else.
+    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 
   it("ignores a modified Enter", () => {
     const run = vi.fn();
-    for (const modifier of ["shiftKey", "altKey", "ctrlKey", "metaKey"] as const) {
-      submitOnEnter(run)(keyEvent("Enter", { [modifier]: true }));
+    // Kept as separate events, not a fire-and-discard loop, so each one's
+    // `preventDefault` is inspectable below — matching the composing-Enter
+    // test's shape rather than only checking `run` at the end (CodeRabbit,
+    // PR 104: a regression that swallowed a modified Enter, breaking a
+    // shortcut like Cmd+Enter or a shift-newline, would still pass with only
+    // `run` asserted).
+    const events = (["shiftKey", "altKey", "ctrlKey", "metaKey"] as const).map((modifier) =>
+      keyEvent("Enter", { [modifier]: true }),
+    );
+    for (const event of events) {
+      submitOnEnter(run)(event);
     }
     expect(run).not.toHaveBeenCalled();
+    for (const event of events) {
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    }
   });
 });

@@ -119,6 +119,23 @@ describe("the keep-day pennant's wave", () => {
     // the unprefixed event into the same handler.
     fireEvent(waving!, new Event("webkitAnimationEnd", { bubbles: true }));
     expect(wavingFlag()).toBeNull();
+
+    // The class going away is only half the claim in this test's name — the
+    // other half is that a LATER press still waves, i.e. `animationend`
+    // clearing the class doesn't also clear whatever makes the class
+    // re-applicable. Without this second press, a regression that cleared
+    // `waving` once and then never set it again on a later click would still
+    // pass (CodeRabbit, PR 104).
+    //
+    // The first click's dialog is still open at this point — `keep()` never
+    // closes it, only the wave-ending `animationend` fired above — and its
+    // Radix overlay covers the button with `pointer-events: none` while
+    // mounted, so a second `userEvent.click(button)` here throws rather than
+    // landing. Dismissing via Cancel (not asserting anything about the
+    // dialog) is what makes the second press reach the button at all.
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    await userEvent.click(button);
+    expect(wavingFlag()).not.toBeNull();
   });
 
   it("does not wave on a day with nothing on it", async () => {
