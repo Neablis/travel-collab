@@ -344,3 +344,67 @@ describe("TripHeader — the access read failed", () => {
     expect(screen.queryByText("Access unknown")).toBeNull();
   });
 });
+
+// Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
+// 411x760 (a phone): "all three columns from share, trip overview to budget
+// are really crowded and ugly on mobile, if we hid them here would they still
+// be accessible in trip settings?".
+//
+// jsdom loads no stylesheet, so `hidden md:block` is inert here and these
+// assert the CLASSES rather than a computed style — the same trade the status
+// Badge test above makes. What is actually rendered at 411px is asserted for
+// real in `e2e/responsive.spec.ts` ("the trip header sheds ... on a phone"),
+// which runs in a browser; these are the cheap regression guard for the
+// breakpoint itself, which a browser test would not tell you the number of.
+describe("TripHeader on a phone", () => {
+  it("puts Share and the meta/budget row behind the 768px breakpoint, and nothing else", async () => {
+    await renderHeader(
+      <>
+        <div role="tablist" aria-label="Trip view" />
+        <div role="group" aria-label="Days" />
+      </>,
+    );
+
+    // `md:` IS 768px — the line globals.css already draws between "narrow but
+    // still a shrinkable plan" and "phone" (`.assistant-rail`,
+    // `.unscheduled-rack`) and the one `useIsPhone` reads.
+    expect(screen.getByTestId("trip-header-share").className).toBe("hidden md:block");
+    expect(screen.getByTestId("trip-meta-row").className).toMatch(/(^| )hidden( |$)/);
+    expect(screen.getByTestId("trip-meta-row").className).toMatch(/md:flex/);
+
+    // The other half of the decision, and the half a "hide it all" regression
+    // would quietly break: actions and navigation are NOT in the cut. "Add
+    // stop" and History have no home in Trip settings, and the tab strip and
+    // day chips are the phone's primary navigation.
+    for (const name of ["Add stop", "History"]) {
+      expect(screen.getByRole("button", { name }).closest("[class*='hidden']")).toBeNull();
+    }
+    expect(screen.getByRole("tablist", { name: "Trip view" }).closest("[class*='hidden']")).toBeNull();
+    expect(screen.getByRole("group", { name: "Days" }).closest("[class*='hidden']")).toBeNull();
+    // And the door to everything that IS hidden.
+    expect(screen.getByRole("button", { name: /trip settings/i }).closest("[class*='hidden']")).toBeNull();
+  });
+
+  // The reachability half, at this level: whatever the header stops showing
+  // has to be behind the title. A test that only asserted the disappearances
+  // above would pass on a regression that lost them altogether.
+  it("reaches Share and the counts through the title, where the header hides them", async () => {
+    await renderHeader();
+
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+    const sheet = screen.getByRole("dialog", { name: /trip settings/i });
+
+    expect(within(sheet).getByRole("button", { name: "Share" })).toBeTruthy();
+    // The same figures the hidden pill states, from the same `tripCounts`
+    // call — asserted against the pill's own rendering rather than against a
+    // hardcoded number, so the fixture can change without this going stale.
+    const pill = screen.getByTestId("trip-meta-row");
+    for (const unit of ["days", "stops", "cities"] as const) {
+      const inPill = within(pill).getByText(new RegExp(`\\d+ ${unit}$`)).textContent!;
+      expect(within(sheet).getByText(inPill)).toBeTruthy();
+    }
+    // Budget was already fully editable in the sheet before this change; the
+    // chip is a shortcut to it, not the only way in.
+    expect(within(sheet).getByLabelText("Total for the trip")).toBeTruthy();
+  });
+});

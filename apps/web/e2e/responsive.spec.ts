@@ -395,6 +395,93 @@ test.describe("responsive (Map lens on a phone)", () => {
   });
 });
 
+// Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
+// 411x760 (the same phone the Map-lens block above uses): "all three columns
+// from share, trip overview to budget are really crowded and ugly on mobile,
+// if we hid them here would they still be accessible in trip settings?".
+//
+// They were not, entirely — budget and dates were already in the sheet, the
+// stop/city counts were nowhere, and Share was mounted in exactly two places
+// in the app (this header and the home hero), so hiding it would have left a
+// phone user unable to share the trip in front of them. The counts and Share
+// moved into Trip settings first; this spec is what stops either move being
+// silently undone, because the disappearances alone are the half that a
+// regression which LOST them would also satisfy.
+test.describe("responsive (trip header on a phone)", () => {
+  test("sheds Share, the meta pill and the budget chip at 411px — and Trip settings still carries all three", async ({ page }) => {
+    // `createMappedTrip` gives the days real located activities, so the city
+    // count in the sheet is a number derived from something rather than 0.
+    const tripId = await createMappedTrip(page, e2eTripName("HeaderPhone"), 3);
+    await page.setViewportSize({ width: 411, height: 760 });
+    await page.goto(`/trips/${tripId}`);
+
+    const settings = page.getByRole("button", { name: "Trip settings" });
+    await expect(settings).toBeVisible();
+
+    // Hidden, not removed: these are CSS-gated (`hidden md:…`), so they are
+    // still in the DOM and `toBeHidden` is the assertion that means anything.
+    // Both testids name the HEADER's copy specifically — there is a second
+    // Share in the settings sheet now, and an unscoped "Share" would be
+    // ambiguous under strict mode for exactly that reason.
+    await expect(page.getByTestId("trip-header-share")).toBeHidden();
+    await expect(page.getByTestId("trip-meta-row")).toBeHidden();
+
+    // What deliberately stays. Actions are not information: "Add stop" and
+    // History have no equivalent in Trip settings, and the tab strip and day
+    // chips are the phone's primary navigation.
+    await expect(page.getByRole("button", { name: "Add stop" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "History", exact: true })).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Trip view" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+
+    // "Crowded" has a measurable form at this width: a header wider than the
+    // phone. The page must not scroll sideways.
+    const sideways = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(sideways).toBeLessThanOrEqual(1);
+
+    // The half that is the whole point of the change. Everything the header
+    // stopped showing is behind the title, which is still the door.
+    await settings.click();
+    const sheet = page.getByRole("dialog", { name: "Trip settings" });
+    await expect(sheet).toBeVisible();
+
+    // Anchored regexes: the budget section also says "N stops with no cost
+    // yet", which a loose /\d+ stops/ would match as well.
+    await expect(sheet.getByText(/^\d+ stops$/)).toBeVisible();
+    await expect(sheet.getByText(/^\d+ cities$/)).toBeVisible();
+    await expect(sheet.getByText(/^\d+ days$/)).toBeVisible();
+    // Budget and dates were already reachable here before this change; they
+    // are asserted so "the header hid them" and "the sheet has them" stay one
+    // statement rather than two files' worth of assumption.
+    await expect(sheet.getByLabel("Total for the trip")).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Dates" })).toBeVisible();
+
+    // Share, operated rather than merely located: this is a Radix Popover
+    // opening from inside a Radix Dialog, which is the one thing about this
+    // change that could plausibly render and still not work (KI-17's
+    // stacking, and the modal dialog's own pointer-events/focus trap). A
+    // browser is the only place that question can be answered.
+    await sheet.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(page.getByTestId("share-panel")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create a share link" })).toBeEnabled();
+  });
+
+  test("keeps all three in the header at desktop width", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("HeaderDesktop"), 3);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/trips/${tripId}`);
+
+    await expect(page.getByTestId("trip-header-share")).toBeVisible();
+    await expect(page.getByTestId("trip-meta-row")).toBeVisible();
+    // The pill's own counts, where they have always been — the mirror that
+    // makes the phone assertions above statements about the BREAKPOINT rather
+    // than about a control that stopped rendering everywhere.
+    await expect(page.getByTestId("trip-meta-row").getByText(/^\d+ cities$/)).toBeVisible();
+  });
+});
+
 // 1280px default viewport will not exercise. Own describe, because the front
 // door needs the signed-out state and the narrow project supplies alice's.
 test.describe("responsive (narrow viewport, signed out)", () => {

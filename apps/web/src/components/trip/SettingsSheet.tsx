@@ -15,6 +15,8 @@ import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
 import { Popover } from "@/components/ui/popover";
 import { TravelersPanel } from "@/components/trip/TravelersPanel";
+import { ShareButton } from "@/components/trip/ShareButton";
+import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
@@ -87,6 +89,7 @@ export function SettingsSheet({
   // still threaded through because the derived-end hint copy needs N ("The
   // end follows the N days in your plan").
   dayCount,
+  counts,
   currency,
   budget,
   spend,
@@ -103,6 +106,16 @@ export function SettingsSheet({
   startDate: string | null;
   endDate: string | null;
   dayCount: number;
+  // Days, stops and cities — the same three figures TripMetaPill states, from
+  // `tripCounts`, the one function that derives them (TripMetaPill.tsx). They
+  // are here because that pill is hidden below 768px: Mitchell asked whether
+  // the header's three crowded columns would "still be accessible in trip
+  // settings" if hidden, and these two counts were the part of the answer that
+  // was no. Passed in already-derived rather than handing this sheet the whole
+  // `TripDetail` — every other field here arrives as a scalar the caller read
+  // off the trip, and a `detail` prop would invite the next control to derive
+  // its own version of something.
+  counts: TripCounts;
   currency: string;
   budget: Money | null;
   spend: TripSpend;
@@ -269,6 +282,33 @@ export function SettingsSheet({
           />
         </Popover>
 
+        {/* The header's meta pill, in words rather than as a pill. The pill is
+            hidden below 768px (TripHeader), and Mitchell's question about
+            hiding it — "would they still be accessible in trip settings?" —
+            had exactly two honest answers: the dates were already here (the
+            row above), and the day/stop/city counts were nowhere. This is the
+            "nowhere" being fixed, and it is the reason this section exists at
+            all, so it sits directly under Dates: together they are the same
+            "what is this trip" answer the pill gives in one line.
+
+            Read-only on purpose. Every figure here is derived from the plan —
+            you change them by adding a day or a stop, not by typing a number
+            into settings — so this is a statement, not a form field, and it
+            renders as text rather than as three disabled inputs.
+
+            The strings are the pill's own ("3 days", "12 stops", "2 cities"),
+            not re-worded: this is meant to be recognisable as the thing that
+            is no longer on screen, and a test that asserts one wording in two
+            places is cheaper than two vocabularies drifting. */}
+        <div>
+          <SectionHeading>Trip overview</SectionHeading>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <DataText size="sm">{counts.days} days</DataText>
+            <DataText size="sm">{counts.stops} stops</DataText>
+            <DataText size="sm">{counts.cities} cities</DataText>
+          </div>
+        </div>
+
         <div>
           <SectionHeading>Budget</SectionHeading>
           <TripMoneySettings
@@ -335,8 +375,43 @@ export function SettingsSheet({
         </div>
 
         <div>
+          {/* Share sits with "Who is invited" because it answers the same
+              question that section does — who can see this trip — and because
+              the alternative homes are worse: under Budget it is a non
+              sequitur, and beside Duplicate/Delete it reads as a destructive
+              trip-level operation, which a read link is not. It is a *second*
+              way in, not a move: the header still shows Share at >=768px.
+              Below that the header's copy is hidden and this is the only one
+              left, which is the whole reason it is here — Mitchell asked
+              whether the header's three columns would still be reachable in
+              settings if hidden, and Share was the flat NO. ShareButton was
+              mounted in exactly two places (this header and the home page's
+              NextTripHero), so hiding it on a phone would have left a phone
+              user no way at all to share the trip they are looking at.
+
+              This heading row was already a `justify-between` flex with one
+              child — the slot the design left for a control on the right, now
+              filled.
+
+              `!readOnly`, which is this file's existing `myRole === "viewer"`
+              and NOT a second rule: TripProvider derives the header's own
+              `readOnly` from the identical comparison, so the gate here and
+              the gate in the header cannot disagree. It also keeps ADR-031's
+              /demo behaviour intact for free — `requireTripAccess` resolves a
+              demo visitor as a `viewer` (server/access/trip-access.ts), so a
+              signed-out reader loses Share in this sheet exactly as they
+              already lose it in the header, at every width.
+
+              Nested overlays are fine here: the Popover renders through its
+              own Radix portal with `.overlay-layer` (globals.css, KI-17), the
+              same z-index the Sheet carries, and being opened later it is
+              appended later in <body> and paints above. The Dates row above
+              is the same nesting, already proven by e2e
+              (m3-place-and-time.spec.ts opens Trip settings, then Dates, then
+              drives TripDateControl inside the popover). */}
           <div className="flex items-center justify-between">
             <SectionHeading>Who is invited</SectionHeading>
+            {!readOnly && <ShareButton tripId={tripId} size="sm" />}
           </div>
           {/* Real as of M11 link 3: TravelersPanel lists the effective members
               (the log's owner plus everyone who accepted an invite), and — for
