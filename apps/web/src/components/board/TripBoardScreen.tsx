@@ -86,7 +86,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) below the tab strip both read and
   // set it.
-  const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
+  const { focusedDay, setFocusedDay, setScrolledDay, focusedTag, toggleFocusedTag } = useFocus();
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
@@ -826,6 +826,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     onToggleTag={toggleFocusedTag}
                     callbacks={{
                       onSelectDay: setFocusedDay,
+                      // Scrolling the columns moves the header's selected day
+                      // too (Mitchell, 2026-09-01), but as a reading position
+                      // rather than a pick — see `FocusOrigin`.
+                      onScrollDay: setScrolledDay,
                       onMove: moveActivity,
                       onUnschedule: unscheduleActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),

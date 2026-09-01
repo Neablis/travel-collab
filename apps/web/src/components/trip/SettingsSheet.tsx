@@ -17,7 +17,7 @@ import { Popover } from "@/components/ui/popover";
 import { TravelersPanel } from "@/components/trip/TravelersPanel";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import type { TripSpend } from "@/lib/cost";
 import { duplicateTrip, sendTripCommand, type CommandOutcome } from "@/lib/apiClient";
@@ -91,6 +91,7 @@ export function SettingsSheet({
   budget,
   spend,
   forkedFrom,
+  createdAt,
   myRole,
   onCommand,
   onDeleted,
@@ -108,6 +109,12 @@ export function SettingsSheet({
   // Where this trip came from, or null if it started from nothing (M11 link
   // 5). Genesis-only and immutable, so it is displayed and never edited.
   forkedFrom: TripDetail["forkedFrom"];
+  /**
+   * The trip's genesis, which for a copy IS the moment it was taken — lineage
+   * is captured at genesis and never mutated (ADR-028), so no new field is
+   * needed to date the copy.
+   */
+  createdAt: string;
   // The signed-in user's role on this trip, or null while it is still loading
   // or the read failed (M11 link 3). ADVISORY: the server refuses every write
   // a role does not permit regardless. It is here so this sheet does not OFFER
@@ -163,6 +170,11 @@ export function SettingsSheet({
       router.push(`/trips/${result.value.tripId}`);
     }
   }
+
+  // Null only for an unparseable timestamp, which is a projection bug rather
+  // than a state to word around — the line just drops the date rather than
+  // rendering "Invalid Date" at somebody.
+  const copiedOn = formatInstantLong(createdAt);
 
   const statusLine =
     spend.budget === null
@@ -350,9 +362,16 @@ export function SettingsSheet({
         {forkedFrom !== null && (
           <div>
             <SectionHeading>Where this came from</SectionHeading>
+            {/* The DATE, not the ancestor's sequence number. "as it was at
+                change 89" was an internal coordinate leaking onto a settings
+                screen — nobody outside this codebase knows what change 89 was,
+                and the person reading it wants to know when they took the copy
+                (Mitchell, 2026-09-01). `atSeq` is still on `forkedFrom` and
+                still what a future "show me the ancestor at that point" would
+                use; it is just not something to render at a reader. */}
             <Text as="span" className="text-xs text-slate">
-              Copied from &ldquo;{forkedFrom.name}&rdquo;, as it was at change{" "}
-              {forkedFrom.atSeq}.
+              Copied from &ldquo;{forkedFrom.name}&rdquo;
+              {copiedOn === null ? "." : `, on ${copiedOn}.`}
             </Text>
           </div>
         )}

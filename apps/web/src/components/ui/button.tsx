@@ -21,6 +21,19 @@ export const buttonVariants = cva(
   },
 );
 
-export function Button({ variant, size, className, type = "button", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>) {
-  return <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+// `ref` is a plain prop, not `forwardRef`: React 19 passes it straight through
+// to function components, and the wrapper exists only to add classes. Declared
+// explicitly because `ButtonHTMLAttributes` does not include it — without this
+// line a caller that needs the element (the day chips, which move DOM focus as
+// arrow keys walk the row) has to reach around this component.
+export function Button({
+  variant,
+  size,
+  className,
+  type = "button",
+  ref,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants> & { ref?: React.Ref<HTMLButtonElement> }) {
+  return <button ref={ref} type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }

@@ -32,7 +32,11 @@ export type DiscoverSort = z.infer<typeof DiscoverSort>;
  * `Everyone / Yours / Saved` — a SCOPE on this one page, never a second page
  * (§15's R5, and the milestone's "your own library is a filter on this page").
  *
- *   * `everyone` — every published day, including your own.
+ *   * `everyone` — a superset: every published day, PLUS every day of your own,
+ *     published or not. Mitchell, 2026-09-01: *"Everyone tab for playbooks
+ *     should also include my trips, it's an 'Everyone' superset"*. Before that
+ *     it was public-only, so `Yours` could show a private day that `Everyone`
+ *     did not — a segment whose widest option was not the widest set.
  *   * `yours` — days you authored, **published or not**. This is the only place
  *     a private day of yours appears in Discover, and it is what makes the
  *     scope segment a replacement for a separate library page rather than a
@@ -44,6 +48,67 @@ export type DiscoverSort = z.infer<typeof DiscoverSort>;
  */
 export const DiscoverScope = z.enum(["everyone", "yours", "saved"]);
 export type DiscoverScope = z.infer<typeof DiscoverScope>;
+
+/**
+ * The season a day belongs to — Discover's coarse "when is this good for"
+ * filter, replacing the month dropdown that stood here.
+ *
+ * **Derived from a month, never stored.** Mitchell, 2026-09-01: *"Search should
+ * also be season (Spring, Summer, Winter, Fall) and automatically bucket that
+ * from the month it was first cloned from (no db just do a lookup for now)"* —
+ * so this is a pure lookup over the one month a saved day actually carries
+ * (`created_at`, the month it was lifted out of its source trip), and no column
+ * is added to hold it. When a saved day gains a real "the month the source trip
+ * ran" field, `seasonOfMonth` is the only thing that has to be re-pointed.
+ *
+ * Meteorological buckets, northern hemisphere: the library is invite-only and
+ * its whole demo corpus is Japan, so a single hemisphere is the honest reading
+ * rather than a fake-global one. Spelled "fall" rather than "autumn" because
+ * that is the word the request used and the rest of the product's copy is
+ * en-US.
+ */
+export const Season = z.enum(["spring", "summer", "fall", "winter"]);
+export type Season = z.infer<typeof Season>;
+
+/** 1-12, the way `extract(month from ...)` and `Date#getUTCMonth() + 1` count. */
+export const SEASON_MONTHS: Record<Season, readonly number[]> = {
+  spring: [3, 4, 5],
+  summer: [6, 7, 8],
+  fall: [9, 10, 11],
+  winter: [12, 1, 2],
+};
+
+export const SEASON_LABELS: Record<Season, string> = {
+  spring: "Spring",
+  summer: "Summer",
+  fall: "Fall",
+  winter: "Winter",
+};
+
+/**
+ * Which season a 1-12 month falls in, or null for anything that is not a month.
+ *
+ * Total over the twelve real months by construction — the lookup is built from
+ * `SEASON_MONTHS`, so a bucket edit cannot leave a month homeless the way a
+ * hand-written switch could.
+ */
+const MONTH_TO_SEASON: ReadonlyMap<number, Season> = new Map(
+  (Object.entries(SEASON_MONTHS) as [Season, readonly number[]][]).flatMap(([season, months]) =>
+    months.map((month) => [month, season] as const),
+  ),
+);
+
+export function seasonOfMonth(month: number | null | undefined): Season | null {
+  if (month === null || month === undefined) return null;
+  return MONTH_TO_SEASON.get(month) ?? null;
+}
+
+/** The season an instant (a saved day's `createdAt`) falls in, read in UTC. */
+export function seasonOfInstant(iso: string): Season | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return seasonOfMonth(at.getUTCMonth() + 1);
+}
 
 /**
  * Budget per person, in bands rather than a slider — three ranges over the sum
@@ -123,12 +188,23 @@ export const DiscoverResponse = z.object({
   /** The single currency every matched day agrees on, or null (see `BudgetBand`). */
   budgetCurrency: z.string().nullable(),
   /**
-   * True when the ranked candidate window was full, so the budget/month filters
+   * True when the ranked candidate window was full, so the budget/season filters
    * ran over a prefix of the matches rather than all of them. Surfaced rather
    * than hidden: a filtered count that silently means "of the first 200" is a
    * number the page cannot stand behind.
    */
   truncated: z.boolean(),
+  /**
+   * How many days are published across the WHOLE library, ignoring every filter
+   * on this query.
+   *
+   * It exists for one control: the leaderboard link. *"Who shares the most"*
+   * over a library nobody has shared anything into ranks an empty column, so
+   * the link is withheld until there is something to rank (Mitchell,
+   * 2026-09-01). Deliberately not derived from `days` — that list is filtered,
+   * and a Hakone query returning nothing does not mean nobody shares.
+   */
+  sharedDayCount: z.number().int().nonnegative(),
 });
 export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 

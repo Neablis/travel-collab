@@ -391,6 +391,43 @@
     }
   }
 
+  /* The "Keep this day" pennant's wave (`Trip Planner Redesign.dc.html:4839`'s
+     `wave`, which the build shipped without — Mitchell, 2026-09-01: "The click
+     flag 'Save a day' animation from timeline view is missing"). The design
+     drives it with `Element.animate()` and a hard-coded transform origin; a
+     keyframe rule is the same motion without a per-click imperative call, and
+     it is the only route the colour wall leaves open anyway (it bans every
+     bracket value in a className, `animate-[om-flag-wave_620ms...]` included).
+
+     Origin at the pennant's staff rather than its centre — a flag pivots where
+     it is nailed, and rotating about the middle reads as a wobble. The keyframe
+     offsets are the design's own (0.4 / 0.7) at its own 620ms. */
+  @keyframes om-flag-wave {
+    0% {
+      transform: rotate(0deg);
+    }
+    40% {
+      transform: rotate(-11deg);
+    }
+    70% {
+      transform: rotate(5deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+  .flag-wave {
+    animation: om-flag-wave 620ms ease-in-out;
+    transform-origin: 4px 14px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Dropped, not frozen: the toast that follows a save is what carries the
+       outcome, so the motion is decoration and nothing is lost with it. */
+    .flag-wave {
+      animation: none;
+    }
+  }
+
   /* Landing hero veil (`dc.html:1871`): a 97deg wash that fades the paper
      background out across the decorative map so the headline column keeps
      full contrast while the art dissolves toward the right edge. Five colour

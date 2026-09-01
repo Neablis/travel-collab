@@ -34,7 +34,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 }
 
 function response(over: Partial<DiscoverResponse> = {}): DiscoverResponse {
-  return { days: [day()], siblings: [], budgetCurrency: "USD", truncated: false, ...over };
+  return { days: [day()], siblings: [], budgetCurrency: "USD", truncated: false, sharedDayCount: 1, ...over };
 }
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
@@ -119,8 +119,32 @@ describe("Discover", () => {
       "Newest",
     ]);
     expect(screen.queryByLabelText(/rating/i)).toBeNull();
-    expect(screen.getByLabelText("Budget each")).toBeTruthy();
-    expect(screen.getByLabelText("Kept in")).toBeTruthy();
+    expect(screen.getByLabelText("Budget")).toBeTruthy();
+    expect(screen.getByLabelText("Season")).toBeTruthy();
+  });
+
+  // The month dropdown this replaced had twelve options over a library of a few
+  // dozen days, so most of them returned nothing. Four buckets, and the value
+  // that reaches the endpoint is the SEASON — the month-to-season lookup lives
+  // on the server side of the query, not in a widened set of month parameters.
+  it("filters by season, and sends the season rather than a month", async () => {
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    const season = screen.getByLabelText("Season");
+    expect(within(season).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Any season",
+      "Spring",
+      "Summer",
+      "Fall",
+      "Winter",
+    ]);
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .selectOptions(season, "fall");
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ season: "fall" })),
+    );
   });
 
   // The budget bands compare minor units, so they only mean something inside
@@ -130,15 +154,54 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ budgetCurrency: null })));
     render(<DiscoverScreen />);
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.queryByLabelText("Budget each")).toBeNull();
+    expect(screen.queryByLabelText("Budget")).toBeNull();
   });
 
-  it("offers Drop the filters and Search everywhere when nothing matches", async () => {
+  // ONE way out of the empty state, not two. "Drop the filters" and "Search
+  // everywhere" both reset to the same no-filters state, and the first was
+  // disabled in exactly the case the empty state was unreachable — a dead
+  // control beside a live one (Mitchell, 2026-09-01).
+  it("offers only Search everywhere when nothing matches, and it really clears the filters", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen />);
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Drop the filters" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Search everywhere" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.selectOptions(screen.getByLabelText("Season"), "winter");
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ season: "winter" })),
+    );
+    await user.click(screen.getByRole("button", { name: "Search everywhere" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ season: null, cities: [], budget: "any", scope: "everyone" }),
+      ),
+    );
+  });
+
+  // "Who shares the most" over a library nobody has shared into ranks an empty
+  // column. `sharedDayCount` ignores every filter on the query, so a search
+  // that matches nothing does not take the link away — only an empty library
+  // does.
+  it("shows the leaderboard link only when something is published", async () => {
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
+
+    cleanup();
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 0 })));
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    expect(screen.queryByRole("link", { name: /Who shares the most/ })).toBeNull();
+  });
+
+  // A filtered-to-nothing search is not an empty library: the link stays.
+  it("keeps the leaderboard link when the query matches nothing but the library is not empty", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 7 })));
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
   });
 
   it("labels the chip row Busy right now with no query, and Also in these results with one", async () => {

@@ -99,8 +99,15 @@ describe("a shared day", () => {
     const rail = await screen.findByTestId("day-facts");
     expect(within(rail).getByText("2")).toBeTruthy();
     expect(within(rail).getByText("$23.00")).toBeTruthy();
+    expect(within(rail).getByText("Budget")).toBeTruthy();
+    expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
-    expect(within(rail).getByText("August 2026")).toBeTruthy();
+    // Season, and the month it was bucketed from — "Kept in August 2026" became
+    // "Season: Summer · August 2026" (Mitchell, 2026-09-01). Both halves,
+    // because Discover filters on the first and the second is the fact behind
+    // it: a rail showing only the bucket makes the filter unexplainable.
+    expect(within(rail).getByText("Summer · August 2026")).toBeTruthy();
+    expect(within(rail).queryByText("Kept in")).toBeNull();
   });
 
   // M12's, and their absence is the milestone's decision rather than an
@@ -117,10 +124,25 @@ describe("a shared day", () => {
     renderDay();
     const strip = await screen.findByTestId("author-strip");
     expect(within(strip).getByText("2 days shared · added to 3 trips")).toBeTruthy();
-    expect(within(strip).getByRole("link", { name: "dev-alice" }).getAttribute("href")).toContain(
+    // A readable handle, never the raw identifier — the link still CARRIES the
+    // id, which is the distinction: `displayNameFor` decides what the link
+    // says, not where it goes.
+    expect(within(strip).getByRole("link", { name: "Alice" }).getAttribute("href")).toContain(
       "/playbooks/profile/dev-alice",
     );
+    expect(within(strip).queryByText("dev-alice")).toBeNull();
     expect(fetchPublicProfileMock).toHaveBeenCalledWith("dev-alice");
+  });
+
+  // The report that started it: on your OWN day, the strip beside the Publish
+  // button was your own account id. "You" is both shorter and the only thing
+  // that reader needs (Mitchell, 2026-09-01).
+  it("says You beside the Publish button on your own day", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true }));
+    renderDay();
+    const strip = await screen.findByTestId("author-strip");
+    expect(within(strip).getByRole("link", { name: "You" })).toBeTruthy();
+    expect(within(strip).getByRole("button", { name: "Unpublish" })).toBeTruthy();
   });
 
   it("offers Unpublish only to the author", async () => {

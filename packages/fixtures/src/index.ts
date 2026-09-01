@@ -52,6 +52,21 @@ export {
 
 export { parseTripSeed, TripSeedV1 } from "./japan/seedSchema.ts";
 
+// The starter library (2026-09-01): six curated, non-Japan days a fresh
+// database has from its first seed, so somebody signing up meets a library with
+// something worth taking in it rather than an empty Discover.
+//
+// Separate from `JAPAN_SAVED_DAYS` on purpose — that set's counts are what
+// M11b's exit gate checks and `verify.ts` measures, and this one is content
+// with no gate resting on it. See `./library/starterDays.ts`. Same public-surface
+// terms as the rows above: plain data plus @tc/contracts types, no @tc/domain,
+// because a real bundled route imports this package.
+export {
+  STARTER_SAVED_DAYS,
+  STARTER_SOURCE_TRIP,
+  type SeededSavedDay,
+} from "./library/starterDays.ts";
+
 // REFERENCE_START_DATE is the only part of the verification harness that
 // belongs on the public surface — @tc/factories needs a fixed date so a test
 // asserting on one does not depend on the day it runs.

@@ -20,7 +20,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
-import type { PublicAuthor } from "@/lib/playbooks";
+import { SEASON_LABELS, seasonOfMonth, type PublicAuthor } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { toClockRange } from "@/lib/time";
 import { backQuery } from "./backLink";
@@ -40,6 +40,28 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ] as const;
+
+/**
+ * The rail's season line: the bucket, and the month it was bucketed from.
+ *
+ * Both halves, because Mitchell asked for both (2026-09-01: *"Kept in → Season
+ * ... but also should include month the first trip it was cloned from used"*).
+ * The season is what Discover filters on and the month is the fact behind it,
+ * so showing only the bucket would make the filter unexplainable and showing
+ * only the month would leave the two surfaces speaking different languages.
+ *
+ * Exported and pure so the wording is asserted directly rather than through a
+ * render, and so it cannot drift from `seasonOfMonth` — one lookup decides
+ * which months are Fall, here and in the SQL alike.
+ */
+export function seasonLine(createdAt: string): string {
+  const at = new Date(createdAt);
+  if (Number.isNaN(at.getTime())) return "Not known";
+  const month = at.getUTCMonth() + 1;
+  const season = seasonOfMonth(month);
+  const monthLabel = `${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
+  return season === null ? monthLabel : `${SEASON_LABELS[season]} · ${monthLabel}`;
+}
 
 type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor };
 
@@ -137,7 +159,6 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
 
   const { day, isAuthor, author } = feed.data;
   const facts = savedDayFacts(day.stops);
-  const kept = new Date(day.createdAt);
 
   return (
     <div className="flex flex-col gap-4">
@@ -171,11 +192,19 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               two numbers beside it are the profile's own. */}
           <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
             <div className="min-w-0">
+              {/* "You" on your own day, rather than your own account id sitting
+                  next to the Publish button (Mitchell, 2026-09-01: "Dont show
+                  the UUID in the header bar where publish button is"). Somebody
+                  ELSE's name still goes through `displayNameFor`, which is the
+                  M17 seam — and which no longer hands back a raw identifier
+                  either. This branch is not that fix; it is the better answer
+                  for the one reader who does not need to be told their own
+                  name. */}
               <Link
                 href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: day.savedDayId })}`}
                 className="font-semibold text-ink hover:underline"
               >
-                {displayNameFor({ userId: author.userId })}
+                {isAuthor ? "You" : displayNameFor({ userId: author.userId })}
               </Link>
               <Text variant="secondary">
                 {author.daysShared} day{author.daysShared === 1 ? "" : "s"} shared · added to{" "}
@@ -240,19 +269,26 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               label="Window"
               value={facts.window === null ? "No times set" : toClockRange(facts.window.start, facts.window.end)}
             />
+            {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
+                is the only place that string was actually VISIBLE, since
+                Discover's matching label is an aria-label over a select that
+                shows its option instead. The per-person reading survives where
+                it is attached to a number rather than to a heading: the
+                Discover card still reads "$27.00 each". */}
             <Fact
-              label="Budget each"
+              label="Budget"
               value={
                 facts.budgetPerPerson === null
                   ? "Not priced"
                   : formatMoney(facts.budgetPerPerson.amountMinor, facts.budgetPerPerson.currency)
               }
             />
-            {/* "Kept in", not "run in" — the month §15 asks for does not exist.
-                `stopsForDay` drops a day's calendar date on purpose (ADR-029),
-                so the only month a saved day carries is the month it entered
-                the library. Discover's filter is labelled the same way. */}
-            <Fact label="Kept in" value={`${MONTHS[kept.getUTCMonth()]} ${kept.getUTCFullYear()}`} />
+            {/* Season, over the month the day was lifted out of its source
+                trip. `stopsForDay` drops a day's calendar date on purpose
+                (ADR-029), so `created_at` is the only month a saved day
+                carries — the label no longer claims otherwise, and Discover's
+                filter buckets the same month through the same lookup. */}
+            <Fact label="Season" value={seasonLine(day.createdAt)} />
             <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
 
             <Button

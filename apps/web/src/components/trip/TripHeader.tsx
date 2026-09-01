@@ -363,6 +363,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
         budget={activeTrip.budget}
         spend={tripSpend(activeTrip)}
         forkedFrom={activeTrip.forkedFrom}
+        createdAt={activeTrip.createdAt}
         myRole={myRole}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);

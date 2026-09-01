@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import type { ActivityTag, ActivityView, TripCommand, TripDetail, TripMember } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
@@ -14,6 +14,7 @@ import { Preview } from "@/components/ui/preview";
 import { EndOfTrip } from "@/components/trip/EndOfTrip";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { chipModel } from "@/components/trip/DayChips";
+import { centralDayIndex, READING_LINE } from "@/components/trip/centralDay";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useFocus } from "@/components/trip/context/FocusProvider";
 import { GhostProposal } from "@/components/assistant/GhostProposal";
@@ -402,7 +403,7 @@ export function TimelineLens({
   // resolving blind to every other one.
   const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
   const { openCreate } = useEditor();
-  const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  const { focusedDay, setFocusedDay, setScrolledDay, focusOrigin, focusedTag } = useFocus();
   const headerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   // Every activityId named as a subject of a badge-worthy conflict — the same
@@ -471,8 +472,65 @@ export function TimelineLens({
 
   useEffect(() => {
     if (focusedDay === null) return;
+    // ONLY for a day somebody picked. Scrolling now moves the focus too (see
+    // the spy below), and scrolling the picked day back into view would make
+    // that a loop: scroll → focus → scroll. `focusOrigin` is what tells the two
+    // apart, and it is deliberately not in the dependency list — the effect
+    // fires on a focus CHANGE and reads the origin of that change; adding it
+    // would re-run the scroll when only the origin moved.
+    if (focusOrigin !== "explicit") return;
     headerRefs.current[focusedDay]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedDay, rows.length]);
+
+  /**
+   * The day the reader is on, from where the page is scrolled to.
+   *
+   * The timeline scrolls the WINDOW — it is a column of sections in normal
+   * flow, not its own scrollport — so the viewport is the window and the spans
+   * are the day headers' own viewport-relative rects. `centralDayIndex` decides
+   * which one sits on the reading line; this only measures.
+   */
+  const syncScrolledDay = useCallback(() => {
+    const headers = headerRefs.current;
+    const spans: { start: number; size: number }[] = [];
+    for (let index = 0; index < headers.length; index++) {
+      const rect = headers[index]?.getBoundingClientRect();
+      // A hole means a day whose header has not mounted (or has just been
+      // removed). Bail rather than measure a shorter list, which would map
+      // positions onto the wrong indexes.
+      if (rect === undefined) return;
+      spans.push({ start: rect.top, size: rect.height });
+    }
+    const index = centralDayIndex(
+      { start: 0, size: window.innerHeight },
+      spans,
+      READING_LINE.vertical,
+    );
+    if (index !== null) setScrolledDay(index);
+  }, [setScrolledDay]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Coalesced to one measurement per frame: `scroll` fires far more often
+    // than the browser paints, and each pass reads a rect per day (a forced
+    // layout). Same shape as the design's own `_cRAF` guard.
+    let frame: number | null = null;
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        syncScrolledDay();
+      });
+    };
+    // Capture, because the scroll may come from the window OR from an ancestor
+    // scrollport — scroll events do not bubble, but they do capture.
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("scroll", onScroll, true);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [syncScrolledDay]);
 
   if (rows.length === 0) {
     return <EmptyState title="No days yet." />;

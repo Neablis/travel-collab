@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
 import { DEMO_CLONE_PARAM, DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { forgetDemoClone, rememberDemoClone } from "@/lib/pendingDemoClone";
 import { cn } from "@/lib/cn";
 
 // `/demo` — the real board, read-only, for someone who has no account yet
@@ -122,6 +123,17 @@ function DemoBanner() {
         return;
       }
       if (result.error.status === 401 && signInOn401) {
+        // Two carriers for one intent, because the detour has two different
+        // shapes. `?callbackUrl=` is the precise one — it brings them back to
+        // THIS page and the copy happens here — and it survives as long as
+        // nothing rewrites the URL. The marker is the durable one: it is read
+        // on the trip list, which is where everybody who signs up rather than
+        // signs in actually lands, and where a refusal round trip
+        // (`/signup?error=…`, which is built server-side and cannot carry a
+        // callback) leaves them. Whichever arrives first clears the other —
+        // `takeDemoClone` is read-and-clear, and this page clears it on the
+        // callbackUrl path below — so the copy happens once, not twice.
+        rememberDemoClone();
         router.push(`/signin?callbackUrl=${encodeURIComponent(`${DEMO_PATH}?${DEMO_CLONE_PARAM}=1`)}`);
         return;
       }
@@ -158,6 +170,10 @@ function DemoBanner() {
     // Once per mount, before the await: StrictMode runs effects twice in dev,
     // and a second pass here is a second trip in somebody's list.
     autoCloned.current = true;
+    // The callbackUrl won the race back, so the marker has nothing left to do —
+    // dropped here rather than left to expire, so a later visit to the trip
+    // list does not make a second copy of a trip they already have.
+    forgetDemoClone();
     // Dropped from the URL first, so a reload after a failure is an ordinary
     // `/demo` rather than another attempt. `history.replaceState`, not
     // `router.replace`: this is a URL tidy-up, not a navigation, and a router

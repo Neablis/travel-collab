@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
@@ -10,7 +10,6 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Popover } from "@/components/ui/popover";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Toast } from "@/components/ui/toast";
@@ -19,8 +18,11 @@ import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
+import { FirstTripStart } from "@/components/home/FirstTripStart";
 import { ShareButton } from "@/components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 
@@ -66,6 +68,12 @@ export default function Home() {
   // phase doc's sequence. Everything else the design's wizard shows is
   // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
   const [newTripOpen, setNewTripOpen] = useState(false);
+  // True while the "Make this trip mine" copy this page inherited from `/demo`
+  // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
+  // here at all. It also holds the first-run wizard shut: opening a "plan your
+  // first trip" sheet over a copy that is about to navigate away would be the
+  // wrong thing twice.
+  const [cloningDemo, setCloningDemo] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
   const [toast, setToast] = useState<{ tripId: string; name: string } | null>(null);
@@ -87,6 +95,12 @@ export default function Home() {
   // or stale line.
   const [plannedOfBudgetById, setPlannedOfBudgetById] = useState<Record<string, string>>({});
 
+  // Computed above the effects that read it, not beside the render — "does
+  // this person have any trips" is what decides whether the first run fires,
+  // and hooks cannot read a value declared below them.
+  const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
+  const hasNoTrips = trips !== null && visibleTrips.length === 0;
+
   const load = useCallback(async () => {
     const res = await fetch("/api/trips");
     if (res.status === 401) {
@@ -101,6 +115,41 @@ export default function Home() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Finish the copy somebody asked for on `/demo` before they had an account.
+  //
+  // Here rather than only on `/demo?clone=1`, because this is the page every
+  // successful sign-in actually reaches: a refusal round trip
+  // (`/signup?error=…`) is built server-side and cannot carry a callback, and
+  // the sign-in ⇄ sign-up swap dropped the callback too until this branch's
+  // `AuthScreen` change. `takeDemoClone` reads AND clears, so StrictMode's
+  // double-invoked effect finds nothing on its second pass and the ref below
+  // is belt to that braces.
+  //
+  // Gated on `trips !== null`: it must not race the first `/api/trips` read,
+  // whose 401 is what sends an expired session to `/welcome`. Running the copy
+  // first would fire a duplicate request that 401s and leaves the marker spent.
+  const demoCloneAttempted = useRef(false);
+  useEffect(() => {
+    if (demoCloneAttempted.current || trips === null || unauthenticated) return;
+    if (!takeDemoClone()) return;
+    demoCloneAttempted.current = true;
+    setCloningDemo(true);
+    void duplicateTrip(DEMO_TRIP_ID).then((result) => {
+      if (result.ok) {
+        // Left true across the navigation on purpose: `router.push` does not
+        // unmount synchronously, and flipping this back would flash the empty
+        // state — or the first-run sheet — on the way out.
+        router.push(`/trips/${result.value.tripId}`);
+        return;
+      }
+      setCloningDemo(false);
+      // Not fatal and not silent. The trip list is a perfectly good place to
+      // be; they simply did not get the copy, and the demo is still one link
+      // away. Reusing the page's own error line rather than a second surface.
+      setError("We could not take a copy of the example trip. Open the demo and press it again.");
+    });
+  }, [trips, unauthenticated, router]);
 
   function requestDelete(trip: TripSummary) {
     setOpenMenuTripId(null);
@@ -159,7 +208,6 @@ export default function Home() {
     router.push(`/trips/${result.value.tripId}`);
   }
 
-  const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   // "Next trip" (README §1 next-trip hero): TripSummary carries no start
   // date (packages/contracts/src/trip.ts), so there's no real "first
   // upcoming by start date" to compute — per the M10 plan, this uses the
@@ -283,11 +331,26 @@ export default function Home() {
           </Text>
         )}
 
+        {/* Said out loud, because this page is about to navigate away on its
+            own and an unexplained pause on somebody's very first authenticated
+            screen reads as the app hanging. */}
+        {cloningDemo && (
+          <Text role="status" variant="secondary">
+            Taking your copy of the example trip…
+          </Text>
+        )}
+
         <NewTripWizard
           open={newTripOpen}
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
+          // Full screen and first-run framing only when there is nothing
+          // behind the sheet to keep context with — Mitchell, 2026-09-01:
+          // "The 'New trip' side bar should be a full screen experience when
+          // you have no trips". The same person's fourth trip gets the rail.
+          size={hasNoTrips ? "full" : "rail"}
+          firstRun={hasNoTrips}
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "Create empty" is
@@ -309,28 +372,33 @@ export default function Home() {
 
         <div>
           {trips !== null && visibleTrips.length === 0 ? (
-            /* This is M15's first-run moment. The design's separate one-field
-               "What are you planning?" screen was dropped on 2026-08-26 (decision 3
-               in docs/milestones/M15-front-door.md) because NewTripWizard's "Create
-               empty" already creates a trip from a name alone on step 1 — a second
-               create path would have been a divergence with nothing to buy it.
+            /* M15's first-run moment, rebuilt. Mitchell, 2026-09-01: *"The
+               first time walkthrough to build a trip when you have no trips is
+               not working, i get the empty landing screen 'Plan your first
+               trip' which is pretty underwhelming on first login"*, alongside
+               *"building a trip from total scratch is a rough experience"*.
 
-               The action below opens that same wizard. Decision 3 settled *where* the
-               only create path lives, not whether this screen may point at it. Until
-               it did, the sole way forward from here was the page-head "New trip"
-               button — which sits in the identical spot, with the identical label, for
-               someone who already has twelve trips. The one moment we can actually
-               identify as a first run was saying "a name is enough to start" and then
-               offering nothing to start with. */
-            <EmptyState
-              title="Plan your first trip"
-              body="A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in."
-              action={
-                <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
-                  Name your trip
-                </Button>
-              }
-            />
+               What stood here was an `EmptyState` card — a title, a sentence,
+               and one button — which is the component this app uses for "this
+               filter matched nothing". A person's first authenticated screen is
+               not an empty filter, and the one route it offered was the hardest
+               one: invent a trip from a blank field.
+
+               `FirstTripStart` replaces it with the three ways in that actually
+               exist (name it, take somebody's day, look around the example
+               trip) and says what the wizard is about to ask. The wizard it
+               opens is the same one the page-head button opens — and it opens
+               full screen here, because there is nothing behind it to keep
+               context with (`SheetSize`).
+
+               Deliberately NOT auto-opened. A modal that opens itself would
+               cover the page-head "New trip" button and Radix's overlay would
+               swallow the click — and whether it opened at all would depend on
+               whether this account happens to have a trip yet, which in the e2e
+               suite is a function of which spec ran first. A first run that is
+               one obvious click away is worth more than one that is sometimes
+               a trap. */
+            <FirstTripStart onStart={() => setNewTripOpen(true)} />
           ) : (
             <>
               {visibleTrips.length > 0 && (

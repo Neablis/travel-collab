@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { submitOnEnter } from "@/lib/submitOnEnter";
 import { Text } from "@/components/ui/text";
 import { searchCities } from "@/lib/apiClient";
 import type { CityMatch } from "@/lib/cities";
@@ -77,12 +78,27 @@ export function CitySearch({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Enter takes the first match, which is what a search box is expected
+          to do and what the chip row below makes obvious once it happens
+          (Mitchell, 2026-09-01: "Pressing enter in many fields doesnt submit").
+          Deliberately the FIRST result and not a free-text add: the cities that
+          reach the query have to be spelled the way the library spells them —
+          `matchedCities` is an exact containment test against the same index
+          (server/playbooks.ts) — so a typed word that matched nothing must add
+          nothing rather than a city no day can carry. */}
       <Input
         type="search"
         aria-label="Search cities"
         placeholder="Search a city — Kyoto, Osaka, Hakone"
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={submitOnEnter(() => {
+          if (state.kind !== "results") return;
+          const first = state.cities.find((match) => !selected.includes(match.city));
+          if (first === undefined) return;
+          onAdd(first.city);
+          setText("");
+        })}
       />
 
       {selected.length > 0 && (

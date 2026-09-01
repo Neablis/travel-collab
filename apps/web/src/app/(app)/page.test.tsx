@@ -12,6 +12,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 import Home from "./page";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { rememberDemoClone } from "@/lib/pendingDemoClone";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -495,28 +497,66 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
-  // The empty state promises "a name is enough to start", so it has to offer
-  // somewhere to start. Before this, the only way forward was the page-head
-  // "New trip" button — identical in label and position to what a user with
-  // twelve trips sees, i.e. no first-run affordance at all. This asserts the
-  // CTA is *in the empty state* (scoped to it, so the page-head button can't
-  // satisfy the test by accident) and that it opens the same NewTripWizard
-  // rather than introducing a second create path (M15 decision 3).
-  it("offers a way to start from inside the first-run empty state", async () => {
+  // The first-run screen promises "a name is enough to start", so it has to
+  // offer somewhere to start. Before this, the only way forward was the
+  // page-head "New trip" button — identical in label and position to what a
+  // user with twelve trips sees, i.e. no first-run affordance at all. This
+  // asserts the CTA is *in the first-run screen* (scoped to it, so the
+  // page-head button can't satisfy the test by accident) and that it opens the
+  // same NewTripWizard rather than introducing a second create path (M15
+  // decision 3).
+  it("offers a way to start from inside the first-run screen", async () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
-    const emptyState = (await screen.findByText("Plan your first trip")).closest("div");
-    if (emptyState === null) throw new Error("empty state container not found");
-    const start = within(emptyState).getByRole("button", { name: "Name your trip" });
+    const firstRun = await screen.findByTestId("first-trip-start");
+    const start = within(firstRun).getByRole("button", { name: "Name your trip" });
 
     await userEvent.click(start);
 
     // Step 1 of the existing wizard — the same surface the page-head "New
     // trip" button opens, not a parallel one-field screen.
     expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+  });
+
+  // "Building a trip from total scratch is a rough experience" (Mitchell,
+  // 2026-09-01). The other two routes into the product already existed and were
+  // reachable from everywhere EXCEPT the screen where somebody has nothing:
+  // the library, and the example trip. Scoped to the first-run screen for the
+  // same reason the CTA above is — the page head carries a Playbooks link too,
+  // and it must not be what satisfies this.
+  it("offers the library and the example trip as well as a blank name", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const firstRun = await screen.findByTestId("first-trip-start");
+    expect(within(firstRun).getByRole("link", { name: "Start from a Playbook" })).toBeTruthy();
+    expect(
+      within(firstRun).getByRole("link", { name: "Look around an example trip" }),
+    ).toHaveProperty("href", expect.stringContaining("/demo"));
+  });
+
+  // The wizard opens full screen on a first run and as the ordinary rail
+  // afterwards (Mitchell: "The 'New trip' side bar should be a full screen
+  // experience when you have no trips"). Asserted through the wizard's own
+  // first-run framing rather than a class name — the title is what a person
+  // actually sees change, and a class assertion would pass on a sheet that
+  // never opened.
+  it("opens the wizard with first-run framing when there are no trips", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(
+      within(await screen.findByTestId("first-trip-start")).getByRole("button", {
+        name: "Name your trip",
+      }),
+    );
+    expect(await screen.findByText(/Take a day somebody has already planned/)).toBeTruthy();
   });
 
   // This is the evidence for a milestone exit-gate requirement (M15 decision
@@ -585,5 +625,93 @@ describe("Home unauthenticated visitor", () => {
     render(<Home />);
 
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/welcome"));
+  });
+});
+
+// The "Make this trip mine" intent, redeemed where the person actually lands.
+//
+// Mitchell walked every one of these on 2026-09-01 and arrived with no trip:
+// *"after you sign up (whether or not you errored because you didnt have code,
+// or you did have code, or if you already had account) you dont have the trip
+// from the demo you tried to clone."* The `?callbackUrl=` the demo attaches
+// only reaches `/signin`; a refusal round trip (`/signup?error=…`) is built
+// server-side and cannot carry one, and the swap link dropped it too. So the
+// intent is banked in the browser and redeemed HERE — the one page every
+// successful sign-in reaches.
+describe("Home finishing a demo clone", () => {
+  const clonedTripId = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+
+  /** No trips, and a duplicate of the demo that answers with `clonedTripId`. */
+  function stubEmptyListAndDuplicate(duplicateStatus = 201) {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) {
+        return duplicateStatus === 201
+          ? jsonResponse({ tripId: clonedTripId }, 201)
+          : jsonResponse({ error: "boom" }, duplicateStatus);
+      }
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const duplicateCalls = () =>
+    fetchMock.mock.calls.filter(([input]) =>
+      String(input).includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`),
+    );
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("copies the demo trip and opens it when the marker is set", async () => {
+    rememberDemoClone();
+    stubEmptyListAndDuplicate();
+
+    render(<Home />);
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
+    expect(duplicateCalls()).toHaveLength(1);
+  });
+
+  it("does nothing when no copy was ever asked for", async () => {
+    stubEmptyListAndDuplicate();
+
+    render(<Home />);
+
+    await screen.findByTestId("first-trip-start");
+    expect(duplicateCalls()).toHaveLength(0);
+  });
+
+  it("takes exactly one copy, however many times the effect runs", async () => {
+    // `takeDemoClone` reads AND clears, which is what makes this true under
+    // StrictMode's double-invoked effects. A second copy is a second trip in
+    // somebody's list, from one button press.
+    rememberDemoClone();
+    stubEmptyListAndDuplicate();
+
+    const { rerender } = render(<Home />);
+    await waitFor(() => expect(duplicateCalls()).toHaveLength(1));
+    rerender(<Home />);
+    await waitFor(() => expect(duplicateCalls()).toHaveLength(1));
+  });
+
+  it("says so and stays put when the copy fails", async () => {
+    // Not fatal: the trip list is a perfectly good place to be, and the demo is
+    // one link away. What must not happen is a silent nothing.
+    rememberDemoClone();
+    stubEmptyListAndDuplicate(500);
+
+    render(<Home />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("could not take a copy");
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });

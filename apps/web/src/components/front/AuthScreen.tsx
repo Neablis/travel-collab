@@ -20,6 +20,7 @@ import {
   type AuthMode,
 } from "@/components/front/authCopy";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
+import { submitOnEnter } from "@/lib/submitOnEnter";
 import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/pendingAdmission";
 
 // `useSearchParams()` is the only piece of this screen that needs a
@@ -141,6 +142,31 @@ export function AuthScreen({
   const [admissionCode, setAdmissionCode] = useState("");
   const showAdmissionCode = mode === "signup";
 
+  // The swap link has to carry `?callbackUrl=` across, and this is not a
+  // nicety: it is one of the three places the "Make this trip mine" intent was
+  // being dropped (Mitchell, 2026-09-01 — you press it on `/demo`, land on
+  // `/signin?callbackUrl=/demo?clone=1`, follow "Create an account" because you
+  // have none, and arrive at a bare `/signup` that has forgotten where you were
+  // going). Someone who has no account is exactly the person the demo's CTA
+  // sends here, so the hop that loses their destination is the common path, not
+  // the edge case.
+  //
+  // `callbackUrl` is already `safeCallbackUrl`-normalised (AuthSearchParams
+  // above), so the value re-encoded here is a same-origin relative path and
+  // nothing else. "/" is the default-for-absent, and appending it would put a
+  // pointless parameter on every ordinary visit to this screen.
+  const swapHref =
+    callbackUrl === "/"
+      ? copy.swapHref
+      : `${copy.swapHref}?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+
+  // What the Google button does, lifted out so the invite-code field's Enter
+  // key can do the identical thing rather than a near-copy of it.
+  const continueWithGoogle = () => {
+    if (!googleAvailable) return;
+    void startSignIn(() => void signIn("google", { callbackUrl }));
+  };
+
   // Every sign-in dispatch on this screen goes through here, including dev
   // login: the build plan's decision 3 routes dev login through the same
   // admission path rather than exempting it, so it needs the same cookie.
@@ -211,6 +237,13 @@ export function AuthScreen({
                   label="Invite code"
                   hint={ADMISSION_FIELD_COPY.hint}
                 >
+                  {/* Enter continues, because this is the only field on the
+                      screen and the button under it is the only thing to do
+                      with what you typed (Mitchell, 2026-09-01: "Pressing enter
+                      in many fields doesnt submit — Signin (input from code)").
+                      A keydown handler rather than a `<form>` on purpose: see
+                      `submitOnEnter`, and the dev-login form below, for what a
+                      pre-hydration native submit does to a typed value. */}
                   <Input
                     id="admission-code"
                     name="inviteCode"
@@ -219,6 +252,7 @@ export function AuthScreen({
                     spellCheck={false}
                     maxLength={PENDING_ADMISSION_MAX_LENGTH}
                     onChange={(event) => setAdmissionCode(event.target.value)}
+                    onKeyDown={submitOnEnter(continueWithGoogle)}
                   />
                 </FormField>
               </>
@@ -229,10 +263,7 @@ export function AuthScreen({
               variant="secondary"
               className="h-11.5 w-full text-md font-semibold"
               disabled={!googleAvailable}
-              onClick={() => {
-                if (!googleAvailable) return;
-                void startSignIn(() => void signIn("google", { callbackUrl }));
-              }}
+              onClick={continueWithGoogle}
             >
               Continue with Google
             </Button>
@@ -264,7 +295,7 @@ export function AuthScreen({
             <div className="border-t border-hairline pt-3.5">
               <Text variant="secondary" className="text-sm">
                 {copy.swapPrompt}{" "}
-                <Link href={copy.swapHref} className="font-semibold text-brand underline">
+                <Link href={swapHref} className="font-semibold text-brand underline">
                   {copy.swapCta}
                 </Link>
               </Text>

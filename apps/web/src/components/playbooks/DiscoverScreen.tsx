@@ -13,6 +13,8 @@ import { formatMoney } from "@/components/lenses/formatMoney";
 import { searchPlaybooks } from "@/lib/apiClient";
 import {
   BUDGET_BAND_EDGES,
+  SEASON_LABELS,
+  Season,
   type BudgetBand,
   type DiscoverResponse,
   type DiscoverScope,
@@ -49,12 +51,9 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
   { value: "newest", label: "Newest" },
 ];
 
-// 1-12 against `Date`'s 0-11, which is the off-by-one this label list exists to
-// keep in one place.
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-] as const;
+// The season options, in calendar order rather than enum order — a dropdown
+// that reads Spring/Summer/Fall/Winter is a dropdown nobody has to think about.
+const SEASONS: readonly Season[] = ["spring", "summer", "fall", "winter"];
 
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
@@ -64,7 +63,7 @@ type Filters = {
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
-  month: number | null;
+  season: Season | null;
 };
 
 const NO_FILTERS: Filters = {
@@ -72,12 +71,8 @@ const NO_FILTERS: Filters = {
   scope: "everyone",
   sort: "most-added",
   budget: "any",
-  month: null,
+  season: null,
 };
-
-function isFiltered(f: Filters): boolean {
-  return f.cities.length > 0 || f.budget !== "any" || f.month !== null || f.scope !== "everyone";
-}
 
 /**
  * `initialCities` comes from the URL — a profile's "Knows" chip is a link to
@@ -88,11 +83,11 @@ function isFiltered(f: Filters): boolean {
  */
 export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonly string[] }) {
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, cities: [...initialCities] });
-  const { cities, scope, sort, budget, month } = filters;
+  const { cities, scope, sort, budget, season } = filters;
 
   const read = useCallback(
-    () => searchPlaybooks({ cities, scope, sort, budget, month }),
-    [cities, scope, sort, budget, month],
+    () => searchPlaybooks({ cities, scope, sort, budget, season }),
+    [cities, scope, sort, budget, season],
   );
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
@@ -116,11 +111,15 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     if (!currency) return null;
     const lower = formatMoney(BUDGET_BAND_EDGES.lower, currency);
     const upper = formatMoney(BUDGET_BAND_EDGES.upper, currency);
+    // "Budget", not "Budget each" — the trailing "each" was on the control's
+    // label AND on every option, saying the same thing twice on one dropdown
+    // (Mitchell, 2026-09-01). The per-person reading survives on the card and
+    // on the shared-day rail, which is where a number needs the qualifier.
     return [
       { value: "any" as const, label: "Any budget" },
-      { value: "under" as const, label: `Under ${lower} each` },
-      { value: "mid" as const, label: `${lower} – ${upper} each` },
-      { value: "over" as const, label: `Over ${upper} each` },
+      { value: "under" as const, label: `Under ${lower}` },
+      { value: "mid" as const, label: `${lower} – ${upper}` },
+      { value: "over" as const, label: `Over ${upper}` },
     ];
   }, [feed.data?.budgetCurrency]);
 
@@ -169,7 +168,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         </NativeSelect>
         {budgetOptions !== null && (
           <NativeSelect
-            aria-label="Budget each"
+            aria-label="Budget"
             value={budget}
             onChange={(e) => set("budget", e.target.value as BudgetBand)}
           >
@@ -180,22 +179,23 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
             ))}
           </NativeSelect>
         )}
-        {/* "Kept in", not "run in" — and that wording is load-bearing. §15 asks
-            to filter on "the month it was run", which a saved day cannot
-            answer: `stopsForDay` drops the calendar date on purpose (ADR-029,
-            "keeping it would make a saved day only reusable in June"), so the
-            only month a day carries is the month it entered the library. The
-            control filters on real data and says which data it is, rather than
-            claiming a month the contract deliberately does not store. */}
+        {/* Season, bucketed from the day's month — Mitchell, 2026-09-01, in
+            place of the twelve-entry "Kept in <month>" dropdown that stood
+            here. Twelve options over a library of a few dozen days meant most
+            of them returned nothing; four buckets are a filter somebody can
+            actually land on. The month behind the bucket is still what a day
+            carries (`created_at`, the month it was lifted out of its source
+            trip) and the shared-day rail still names it — see `Season` in
+            lib/playbooks.ts for why there is no column. */}
         <NativeSelect
-          aria-label="Kept in"
-          value={month === null ? "" : String(month)}
-          onChange={(e) => set("month", e.target.value === "" ? null : Number(e.target.value))}
+          aria-label="Season"
+          value={season ?? ""}
+          onChange={(e) => set("season", e.target.value === "" ? null : Season.parse(e.target.value))}
         >
-          <option value="">Kept any month</option>
-          {MONTHS.map((label, index) => (
-            <option key={label} value={index + 1}>
-              Kept in {label}
+          <option value="">Any season</option>
+          {SEASONS.map((value) => (
+            <option key={value} value={value}>
+              {SEASON_LABELS[value]}
             </option>
           ))}
         </NativeSelect>
@@ -242,6 +242,12 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           ))}
         </ul>
       ) : days.length === 0 ? (
+        /* One way out, not two. "Drop the filters" and "Search everywhere" did
+           the identical thing — both reset to `NO_FILTERS` — and the first was
+           disabled exactly when this empty state was unreachable anyway, so it
+           read as a dead control beside a live one (Mitchell, 2026-09-01:
+           "Drop the filters is a bad experience, drop that button all
+           together"). */
         <EmptyState
           title={feed.error !== null ? "Nothing to show yet" : "No days match"}
           body={
@@ -250,17 +256,9 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
               : "Nothing in the library matches all of these at once."
           }
           action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="secondary" onClick={() => setFilters(NO_FILTERS)} disabled={!isFiltered(filters)}>
-                Drop the filters
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setFilters({ ...NO_FILTERS, sort })}
-              >
-                Search everywhere
-              </Button>
-            </div>
+            <Button variant="primary" onClick={() => setFilters({ ...NO_FILTERS, sort })}>
+              Search everywhere
+            </Button>
           }
         />
       ) : (
@@ -273,12 +271,23 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
 
       {/* The leaderboard's ONLY entrance. Not in the top bar: it is
           trip-independent but not account scope, so project rule 1 puts it
-          here rather than in the chrome. */}
-      <div className="border-t border-hairline pt-4">
-        <Link href="/playbooks/board" className="text-sm font-semibold text-brand hover:underline">
-          Who shares the most →
-        </Link>
-      </div>
+          here rather than in the chrome.
+
+          Withheld while the library holds nothing published: "who shares the
+          most" over nobody sharing anything is a link to an empty ranking
+          (Mitchell, 2026-09-01). Keyed on `sharedDayCount`, which ignores every
+          filter on this query — so a Hakone search that matches nothing does
+          not take the link away, only an empty library does. Absent until the
+          first read lands, rather than flashing in and out: `feed.data` is null
+          then, and a link that appears and vanishes is worse than one that
+          arrives a beat late. */}
+      {(feed.data?.sharedDayCount ?? 0) > 0 && (
+        <div className="border-t border-hairline pt-4">
+          <Link href="/playbooks/board" className="text-sm font-semibold text-brand hover:underline">
+            Who shares the most →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

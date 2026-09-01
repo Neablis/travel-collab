@@ -1,5 +1,7 @@
+import { useRef } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { stepDay } from "@/components/trip/centralDay";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
@@ -179,6 +181,30 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
   // between two days of this trip get probed against each other rather than
   // each day resolving blind to every other one.
   const accents = dayAccents(days.map((d) => d.city));
+  const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  /**
+   * Left/Right walk the row — the header-bar half of "Left/Right in the days
+   * column should change the selected day" (Mitchell, 2026-09-01), and the
+   * keyboard behaviour a `role="group"` of toggles is expected to have anyway.
+   *
+   * On the container rather than each chip, so it works wherever focus is
+   * inside the row; and it moves DOM focus as well as the selection, because a
+   * selection that walks away from the focused control leaves a screen-reader
+   * user reading a chip that is no longer the one selected.
+   */
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+    const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, days.length);
+    if (next === null) return;
+    // Claimed even when the index does not move (an arrow at either end): the
+    // row scrolls horizontally, and letting the browser scroll it while the
+    // selection stays put is the two behaviours fighting.
+    event.preventDefault();
+    if (next !== focusedDay) onSelect(next);
+    chipRefs.current[next]?.focus();
+  };
   return (
     // Reported three times ("top border cut off"/"still cut off"/"border on
     // the left side here is cut off"): `overflow-x-auto` sets overflow-x to a
@@ -196,13 +222,21 @@ export function DayChips({ days, focusedDay, onSelect }: DayChipsProps) {
     // gutter, so the negative margin gives the ring its gutter back without
     // moving where the chips sit. Same pairing as `ui/sheet.tsx`, which needed
     // it for the same reason on the vertical axis.
-    <div role="group" aria-label="Days" className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-1">
+    <div
+      role="group"
+      aria-label="Days"
+      onKeyDown={onKeyDown}
+      className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-1"
+    >
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
         const isFocused = focusedDay === index;
         return (
           <Button
             key={index}
+            ref={(node) => {
+              chipRefs.current[index] = node;
+            }}
             variant="ghost"
             aria-label={`${day.dow}${
               day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""

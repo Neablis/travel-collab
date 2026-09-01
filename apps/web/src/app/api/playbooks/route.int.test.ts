@@ -243,16 +243,25 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`city=${only}`)).body)).not.toContain(name);
   });
 
-  it("shows YOUR private day in the Yours scope and nobody else's anywhere", async () => {
+  // `Everyone` is a SUPERSET of the other two, not "the public half" (Mitchell,
+  // 2026-09-01: "Everyone tab for playbooks should also include my trips, it's
+  // an 'Everyone' superset"). It was public-only, which made the widest option
+  // of the segment narrower than `Yours`: your own private day appeared under
+  // `Yours` and vanished under `Everyone`, which reads as the filter losing it.
+  //
+  // The half that must NOT change is the other one: somebody else's private day
+  // is still unreachable in every scope.
+  it("shows YOUR private day in both Yours and Everyone, and nobody else's anywhere", async () => {
     const only = city("mine");
     const name = `Private ${RUN}`;
     await saveDay(name, [{ city: only }]);
 
     expect(names((await discover(`city=${only}&scope=yours`)).body)).toContain(name);
-    expect(names((await discover(`city=${only}&scope=everyone`)).body)).not.toContain(name);
+    expect(names((await discover(`city=${only}&scope=everyone`)).body)).toContain(name);
 
     currentUserId = READER;
     expect(names((await discover(`city=${only}&scope=yours`)).body)).not.toContain(name);
+    expect(names((await discover(`city=${only}&scope=everyone`)).body)).not.toContain(name);
   });
 
   // "Saved" is the adds ledger, and it is not a grant: an author who withdraws
@@ -313,10 +322,60 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     const { status, body } = await discover(
-      `city=${only}&sort=highest-rated&scope=galaxy&budget=free&month=99`,
+      `city=${only}&sort=highest-rated&scope=galaxy&budget=free&season=harvest`,
     );
     expect(status).toBe(200);
     expect(names(body)).toContain(name);
+  });
+
+  // The season filter (Mitchell, 2026-09-01), which replaced a twelve-entry
+  // month dropdown. There is no season column — it is bucketed from
+  // `created_at`'s month in UTC — so this asserts the bucketing end to end:
+  // a day saved now is returned by THIS season and by no other.
+  //
+  // The expected season is computed from a table written out HERE rather than
+  // by calling `seasonOfMonth`. Deriving it with the same function the server
+  // uses would make this a tautology: get the buckets wrong and both sides move
+  // together while the test stays green.
+  it("filters by season, bucketed from the month the day was kept", async () => {
+    const only = city("season");
+    const name = `Seasonal ${RUN}`;
+    await publish(await saveDay(name, [{ city: only }]));
+
+    const month = new Date().getUTCMonth() + 1;
+    const seasonOf = (m: number) =>
+      m === 12 || m <= 2 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "fall";
+    const mine = seasonOf(month);
+    const others = ["spring", "summer", "fall", "winter"].filter((s) => s !== mine);
+    expect(others).toHaveLength(3);
+
+    currentUserId = READER;
+    expect(names((await discover(`city=${only}&season=${mine}`)).body)).toContain(name);
+    for (const season of others) {
+      expect(names((await discover(`city=${only}&season=${season}`)).body), season).not.toContain(name);
+    }
+    // And no season at all is "any season", not "no season".
+    expect(names((await discover(`city=${only}`)).body)).toContain(name);
+  });
+
+  // `sharedDayCount` is what decides whether Discover shows the leaderboard
+  // link at all ("Who shares the most should be hidden when nothing to share").
+  // It must ignore every filter on the query — a Hakone search that matches
+  // nothing is not an empty library — which is exactly what a count derived
+  // from `days.length` would get wrong.
+  it("reports the whole library's published count, unaffected by the query", async () => {
+    const only = city("count");
+    await publish(await saveDay(`Counted ${RUN}`, [{ city: only }]));
+
+    currentUserId = READER;
+    const matching = await discover(`city=${only}`);
+    expect(matching.body.days.length).toBeGreaterThan(0);
+    expect(matching.body.sharedDayCount).toBeGreaterThanOrEqual(matching.body.days.length);
+
+    // A query that matches nothing at all, in the same library.
+    const empty = await discover(`city=${city("nomatch")}`);
+    expect(empty.body.days).toHaveLength(0);
+    expect(empty.body.sharedDayCount).toBe(matching.body.sharedDayCount);
   });
 
   it("derives the card's facts from the day's stops", async () => {

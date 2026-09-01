@@ -16,6 +16,27 @@ export function formatTripDateWithYear(iso: string): string {
   return parse(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+/**
+ * An INSTANT (ISO 8601 with a time and a zone) as "August 31st 2026".
+ *
+ * Deliberately not one of the four above: those take a calendar date and parse
+ * it in local time on purpose, and handing one of them an instant would drop
+ * the zone on the floor. This one lets `Date` parse the instant properly and
+ * then renders it in the reader's own zone — which is right, because the thing
+ * being described ("you took this copy on…") happened at a moment, not on a
+ * date somebody chose.
+ *
+ * Ordinal day, because the request asked for one (Mitchell, 2026-09-01:
+ * *"just show the copied from day ... On August 31st 2026"*), reusing
+ * `ordinalDayOfMonth` rather than a second suffix table.
+ */
+export function formatInstantLong(iso: string): string | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const month = at.toLocaleDateString("en-US", { month: "long" });
+  return `${month} ${ordinalDayOfMonth(at.getDate())} ${at.getFullYear()}`;
+}
+
 // "14th", for the Calendar cell's date-and-day line ("14th · Day 6"). The
 // suffix has to be computed rather than taken from `Intl`: en-US's
 // `Intl.DateTimeFormat` has no ordinal day option, and `Intl.PluralRules`

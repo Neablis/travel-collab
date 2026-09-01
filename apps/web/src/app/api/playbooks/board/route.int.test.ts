@@ -216,12 +216,22 @@ describe("GET /api/playbooks/profile/:userId", () => {
 
   // A private day is not shared, so it is not on the profile — even when the
   // reader IS its author. A profile is what other people see.
+  // A profile is what OTHER people see, so its owner gets the same page: the
+  // third day here is saved and never published, and must not appear for the
+  // author any more than for a stranger.
+  //
+  // This is the test that caught `everyone` becoming a superset (2026-09-01):
+  // the profile used to get "published only" for free from that scope, and the
+  // moment the scope widened, an author saw three days where everybody else saw
+  // two. The rule is now stated rather than implied — `publishedOnly` on the
+  // query — and this is what holds it.
   it("shows the author the same page everybody else sees", async () => {
     currentUserId = POPULAR;
     await saveDay(`Kept back ${RUN}`, CITY);
     const mine = await profile(POPULAR);
     expect(mine.author.daysShared).toBe(2);
     expect(mine.days).toHaveLength(2);
+    expect(mine.days.map((d) => d.name)).not.toContain(`Kept back ${RUN}`);
   });
 
   // A profile reached from a stale link is an honest empty page, not a 404 —
@@ -231,7 +241,12 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const nobody = await profile(`board-ghost-${RUN}`);
     expect(nobody.author).toEqual({
       userId: `board-ghost-${RUN}`,
-      displayName: `board-ghost-${RUN}`,
+      // The id is what the profile IS, and what the URL carries; the name is
+      // what `displayNameFor` makes of it, which since 2026-09-01 is never the
+      // raw identifier ("Dont show the UUID"). Asserted as the derived handle
+      // rather than as the id, so a regression that started printing the id
+      // again fails here.
+      displayName: `Traveler ${RUN.slice(-4)}`,
       daysShared: 0,
       adds: 0,
     });

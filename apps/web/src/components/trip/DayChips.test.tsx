@@ -411,3 +411,73 @@ describe("cityFor", () => {
     expect(cityFor(oneStopDay, activities)).toBeNull();
   });
 });
+
+// "Left/Right in the days column should change the selected day in the header
+// bar" (Mitchell, 2026-09-01) — the header-bar half of that, and the keyboard
+// behaviour a `role="group"` of toggle buttons is expected to have anyway.
+describe("DayChips keyboard navigation", () => {
+  const chips = [
+    { dow: "Mon", dateNum: "1", city: "Tokyo", transitionFrom: null, transitionTo: null, stops: 2 },
+    { dow: "Tue", dateNum: "2", city: "Kyoto", transitionFrom: "Tokyo", transitionTo: "Kyoto", stops: 3 },
+    { dow: "Wed", dateNum: "3", city: "Kyoto", transitionFrom: null, transitionTo: null, stops: 1 },
+  ];
+
+  /**
+   * Renders the row and puts DOM focus on one chip.
+   *
+   * The handler is on the ROW, not on each chip, so that it works wherever
+   * focus is inside the row — which means the test has to focus something
+   * inside it for the keystroke to reach the handler at all. Focusing the row
+   * element itself would not do: it is a plain `div` with no `tabIndex`, so
+   * `.focus()` on it is a no-op and the keystroke lands on `<body>`.
+   */
+  const renderChips = (focusedDay: number | null, focusChip = 0) => {
+    const onSelect = vi.fn();
+    render(<DayChips days={chips} focusedDay={focusedDay} onSelect={onSelect} />);
+    screen.getAllByRole("button")[focusChip]!.focus();
+    return onSelect;
+  };
+
+  it("walks right and left through the days", async () => {
+    const onSelect = renderChips(1, 1);
+
+    await userEvent.keyboard("{ArrowRight}");
+    expect(onSelect).toHaveBeenLastCalledWith(2);
+
+    // Still from index 1: `focusedDay` is a prop here, so this render never
+    // moves. That is what makes the second assertion a test of the step rule
+    // rather than of state that happens to have advanced.
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(onSelect).toHaveBeenLastCalledWith(0);
+  });
+
+  it("enters at the first day when nothing is selected yet", async () => {
+    const onSelect = renderChips(null);
+    await userEvent.keyboard("{ArrowRight}");
+    expect(onSelect).toHaveBeenLastCalledWith(0);
+  });
+
+  it("clamps at both ends rather than wrapping", async () => {
+    // Wrapping from the last day back to the first would be a jump the length
+    // of the trip; the row's own scroll does not wrap either.
+    const onSelect = renderChips(2, 2);
+    await userEvent.keyboard("{ArrowRight}");
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("moves DOM focus with the selection", async () => {
+    // A selection that walks away from the focused control leaves a screen
+    // reader announcing a chip that is no longer the selected one.
+    renderChips(0);
+    await userEvent.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(screen.getAllByRole("button")[1]);
+  });
+
+  it("leaves a modified arrow alone", async () => {
+    // ⌥→ and friends are somebody's own shortcut, not a day change.
+    const onSelect = renderChips(0);
+    await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+

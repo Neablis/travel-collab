@@ -18,6 +18,9 @@ const JSDOM_TS_FILES = [
   "src/components/pages/editor/MacroNodeExtension.test.ts",
   "src/lib/apiClient.test.ts",
   "src/lib/pagesClient.test.ts",
+  // `localStorage` is a browser API, and this module's whole job is surviving
+  // the ways a browser can refuse it.
+  "src/lib/pendingDemoClone.test.ts",
 ];
 
 // Never a unit test in either project: integration specs have their own

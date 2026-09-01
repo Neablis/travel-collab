@@ -3,12 +3,14 @@ import { SavedDayVisibility, SavedStop } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
+  SEASON_MONTHS,
   type BudgetBand,
   type DiscoverDay,
   type DiscoverResponse,
   type DiscoverScope,
   type DiscoverSort,
   type PublicAuthor,
+  type Season,
 } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
@@ -54,8 +56,13 @@ export type DiscoverQuery = {
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
-  /** 1-12, or null for any. See `month` on the row below for what it means. */
-  month: number | null;
+  /**
+   * The season asked for, or null for any.
+   *
+   * Bucketed from `created_at`'s month rather than from a stored season — see
+   * `Season` in `lib/playbooks.ts` for why there is no column behind this.
+   */
+  season: Season | null;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -66,6 +73,21 @@ export type DiscoverQuery = {
    * this one would agree only until somebody edited one of them.
    */
   authorId?: string | null;
+  /**
+   * Published days only, whatever the scope says.
+   *
+   * The public profile's rule, and it is NOT the same question the scope
+   * segment asks. A profile shows what somebody has published — *"showing its
+   * owner a different page than everybody else is how a profile starts
+   * disagreeing with itself"* (the profile route's own comment) — and it used
+   * to get that for free from `everyone` meaning "public only". Since
+   * `everyone` became a superset that includes the reader's own private days
+   * (2026-09-01), that freebie is gone and the rule has to be stated: without
+   * this flag an author looking at their own profile saw three days where
+   * everybody else saw two, which is exactly the disagreement the comment
+   * warns about. Caught by the integration suite, not by review.
+   */
+  publishedOnly?: boolean;
   readerId: string;
 };
 
@@ -119,7 +141,14 @@ function scopePredicate(scope: DiscoverScope, readerId: string): SQL {
       where a.saved_day_id = d.id and a.added_by = ${readerId}
     ) and (${isPublic} or d.owner_id = ${readerId})`;
   }
-  return isPublic;
+  // `everyone` is a SUPERSET of the other two, not "the public half"
+  // (Mitchell, 2026-09-01). It was `isPublic` alone, which made the widest
+  // option of the segment narrower than `Yours`: a private day of your own
+  // showed under `Yours` and vanished under `Everyone`, which reads as the
+  // filter losing your day. Nobody else's private day is reachable either way —
+  // the owner clause is scoped to the reader, and `saved-day-access.ts` is
+  // still the gate on an individual day.
+  return sql`(${isPublic} or d.owner_id = ${readerId})`;
 }
 
 /** Everything except the ranking and the limit — shared by both queries. */
@@ -133,14 +162,21 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // `at time zone 'UTC'` is load-bearing, not decoration. `created_at` is
   // `timestamptz`, and `extract(month from <timestamptz>)` resolves against the
   // SESSION's TimeZone — so the same row can answer a different month depending
-  // on where the connection thinks it is. `SharedDayScreen` formats the month
-  // with `getUTCMonth()`, so the filter has to be pinned to UTC or a day saved
-  // near a month boundary is filtered out of the month it displays.
+  // on where the connection thinks it is. `SharedDayScreen` derives the season
+  // it displays with `getUTCMonth()`, so the filter has to be pinned to UTC or
+  // a day saved near a month boundary is filtered out of the season it shows.
   // Raised by review on pull request 102.
+  //
+  // The season is expanded to its months HERE rather than being stored: one
+  // lookup (`SEASON_MONTHS`) decides the buckets for the SQL, the card and the
+  // shared-day rail alike, so none of the three can disagree about which
+  // months are Fall.
+  const seasonMonths = sql`${sql.param(query.season === null ? [] : [...SEASON_MONTHS[query.season]])}::int[]`;
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
+    and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
-    and (${query.month ?? null}::int is null or extract(month from d.created_at at time zone 'UTC') = ${query.month ?? null}::int)
+    and (cardinality(${seasonMonths}) = 0 or extract(month from d.created_at at time zone 'UTC') = any(${seasonMonths}))
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
   `;
 }
@@ -244,15 +280,26 @@ async function siblingCities(query: DiscoverQuery): Promise<CityMatch[]> {
   return [...rows.rows].map((row) => ({ city: String(row.city), days: Number(row.days) }));
 }
 
+/**
+ * How many days are published across the whole library, ignoring every filter.
+ *
+ * One `count(*)` on an indexed-enough predicate, run per Discover read, and
+ * that is the whole cost: it exists so the page can withhold the leaderboard
+ * link when there is nothing to rank (Mitchell, 2026-09-01 — *"Who shares the
+ * most should be hidden when nothing to share"*), and a link that appears and
+ * disappears with the city filter would be worse than one that never left.
+ */
+async function publishedDayCount(): Promise<number> {
+  const rows = await db.execute<{ days: number }>(sql`
+    select count(*)::int as days
+    from saved_days d
+    where d.visibility = ${SavedDayVisibility.enum.public}
+  `);
+  return Number(rows.rows[0]?.days ?? 0);
+}
+
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const cities = sql`${sql.param(query.cities)}::text[]`;
-  // `at time zone 'UTC'` is load-bearing, not decoration. `created_at` is
-  // `timestamptz`, and `extract(month from <timestamptz>)` resolves against the
-  // SESSION's TimeZone — so the same row can answer a different month depending
-  // on where the connection thinks it is. `SharedDayScreen` formats the month
-  // with `getUTCMonth()`, so the filter has to be pinned to UTC or a day saved
-  // near a month boundary is filtered out of the month it displays.
-  // Raised by review on pull request 102.
   const rows = await db.execute<DiscoverRow>(sql`
     select
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds,
@@ -287,6 +334,11 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     days: filtered.slice(0, PAGE_LIMIT),
     siblings: await siblingCities(query),
     budgetCurrency,
+    // Unfiltered on purpose — see `sharedDayCount` on the response. It answers
+    // "is there a library at all", which is what decides whether the
+    // leaderboard link has anything to rank, and no filter on this query may
+    // change that answer.
+    sharedDayCount: await publishedDayCount(),
     // BOTH caps, not just the candidate window. There is no pagination — the
     // page's answer to truncation is "narrow the cities" — so a query matching
     // 25 to 199 days used to return 24 cards flagged as the complete set, with

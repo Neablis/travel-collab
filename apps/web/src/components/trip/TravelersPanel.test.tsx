@@ -73,7 +73,14 @@ describe("TravelersPanel", () => {
     expect(screen.getByText("cara@example.com")).toBeTruthy();
   });
 
-  it("falls back to the bare user id when Identity knows nothing", async () => {
+  // The fallback is a readable HANDLE, never the raw identifier (Mitchell,
+  // 2026-09-01: "Dont show the UUID"). `displayNameFor` is the one place that
+  // decides it — a dev-login id carries a username, so the username is what
+  // shows; an opaque provider `sub` becomes "Traveler <suffix>". Asserted both
+  // ways round: the readable name is present AND the raw id is not on screen,
+  // because a fallback that quietly went back to printing the id would still
+  // satisfy the first half.
+  it("falls back to a readable handle, not the bare user id, when Identity knows nothing", async () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: access({
@@ -82,7 +89,25 @@ describe("TravelersPanel", () => {
       }),
     });
     render(<TravelersPanel tripId={tripId} />);
-    expect(await screen.findByText("dev-carol")).toBeTruthy();
+    expect(await screen.findByText("Carol")).toBeTruthy();
+    expect(screen.queryByText("dev-carol")).toBeNull();
+  });
+
+  it("names an opaque provider id without printing it", async () => {
+    // A Google `sub` is 21 digits. Rendered verbatim it reads as the page
+    // failing rather than as a person, and it is what Mitchell saw beside the
+    // Publish button on a shared day.
+    const sub = "104773518912345678901";
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: access({
+        members: [{ userId: sub, role: "owner", name: null, email: null, image: null }],
+        invites: [],
+      }),
+    });
+    render(<TravelersPanel tripId={tripId} />);
+    expect(await screen.findByText("Traveler 8901")).toBeTruthy();
+    expect(screen.queryByText(sub)).toBeNull();
   });
 
   it("creates an invite with the chosen role and copies the link", async () => {

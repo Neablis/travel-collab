@@ -58,6 +58,8 @@ function renderSheet(
     // budget — the clear-X, and a currency select worth changing — cannot be
     // exercised without this.
     budget?: Money | null;
+    /** The trip's genesis — for a copy, the moment it was taken. */
+    createdAt?: string;
     onCommand?: (command: TripCommand) => void;
   } = {},
 ) {
@@ -75,6 +77,7 @@ function renderSheet(
       budget={overrides.budget ?? null}
       spend={overrides.spend ?? defaultSpend}
       forkedFrom={overrides.forkedFrom ?? null}
+      createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
       onDeleted={onDeleted}
@@ -285,9 +288,17 @@ describe("SettingsSheet lineage", () => {
     expect(screen.queryByText("Where this came from")).toBeNull();
   });
 
-  it("names the ancestor and the history point it was copied from", () => {
+  // The ancestor and the DATE, never the ancestor's sequence number: "as it was
+  // at change 14" was an internal coordinate on a settings screen, and nobody
+  // outside this codebase knows what change 14 was (Mitchell, 2026-09-01).
+  // `atSeq` is still carried on `forkedFrom`; it is simply not rendered.
+  it("names the ancestor and the day it was copied", () => {
     renderSheet(vi.fn(), {
       forkedFrom: { tripId, atSeq: 14, name: "Kyoto in spring" },
+      // Midday UTC so the rendered local date is the 31st in every zone the
+      // suite might run in — a midnight instant would be the 30th west of
+      // Greenwich and make this assertion depend on TZ.
+      createdAt: "2026-08-31T12:00:00.000Z",
     });
     expect(screen.getByText("Where this came from")).toBeTruthy();
     // The copy is split across text nodes by the JSX interpolation, so match
@@ -297,7 +308,8 @@ describe("SettingsSheet lineage", () => {
       .map((node) => node.textContent)
       .join(" ");
     expect(line).toContain("Kyoto in spring");
-    expect(line).toContain("as it was at change 14");
+    expect(line).toContain("on August 31st 2026");
+    expect(line).not.toContain("change");
   });
 });
 

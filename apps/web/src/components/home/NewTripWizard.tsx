@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Money } from "@tc/contracts";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -15,6 +16,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { MoneyInput } from "@/components/board/MoneyInput";
 import { addDaysIso } from "@/lib/dates";
+import { submitOnEnter } from "@/lib/submitOnEnter";
 import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
 
@@ -88,11 +90,38 @@ export type NewTripWizardProps = {
   // navigated broke every one of them (CI, PR #32) by leaving the home
   // page (and that link) before the click ever ran.
   onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
+  /**
+   * `full` on a first run — see `SheetSize`. The caller decides, because
+   * "do you have any trips yet" is the trip LIST's question, not the wizard's.
+   */
+  size?: SheetSize;
+  /**
+   * First-run framing: a line under the title saying what this is for, and a
+   * way out that is not the ✕. Withheld for the ordinary "New trip" press,
+   * where the person already knows.
+   */
+  firstRun?: boolean;
+  /** First-run only: "or take a day somebody else already planned". */
+  browseHref?: string;
 };
 
-export function NewTripWizard({ open, onOpenChange, createTrip, dispatch, onCreated }: NewTripWizardProps) {
+export function NewTripWizard({
+  open,
+  onOpenChange,
+  createTrip,
+  dispatch,
+  onCreated,
+  size = "rail",
+  firstRun = false,
+  browseHref = "/playbooks",
+}: NewTripWizardProps) {
   return (
-    <Sheet title="New trip" open={open} onOpenChange={onOpenChange}>
+    // The title stays "New trip" on both paths. It is the dialog's accessible
+    // NAME — what a screen reader announces and what tests and specs address it
+    // by — and a surface that renames itself depending on how many trips you
+    // have is one that cannot be referred to. The first-run framing goes in the
+    // body instead, where it is copy rather than identity.
+    <Sheet title="New trip" size={size} open={open} onOpenChange={onOpenChange}>
       {/* Mirrors ActivityEditorSheet's `{open && (...)}` guard: forces a
           fresh mount (and so fresh local state) every time the wizard is
           reopened, rather than reusing whatever was left over from a
@@ -101,6 +130,8 @@ export function NewTripWizard({ open, onOpenChange, createTrip, dispatch, onCrea
         <WizardBody
           createTrip={createTrip}
           dispatch={dispatch}
+          firstRun={firstRun}
+          browseHref={browseHref}
           onDone={(tripId, navigate) => {
             onOpenChange(false);
             if (tripId !== null) onCreated?.(tripId, { navigate });
@@ -115,10 +146,14 @@ function WizardBody({
   createTrip,
   dispatch,
   onDone,
+  firstRun,
+  browseHref,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
+  firstRun: boolean;
+  browseHref: string;
 }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -204,6 +239,31 @@ function WizardBody({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* The first-run framing, and the answer to "building a trip from total
+          scratch is a rough experience" (Mitchell, 2026-09-01). Two sentences
+          saying a name is enough and nothing is locked in, plus the other way
+          in — somebody else's day, already planned — which is the whole reason
+          the library exists and was reachable from everywhere on this app
+          EXCEPT the moment a person has nothing and is being asked to invent a
+          trip from a blank field.
+
+          Only on a first run: someone opening "New trip" for their fourth trip
+          has met all of this. */}
+      {firstRun && (
+        <div className="flex flex-col gap-2 rounded-lg bg-moss p-3.5">
+          <Text as="p" variant="secondary" className="text-pretty">
+            A name is enough to start — dates, days and everyone else can come later, and nothing
+            here is locked in. Every step after this one is optional.
+          </Text>
+          <Text as="p" variant="secondary" className="text-pretty">
+            Rather not start from nothing?{" "}
+            <Link href={browseHref} className="font-semibold text-brand underline">
+              Take a day somebody has already planned
+            </Link>{" "}
+            and build the trip around it.
+          </Text>
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         {STEP_LABELS.map((label, index) => {
           const stepNumber = index + 1;
@@ -222,10 +282,21 @@ function WizardBody({
       {step === 1 && (
         <div className="flex flex-col gap-3.5">
           <FormField id="wizard-trip-name" label="Trip name">
+            {/* Enter moves on, exactly as the primary button does. Step 1 is
+                one field and a button, and typing a name then pressing Enter is
+                what everyone does (Mitchell, 2026-09-01: "Pressing enter in
+                many fields doesnt submit"). It advances rather than creating,
+                because "Next" is what the primary button says here — Enter
+                does what the button under your hand does, not something else.
+                A blank name is a no-op, matching `nextDisabled`. */}
             <Input
               id="wizard-trip-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={submitOnEnter(() => {
+                if (trimmedName === "") return;
+                setStep((current) => Math.min(TOTAL_STEPS, current + 1));
+              })}
               placeholder="e.g. Japan"
               aria-label="Trip name"
             />
