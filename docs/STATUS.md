@@ -154,8 +154,12 @@ every dialog in the app, surfaced only because a leaking e2e spec had grown the
 saved-days library past one screen.
 
 **Every one of the nineteen was green locally.** `pnpm check` cannot catch this
-class by construction, which is the argument for triggering CodeRabbit on
-drafts — it does not review them by default. It was also confidently wrong
+class by construction, which is the argument for triggering CodeRabbit at all.
+*(**The stated cause is wrong, corrected 2026-09-01 — KI-2026-09-01.** The
+draft rule is real but is not why it skipped: this repo is below CodeRabbit's
+**10-star OSS gate**, so auto-review is off on **ready** PRs too, and the
+status it posts is **green either way**. Trigger it with `@coderabbitai review`
+on every PR, and read the status `description`, never its state.)* It was also confidently wrong
 twice, both times about runtime behaviour it researched rather than ran
 (Vitest's `it.each` on a mixed array; `__dirname` under ESM), and both times the
 tell was identical: **the suite was green, which the claimed failure could not
@@ -168,8 +172,9 @@ code then signed in as a *returning* user, so the code was dead; two saved-day
 tests asserting on the in-memory object rather than the stored row; and a
 property test witnessing that it ran rather than that it reached its named
 path. All three now proven load-bearing by mutation probe. **CodeRabbit found
-all three**, which is the argument for triggering it on drafts rather than
-waiting — it does not review drafts by default.
+all three**, which is the argument for triggering it rather than waiting.
+*(Same correction as above — **KI-2026-09-01**: the cause is the 10-star gate,
+not the draft rule, and a skipped review still reports `success`.)*
 
 **M11a also broke `pnpm db:reseed` and it was fixed in the same PR.**
 `db:reset` derives its table list from the schema, so it truncates `users`;

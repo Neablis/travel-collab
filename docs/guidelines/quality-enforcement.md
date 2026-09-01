@@ -102,8 +102,15 @@ Do not hand-poll `gh pr checks` in a loop. One command blocks on all of them:
 gh pr checks <n> --watch --fail-fast
 ```
 
-CodeRabbit is a registered status check, so this covers it too. Its summary
-comment appears within about 30 seconds; its review verdict takes 2-11
+CodeRabbit posts a legacy commit status, so `--watch` waits for it — **but a
+green CodeRabbit status no longer means it reviewed anything
+(KI-2026-09-01).** This repo is public with 0 stars, below CodeRabbit's
+10-star OSS gate, so auto-review is off; it still reports `success`, with the
+description `Review skipped: manual review required for this OSS repository`.
+`--fail-fast` therefore exits 0 on a PR it never read. Read the description
+rather than the state — `gh pr view <n> --json statusCheckRollup` — and
+comment `@coderabbitai review` to get a real one. When a review does run, its
+summary comment appears within about 30 seconds and its verdict takes 2-11
 minutes. Treat its findings as bug reports to verify against the code — it
 caught a genuine navigation race in M10 Wave 2 Phase 7. Its verbosity and
 per-path focus live in `.coderabbit.yaml`.

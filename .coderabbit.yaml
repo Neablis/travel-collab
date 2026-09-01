@@ -7,6 +7,14 @@
 # M10 Wave 2 Phase 7 that no test covered — but it should spend its comments on
 # this repo's actual invariants rather than on prose style in `docs/`.
 #
+# CORRECTION 2026-09-01 (KI-2026-09-01): "required check" is not true and
+# `auto_review.enabled: true` below is no longer sufficient. This repo is
+# public with 0 stars, below CodeRabbit's 10-star OSS gate, so auto-review is
+# OFF. It still posts a green status while skipping, and PR #105 merged-clean
+# with no review, so nothing here blocks. Every setting below still applies
+# to a review that is MANUALLY triggered with `@coderabbitai review`; none of
+# it makes one happen on its own.
+#
 # See AGENTS.md for the invariants referenced below.
 language: en-US
 
