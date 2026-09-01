@@ -154,7 +154,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M17 Account customization** — **re-scoped and placed 2026-08-29, after
+- [ ] **M17 Account customization** ← **current milestone** — **re-scoped and placed 2026-08-29, after
       M18b**, whose gate closed 2026-08-30, and then **jumped on 2026-08-30**:
       Mitchell asked for "the rest of M11" first, so M11a and M11b run ahead of
       it and M17 follows M11b. The reorder note is in
@@ -215,7 +215,10 @@ Where the work actually stands right now: `docs/STATUS.md`.
       one real problem is that OAuth leaves the site, so the code rides a
       short-lived cookie across the round trip. Needs a migration, and the
       migration needs a dispatch.)*
-- [ ] **M11b Playbooks becomes a public library** ← **current milestone** →
+- [x] **M11b Playbooks becomes a public library** — **gate closed 2026-08-31**,
+      eleven of eleven; publish → discover → add walked as two actors and the
+      `cities` backfill run against production. Gate evidence and retro are in
+      the milestone file. →
       `docs/milestones/M11b-playbooks-public-library.md` — **scoped and placed
       2026-08-30**, running after M17 and immediately before M12.
       *(Carved out 2026-08-28 when M11's gate closed: the milestone's file

@@ -225,42 +225,42 @@ invited.
 
 ## Exit gate
 
-- [ ] A saved day carries `cities: string[]`, derived from its stops at save
+- [x] A saved day carries `cities: string[]`, derived from its stops at save
       time, and existing rows are backfilled. **The migration is written,
       applied locally, and its production dispatch is called out in the PR
       body** — `gh workflow run migrate-production.yml -f confirm=migrate` from
       `main`. Merging does not apply a migration.
-- [ ] City search shows all four states against the real endpoint — loading,
+- [x] City search shows all four states against the real endpoint — loading,
       results, "no city matches", and failure with a working **Retry**. No
       `<option>` city list exists anywhere in the tree.
-- [ ] A query for one city returns a day that contains it **among others**, with
+- [x] A query for one city returns a day that contains it **among others**, with
       the matched city filled, the rest outlined, and the per-card line present;
       results rank by matched-city count before the chosen sort.
-- [ ] A day is **private by default**; publishing makes it findable by another
+- [x] A day is **private by default**; publishing makes it findable by another
       signed-in account, and unpublishing removes it from that account's
       Discover results. Walked as two actors.
-- [ ] **The add rule holds on all three negative cases**: the same day added
+- [x] **The add rule holds on all three negative cases**: the same day added
       twice to one trip counts once; an add to a trip with no dates does not
       count; the author adding their own day to their own trip does not count.
       Proven against the ledger, not the counter.
-- [ ] The board ranks on the ledger, states its rule in copy, tints and badges
+- [x] The board ranks on the ledger, states its rule in copy, tints and badges
       your own row **without pinning it**, and **is not reachable from the top
       bar** — only from Discover (project rule 1).
-- [ ] Every number on a profile is derived, and a profile's day count and adds
+- [x] Every number on a profile is derived, and a profile's day count and adds
       **agree with the same person's numbers in Discover** — checked against a
       seed where they could disagree.
-- [ ] All four Playbooks `<Preview>` shells are **deleted** from
+- [x] All four Playbooks `<Preview>` shells are **deleted** from
       `preview-registry.ts`, and no M11-tagged entry remains.
-- [ ] Each of the three new routes has a defined **empty, offline/sync-fail and
+- [x] Each of the three new routes has a defined **empty, offline/sync-fail and
       conflict** state (project rule 6) — except the board's empty state, which
       §15 rules out by construction and which this gate therefore does not
       require.
-- [ ] **Publishing does not go live on an open signup** — **M11a's gate has
+- [x] **Publishing does not go live on an open signup** — **M11a's gate has
       closed**, so the platform is invite-gated before any day can be made
       public. This is the precondition the scope split rests on (see "Moderation
       waits on the invite gate"). It is a real box: if M11a slips, this
       milestone's publishing link waits rather than shipping past it.
-- [ ] The milestone's e2e script is green on `pnpm --filter web test:e2e:ci-like`
+- [x] The milestone's e2e script is green on `pnpm --filter web test:e2e:ci-like`
       **twice against a production build**, and the publish → discover → add
       flow is **walked in a browser** as two actors. A suite pass is not the
       gate; four consecutive milestones have had a defect the suite could not
@@ -303,3 +303,53 @@ was refreshed this pass. Verified against the tree on 2026-08-30:
 are current, and D9 is what this milestone closes. **Feed the four stale entries
 back to design** rather than editing their bundle — the folder is rewritten in
 place by the design side, so a build-side edit is drift by construction.
+
+## Gate closed — 2026-08-31
+
+**All eleven boxes met.** `pnpm check` exit 0 (1915 web unit, 427 integration,
+18 fixtures) and `test:e2e:ci-like` green against a production build; the
+publish → discover → add flow walked as **two actors**, and the `cities`
+backfill run against production. **M11a's gate closed first** — box 10 is not a
+formality, it is the precondition the whole scope split rests on.
+
+## Retro — 2026-08-31
+
+**Nineteen review findings across the stack, and fourteen were the same defect:
+a test that passes while proving nothing.** That number is the milestone's real
+output. Every one of the nineteen was green locally, and `pnpm check` cannot
+catch this class by construction — a test written by the same session as the
+implementation inherits its assumptions, which is now the fourth consecutive
+gate to say so.
+
+**The fixture built to catch swapped numbers held a swappable pair of its own.**
+`expectations.ts` claimed "no two numbers a bug could swap are equal" and then
+listed only the CROSS-OWNER pairs, while `dev-alice`'s own days (3) and adds (3)
+were equal — and the profile header renders exactly those two side by side. The
+test underneath enforced only the cross-owner half, so three assertions passed
+over it. This is the sharpest instance of the milestone's own theme: **the
+artefact designed to prevent a class of defect contained one, because its
+comment claimed more than its test enforced.**
+
+**A second-order version of the same thing, in this session's own fix.** The
+responsive test named three overlays and asserted two; the first fix for it
+asserted the focus card's absence BEFORE any day was focused — a state where the
+card never renders on any build — and its presence at desktop, where nothing is
+focused on load. Both were vacuous or wrong, and `test:e2e:ci-like` caught it,
+not review. **Writing an assertion about vacuous assertions is not immune to
+being vacuous.**
+
+**Stacked PRs and squash merges do not compose, and nobody had said so.** Each
+branch merged its base forward, so when #99 squash-landed, `main` held M11a as a
+commit sharing no ancestry with the branches carrying the same files: five
+`add/add` conflicts on files neither side edited twice, and it would have
+recurred for #101 and #102, growing each time. Rebasing each layer onto `main`
+after the one below merged removed it entirely — and shrank #100's reviewable
+diff from 39 files to 21, because the duplicated content stopped appearing as
+branch additions. Worth a line in the guidelines rather than relearning at the
+next stack.
+
+**What the walk found that nothing else did.** M11b's own defect was a dialog
+taller than the viewport hiding its own top, leaving the first row unreachable
+by mouse, keyboard and Playwright alike — latent for every dialog in the app,
+surfaced only because a leaking e2e spec had grown the saved-days library past
+one screen. The leak was the bug's only witness.

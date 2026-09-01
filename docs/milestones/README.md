@@ -189,10 +189,12 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M11a — An invite gate on the front door**
-(`M11a-invite-gate.md`), as of **Mitchell's 2026-08-30 decision to jump M17**
-(see the reorder note immediately below). Order from here:
-`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+Current milestone: **M17 — Account customization**
+(`M17-account-customization.md`), as of **2026-08-31, when M11a's and M11b's
+gates both closed** — M11a nine of nine with its admission paths walked on
+production, M11b eleven of eleven with the two-actor publish walk and the
+`cities` backfill. Order from here:
+`M11a ✓ → M11b ✓ → M17 → M12 → M13 → M14 → M9 → M19`.
 
 **M19 was placed last on 2026-08-31** ("just put at end for now" — Mitchell),
 the same day it was minted. Last is a real position here, not a shrug: M19's
