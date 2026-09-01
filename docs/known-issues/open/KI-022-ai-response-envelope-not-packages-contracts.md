@@ -11,3 +11,4 @@
   (2026-08-19), which needed no changelog entry precisely because there is no
   contract to change. Fixing it means schematizing the whole envelope and
   routing both AI client functions through it.
+- **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: `AGENTS.md` reserves a contracts change as its own reviewed PR, so it cannot sit inside another milestone's gate. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".

@@ -15,3 +15,4 @@
 - **First noted:** 2026-08-29 (PR #83 review).
 
 - **Numbering:** filed as 78 on 2026-08-29, when several sibling branches each filed a different KI-78 the same night. Renumbered to 94 on merge. Nothing outside this file references it.
+- **Milestone:** **M9 GATE BOX (assigned 2026-09-01)** — a written box in M9's exit gate. KI-97 closes with this entry, never separately. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".

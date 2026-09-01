@@ -9,3 +9,4 @@
 - **Found by:** the Task 6 implementer, 2026-08-29, while writing the proposal card.
 - **Cross-reference:** KI-73 (the same species: one computation, two copies), ADR-022 §4.
 - **First noted:** 2026-08-29.
+- **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: the two phrasings cannot disagree about facts, only wording. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".
