@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PENDING_DEMO_CLONE_MAX_AGE_MS,
-  forgetDemoClone,
   rememberDemoClone,
   takeDemoClone,
 } from "./pendingDemoClone";
@@ -54,12 +53,6 @@ describe("the pending demo-clone marker", () => {
     expect(takeDemoClone(now)).toBe(false);
   });
 
-  it("can be withdrawn when the callbackUrl wins the race back", () => {
-    rememberDemoClone();
-    forgetDemoClone();
-    expect(takeDemoClone()).toBe(false);
-  });
-
   it("treats a corrupted value as nothing", () => {
     window.localStorage.setItem("pending_demo_clone", "yesterday");
     expect(takeDemoClone()).toBe(false);
@@ -81,7 +74,6 @@ describe("the pending demo-clone marker", () => {
       },
     });
     expect(() => rememberDemoClone()).not.toThrow();
-    expect(() => forgetDemoClone()).not.toThrow();
     expect(takeDemoClone()).toBe(false);
   });
 });

@@ -127,9 +127,12 @@ test.describe("the demo trip", () => {
     await page.goto("/demo");
     await page.getByRole("button", { name: "Make this trip mine" }).click();
 
-    // The detour carries the intent, not just the destination: `clone=1` is
-    // what tells the demo to finish the job when they land back on it.
-    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%3Fclone%3D1$/);
+    // The callbackUrl carries only the DESTINATION now. What tells the demo to
+    // finish the job is the browser-local marker (`lib/pendingDemoClone.ts`) —
+    // the `?clone=1` that used to ride along here is gone, because a URL is
+    // shareable and a link should not be able to make a stranger take a copy
+    // (Mitchell, 2026-09-01).
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo$/);
 
     // No invite code, deliberately: M11a's gate only asks for one from someone
     // with no `users` row, and alice has had one since `auth.setup.ts` — which
@@ -151,8 +154,8 @@ test.describe("the demo trip", () => {
   // up ... you dont have the trip from the demo you tried to clone."*
   //
   // It is a different walk from the one above in exactly the way that broke it.
-  // The returning user goes `/demo` → `/signin` → back to `/demo?clone=1`, and
-  // the `?callbackUrl=` carries the whole intent. Somebody with NO account has
+  // The returning user goes `/demo` → `/signin` → back to `/demo`, where the
+  // marker finishes the copy. Somebody with NO account has
   // to follow "Create an account" to reach the only screen with an invite-code
   // field — and that hop, plus the sign-up they then complete, is where the
   // callback was being dropped. So this asserts both carriers: the swap link
@@ -163,13 +166,13 @@ test.describe("the demo trip", () => {
 
     await page.goto("/demo");
     await page.getByRole("button", { name: "Make this trip mine" }).click();
-    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%3Fclone%3D1$/);
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo$/);
 
     // The hop that used to lose it. The link is built from the NORMALISED
     // callbackUrl, so this is also the assertion that a hostile one could not
     // ride across.
     const swap = page.getByRole("link", { name: "Create an account" });
-    await expect(swap).toHaveAttribute("href", "/signup?callbackUrl=%2Fdemo%3Fclone%3D1");
+    await expect(swap).toHaveAttribute("href", "/signup?callbackUrl=%2Fdemo");
     await swap.click();
     await expect(page).toHaveURL(/\/signup\?callbackUrl=/);
 

@@ -12,7 +12,7 @@
  * The `?callbackUrl=` the demo attaches carried it only as far as `/signin`.
  * Three separate things drop it:
  *
- *   1. The sign-in ⇄ sign-up swap link is a bare `/signup` (fixed alongside
+ *   1. The sign-in ⇄ sign-up swap link was a bare `/signup` (fixed alongside
  *      this, so the query survives that hop too).
  *   2. `refusalRedirect` sends a refused sign-in to `/signup?error=<reason>` —
  *      a path built server-side, inside the Auth.js callback, with no access
@@ -22,11 +22,27 @@
  *      hop 1 or 2 is `/`.
  *
  * So the intent is banked in the browser instead of being threaded through
- * every one of those URLs, and it is redeemed on arrival at the trip list —
- * the one page every successful sign-in reaches. `localStorage`, not a cookie:
- * nothing on the server reads it, it must not ride on requests, and it has to
- * outlive a full-page navigation to Google and back (which `sessionStorage`
- * does, but a new tab would not).
+ * every one of those URLs, and it is redeemed by whichever of `/demo` and the
+ * trip list the round trip actually lands on.
+ *
+ * **This is the only carrier.** It shipped alongside a `?clone=1` on the
+ * callbackUrl, which the demo page read on the way back; that param is gone
+ * (Mitchell, 2026-09-01). It was redundant — this marker never depended on the
+ * URL — and it was the one part of the mechanism a stranger could assert: a
+ * link is shareable, so `/demo?clone=1` handed to a signed-in person put a trip
+ * in their list they never asked for. Low harm, since `duplicateTrip` goes
+ * through the ordinary access seam and could only ever have copied the public
+ * demo, but a class of thing worth not having.
+ *
+ * `localStorage`, not a cookie, and the difference is smaller than it looks:
+ * both are same-origin, so neither can be set by anybody else's page. A cookie
+ * would buy exactly one thing — the SERVER could read it — and that is only
+ * worth paying for if the redemption moves server-side, which it cannot
+ * cheaply: the natural home is `recordSignIn`, and cloning a trip inside the
+ * Identity module's sign-in callback crosses the module map (AGENTS.md), while
+ * a Next.js server component cannot clear a cookie at all. So: client-side,
+ * where the decision already lives. `sessionStorage` would survive the
+ * navigation to Google too, but not a provider that comes back in a new tab.
  *
  * **Not a permission.** Redeeming it calls the ordinary duplicate endpoint,
  * which answers 401 to anyone without a session and refuses a trip they cannot
@@ -60,15 +76,6 @@ export function rememberDemoClone(now: number = Date.now()): void {
     // Full quota, or a browser refusing storage. The button still works for
     // anyone who signs in and presses it again; losing the shortcut is not
     // worth failing the navigation to sign-in over.
-  }
-}
-
-export function forgetDemoClone(): void {
-  try {
-    storage()?.removeItem(KEY);
-  } catch {
-    // Nothing to do, and nothing that depends on it: `takeDemoClone` clears
-    // before it reports, so a failed clear at worst re-offers once.
   }
 }
 
