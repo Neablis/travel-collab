@@ -22,8 +22,39 @@ general setup.
 
 ## Where the work is right now
 
-**M11a and M11b are built and in review as a three-PR stack, 2026-08-30.**
-None of their gates has closed; nothing below is ticked anywhere yet.
+**M11a's and M11b's gates both closed 2026-08-31, and M17 is the current
+work** — M11a nine of nine, its three admission paths walked on **production**
+(KI-50 blocks the OAuth round trip on a preview); M11b eleven of eleven, with
+the two-actor publish → discover → add walk and the `cities` backfill run
+against production. Retros and gate evidence are in
+`docs/milestones/M11a-invite-gate.md` and
+`docs/milestones/M11b-playbooks-public-library.md`.
+
+Order from here:
+`M17 → M12 → M13 → M14 → M9 → M19` — **and a reorder is recommended and not
+applied.** `docs/reviews/2026-09-01-milestone-audit.md` found M9 far smaller
+than its file claimed (four of seven scope items shipped) and both of ADR-022's
+stated grounds for placing it last now met; it proposes
+`M17 → M9 → M12 → M13 → M14 → M19`. Reordering is Mitchell's call.
+
+**M19 — a cost knows who and what it is for** was minted and placed last on
+2026-08-31 and is the newest milestone: `docs/milestones/M19-cost-model.md`.
+It is **placed but not scoped** — the exit gate is deliberately unwritten until
+link 1's design question is answered.
+
+> **This section was two gates stale from 2026-08-31 to 2026-09-01**, still
+> describing M11a and M11b as open PRs in review. The cause was structural:
+> the gate-close checklist in `docs/milestones/README.md` had four steps and
+> **this file was not one of them**, so nothing made it anyone's job. It is now
+> step 5. If you are reading this file first — as `CLAUDE.md` tells you to —
+> and it disagrees with `TODO.md` or the milestone README, that is the failure
+> recurring; trust the milestone README's **Current milestone** line and say so.
+
+### The three-PR stack that closed them, 2026-08-30 (historical)
+
+Kept because the composition evidence below is still the record of how #98 and
+this stack were proven to merge cleanly. All four PRs have since merged and
+both gates have closed.
 
 | PR | What | Base | State |
 |---|---|---|---|
@@ -54,8 +85,10 @@ Do not skip that when adding to the stack: PR2's implementer read
 correctly reported `INVITE_SUPER_CODE` missing, which was true of that
 checkout and false of M11a's branch.
 
-**Five things are Mitchell's before any of this can close**, and the first two
-block the M11a gate outright:
+**Five things were Mitchell's before any of this could close** — **all
+discharged; both gates closed 2026-08-31** (marked 2026-09-01). Kept as the
+record of what a gate of this shape costs a human, not as open asks. The first
+two blocked the M11a gate outright:
 
 1. **`INVITE_SUPER_CODE` in Vercel Preview *and* Production**, a CSPRNG value.
    Absent means closed — an unset variable refuses every new account — and
@@ -80,7 +113,12 @@ rather than fixed because all three defensible answers contradict a decision
 already written into that function —
 `docs/known-issues/open/KI-20260831-sibling-chip-counts-ignore-the-budget-band.md`.
 
-**One gate box cannot be satisfied as written and needs a decision.** M11b's
+**One gate box could not be satisfied as written — RESOLVED 2026-08-31.**
+Mitchell retagged the five leftover shells rather than narrowing the box:
+`rack-provenance` → **M13**, `cost-estimate-state` and `budget-breakdown` →
+**M19** (minted for them the same day), and the two wizard shells → `unplaced`,
+deliberately. `preview-registry.ts` now carries no M11 tag and M11b closed
+eleven of eleven. The original finding, kept as the argument: M11b's
 *"no M11-tagged entry remains"* in `preview-registry.ts` was written believing
 the four Playbooks shells were the only ones. There are **nine**. The other
 five (`rack-provenance`, `cost-estimate-state`, `budget-breakdown`,
@@ -391,12 +429,27 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M17 was jumped on 2026-08-30 and the current work is M11a — an invite gate**
-— `docs/milestones/M11a-invite-gate.md`, **then M11b**
-(`docs/milestones/M11b-playbooks-public-library.md`), **then M17**
-(`docs/milestones/M17-account-customization.md`, unchanged and un-cancelled).
-Mitchell's call the same day, asked for as *"finishing out the rest of M11"*.
-The reorder note is in `docs/milestones/README.md`.
+**The current work is M17 — account preferences**
+(`docs/milestones/M17-account-customization.md`), since both M11a's and M11b's
+gates closed on 2026-08-31.
+
+Two things to read before opening it, both from the 2026-09-01 audit
+(`docs/reviews/2026-09-01-milestone-audit.md`):
+
+- **M17 is smaller than its file's "Why this exists" section claimed.** That
+  section asserted the schema had no user row; `users` has existed since
+  ADR-025 and already carries `name`. What is missing is **preference columns**
+  on it. The claim is corrected in place; the milestone is retitled **Account
+  preferences**, since the "real user record" half shipped in M11.
+- **A reorder is on the table and not applied.** The audit recommends
+  `M17 → M9 → M12 → M13 → M14 → M19`, because M9 turned out to be four-sevenths
+  built and both of ADR-022's grounds for placing it last have lapsed. If
+  Mitchell takes it, M9 follows M17 rather than M14.
+
+*(Superseded, kept as the record: "M17 was jumped on 2026-08-30 and the current
+work is M11a — an invite gate, then M11b, then M17." Mitchell's call that day,
+asked for as "finishing out the rest of M11". The reorder note is in
+`docs/milestones/README.md`.)*
 
 **Jumping M17 is free for M11a and not free for M11b**, and the difference is
 worth knowing before either is opened. M11a's file already said M17 was

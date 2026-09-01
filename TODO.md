@@ -13,9 +13,19 @@ approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
 **M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
 and **M11a, an invite gate, was scoped the same day and placed in front of it**.
 The order was `M18b ✓ → M17 → M11a → M11b → M12 → M13 → M14 → M9`, and on
-**2026-08-30 Mitchell jumped M17** — asking for "the rest of M11" first — so it
-is now `M18b ✓ → M11a → M11b → M17 → M12 → M13 → M14 → M9`. The reorder note,
-and the one consequence it carries for M11b, are in `docs/milestones/README.md`.
+**2026-08-30 Mitchell jumped M17** — asking for "the rest of M11" first. **Both
+M11a's and M11b's gates closed 2026-08-31**, and **M19 was minted and placed
+last the same day**, so the order is now
+`M18b ✓ → M11a ✓ → M11b ✓ → M17 → M12 → M13 → M14 → M9 → M19`. The reorder
+note, and the one consequence it carries for M11b, are in
+`docs/milestones/README.md`.
+
+**A reorder is recommended and not applied (2026-09-01).** An audit against
+`main` found M9 much smaller than its file claims and both of ADR-022's stated
+reasons for placing it last now met —
+`docs/reviews/2026-09-01-milestone-audit.md` proposes
+`M17 → M9 → M12 → M13 → M14 → M19`. **The order above stands until Mitchell
+decides**, per this file's own rule.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
@@ -154,7 +164,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M17 Account customization** ← **current milestone** — **re-scoped and placed 2026-08-29, after
+- [ ] **M17 Account preferences** ← **current milestone** — **re-scoped and placed 2026-08-29, after
       M18b**, whose gate closed 2026-08-30, and then **jumped on 2026-08-30**:
       Mitchell asked for "the rest of M11" first, so M11a and M11b run ahead of
       it and M17 follows M11b. The reorder note is in
@@ -234,13 +244,22 @@ Where the work actually stands right now: `docs/STATUS.md`.
       adds ledger keyed by (day, trip), and the four routes. Closes DRIFT's D9
       and deletes the last four M11-tagged `<Preview>` shells. Saved days
       (M11 link 6, ADR-029) is the data model it builds on.)*
-- [ ] **M12 Community** — all trust & safety scope
+- [ ] **M12 Reviews and moderation** — all trust & safety scope
       lives here, nowhere earlier.
+      *(**Retitled 2026-09-01** — was "Community". The public gallery and
+      discovery that name promised **shipped in M11b**; what M12 keeps from
+      `SPEC.md` §15 is reviews, ratings everywhere they surface, and
+      moderation. **No milestone file or exit gate exists yet**, so it cannot
+      be opened without a scoping pass first.)*
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
       conflicts. *(**Narrowed 2026-08-27**: invites, roles and revocation moved
       into M11, because they are the same `AccessPolicy` change as share links
       and opening that boundary twice costs twice.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
+      *(**No milestone file or exit gate exists yet** — noted 2026-09-01. Same
+      for M12 and M13; three of the next four milestones need a scoping pass
+      before they can open, against `docs/milestones/README.md`'s rule that
+      each gets a file "before work on it begins".)*
       *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
       `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
       macro with an author-supplied row template is the one genuinely new
@@ -258,12 +277,41 @@ Where the work actually stands right now: `docs/STATUS.md`.
       questions resolved: no separate first-run screen, and the landing copy
       ships verbatim selling M11/M12. M10's Phase 9 gate closed after this, on
       2026-08-27; **M18** is the next work.)*
-- [ ] **M9 AI as a planning partner** → `docs/milestones/M9-ai-planning-partner.md`
-      *(**Moved to last, after M14 — ADR-022, 2026-08-25.** Mitchell's call: the
-      data layer beneath a planning partner should exist first, and UI polish and
-      sharing come before it. M16 builds the read half, so M9 adds conversation,
-      write tools and approval **to a working agent** and inherits its eval
-      harness. Do not start early.)*
+- [ ] **M9 The assistant cites what it plans** →
+      `docs/milestones/M9-ai-planning-partner.md`
+      *(**Retitled 2026-09-01** — was "AI as a planning partner". An audit
+      against `main` found **four of its seven scope items already shipped**
+      (streaming, propose→review→approve, refinement within a session, honest
+      unknowns) and **three of its six gate boxes already satisfied**. The
+      remaining milestone is three things: **grounding** (`SearchPlaces` →
+      `placeRef` — KI-81/KI-15), **conversation durability** (no conversation
+      table exists, so a reload loses the thread), and **an eval/replay
+      harness** (KI-11, inherited from M16's gate).
+      **Moved to last, after M14 — ADR-022, 2026-08-25**, on two grounds — the
+      data layer should exist first, and UI polish and sharing come before it —
+      **both of which have since been met**; the placement has not been
+      re-examined. `ai-live` defaults off and grounding is what would let it be
+      turned on, so the biggest built feature in the product is dark while this
+      waits. A reorder to `M17 → M9 → …` is **recommended and not applied** —
+      it is Mitchell's call: `docs/reviews/2026-09-01-milestone-audit.md`.)*
+
+- [ ] **M19 A cost knows who and what it is for** →
+      `docs/milestones/M19-cost-model.md`
+      *(**Added to this file 2026-09-01. It was missing entirely** — minted and
+      placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
+      its own file, and in neither this file nor `docs/STATUS.md`. In a file
+      whose rule is "first unchecked item = current work", a milestone that is
+      not here cannot be found — **the same defect this file already records
+      against M17**, repeated three days later.
+      **Placed but not scoped**: the exit gate is deliberately unwritten,
+      because link 1 needs a design decision first (does a cost inherit its
+      category from `ActivityKind` or carry its own?). Five links: a cost's
+      kind, a cost's settled-vs-estimate state, who an activity is for, splits
+      derived from that, and the shared-day presentation. **Last is a real
+      position** — link 3 overlaps M13's `add-stop-who`, so running after M13
+      lets M13 land the field and M19 build on it rather than both adding one.
+      Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
+      is a plain sum of stop costs with nothing to divide by.)*
 
 ## Candidate ideas (unscheduled)
 

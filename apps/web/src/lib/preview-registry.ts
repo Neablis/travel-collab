@@ -53,7 +53,19 @@ export const PREVIEW_REGISTRY = {
   // than left shelved — Mitchell, preview feedback on PR #55: the design's
   // panel has no such block, only the conversation and the ask box. Nothing
   // to wire up in M9 because there is nothing there to wire.
-  "timeline-ghost": { milestone: "M9", wiredUpBy: "M9 propose→review→approve" },
+  // The stated blocker here SHIPPED in PR #88 — propose→review→approve is real,
+  // in the assistant rail (`ProposalCard`, `POST /ask/apply`). This shell is
+  // still genuinely unbuilt, but what it is waiting on is narrower than it was:
+  // rendering an approved-or-pending proposal INLINE IN THE TIMELINE, not the
+  // approval mechanism itself. Corrected 2026-09-01 per the rule below — a tag
+  // is a claim, and so is the reason attached to it.
+  "timeline-ghost": { milestone: "M9", wiredUpBy: "Proposals rendered inline in the timeline — the approval mechanism itself shipped in PR #88" },
+  // AUDIT 2026-09-01: this tag is doubtful and is left alone pending Mitchell.
+  // M9's scope has no transport-mode link, no contract change and no migration,
+  // so "M9 will wire this up" is not a claim M9's file supports — the same
+  // species as the cost shells that were tagged M11, which M11b's sweep caught
+  // and which minted M19. Retagging is a milestone-scope decision, so it is
+  // reported rather than made: docs/reviews/2026-09-01-milestone-audit.md §3b.
   "map-legend-modes": { milestone: "M9", wiredUpBy: "Transport mode per leg — no field models it today" },
   "rack-provenance": { milestone: "M13", wiredUpBy: "Who parked a stop, and which day it came from — no field models either. Sits with `add-stop-who`, the same absence from the other side; whichever milestone lands per-stop attribution unblocks both" },
   "cost-estimate-state": { milestone: "M19", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },

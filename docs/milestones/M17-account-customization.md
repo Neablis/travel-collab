@@ -1,4 +1,8 @@
-# M17 — Account customization (and a real user record)
+# M17 — Account preferences
+
+*(Titled "Account customization (and a real user record)" until 2026-09-01. The
+real user record shipped in M11 link 1 under ADR-025, so the parenthetical named
+a delivered thing; the scope has said as much since the 2026-08-29 re-scope.)*
 
 **Status:** Approved 2026-08-26. **Re-scoped and placed 2026-08-29** — see the
 "Status — re-scoped and placed" section below, which supersedes this line and
@@ -51,9 +55,18 @@ on the same absence:
 | C6 | **Distance units** (`Kilometres`/`Miles`) at **account** scope — "a trip does not have a unit, a person does". One `kmLabel` owns every distance | A per-person preference |
 | C7 | **Home time on hover** (default off) — `SFO 10:30 pm −1d` in Timeline's time gutter | A home airport, its tz, **and** `trip.tz` |
 
-The build has nowhere to put any of it. `apps/web/src/server/db/schema.ts` is
-four tables — `events`, `trip_summaries`, `trip_details`, `pages`. There is no
-user row. Identity today is whatever the auth provider hands back per request.
+**That paragraph was true when this was written and is not true now**
+(corrected 2026-09-01). `apps/web/src/server/db/schema.ts` is **twelve** tables,
+and `users` is one of them — `id`/`email`/`name`/`image`/`created_at`/
+`updated_at`, shipped by M11 link 1 under ADR-025. Identity is no longer
+"whatever the auth provider hands back per request": there is a real user row
+keyed on the Auth.js user id.
+
+What is still absent is narrower and is what this milestone adds: **`users`
+carries no preference columns**, so there is nowhere to put a home airport or a
+distance unit. `users.name` does already exist (populated from the provider),
+which makes "resolve `who` to a display name" smaller than the scope below
+implies — closer to wiring than to building.
 
 Mitchell's framing is the important part and is why this is a milestone rather
 than a table: **the question is not "where do we put a distance unit", it is
