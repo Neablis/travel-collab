@@ -10,8 +10,11 @@ describe("Preview", () => {
   const SENTINEL_MILESTONE = "M-SENTINEL-0";
 
   it("renders children, and the chip shows whatever milestone the registry holds", () => {
-    // Why a sentinel and not `PREVIEW_REGISTRY[id].milestone` — CodeRabbit, PR
-    // #105, 2026-09-01. Reading the expected value from the same entry `Preview`
+    // Why a sentinel and not `PREVIEW_REGISTRY[id].milestone` — CodeRabbit on
+    // PR 105, 2026-09-01. (Deliberately "PR 105" and not the hash-prefixed
+    // form: the colour wall reads a bare hash plus three digits as a hex
+    // literal — KI-2026-08-30. This very comment tripped it once already.)
+    // Reading the expected value from the same entry `Preview`
     // reads makes the assertion tautological: a component that ignored the
     // registry and rendered the literal "unplaced" would still pass. This test
     // exists to prove the registry-to-chip data flow, so it has to control the
