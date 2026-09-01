@@ -49,11 +49,20 @@ export function displayNameFor(who: NameableUser): string {
  *   * `dev-alice` → `Alice`. A dev-login id is a username someone typed
  *     (`devLoginIdentity` lowercases and bounds it to `[A-Za-z0-9_-]`), so the
  *     readable name really is in there and nothing is invented by taking it.
- *   * anything else → `Traveler 4f2a`. Four hex-ish characters off the end of
- *     the id: short enough not to read as an identifier, stable across renders
- *     and deploys, and — crucially for the leaderboard, which ranks people
- *     against each other — still distinguishing. A flat "Traveler" would make
- *     every row on that page the same person.
+ *   * anything else → `Traveler 4f2a91`. Six hex-ish characters off the end of
+ *     the id: short enough to still read as a name and not an identifier, and
+ *     stable across renders and deploys. Widened from four (CodeRabbit, PR
+ *     #104): a UUID's trailing characters are close to uniformly distributed,
+ *     so four of them collide across two different ids far too easily for
+ *     what this label is used for — the leaderboard and public profiles rank
+ *     people against each other by it, and two people rendering as the exact
+ *     same "Traveler xxxx" is not a cosmetic bug there, it's a wrong ranking.
+ *     Six hex characters is 16^6 (~16.8M) rather than 16^4 (~65K) — the
+ *     shortest widening that makes a realistic collision actually
+ *     unreachable, not just less likely, while a Google `sub`'s trailing
+ *     digits (10^6, ~1M) still comfortably outrun this app's population. A
+ *     flat "Traveler" would make every row on that page the same person; the
+ *     suffix is what stops that, at either width.
  *
  * This stays the M17 seam it always was: when accounts gain a chosen display
  * name, `name` arrives populated and this branch stops being reached.
@@ -65,9 +74,9 @@ function handleFor(userId: string): string {
     return username.charAt(0).toUpperCase() + username.slice(1);
   }
   // `replace` first: a UUID's dashes are not part of the suffix anyone would
-  // read, and an id shorter than four characters keeps whatever it has rather
+  // read, and an id shorter than six characters keeps whatever it has rather
   // than being padded into a shape it does not have.
   const compact = userId.replace(/[^A-Za-z0-9]/g, "");
-  const suffix = compact.slice(-4);
+  const suffix = compact.slice(-6);
   return suffix === "" ? "A traveler" : `Traveler ${suffix}`;
 }

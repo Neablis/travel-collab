@@ -22,9 +22,19 @@
 //
 //   * **Priced.** `savedDayFacts` derives "budget each" from the priced stops,
 //     and Discover's budget band filters on it — a day with nothing priced
-//     shows "—" and is invisible to that control. The days below spread across
-//     all three bands on purpose (see `BUDGET_BAND_EDGES`), so the filter has
-//     an occupant everywhere.
+//     shows "—" and is invisible to that control. The days below span the
+//     BOTTOM two bands on purpose (see `BUDGET_BAND_EDGES`: under $50 and
+//     $50-$150), so that filter has an occupant on both. None of them plausibly
+//     clears the upper edge ($150 each) on its own terms — every stop here is a
+//     ticket, a meal or a fare, and pricing one up into that band would mean
+//     inventing a stop that does not belong on the day rather than pricing the
+//     day honestly (CodeRabbit, PR #104: two of these comments used to claim
+//     "top band" for days that priced out at $72 and $92 — corrected below,
+//     not inflated to match). The library already has an upper-band occupant
+//     elsewhere: `../japan/savedDays.ts`'s "Tokyo to Hakone, slowly" ($162
+//     each, a travel day with an onsen), which is a real day where that price
+//     is the honest one. The filter having an occupant everywhere does not
+//     require every file to supply one.
 //   * **Placed.** Every stop carries a `city`, so `citiesOfStops` gives the day
 //     real cities to be found by. Two of them touch more than one city, which
 //     is what the per-card "Kyoto matched · also Uji" line and the sibling
@@ -152,9 +162,11 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: CARLOS,
     name: "Sintra without the queue",
     visibility: "public",
-    // Spring as well, and the top band: two palaces and a train fare add up.
-    // The most-added day in the starter set — it is the one with real advice in
-    // it, which is what a Playbook is for.
+    // Spring as well, and the middle band: two palaces and a train fare add up
+    // to $72 each — priced (CodeRabbit, PR #104), not "top band" as this
+    // comment used to claim; see the file header for where the top band's
+    // real occupant lives. The most-added day in the starter set — it is the
+    // one with real advice in it, which is what a Playbook is for.
     keptOn: "2026-05-03T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000004", addedBy: PRIYA },
@@ -199,8 +211,12 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: PRIYA,
     name: "Mexico City: Coyoacán, slowly",
     visibility: "public",
-    // Summer. The middle band, and a day with one booked ticket and everything
-    // else improvised — the ordinary shape of a good day.
+    // Summer. The cheap band — the priced stops total $36 each, not "middle
+    // band" as this comment used to claim (CodeRabbit, PR #104 review; the
+    // same pass that caught the two "top band" mislabels below fixed this
+    // one too, for the same reason: read the total off the stops rather than
+    // trust the label). A day with one booked ticket and everything else
+    // improvised — the ordinary shape of a good day.
     keptOn: "2026-07-19T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000008", addedBy: CARLOS },
@@ -239,7 +255,12 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     // Autumn, and the cheap band — the whole day costs a car park and a meal.
     // Also the only day in the set with a weather note, which is the kind of
     // thing a saved day is genuinely better at carrying than a trip is.
-    keptOn: "2026-10-08T09:00:00.000Z",
+    // 2025, not 2026 (CodeRabbit, PR #104): `keptOn` seeds `created_at` /
+    // `published_at` and the ledger, so a future date shows a day "created"
+    // ahead of today (2026-09-01) and sorts it above every real one — the
+    // same defect the New York day below had, and worth the same fix: the
+    // equivalent date one year in the past, so the month stays autumn.
+    keptOn: "2025-10-08T09:00:00.000Z",
     addedBy: [{ tripId: "bc000000-0000-4000-8000-000000000010", addedBy: MAEVE }],
     stops: [
       stop("Park at the Three Sisters", "08:30", "08:45", { name: "Three Sisters Viewpoint", city: "Glencoe" }, {
@@ -264,8 +285,18 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     name: "New York: uptown museums in the cold",
     visibility: "public",
     // Winter — the fourth season bucket, without which a quarter of the filter
-    // returns nothing. Top band: two museum admissions and a proper lunch.
-    keptOn: "2027-01-24T09:00:00.000Z",
+    // returns nothing. Middle band: two museum admissions and a proper lunch
+    // total $92 each, not "top band" as this comment used to claim
+    // (CodeRabbit, PR #104) — see the file header for where the real top-band
+    // occupant lives.
+    //
+    // 2026, not 2027 (CodeRabbit, PR #104): `keptOn` seeds `created_at` /
+    // `published_at` and the ledger, and today is 2026-09-01 — a saved day
+    // "created" in the future sorts above every real one in the library and
+    // is the most visible version of this bug (it's the freshest-looking
+    // thing in a fresh database). Moved back one year so the month stays
+    // winter.
+    keptOn: "2026-01-24T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000011", addedBy: CARLOS },
       { tripId: "bc000000-0000-4000-8000-000000000012", addedBy: "dev-alice" },
@@ -298,7 +329,10 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     // on the shared-day screen needs on the other side of it in a fresh
     // database. Deliberately unpriced too: a day that does not say what it
     // costs is the ordinary case and something has to render it.
-    keptOn: "2026-09-27T09:00:00.000Z",
+    // 2025, not 2026 (CodeRabbit, PR #104): same future-`keptOn` defect as the
+    // Glen Coe and New York days above — moved back one year, past today
+    // (2026-09-01).
+    keptOn: "2025-09-27T09:00:00.000Z",
     addedBy: [],
     stops: [
       stop("Across the top deck of the Dom Luís I", "16:00", "16:30", { name: "Ponte Luís I", city: "Porto" }, {

@@ -4,6 +4,7 @@ import { isGoogleSignInAvailable } from "@/lib/googleAuth";
 import { AuthScreen } from "@/components/front/AuthScreen";
 import { AUTH_COPY } from "@/components/front/authCopy";
 import { pageMetadata } from "@/lib/siteMetadata";
+import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import {
   PENDING_ADMISSION_COOKIE,
   normalizePendingAdmission,
@@ -61,14 +62,40 @@ async function storeAdmissionCode(code: string) {
 // AuthScreen owns its own Suspense boundary around the one piece that reads
 // `useSearchParams()` (the error banner) — see AuthScreen.tsx. Wrapping the
 // whole screen here would make Next prerender a blank fallback for the
-// entire page instead of just that banner.
-export default function SignUpPage() {
+// entire page instead of just that banner. That boundary is unrelated to,
+// and unaffected by, the `searchParams` read below — it protects the shell
+// *inside* whatever this page's own rendering strategy produces, not the
+// strategy itself.
+//
+// `searchParams` is new here (CodeRabbit, PR #104): `initialCallbackUrl` lets
+// AuthScreen seed its swap-link state with the real, already-`safeCallbackUrl`
+// -normalised value instead of "/", so the sign-in ⇄ sign-up swap link is
+// correct in the server-rendered HTML itself and a click that beats
+// `AuthSearchParams`' hydration-time effect doesn't drop the destination —
+// exactly the loss `/demo`'s "Make this trip mine" hit on this exact hop.
+//
+// The cost: reading `searchParams` opts a route out of static generation
+// (Next can no longer prerender this page once at build time — every request
+// runs the server component fresh, the same trade `signin/page.tsx` already
+// made for its `generateMetadata`). Before this change `/signup` had no
+// dynamic API and was a static, cacheable shell; after it, it is not. Same
+// call as signin's: this is the auth screen, not a hot path, and a wrong or
+// stale swap-link destination is a worse user-facing cost than a page that
+// can't be served from a static cache.
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { callbackUrl } = await searchParams;
+  const initialCallbackUrl = safeCallbackUrl(typeof callbackUrl === "string" ? callbackUrl : null);
   return (
     <AuthScreen
       mode="signup"
       devLoginEnabled={isDevLoginEnabled()}
       googleAvailable={isGoogleSignInAvailable()}
       storeAdmissionCode={storeAdmissionCode}
+      initialCallbackUrl={initialCallbackUrl}
     />
   );
 }

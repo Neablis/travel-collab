@@ -106,7 +106,11 @@ describe("TravelersPanel", () => {
       }),
     });
     render(<TravelersPanel tripId={tripId} />);
-    expect(await screen.findByText("Traveler 8901")).toBeTruthy();
+    // Six trailing digits, not four (CodeRabbit, PR #104): `displayNameFor`
+    // widened its suffix because four characters collided too easily for a
+    // label the leaderboard and public profiles rank people by. See
+    // `lib/displayName.ts`.
+    expect(await screen.findByText("Traveler 678901")).toBeTruthy();
     expect(screen.queryByText(sub)).toBeNull();
   });
 

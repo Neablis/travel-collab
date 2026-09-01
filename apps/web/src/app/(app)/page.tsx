@@ -70,9 +70,14 @@ export default function Home() {
   const [newTripOpen, setNewTripOpen] = useState(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
-  // here at all. It also holds the first-run wizard shut: opening a "plan your
-  // first trip" sheet over a copy that is about to navigate away would be the
-  // wrong thing twice.
+  // here at all. It also holds the first-run wizard shut — both while it is
+  // open (the effect below force-closes it the moment cloning starts) and
+  // against being opened — because a submit of that wizard while the clone
+  // request is in flight creates an extra trip nobody asked for (CodeRabbit,
+  // PR #104): the wizard's own `createTrip` has no idea a copy is already
+  // headed for this same list. Both launchers into the wizard — the page-head
+  // "New trip" button and `FirstTripStart`'s "Name your trip" — are disabled
+  // below for the same reason.
   const [cloningDemo, setCloningDemo] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
@@ -118,7 +123,7 @@ export default function Home() {
 
   // Finish the copy somebody asked for on `/demo` before they had an account.
   //
-  // Here rather than only on `/demo?clone=1`, because this is the page every
+  // Here rather than only on `/demo`, because this is the page every
   // successful sign-in actually reaches: a refusal round trip
   // (`/signup?error=…`) is built server-side and cannot carry a callback, and
   // the sign-in ⇄ sign-up swap dropped the callback too until this branch's
@@ -135,6 +140,13 @@ export default function Home() {
     if (!takeDemoClone()) return;
     demoCloneAttempted.current = true;
     setCloningDemo(true);
+    // The wizard may already be open (page-head button, or the first-run
+    // card) when this fires — `takeDemoClone` only resolves once `/api/trips`
+    // has answered, and someone can click "New trip" in that same window. A
+    // trip they're actively naming is about to be blown away by a navigation
+    // to the demo copy, so close it rather than let the submit race the
+    // clone (CodeRabbit, PR #104).
+    setNewTripOpen(false);
     void duplicateTrip(DEMO_TRIP_ID).then((result) => {
       if (result.ok) {
         // Left true across the navigation on purpose: `router.push` does not
@@ -314,7 +326,12 @@ export default function Home() {
               <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
                 Start from a Playbook
               </Link>
-              <Button type="button" variant="primary" onClick={() => setNewTripOpen(true)}>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={cloningDemo}
+                onClick={() => setNewTripOpen(true)}
+              >
                 New trip
               </Button>
             </div>
@@ -398,7 +415,7 @@ export default function Home() {
                suite is a function of which spec ran first. A first run that is
                one obvious click away is worth more than one that is sometimes
                a trap. */
-            <FirstTripStart onStart={() => setNewTripOpen(true)} />
+            <FirstTripStart onStart={() => setNewTripOpen(true)} disabled={cloningDemo} />
           ) : (
             <>
               {visibleTrips.length > 0 && (

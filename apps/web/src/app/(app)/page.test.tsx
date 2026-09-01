@@ -714,4 +714,87 @@ describe("Home finishing a demo clone", () => {
     expect(alert.textContent).toContain("could not take a copy");
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  // CodeRabbit, PR #104: submitting the wizard while the demo copy is still in
+  // flight created a second, unwanted trip — the wizard's own `createTrip` has
+  // no idea a copy is already headed for this same list. Holds the duplicate
+  // response open (rather than letting `stubEmptyListAndDuplicate` resolve it
+  // immediately) so there's a real window to observe both launchers — the
+  // page-head "New trip" button and `FirstTripStart`'s "Name your trip",
+  // which is what's on screen because an empty trip list is what "no trips
+  // yet" and "the clone hasn't resolved yet" both look like — disabled.
+  it("disables both wizard launchers while the demo copy is in flight", async () => {
+    rememberDemoClone();
+    let resolveDuplicate!: (response: Response) => void;
+    const duplicatePending = new Promise<Response>((resolve) => {
+      resolveDuplicate = resolve;
+    });
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) return duplicatePending;
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const headButton = await screen.findByRole("button", { name: "New trip" });
+    const firstRunButton = within(await screen.findByTestId("first-trip-start")).getByRole(
+      "button",
+      { name: "Name your trip" },
+    );
+    await waitFor(() => {
+      expect((headButton as HTMLButtonElement).disabled).toBe(true);
+      expect((firstRunButton as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    // Let the pending request settle so the test doesn't leave a dangling
+    // fetch behind it; the resulting navigation just confirms the clone
+    // itself still finishes normally once unblocked.
+    resolveDuplicate(jsonResponse({ tripId: clonedTripId }, 201));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
+  });
+
+  // The other half of the same fix: a wizard already open when the clone
+  // starts must not be left sitting over a list that's about to be replaced
+  // by a navigation — submitting it would still create the unwanted extra
+  // trip the disabled-launcher test above guards against. The demo-clone
+  // effect only fires once `/api/trips` resolves (it's gated on `trips !==
+  // null`), so this holds THAT fetch open — not the duplicate one — to get a
+  // real window where the page-head button is open for business (nothing has
+  // decided yet whether this account has zero trips or a pending clone) and
+  // a person can open the wizard before the clone claims it.
+  it("closes an already-open wizard when the demo copy starts", async () => {
+    rememberDemoClone();
+    let resolveList!: (response: Response) => void;
+    const listPending = new Promise<Response>((resolve) => {
+      resolveList = resolve;
+    });
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) {
+        return jsonResponse({ tripId: clonedTripId }, 201);
+      }
+      if (url.endsWith("/api/trips")) return listPending;
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    // `trips` is still null here, so `hasNoTrips` is false and `FirstTripStart`
+    // hasn't rendered yet — the page-head button is the only launcher on
+    // screen, and it's what a person who clicks before the list has loaded
+    // actually has available.
+    await userEvent.click(screen.getByRole("button", { name: "New trip" }));
+    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+
+    // Now let the list resolve empty: `takeDemoClone`'s effect fires, closing
+    // the wizard out from under whatever was being typed into it.
+    resolveList(jsonResponse({ trips: [] }));
+
+    await waitFor(() => expect(screen.queryByLabelText(/trip name/i)).toBeNull());
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
+  });
 });

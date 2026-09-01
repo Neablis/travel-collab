@@ -48,12 +48,27 @@ export async function generateMetadata({
 // `useSearchParams()` (the error banner) — see AuthScreen.tsx. Wrapping the
 // whole screen here would make Next prerender a blank fallback for the
 // entire page instead of just that banner.
-export default function SignInPage() {
+//
+// `initialCallbackUrl` is the same `searchParams` read `generateMetadata`
+// above already does — this route is request-rendered either way, so reading
+// it a second time here costs nothing new (CodeRabbit, PR #104). It seeds
+// AuthScreen's `callbackUrl` state so the mode-swap link is right in the
+// server-rendered HTML itself, closing the pre-hydration window where a fast
+// click on that link (the common path for someone arriving from `/demo`'s
+// "Make this trip mine" with no account) lost the destination.
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { callbackUrl } = await searchParams;
+  const initialCallbackUrl = safeCallbackUrl(typeof callbackUrl === "string" ? callbackUrl : null);
   return (
     <AuthScreen
       mode="signin"
       devLoginEnabled={isDevLoginEnabled()}
       googleAvailable={isGoogleSignInAvailable()}
+      initialCallbackUrl={initialCallbackUrl}
     />
   );
 }

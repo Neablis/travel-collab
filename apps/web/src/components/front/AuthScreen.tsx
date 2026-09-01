@@ -88,11 +88,24 @@ export function AuthScreen({
   devLoginEnabled,
   googleAvailable,
   storeAdmissionCode,
+  initialCallbackUrl = "/",
 }: {
   mode: AuthMode;
   devLoginEnabled: boolean;
   googleAvailable: boolean;
   storeAdmissionCode?: (code: string) => Promise<void>;
+  // The request-rendered value of `safeCallbackUrl(searchParams.callbackUrl)`,
+  // read server-side by `signin/page.tsx` / `signup/page.tsx` and handed down
+  // already normalised — this file does not re-normalise it (one
+  // `safeCallbackUrl`, not two). Exists so the mode-swap link is right in the
+  // server-rendered HTML itself (CodeRabbit, PR #104): `next/link` renders a
+  // real anchor before hydration, and `AuthSearchParams` below only learns the
+  // real callbackUrl from a post-render effect — a click that beats that
+  // effect used to land on a bare `/signup` or `/signin`, dropping exactly the
+  // destination "Make this trip mine" on `/demo` depends on. Defaults to "/"
+  // so every existing caller (tests included) that doesn't pass it keeps the
+  // old effect-only behaviour.
+  initialCallbackUrl?: string;
 }) {
   const copy = AUTH_COPY[mode];
   // Both of the design's Google-presuming strings, suppressed only in the
@@ -130,11 +143,16 @@ export function AuthScreen({
   // auth flow rather than a fix to this defect.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
-  // Defaults to "/" until AuthSearchParams' effect resolves the real
-  // `?callbackUrl=` (or confirms there isn't one) — same default `signIn`
-  // calls hardcoded before this fix, so a click that somehow beats the
-  // effect still lands somewhere safe rather than on `undefined`.
-  const [callbackUrl, setCallbackUrl] = useState("/");
+  // Seeded from `initialCallbackUrl` — the server-rendered, already-safe
+  // value — rather than a hardcoded "/", so the mode-swap `<Link>` below is
+  // correct in the HTML the server sends, not just after `AuthSearchParams`'
+  // effect runs (CodeRabbit, PR #104; see the prop's own comment above).
+  // `AuthSearchParams` still owns reconciling this on the client: it's the
+  // only piece of this screen that has to be inside a Suspense boundary
+  // (`useSearchParams()`), so it stays the source of truth for anything that
+  // changes after first paint (e.g. `back`/`forward` navigating this same
+  // route with a different `?callbackUrl=`).
+  const [callbackUrl, setCallbackUrl] = useState(initialCallbackUrl);
   // Signup only. Someone on `/signin` either already has a `users` row (the
   // gate waves them through untouched) or arrived on a trip invite link,
   // which `proxy.ts` has already banked in the same cookie — neither has a
@@ -145,7 +163,7 @@ export function AuthScreen({
   // The swap link has to carry `?callbackUrl=` across, and this is not a
   // nicety: it is one of the three places the "Make this trip mine" intent was
   // being dropped (Mitchell, 2026-09-01 — you press it on `/demo`, land on
-  // `/signin?callbackUrl=/demo?clone=1`, follow "Create an account" because you
+  // `/signin?callbackUrl=/demo`, follow "Create an account" because you
   // have none, and arrive at a bare `/signup` that has forgotten where you were
   // going). Someone who has no account is exactly the person the demo's CTA
   // sends here, so the hop that loses their destination is the common path, not

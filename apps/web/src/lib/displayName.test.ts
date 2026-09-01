@@ -39,6 +39,18 @@ describe("displayNameFor", () => {
     expect(a).not.toBe(b);
   });
 
+  // CodeRabbit (PR #104): the old 4-character suffix meant two ids that
+  // merely shared their LAST four characters rendered as the exact same
+  // label — these two differ only in the fifth-from-last character
+  // (`...5a44` vs `...9a44`), a collision the old width could not see past.
+  // The point of this test is specifically that width, not just "any two
+  // random ids differ" (the test above already covers that).
+  it("still tells apart two ids that share their final four characters", () => {
+    const a = displayNameFor({ userId: "9f1c2b7e-4a55-4a1e-9b31-8c0d7e6f5a44" });
+    const b = displayNameFor({ userId: "9f1c2b7e-4a55-4a1e-9b31-8c0d7e6f9a44" });
+    expect(a).not.toBe(b);
+  });
+
   it("is stable for one id", () => {
     const id = "104773518912345678901";
     expect(displayNameFor({ userId: id })).toBe(displayNameFor({ userId: id }));

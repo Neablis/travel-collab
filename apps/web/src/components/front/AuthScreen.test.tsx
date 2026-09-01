@@ -60,17 +60,44 @@ describe("AuthScreen", () => {
 
   // One of the three places the "Make this trip mine" intent was being dropped
   // (Mitchell, 2026-09-01): you press it on `/demo`, land on
-  // `/signin?callbackUrl=/demo?clone=1`, follow "Create an account" because you
+  // `/signin?callbackUrl=/demo`, follow "Create an account" because you
   // have none — and arrive at a bare `/signup` that has forgotten where you
   // were going. Someone with no account is exactly who that CTA sends here, so
   // this hop is the common path.
   it("carries the callbackUrl across the sign-in / sign-up swap", async () => {
-    searchParams = new URLSearchParams("callbackUrl=/demo?clone=1");
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123?lens=Map");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await waitFor(() =>
       expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
-        `/signup?callbackUrl=${encodeURIComponent("/demo?clone=1")}`,
+        `/signup?callbackUrl=${encodeURIComponent("/trips/abc-123?lens=Map")}`,
       ),
+    );
+  });
+
+  // CodeRabbit (PR #104): `next/link` renders a real anchor in the
+  // server-rendered HTML, and `AuthSearchParams`' effect only resolves the
+  // real callbackUrl post-render — so before this fix a click that beat the
+  // effect landed on a bare `/signup`. `initialCallbackUrl` is what
+  // `signin/page.tsx` / `signup/page.tsx` compute server-side from the same
+  // `?callbackUrl=` and pass down, so it should already be correct on the
+  // very FIRST render, with no wait for anything to resolve — unlike the
+  // three tests around this one (which rely on `AuthSearchParams`' effect
+  // and so all `await waitFor`), this assertion is synchronous on purpose:
+  // if the fix regressed to reading the value only from the effect, this
+  // is the test that would start needing a `waitFor` to pass, and that
+  // regression is exactly what this test exists to catch.
+  it("renders the swap link correctly on the very first render, from initialCallbackUrl", () => {
+    searchParams = new URLSearchParams("callbackUrl=/trips/abc-123?lens=Map");
+    render(
+      <AuthScreen
+        mode="signin"
+        devLoginEnabled={false}
+        googleAvailable
+        initialCallbackUrl="/trips/abc-123?lens=Map"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+      `/signup?callbackUrl=${encodeURIComponent("/trips/abc-123?lens=Map")}`,
     );
   });
 

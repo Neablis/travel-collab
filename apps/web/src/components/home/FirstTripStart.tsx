@@ -33,7 +33,19 @@ const WIZARD_STEPS: readonly { label: string; detail: string }[] = [
   { label: "Shape", detail: "How full the days should feel." },
 ];
 
-export function FirstTripStart({ onStart }: { onStart: () => void }) {
+export function FirstTripStart({
+  onStart,
+  disabled = false,
+}: {
+  onStart: () => void;
+  // True while a demo clone is landing in the background (Home's
+  // `cloningDemo`) — this card can be on screen at that exact moment (an
+  // empty list is what both "no trips yet" and "the clone hasn't resolved
+  // yet" look like), and starting the wizard here races the same
+  // already-in-flight `duplicateTrip` this button's sibling on the page head
+  // is guarded against (CodeRabbit, PR #104).
+  disabled?: boolean;
+}) {
   return (
     <Card raised className="flex flex-col gap-5 p-6" data-testid="first-trip-start">
       <div className="flex flex-col gap-2">
@@ -70,7 +82,7 @@ export function FirstTripStart({ onStart }: { onStart: () => void }) {
       </ol>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="primary" onClick={onStart}>
+        <Button type="button" variant="primary" disabled={disabled} onClick={onStart}>
           Name your trip
         </Button>
         {/* The library, which is the real answer to "from total scratch is
