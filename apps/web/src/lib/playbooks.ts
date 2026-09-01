@@ -111,8 +111,15 @@ export function seasonOfInstant(iso: string): Season | null {
 }
 
 /**
- * Budget per person, in bands rather than a slider — four ranges over the sum
- * of a day's priced stops.
+ * A day's TOTAL cost, in bands rather than a slider — four ranges over the sum
+ * of its priced stops.
+ *
+ * This docstring opened "Budget per person" until 2026-09-01, and the number it
+ * bands never was one: `savedDayFacts` adds up `stop.cost` and divides by
+ * nothing. Mitchell: *"why are we calculating per person in a notebook? just
+ * show total cost there, any per person logic and math should go into the
+ * future milestone around cost."* The control is unchanged — same edges, same
+ * `?budget=` values — only the claim about what it compares.
  *
  * Four bands, not three: Mitchell, Vercel toolbar comment on `/playbooks` at
  * 411px with the budget `<select>` selected (2026-09-01): *"the default
@@ -151,6 +158,9 @@ export const BUDGET_BAND_EDGES = { twoHundred: 20_000, fiveHundred: 50_000, oneT
 /**
  * `any` accepts a day with no priced stops at all; the other four do not.
  *
+ * `amountMinor` is a day's total (`SavedDayFacts.totalCost`), not a per-head
+ * share — see `BudgetBand` above for why that stopped being claimed.
+ *
  * Each band's lower edge is inclusive and its upper edge is exclusive, and
  * the top band is open-ended — the ordinary "$X+" reading a price filter
  * gets (an Amazon-style price-range control, not a mathematician's closed
@@ -178,8 +188,8 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
 /**
  * One Discover card. Deliberately NOT a `SavedDay`.
  *
- * A card shows derived facts — how many stops, the window they span, what it
- * costs each, which of its cities the query matched — and never the stops
+ * A card shows derived facts — how many stops, the window they span, what the
+ * whole day costs, which of its cities the query matched — and never the stops
  * themselves, which are the heavy half of a `SavedDay` and are what the shared
  * day route exists to show. Sending 30 days' stop arrays to render 30 summary
  * cards would be sending the whole library on every keystroke.
@@ -199,8 +209,24 @@ export const DiscoverDay = z.object({
   stopCount: z.number().int().nonnegative(),
   /** First stop's start to last stop's end; null when no stop carries a time. */
   window: TimeWindow.nullable(),
-  /** Sum of the day's priced stops; null when nothing is priced or currencies disagree. */
-  budgetPerPerson: Money.nullable(),
+  /**
+   * Sum of the day's priced stops; null when nothing is priced or currencies
+   * disagree. The day's TOTAL — nothing divides it by a traveller count,
+   * because there is no traveller count.
+   *
+   * **This wire field was `budgetPerPerson` and renamed here on pull request
+   * 104** (Mitchell, 2026-09-01: *"just show total cost there"*). `DiscoverDay`
+   * is a local response shape, not `packages/contracts`, so invariant 5's
+   * contract protocol does not apply and there is no changelog entry to write —
+   * but the rename is still a wire break, so: an old client would find no
+   * `budgetPerPerson` on the response and simply render no money line, because
+   * `DiscoverCard` guards on the field being non-null. Nothing persists a
+   * `DiscoverDay` — no storage, no cache, no fixture, no external reader; the
+   * only producer is `server/playbooks.ts` and the only consumer is
+   * `DiscoverCard`, both shipped together — so no stored row carries the old
+   * key and there is no reader to keep an alias for.
+   */
+  totalCost: Money.nullable(),
   adds: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
   sourceTripName: z.string().min(1),

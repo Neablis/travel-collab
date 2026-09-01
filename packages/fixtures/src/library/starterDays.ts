@@ -22,7 +22,7 @@
 //
 //   * **Priced — but no longer an occupant of every band, and that is now
 //     known and flagged rather than quietly true.** `savedDayFacts` derives
-//     "budget each" from the priced stops, and Discover's budget band filters
+//     the day's TOTAL cost from the priced stops, and Discover's budget band filters
 //     on it — a day with nothing priced shows "—" and is invisible to that
 //     control. This file was originally written against `BUDGET_BAND_EDGES`
 //     of $50/$150, and the five priced days below ($23-$92: Lisbon $36,
@@ -133,7 +133,8 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: CARLOS,
     name: "Lisbon: Alfama downhill, all day",
     visibility: "public",
-    // Spring, and $36 each — a walking day with two small tickets and lunch.
+    // Spring, and $36 for the day — a walking day with two small tickets and
+    // lunch.
     // Somebody taking this is taking a route, not a budget.
     keptOn: "2026-04-12T09:00:00.000Z",
     addedBy: [
@@ -173,7 +174,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: CARLOS,
     name: "Sintra without the queue",
     visibility: "public",
-    // Spring as well, and the most expensive day here at $72 each: two palaces
+    // Spring as well, and the most expensive day here at $72 in total: two palaces
     // and a train fare. The most-added day in the starter set — it is the one
     // with real advice in it, which is what a Playbook is for.
     keptOn: "2026-05-03T09:00:00.000Z",
@@ -220,7 +221,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: PRIYA,
     name: "Mexico City: Coyoacán, slowly",
     visibility: "public",
-    // Summer, $36 each. One booked ticket and everything else improvised —
+    // Summer, $36 for the day. One booked ticket and everything else improvised —
     // the ordinary shape of a good day.
     keptOn: "2026-07-19T09:00:00.000Z",
     addedBy: [
@@ -257,7 +258,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: PRIYA,
     name: "Glen Coe on foot, then a fire",
     visibility: "public",
-    // Autumn, and the cheapest day here at $23 each — a car park and a meal.
+    // Autumn, and the cheapest day here at $23 in total — a car park and a meal.
     // Also the only day in the set with a weather note, which is the kind of
     // thing a saved day is genuinely better at carrying than a trip is.
     // 2025, not 2026 (CodeRabbit, pull request 104): `keptOn` seeds `created_at` /
@@ -290,8 +291,8 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     name: "New York: uptown museums in the cold",
     visibility: "public",
     // Winter — the fourth season bucket, without which a quarter of that
-    // filter returns nothing. $92 each: two museum admissions and a proper
-    // lunch.
+    // filter returns nothing. $92 for the day: two museum admissions and a
+    // proper lunch.
     //
     // 2026, not 2027 (CodeRabbit, pull request 104): `keptOn` seeds `created_at` /
     // `published_at` and the ledger, and today is 2026-09-01 — a saved day

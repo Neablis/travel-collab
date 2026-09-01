@@ -19,7 +19,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     matchedCities: [],
     stopCount: 4,
     window: { start: "07:30", end: "18:30" },
-    budgetPerPerson: { amountMinor: 2_700, currency: "USD" },
+    totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     visibility: "public",
     sourceTripName: "Japan",

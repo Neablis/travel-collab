@@ -51,7 +51,7 @@ describe("savedDayFacts", () => {
       stop(),
       stop({ cost: { amountMinor: 4_000, currency: "USD" } }),
     ]);
-    expect(facts.budgetPerPerson).toEqual({ amountMinor: 6_500, currency: "USD" });
+    expect(facts.totalCost).toEqual({ amountMinor: 6_500, currency: "USD" });
     expect(facts.unpricedStops).toBe(1);
   });
 
@@ -60,21 +60,21 @@ describe("savedDayFacts", () => {
       stop({ cost: { amountMinor: 2_500, currency: "USD" } }),
       stop({ cost: { amountMinor: 4_000, currency: "JPY" } }),
     ]);
-    expect(facts.budgetPerPerson).toBeNull();
+    expect(facts.totalCost).toBeNull();
     // The stops are still counted as priced — the refusal is about the SUM,
     // not about whether the day says anything about money.
     expect(facts.unpricedStops).toBe(0);
   });
 
   it("reports no budget for a day where nothing is priced", () => {
-    expect(savedDayFacts([stop(), stop()]).budgetPerPerson).toBeNull();
+    expect(savedDayFacts([stop(), stop()]).totalCost).toBeNull();
   });
 
   it("is empty-safe", () => {
     expect(savedDayFacts([])).toEqual({
       stopCount: 0,
       window: null,
-      budgetPerPerson: null,
+      totalCost: null,
       unpricedStops: 0,
     });
   });
@@ -98,8 +98,8 @@ describe("savedDayFacts", () => {
 
           expect(facts.stopCount).toBe(stops.length);
           expect(facts.unpricedStops).toBe(stops.length - priced.length);
-          if (priced.length === 0) expect(facts.budgetPerPerson).toBeNull();
-          else expect(facts.budgetPerPerson).toEqual({ amountMinor: expected, currency });
+          if (priced.length === 0) expect(facts.totalCost).toBeNull();
+          else expect(facts.totalCost).toEqual({ amountMinor: expected, currency });
           w.tick();
           return true;
         },

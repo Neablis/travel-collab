@@ -114,8 +114,11 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     const oneThousand = formatMoney(BUDGET_BAND_EDGES.oneThousand, currency);
     // "Budget", not "Budget each" — the trailing "each" was on the control's
     // label AND on every option, saying the same thing twice on one dropdown
-    // (Mitchell, 2026-09-01). The per-person reading survives on the card and
-    // on the shared-day rail, which is where a number needs the qualifier.
+    // (Mitchell, 2026-09-01). The per-person reading is gone from the card and
+    // the shared-day rail too, in the same review: the number these bands
+    // compare is a day's TOTAL (`SavedDayFacts.totalCost`, a sum of priced
+    // stops with nothing to divide by), so no surface qualifies it "each" any
+    // more. Per-head math is M19's — `docs/milestones/M19-cost-model.md`.
     //
     // Four bands over three edges (Mitchell, Vercel toolbar comment on
     // `/playbooks` at 411px, 2026-09-01: "the default budget options are

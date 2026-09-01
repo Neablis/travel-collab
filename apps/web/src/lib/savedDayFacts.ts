@@ -3,7 +3,7 @@ import { toMinutes } from "@/lib/time";
 
 /**
  * The facts a saved day states about itself — how many stops, the window they
- * span, and what it costs each — derived from its stops and nothing else.
+ * span, and what the whole day costs — derived from its stops and nothing else.
  *
  * In `src/lib` for `savedStops.ts`'s reason: BOTH sides need it and the lint
  * wall forbids UI importing `@/server/*`. Discover's server computes these to
@@ -27,7 +27,22 @@ export type SavedDayFacts = {
    */
   window: TimeWindow | null;
   /**
-   * Sum of the priced stops, or null.
+   * What the whole day costs: the sum of its priced stops, in one currency, or
+   * null. Not a per-head figure — nothing here is divided by anything.
+   *
+   * **Named `totalCost` because it was called `budgetPerPerson` and was never
+   * per person.** Mitchell, 2026-09-01: *"why are we calculating per person in
+   * a notebook? just show total cost there, any per person logic and math
+   * should go into the future milestone around cost."* The loop below adds up
+   * `stop.cost` and stops; there is no traveller count in this codebase to
+   * divide by, so the old name asserted a semantic the computation did not
+   * have — the exact defect class KI-1 and KI-14 named, an invariant claimed
+   * by a name with nothing behind it. `docs/milestones/M19-cost-model.md` §1
+   * recorded it, and M19 owns the real model (a cost's kind, settled vs
+   * estimate, who an activity is for, splits, shared-day presentation). This
+   * rename is only the half that stops the lie; it deliberately builds none of
+   * that. `totalCost` rather than `total` or `cost` so it does not read as a
+   * near-twin of a stop's own `cost` at a call site holding both.
    *
    * Null in two different situations that a caller renders the same way and
    * must not conflate in code:
@@ -40,7 +55,7 @@ export type SavedDayFacts = {
    *     refusing rather than the one worth guessing at, so it returns null and
    *     the surface says nothing rather than saying something false.
    */
-  budgetPerPerson: Money | null;
+  totalCost: Money | null;
   /** How many stops carry no price — why a budget can be lower than it looks. */
   unpricedStops: number;
 };
@@ -65,7 +80,7 @@ export function savedDayFacts(stops: readonly SavedStop[]): SavedDayFacts {
   return {
     stopCount: stops.length,
     window: first !== undefined && last !== undefined ? { start: first.start, end: last.end } : null,
-    budgetPerPerson: priced === 0 || mixed || currency === null ? null : { amountMinor, currency },
+    totalCost: priced === 0 || mixed || currency === null ? null : { amountMinor, currency },
     unpricedStops: stops.length - priced,
   };
 }

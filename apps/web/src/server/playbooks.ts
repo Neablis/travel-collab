@@ -36,7 +36,7 @@ import { db } from "./db/client";
  * How many ranked rows the database is asked for before the application-side
  * filters run.
  *
- * Budget per person is a sum over the priced stops (`savedDayFacts`), so it
+ * A day's total cost is a sum over its priced stops (`savedDayFacts`), so it
  * cannot be a SQL predicate without querying into the jsonb ADR-029 says is a
  * value. It is therefore applied to a bounded window of already-ranked
  * candidates, and the response says so (`truncated`) rather than reporting a
@@ -262,7 +262,7 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     matchedCities: row.cities.filter((c) => wanted.has(c)),
     stopCount: facts.stopCount,
     window: facts.window,
-    budgetPerPerson: facts.budgetPerPerson,
+    totalCost: facts.totalCost,
     adds: row.adds,
     visibility: visibility.data,
     sourceTripName: row.source_trip_name,
@@ -342,12 +342,12 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   // disappear as you scroll. See `BudgetBand` for why a mixed set hides it
   // rather than comparing numbers that are not comparable.
   const currencies = new Set(
-    candidates.map((d) => d.budgetPerPerson?.currency).filter((c): c is string => c !== undefined),
+    candidates.map((d) => d.totalCost?.currency).filter((c): c is string => c !== undefined),
   );
   const budgetCurrency = currencies.size === 1 ? [...currencies][0]! : null;
 
   const filtered = candidates.filter((day) =>
-    inBudgetBand(query.budget, day.budgetPerPerson?.amountMinor ?? null),
+    inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null),
   );
 
   return {

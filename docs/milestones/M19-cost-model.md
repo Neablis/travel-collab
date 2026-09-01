@@ -56,6 +56,22 @@ behind it.
 
 This is the concrete form of "tacked on". It shipped in M11b and is live.
 
+> **Update, 2026-09-01 (pull request 104): the misnomer is gone; the model is
+> still M19's.** Mitchell, reading the shared-day rail: *"why are we
+> calculating per person in a notebook? just show total cost there, any per
+> person logic and math should go into the future milestone around cost."*
+> `SavedDayFacts.budgetPerPerson` is now `totalCost`, `DiscoverDay`'s wire
+> field renamed with it, and the Discover card no longer renders "$27.00
+> each" — the field, its docstrings and every surface now state what the
+> computation actually does, which is sum a day's priced stops in one currency.
+> **Nothing was divided and no person count was introduced**; a test now pins
+> the card's line as a total so the word cannot come back unnoticed. That is
+> the *"or no longer claims to"* half of this milestone's own gate box below,
+> left **unticked** because closing a gate is Mitchell's call, not a side
+> effect of a rename. Everything else here is untouched and still M19's: a
+> cost's kind, its settled-vs-estimate state, who an activity is for, splits
+> derived from that, and the shared-day cost presentation.
+
 ### 2. Nobody is attached to an activity
 
 Grep `packages/contracts/src/activity.ts` for `attendee`, `participant`,
@@ -100,11 +116,13 @@ them.
    existing members. Also unblocks `rack-provenance` and `add-stop-who` if it
    carries provenance with it — coordinate with M13 rather than building twice.
 4. **Cost splits.** Even split, per-head, or one payer — derived from link 3,
-   never a second hand-maintained number. `budgetPerPerson` becomes true or is
-   renamed.
-5. **The shared-day cost presentation.** M11b's rail says "budget each" from a
-   sum; with links 3 and 4 it can say what it actually means, and Discover's
-   budget-band filter can band on something real.
+   never a second hand-maintained number. The renaming half is done (see §1's
+   2026-09-01 note); what is left is the real per-head number, which needs
+   link 3 before it can exist.
+5. **The shared-day cost presentation.** M11b's rail shows a bare sum of the
+   day's priced stops and now says only that (§1's note); with links 3 and 4 it
+   can say something richer, and Discover's budget-band filter can band on
+   something more than a total.
 
 ## Explicitly not here
 

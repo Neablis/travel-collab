@@ -282,7 +282,7 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`scope=saved&city=${only}`)).body)).not.toContain(name);
   });
 
-  it("filters on budget per person, and reports the currency it compared in", async () => {
+  it("filters on a day's total cost, and reports the currency it compared in", async () => {
     const only = city("bud");
     const cheap = `Cheap ${RUN}`;
     const dear = `Dear ${RUN}`;
@@ -297,7 +297,7 @@ describe("GET /api/playbooks", () => {
 
     const over = await discover(`city=${only}&budget=over1000`);
     expect(names(over.body)).toEqual([dear]);
-    expect(over.body.days[0]!.budgetPerPerson).toEqual({ amountMinor: 150_000, currency: "USD" });
+    expect(over.body.days[0]!.totalCost).toEqual({ amountMinor: 150_000, currency: "USD" });
   });
 
   // The four bands' edges are $200/$500/$1,000 (Mitchell, Vercel toolbar
@@ -333,7 +333,7 @@ describe("GET /api/playbooks", () => {
     currentUserId = READER;
     expect(names((await discover(`city=${only}&budget=any`)).body)).toContain(name);
     expect(names((await discover(`city=${only}&budget=under200`)).body)).not.toContain(name);
-    expect((await discover(`city=${only}`)).body.days[0]!.budgetPerPerson).toBeNull();
+    expect((await discover(`city=${only}`)).body.days[0]!.totalCost).toBeNull();
   });
 
   // A link written against §15's four sorts, or from the future, shows results
@@ -430,7 +430,7 @@ describe("GET /api/playbooks", () => {
     const day = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
     expect(day.stopCount).toBe(3);
     expect(day.window).toEqual({ start: "08:00", end: "11:00" });
-    expect(day.budgetPerPerson).toEqual({ amountMinor: 6_500, currency: "USD" });
+    expect(day.totalCost).toEqual({ amountMinor: 6_500, currency: "USD" });
     // The day touches one city, twice — `citiesOfStops` collapses duplicates,
     // so this is "how many cities", not "how many placed stops".
     expect(day.cities).toEqual([only]);

@@ -336,15 +336,25 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
                 is the only place that string was actually VISIBLE, since
                 Discover's matching label is an aria-label over a select that
-                shows its option instead. The per-person reading survives where
-                it is attached to a number rather than to a heading: the
-                Discover card still reads "$27.00 each". */}
+                shows its option instead.
+
+                The word stays "Budget" on purpose. That was Mitchell's own
+                wording in this same review (*"Budget each → Should just say
+                Budget"*), so it is not up for a tidy-up into "Cost" or
+                "Total" here. What went is the per-person READING that the
+                first pass left standing on the number: `facts.totalCost` is a
+                plain sum of the day's priced stops, dividing by nothing, so
+                every surface now shows it as the day's total and none of them
+                says "each" (Mitchell, same day: *"just show total cost there,
+                any per person logic and math should go into the future
+                milestone around cost"*). Real per-head math is M19's —
+                `docs/milestones/M19-cost-model.md`. */}
             <Fact
               label="Budget"
               value={
-                facts.budgetPerPerson === null
+                facts.totalCost === null
                   ? "Not priced"
-                  : formatMoney(facts.budgetPerPerson.amountMinor, facts.budgetPerPerson.currency)
+                  : formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)
               }
             />
             {/* Season, over the month the day was lifted out of its source

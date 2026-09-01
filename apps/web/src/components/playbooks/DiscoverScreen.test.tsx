@@ -22,7 +22,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     matchedCities: [],
     stopCount: 4,
     window: { start: "07:30", end: "18:30" },
-    budgetPerPerson: { amountMinor: 2_700, currency: "USD" },
+    totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     visibility: "public",
     sourceTripName: "Japan",
@@ -86,6 +86,22 @@ describe("Discover", () => {
     const chips = screen.getByTestId("city-chips");
     expect(within(chips).getByText("Kyoto").getAttribute("data-matched")).toBe("true");
     expect(within(chips).getByText("Uji").getAttribute("data-matched")).toBe("false");
+  });
+
+  // The card's money line is the day's TOTAL, and must not qualify it "each".
+  // It read "$27.00 each" for a number `savedDayFacts` builds by adding up
+  // `stop.cost` and dividing by nothing — Mitchell, 2026-09-01: *"why are we
+  // calculating per person in a notebook? just show total cost there."*
+  // Pinned by a test because the old string had none: a per-person claim that
+  // lives only in a template literal is exactly the "invariant asserted by a
+  // name with nothing behind it" this repo keeps rediscovering (KI-1, KI-14),
+  // and the rename alone would not stop somebody re-adding the word.
+  it("prints the day's total with no per-person qualifier on it", async () => {
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    const line = screen.getByText(/\$27\.00/);
+    expect(line.textContent).toContain("$27.00");
+    expect(line.textContent).not.toMatch(/each/i);
   });
 
   it("says nothing about matching on an unfiltered browse", () => {
