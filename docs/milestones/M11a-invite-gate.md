@@ -139,34 +139,34 @@ to do next. Project rule 6: this is the failure state of the front door.
 
 ## Exit gate
 
-- [ ] A brand-new Google account with **no** admission is refused, lands on the
+- [x] A brand-new Google account with **no** admission is refused, lands on the
       designed `/signin?error=` screen with copy that says what to do, and
       **leaves no `users` row behind**.
-- [ ] **All three admission paths admit a genuinely new account** — a pending
+- [x] **All three admission paths admit a genuinely new account** — a pending
       trip-invite token, the super code, and a single-use code — each **walked
       in a browser**, not only unit-tested. The OAuth round trip is the part
       that cannot be asserted from a unit test.
-- [ ] A single-use code is **single-use**: a second sign-in with it is refused,
+- [x] A single-use code is **single-use**: a second sign-in with it is refused,
       and two concurrent redemptions produce **exactly one** admission. Proven
       against the row, not the UI.
-- [ ] **Every existing `users` row signs in unchanged, with no code** — proven
+- [x] **Every existing `users` row signs in unchanged, with no code** — proven
       for an account that existed before the gate shipped. Nobody already here
       gets locked out, Mitchell included.
-- [ ] **M11's invite→accept→edit flow still works end to end for a person who
+- [x] **M11's invite→accept→edit flow still works end to end for a person who
       has never signed in.** This is the regression the gate most threatens, and
       it is the flow M11's own gate walked as two actors.
-- [ ] The `pending_admission` cookie is httpOnly, `SameSite=Lax`, short-lived,
+- [x] The `pending_admission` cookie is httpOnly, `SameSite=Lax`, short-lived,
       and **cleared on both success and refusal** — no admission credential
       outlives the sign-in that used it.
-- [ ] **Dev-login does not bypass the gate by accident.** Either it goes through
+- [x] **Dev-login does not bypass the gate by accident.** Either it goes through
       the same admission path or its exemption is explicit and env-gated, and
       the e2e lane states which. `isDevLoginEnabled()` already gates the
       provider; that is not the same as gating admission.
-- [ ] **The `invite_codes` migration is written, applied locally, and its
+- [x] **The `invite_codes` migration is written, applied locally, and its
       production dispatch is called out in the PR body** —
       `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
       Merging does not apply a migration.
-- [ ] `pnpm --filter web test:e2e:ci-like` green **twice against a production
+- [x] `pnpm --filter web test:e2e:ci-like` green **twice against a production
       build**, plus the browser walk above. A suite pass is not the gate.
 
 ## Prerequisites and traps
@@ -194,3 +194,51 @@ to do next. Project rule 6: this is the failure state of the front door.
   builds its own Edge-runtime Auth.js instance from `lib/authConfig.ts`
   precisely so no database reaches it (ADR-024). The cookie write is Edge-safe;
   a validation call would not be.
+
+## Gate closed — 2026-08-31
+
+**All nine boxes met.** `pnpm check` and two `test:e2e:ci-like` runs green
+against a production build; the three admission paths and the refusal walked by
+Mitchell **on production** rather than a preview, because KI-50 blocks Google
+OAuth from an unregistered preview host and the box asks for the OAuth round
+trip specifically. Migration `0011` dispatched.
+
+## Retro — 2026-08-31
+
+**The suite proved the gate and missed the product.** Four assertions covered
+the no-credential refusal — the URL, the sentence, that the raw code is never
+shown, and that no `users` row is left behind — and every one passed while the
+screen was unusable. A refusal redirected to `/signin`, and the invite-code
+field only exists on `/signup`: the app told you what was wrong on the one page
+with no box to fix it in. Every refusal is by definition someone with no `users`
+row, which is exactly who `/signup` is for.
+
+That is the third consecutive gate where the browser walk found what the suite
+could not, and the shape is worth naming precisely: **every assertion read text
+or state; none asked whether you could act on the screen you landed on.** The
+test added with the fix is the one that was missing — after a refusal, the
+invite-code field is visible and editable — and reverting the redirect now fails
+it where the same revert passed everything before.
+
+**KI-50 turned out to be load-bearing on the gate itself, not just on
+convenience.** The milestone's own box says the OAuth round trip cannot be
+asserted from a unit test, and KI-50 makes it unassertable from a preview too.
+The e2e lane covers all three paths through dev-login, which is real coverage of
+the admission logic and no coverage at all of the thing the box is about. The
+walk moved to production, which is the honest answer; the alternative was
+rewording the box until the evidence we had happened to satisfy it.
+
+**Two defects this milestone introduced in its own supporting code**, both found
+by later work rather than by the milestone:
+
+* `pnpm db:reseed` broke on a fresh clone. `db:reset` derives its table list
+  from the schema, so it truncates `users`, and the first sign-in after a reset
+  is then a brand-new account the gate refuses. Invisible with an intact `users`
+  table — which is every run except the one that matters.
+* `admission.ts` re-declared the two `pending_admission` cookie constants that
+  `lib/pendingAdmission.ts` exists to own, in the module that READS the cookie
+  the other three write. They agreed on the day; nothing made them keep
+  agreeing.
+
+Both are the same species as the redirect: **correct in isolation, wrong in
+composition.** Nothing a test of either part could have caught.

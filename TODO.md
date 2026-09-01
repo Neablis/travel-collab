@@ -194,7 +194,10 @@ Where the work actually stands right now: `docs/STATUS.md`.
       four Playbooks `<Preview>` shells stay M11-tagged in
       `preview-registry.ts` with nothing else left in the milestone. Gate
       evidence and retro are in the milestone file.)*
-- [ ] **M11a An invite gate on the front door** ← **current milestone** →
+- [x] **M11a An invite gate on the front door** — **gate closed 2026-08-31**,
+      nine of nine boxes; the three admission paths walked on **production**
+      (KI-50 blocks the OAuth round trip on a preview). Gate evidence and retro
+      are in the milestone file. →
       `docs/milestones/M11a-invite-gate.md` — **scoped and placed 2026-08-30**,
       then **moved ahead of M17 the same day** on Mitchell's call, so it runs
       first and **before M11b**. **It needs one migration (`invite_codes`), and
@@ -212,7 +215,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       one real problem is that OAuth leaves the site, so the code rides a
       short-lived cookie across the round trip. Needs a migration, and the
       migration needs a dispatch.)*
-- [ ] **M11b Playbooks becomes a public library** →
+- [ ] **M11b Playbooks becomes a public library** ← **current milestone** →
       `docs/milestones/M11b-playbooks-public-library.md` — **scoped and placed
       2026-08-30**, running after M17 and immediately before M12.
       *(Carved out 2026-08-28 when M11's gate closed: the milestone's file
