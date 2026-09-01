@@ -287,17 +287,40 @@ describe("GET /api/playbooks", () => {
     const cheap = `Cheap ${RUN}`;
     const dear = `Dear ${RUN}`;
     await publish(await saveDay(cheap, [{ city: only, costMinor: 1_000 }]));
-    await publish(await saveDay(dear, [{ city: only, costMinor: 20_000 }]));
+    await publish(await saveDay(dear, [{ city: only, costMinor: 150_000 }]));
 
     currentUserId = READER;
-    const under = await discover(`city=${only}&budget=under`);
+    const under = await discover(`city=${only}&budget=under200`);
     expect(names(under.body)).toContain(cheap);
     expect(names(under.body)).not.toContain(dear);
     expect(under.body.budgetCurrency).toBe("USD");
 
-    const over = await discover(`city=${only}&budget=over`);
+    const over = await discover(`city=${only}&budget=over1000`);
     expect(names(over.body)).toEqual([dear]);
-    expect(over.body.days[0]!.budgetPerPerson).toEqual({ amountMinor: 20_000, currency: "USD" });
+    expect(over.body.days[0]!.budgetPerPerson).toEqual({ amountMinor: 150_000, currency: "USD" });
+  });
+
+  // The four bands' edges are $200/$500/$1,000 (Mitchell, Vercel toolbar
+  // comment on `/playbooks` at 411px, 2026-09-01 — see `BudgetBand` in
+  // lib/playbooks.ts for the mutually-exclusive-ranges reading). Each band's
+  // lower edge is inclusive and its upper edge is exclusive, so a day priced
+  // at EXACTLY one of the three edges belongs to the band ABOVE it, not the
+  // one below — pinned here at all three, since that is a decision a query
+  // string alone does not make visible.
+  it("puts a day priced at exactly $200, $500 or $1,000 in the band above, not below", async () => {
+    const only = city("edge");
+    const at200 = `AtTwoHundred ${RUN}`;
+    const at500 = `AtFiveHundred ${RUN}`;
+    const at1000 = `AtOneThousand ${RUN}`;
+    await publish(await saveDay(at200, [{ city: only, costMinor: 20_000 }]));
+    await publish(await saveDay(at500, [{ city: only, costMinor: 50_000 }]));
+    await publish(await saveDay(at1000, [{ city: only, costMinor: 100_000 }]));
+
+    currentUserId = READER;
+    expect(names((await discover(`city=${only}&budget=under200`)).body)).toEqual([]);
+    expect(names((await discover(`city=${only}&budget=200to500`)).body)).toEqual([at200]);
+    expect(names((await discover(`city=${only}&budget=500to1000`)).body)).toEqual([at500]);
+    expect(names((await discover(`city=${only}&budget=over1000`)).body)).toEqual([at1000]);
   });
 
   // A day with nothing priced is not "under" any budget — it does not say what
@@ -309,12 +332,17 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     expect(names((await discover(`city=${only}&budget=any`)).body)).toContain(name);
-    expect(names((await discover(`city=${only}&budget=under`)).body)).not.toContain(name);
+    expect(names((await discover(`city=${only}&budget=under200`)).body)).not.toContain(name);
     expect((await discover(`city=${only}`)).body.days[0]!.budgetPerPerson).toBeNull();
   });
 
   // A link written against §15's four sorts, or from the future, shows results
   // rather than a broken page — and never reaches a query as a raw string.
+  // `budget=mid` is also, deliberately, an "unrecognised" value now: it was
+  // the old three-band enum's middle option, and the new four-band enum has
+  // no member by that name (see `BudgetBand` in lib/playbooks.ts) — a stale
+  // link should fall back to `any` rather than silently landing on whichever
+  // new band happens to occupy that string.
   it("falls back on an unrecognised sort, scope or budget instead of failing", async () => {
     const only = city("fall");
     const name = `Fallback ${RUN}`;
@@ -322,7 +350,7 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     const { status, body } = await discover(
-      `city=${only}&sort=highest-rated&scope=galaxy&budget=free&season=harvest`,
+      `city=${only}&sort=highest-rated&scope=galaxy&budget=mid&season=harvest`,
     );
     expect(status).toBe(200);
     expect(names(body)).toContain(name);

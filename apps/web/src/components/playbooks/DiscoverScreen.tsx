@@ -109,17 +109,26 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     // not reachable through the product's own write path, but a control that
     // silently compared JPY to USD would be worse than an absent one.
     if (!currency) return null;
-    const lower = formatMoney(BUDGET_BAND_EDGES.lower, currency);
-    const upper = formatMoney(BUDGET_BAND_EDGES.upper, currency);
+    const twoHundred = formatMoney(BUDGET_BAND_EDGES.twoHundred, currency);
+    const fiveHundred = formatMoney(BUDGET_BAND_EDGES.fiveHundred, currency);
+    const oneThousand = formatMoney(BUDGET_BAND_EDGES.oneThousand, currency);
     // "Budget", not "Budget each" — the trailing "each" was on the control's
     // label AND on every option, saying the same thing twice on one dropdown
     // (Mitchell, 2026-09-01). The per-person reading survives on the card and
     // on the shared-day rail, which is where a number needs the qualifier.
+    //
+    // Four bands over three edges (Mitchell, Vercel toolbar comment on
+    // `/playbooks` at 411px, 2026-09-01: "the default budget options are
+    // pretty unrealistic, let's make them sub 200, sub 500, sub 1000 and
+    // above 1000") — see `BudgetBand` in `lib/playbooks.ts` for the
+    // mutually-exclusive-ranges reading of that request and the exact
+    // boundary each label's edge falls on.
     return [
       { value: "any" as const, label: "Any budget" },
-      { value: "under" as const, label: `Under ${lower}` },
-      { value: "mid" as const, label: `${lower} – ${upper}` },
-      { value: "over" as const, label: `Over ${upper}` },
+      { value: "under200" as const, label: `Under ${twoHundred}` },
+      { value: "200to500" as const, label: `${twoHundred} – ${fiveHundred}` },
+      { value: "500to1000" as const, label: `${fiveHundred} – ${oneThousand}` },
+      { value: "over1000" as const, label: `Over ${oneThousand}` },
     ];
   }, [feed.data?.budgetCurrency]);
 

@@ -123,6 +123,26 @@ describe("Discover", () => {
     expect(screen.getByLabelText("Season")).toBeTruthy();
   });
 
+  // Four bands over three edges (Mitchell, Vercel toolbar comment on
+  // `/playbooks` at 411px, 2026-09-01: "the default budget options are pretty
+  // unrealistic, let's make them sub 200, sub 500, sub 1000 and above 1000"),
+  // read as mutually exclusive ranges rather than four overlapping "sub N"s —
+  // see `BudgetBand` in lib/playbooks.ts. This is the assertion that pins the
+  // labels (and therefore the edges: $200 / $500 / $1,000) so a future change
+  // to `BUDGET_BAND_EDGES` cannot drift from what the control actually shows.
+  it("offers four budget bands over $200/$500/$1,000, not the old three", async () => {
+    render(<DiscoverScreen />);
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    const budget = screen.getByLabelText("Budget");
+    expect(within(budget).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Any budget",
+      "Under $200.00",
+      "$200.00 – $500.00",
+      "$500.00 – $1,000.00",
+      "Over $1,000.00",
+    ]);
+  });
+
   // The month dropdown this replaced had twelve options over a library of a few
   // dozen days, so most of them returned nothing. Four buckets, and the value
   // that reaches the endpoint is the SEASON — the month-to-season lookup lives

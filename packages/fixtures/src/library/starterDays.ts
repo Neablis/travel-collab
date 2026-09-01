@@ -20,21 +20,32 @@
 // Every one of them is publishable on its own terms, which is a real
 // constraint rather than a slogan:
 //
-//   * **Priced.** `savedDayFacts` derives "budget each" from the priced stops,
-//     and Discover's budget band filters on it — a day with nothing priced
-//     shows "—" and is invisible to that control. The days below span the
-//     BOTTOM two bands on purpose (see `BUDGET_BAND_EDGES`: under $50 and
-//     $50-$150), so that filter has an occupant on both. None of them plausibly
-//     clears the upper edge ($150 each) on its own terms — every stop here is a
-//     ticket, a meal or a fare, and pricing one up into that band would mean
-//     inventing a stop that does not belong on the day rather than pricing the
-//     day honestly (CodeRabbit, PR #104: two of these comments used to claim
-//     "top band" for days that priced out at $72 and $92 — corrected below,
-//     not inflated to match). The library already has an upper-band occupant
-//     elsewhere: `../japan/savedDays.ts`'s "Tokyo to Hakone, slowly" ($162
-//     each, a travel day with an onsen), which is a real day where that price
-//     is the honest one. The filter having an occupant everywhere does not
-//     require every file to supply one.
+//   * **Priced — but no longer an occupant of every band, and that is now
+//     known and flagged rather than quietly true.** `savedDayFacts` derives
+//     "budget each" from the priced stops, and Discover's budget band filters
+//     on it — a day with nothing priced shows "—" and is invisible to that
+//     control. This file was originally written against `BUDGET_BAND_EDGES`
+//     of $50/$150, and the five priced days below ($23-$92: Lisbon $36,
+//     Sintra $72, Mexico City $36, Glen Coe $23, New York $92) were placed to
+//     span the bottom two of those three bands on purpose.
+//
+//     Mitchell moved the edges to $200/$500/$1,000 (pull request 104, Vercel
+//     toolbar comment on `/playbooks` at 411px: "the default budget options
+//     are pretty unrealistic, let's make them sub 200, sub 500, sub 1000 and
+//     above 1000" — see `BudgetBand` in apps/web/src/lib/playbooks.ts), and
+//     that stretch retired the occupancy this bullet used to promise. Every
+//     priced day in the WHOLE seeded library — these five plus
+//     `../japan/savedDays.ts`'s three ($27-$162, topping out at "Tokyo to
+//     Hakone, slowly", which used to be this library's top-band occupant
+//     under the old $150 edge) — now lands in the single bottom band,
+//     `under200`. `200to500`, `500to1000` and `over1000` have no occupant
+//     anywhere in the seed: exactly the "a control over data that does not
+//     exist is a control that does nothing" problem (project rule 2) applied
+//     to Discover's own budget filter. Whether the library needs a
+//     genuinely-expensive seeded day to give those three bands something to
+//     show is a product-content call, not a fixtures one — flagged here for
+//     Mitchell rather than invented quietly by pricing one of these days past
+//     what it honestly costs.
 //   * **Placed.** Every stop carries a `city`, so `citiesOfStops` gives the day
 //     real cities to be found by. Two of them touch more than one city, which
 //     is what the per-card "Kyoto matched · also Uji" line and the sibling
@@ -122,8 +133,8 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: CARLOS,
     name: "Lisbon: Alfama downhill, all day",
     visibility: "public",
-    // Spring, and the cheap band — a walking day with two small tickets and
-    // lunch. Somebody taking this is taking a route, not a budget.
+    // Spring, and $36 each — a walking day with two small tickets and lunch.
+    // Somebody taking this is taking a route, not a budget.
     keptOn: "2026-04-12T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000001", addedBy: PRIYA },
@@ -162,11 +173,9 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: CARLOS,
     name: "Sintra without the queue",
     visibility: "public",
-    // Spring as well, and the middle band: two palaces and a train fare add up
-    // to $72 each — priced (CodeRabbit, PR #104), not "top band" as this
-    // comment used to claim; see the file header for where the top band's
-    // real occupant lives. The most-added day in the starter set — it is the
-    // one with real advice in it, which is what a Playbook is for.
+    // Spring as well, and the most expensive day here at $72 each: two palaces
+    // and a train fare. The most-added day in the starter set — it is the one
+    // with real advice in it, which is what a Playbook is for.
     keptOn: "2026-05-03T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000004", addedBy: PRIYA },
@@ -211,12 +220,8 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: PRIYA,
     name: "Mexico City: Coyoacán, slowly",
     visibility: "public",
-    // Summer. The cheap band — the priced stops total $36 each, not "middle
-    // band" as this comment used to claim (CodeRabbit, PR #104 review; the
-    // same pass that caught the two "top band" mislabels below fixed this
-    // one too, for the same reason: read the total off the stops rather than
-    // trust the label). A day with one booked ticket and everything else
-    // improvised — the ordinary shape of a good day.
+    // Summer, $36 each. One booked ticket and everything else improvised —
+    // the ordinary shape of a good day.
     keptOn: "2026-07-19T09:00:00.000Z",
     addedBy: [
       { tripId: "bc000000-0000-4000-8000-000000000008", addedBy: CARLOS },
@@ -252,10 +257,10 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: PRIYA,
     name: "Glen Coe on foot, then a fire",
     visibility: "public",
-    // Autumn, and the cheap band — the whole day costs a car park and a meal.
+    // Autumn, and the cheapest day here at $23 each — a car park and a meal.
     // Also the only day in the set with a weather note, which is the kind of
     // thing a saved day is genuinely better at carrying than a trip is.
-    // 2025, not 2026 (CodeRabbit, PR #104): `keptOn` seeds `created_at` /
+    // 2025, not 2026 (CodeRabbit, pull request 104): `keptOn` seeds `created_at` /
     // `published_at` and the ledger, so a future date shows a day "created"
     // ahead of today (2026-09-01) and sorts it above every real one — the
     // same defect the New York day below had, and worth the same fix: the
@@ -284,13 +289,11 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ownerId: MAEVE,
     name: "New York: uptown museums in the cold",
     visibility: "public",
-    // Winter — the fourth season bucket, without which a quarter of the filter
-    // returns nothing. Middle band: two museum admissions and a proper lunch
-    // total $92 each, not "top band" as this comment used to claim
-    // (CodeRabbit, PR #104) — see the file header for where the real top-band
-    // occupant lives.
+    // Winter — the fourth season bucket, without which a quarter of that
+    // filter returns nothing. $92 each: two museum admissions and a proper
+    // lunch.
     //
-    // 2026, not 2027 (CodeRabbit, PR #104): `keptOn` seeds `created_at` /
+    // 2026, not 2027 (CodeRabbit, pull request 104): `keptOn` seeds `created_at` /
     // `published_at` and the ledger, and today is 2026-09-01 — a saved day
     // "created" in the future sorts above every real one in the library and
     // is the most visible version of this bug (it's the freshest-looking
@@ -329,7 +332,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     // on the shared-day screen needs on the other side of it in a fresh
     // database. Deliberately unpriced too: a day that does not say what it
     // costs is the ordinary case and something has to render it.
-    // 2025, not 2026 (CodeRabbit, PR #104): same future-`keptOn` defect as the
+    // 2025, not 2026 (CodeRabbit, pull request 104): same future-`keptOn` defect as the
     // Glen Coe and New York days above — moved back one year, past today
     // (2026-09-01).
     keptOn: "2025-09-27T09:00:00.000Z",

@@ -111,8 +111,29 @@ export function seasonOfInstant(iso: string): Season | null {
 }
 
 /**
- * Budget per person, in bands rather than a slider — three ranges over the sum
+ * Budget per person, in bands rather than a slider — four ranges over the sum
  * of a day's priced stops.
+ *
+ * Four bands, not three: Mitchell, Vercel toolbar comment on `/playbooks` at
+ * 411px with the budget `<select>` selected (2026-09-01): *"the default
+ * budget options are pretty unrealistic, let's make them sub 200, sub 500,
+ * sub 1000 and above 1000."* His four numbers are EDGES, not four independent
+ * "cheaper than N" thresholds — a `<select>`'s options have to be mutually
+ * exclusive or a day could match two of them at once, so this reads the
+ * request as: under $200; $200-$500; $500-$1,000; over $1,000. Flagged here
+ * rather than assumed silently — if he actually meant four overlapping
+ * "at most N" toggles, that is a different control (checkboxes, not a
+ * `<select>`) and this needs to be redone, not just relabeled.
+ *
+ * Named for the range each one covers, not its position. `under`/`mid`/`over`
+ * cannot hold a fourth member without one of the three names starting to mean
+ * something else depending on how many bands exist that day — and a `mid`
+ * that silently became "$500-$1,000" instead of the old "$50-$150" is exactly
+ * the kind of link rot a saved/shared `?budget=mid` URL should not suffer
+ * quietly. Because these are new strings, an old link's `mid` no longer
+ * parses as anything: `BudgetBand.catch("any")` in
+ * `app/api/playbooks/route.ts` turns it into `any`, which is the right
+ * fallback for a stale value — the widest scope, not a wrong answer.
  *
  * The thresholds are minor units and are compared WITHIN one currency: a
  * response carries `budgetCurrency`, the single currency every matched day
@@ -121,19 +142,37 @@ export function seasonOfInstant(iso: string): Season | null {
  * single-currency; when it is not, the filter hides rather than comparing two
  * numbers that are not comparable.
  */
-export const BudgetBand = z.enum(["any", "under", "mid", "over"]);
+export const BudgetBand = z.enum(["any", "under200", "200to500", "500to1000", "over1000"]);
 export type BudgetBand = z.infer<typeof BudgetBand>;
 
-/** The two band edges, in minor units. $50 and $150 at 2-decimal currencies. */
-export const BUDGET_BAND_EDGES = { lower: 5_000, upper: 15_000 } as const;
+/** The three band edges, in minor units. $200 / $500 / $1,000 at 2-decimal currencies. */
+export const BUDGET_BAND_EDGES = { twoHundred: 20_000, fiveHundred: 50_000, oneThousand: 100_000 } as const;
 
-/** `any` accepts a day with no priced stops at all; the other three do not. */
+/**
+ * `any` accepts a day with no priced stops at all; the other four do not.
+ *
+ * Each band's lower edge is inclusive and its upper edge is exclusive, and
+ * the top band is open-ended — the ordinary "$X+" reading a price filter
+ * gets (an Amazon-style price-range control, not a mathematician's closed
+ * interval): a day priced at exactly $200 lands in `200to500`, not
+ * `under200`, and a day at exactly $1,000 lands in `over1000`, not
+ * `500to1000`. That makes the label on the top option ("Over $1,000") a hair
+ * loose at the boundary itself — an exactly-$1,000 day is not literally
+ * "over" — which is the same trade every "$1,000+" filter anywhere makes.
+ * Pinned by tests at all three edges so which side a boundary falls on is a
+ * decision on record, not an accident of `<`/`<=` in one line.
+ */
 export function inBudgetBand(band: BudgetBand, amountMinor: number | null): boolean {
   if (band === "any") return true;
   if (amountMinor === null) return false;
-  if (band === "under") return amountMinor < BUDGET_BAND_EDGES.lower;
-  if (band === "mid") return amountMinor >= BUDGET_BAND_EDGES.lower && amountMinor <= BUDGET_BAND_EDGES.upper;
-  return amountMinor > BUDGET_BAND_EDGES.upper;
+  if (band === "under200") return amountMinor < BUDGET_BAND_EDGES.twoHundred;
+  if (band === "200to500") {
+    return amountMinor >= BUDGET_BAND_EDGES.twoHundred && amountMinor < BUDGET_BAND_EDGES.fiveHundred;
+  }
+  if (band === "500to1000") {
+    return amountMinor >= BUDGET_BAND_EDGES.fiveHundred && amountMinor < BUDGET_BAND_EDGES.oneThousand;
+  }
+  return amountMinor >= BUDGET_BAND_EDGES.oneThousand; // over1000, the only band left standing
 }
 
 /**
