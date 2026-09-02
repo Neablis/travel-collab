@@ -53,6 +53,7 @@ const {
 } = await import("@/server/ai/handleAskRequest");
 const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
 const { WRITE_TOOL_NAMES } = await import("@/server/ai/writeTools");
+const { aiStepQuotas } = await import("@/server/quota");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
 async function seedTrip(): Promise<string> {
@@ -711,6 +712,58 @@ describe("POST /api/trips/:id/ask", () => {
         const second = await ask(tripId, { messages: [userMessage("two")], scope: { kind: "trip" } });
         expect(second.status).toBe(429);
         expect(second.headers.get("Retry-After")).toBeTruthy();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    // **KI-67, closed on the door users actually reach.** `aiStepQuotas` /
+    // `settleAiSteps` were built because metering REQUESTS rather than steps
+    // turned a nominal ceiling of 30 into a real ceiling of 960 — and that fix
+    // was wired into the command endpoint only, so this endpoint spent its whole
+    // life metered exactly the way KI-67 had already proved wrong.
+    //
+    // Admission pre-authorises ONE round-trip and the settlement charges the
+    // rest, so a two-step turn leaves 2 on the step bucket while the request
+    // bucket sees exactly 1: what a request COSTS, metered separately from how
+    // often it may be made.
+    it("charges the step bucket what the turn really cost, not one per request", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(tripId, { messages: [userMessage("what's on day 1?")], scope: { kind: "trip" } }, (r) =>
+        records.push(r),
+      );
+      // The record is written when the run ends, and `settleAiSteps` fires from
+      // that same sink — so the counters are only final once the stream is
+      // drained.
+      await res.text();
+      const steps = records[0]!.steps;
+      expect(steps).toBeGreaterThan(1);
+
+      const hitsByBucket = new Map(
+        (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
+      );
+      const stepPolicy = aiStepQuotas()[0]!.name;
+      expect(hitsByBucket.get(`${stepPolicy}:user:${ACTOR_ID}`)).toBe(steps);
+      expect(hitsByBucket.get(`${stepPolicy}:global`)).toBe(steps);
+      expect(hitsByBucket.get(`ai-hourly:user:${ACTOR_ID}`)).toBe(1);
+    });
+
+    // The step ceiling REFUSES, it does not merely record: an actor already over
+    // it is turned away at admission, before a provider is touched. Without the
+    // admission half this endpoint had no step ceiling at all.
+    it("429s once the actor is over their hourly STEP ceiling", async () => {
+      vi.stubEnv("AI_STEP_LIMIT_PER_USER_HOURLY", "2");
+      try {
+        const tripId = await seedTrip();
+        const first = await ask(tripId, { messages: [userMessage("one")], scope: { kind: "trip" } });
+        expect(first.status).toBe(200);
+        await first.text();
+        // The first turn settled more than its admitted 1, so the second is
+        // refused by the STEP layer while the request layer still has room.
+        const second = await ask(tripId, { messages: [userMessage("two")], scope: { kind: "trip" } });
+        expect(second.status).toBe(429);
+        expect((await second.json()).reason).toBe("user");
       } finally {
         vi.unstubAllEnvs();
       }

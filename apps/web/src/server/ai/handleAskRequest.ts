@@ -33,7 +33,7 @@ import type { TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { hasAtLeast } from "@/server/accessPolicy";
-import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
@@ -302,11 +302,27 @@ export async function handleAskRequest(
     };
   }
 
-  // Charged after validation and after model selection, for the reasons
-  // handleAiRequest sets out at length: a malformed request must not cost the
-  // caller their allowance, and neither must a request that never reached a
-  // model.
-  const quota = await consumeQuota(aiQuotas(), userId);
+  // **Charged after validation and after model selection**, and that ordering is
+  // a recorded incident rather than a preference — `handleAiRequest` sets it out
+  // at length. Charging before selection meant a missing AI_GATEWAY_API_KEY (the
+  // 503 above) burned the caller's whole hourly and daily allowance on retries
+  // against an outage that produced zero provider calls. A malformed request
+  // must not cost them their allowance either. Nothing between selection and
+  // here reads the counters, so the placement is order-safe.
+  //
+  // **Two layers, both charged here (KI-67).** `aiQuotas` bounds how many times
+  // an actor may ask; `aiStepQuotas` bounds what asking COSTS, in model
+  // round-trips. KI-67 measured that metering requests alone turned a nominal
+  // ceiling of 30 into a real one of 960 — and its fix was wired into the
+  // command endpoint only, so this endpoint, built afterwards and the door users
+  // actually reach, was metered the way KI-67 had already proved wrong.
+  //
+  // Only one round-trip can be pre-authorised, because the real step count does
+  // not exist until the run ends; `settleAiSteps` charges the rest from the
+  // recorder's sink below. An actor already over either ceiling is refused here,
+  // before a provider is touched. The in-flight overshoot this admission shape
+  // permits is KI-94, unchanged by this.
+  const quota = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
   // **What this turn is for, decided before the agent is built.**
@@ -363,6 +379,21 @@ export async function handleAskRequest(
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // The step settlement's promise, so the end-of-turn path below can AWAIT it.
+  //
+  // The sink is synchronous — it is the AI SDK's own callback dispatch — but a
+  // counter write is not, and a `void`ed one races the response: the serverless
+  // function is free to stop once the stream closes, which would silently drop
+  // the settlement and put this endpoint back where KI-67 found it. `onEnd` is
+  // awaited by the SDK (`notify`, ai/dist), so awaiting there keeps the write
+  // inside the request's own lifetime.
+  //
+  // The abort and error paths still settle, and still do not await: the response
+  // is already gone or already failing, and best-effort is the honest guarantee
+  // there. `settleAiSteps` never throws, so an unawaited one cannot become an
+  // unhandled rejection.
+  let settled: Promise<void> = Promise.resolve();
+
   const recorder = createAskRecorder({
     tripId,
     userId,
@@ -392,6 +423,13 @@ export async function handleAskRequest(
     sink: (record) => {
       (sink ?? logAskAnalytics)(record);
       recordAskMetrics(record);
+      // The other half of KI-67: admission pre-authorised ONE round-trip, and
+      // this settles what the turn actually cost. A third consumer of the same
+      // single-writer latch, for the same reason the metrics are — the provider
+      // was paid for those steps on all three end paths (`onEnd`, abort, error),
+      // and repeating once-only logic at each of them is how one gets it subtly
+      // wrong at one.
+      settled = settleAiSteps(aiStepQuotas(), userId, record.steps);
     },
   });
 
@@ -427,11 +465,14 @@ export async function handleAskRequest(
     // THIS record instead of only the client-facing proposal — see the
     // comment on `droppedWriteCalls` in writeTools.ts for why it isn't
     // shared with the call below instead.
-    onEnd: (end) =>
+    onEnd: async (end) => {
       recorder.finish(
         end,
         writeTools ? droppedWriteCalls(writeTools.getCollected(), detail, { tripId, actorId: userId }) : [],
-      ),
+      );
+      // `finish` ran the sink, which started the settlement. See `settled`.
+      await settled;
+    },
   });
 
   // Validated HERE rather than left to throw inside

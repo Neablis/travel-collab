@@ -157,6 +157,13 @@ const AI_MAX_STEPS_PER_REQUEST = 32;
  * permits **960** round-trips an hour, and an actor who wants to maximise spend
  * under the cap simply writes prompts that provoke long tool loops.
  *
+ * **`/ask` was missing both halves until 2026-09-02.** This pair was wired into
+ * the command endpoint only; `/ask` — built afterwards, and the door users
+ * actually reach — charged `aiQuotas()` alone and never settled, so it was
+ * metered exactly the way KI-67 proved wrong for the whole life of the endpoint.
+ * It now charges both layers at admission and settles from its one end-of-turn
+ * writer.
+ *
  * These policies are ADDITIVE — the request policies keep their numbers and
  * their meaning, so no operator's configured value silently changes unit. A
  * request is refused if it exceeds EITHER layer, so this can only ever tighten
