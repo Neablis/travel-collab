@@ -261,8 +261,10 @@ describe("cost metering (KI-67)", () => {
     );
 
     it("clamps a step count above the handler's compiled budget", async () => {
-      // 31, not 10_000 and not 32: the count is clamped to the 32-step budget,
-      // and settlement charges only the 31 beyond the one admission covered.
+      // 31, not 10_000 and not 32: the count is clamped to the 32-step
+      // defensive ceiling (`AI_MAX_STEPS_PER_REQUEST`, which since ADR-033
+      // bounds a bad caller rather than mirroring a real budget), and
+      // settlement charges only the 31 beyond the one admission covered.
       const counters = fakeCounters();
       await settleAiSteps(aiStepQuotas(), "alice", 10_000, counters, T0);
       expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(31);
