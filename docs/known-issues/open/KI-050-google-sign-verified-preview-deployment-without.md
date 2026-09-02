@@ -39,6 +39,27 @@
   browsing session, so the callback has a second route through. See
   `docs/guidelines/environments-and-deploys.md`, "Testing against a preview
   deployment". Still unconfirmed either way.
+- **STATUS 2026-09-02 — the fix is built and deployed to configuration; one
+  step of proof is outstanding.** Done: `AUTH_REDIRECT_PROXY_URL` is set to
+  `https://caesura.today/api/auth` on **both** the Preview and Production
+  Vercel environments; the session JWT now carries the environment that minted
+  it, which is what makes the shared `AUTH_SECRET` safe (project review M3, and
+  the reason this entry stayed shut for a week); ADR-034 records the mechanism,
+  read out of `@auth/core@0.41.3` itself rather than from the docs.
+  `scripts/check-auth-proxy.mjs` turns "is the proxy live on this deployment"
+  into one command. **Not done: nobody has completed a real Google sign-in on a
+  preview.** Two of this entry's own preconditions are now confirmed rather
+  than assumed — production has a working Google client, and `AUTH_SECRET` is a
+  single variable scoped to Production and Preview, so it cannot differ. The
+  third, the interaction with Deployment Protection, is still exactly as
+  unconfirmed as this entry has said since 2026-08-29.
+  **Why it is still open:** the check needs a request that gets past Vercel SSO
+  on the preview host. `VERCEL_AUTOMATION_BYPASS_SECRET` exists but is a
+  sensitive variable, so `vercel env pull` returns it empty; the share-link
+  route was not available to the session that did this work. Both are things a
+  human has in one click and an unattended agent does not. The remaining step
+  is: open PR #120's preview, sign in with Google, and confirm you land back on
+  the preview signed in. Then move this entry to `resolved/`.
 - **Why deferred:** the workaround unblocks M15's gate today, and the proxy
   touches production auth configuration — not something to change while a
   milestone gate is mid-verification. Mitchell's call, 2026-08-26.
