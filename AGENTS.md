@@ -125,6 +125,21 @@ standalone service without touching domain or contracts (ADR-002).
 
 Committed in the repo, so every session and every worktree has them.
 
+**State digest** (`pnpm state`, `scripts/state-digest.mjs`): the "where are we"
+answer, extracted rather than summarized — current milestone and its exit-gate
+tally, the first unchecked TODO, STATUS.md's leading block, open PRs, a
+worktree count, and an open-KI count with the newest few. Every line carries a
+`file:line` citation, so a session that needs the detail opens one file at one
+offset instead of `cat`-ing 50KB of it. The `SessionStart` hook prints it on
+both branches, so it has usually already run before you start; `/roadmap` calls
+it for its Steps 1 and 3, then spends its turn on the judgement the script
+refuses to make. It defers twice on purpose: a worktree count rather than an
+audit (that is `worktree-hygiene`), and a named mismatch rather than a verdict
+when the status sources disagree (that is `/roadmap`). Why it is a script and
+not one more thing to invoke: `docs/reviews/2026-09-02-session-tooling-review.md`
+(R1, findings F1/F2/F8) measured 2,621 orientation re-reads across 220 sessions,
+~1.9M tokens, against 9 sessions that thought to run `/roadmap`.
+
 **Slash commands** (`.claude/commands/`):
 
 | Command | What it does |
