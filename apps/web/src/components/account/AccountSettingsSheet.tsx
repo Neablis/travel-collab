@@ -82,15 +82,24 @@ export function AccountSettingsSheet({
   // uses for the trip name, and for the same reason: a PATCH per character is
   // a lot of writes to say one thing.
   async function commit(
+    field: "name" | "airport",
     patch: UpdateUserPreferences,
     setError: (message: string | null) => void,
     revert: () => void,
   ) {
     const result = await save(patch);
-    // Committed or rejected, the field is no longer an edit in progress: either
-    // the stored value now matches it, or `revert()` below is about to put the
-    // stored value back. Cleared before both so the resync above is free again.
-    editing.current = { name: false, airport: false };
+    // Committed or rejected, THIS field is no longer an edit in progress:
+    // either the stored value now matches it, or `revert()` below is about to
+    // put the stored value back. Cleared before both so the resync above is
+    // free again.
+    //
+    // Only this field, found by review on pull request 112. Clearing both meant
+    // committing one marked the OTHER untouched while its text was still being
+    // edited — no wipe at that moment, because the resync effects are per
+    // field, but the next change to that field's stored value would then be
+    // free to replace text still in the box. The flag's lifetime has to match
+    // the field that owns it.
+    editing.current[field] = false;
     if (result.ok) {
       setError(null);
       return;
@@ -124,6 +133,11 @@ export function AccountSettingsSheet({
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
                 else if (e.key === "Escape") {
+                  // Escape puts the stored value back, so this field stops
+                  // being an edit in progress — without clearing the flag it
+                  // would never resync again until the next commit (review,
+                  // pull request 112).
+                  editing.current.name = false;
                   setName(preferences.displayName ?? "");
                   e.currentTarget.blur();
                 }
@@ -140,7 +154,7 @@ export function AccountSettingsSheet({
                   setNameError(null);
                   return;
                 }
-                void commit({ displayName: next }, setNameError, () =>
+                void commit("name", { displayName: next }, setNameError, () =>
                   setName(stored ?? ""),
                 );
               }}
@@ -181,6 +195,7 @@ export function AccountSettingsSheet({
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
                 else if (e.key === "Escape") {
+                  editing.current.airport = false;
                   setAirport(preferences.homeAirport ?? "");
                   e.currentTarget.blur();
                 }
@@ -198,7 +213,7 @@ export function AccountSettingsSheet({
                 // what normalizes (the contract carries no transform), and a
                 // client that tidied first would hide a server that had
                 // stopped doing it.
-                void commit({ homeAirport: airport.trim() || null }, setAirportError, () =>
+                void commit("airport", { homeAirport: airport.trim() || null }, setAirportError, () =>
                   setAirport(stored ?? ""),
                 );
               }}

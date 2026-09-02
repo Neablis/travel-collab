@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DistanceUnit, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiClient";
 
@@ -76,12 +76,36 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
+  // Monotonic, and the only reason it exists is the race below. A ref rather
+  // than state: it must be read and written synchronously within one `save`
+  // call, and a re-render is exactly what it must NOT cause.
+  const lastAdopted = useRef(0);
+  const issued = useRef(0);
+
   const save = useCallback(async (patch: UpdateUserPreferences) => {
+    const seq = ++issued.current;
     const result = await updatePreferences(patch);
-    // The SERVER's answer, not the patch: `homeAirport` is normalized there
-    // (trim + uppercase), so adopting what was sent would leave "sfo" on screen
-    // until the next reload and make the client look like it had disagreed.
-    if (result.ok) setPreferences(result.value);
+
+    // **Adopt only if no newer save has already landed.** Two saves can be in
+    // flight at once — the Sheet commits a name on blur while the same click
+    // flips the distance unit — and every response carries the WHOLE
+    // preferences object, not a patch. So an older response arriving second
+    // would reinstate the values it was built from and silently undo the newer
+    // save, on screen and in the map labels, until the next reload. Ordering by
+    // arrival is the bug; ordering by issue is the fix. Found by review on
+    // pull request 112.
+    //
+    // The request itself is never cancelled: it is a legitimate write and the
+    // server has already applied it. What is discarded is only its stale view
+    // of the world.
+    if (result.ok && seq > lastAdopted.current) {
+      lastAdopted.current = seq;
+      // The SERVER's answer, not the patch: `homeAirport` is normalized there
+      // (trim + uppercase), so adopting what was sent would leave "sfo" on
+      // screen until the next reload and make the client look like it had
+      // disagreed.
+      setPreferences(result.value);
+    }
     return result;
   }, []);
 

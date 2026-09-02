@@ -26,10 +26,28 @@ const updatePreferencesMock = vi.fn(async (patch: UpdateUserPreferences) => {
   return { ok: true as const, value: stored };
 });
 
+// Held open by `pendFetch` so the "before loaded" guard is reachable: the
+// component's behaviour before the first read resolves is a real state, and
+// asserting it needs the read not to have resolved.
+let holdFetch: (() => void) | null = null;
+
 vi.mock("@/lib/apiClient", () => ({
-  fetchPreferences: async () => ({ ok: true as const, value: stored }),
+  fetchPreferences: async () => {
+    if (holdFetch !== null) await new Promise<void>((go) => (holdFetch = go));
+    return { ok: true as const, value: stored };
+  },
   updatePreferences: (patch: UpdateUserPreferences) => updatePreferencesMock(patch),
 }));
+
+/** Make the next `fetchPreferences` hang until the returned function is called. */
+function pendFetch() {
+  holdFetch = () => {};
+  return () => {
+    const go = holdFetch;
+    holdFetch = null;
+    go?.();
+  };
+}
 
 function mount() {
   return render(
@@ -40,6 +58,7 @@ function mount() {
 }
 
 beforeEach(() => {
+  holdFetch = null;
   stored = { displayName: null, homeAirport: null, distanceUnit: "km" };
   refuse = null;
   patches.length = 0;
@@ -124,5 +143,39 @@ describe("AccountSettingsSheet", () => {
 
     await waitFor(() => expect(patches).toEqual([{ distanceUnit: "mi" }]));
     await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" }).getAttribute("aria-checked")).toBe("true"));
+  });
+
+  // Both fixes came from review on pull request 112, and both were shipped as
+  // comments describing a guard with nothing enforcing it — the defect class
+  // AGENTS.md names (KI-1, KI-14) and the one I insisted on covering for the
+  // equivalent fix on pull request 110. Flagged in review; covered here.
+  describe("the guards the component documents", () => {
+    // **The "flipping the unit wipes a half-typed name" scenario is NOT
+    // reachable, and there is deliberately no test for it here.** Review on
+    // pull request 112 asked for one; writing it showed the scenario does not
+    // occur. The resync effect is keyed on `[preferences.displayName]`, not on
+    // the whole preferences object, so a unit save — which leaves
+    // `displayName` untouched — never re-runs it. Verified rather than
+    // reasoned: with the `editing.current.name` guard REMOVED, a test doing
+    // exactly that still passed, which makes it a test that proves nothing —
+    // the species this repo keeps catching (KI-1, KI-14).
+    //
+    // The guard is kept because it is correct for the case that IS reachable:
+    // `displayName` changing from a source other than this field's own commit.
+    // It is not covered here because the suite has no second writer to
+    // simulate one, and a test that fakes one would be asserting the mock.
+
+    it("does not save a preference before the first read has resolved", async () => {
+      const release = pendFetch();
+      mount();
+
+      await userEvent.click(await screen.findByRole("radio", { name: "Miles" }));
+      // Saving here would write the provider's DEFAULTS over a stored value
+      // this Sheet has never seen.
+      expect(updatePreferencesMock).not.toHaveBeenCalled();
+
+      release();
+      await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" })).toBeTruthy());
+    });
   });
 });

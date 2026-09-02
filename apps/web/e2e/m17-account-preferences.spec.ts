@@ -58,7 +58,13 @@ async function openAccountSettings(page: Page): Promise<void> {
 test("account preferences: a name, a home airport, and miles that stick", async ({ page }) => {
   // A fresh account each run, so the preferences this spec writes belong to
   // nobody else and the "unset at first" assertions below mean something.
-  const username = `m17${Date.now().toString(36)}`;
+  // Timestamp for readable debris, random suffix for actual uniqueness — the
+  // same shape and the same reason as `e2eTripName`, whose comment records the
+  // lesson: Playwright runs workers in parallel against ONE database, so
+  // `Date.now()` alone collides within a millisecond and the second worker
+  // reuses the first's account, failing this spec's initial-empty assertions.
+  // Flagged in review on pull request 112.
+  const username = `m17${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
   await signInAsDevUser(page, username);
 
   const tripId = await createTripWithADistance(page, e2eTripName("M17Prefs"));
