@@ -177,3 +177,76 @@ describe("the dev-login provider's registration gate", () => {
     }
   });
 });
+
+// The environment claim (project review M3). Preview and Production share one
+// AUTH_SECRET — the redirect proxy needs them to — so a preview-minted JWT
+// verifies on production, and Preview is where password-less dev login lives.
+// These pin the claim that closes that: where a token says it came from, and
+// what happens to one that says the wrong thing.
+describe("the session token's environment claim", () => {
+  const withEnv = async <T>(value: string | undefined, run: () => Promise<T> | T): Promise<T> => {
+    const original = process.env.VERCEL_ENV;
+    try {
+      if (value === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = value;
+      return await run();
+    } finally {
+      if (original === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = original;
+    }
+  };
+
+  // The callback is plain data on authConfig, so it can be called directly
+  // rather than driven through a whole sign-in.
+  const jwt = async (args: { token: Record<string, unknown>; user?: { id?: string } }) => {
+    const { authConfig } = await import("./authConfig");
+    return (authConfig.callbacks!.jwt as unknown as (a: unknown) => unknown)(args) as
+      | Record<string, unknown>
+      | null;
+  };
+
+  it("stamps the minting environment on the token at sign-in", async () => {
+    await withEnv("preview", async () => {
+      expect(await jwt({ token: {}, user: { id: "dev-alice" } })).toMatchObject({
+        userId: "dev-alice",
+        env: "preview",
+      });
+    });
+  });
+
+  it("reads back a token minted in the same environment", async () => {
+    await withEnv("production", async () => {
+      expect(await jwt({ token: { userId: "u1", env: "production" } })).toMatchObject({ userId: "u1" });
+    });
+  });
+
+  // The one that matters: a `dev-alice` cookie lifted off a preview and
+  // pasted onto caesura.today. Null is Auth.js's "clear the cookie" signal.
+  it("refuses a preview-minted token presented to production", async () => {
+    await withEnv("production", async () => {
+      expect(await jwt({ token: { userId: "dev-alice", env: "preview" } })).toBeNull();
+    });
+  });
+
+  it("refuses a production token presented to a preview, in the same way", async () => {
+    await withEnv("preview", async () => {
+      expect(await jwt({ token: { userId: "u1", env: "production" } })).toBeNull();
+    });
+  });
+
+  // Deliberate, and the reason the fix costs one forced re-sign-in: a token
+  // with no claim is exactly one whose origin cannot be established.
+  it("refuses a token carrying no claim at all", async () => {
+    await withEnv("production", async () => {
+      expect(await jwt({ token: { userId: "u1" } })).toBeNull();
+    });
+  });
+
+  it("treats off-Vercel as one stable environment, so local dev and the test lane work", async () => {
+    await withEnv(undefined, async () => {
+      const minted = await jwt({ token: {}, user: { id: "dev-alice" } });
+      expect(minted).toMatchObject({ env: "development" });
+      expect(await jwt({ token: minted! })).not.toBeNull();
+    });
+  });
+});

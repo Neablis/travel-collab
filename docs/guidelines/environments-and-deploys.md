@@ -81,15 +81,17 @@ tested at all. It can. Pick by who is doing the testing:
 | An agent or a person, interactively | A `?_vercel_share=` URL — the Vercel MCP's `get_access_to_vercel_url` mints one per deployment | 23 hours |
 | CI, or anything unattended | `VERCEL_AUTOMATION_BYPASS_SECRET` as the `x-vercel-protection-bypass` header | Until revoked |
 
-**The bypass secret is the durable one and does not exist yet.** Generating it
-is one click — Vercel → the project → Settings → Deployment Protection →
-Protection Bypass for Automation → Generate. Vercel then injects it into every
-deployment as `VERCEL_AUTOMATION_BYPASS_SECRET`; copy the same value into a
-GitHub Actions repo secret of that name, and a workflow keyed on
-`deployment_status` can run Playwright against the preview it just built.
+**The bypass secret is the durable one, and it now exists** — generated
+2026-08-31, injected by Vercel into every Preview and Development deployment as
+`VERCEL_AUTOMATION_BYPASS_SECRET` (confirmed in `vercel env ls`, 2026-09-02;
+this paragraph said "does not exist yet" for two days after it did). Read the
+value with `vercel env pull`, send it as the `x-vercel-protection-bypass`
+header, and add `x-vercel-set-bypass-cookie: true` if you want the rest of the
+browsing session to carry it. **It is not yet a GitHub Actions repo secret**,
+so a workflow keyed on `deployment_status` still cannot use it — copying it
+across is the remaining step before unattended preview testing works from CI.
 Treat it like `FLAGS_SECRET`: anyone holding it can reach every protected
-deployment this project has. Until it exists, unattended preview testing is not
-possible and the share-link route is the only one.
+deployment this project has.
 
 Either way, `pnpm --filter web walk:preview <url> [path ...]` will drive a real
 browser through it — see `apps/web/scripts/walk-preview.mjs`, and
@@ -100,6 +102,39 @@ What a preview shows that a local production build cannot: whatever Vercel's
 own edge injects. The Vercel Toolbar is the live example — it loads only on
 preview, and our CSP blocked it from the day the CSP landed until 2026-08-29,
 because nothing had ever loaded a preview in a renderer.
+
+### Signing in with Google on a preview
+
+**Works on any preview, with nothing to register.** Since 2026-09-02
+(ADR-034, closing KI-50) `AUTH_REDIRECT_PROXY_URL` is set on both the Preview
+and Production environments, so a preview asks Google to call back to
+`https://caesura.today/api/auth/callback/google` — the one URI registered in
+the Google Cloud console — and production forwards the callback to the preview
+that started it. **Do not add branch aliases to the Google OAuth client any
+more**; the entries added before this date are dead and can be deleted.
+
+Two operational facts, both of which have a way of being learned the hard way:
+
+- **Changing either variable requires redeploying both environments.** Vercel
+  injects env vars at deploy time. A preview that has the proxy pointing at a
+  production that has not been redeployed will fail with an invalid-state
+  error, because production will try to consume a callback whose `state`
+  cookie it never set.
+- **The session JWT carries the environment that minted it**
+  (`lib/authConfig.ts`), because the proxy requires Preview and Production to
+  share one `AUTH_SECRET`. A token from one environment presented to the other
+  is refused and its cookie cleared. So a preview session is a preview session
+  — you cannot carry one to production, and you should not try.
+
+To confirm the proxy is live on a deployment without completing a sign-in, ask
+it where it would send you:
+
+```
+node scripts/check-auth-proxy.mjs <deployment-url>
+```
+
+It reads the `redirect_uri` out of the Google authorization URL that deployment
+builds and tells you whether it is production's or its own.
 
 ## Feature flags
 
