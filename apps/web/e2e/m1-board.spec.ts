@@ -63,5 +63,6 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   const vatican = page.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" });
   await dragCardTo(vatican, day2);
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" })).toBeVisible();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
 });

@@ -21,6 +21,7 @@ describe("GhostProposal", () => {
         <GhostProposal proposal={proposal} onKeep={vi.fn()} onDiscard={vi.fn()} />
       </Preview>,
     );
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const region = document.querySelector('[data-preview-id="timeline-ghost"]');
     expect(region).not.toBeNull();
     const scoped = within(region as HTMLElement);

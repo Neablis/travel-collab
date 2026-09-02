@@ -471,6 +471,7 @@ describe("DayChips keyboard navigation", () => {
     // reader announcing a chip that is no longer the selected one.
     renderChips(0);
     await userEvent.keyboard("{ArrowRight}");
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.activeElement).toBe(screen.getAllByRole("button")[1]);
   });
 

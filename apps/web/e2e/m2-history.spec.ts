@@ -68,9 +68,11 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
 
   // -- persistent dismissal --
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: /^Dismiss:/ }).click());
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // survived the reload
 
   // -- undo / redo (dismissal is an ordinary change) --
@@ -78,6 +80,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
   await page.getByRole("button", { name: "Redo" }).click();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
 
   // -- history + read-only preview + revert --
@@ -92,6 +95,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // preview the moment just before Vatican Museums moved onto Day 1:
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();
   await expect(page.getByText(/Viewing version \d+ \(read-only\)/)).toBeVisible();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(day1.getByText("Vatican Museums")).not.toBeVisible(); // past state
   // #16b: was "Back to now". Scoped to the open History popover (role="dialog"
   // on Radix Popover.Content) — plain "Dismiss" also matches AssistantRail's
@@ -103,9 +107,12 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
 
   await page.getByRole("button", { name: 'Moved "Colosseum" to Day 1' }).click();
   await page.getByRole("button", { name: "Revert to here" }).click();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/Viewing version/)).not.toBeVisible();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(day1.getByText("Vatican Museums")).not.toBeVisible(); // reverted for real
   await expect(day1.getByText("Colosseum")).toBeVisible();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // no overlap in that state
   await expect(page.getByTestId("history-entry").first()).toContainText("Reverted to version");
 });

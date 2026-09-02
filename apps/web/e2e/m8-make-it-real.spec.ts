@@ -147,6 +147,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // after deletion (observed flaky in CI: the assertion raced the toast's
   // own visible window). Trip cards on the list render as level-3 headings
   // (smoke.spec.ts's own assertion already relies on this).
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).not.toBeVisible();
 
   await page.getByRole("button", { name: /undo/i }).click(); // restore
@@ -239,5 +240,6 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
   // shared "alice" trip list.
   await deleteItem.click();
   await page.getByRole("button", { name: /^delete$/i }).click();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).not.toBeVisible();
 });

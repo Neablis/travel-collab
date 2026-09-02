@@ -510,6 +510,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
         });
       });
       const found = boxes.filter((b) => b !== null);
+      // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       if (found.length !== 3) {
         throw new Error(`expected 3 landing feature cards, measured ${found.length}`);
       }

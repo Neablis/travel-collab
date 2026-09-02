@@ -39,6 +39,7 @@ describe("SaveLightMark", () => {
     const { container } = renderLight({ unsent: 2, failure: null, retry: () => {} });
 
     expect(screen.getByRole("status").textContent).toBe("Saving…");
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelectorAll(".save-light-breathing")).toHaveLength(1);
     // Still the logo, still a link home — SPEC: "One mark, two jobs."
     expect(screen.getByRole("link", { name: /Caesura/ })).toBeTruthy();
@@ -49,7 +50,9 @@ describe("SaveLightMark", () => {
       const { container } = renderLight({ unsent: 3, failure, retry: () => {} });
 
       expect(screen.getByRole("status").textContent).toBe("Couldn't save — 3 changes not sent");
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(container.querySelector(".bg-danger")).toBeTruthy();
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(container.querySelector(".bg-brand")).toBeNull();
     });
 
@@ -76,6 +79,7 @@ describe("SaveLightMark", () => {
 
     it("suppresses the breathing — a failed queue is not in flight", () => {
       const { container } = renderLight({ unsent: 2, failure, retry: () => {} });
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(container.querySelectorAll(".save-light-breathing")).toHaveLength(0);
       expect(screen.getByRole("status").textContent).not.toMatch(/saving…/i);
     });
