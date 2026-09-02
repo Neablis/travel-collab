@@ -8,8 +8,10 @@ import {
   useFollowFocusedDay,
   type DaySync,
 } from "@/components/trip/context/FocusProvider";
+import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
+import { kmLabel } from "@/lib/units";
 import type { MapDay } from "./mapRailData";
 
 // Same static-Record pattern as MapRail/DayChips: Tailwind's JIT cannot see a
@@ -86,6 +88,7 @@ export function MapDayStrip({
   sync?: DaySync;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const unit = useDistanceUnit();
 
   // Contract clause 1: scrolling the strip selects the day on its reading line,
   // which on a horizontal row of equal chips is its true centre (`READING_LINE`).
@@ -141,7 +144,8 @@ export function MapDayStrip({
         : focused.flagText !== null
           ? focused.flagText
           : `${focused.stops.length} stop${focused.stops.length === 1 ? "" : "s"}${
-              focused.totalKm !== null ? ` · ${focused.totalKm.toFixed(1)} km` : ""
+              // M17: one helper owns every distance (SPEC §12).
+              focused.totalKm !== null ? ` · ${kmLabel(focused.totalKm, unit)}` : ""
             }`;
 
   return (

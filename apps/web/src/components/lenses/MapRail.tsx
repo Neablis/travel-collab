@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { AccentFamily } from "@/lib/dayAccent";
+import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { formatTripDate } from "@/lib/formatDate";
+import { kmLabel } from "@/lib/units";
 import { cn } from "@/lib/cn";
 import type { MapDay } from "./mapRailData";
 import { gearedTravel, pickFocusedDay, railScrollGeometry, type RailItem } from "./mapRailFocus";
@@ -49,6 +51,7 @@ export function MapRail({
   // scroll-driven, and a clear here would be undone by the next scroll event.
   onFocus: (index: number | null) => void;
 }) {
+  const unit = useDistanceUnit();
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonsRef = useRef<Map<number, HTMLButtonElement>>(new Map());
   const onFocusRef = useRef(onFocus);
@@ -358,7 +361,8 @@ export function MapRail({
                     style={{ fontSize: "11px", letterSpacing: "-0.01em" }}
                   >
                     {day.stops.length} stop{day.stops.length === 1 ? "" : "s"}
-                    {day.totalKm !== null && ` · ${day.totalKm.toFixed(1)} km`}
+                    {/* M17: one helper owns every distance (SPEC §12). */}
+                    {day.totalKm !== null && ` · ${kmLabel(day.totalKm, unit)}`}
                   </div>
                   {day.bars.length > 0 && (
                     <div
