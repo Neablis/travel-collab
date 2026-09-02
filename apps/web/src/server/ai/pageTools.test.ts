@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { buildPageTools, validateComposedPage } from "./pageTools";
+import { buildPageTools, PAGE_TOOL_NAMES, validateComposedPage } from "./pageTools";
 import type { PageContent } from "@tc/contracts";
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
@@ -62,6 +62,52 @@ describe("buildPageTools", () => {
         ],
       },
     });
+  });
+});
+
+// The collector its new host needs: the composed doc leaves on the stream's
+// `finish` part as message metadata (handleAskRequest.ts), which is several SDK
+// frames after the tool result. `execute` is otherwise unchanged — it still
+// returns, so the model sees its own result and can talk about it.
+describe("buildPageTools — what the turn composed", () => {
+  const params = (title: string) => ({ title, blocks: [{ type: "paragraph" as const, text: "Notes." }] });
+  const toolContext = { toolCallId: "call-1", messages: [], context: undefined };
+
+  it("is null before the model has composed anything", () => {
+    expect(buildPageTools().getComposed()).toBeNull();
+  });
+
+  it("reads back exactly what execute returned", async () => {
+    const { tools, getComposed } = buildPageTools();
+    const returned = await tools.compose_page!.execute!(params("Overview"), toolContext);
+    expect(getComposed()).toEqual(returned);
+  });
+
+  // A page is one document, not an append log: a model that composes twice
+  // meant the second one.
+  it("keeps the LAST compose when a model calls it twice", async () => {
+    const { tools, getComposed } = buildPageTools();
+    await tools.compose_page!.execute!(params("First"), toolContext);
+    await tools.compose_page!.execute!(params("Second"), toolContext);
+    expect(getComposed()?.title).toBe("Second");
+  });
+
+  // Each turn gets its own collector, or one turn's page would leak into the
+  // next request's final chunk.
+  it("does not share state between two built tool sets", async () => {
+    const first = buildPageTools();
+    await first.tools.compose_page!.execute!(params("Overview"), toolContext);
+    expect(buildPageTools().getComposed()).toBeNull();
+  });
+});
+
+// PAGE_TOOL_NAMES is MEASURED from the built set, never listed — the same rule
+// WRITE_TOOL_NAMES follows, and what makes `minimumRoleFor` answer "editor" for
+// a second page tool without anyone remembering to add it.
+describe("PAGE_TOOL_NAMES", () => {
+  it("is the built tool set's own keys", () => {
+    expect([...PAGE_TOOL_NAMES]).toEqual(Object.keys(buildPageTools().tools));
+    expect([...PAGE_TOOL_NAMES]).toContain("compose_page");
   });
 });
 

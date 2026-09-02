@@ -18,7 +18,7 @@ type Probe = {
   doStream: (options: unknown) => Promise<unknown>;
 };
 
-const probe = (surface: "page" | "ask") => simulatedModel(surface) as unknown as Probe;
+const probe = () => simulatedModel() as unknown as Probe;
 const callsOf = (result: Generated) => result.content.filter((c) => c.type === "tool-call");
 const textOf = (result: Generated) =>
   result.content
@@ -94,13 +94,60 @@ const FREE_READOUT = {
 };
 
 describe("simulatedModel", () => {
-  it("identifies itself so meta.model.requested is honest", () => {
-    expect(probe("page")).toMatchObject({ specificationVersion: "v4", modelId: SIMULATED_MODEL_ID });
+  it("identifies itself so the simulated verdict is honest", () => {
+    expect(probe()).toMatchObject({ specificationVersion: "v4", modelId: SIMULATED_MODEL_ID });
     expect(SIMULATED_MODEL_ID).toBe("simulated/no-op");
   });
 
-  it("emits one compose_page call for the page surface", async () => {
-    const result = await probe("page").doGenerate({});
+  // Reusing a toolCallId across the calls in one message is invalid, and the
+  // opening step of a question is the multi-call message that can get it wrong
+  // — a page turn composes with a single call, so it cannot witness this.
+  it("gives each tool call in a message a distinct id", async () => {
+    const ids = callsOf(await probe().doGenerate(askPrompt({ kind: "trip" }))).map((c) => c.toolCallId);
+    expect(ids.length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// The page turn (ADR-033 Decision 4)
+// -----------------------------------------------------------------------------
+//
+// This is the branch with the least slack in the file. `ai-live` is off in every
+// Vercel environment, so a deployed app that cannot reach it cannot author a
+// Notebook page at all — and it used to be reached through `generateText` on an
+// endpoint that no longer exists, so "it still works" is a claim about the
+// STREAMING path specifically.
+describe("simulatedModel — the page turn", () => {
+  const PAGE_SCOPE: AskScope = { kind: "page", pageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" };
+
+  // `handleAskRequest` offers a page turn read tools + compose_page and no
+  // planning write tool, so this mirrors the set it would really be handed.
+  const pagePrompt = (results: { toolName: string; value: unknown }[] = []) => ({
+    tools: [{ name: "read_trip" }, { name: "read_day" }, { name: "find_free_time" }, { name: "compose_page" }],
+    prompt: [
+      { role: "system", content: ["You are a test.", askScopeLine(PAGE_SCOPE)].join("\n") },
+      { role: "user", content: [{ type: "text", text: "draft this page" }] },
+      ...(results.length === 0
+        ? []
+        : [
+            {
+              role: "tool",
+              content: results.map((r, i) => ({
+                type: "tool-result",
+                toolCallId: `c${i}`,
+                toolName: r.toolName,
+                output: { type: "json", value: r.value },
+              })),
+            },
+          ]),
+    ],
+  });
+
+  const COMPOSED = { toolName: "compose_page", value: { title: "Sample page", content: { type: "doc", content: [] } } };
+
+  it("opens with exactly one compose_page call", async () => {
+    const result = await probe().doGenerate(pagePrompt());
     const calls = callsOf(result);
     expect(calls).toHaveLength(1);
     expect(calls[0]!.toolName).toBe("compose_page");
@@ -110,31 +157,71 @@ describe("simulatedModel", () => {
     expect(result.finishReason).toEqual({ unified: "tool-calls", raw: undefined });
   });
 
-  // Without the latch a compose costs one round-trip per remaining step of the
-  // page surface's 3-step budget: three settled steps against the actor's quota
-  // (KI-67) and `truncated: true` on a page that was finished after step one.
-  // The retired board/combined surfaces made the same bug a 32x one.
-  it("stops after the first step instead of re-emitting forever", async () => {
-    const model = probe("page");
-    await model.doGenerate({});
-    const second = await model.doGenerate({});
-    expect(second.finishReason).toEqual({ unified: "stop", raw: undefined });
-    expect(callsOf(second)).toHaveLength(0);
+  // The composed page has to pass `validateComposedPage` unconditionally, which
+  // is why `pageCalls` uses headings and paragraphs and no macro block: a macro
+  // whose params drift from its registry schema would make every switched-off
+  // deployment's compose fail validation and reach the client as a refusal.
+  it("composes only headings and paragraphs, never a macro", async () => {
+    const calls = callsOf(await probe().doGenerate(pagePrompt()));
+    const input = JSON.parse(calls[0]!.input) as { blocks: { type: string }[] };
+    expect(input.blocks.map((b) => b.type).sort()).toEqual(["heading", "paragraph"]);
   });
 
-  // Reusing a toolCallId across the calls in one message is invalid, and the
-  // ask surface's opening step is the multi-call message that can get it wrong
-  // — the page composes with a single call, so it cannot witness this.
-  it("gives each tool call in a message a distinct id", async () => {
-    const ids = callsOf(await probe("ask").doGenerate(askPrompt({ kind: "trip" }))).map((c) => c.toolCallId);
-    expect(ids.length).toBeGreaterThan(1);
-    expect(new Set(ids).size).toBe(ids.length);
+  // The second step, and the one that ends the loop. Without it the SDK keeps
+  // calling until `stopWhen` fires and every one of those round-trips is settled
+  // against the actor's step quota (KI-67).
+  it("says what it drafted once the compose has come back, and stops", async () => {
+    const result = await probe().doGenerate(pagePrompt([COMPOSED]));
+    expect(callsOf(result)).toHaveLength(0);
+    expect(result.finishReason).toEqual({ unified: "stop", raw: undefined });
+    expect(textOf(result)).toContain("drafted this page");
+    // Never "I saved it": the draft lands in the editor and the Notebook's
+    // autosave persists it, which is a thing the user can still undo by typing.
+    expect(textOf(result)).not.toMatch(/saved|published/i);
   });
 
-  // ADR-033 deletes this throw once `page` moves onto /ask; until then the
-  // command path is real and must not be served canned stream data.
-  it("refuses to stream a command surface rather than pretending to", async () => {
-    await expect(probe("page").doStream({})).rejects.toThrow(/does not stream/);
+  // A question is not a page turn even when the words look like one. The scope
+  // decides, because the scope is the thing the server verified.
+  it("does not compose for a trip-scoped turn", async () => {
+    const calls = callsOf(await probe().doGenerate(askPrompt({ kind: "trip" }, [], { question: "draft this page" })));
+    expect(calls.map((c) => c.toolName)).not.toContain("compose_page");
+  });
+
+  // The whole point of the move: `doStream` used to THROW for a page, because
+  // the command path never streamed. If this regresses, no deployed environment
+  // can author a page — and it would regress silently, since every other test
+  // here goes through `doGenerate`.
+  it("streams the compose rather than throwing", async () => {
+    const result = (await probe().doStream(pagePrompt())) as { stream: ReadableStream<Record<string, unknown>> };
+    const parts: Record<string, unknown>[] = [];
+    const reader = result.stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+    }
+    expect(parts.filter((p) => p.type === "tool-call").map((p) => p.toolName)).toEqual(["compose_page"]);
+    expect(parts[0]).toMatchObject({ type: "stream-start" });
+    expect(parts.at(-1)).toMatchObject({ type: "finish", finishReason: { unified: "tool-calls" } });
+  });
+
+  it("streams the closing sentence as text deltas", async () => {
+    const result = (await probe().doStream(pagePrompt([COMPOSED]))) as {
+      stream: ReadableStream<Record<string, unknown>>;
+    };
+    const parts: Record<string, unknown>[] = [];
+    const reader = result.stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+    }
+    const streamed = parts
+      .filter((p) => p.type === "text-delta")
+      .map((p) => p.delta as string)
+      .join("");
+    expect(streamed).toContain("drafted this page");
+    expect(streamed).toContain("AI is switched off on this deployment");
   });
 });
 
@@ -144,7 +231,7 @@ describe("simulatedModel", () => {
 // tools and writes its prose from what they returned.
 describe("simulatedModel — the ask surface", () => {
   it("asks read_trip and find_free_time first for a trip-scoped turn", async () => {
-    const calls = callsOf(await probe("ask").doGenerate(askPrompt({ kind: "trip" })));
+    const calls = callsOf(await probe().doGenerate(askPrompt({ kind: "trip" })));
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "find_free_time"]);
     // Waking hours, not 00:00-24:00: the largest gap on any real day is
     // otherwise the one you sleep through.
@@ -152,14 +239,14 @@ describe("simulatedModel — the ask surface", () => {
   });
 
   it("adds read_day when, and only when, the turn is scoped to a day", async () => {
-    const calls = callsOf(await probe("ask").doGenerate(askPrompt({ kind: "day", dayIndex: 2 })));
+    const calls = callsOf(await probe().doGenerate(askPrompt({ kind: "day", dayIndex: 2 })));
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "read_day", "find_free_time"]);
     expect(JSON.parse(calls[1]!.input)).toEqual({ days: 3 });
   });
 
   it("answers in prose from what the tools returned, not from a canned string", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           { toolName: "find_free_time", value: FREE_READOUT },
@@ -177,7 +264,7 @@ describe("simulatedModel — the ask surface", () => {
   // conflict list spans the whole trip, so it is the one thing that could.
   it("names no day but its own when the turn is day-scoped", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           { toolName: "read_day", value: DAY_READOUT },
@@ -196,7 +283,7 @@ describe("simulatedModel — the ask surface", () => {
   // chip and the answer drifting apart again.
   it("answers what a day still needs booked, from the stops' own kinds and tags", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           {
@@ -223,7 +310,7 @@ describe("simulatedModel — the ask surface", () => {
 
   it("says so when a day has nothing left to book, rather than staying silent", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           { toolName: "read_day", value: { ...DAY_READOUT, stops: [{ ...DAY_READOUT.stops[0]!, kind: "booked" }] } },
@@ -238,7 +325,7 @@ describe("simulatedModel — the ask surface", () => {
   // day-scoped answer had nothing to say about "the 1 conflict on day 3".
   it("reports the conflicts on the day it was asked about", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           {
@@ -260,7 +347,7 @@ describe("simulatedModel — the ask surface", () => {
 
   it("names the days that still have stops to book on a trip-scoped turn", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           {
             toolName: "read_trip",
@@ -286,7 +373,7 @@ describe("simulatedModel — the ask surface", () => {
   // deployment runs (re-review, 2026-08-29).
   it("agrees with itself when exactly one stop is left to book", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           {
             toolName: "read_trip",
@@ -308,7 +395,7 @@ describe("simulatedModel — the ask surface", () => {
 
   it("stays quiet about booking when nothing is outstanding", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           { toolName: "read_trip", value: TRIP_READOUT },
           { toolName: "find_free_time", value: FREE_READOUT },
@@ -320,7 +407,7 @@ describe("simulatedModel — the ask surface", () => {
 
   it("says so rather than inventing one when the trip has no open time", async () => {
     const answer = textOf(
-      await probe("ask").doGenerate(
+      await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           { toolName: "read_trip", value: { ...TRIP_READOUT, conflicts: [] } },
           { toolName: "find_free_time", value: { ...FREE_READOUT, searched: "the whole trip", gaps: [] } },
@@ -331,7 +418,7 @@ describe("simulatedModel — the ask surface", () => {
   });
 
   it("streams the answer sentence by sentence as one text part", async () => {
-    const result = (await probe("ask").doStream(
+    const result = (await probe().doStream(
       askPrompt({ kind: "trip" }, [
         { toolName: "read_trip", value: TRIP_READOUT },
         { toolName: "find_free_time", value: FREE_READOUT },
@@ -354,7 +441,7 @@ describe("simulatedModel — the ask surface", () => {
   });
 
   it("streams the tool calls whole on the first step", async () => {
-    const result = (await probe("ask").doStream(askPrompt({ kind: "trip" }))) as {
+    const result = (await probe().doStream(askPrompt({ kind: "trip" }))) as {
       stream: ReadableStream<{ type: string; toolName?: string }>;
     };
     const parts: { type: string; toolName?: string }[] = [];
@@ -377,7 +464,7 @@ describe("simulatedModel — the ask surface", () => {
       prompt: [...priorTurn, { role: "user", content: [{ type: "text", text: "and now?" }] }],
     };
 
-    const calls = callsOf(await probe("ask").doGenerate(secondTurn));
+    const calls = callsOf(await probe().doGenerate(secondTurn));
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "find_free_time"]);
   });
 
@@ -386,7 +473,7 @@ describe("simulatedModel — the ask surface", () => {
       { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } },
     ]).prompt;
     const answer = textOf(
-      await probe("ask").doGenerate({
+      await probe().doGenerate({
         prompt: [
           ...priorTurn,
           { role: "user", content: [{ type: "text", text: "and now?" }] },
@@ -412,7 +499,7 @@ describe("simulatedModel — the ask surface", () => {
   // across retries: a re-issued first step must ask again, not answer with
   // nothing to answer from.
   it("asks again on a repeated first step instead of latching", async () => {
-    const model = probe("ask");
+    const model = probe();
     await model.doGenerate(askPrompt({ kind: "trip" }));
     const second = await model.doGenerate(askPrompt({ kind: "trip" }));
     expect(callsOf(second)).toHaveLength(2);
@@ -433,7 +520,7 @@ const QUEUED = { toolName: "AddActivity", value: { queued: true, type: "AddActiv
 
 describe("simulatedModel — proposing a change", () => {
   it("proposes after reading, when the question asks for a change and write tools are offered", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "day", dayIndex: 2 }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
     );
     expect(callsOf(result).map((c) => c.toolName)).toEqual(["AddActivity", "AddActivity"]);
@@ -448,7 +535,7 @@ describe("simulatedModel — proposing a change", () => {
   // M9's honest unknowns, at the source: the model that plans on the
   // switched-off deployment must not write a price it does not have.
   it("proposes NO cost and NO location", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
     );
     // Witness: without this, a trip-scoped turn that stopped emitting tool
@@ -467,7 +554,7 @@ describe("simulatedModel — proposing a change", () => {
   });
 
   it("adds the day it needs, in the same batch, on an empty trip", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: { ...TRIP_READOUT, dayCount: 0, days: [] } }], {
         question: "add a coffee stop",
         writeTools: true,
@@ -477,7 +564,7 @@ describe("simulatedModel — proposing a change", () => {
   });
 
   it("never proposes when write tools are not offered, however imperative the question", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question: "add a coffee stop", writeTools: false }),
     );
     expect(callsOf(result)).toEqual([]);
@@ -494,7 +581,7 @@ describe("simulatedModel — proposing a change", () => {
     "What on day 2 still needs booking?",
     "There are 2 conflicts still open — what should I do about them?",
   ])("answers %s without proposing anything", async (question) => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
     );
     expect(callsOf(result)).toEqual([]);
@@ -508,7 +595,7 @@ describe("simulatedModel — proposing a change", () => {
     "There are no days yet — how should I start planning this trip?",
     "Day 3 is empty — what could I do with it?",
   ])("drafts a proposal for %s", async (question) => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
     );
     expect(callsOf(result).map((c) => c.toolName)).toContain("AddActivity");
@@ -522,14 +609,14 @@ describe("simulatedModel — proposing a change", () => {
     "There's 1 conflict on day 3 — how should I fix it?",
     "What on day 3 still needs booking?",
   ])("answers %s without drafting anything", async (question) => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
     );
     expect(callsOf(result)).toEqual([]);
   });
 
   it("speaks once the proposal is queued, and never claims it applied", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "day", dayIndex: 2 }, [...READ_RESULTS, QUEUED, QUEUED], {
         question: "add a coffee stop",
         writeTools: true,
@@ -546,7 +633,7 @@ describe("simulatedModel — proposing a change", () => {
   });
 
   it("does not propose twice in one turn", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),
     );
     expect(callsOf(result)).toEqual([]);
@@ -569,13 +656,13 @@ describe("simulatedModel — the intent classification call", () => {
   }
 
   it("answers a question with a structured verdict and no tool call", async () => {
-    const result = await probe("ask").doGenerate(classifyPrompt("Which day has the most free time?"));
+    const result = await probe().doGenerate(classifyPrompt("Which day has the most free time?"));
     expect(callsOf(result)).toEqual([]);
     expect(textOf(result)).toBe(askIntentVerdictText("question"));
   });
 
   it("answers a change request with the verdict that keeps the write tools", async () => {
-    const result = await probe("ask").doGenerate(classifyPrompt("Add a coffee stop to day 2"));
+    const result = await probe().doGenerate(classifyPrompt("Add a coffee stop to day 2"));
     expect(textOf(result)).toBe(askIntentVerdictText("write"));
   });
 
@@ -588,10 +675,10 @@ describe("simulatedModel — the intent classification call", () => {
   // failed open and the optimisation would have bought nothing, silently, on
   // the only path anyone experiences.
   it("produces a verdict the real classifier parses, on both answers", async () => {
-    const question = await classifyAskIntent(simulatedModel("ask"), "Which day has the most free time?");
+    const question = await classifyAskIntent(simulatedModel(), "Which day has the most free time?");
     expect(question).toMatchObject({ intent: "question", source: "model", failedOpen: false });
 
-    const write = await classifyAskIntent(simulatedModel("ask"), "Add a coffee stop to day 2");
+    const write = await classifyAskIntent(simulatedModel(), "Add a coffee stop to day 2");
     expect(write).toMatchObject({ intent: "write", source: "model", failedOpen: false });
   });
 
@@ -600,7 +687,7 @@ describe("simulatedModel — the intent classification call", () => {
   // classified `question` that this model then wants to propose on would leave
   // `askChipCoverage.test.ts` asserting against a tool set the turn no longer has.
   it("classifies a planning prompt as a write, exactly as it would propose on one", async () => {
-    const result = await probe("ask").doGenerate(
+    const result = await probe().doGenerate(
       classifyPrompt("There are no days yet — how should I start planning this trip?"),
     );
     expect(textOf(result)).toBe(askIntentVerdictText("write"));
@@ -610,7 +697,7 @@ describe("simulatedModel — the intent classification call", () => {
   // no tool results yet means "ask the read tools", which answers a
   // classifier with `read_trip` and fails open every time.
   it("is recognised by its instruction, not by the absence of tools", async () => {
-    const withTools = await probe("ask").doGenerate({
+    const withTools = await probe().doGenerate({
       ...classifyPrompt("Add a coffee stop to day 2"),
       tools: [{ name: "read_trip" }, { name: "AddActivity" }],
     });

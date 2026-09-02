@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
+import { createPage } from "@/server/pages";
 import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
 import { db } from "@/server/db/client";
@@ -45,6 +46,7 @@ const {
   APPLY_MINIMUM_ROLE,
   ASK_MINIMUM_ROLE,
   DEMO_TRIP_UNSUPPORTED_CODE,
+  PAGE_NOT_ON_TRIP_CODE,
   SIMULATED_HEADER,
   minimumRoleFor,
   offeredToolNamesFor,
@@ -53,6 +55,8 @@ const {
 } = await import("@/server/ai/handleAskRequest");
 const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
 const { WRITE_TOOL_NAMES } = await import("@/server/ai/writeTools");
+const { PAGE_TOOL_NAMES, validateComposedPage } = await import("@/server/ai/pageTools");
+const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
@@ -101,6 +105,16 @@ async function seedTrip(): Promise<string> {
   return tripId;
 }
 
+/** One Notebook page on `tripId`, the way the Notebook's own CRUD route makes one. */
+async function seedPage(tripId: string, title = "Trip Overview", dayRef?: { kind: "index"; index: number }) {
+  const page = await createPage(
+    tripId,
+    { title, context: { tripId, ...(dayRef ? { dayRef } : {}) }, content: { type: "doc", content: [] } },
+    ACTOR_ID,
+  );
+  return page.id;
+}
+
 async function grantViewer(tripId: string, userId: string) {
   await db.insert(tripMemberships).values({
     tripId,
@@ -133,7 +147,7 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
  */
 function recordingModel() {
   const systems: string[] = [];
-  const inner = simulatedModel("ask") as unknown as {
+  const inner = simulatedModel() as unknown as {
     doGenerate: (o: unknown) => Promise<unknown>;
     doStream: (o: unknown) => Promise<unknown>;
   };
@@ -204,7 +218,7 @@ function textOf(chunks: Record<string, unknown>[]): string {
 // buried in per-turn log lines. One test below omits it deliberately, which is
 // what covers the real console default.
 async function ask(tripId: string, body: unknown, sink: (r: AskAnalyticsRecord) => void = () => {}) {
-  return handleAskRequest(req(tripId, body), tripId, simulatedModel("ask"), sink);
+  return handleAskRequest(req(tripId, body), tripId, simulatedModel(), sink);
 }
 
 // Same rule as the /ai suite: every test seeds its own randomUUID() trip, so no
@@ -299,12 +313,30 @@ describe("POST /api/trips/:id/ask", () => {
       expect(APPLY_MINIMUM_ROLE).toBe("editor");
       expect(minimumRoleFor(READ_TOOL_NAMES)).toBe("viewer");
       expect(minimumRoleFor([...READ_TOOL_NAMES, "AddActivity"])).toBe("editor");
-      expect(minimumRoleFor(offeredToolNamesFor(false))).toBe("viewer");
-      expect(minimumRoleFor(offeredToolNamesFor(true))).toBe("editor");
+      expect(minimumRoleFor(offeredToolNamesFor("read-only"))).toBe("viewer");
+      expect(minimumRoleFor(offeredToolNamesFor("planning"))).toBe("editor");
+      // Page authoring writes a page, so it lands on `editor` by the SAME rule
+      // as a planning write rather than by a second one (ADR-033 Decision 4).
+      expect(minimumRoleFor(offeredToolNamesFor("page"))).toBe("editor");
+      expect(minimumRoleFor([...READ_TOOL_NAMES, "compose_page"])).toBe("editor");
       // Every write tool, not just the one named above — a thirteenth
-      // BatchableCommand inherits the editor requirement for free.
-      for (const name of WRITE_TOOL_NAMES) {
+      // BatchableCommand, or a second page tool, inherits the editor requirement
+      // for free.
+      for (const name of [...WRITE_TOOL_NAMES, ...PAGE_TOOL_NAMES]) {
         expect(minimumRoleFor([...READ_TOOL_NAMES, name]), `${name} must require editor`).toBe("editor");
+      }
+    });
+
+    // The narrowing ADR-033 Decision 4 bought, in both directions. One door is
+    // not the widest door: neither half of the write surface can reach the
+    // other's tools, and that is a property of this function rather than of a
+    // branch inside the handler.
+    it("keeps the page and planning tool sets disjoint", () => {
+      expect(offeredToolNamesFor("page")).not.toContain("AddActivity");
+      expect(offeredToolNamesFor("page")).toEqual([...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES]);
+      expect(offeredToolNamesFor("planning")).not.toContain("compose_page");
+      for (const name of WRITE_TOOL_NAMES) {
+        expect(offeredToolNamesFor("page"), `a page turn must not hold ${name}`).not.toContain(name);
       }
     });
   });
@@ -619,6 +651,207 @@ describe("POST /api/trips/:id/ask", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // ADR-033 Decision 4: page authoring, and the scope the server VERIFIES
+  // -------------------------------------------------------------------------
+  describe("page authoring", () => {
+    // The whole point of Decision 2, and the reason one route is safe. Three
+    // facts, all established server-side, before any page tool exists.
+    describe("the page scope is verified, never trusted", () => {
+      it("404s a pageId that is not a page at all", async () => {
+        const tripId = await seedTrip();
+        const res = await ask(tripId, {
+          messages: [userMessage("draft this page")],
+          scope: { kind: "page", pageId: randomUUID() },
+        });
+        expect(res.status).toBe(404);
+        expect(await res.json()).toEqual({
+          error: "That page is not on this trip.",
+          code: PAGE_NOT_ON_TRIP_CODE,
+        });
+      });
+
+      // The attack the verification exists for: a real page id, on a trip the
+      // actor may or may not be able to see, pointed at a trip they can. Same
+      // 404 as "no such page", so this never confirms the other page exists.
+      it("404s a real page that belongs to a DIFFERENT trip", async () => {
+        const mine = await seedTrip();
+        const theirs = await seedTrip();
+        const theirPage = await seedPage(theirs);
+
+        const res = await ask(mine, {
+          messages: [userMessage("draft this page")],
+          scope: { kind: "page", pageId: theirPage },
+        });
+        expect(res.status).toBe(404);
+        expect((await res.json()).code).toBe(PAGE_NOT_ON_TRIP_CODE);
+      });
+
+      it("403s a viewer, who may read the page but not edit it", async () => {
+        const tripId = await seedTrip();
+        const pageId = await seedPage(tripId);
+        await grantViewer(tripId, VIEWER_ID);
+        currentUserId = VIEWER_ID;
+
+        const res = await ask(tripId, {
+          messages: [userMessage("draft this page")],
+          scope: { kind: "page", pageId },
+        });
+        expect(res.status).toBe(403);
+      });
+
+      // "If the surface cannot be resolved server-side, the narrowest tool set
+      // applies, not the widest." A refusal is the narrowest of all — the
+      // failure this guards against is falling THROUGH to a planning turn,
+      // which would answer a page request with `RemoveActivity` in hand.
+      it("refuses rather than falling back to a wider tool set", async () => {
+        const tripId = await seedTrip();
+        const records: AskAnalyticsRecord[] = [];
+        const res = await ask(
+          tripId,
+          { messages: [userMessage("draft this page")], scope: { kind: "page", pageId: randomUUID() } },
+          (r) => records.push(r),
+        );
+        expect(res.status).toBe(404);
+        // No turn happened at all, so no tool set was ever built.
+        expect(records).toHaveLength(0);
+      });
+
+      it("400s a pageId that is not even a uuid, before it reaches the database", async () => {
+        const tripId = await seedTrip();
+        const res = await ask(tripId, {
+          messages: [userMessage("draft this page")],
+          scope: { kind: "page", pageId: "not-a-uuid" },
+        });
+        expect(res.status).toBe(400);
+      });
+
+      // Refused before model selection and before the quota, the same ordering
+      // the demo refusal and the caps have.
+      it("charges nothing for a page scope it could not resolve", async () => {
+        const tripId = await seedTrip();
+        await ask(tripId, {
+          messages: [userMessage("draft this page")],
+          scope: { kind: "page", pageId: randomUUID() },
+        });
+        expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
+      });
+    });
+
+    it("offers a page turn the read tools plus compose_page, and no planning write tool", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } },
+        (r) => records.push(r),
+      );
+      await res.text();
+
+      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES].sort());
+      for (const name of WRITE_TOOL_NAMES) {
+        expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);
+      }
+      // No planning write tool means `enrichCommandLocations` is structurally
+      // unreachable from here, which is what the deleted endpoint's
+      // "never constructs a geocoder" regression test was really asserting:
+      // page authoring touches no location data. The lazy-resolution rule
+      // itself lives on in writeTools.ts, where /ask still enriches.
+    });
+
+    // A page turn's tool set is decided by a scope the server verified, so
+    // there is no write half to withhold and the classification call would be
+    // spend with nothing to buy.
+    it("does not classify a page turn", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("what should this page say?")], scope: { kind: "page", pageId } },
+        (r) => records.push(r),
+      );
+      await res.text();
+      expect(records[0]!.classification).toBeNull();
+    });
+
+    // THE test for this task. `ai-live` is off in every Vercel environment, so
+    // this streamed path is the only way a deployed app can author a page at
+    // all — and it goes through `simulatedModel`, whose `doStream` used to
+    // throw for exactly this work.
+    it("streams a composed page on the final chunk, validated server-side", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const res = await ask(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get(SIMULATED_HEADER)).toBe("true");
+
+      const chunks = await chunksOf(res);
+      const finish = chunks.find((chunk) => chunk.type === "finish");
+      const metadata = finish?.messageMetadata as { composedPage?: { title: string; content: unknown } } | undefined;
+
+      expect(metadata?.composedPage?.title).toBeTruthy();
+      expect(validateComposedPage(metadata!.composedPage!.content as never)).not.toHaveProperty("error");
+      // A page turn proposes nothing: the tool sets are disjoint, so the same
+      // chunk cannot carry both.
+      expect(metadata).not.toHaveProperty("proposal");
+      expect(chunks.filter((chunk) => chunk.toolName === "compose_page").length).toBeGreaterThan(0);
+    });
+
+    // The instruction is not observable from the response, so the only way to
+    // assert it is to read what the model was handed. It has to carry the macro
+    // catalog: no tool returns it, and a model that never saw the descriptions
+    // emits macros whose params `validateComposedPage` then rejects.
+    it("tells the model which page it is writing, its day binding, and the macros", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId, "Day Sheet", { kind: "index", index: 1 });
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      const instruction = turnInstruction();
+      expect(instruction).toContain('The page is called "Day Sheet"');
+      expect(instruction).toContain("bound to DAY 2");
+      expect(instruction).toContain("itinerary.day");
+      // None of the planning rules the command endpoint sent on every page
+      // request — ~1.5k characters describing tools this turn is not handed.
+      expect(instruction).not.toContain("activityRef");
+      expect(instruction).not.toContain("MoveActivity");
+    });
+
+    it("says the page is about the whole trip when it is bound to no day", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId, "Trip Overview");
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+      expect(turnInstruction()).toContain("not bound to a day");
+    });
+
+    // Composing writes nothing. The draft goes to the editor and the Notebook's
+    // own debounced autosave persists it — so a turn that ran must leave the
+    // stored page byte-identical.
+    it("leaves the stored page untouched", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const before = await getPage(pageId);
+      const res = await ask(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } });
+      await res.text();
+      expect(await getPage(pageId)).toEqual(before);
+    });
+  });
+
   describe("the caps", () => {
     it("400s a message over 4,000 characters, naming the rule", async () => {
       const tripId = await seedTrip();
@@ -721,7 +954,8 @@ describe("POST /api/trips/:id/ask", () => {
     // `settleAiSteps` were built because metering REQUESTS rather than steps
     // turned a nominal ceiling of 30 into a real ceiling of 960 — and that fix
     // was wired into the command endpoint only, so this endpoint spent its whole
-    // life metered exactly the way KI-67 had already proved wrong.
+    // life metered exactly the way KI-67 had already proved wrong. One door
+    // means one quota path (ADR-033).
     //
     // Admission pre-authorises ONE round-trip and the settlement charges the
     // rest, so a two-step turn leaves 2 on the step bucket while the request
@@ -747,6 +981,25 @@ describe("POST /api/trips/:id/ask", () => {
       expect(hitsByBucket.get(`${stepPolicy}:user:${ACTOR_ID}`)).toBe(steps);
       expect(hitsByBucket.get(`${stepPolicy}:global`)).toBe(steps);
       expect(hitsByBucket.get(`ai-hourly:user:${ACTOR_ID}`)).toBe(1);
+    });
+
+    // The same settlement on a page turn, because that is the shape that just
+    // moved here and it is the one that used to be metered correctly.
+    it("charges the step bucket for a page turn too", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } },
+        (r) => records.push(r),
+      );
+      await res.text();
+
+      const hitsByBucket = new Map(
+        (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
+      );
+      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(records[0]!.steps);
     });
 
     // The step ceiling REFUSES, it does not merely record: an actor already over
@@ -968,7 +1221,7 @@ describe("POST /api/trips/:id/ask", () => {
       const res = await handleAskRequest(
         req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }, controller.signal),
         tripId,
-        simulatedModel("ask"),
+        simulatedModel(),
         (r) => records.push(r),
       );
       await res.text().catch(() => "");
