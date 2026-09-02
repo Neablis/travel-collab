@@ -7,6 +7,7 @@
   },
   "scripts": {
     "setup": "node scripts/setup-env.mjs",
+    "state": "node scripts/state-digest.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-sleep-wall.mjs",
     "test": "pnpm -r --if-present test && node --test \"scripts/**/__tests__/**/*.test.mjs\"",
