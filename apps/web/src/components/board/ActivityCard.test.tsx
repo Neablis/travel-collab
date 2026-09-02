@@ -118,7 +118,10 @@ describe("ActivityCard tag chips", () => {
   it("renders chips as text, not controls, when no toggle is given", () => {
     renderCard({ tags: ["meal", "lodging"] });
     const chips = within(screen.getByTestId(`tag-chips-${ACTIVITY_ID}`)).getAllByTestId(/^tag-chip-/);
-    for (const chip of chips) expect(chip.tagName).toBe("SPAN");
+    expect(chips).toHaveLength(2);
+    // "Not a control" is a role claim, not a tag-name one — a `<span>`
+    // assertion would also fail on a perfectly good `<div>` and pass on a span
+    // that had been given `role="button"`.
     expect(within(screen.getByTestId(`tag-chips-${ACTIVITY_ID}`)).queryByRole("button")).toBeNull();
   });
 

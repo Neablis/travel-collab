@@ -232,7 +232,12 @@ describe("Discover", () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
+    // Discover is the board's only entrance (project rule 1: not in the top
+    // bar), so where the link goes is part of the same claim as whether it is
+    // here at all.
+    expect(screen.getByRole("link", { name: /Who shares the most/ }).getAttribute("href")).toBe(
+      "/playbooks/board",
+    );
 
     cleanup();
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 0 })));
@@ -337,15 +342,6 @@ describe("Discover", () => {
     expect(screen.queryByTestId("library-moved")).toBeNull();
   });
 
-  // The board's only entrance (project rule 1: not in the top bar).
-  it("is where the leaderboard is entered from", async () => {
-    render(<DiscoverScreen />);
-    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.getByRole("link", { name: /who shares the most/i }).getAttribute("href")).toBe(
-      "/playbooks/board",
-    );
-  });
 });
 
 // The exit gate names four states for city search and asks that all four be

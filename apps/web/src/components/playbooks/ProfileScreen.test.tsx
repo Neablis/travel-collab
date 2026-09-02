@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoverDay, PublicProfileResponse } from "@/lib/playbooks";
 
@@ -99,13 +99,18 @@ describe("a public profile", () => {
   // A first read that FAILS leaves `loading` false and `data` null. The page
   // used to sit under its own sync banner pulsing a skeleton at a profile that
   // was never coming (CodeRabbit, PR 102).
-  it("stops pretending to load when the first read failed", async () => {
+  it("stops pretending to load when the first read failed, and offers one Retry", async () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
     await screen.findByText("This profile could not be loaded");
     expect(screen.queryByTestId("profile-skeleton")).toBeNull();
-    // The Retry is the banner's, and there is exactly one of it.
+    // The Retry is the banner's, and there is exactly one of it. Both halves
+    // matter: the count rules out a second offer elsewhere on the page, and the
+    // scoped query is the one that fails if the banner lost its button.
     expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+    expect(
+      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
+    ).toBeTruthy();
   });
 
   it("shows the skeleton only while the first read is still in flight", () => {
@@ -153,17 +158,6 @@ describe("a public profile", () => {
     expect(await screen.findByText("Nothing shared yet")).toBeTruthy();
   });
 
-  it("offers a Retry when the profile cannot be reached", async () => {
-    fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
-    renderProfile();
-    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
-    // The test is named for the Retry, so it has to assert the Retry: a banner
-    // that lost its button passed this before.
-    expect(
-      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
-    ).toBeTruthy();
-  });
 });
 
 describe("the contextual back link", () => {

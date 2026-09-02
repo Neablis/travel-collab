@@ -135,21 +135,12 @@ describe("a shared day", () => {
     expect(within(rail).queryByText("Length")).toBeNull();
   });
 
-  it("tags a day over twelve hours as Long", async () => {
-    fetchSavedDayMock.mockResolvedValue(
-      ok({
-        savedDay: savedDay({
-          stops: [
-            stop({ timeWindow: { start: "08:20", end: "09:30" } }),
-            stop({ timeWindow: { start: "19:00", end: "20:30" } }),
-          ],
-        }),
-        isAuthor: false,
-      }),
-    );
-    renderDay();
-    expect(within(await screen.findByTestId("day-facts")).getByText("Long")).toBeTruthy();
-  });
+  // No "tags a day over twelve hours as Long" here. Which window is Long is
+  // `dayLength`'s rule, asserted from both sides of both edges in
+  // `lib/savedDayFacts.test.ts` — including this screen's own 08:20-20:30
+  // example. That the RAIL prints whatever `dayLength` answers is proved once,
+  // by the Medium case above; a second band was the same wiring with a second
+  // fixture.
 
   // M12's, and their absence is the milestone's decision rather than an
   // oversight — pinned so restoring them is a deliberate act.
