@@ -134,7 +134,15 @@ node scripts/check-auth-proxy.mjs <deployment-url>
 ```
 
 It reads the `redirect_uri` out of the Google authorization URL that deployment
-builds and tells you whether it is production's or its own.
+builds, then **asks Google whether it accepts it** — which needs no credentials,
+because an unregistered URI is refused before any sign-in begins. Export
+`VERCEL_AUTOMATION_BYPASS_SECRET` first; `vercel env pull --environment=development`
+is where it comes back with a value (the Preview scope returns it empty,
+because it is a sensitive variable there).
+
+What the script still cannot prove is that production **forwards** the callback
+back to the preview. That needs a completed Google sign-in, so it needs a
+human — see KI-50 for the one remaining step.
 
 ## Feature flags
 

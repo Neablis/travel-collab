@@ -18,6 +18,14 @@
 //
 //   node scripts/check-auth-proxy.mjs https://travel-collab-git-<branch>-<team>.vercel.app
 //
+// It then asks GOOGLE whether it accepts that redirect_uri, which is the only
+// question KI-50 was ever about. That step needs no credentials — an
+// unregistered URI is refused before any sign-in begins — and it is what makes
+// this a check rather than an echo of our own configuration.
+//
+// What it still cannot prove: that production FORWARDS the callback back here.
+// That needs a completed Google sign-in, and therefore a human.
+//
 // Preview deployments sit behind Vercel Deployment Protection. Set
 // VERCEL_AUTOMATION_BYPASS_SECRET (get it with `vercel env pull`) and it is
 // sent as the bypass header automatically; without it a protected deployment
@@ -122,6 +130,38 @@ if (!redirectUri) fail("The authorization URL carries no redirect_uri.", `Full U
 const redirectOrigin = new URL(redirectUri).origin;
 console.log(`deployment    ${base}`);
 console.log(`redirect_uri  ${redirectUri}`);
+
+// Ask Google directly. Everything above only establishes what WE send; this
+// establishes whether the other party accepts it, which is the actual subject
+// of KI-50 and the only thing that was ever broken. No credentials are
+// involved: an unregistered redirect_uri is refused before any sign-in starts.
+//
+// Google answers 302 either way, so the status is not the signal — the
+// Location is. A registered URI goes to `/v3/signin/identifier` (the real
+// sign-in page); an unregistered one goes to `/signin/oauth/error` with a
+// base64 `authError` that decodes to `redirect_uri_mismatch`.
+const askGoogle = async (url) => {
+  const res = await fetch(url, { redirect: "manual" });
+  const location = res.headers.get("location") ?? "";
+  if (!location.includes("/signin/oauth/error")) return { accepted: true, location };
+  let reason = "";
+  try {
+    const err = new URL(location).searchParams.get("authError") ?? "";
+    reason = Buffer.from(err, "base64").toString("utf8").replace(/[^\x20-\x7e]/g, " ").trim();
+  } catch {
+    /* the error blob is best-effort detail, never the verdict */
+  }
+  return { accepted: false, location, reason };
+};
+
+const verdict = await askGoogle(url);
+console.log(`google        ${verdict.accepted ? "accepts it" : "REFUSES it"}`);
+if (!verdict.accepted) {
+  fail(
+    `Google refuses this redirect_uri.`,
+    `${verdict.reason || verdict.location}\n      Register ${redirectUri} in the Google Cloud console, or fix AUTH_REDIRECT_PROXY_URL. See ADR-034.`,
+  );
+}
 
 if (redirectOrigin === base) {
   // Production's own callback IS the registered URI, so a production
