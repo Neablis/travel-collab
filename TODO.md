@@ -705,15 +705,24 @@ marked "history", so nothing live surfaced it and nobody resumed.
 
 ## Live, and previously hidden inside a closed-out plan
 
-- **`docs/guidelines/testing.md` does not exist** (test-overhaul Task 7.2).
-  Every other "how we work" area has a guideline file; testing does not, and
-  `AGENTS.md`'s "Testing model" section is a summary, not the procedure. This
-  does not depend on the prune that Phase 5 was closed for. Own PR.
-- **No `write-a-test` skill** (test-overhaul Task 7.4). The repo has
-  `minimal-check-subset`, `ci-triage`, `worktree-hygiene` and `ai-usage`;
-  the one that would shape *new* tests is the one missing, which is part of why
-  the suite grew unattended. Own PR, and worth doing after 7.2 so it has a
-  document to point at.
+- ~~`docs/guidelines/testing.md` does not exist~~ (7.2) — **done 2026-09-02.**
+- ~~No `write-a-test` skill~~ (7.4) — **done 2026-09-02.**
+- ~~Task 7.1's lint rules~~ — **done 2026-09-02**, and the reason it was still
+  live is worth keeping: 7.1's header had said *landed* since 2026-08-31 on the
+  strength of four unrelated walls in `scripts/`. Five of its six rows had
+  shipped as nothing. **A task marked done by substitution is worse than one
+  marked open** — nothing was looking for it. Two of the six rows are now
+  rejected in writing rather than left implied (`randomUUID` breaks the
+  integration lane's row isolation; the `TripDetail` row needs type information
+  ESLint does not have).
+- **Task 7.5 — close out the plan.** The last live item in the test overhaul.
+  `ADR-021-testing-strategy.md` does not exist, and it is the thing that stops
+  a future session re-proposing the three levers already evaluated and
+  rejected: `isolate: false` (248 failures), a coverage-percentage gate, and a
+  permanent mutation-testing CI job. Then `docs/plans/2026-08-23-test-suite-overhaul.md`
+  and `docs/plans/test-overhaul/` are removed in the same commit, per
+  `docs/plans/README.md`. Own PR. **Do not delete the directory without writing
+  the ADR first** — the rejected levers are the durable half.
 - **Convert `ci.yml`'s `paths-ignore` to a skip-job pattern BEFORE enabling
   branch protection.** The repo went public 2026-08-31, so branch protection is
   now available (`gh api .../branches/main/protection` returns "Branch not
