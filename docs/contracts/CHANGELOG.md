@@ -41,7 +41,12 @@ Format:
 - **The empty patch is refused, not treated as a no-op.** A `PATCH` carrying
   nothing is far likelier to be a client bug — a field name that silently
   failed to match — than a deliberate request to change nothing, and a 200
-  would hide it
+  would hide it. **"Empty" is measured by values, not keys** (fixed on #111
+  after review): a key whose value is `undefined` is still a key, so
+  `Object.keys(...).length` accepted `{ displayName: undefined }` — a patch
+  asking for nothing, passing the check written to refuse patches asking for
+  nothing. `null` still counts as a real instruction, since clearing a field is
+  the distinction this schema exists to preserve
 - **`homeAirport` is validated, never coerced.** Three uppercase letters or
   `null`; this package holds no transforms by convention, so trimming and
   upcasing a typed `sfo` belongs to the accepting route, before the parse. It

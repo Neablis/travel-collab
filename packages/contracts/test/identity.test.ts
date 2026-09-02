@@ -82,6 +82,20 @@ describe("UpdateUserPreferences", () => {
     expect(UpdateUserPreferences.safeParse({}).success).toBe(false);
   });
 
+  // Found by review on #111. `Object.keys` counts a key whose value is
+  // `undefined`, so `{ displayName: undefined }` looked like a real patch while
+  // asking for nothing — the exact case the refusal above exists to catch,
+  // slipping through the check meant to enforce it.
+  it("refuses a patch whose only keys are undefined", () => {
+    expect(UpdateUserPreferences.safeParse({ displayName: undefined }).success).toBe(false);
+    expect(UpdateUserPreferences.safeParse({ displayName: undefined, homeAirport: undefined }).success).toBe(false);
+  });
+
+  // …but `null` is a real instruction ("clear it") and must still pass.
+  it("accepts a patch whose only value is null", () => {
+    expect(UpdateUserPreferences.safeParse({ displayName: null }).success).toBe(true);
+  });
+
   it("still validates the fields it is given", () => {
     expect(UpdateUserPreferences.safeParse({ homeAirport: "sfo" }).success).toBe(false);
     expect(UpdateUserPreferences.safeParse({ displayName: "" }).success).toBe(false);
