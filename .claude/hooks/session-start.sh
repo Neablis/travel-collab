@@ -5,7 +5,8 @@
 #   creates apps/web/.env.local so `pnpm check` works out of the box), and a
 #   running, migrated Postgres — see "Postgres" below.
 #
-#   Local: dependency reconciliation only. Git worktrees do NOT share
+#   Local: dependency reconciliation and `pnpm run setup` — no Postgres, no
+#   Playwright repair. Git worktrees do NOT share
 #   node_modules, so a worktree created before a dependency landed keeps a
 #   stale tree indefinitely — this hook previously exited early on local
 #   sessions, and a worktree was found on 2026-08-24 whose node_modules
@@ -280,4 +281,42 @@ fi
 if ! pnpm install --frozen-lockfile --prefer-offline >/dev/null 2>&1; then
   echo "session-start: 'pnpm install --frozen-lockfile' did not succeed." >&2
   echo "session-start: if checks fail with TS2307 'cannot find module', run 'pnpm install' first." >&2
+fi
+
+# `pnpm run setup`, which the remote branch has always run and this one never
+# did. That asymmetry was measured on 2026-09-02 over 426 session transcripts
+# (docs/reviews/2026-09-02-session-tooling-review.md, F9): `pnpm setup` shipped
+# 2026-08-16, and *after* that date 22 sessions still hand-rolled 47 env
+# commands — ~106k tokens of `cp .env.example`, `export DATABASE_URL=…` and the
+# `docker ps` / `pg_isready` probing that follows a worktree with no
+# `.env.local`. A fresh worktree never has one: it is gitignored, so every
+# `git worktree add` starts without it.
+#
+# Safe by construction rather than by luck: scripts/setup-env.mjs copies
+# `.env.example` to `apps/web/.env.local` ONLY when that file does not exist,
+# and says so and stops when it does. A worktree carrying its own
+# LOCATIONIQ_API_KEY or a non-default WEB_PORT keeps them.
+#
+# It also closes F9a, which is the part that is not about tokens: the two
+# sessions that pasted a literal `pk.…` LocationIQ key into 11 shell commands —
+# where it now sits permanently in a transcript — did that *because* the
+# worktree had no `.env.local` to put it in.
+#
+# Deliberately NOT `start_postgres`. That belongs to the remote branch, which
+# has no docker daemon and a Postgres in the image; a laptop has docker-compose
+# and this hook stays out of its way.
+#
+# Advisory like everything else on this branch: a failure warns, never aborts.
+if setup_out="$(pnpm run setup 2>&1)"; then
+  # Quiet on the overwhelmingly common path (the file already exists). Speak up
+  # only when this actually created something, because that changes what the
+  # session can run.
+  case "$setup_out" in
+    *"Created apps/web/.env.local"*)
+      echo "session-start: created apps/web/.env.local from .env.example (pnpm setup)."
+      ;;
+  esac
+else
+  echo "session-start: 'pnpm run setup' did not succeed; apps/web/.env.local may be missing," >&2
+  echo "session-start: which breaks 'pnpm dev', 'db:*' and 'test:e2e'. Run 'pnpm setup' by hand." >&2
 fi
