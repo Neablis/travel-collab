@@ -275,28 +275,74 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
 }
 
 /**
- * Cities in the matched set that the query did NOT ask for, with counts —
+ * Cities in the RESULT SET that the query did NOT ask for, with counts —
  * §15's sibling chips.
  *
- * Computed over the whole matched set rather than over the returned page, so a
- * chip's count is the number of days tapping it would actually add rather than
- * the number that happened to fit on the page.
+ * **Counted here, in application code, over the same in-band days the cards are
+ * drawn from — not by a `group by` over `matchPredicate`.** That was the shape
+ * until 2026-09-02 and it could not carry the budget band: a day's total is a
+ * sum over its priced stops (`savedDayFacts`) and ADR-029 makes `stops` a value
+ * that is never queried into, so the band is applied to the candidate window
+ * after the rows come back. A chip counted in SQL therefore counted the whole
+ * match while the page below it showed the band — with `Under $200` on, a chip
+ * read `Osaka · 3` above a page holding one card (KI-2026-08-31). Two counts of
+ * two different sets, and the one on screen was the wrong one. One array now
+ * feeds both, so they cannot disagree again.
+ *
+ * What the number means, stated because the row's shape invites a wrong reading:
+ * **"days in these results that also touch this city"**, NOT "days tapping this
+ * chip would add". City matching is containment (`d.cities && ARRAY[...]`), so
+ * adding a city WIDENS the match — tapping a chip can only ever return at least
+ * this many days, never fewer. `DiscoverScreen` labels the row "Also in these
+ * results" for that reason.
+ *
+ * Counted over every in-band candidate rather than over the 24 that fit on the
+ * page — the original deliberate choice, and the one part of this the band bug
+ * never touched. What bounds it now is `CANDIDATE_LIMIT`, the same window the
+ * band itself runs over, and `truncated` is already the response's word for
+ * "that window was full".
  *
  * With an empty query there is nothing to subtract and this is the *"busy right
- * now"* row instead — the busiest cities in the library. One query serves both,
- * which is why there is no second "popular cities" endpoint.
+ * now"* row instead — the busiest cities among the ranked candidates. One
+ * derivation serves both, which is why there is no second "popular cities"
+ * endpoint.
  */
-async function siblingCities(query: DiscoverQuery): Promise<CityMatch[]> {
-  const rows = await db.execute<{ city: string; days: number }>(sql`
-    select city, count(*)::int as days
-    from saved_days d, unnest(d.cities) as city
-    where ${matchPredicate(query)}
-      and city <> all(${sql.param(query.cities)}::text[])
-    group by city
-    order by days desc, city asc
-    limit ${SIBLING_LIMIT}
-  `);
-  return [...rows.rows].map((row) => ({ city: String(row.city), days: Number(row.days) }));
+function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] {
+  const asked = new Set(queryCities);
+  const counts = new Map<string, number>();
+  for (const day of days) {
+    // `new Set` so a day is counted once per city even if `cities` ever grew a
+    // duplicate — `unnest` + `count(*)` had the same exposure and the column is
+    // written distinct, but a chip that counted one day twice would be the same
+    // class of lie this function was just rewritten to stop telling.
+    for (const city of new Set(day.cities)) {
+      if (asked.has(city)) continue;
+      counts.set(city, (counts.get(city) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([city, dayCount]) => ({ city, days: dayCount }))
+    // UTF-16 code-unit order on the tiebreak, not `localeCompare`: this
+    // replaced an `order by days desc, city asc` whose collation came from the
+    // database, so pinning it to something that does not vary with a locale
+    // keeps the row identical between a developer's machine, CI and production.
+    // That determinism is the whole requirement and `<`/`>` meets it exactly.
+    //
+    // It is NOT codepoint order, which is what this comment claimed until
+    // CodeRabbit read it (PR #123). JS `<` compares code units, so an
+    // astral-plane character — U+10000 and up, encoded as a surrogate pair
+    // starting in D800 — sorts BEFORE U+E000-U+FFFF. `city` is free text
+    // (`z.string().min(1).max(200)`), so that input is reachable rather than
+    // impossible, and it is still left alone on purpose: the difference is the
+    // order of at most SIBLING_LIMIT chips in one row, both orders are stable
+    // on every machine, and neither is alphabetical to a reader anyway. A
+    // codepoint comparator would buy a distinction nobody can perceive and
+    // cost an allocating comparison plus a test to hold it in place.
+    //
+    // Do not reach for `localeCompare` to "fix" this. Varying with the locale
+    // is the bug the sort replaced.
+    .sort((a, b) => b.days - a.days || (a.city < b.city ? -1 : a.city > b.city ? 1 : 0))
+    .slice(0, SIBLING_LIMIT);
 }
 
 /**
@@ -352,7 +398,9 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
 
   return {
     days: filtered.slice(0, PAGE_LIMIT),
-    siblings: await siblingCities(query),
+    // `filtered`, not `candidates` and not the page: the chips describe the set
+    // the cards come from, band included. See `siblingCities`.
+    siblings: siblingCities(filtered, query.cities),
     budgetCurrency,
     // Unfiltered on purpose — see `sharedDayCount` on the response. It answers
     // "is there a library at all", which is what decides whether the

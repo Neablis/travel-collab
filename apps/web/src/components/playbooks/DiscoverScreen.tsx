@@ -215,7 +215,15 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
 
       {/* Sibling chips when a query is on, the "busy right now" row when it is
           not. One row, because it is one question with and without a
-          subtraction — see `siblingCities` on the server. */}
+          subtraction — see `siblingCities` on the server.
+
+          "Also in these RESULTS" is the load-bearing word, not filler. The
+          count is days in the current result set — band included since
+          KI-2026-08-31 — that also touch this city. It is NOT how many days
+          the tap adds: city matching is containment, so adding a city widens
+          the match and a tap can only ever return at least this many. Don't
+          "improve" this to "Add N more"; that sentence is false in both
+          directions. */}
       {siblings.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="sibling-cities">
           <Text as="span" variant="muted" className="text-xs">

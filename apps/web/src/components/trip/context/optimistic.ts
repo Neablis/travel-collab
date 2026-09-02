@@ -50,6 +50,14 @@ export type HistoryRow = HistoryEntry & { pending?: boolean };
 // reading `pending[length - 1]` because the tail may be units retained without
 // a prediction (KI-42) — those carry no detail to show, so the last predicted
 // unit before them is still the truest picture of the trip.
+//
+// That is only true because unpredicted units are a strict SUFFIX of `pending`
+// (KI-55). `confirmHead` establishes the invariant — once a unit fails to
+// re-predict, every unit behind it is retained unpredicted too — and `enqueue`
+// preserves it by refusing to predict over a queue that already holds one. If
+// a predicted unit could sit behind an unpredicted one, this backwards scan
+// would return a detail computed over a base that skips real, still-queued
+// work, and the caller would render a trip no send is ever going to produce.
 function baseDetail(state: OptimisticState): TripDetail {
   for (let i = state.pending.length - 1; i >= 0; i--) {
     const predicted = state.pending[i]!.predictedDetail;
@@ -85,12 +93,36 @@ export type EnqueueResult =
   | { ok: true; state: OptimisticState }
   | { ok: false; code: string; message: string };
 
+// Queue one unit of work, predicted against the trip as currently rendered.
+//
+// KI-55: if the queue ALREADY holds a unit retained without a prediction
+// (KI-42), this unit is queued unpredicted too. The prediction is still
+// computed — a command that cannot apply to the screen the user is looking at
+// is still rejected here, and its `description` is still what names the unit
+// in the pending history — but the predicted detail is discarded rather than
+// stored, because storing it would put a predicted unit BEHIND an unpredicted
+// one. `baseDetail` would then read it and render authoritative-plus-this-one:
+// a trip missing the earlier retained work, which is not any prefix of the
+// queue and so is not a trip any send produces. The queue is sent in order, so
+// the only honest previews are prefixes of it.
+//
+// What this costs is real and deliberate: while the queue is unpredictable the
+// board stops moving under the user's edits. It does not go silent — the unit
+// is queued, counted by `unsentCount`, sent in order, and shown by
+// `activeHistory` as a pending row with this description, exactly like the
+// retained units ahead of it. The board resumes as soon as the queue drains.
 export function enqueue(state: OptimisticState, id: string, commands: BatchableCommand[]): EnqueueResult {
   const prediction = predictBatch(baseDetail(state), commands);
   if (!prediction.ok) {
     return { ok: false, code: prediction.rejection.code, message: prediction.rejection.message };
   }
-  const unit: PendingUnit = { id, commands, predictedDetail: prediction.detail, description: prediction.description };
+  const blocked = state.pending.some((u) => u.predictedDetail === null);
+  const unit: PendingUnit = {
+    id,
+    commands,
+    predictedDetail: blocked ? null : prediction.detail,
+    description: prediction.description,
+  };
   return { ok: true, state: { ...state, pending: [...state.pending, unit] } };
 }
 
@@ -120,16 +152,19 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // predicting a later one against a base that skips an earlier one would show
 // the user a trip that no send is ever going to produce.
 //
-// Scope of that guarantee, precisely (KI-55, CodeRabbit on PR #73): it holds
-// for the units this function re-predicts. It does NOT extend to units the
-// user queues *afterwards* — `enqueue` predicts against `baseDetail`, which
-// skips the retained nulls, so a later edit does get a prediction computed
-// over a base missing them. That is deliberate rather than overlooked: the
-// user can only act on what is rendered, and what is rendered is already
-// `baseDetail`, so the new prediction is consistent with the screen they
-// clicked on. Blocking it instead would mean their next edit visibly does
-// nothing. Nothing is lost either way — every retained unit is still queued,
-// still counted, still sent in order. See KI-55 for the trade-off.
+// That guarantee used to stop at this function's own re-predictions: a unit
+// the user queued AFTERWARDS was predicted against `baseDetail`, which skips
+// the retained nulls, so it rendered a trip with the new edit and without the
+// retained ones — no prefix of the queue, and so no trip any send produces
+// (KI-55, CodeRabbit on PR #73). `enqueue` now carries the same rule, so the
+// guarantee holds for the whole queue rather than half of it: unpredicted
+// units are a strict suffix of `pending`, and every rendered preview is a
+// prefix of the send order.
+//
+// Note this function relies on that: while `predictable` is true, `acc.pending`
+// holds no nulls, so the `enqueue` call below predicts normally. The first
+// re-prediction failure flips `predictable` and every later unit is appended
+// unpredicted here, without going through `enqueue` at all.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
   const rest = state.pending.slice(1);
   let acc: OptimisticState = { confirmed: outcome, pending: [] };
