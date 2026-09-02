@@ -132,11 +132,17 @@ export function aiQuotas(): QuotaPolicy[] {
 }
 
 /**
- * The per-request step budget the AI handler compiles in (`MAX_STEPS` for the
- * board/combined surfaces in handleAiRequest.ts). Duplicated as a constant
- * rather than imported so this module keeps no dependency on the AI handler —
- * it is used here only to derive and document the step ceilings below, and to
- * bound what `settleAiSteps` will accept.
+ * A defensive ceiling on what one request may settle, kept as a constant rather
+ * than imported so this module keeps no dependency on the AI handler. It is
+ * used to derive and document the step ceilings below, and to bound what
+ * `settleAiSteps` will accept from a caller.
+ *
+ * It deliberately sits ABOVE every budget actually compiled in today — page
+ * composition is 3 (`MAX_STEPS`, handleAiRequest.ts) and a `/ask` turn is 8
+ * (`MAX_ASK_STEPS`, handleAskRequest.ts). It used to equal the board surface's
+ * 32-step planning budget, which ADR-033 Decision 4 retired; the number is kept
+ * as a bound on a bad caller, not as a mirror of a real budget. Lowering it to
+ * the real maximum would be a behaviour change and wants its own decision.
  */
 const AI_MAX_STEPS_PER_REQUEST = 32;
 

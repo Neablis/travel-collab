@@ -1,10 +1,17 @@
 # One AI route, tool sets scoped by server-resolved context
 
-**Status: PROPOSED, not decided.** Written 2026-08-29 at Mitchell's request while
-PR #88 (M16 + M9) was in flight. Nothing here is implemented, and nothing here
-should be implemented inside PR #88 — ADR-022 §4 pins the command path for the
-duration of that milestone. If accepted this becomes an ADR and its own
-milestone or phase.
+**Status: ACCEPTED — 2026-09-01, as `docs/architecture/ADR-033-one-ai-route.md`.**
+Mitchell's decision: *"I would rather just close the two doors, and have 1 door,
+with all that logic behind it… lets clean that up, and simplify our code
+today."* ADR-033 carries the decision and the amendment to ADR-022 §4; this
+document stays as the **evidence and the cost accounting** behind it, and is not
+restated there. Its recommendation below — take the free half first — is the
+staging ADR-033 adopts, with the second half following in the same session
+rather than a later one.
+
+*(Written 2026-08-29 at Mitchell's request while PR #88 (M16 + M9) was in
+flight, and left proposed because ADR-022 §4 pinned the command path for the
+duration of that milestone. That pin is lifted by ADR-033 §5.)*
 
 **Opened by:** Mitchell, 2026-08-29 — *"why are we not deprecating that old
 endpoint if it's not used?"*, then *"i would prefer us having one route for AI,

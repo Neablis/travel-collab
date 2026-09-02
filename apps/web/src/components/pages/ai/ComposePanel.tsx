@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { PageContent, PageContext } from "@tc/contracts";
-import { composeAiPage, composeAiPlan, type CommandOutcome } from "@/lib/apiClient";
+import { composeAiPage } from "@/lib/apiClient";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -9,81 +9,46 @@ import { Label } from "@/components/ui/label";
 
 type Status = "idle" | "loading" | "error";
 
-// Task 5.5: a prompt box that POSTs to /api/trips/:id/ai and applies the
-// result. Two surfaces, two callback shapes — deliberately not one generic
-// "onResult" prop, since the two surfaces' results are genuinely different
-// things (a doc to review vs. a trip that already changed):
+// Task 5.5: a prompt box that POSTs to /api/trips/:id/ai and hands the result
+// to `onApply` — the same content-setter PageScreen wires to PageEditor's
+// `onChange` (Task 4.4), so the model's draft lands in the editor for the user
+// to review/edit before the existing debounced autosave persists it. This panel
+// never calls updatePage itself.
 //
-//   - `surface="page"`: the returned PageContent is handed to `onApply`,
-//     the same content-setter PageScreen wires to PageEditor's `onChange`
-//     (Task 4.4) — the model's draft lands in the editor for the user to
-//     review/edit before the existing debounced autosave persists it. This
-//     panel never calls updatePage itself.
-//   - `surface="board"`/`"combined"`: the server already executed the
-//     model's tool calls as one atomic batch (Task 5.3/5.4) before
-//     responding, so there's nothing left to "apply" — `onApplied` hands the
-//     caller the resulting `{ detail, history }` so it can reconcile board
-//     state directly (TripProvider's `dispatch`/`dispatchBatch` predict
-//     locally from commands the client itself sent; this command was decided
-//     server-side, so the client never held it to predict — reconciling from
-//     the authoritative response is correct, and it's already in hand, so no
-//     refetch is needed). Reconciling in place (not a page reload) keeps this
-//     panel mounted so the summary below stays on screen.
+// Page-only since ADR-033 Decision 4. It used to serve the board/combined
+// surfaces too, through a second `onApplied` callback shape — those surfaces
+// had no caller and retired with `composeAiPlan`. Changing the trip itself is
+// /ask's propose → review → approve now, not a panel that rewrites the board on
+// submit.
 type PageProps = {
   tripId: string;
   surface: "page";
   pageContext: PageContext;
   onApply: (content: PageContent) => void;
 };
-type PlanProps = {
-  tripId: string;
-  surface: "board" | "combined";
-  onApplied: (outcome: CommandOutcome) => void;
-};
 
-export function ComposePanel(props: PageProps | PlanProps) {
+export function ComposePanel(props: PageProps) {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-  // The board/combined surface's summary of what the AI just did. Kept in this
-  // panel's own state (not a transient toast) so it stays visible after the
-  // board refetches in place — the user's confirmation of the applied edit.
-  const [message, setMessage] = useState<string | null>(null);
-  // True when the last result was composed by the server because the ai-live
-  // flag is off, on either surface — the change/draft is real, the authorship
-  // is not a model.
+  // True when the last draft was composed by the server because the ai-live
+  // flag is off — the draft is real, the authorship is not a model.
   const [simulated, setSimulated] = useState(false);
 
   const submit = async () => {
     if (prompt.trim() === "") return;
     setStatus("loading");
     setError(null);
-    setMessage(null);
     setSimulated(false);
 
-    if (props.surface === "page") {
-      const result = await composeAiPage(props.tripId, prompt, props.pageContext);
-      if (!result.ok) {
-        setError(result.error.message);
-        setStatus("error");
-        return;
-      }
-      setSimulated(result.value.simulated);
-      props.onApply(result.value.content);
-      setStatus("idle");
-      setPrompt("");
-      return;
-    }
-
-    const result = await composeAiPlan(props.tripId, prompt, props.surface);
+    const result = await composeAiPage(props.tripId, prompt, props.pageContext);
     if (!result.ok) {
       setError(result.error.message);
       setStatus("error");
       return;
     }
-    setMessage(result.value.message);
     setSimulated(result.value.simulated);
-    props.onApplied(result.value);
+    props.onApply(result.value.content);
     setStatus("idle");
     setPrompt("");
   };
@@ -92,9 +57,7 @@ export function ComposePanel(props: PageProps | PlanProps) {
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface p-3">
-      <Label htmlFor={inputId}>
-        {props.surface === "page" ? "Ask AI to draft this page" : "Ask AI to plan"}
-      </Label>
+      <Label htmlFor={inputId}>Ask AI to draft this page</Label>
       <Textarea
         id={inputId}
         value={prompt}
@@ -107,17 +70,10 @@ export function ComposePanel(props: PageProps | PlanProps) {
             void submit();
           }
         }}
-        placeholder={
-          props.surface === "page"
-            ? "e.g. Add a packing checklist and the day-by-day itinerary"
-            : "e.g. Add two more days and move dinner to day 2"
-        }
+        placeholder="e.g. Add a packing checklist and the day-by-day itinerary"
         disabled={status === "loading"}
       />
       {error !== null && <p role="alert" className="text-sm text-danger">{error}</p>}
-      {message !== null && message !== "" && (
-        <p role="status" className="text-sm text-slate">{message}</p>
-      )}
       {simulated && (
         <Badge variant="info" role="status">
           Simulated

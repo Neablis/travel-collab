@@ -224,12 +224,16 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
  * stands on its own prose.
  *
  * Also where a created stop with no stated `kind` becomes `hold` rather than
- * `planned` — see `withDefaultKind`. That makes `/ask` and the older `/ai`
- * command endpoint (`handleAiRequest.ts`, which calls `resolveBatch` directly
- * and never reaches this function) disagree about the default for the same
- * model behaviour. Recorded rather than fixed: `/ai` doesn't run
- * `withoutFabricatedCost` either, for the same reason — it predates this
- * wrapper and this task does not touch it.
+ * `planned` — see `withDefaultKind`.
+ *
+ * This used to disagree with the older `/ai` command endpoint, which called
+ * `resolveBatch` directly and so reached neither `withDefaultKind` nor
+ * `withoutFabricatedCost` — the same model behaviour read as `hold` on one
+ * door and `planned` on the other (KI-87). ADR-033 Decision 4 retired that
+ * endpoint's planning surfaces, so there is no second creation path left to
+ * disagree with: this function is now the only way a stop is created by a
+ * model. Do not reintroduce one without moving both wrappers into
+ * `resolveBatch` itself.
  */
 export function buildProposal(
   intents: RawToolIntent[],

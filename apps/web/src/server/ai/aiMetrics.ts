@@ -39,6 +39,7 @@
 // never become the reason an answer stops mid-sentence.
 import * as Sentry from "@sentry/nextjs";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { AiCommandSurface } from "@/server/ai/context";
 
 /**
  * Split a gateway model id into provider and model.
@@ -213,8 +214,13 @@ export function recordAskMetrics(record: AskAnalyticsRecord): void {
 
 /** What the command endpoint (`POST /api/trips/:id/ai`) reports about one generation. */
 export interface CommandMetricsRecord {
-  /** Which generation this was — `plan` for the planning loop, `page` for page composition. */
-  surface: string;
+  /**
+   * Which generation this was. Narrowed to `AiCommandSurface` by ADR-033
+   * Decision 4, which left `page` as the only command surface: while this was
+   * a bare `string`, a test fixture went on reporting `surface: "board"` after
+   * that surface was deleted and nothing caught it.
+   */
+  surface: AiCommandSurface;
   model: string;
   simulated: boolean;
   finishReason: string;

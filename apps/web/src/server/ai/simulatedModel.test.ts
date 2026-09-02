@@ -18,7 +18,7 @@ type Probe = {
   doStream: (options: unknown) => Promise<unknown>;
 };
 
-const probe = (surface: "page" | "board" | "combined" | "ask") => simulatedModel(surface) as unknown as Probe;
+const probe = (surface: "page" | "ask") => simulatedModel(surface) as unknown as Probe;
 const callsOf = (result: Generated) => result.content.filter((c) => c.type === "tool-call");
 const textOf = (result: Generated) =>
   result.content
@@ -95,84 +95,46 @@ const FREE_READOUT = {
 
 describe("simulatedModel", () => {
   it("identifies itself so meta.model.requested is honest", () => {
-    expect(probe("board")).toMatchObject({ specificationVersion: "v4", modelId: SIMULATED_MODEL_ID });
+    expect(probe("page")).toMatchObject({ specificationVersion: "v4", modelId: SIMULATED_MODEL_ID });
     expect(SIMULATED_MODEL_ID).toBe("simulated/no-op");
   });
 
-  it("emits two AddDay and three AddActivity calls for the board surface", async () => {
-    const result = await probe("board").doGenerate({});
-    expect(callsOf(result).map((c) => c.toolName)).toEqual([
-      "AddDay",
-      "AddDay",
-      "AddActivity",
-      "AddActivity",
-      "AddActivity",
-    ]);
-    expect(result.finishReason).toEqual({ unified: "tool-calls", raw: undefined });
-  });
-
-  it("emits no location and no cost, so nothing reaches the geocoder or the wallet", async () => {
-    const result = await probe("board").doGenerate({});
-    for (const call of callsOf(result)) {
-      const input = JSON.parse(call.input) as Record<string, unknown>;
-      expect(input).not.toHaveProperty("location");
-      expect(input).not.toHaveProperty("cost");
-    }
-  });
-
   it("emits one compose_page call for the page surface", async () => {
-    const calls = callsOf(await probe("page").doGenerate({}));
+    const result = await probe("page").doGenerate({});
+    const calls = callsOf(result);
     expect(calls).toHaveLength(1);
     expect(calls[0]!.toolName).toBe("compose_page");
     const input = JSON.parse(calls[0]!.input) as { title: string; blocks: unknown[] };
     expect(input.title).toBeTruthy();
     expect(input.blocks.length).toBeGreaterThan(0);
+    expect(result.finishReason).toEqual({ unified: "tool-calls", raw: undefined });
   });
 
-  // KI-23: `combined` exposes BOTH tool sets in handleAiRequest (the planning
-  // tools merged with buildPageTools()'s), so a simulation that only ever
-  // emits the plan under-represents the surface. Both halves in ONE step — the
-  // simulated model gets exactly one message, and every call in it is applied
-  // together.
-  it("emits both the plan and a composed page for the combined surface", async () => {
-    const calls = callsOf(await probe("combined").doGenerate({}));
-    expect(calls.map((c) => c.toolName)).toEqual([
-      "AddDay",
-      "AddDay",
-      "AddActivity",
-      "AddActivity",
-      "AddActivity",
-      "compose_page",
-    ]);
-  });
-
-  // Guards against `combined` drifting into a third, separately-maintained
-  // script: it is exactly the board plan followed by the page.
-  it("reuses the board plan and the page content verbatim for combined", async () => {
-    const combined = callsOf(await probe("combined").doGenerate({})).map((c) => c.input);
-    const board = callsOf(await probe("board").doGenerate({})).map((c) => c.input);
-    const page = callsOf(await probe("page").doGenerate({})).map((c) => c.input);
-    expect(combined).toEqual([...board, ...page]);
-  });
-
-  // The 32-step budget makes this the difference between one batch and 32.
+  // Without the latch a compose costs one round-trip per remaining step of the
+  // page surface's 3-step budget: three settled steps against the actor's quota
+  // (KI-67) and `truncated: true` on a page that was finished after step one.
+  // The retired board/combined surfaces made the same bug a 32x one.
   it("stops after the first step instead of re-emitting forever", async () => {
-    const model = probe("board");
+    const model = probe("page");
     await model.doGenerate({});
     const second = await model.doGenerate({});
     expect(second.finishReason).toEqual({ unified: "stop", raw: undefined });
     expect(callsOf(second)).toHaveLength(0);
   });
 
-  it("gives each tool call a distinct id", async () => {
-    const ids = callsOf(await probe("board").doGenerate({})).map((c) => c.toolCallId);
+  // Reusing a toolCallId across the calls in one message is invalid, and the
+  // ask surface's opening step is the multi-call message that can get it wrong
+  // — the page composes with a single call, so it cannot witness this.
+  it("gives each tool call in a message a distinct id", async () => {
+    const ids = callsOf(await probe("ask").doGenerate(askPrompt({ kind: "trip" }))).map((c) => c.toolCallId);
+    expect(ids.length).toBeGreaterThan(1);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  // ADR-033 deletes this throw once `page` moves onto /ask; until then the
+  // command path is real and must not be served canned stream data.
   it("refuses to stream a command surface rather than pretending to", async () => {
-    await expect(probe("board").doStream({})).rejects.toThrow(/does not stream/);
     await expect(probe("page").doStream({})).rejects.toThrow(/does not stream/);
-    await expect(probe("combined").doStream({})).rejects.toThrow(/does not stream/);
   });
 });
 
@@ -497,8 +459,8 @@ describe("simulatedModel — proposing a change", () => {
       const input = JSON.parse(call.input) as Record<string, unknown>;
       expect(input).not.toHaveProperty("cost");
       // No location means `enrichCommandLocations` no-ops, so the simulated
-      // path still cannot reach LocationIQ — the same guarantee planCalls()
-      // keeps for the command endpoint.
+      // path still cannot reach LocationIQ. Since ADR-033 retired the command
+      // endpoint's canned plan, this is the only place that guarantee is kept.
       expect(input).not.toHaveProperty("location");
       expect(JSON.stringify(input)).not.toContain("amountMinor");
     }
