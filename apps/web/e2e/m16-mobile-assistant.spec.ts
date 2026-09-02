@@ -12,6 +12,42 @@ import { e2eTripName } from "./tripNames";
 // becomes a full-screen surface (`.assistant-rail`, globals.css) — the plan
 // sits behind it rather than being crushed beside it.
 test.describe("mobile assistant (phone viewport)", () => {
+  // KI-2026-08-30, the launcher half of KI-84. KI-84 fixed what happens once
+  // the rail is OPEN and said, in terms, that it did not touch the way you
+  // open it: that stayed a `position: fixed` filled pill in the viewport's
+  // bottom-right, which SPEC §13.5 forbids outright on a phone ("Nothing
+  // floats over data. No floating action button."). The three tests below
+  // would all still pass with the pill back — they click a button named
+  // "Assistant" and never ask where it is — so this is the one that pins it.
+  test("the launcher does not float over the plan: SPEC §13.5 allows no phone FAB", async ({ page }) => {
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("MobileRail") } }).then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    await page.goto(`/trips/${tripId}`);
+
+    const launcher = page.getByRole("button", { name: "Assistant", exact: true });
+    await expect(launcher).toBeVisible();
+
+    // The property, stated as the spec states it: this control is in normal
+    // flow, so scrolling the plan cannot park it on top of a value. Asserting
+    // "not fixed" rather than "static" leaves the in-flow presentation free to
+    // change without this test having an opinion about how.
+    const position = await launcher.evaluate((el) => getComputedStyle(el).position);
+    expect(position).not.toBe("fixed");
+    expect(position).not.toBe("absolute");
+
+    // In flow AND still a real target: §13.1's 44px floor, the same one the
+    // rail's own Hide button clears below.
+    const box = await launcher.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+
+    // And it still opens the rail — an entry point that satisfies §13.5 by
+    // being unreachable would satisfy nothing.
+    await launcher.click();
+    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  });
+
   test("the rail is full-screen, not crushed beside the plan, at a real phone width", async ({ page }) => {
     const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("MobileRail") } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {

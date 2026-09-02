@@ -908,6 +908,70 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             )}
           </div>
+          {!isDemo && !assistant.open && (
+            // The closed-rail launcher. Two presentations, and the breakpoint
+            // is the SAME 768px the rail itself already turns on
+            // (`.assistant-rail`, globals.css; `useIsPhone`'s
+            // PHONE_MAX_WIDTH_PX; TripHeader's `hidden md:block` Share).
+            //
+            // >=768px (`md:`) is unchanged: the design's minimized launcher
+            // (`Trip Planner Redesign.dc.html:1058-1063`), a filled-brand pill
+            // pinned bottom-right by `position: fixed`, not the edge-tab
+            // treatment this used to have (variant="secondary",
+            // rounded-r-none, vertically centred against the right edge) — the
+            // design has no bordered edge-tab state for the assistant, only
+            // this pill. Icon mirrors AssistantRail's own open-state mark
+            // glyph (◎, same component's header).
+            //
+            // Below 768px it stops floating (KI-2026-08-30). SPEC §13.5 is
+            // categorical about the phone — "Nothing floats over data. No
+            // floating action button." — and gives the reason this element hit
+            // first-hand: "a control hovering over a scrolling list will cover
+            // a value at some scroll position, and costs are right-aligned."
+            // The pill is bottom-RIGHT and a stop card's cost is
+            // right-aligned, so at 402x874 it sat on top of the day columns;
+            // the same fact already forced a 158px canvas reservation on the
+            // Map lens so it would stop covering MapLibre's attribution
+            // (`.assistant-launcher` in globals.css). §13.5's own remedy for a
+            // FAB is to put the control in normal flow at the end of the
+            // content ("Adding sits at the end of the day, as on desktop"), so
+            // that is what this is: a full-width, 44px-floor (§13.1) button in
+            // flow, as the last thing in the plan column.
+            //
+            // Mounted HERE, inside `.trip-board-content`, rather than as a
+            // sibling of the flex row above, for one concrete reason: that
+            // div's `padding-bottom: calc(24px + var(--rack-height))`
+            // (globals.css) is the app's existing reservation against the
+            // `position: fixed` unscheduled rack. An in-flow launcher placed
+            // after the row would land *below* that reservation, i.e. under
+            // the rack's bar; inside it, the reservation does for the launcher
+            // exactly the job it already does for the day columns. Nothing
+            // changes for the docked (>=768px) presentation, which is out of
+            // flow either way — a `position: fixed` element's containing block
+            // is the viewport, and no ancestor here establishes a new one.
+            // Deliberately outside the `inert` wrapper above (as before):
+            // asking a question about a previewed history state is a read, not
+            // a write, so it stays available while the board is inert.
+            <PageContainer width={boardUsesFullWidth || isFullLens ? "full" : "content"}>
+              <Button
+                variant="primary"
+                onClick={assistant.show}
+                // `md:min-h-0` releases the phone's 44px floor above the
+                // breakpoint so the docked pill keeps the exact 40.3px height
+                // it has always had — this fix is not licensed to resize a
+                // desktop control.
+                className="mt-3 h-auto min-h-11 w-full gap-2 rounded-full px-4 py-2.5 text-base font-semibold md:fixed md:right-6 md:z-40 md:mt-0 md:min-h-0 md:w-auto md:shadow-overlay"
+                // Only read while the pill is `position: fixed` (>=768px); a
+                // static element ignores `bottom`, which is why the in-flow
+                // phone presentation needs no counterpart here.
+                // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+                style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
+              >
+                <span aria-hidden>◎</span>
+                Assistant
+              </Button>
+            </PageContainer>
+          )}
         </div>
         {/* The assistant rail — a real streaming conversation against
             /api/trips/:id/ask (see runAsk above). Mounted here, as the row's
@@ -937,27 +1001,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           />
         )}
       </div>
-      {!isDemo && !assistant.open && (
-        // Matches the design's minimized launcher (`Trip Planner Redesign
-        // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
-        // not the edge-tab treatment this used to have (variant="secondary",
-        // rounded-r-none, vertically centered against the right edge) — the
-        // design has no bordered edge-tab state for the assistant, only this
-        // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
-        // same component's header). Stays `position: fixed`, outside the row
-        // above — a closed rail costs no layout, so there is nothing for it
-        // to be a flex sibling of.
-        <Button
-          variant="primary"
-          onClick={assistant.show}
-          className="fixed right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
-          // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-          style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-        >
-          <span aria-hidden>◎</span>
-          Assistant
-        </Button>
-      )}
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
