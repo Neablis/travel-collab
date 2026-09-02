@@ -1,13 +1,29 @@
 # Phase 7 — Make it stick: guidance a smaller model can follow
 
-> **PARTIALLY DONE 2026-08-31 — NOT superseded.**
+> **DONE 2026-09-02, except Task 7.5.**
 >
-> **Task 7.1 landed** (four lint walls in `scripts/`). **Task 7.3 landed**
-> (`AGENTS.md`'s "Testing model" section). **Tasks 7.2
-> (`docs/guidelines/testing.md`) and 7.4 (a `write-a-test` skill) have not
-> been done**, and neither depends on the prune that Phase 5 was closed for.
-> They are still wanted. Do not close this file by association with Phases 5
-> and 6 — see `TODO.md`.
+> **The 2026-08-31 header on this file was wrong and is corrected here.** It
+> said "Task 7.1 landed (four lint walls in `scripts/`)". Those four walls are
+> the lint wall, the colour wall, case collisions and the sleep wall — and only
+> the last corresponds to a row in 7.1's table. Five of its six rows had shipped
+> as nothing, while the header recorded the task as done. The substitution went
+> unnoticed for a month.
+>
+> - **7.1 — landed 2026-09-02**, three rows of six: `eslint-plugin-testing-library`,
+>   `eslint-plugin-playwright`, and the no-presentation-assertion rule, all as
+>   errors, with the existing suite grandfathered under KI-2026-09-02-b. The
+>   `crypto.randomUUID` row is **rejected, not deferred** — 294 occurrences, and
+>   the load-bearing ones are correct (the integration lane namespaces its rows
+>   per run with it). The hand-built-`TripDetail` row is **not expressible** as
+>   an ESLint selector without type information.
+> - **7.2 — landed 2026-09-02**: `docs/guidelines/testing.md`, 177 lines against
+>   a ~150 target. Over budget, deliberately: the four examples are verbatim from
+>   the suite rather than illustrative, which is what 7.2 asked for.
+> - **7.3 — landed 2026-08-31**, extended 2026-09-02 with the red-first rule and
+>   the three invariants this file listed as "earned by this plan".
+> - **7.4 — landed 2026-09-02**: `.claude/skills/write-a-test/SKILL.md`.
+> - **7.5 — NOT done.** ADR-021 does not exist, and this directory is still
+>   here. That is the remaining item; see `TODO.md`.
 
 **The stated goal:** a new test gets written correctly *without* frontier-model
 guidance. That is a real constraint on how this phase is written — prose that
