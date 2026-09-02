@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -292,7 +291,6 @@ export default function Home() {
 
   return (
     <PageContainer as="main" width="content" className="home-rhythm">
-      <SpeedInsights />
       <div className="home-stack">
         <div>
           {/* Task 8.5: a mono uppercase date line above the page title —
