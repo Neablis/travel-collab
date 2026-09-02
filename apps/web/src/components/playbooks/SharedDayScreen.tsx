@@ -57,7 +57,7 @@ const MONTHS = [
  * render, and so it cannot drift from `seasonOfMonth` — one lookup decides
  * which months are Fall, here and in the SQL alike.
  */
-export function seasonLine(createdAt: string): string {
+function seasonLine(createdAt: string): string {
   const at = new Date(createdAt);
   if (Number.isNaN(at.getTime())) return "Not known";
   const month = at.getUTCMonth() + 1;

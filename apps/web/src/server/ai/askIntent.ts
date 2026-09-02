@@ -71,7 +71,7 @@ export type AskIntent = AskIntentRecord["intent"];
 // cannot drift apart. Without it the flag-off path (which is every Vercel
 // environment) would answer a classification call with `read_trip`, fail open
 // on every turn, and quietly buy nothing.
-export const ASK_INTENT_MARKER = "Set intent to question or write.";
+const ASK_INTENT_MARKER = "Set intent to question or write.";
 
 /**
  * The whole instruction. Deliberately short — it is re-sent on every turn, and
@@ -244,7 +244,7 @@ export function isBareAgreement(message: string): boolean {
  * sees the context too, so the flag-off path classifies a follow-up with the
  * same information a live model gets.
  */
-export function askIntentPrompt(question: string, context: readonly AskIntentContextMessage[]): string {
+function askIntentPrompt(question: string, context: readonly AskIntentContextMessage[]): string {
   if (context.length === 0) return question;
   return [
     "Earlier in the conversation:",

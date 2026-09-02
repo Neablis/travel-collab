@@ -374,7 +374,7 @@ export function findFreeTime(
 
 // Input schemas, exported so the no-`tripId` assertion can walk them
 // structurally rather than by reading the tool descriptions.
-export const ReadTripInput = z.object({});
+const ReadTripInput = z.object({});
 
 // One field, two shapes: a bare day number (the common case, and what a
 // day-scoped turn's default still fills in unasked) or a list of up to
