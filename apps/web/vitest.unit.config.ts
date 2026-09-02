@@ -69,19 +69,24 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          // Three unit tests live outside src/, because the things they cover
+          // Four unit tests live outside src/, because the things they cover
           // do too: `next.config.test.ts` covers the CSP's build-time
           // VERCEL_ENV branch and the js-profiling document policy,
           // `sentry.shared.test.ts` covers the sample-rate parsing shared by
           // the three `sentry.*.config.ts` files — which sit at the app root
-          // because that is where the Next.js SDK looks for them — and
+          // because that is where the Next.js SDK looks for them —
           // `scripts/geocode-japan-seed.test.ts` covers the one decision in
           // that one-off script (is this thrown vendor error a definitive
           // "no such place" or a retryable failure, KI-78) with a stub
-          // geocoder. Named file by file, not by a `scripts/**` glob: the
-          // other files in `scripts/` are entry points, not test subjects.
+          // geocoder, and `lint-scope.test.ts` covers the `lint` script's own
+          // file scope, i.e. that the root-level files listed here are also
+          // reachable by the OTHER lane (KI-2026-08-30-b: this include list
+          // named them and `"lint": "eslint src"` did not). Named file by
+          // file, not by a `scripts/**` glob: the other files in `scripts/`
+          // are entry points, not test subjects.
           include: [
             "src/**/*.test.ts",
+            "lint-scope.test.ts",
             "next.config.test.ts",
             "sentry.shared.test.ts",
             "scripts/geocode-japan-seed.test.ts",
