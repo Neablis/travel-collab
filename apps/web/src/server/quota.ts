@@ -17,10 +17,10 @@
 // instance is short-lived and there is no shared process. An in-memory counter
 // caps nothing — an attacker's requests fan out across instances, and each one
 // starts at zero. The review suggested reusing the `events` table's per-actor
-// timestamps, and that was rejected: a prompt the model answers with zero tool
-// calls appends NO event (handleAiRequest's "couldn't turn that into any
-// changes" path) yet still pays for the round-trips, and the geocode proxy
-// never writes an event at all. Counting events would meter exactly the
+// timestamps, and that was rejected: a turn the model answers with zero write
+// tool calls appends NO event — every question does, and so does every page
+// the assistant drafts — yet still pays for the round-trips, and the geocode
+// proxy never writes an event at all. Counting events would meter exactly the
 // requests that are cheapest to make and miss the abusive ones.
 import { sql } from "drizzle-orm";
 import { db } from "./db/client";
@@ -137,12 +137,12 @@ export function aiQuotas(): QuotaPolicy[] {
  * used to derive and document the step ceilings below, and to bound what
  * `settleAiSteps` will accept from a caller.
  *
- * It deliberately sits ABOVE every budget actually compiled in today — page
- * composition is 3 (`MAX_STEPS`, handleAiRequest.ts) and a `/ask` turn is 8
- * (`MAX_ASK_STEPS`, handleAskRequest.ts). It used to equal the board surface's
- * 32-step planning budget, which ADR-033 Decision 4 retired; the number is kept
- * as a bound on a bad caller, not as a mirror of a real budget. Lowering it to
- * the real maximum would be a behaviour change and wants its own decision.
+ * It deliberately sits ABOVE the only budget compiled in today — a `/ask` turn
+ * is 8 (`MAX_ASK_STEPS`, handleAskRequest.ts), and since ADR-033 there is no
+ * other AI entry point to have one. It used to equal the board surface's 32-step
+ * planning budget, which ADR-033 Decision 4 retired; the number is kept as a
+ * bound on a bad caller, not as a mirror of a real budget. Lowering it to the
+ * real maximum would be a behaviour change and wants its own decision.
  */
 const AI_MAX_STEPS_PER_REQUEST = 32;
 
@@ -150,12 +150,20 @@ const AI_MAX_STEPS_PER_REQUEST = 32;
  * AI **cost** quotas, metered in model round-trips rather than in calls (KI-67).
  *
  * The request policies above bound how many times an actor may ask. They do not
- * bound what asking costs: `handleAiRequest` runs a tool-using loop with a
- * 32-step budget, so one request can burn 32 model round-trips while another
- * burns one, and both used to decrement the same allowance by exactly 1. The
- * measured consequence: a nominal ceiling of 30 requests an hour actually
- * permits **960** round-trips an hour, and an actor who wants to maximise spend
- * under the cap simply writes prompts that provoke long tool loops.
+ * bound what asking costs: the AI handler runs a tool-using loop, so one request
+ * can burn its whole step budget while another burns one, and both used to
+ * decrement the same allowance by exactly 1. The measured consequence, against
+ * the 32-step budget KI-67 was filed on: a nominal ceiling of 30 requests an
+ * hour actually permits **960** round-trips an hour, and an actor who wants to
+ * maximise spend under the cap simply writes prompts that provoke long tool
+ * loops.
+ *
+ * **`/ask` was missing both halves until 2026-09-02.** This pair was wired into
+ * the command endpoint only; `/ask` — built afterwards, and the door users
+ * actually reach — charged `aiQuotas()` alone and never settled, so it was
+ * metered exactly the way KI-67 proved wrong for the whole life of the endpoint.
+ * It now charges both layers at admission and settles from its one end-of-turn
+ * writer.
  *
  * These policies are ADDITIVE — the request policies keep their numbers and
  * their meaning, so no operator's configured value silently changes unit. A

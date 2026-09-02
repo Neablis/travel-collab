@@ -102,7 +102,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
         <DayBindingControl trip={trip} dayRef={page.context.dayRef} onChange={handleBindDay} />
       </div>
       <div className="mb-3">
-        <ComposePanel tripId={tripId} surface="page" pageContext={page.context} onApply={handleContentChange} />
+        <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} />
       </div>
       <PageEditor
         detail={trip}

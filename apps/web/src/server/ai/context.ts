@@ -1,52 +1,52 @@
-// Typed AI context envelope builder (ADR-015: "typed context envelope, not a
-// transcript dump"). Pure function — no I/O, no model calls — so every AI
-// request gets a small, bounded context instead of the full board state.
+// The shared AI context module: what a turn is ABOUT (`AskScope`), and the
+// derived, model-safe views of a trip that more than one tool family reads.
 //
-// Two things are deliberately kept out of `tripSummary`:
-//   - `activities` (the full ActivityView record, keyed by id) — the AI needs
-//     only each activity's *id + title* per day (location/notes/anchors/etc.
-//     are omitted), inlined here. The id matters: the planning tools
-//     (MoveActivity/UpdateActivity/RemoveActivity) require the activity's UUID,
-//     and each day carries its `dayId` for the same reason (MoveActivity's
-//     `toDayId`). Without these the model can name an activity but has no way
-//     to reference it, so it emits zero commands and nothing changes.
-//   - the full `conflicts` / `dismissedConflictIds` records — the raw
-//     Conflict shape carries a compound, UUID-embedding `id` the model must
-//     never copy. `activeConflicts` below is the stable, human-referenceable
-//     form instead — a 1-based `ref` + kind + description — and it is the one
-//     numbering both /ask's read tools and `batchResolver`'s `conflictRef`
-//     resolution read, so the number the model is shown and the id the server
-//     resolves it back to cannot drift. Without it the model has no id to
-//     reference and every dismiss attempt fails.
-// `members`, `backlog`, and `budget`/`budgetRemaining` are also excluded:
-// none of them are needed by the page-authoring or planning tool families
-// this envelope currently scopes into, and each one is either PII-adjacent
-// (members) or easily re-derived by a tool call when actually needed
-// (backlog, budget). If a future surface needs one, add it deliberately
-// rather than restoring the whole TripDetail.
+// It used to build the command endpoint's `Context: {…}` envelope as well.
+// That went with `/ai` (ADR-033 Decision 4): `/ask` hands the model READ TOOLS
+// instead of a pre-rendered summary, so a turn asks for the day it needs
+// rather than paying for every day on every request.
+//
+// What survived the envelope, and why:
+//   - `activeConflicts` / `conflictsOnDay` — the stable, human-referenceable
+//     conflict `ref` numbering. The raw `Conflict.id` is compound and embeds
+//     UUIDs the model must never copy, and this is the SINGLE source of that
+//     numbering: both the read tools and `batchResolver`'s `conflictRef`
+//     resolution read it, so the number the model is shown and the id the
+//     server resolves it back to cannot drift.
+//   - `resolveBoundDay` — a Notebook page's day binding, resolved server-side
+//     against the trip. It was the envelope's `boundDay`; it is now the page
+//     brief's (handleAskRequest.ts).
 import type { PageContext, TripDetail } from "@tc/contracts";
-import { macroCatalog } from "@tc/pages";
 
-// The surfaces that BUILD a context envelope and execute commands. `page`
-// authors Notebook content, and it is the only one left: `board` and
-// `combined` retired with ADR-033 Decision 4, having had no production caller
-// at all. Kept as a one-member union rather than inlined because `page` is
-// itself scheduled to retire once /ask carries page authoring — this is the
-// seam that goes with it.
-export type AiCommandSurface = "page";
+// Every surface a model is selected for, and there is one: `/ask` is the only
+// AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
+// `board` / `combined` union the command endpoint chose a tool set from — went
+// with that endpoint.
+//
+// Kept as a one-member union rather than inlined because it is what
+// `selectAiModel({ surface, userId })` decides against: ADR-019's amendment
+// makes entitlement and model choice per-surface, so a second surface lands
+// here rather than as a signature change at every call site.
+export type AiSurface = "ask";
 
-// Every surface a model is selected for. `ask` (M16, ADR-022) is the read-only
-// one: it answers a question through read tools instead of composing an
-// envelope, so it is deliberately absent from `buildEnvelope` and from every
-// `Record<AiCommandSurface, …>` below. It exists in this union because
-// `selectAiModel({ surface })` and `simulatedModel(surface)` are shared by both
-// entry points — one chokepoint, one flag, one kill switch (ADR-019).
-export type AiSurface = AiCommandSurface | "ask";
-
-// What one /ask turn is about. `dayIndex` is 0-based, matching
-// `TripDetail.days` — the 1-based day NUMBER is a presentation concern that
-// belongs at the tool boundary, where the model reads it (readTools.ts).
-export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
+/**
+ * What one /ask turn is about — the narrowing the client asked for, and (for
+ * `page`) the thing the server then has to VERIFY.
+ *
+ * `dayIndex` is 0-based, matching `TripDetail.days`; the 1-based day NUMBER is
+ * a presentation concern that belongs at the tool boundary, where the model
+ * reads it (readTools.ts).
+ *
+ * `pageId` is the one member that names a row. It is a CLAIM, never a fact:
+ * `handleAskRequest` resolves it server-side — the page exists, it belongs to
+ * THIS trip, and the actor may edit it — before any page tool is offered
+ * (ADR-033 Decision 2). A scope the server cannot resolve is refused; it never
+ * falls back to a wider tool set.
+ */
+export type AskScope =
+  | { kind: "trip" }
+  | { kind: "day"; dayIndex: number }
+  | { kind: "page"; pageId: string };
 
 // How the scope is written into the /ask system instruction, and read back out
 // of it.
@@ -55,9 +55,8 @@ export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
 // simulated one: `simulatedModel("ask")` is handed a prompt and a tool set and
 // nothing else, so without this it cannot tell a day-scoped turn from a
 // trip-scoped one and cannot decide whether to call `read_day`. Encoding it as
-// one machine-readable line — the same trick `handleAiRequest`'s
-// `Context: {…}` line already uses — keeps the writer and the reader in one
-// module, so they cannot drift apart. A round-trip test enforces that.
+// one machine-readable line keeps the writer and the reader in one module, so
+// they cannot drift apart. A round-trip test enforces that.
 // Exported so tests building a malformed scope line (context.test.ts) attach
 // it to the real prefix instead of a hard-coded copy — otherwise the prefix
 // could change here without those tests noticing they'd stopped reaching the
@@ -75,14 +74,20 @@ export function parseAskScope(instructions: string): AskScope {
   for (const line of instructions.split("\n")) {
     if (!line.startsWith(ASK_SCOPE_PREFIX)) continue;
     try {
-      const parsed: unknown = JSON.parse(line.slice(ASK_SCOPE_PREFIX.length));
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        (parsed as { kind?: unknown }).kind === "day" &&
-        Number.isInteger((parsed as { dayIndex?: unknown }).dayIndex)
-      ) {
-        return { kind: "day", dayIndex: (parsed as { dayIndex: number }).dayIndex };
+      const parsed = JSON.parse(line.slice(ASK_SCOPE_PREFIX.length)) as {
+        kind?: unknown;
+        dayIndex?: unknown;
+        pageId?: unknown;
+      };
+      if (parsed?.kind === "day" && Number.isInteger(parsed.dayIndex)) {
+        return { kind: "day", dayIndex: parsed.dayIndex as number };
+      }
+      // A page-scoped turn composes instead of answering, so the simulated
+      // model has to be able to tell one from a question. The id is echoed
+      // back unread: this parser's job is which turn, not which page — the
+      // page was resolved server-side before the line was ever written.
+      if (parsed?.kind === "page" && typeof parsed.pageId === "string" && parsed.pageId !== "") {
+        return { kind: "page", pageId: parsed.pageId };
       }
     } catch {
       // Malformed line — fall through to the trip-wide reading.
@@ -91,34 +96,8 @@ export function parseAskScope(instructions: string): AskScope {
   return { kind: "trip" };
 }
 
-export interface TripActivitySummary {
-  // The activity's UUID — what MoveActivity/UpdateActivity/RemoveActivity
-  // reference. The model must copy it verbatim from here, never invent one.
-  id: string;
-  title: string;
-}
-
-export interface TripDaySummary {
-  index: number;
-  // The day's UUID — what MoveActivity's `toDayId` references.
-  dayId: string;
-  date: string | null;
-  activities: TripActivitySummary[];
-  // Minor-unit integer (e.g. cents), same convention as TripDetail's
-  // costSubtotal/tripCostTotal — no currency formatting here, that's a
-  // presentation concern for whatever renders the model's response.
-  cost: number;
-}
-
-export interface TripSummary {
-  name: string;
-  currency: string;
-  tripCostTotal: number;
-  days: TripDaySummary[];
-}
-
 // A single active conflict, in the stable human-referenceable form the model
-// sees. `ref` is 1-based and stable within one envelope; it is what
+// sees. `ref` is 1-based and stable within one reading of the trip; it is what
 // DismissConflict's `conflictRef` resolves against. The raw content-derived
 // `id` (which embeds UUIDs) is deliberately NOT exposed here.
 export interface AiConflictSummary {
@@ -128,11 +107,11 @@ export interface AiConflictSummary {
 }
 
 // The active (non-dismissed) conflicts, in the same order the resolver indexes
-// them — the SINGLE source of truth for conflict `ref` numbering, so the
-// envelope the model reads and the resolver that maps a `ref` back to an id can
-// never drift. `detail.conflicts` is already sorted deterministically by
-// `detectConflicts`; filtering by `dismissedConflictIds` preserves that order.
-// The returned `id` is for the resolver only; the envelope strips it.
+// them — the SINGLE source of truth for conflict `ref` numbering, so the number
+// the model is shown and the id the resolver maps it back to can never drift.
+// `detail.conflicts` is already sorted deterministically by `detectConflicts`;
+// filtering by `dismissedConflictIds` preserves that order. The returned `id`
+// is for the resolver only; every caller that shows a conflict strips it.
 export function activeConflicts(detail: TripDetail): (AiConflictSummary & { id: string })[] {
   const dismissed = new Set(detail.dismissedConflictIds);
   return detail.conflicts
@@ -143,8 +122,8 @@ export function activeConflicts(detail: TripDetail): (AiConflictSummary & { id: 
 /**
  * The active conflicts that touch ONE day, keeping the trip-wide `ref` numbers
  * `activeConflicts` assigns — a conflict is "conflict 2" wherever it is read,
- * or a day-scoped answer and the command envelope would name the same clash by
- * two different numbers.
+ * or a day-scoped answer and a trip-scoped one would name the same clash by two
+ * different numbers.
  *
  * Membership is `subjects` intersecting the day's `activityIds`, which is
  * exactly the filter `suggestedQuestions.ts` applies to decide whether to OFFER
@@ -167,24 +146,19 @@ export function conflictsOnDay(detail: TripDetail, dayIndex: number): AiConflict
     .map(({ id: _id, ...rest }) => rest);
 }
 
-export interface AiEnvelope {
-  surface: AiCommandSurface;
-  tripSummary: TripSummary;
-  macros: ReturnType<typeof macroCatalog>;
-  tools: string[];
-  // The day a `page`-surface request is bound to, resolved from
-  // `pageContext.dayRef` against `detail.days`. Absent when the request has
-  // no page context, the page isn't day-bound, or the ref doesn't resolve
-  // (e.g. an out-of-range index) — same resolution rule as
-  // `@tc/pages`'s `resolveDayIndex` (packages/pages/src/macros/inline.ts),
-  // inlined here rather than imported since this module is otherwise free
-  // of a `@tc/pages` dependency for anything but the macro catalog.
-  boundDay?: { index: number; date: string | null };
-}
-
-// Resolve a day-ref against `detail.days`, mirroring
-// `packages/pages/src/macros/inline.ts`'s `resolveDayIndex`.
-function resolveBoundDay(detail: TripDetail, pageContext?: PageContext): AiEnvelope["boundDay"] {
+/**
+ * A Notebook page's day binding, resolved against the trip.
+ *
+ * Mirrors `packages/pages/src/macros/inline.ts`'s `resolveDayIndex`, inlined
+ * rather than imported since this module is otherwise free of a `@tc/pages`
+ * dependency. `undefined` when the page is not day-bound or the ref no longer
+ * resolves (a day deleted under it) — a stale binding is silently no binding,
+ * never a guessed one.
+ */
+export function resolveBoundDay(
+  detail: TripDetail,
+  pageContext?: PageContext,
+): { index: number; date: string | null } | undefined {
   const ref = pageContext?.dayRef;
   if (!ref) return undefined;
   const index =
@@ -196,43 +170,4 @@ function resolveBoundDay(detail: TripDetail, pageContext?: PageContext): AiEnvel
         })();
   if (index === null) return undefined;
   return { index, date: detail.days[index]!.date };
-}
-
-const TOOLS_BY_SURFACE: Record<AiCommandSurface, string[]> = {
-  page: ["page"],
-};
-
-function summarizeTrip(detail: TripDetail): TripSummary {
-  return {
-    name: detail.name,
-    currency: detail.currency,
-    tripCostTotal: detail.tripCostTotal,
-    days: detail.days.map((day, index) => ({
-      index,
-      dayId: day.dayId,
-      date: day.date,
-      activities: day.activityIds.map((id) => ({
-        id,
-        title: detail.activities[id]?.title ?? "(unknown activity)",
-      })),
-      cost: day.costSubtotal,
-    })),
-  };
-}
-
-export function buildEnvelope(params: {
-  detail: TripDetail;
-  surface: AiCommandSurface;
-  pageContext?: PageContext;
-}): AiEnvelope {
-  const { detail, surface, pageContext } = params;
-  const boundDay = resolveBoundDay(detail, pageContext);
-
-  return {
-    surface,
-    tripSummary: summarizeTrip(detail),
-    macros: macroCatalog(),
-    tools: TOOLS_BY_SURFACE[surface],
-    ...(boundDay ? { boundDay } : {}),
-  };
 }

@@ -144,7 +144,7 @@ beforeAll(async () => {
         }),
       }),
       tripId,
-      simulatedModel("ask") as unknown as Parameters<typeof handleAskRequest>[2],
+      simulatedModel() as unknown as Parameters<typeof handleAskRequest>[2],
       // The endpoint's existing analytics seam — a no-op keeps the `ai.ask`
       // line out of the test output without changing which code runs.
       () => {},

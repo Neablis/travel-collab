@@ -1,42 +1,50 @@
-// The /ask endpoint's logic (M16, ADR-022): a streaming, multi-turn,
-// tool-using agent that answers questions about a trip — and, for an editor,
-// PROPOSES changes to it (M9).
+// The /ask endpoint's logic (M16, ADR-022) — and, since ADR-033, THE AI route.
+// A streaming, multi-turn, tool-using agent that answers questions about a
+// trip, PROPOSES changes to it for an editor (M9), and authors one Notebook
+// page (ADR-033 Decision 4).
 //
-// The turn itself still changes nothing. Its write tools collect (writeTools.ts)
-// and the loop ends; what goes out on the stream's last chunk is a resolved
+// **One door, three tool sets, chosen from server-resolved facts.** The
+// capability boundary a second endpoint used to buy is now a computation:
+// `offeredToolNamesFor` picks the set and `minimumRoleFor` says what that set
+// requires, both from the guard's answer and from a scope the server has
+// VERIFIED — never from a client-supplied field (ADR-033 Decision 2). The three
+// sets are disjoint where it matters: a page turn holds no planning write tool,
+// and a planning turn holds no `compose_page`.
+//
+// The turn itself changes nothing. Its write tools collect (writeTools.ts) and
+// the loop ends; what goes out on the stream's last chunk is a resolved
 // proposal, and the only thing that commits is `handleApplyProposalRequest`
 // below, reached by a human clicking Approve. Rejecting is that handler not
 // being called — there is no queued draft anywhere for a reject path to have to
-// discard correctly.
+// discard correctly. A composed page is the one exception and is not one: it
+// rides the same final chunk, lands in the editor, and the Notebook's existing
+// debounced autosave persists it. Nothing here writes a page either.
 //
-// It lives beside `handleAiRequest`, not inside it. That endpoint's design
-// guarantee is that its user-facing message is derived from the commands it
-// committed — "so the response can never claim an edit the batch didn't make"
-// (planSummary.ts) — which is exactly why it cannot answer a question: a turn
-// resolving to zero commands returns a fixed sentence and the model's own text
-// is discarded. Answering is a second concern, and it gets its own endpoint
-// rather than a second output channel on that pipeline (ADR-022 §4, and the
-// alternative Mitchell rejected).
+// Why this endpoint and not the command one it replaced: the command endpoint
+// derived its user-facing message from the commands it COMMITTED — "so the
+// response can never claim an edit the batch didn't make" (planSummary.ts) —
+// which is exactly why it could not answer a question. A turn resolving to zero
+// commands returned a fixed sentence and the model's own text was discarded
+// (ADR-022 §4, amended by ADR-033 Decision 5).
 //
-// It lives outside app/api/**/route.ts for the same reason `handleAiRequest`
-// does: Next.js's route-shape validation only permits HTTP-method exports from
-// a route file, so a function tests import directly to inject a model cannot
-// live there.
+// It lives outside app/api/**/route.ts because Next.js's route-shape validation
+// only permits HTTP-method exports from a route file, so a function tests
+// import directly to inject a model cannot live there.
 //
-// What is deliberately shared with the command endpoint: `guard()`,
-// `consumeQuota`, `selectAiModel()` and the `ai-live` kill switch. One
-// chokepoint covers both entry points, so nothing can spend without the flag
-// (ADR-019's 2026-08-25 amendment).
+// Every model call still goes through `selectAiModel()` and the `ai-live` kill
+// switch — one chokepoint, now with one caller, so nothing can spend without
+// the flag (ADR-019's 2026-08-25 amendment).
 import { z } from "zod";
 import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent, type LanguageModel } from "ai";
-import type { TripRole } from "@tc/contracts";
+import type { Page, TripDetail, TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { macroCatalog } from "@tc/pages";
 import { guard } from "@/server/pages-guard";
 import { hasAtLeast } from "@/server/accessPolicy";
-import { aiQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
-import { askScopeLine, type AskScope } from "@/server/ai/context";
+import { askScopeLine, resolveBoundDay, type AskScope } from "@/server/ai/context";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import { buildReadTools, MAX_READ_DAYS, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
 import {
@@ -47,56 +55,94 @@ import {
   parseApprovedCommands,
   WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
+import {
+  buildPageTools,
+  PAGE_TOOL_NAMES,
+  validateComposedPage,
+  type ComposedPage,
+} from "@/server/ai/pageTools";
+import { getPage } from "@/server/pages";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { classifyAskIntent } from "@/server/ai/askIntent";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 
-// Round-trips one question may take. Eight is generous for a read-only turn —
-// three tools, and the shape of a real answer is "read what you need, then
-// speak", which is 2-3 steps — and a question that has taken eight round-trips
-// is not converging. It was originally sized against the command endpoint's
-// 32-step planning budget, which ADR-033 Decision 4 retired; the sizing
-// argument above never depended on that comparison, and this is now the
-// widest compiled step budget in the app.
+// Round-trips one turn may take, and the only step budget left in the app.
+//
+// Eight is generous for every shape it now covers. A read-only turn is "read
+// what you need, then speak", 2-3 steps; a proposing turn adds one; page
+// authoring is read, compose, say what you drafted, which is three — the
+// command endpoint gave that same work a budget of 3 and a model that wandered
+// was the only thing it was guarding against. A turn that has taken eight
+// round-trips is not converging.
+//
+// It carries the step-budget-as-blast-radius reasoning from the endpoint ADR-033
+// deleted, which sized a 32-step budget against a worst-case itinerary and gave
+// operators an `AI_MAX_STEPS` override for it. Neither the number nor the
+// override survived — nothing here can run 32 steps — but the argument did: the
+// budget is what bounds what ONE request can spend on the operator's key, which
+// is why `settleAiSteps` meters against it rather than against request count
+// (KI-67).
 const MAX_ASK_STEPS = 8;
 
-// The tool names this endpoint can offer, by what the turn's actor may do.
-// M9's write tools are the DERIVED planning tools (writeTools.ts) — the same
-// family the command endpoint runs — so this list grows with
-// `BatchableCommand` and never with a hand-written manifest.
-export function offeredToolNamesFor(canWrite: boolean): readonly string[] {
-  return canWrite ? [...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES] : READ_TOOL_NAMES;
+/**
+ * What one turn may be offered, by what the turn is FOR.
+ *
+ * Three answers, not two, and the third is a real narrowing rather than a move
+ * (ADR-033 Decision 4). A page-authoring turn gets `compose_page` and NO
+ * planning write tools; a planning turn gets the write tools and NO
+ * `compose_page`. One door is not the widest door: a turn drafting a Notebook
+ * page has no business holding `RemoveActivity`, and the separate endpoint it
+ * came from existed largely to say so.
+ *
+ * Both write halves are DERIVED — the planning tools from `@tc/contracts`
+ * command schemas (writeTools.ts), the page tools from the `@tc/pages` macro
+ * registry (pageTools.ts) — so each grows with its own registry and never with
+ * a hand-written manifest (ADR-015 invariant 5).
+ */
+export type AskToolSet = "read-only" | "planning" | "page";
+
+export function offeredToolNamesFor(kind: AskToolSet): readonly string[] {
+  switch (kind) {
+    case "read-only":
+      return READ_TOOL_NAMES;
+    case "planning":
+      return [...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES];
+    case "page":
+      return [...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES];
+  }
 }
 
 // **The guard follows the tool set, not the endpoint.**
 //
-// `/ai` asks for `editor` because every surface it serves writes. A read-only
-// turn is different: a viewer may ask about a trip they can already see, and
-// refusing them would be a permission rule that exists only because the
-// assistant happens to share a route prefix with one that writes.
+// The endpoint this merged in asked for `editor` unconditionally, because every
+// surface it served wrote. A read-only turn is different: a viewer may ask about
+// a trip they can already see, and refusing them would be a permission rule that
+// exists only because the assistant shares a route with one that writes. Now
+// that there is one route, this computation is the whole difference.
 //
-// Written as a computation rather than a constant so the rule is executable.
-// M9 is the case it was written for: the moment a tool that is not in
-// `READ_TOOL_NAMES` is offered — `AddActivity`, say — this answers `editor`
-// without anyone having to remember. It is not consulted only at the door: the
-// handler asks it what the set it is ABOUT to hand the agent requires, and
-// refuses to build an agent the actor's role does not cover. Both branches are
-// asserted in the /ask route's integration suite (a unit test cannot import
-// this module: `guard()` pulls in next-auth).
+// Written as a computation rather than a constant so the rule is executable. The
+// moment a tool that is not in `READ_TOOL_NAMES` is offered — `AddActivity`, or
+// `compose_page` — this answers `editor` without anyone having to remember.
+// Page authoring writes a page, so it lands on the same answer as a planning
+// write, by the same rule and not by a second one. It is not consulted only at
+// the door: the handler asks it what the set it is ABOUT to hand the agent
+// requires, and refuses to build an agent the actor's role does not cover. Every
+// branch is asserted in the /ask route's integration suite (a unit test cannot
+// import this module: `guard()` pulls in next-auth).
 export function minimumRoleFor(toolNames: readonly string[]): TripRole {
   const readOnly = (READ_TOOL_NAMES as readonly string[]).slice();
   return toolNames.every((name) => readOnly.includes(name)) ? "viewer" : "editor";
 }
 
 // The minimum to get through the door. A viewer's turn is read-only and always
-// was; whether THIS turn also gets write tools is decided below, from the role
-// the guard resolved, not from the route.
-export const ASK_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor(false));
+// was; whether THIS turn also gets a write half is decided below, from the role
+// the guard resolved and the scope the server verified, not from the route.
+export const ASK_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor("read-only"));
 
 // The minimum an approval needs — the same computation, asked about the set a
 // proposal can only have come from.
-export const APPLY_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor(true));
+export const APPLY_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor("planning"));
 
 // Names the `simulated` verdict on the wire, so the client stops deriving it
 // from the model's own prose.
@@ -111,9 +157,14 @@ export const APPLY_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor(true));
 export const SIMULATED_HEADER = "x-tc-ai-simulated";
 
 // The refusal code for the demo trip. Kebab-case and named after the reason,
-// matching `ai-not-entitled` (modelSelection.ts) and the `STATUS` codes on the
-// command endpoint — a client can branch on it without matching prose.
+// matching `ai-not-entitled` (modelSelection.ts) — a client can branch on it
+// without matching prose.
 export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
+
+// The refusal code for a page scope the server could not resolve to a page on
+// THIS trip. Same reasoning as above, and it exists because "that page is not
+// on this trip" is a refusal a legitimate client can reach by racing a delete.
+export const PAGE_NOT_ON_TRIP_CODE = "page-not-on-trip";
 
 // Only the fields this handler enforces caps on. The authoritative validation
 // is `validateUIMessages` inside `createAgentUIStreamResponse`, which knows the
@@ -130,6 +181,11 @@ const AskUiMessage = z.object({
 const AskScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("trip") }),
   z.object({ kind: z.literal("day"), dayIndex: z.number().int().min(0) }),
+  // Shape only. `pageId` is a CLAIM the handler VERIFIES below — this schema
+  // says it could be a page id, not that it is one. `uuid()` rather than a bare
+  // string because `pages.id` is a uuid column: a malformed id would otherwise
+  // reach Postgres as a query it cannot run.
+  z.object({ kind: z.literal("page"), pageId: z.string().uuid() }),
 ]);
 
 const AskRequest = z.object({
@@ -180,10 +236,10 @@ function badRequest(error: string): Response {
 }
 
 /**
- * `sink` and `model` are test seams, exactly as `handleAiRequest`'s `model` and
- * `geocoder` are: an injected model is used as-is and the flag is never
- * consulted, and an injected sink lets a test read the analytics record instead
- * of the console.
+ * `sink` and `model` are test seams: an injected model is used as-is and the
+ * flag is never consulted, and an injected sink lets a test read the analytics
+ * record instead of the console. `handleApplyProposalRequest` below takes a
+ * `geocoder` on the same terms.
  */
 export async function handleAskRequest(
   request: Request,
@@ -247,9 +303,9 @@ export async function handleAskRequest(
 
   const parsed = AskRequest.safeParse(body);
   if (!parsed.success) {
-    // Same reasoning as handleAiRequest's: the caps are the rejections a
-    // legitimate caller can hit by accident, so the response says which rule
-    // broke rather than returning a generic envelope.
+    // The caps are the rejections a legitimate caller can hit by accident (a
+    // pasted document, a long thread), so the response says which rule broke
+    // rather than returning a generic envelope.
     return badRequest(parsed.error.issues[0]?.message ?? "malformed request");
   }
   const { messages, scope } = parsed.data;
@@ -274,10 +330,47 @@ export async function handleAskRequest(
     return badRequest(`this trip has ${detail.days.length} days, so day ${scope.dayIndex + 1} is out of range`);
   }
 
+  // **The page scope is VERIFIED here, and this is the load-bearing rule of the
+  // one-door design (ADR-033 Decision 2).**
+  //
+  // `scope` comes off the request body, so `pageId` is something the client
+  // says. Three facts have to hold before a page tool is offered, and all three
+  // are established server-side: the page EXISTS, it belongs to THIS trip — the
+  // tripId in the URL, which `guard()` has already checked this actor against —
+  // and the actor may EDIT it, which for a Notebook page is `editor` (the pages
+  // CRUD routes pass the same minimum). Trusting the field instead would be the
+  // same class of mistake as trusting a `tripId` parameter on a read tool, which
+  // ADR-022 §3 already forbids.
+  //
+  // A claim that does not resolve is REFUSED, and never widened: falling back
+  // to the trip-wide set would answer a page request with a planning turn,
+  // which is the widest tool set in the app. "If the surface cannot be resolved
+  // server-side, the narrowest tool set applies, not the widest."
+  //
+  // Missing and not-on-this-trip share one 404 deliberately. `getPage` is keyed
+  // by id alone, so answering them differently would confirm the existence of a
+  // page on a trip this actor cannot see.
+  //
+  // It runs BEFORE model selection and before the quota, so a bad page id costs
+  // the caller nothing — the same ordering the demo refusal and the caps above
+  // have, for the same reason.
+  let page: Page | null = null;
+  if (scope.kind === "page") {
+    const found = await getPage(scope.pageId);
+    if (found === null || found.tripId !== tripId) {
+      return Response.json(
+        { error: "That page is not on this trip.", code: PAGE_NOT_ON_TRIP_CODE },
+        { status: 404 },
+      );
+    }
+    if (!canWrite) return Response.json({ error: "forbidden" }, { status: 403 });
+    page = found;
+  }
+
   // Injected model => that exact model, flag never consulted; `simulated` is
-  // derived from its identity, not from whether one was injected (the same
-  // rule handleAiRequest documents, so a test that injects `simulatedModel()`
-  // is still reported as simulated).
+  // derived from its IDENTITY, not from whether one was injected — so a test
+  // that injects `simulatedModel()` to exercise the switched-off path is still
+  // reported, and badged, as simulated.
   //
   // An injected model classifies as well as answers: one seam, so a test can
   // never end up exercising a classifier the turn itself did not use.
@@ -302,11 +395,31 @@ export async function handleAskRequest(
     };
   }
 
-  // Charged after validation and after model selection, for the reasons
-  // handleAiRequest sets out at length: a malformed request must not cost the
-  // caller their allowance, and neither must a request that never reached a
-  // model.
-  const quota = await consumeQuota(aiQuotas(), userId);
+  // **Charged after validation and after model selection**, and that ordering is
+  // a recorded incident, not a preference. Charging before selection meant a
+  // missing AI_GATEWAY_API_KEY (the 503 above) burned the caller's whole hourly
+  // and daily allowance on retries against an outage that produced zero provider
+  // calls — the incident outlived its own fix by a day. A malformed request must
+  // not cost the caller their allowance either. Nothing between selection and
+  // here reads the counters, so the placement is order-safe. It applies in
+  // simulated mode too: the limiter's job is to bound requests, not to guess
+  // which ones reached a provider.
+  //
+  // **Two layers, both charged here (KI-67).** `aiQuotas` bounds how many times
+  // an actor may ask; `aiStepQuotas` bounds what asking COSTS, in model
+  // round-trips. KI-67 measured that metering requests alone turned a nominal
+  // ceiling of 30 into a real one of 960, and its fix was wired into the command
+  // endpoint only — so this endpoint, built afterwards and the door users
+  // actually reach, was metered the way KI-67 had already proved wrong, for its
+  // whole life. One door means one quota path; that is the point of the merge
+  // rather than a bonus from it.
+  //
+  // Only one round-trip can be pre-authorised, because the real step count does
+  // not exist until the run ends; `settleAiSteps` charges the rest from the
+  // recorder's sink below. An actor already over either ceiling is refused here,
+  // before a provider is touched. The in-flight overshoot this admission shape
+  // permits is KI-94, unchanged by the move.
+  const quota = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
   if (!quota.allowed) return quotaRefusal(quota);
 
   // **What this turn is for, decided before the agent is built.**
@@ -345,23 +458,47 @@ export async function handleAskRequest(
   // one answering, and "did the classifier save more than it cost" is
   // unanswerable if its spend is folded into the turn's — the same argument
   // `AskIntentRecord.model` makes for the log record.
-  const classification = canWrite
-    ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
-    : null;
-  const offerWrites = canWrite && classification?.intent !== "question";
+  //   * **A page turn is not classified at all.** Its tool set is decided by a
+  //     scope the server verified, not by what the sentence sounds like, so
+  //     there is no write half to withhold and the call would be spend with
+  //     nothing to buy.
+  const classification =
+    canWrite && page === null
+      ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
+      : null;
+  const offerWrites = canWrite && page === null && classification?.intent !== "question";
 
-  // The tool set for THIS turn. A viewer gets the read half and nothing else,
-  // and the rule is enforced rather than commented: `minimumRoleFor` is asked
-  // what the set about to be handed to the agent requires, and the actor must
-  // already satisfy it. Unreachable while `canWrite` decides the set — which
-  // is why it is here, because the next person to add a branch to that line is
+  // The tool set for THIS turn, and the three sets are mutually exclusive by
+  // construction: `page` is non-null only for a verified page scope, and
+  // `offerWrites` is false whenever it is. A viewer reaches neither.
+  //
+  // The rule is enforced rather than commented: `minimumRoleFor` is asked what
+  // the set about to be handed to the agent requires, and the actor must
+  // already satisfy it. Unreachable while the lines above decide the set —
+  // which is why it is here, because the next person to add a branch to them is
   // who this catches.
   const writeTools = offerWrites ? buildWriteTools() : null;
-  const tools = { ...buildReadTools().tools, ...(writeTools?.tools ?? {}) };
+  const pageTools = page !== null ? buildPageTools() : null;
+  const tools = { ...buildReadTools().tools, ...(writeTools?.tools ?? {}), ...(pageTools?.tools ?? {}) };
   const offeredNames = Object.keys(tools);
   if (!hasAtLeast(userId, detail.members, minimumRoleFor(offeredNames))) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
+
+  // The step settlement's promise, so the end-of-turn path below can AWAIT it.
+  //
+  // The sink is synchronous — it is the AI SDK's own callback dispatch — but a
+  // counter write is not, and a `void`ed one races the response: the serverless
+  // function is free to stop once the stream closes, which would silently drop
+  // the settlement and put this endpoint back where KI-67 found it. `onEnd` is
+  // awaited by the SDK (`notify`, ai/dist), so awaiting there keeps the write
+  // inside the request's own lifetime.
+  //
+  // The abort and error paths still settle, and still do not await: the
+  // response is already gone or already failing, and best-effort is the honest
+  // guarantee there. `settleAiSteps` never throws, so an unawaited one cannot
+  // become an unhandled rejection.
+  let settled: Promise<void> = Promise.resolve();
 
   const recorder = createAskRecorder({
     tripId,
@@ -392,6 +529,34 @@ export async function handleAskRequest(
     sink: (record) => {
       (sink ?? logAskAnalytics)(record);
       recordAskMetrics(record);
+      // The other half of KI-67: admission pre-authorised ONE round-trip, and
+      // this settles what the turn actually cost. A third consumer of the same
+      // single-writer latch, for the same reason the metrics are — the provider
+      // was paid for those steps on all three end paths (`onEnd`, abort,
+      // error), and repeating once-only logic at each of them is how one gets
+      // it subtly wrong at one.
+      //
+      // Not awaited, and it cannot be: this fires from inside the agent's own
+      // callback dispatch, long after the Response was returned. `settleAiSteps`
+      // never refuses and never throws (see its comment) — a counter write must
+      // not turn an answer the user already has into an error.
+      //
+      // **The classifier's own round-trip is counted here, not by the agent.**
+      // `record.steps` is observed from `agent.onStepEnd`, so it can only ever
+      // see steps the agent took; `classifyAskIntent` runs BEFORE the agent
+      // exists and spends `selected.classifierModel` on the same key. Settling
+      // `record.steps` alone therefore under-meters every classified turn by
+      // exactly one — an editor turn can cost nine round-trips and settle
+      // eight. That is the same shape as KI-67 itself (a control that does not
+      // bound the thing it exists to bound), reintroduced inside the fix for
+      // it, which is why it is spelled out rather than left to the arithmetic.
+      //
+      // `source` distinguishes the two paths: `"model"` means the call was
+      // made, `"affirmation"` means the classifier short-circuited on a bare
+      // "yes" and spent nothing. A page turn is not classified at all
+      // (`classification` is null), so it adds nothing.
+      const classifierSteps = record.classification?.source === "model" ? 1 : 0;
+      settled = settleAiSteps(aiStepQuotas(), userId, record.steps + classifierSteps);
     },
   });
 
@@ -401,7 +566,7 @@ export async function handleAskRequest(
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites)),
+    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites), briefFor(detail, page)),
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
@@ -427,11 +592,14 @@ export async function handleAskRequest(
     // THIS record instead of only the client-facing proposal — see the
     // comment on `droppedWriteCalls` in writeTools.ts for why it isn't
     // shared with the call below instead.
-    onEnd: (end) =>
+    onEnd: async (end) => {
       recorder.finish(
         end,
         writeTools ? droppedWriteCalls(writeTools.getCollected(), detail, { tripId, actorId: userId }) : [],
-      ),
+      );
+      // `finish` ran the sink, which started the settlement. See `settled`.
+      await settled;
+    },
   });
 
   // Validated HERE rather than left to throw inside
@@ -492,7 +660,11 @@ export async function handleAskRequest(
       // the only caller of `commitProposal` is the apply endpoint below, and
       // it runs after a human clicked Approve.
       messageMetadata: ({ part }) => {
-        if (part.type !== "finish" || writeTools === null) return undefined;
+        if (part.type !== "finish") return undefined;
+        // At most one of these is non-null — the tool sets are disjoint above —
+        // so the final chunk carries a proposal or a page, never both.
+        if (pageTools !== null) return composedPageMetadata(pageTools.getComposed());
+        if (writeTools === null) return undefined;
         const proposal = buildProposal(writeTools.getCollected(), detail, { tripId, actorId: userId });
         return proposal === null ? undefined : { proposal };
       },
@@ -516,14 +688,60 @@ export async function handleAskRequest(
   } catch (err) {
     // Nothing in the body is left to be wrong — the messages validated above
     // and the caps passed. What remains is the agent failing to start, which
-    // is the same 503 shape `handleAiRequest` returns for a model that could
-    // not be reached.
+    // is a model that could not be reached: 503, the same shape model SELECTION
+    // failing returns above, so a client sees one code for "no model answered".
     recorder.abandon("error", err);
     return Response.json(
       { error: `model call failed: ${errorMessage(err)}`, simulated: selected.simulated },
       { status: 503 },
     );
   }
+}
+
+/**
+ * What the model is told about the page it is writing — the page's own title
+ * and its day binding, both read from the row the server just verified.
+ *
+ * The binding is resolved here rather than accepted from the client, which is
+ * the same rule the pageId is under: the old command endpoint took a
+ * `pageContext` off the request body and resolved `dayRef` against the trip
+ * from there, so a client could have told the server which day a page was bound
+ * to. It cannot now — `page.context` is the stored row.
+ */
+export interface PageBrief {
+  title: string;
+  boundDay: { index: number; date: string | null } | undefined;
+}
+
+function briefFor(detail: TripDetail, page: Page | null): PageBrief | null {
+  return page === null ? null : { title: page.title, boundDay: resolveBoundDay(detail, page.context) };
+}
+
+/**
+ * The composed page, on the run's final chunk — or the reason there isn't one.
+ *
+ * **`validateComposedPage` runs HERE, before a byte of the doc leaves the
+ * server.** `compose_page`'s schema closes the macro NAME against the registry
+ * but not its params, so a macro carrying a params bag its own schema rejects
+ * passes the tool and fails this. The endpoint this replaced answered that with
+ * a 422; a stream has already sent its 200, so the refusal rides out as data
+ * the panel renders — but the doc itself still never reaches the client.
+ *
+ * **There is no approval step, and that is deliberate.** The doc lands in the
+ * editor and the Notebook's existing debounced autosave persists it
+ * (PageScreen.tsx) — which is what `onApply` has always expected and exactly
+ * what the command endpoint already did. A proposal exists because a planning
+ * batch commits events; a page draft is text in an editor the user is looking
+ * at, and interposing an Approve button between "Generate" and "it appears"
+ * would be a new step this move did not ask for.
+ */
+function composedPageMetadata(composed: ComposedPage | null): Record<string, unknown> {
+  if (composed === null) {
+    return { composeError: "The assistant didn't draft a page this time. Try asking again." };
+  }
+  const validated = validateComposedPage(composed.content);
+  if ("error" in validated) return { composeError: validated.error };
+  return { composedPage: { title: composed.title, content: validated } };
 }
 
 // Status codes for a batch the executor refused. The same table the command
@@ -594,9 +812,10 @@ const defaultApplySink: ProposalApplySink = (record) => {
  * generation; charging the caller's hourly model allowance for pressing a
  * button would refuse them the next question for something no provider saw.
  *
- * `geocoder` is the same test seam `handleAiRequest` takes, for the same
- * reason: `getGeocoder()` throws without LOCATIONIQ_API_KEY, so it is resolved
- * lazily and only when a command actually carries a location.
+ * `geocoder` is a test seam, and it is resolved LAZILY for a recorded reason:
+ * `getGeocoder()` throws without LOCATIONIQ_API_KEY, so a default-parameter
+ * form would break every approval on a deployment that has no key, including
+ * batches carrying no location at all. `commitProposal` documents the incident.
  */
 export async function handleApplyProposalRequest(
   request: Request,
@@ -719,7 +938,20 @@ const ACCESS_LINE: Record<AskToolPosture, string> = {
  * a list but a prompt that only ever shows a single day does not change
  * behaviour on its own.
  */
-export function instructionsFor(scope: AskScope, dayCount: number, posture: AskToolPosture = "read-only"): string {
+export function instructionsFor(
+  scope: AskScope,
+  dayCount: number,
+  posture: AskToolPosture = "read-only",
+  page: PageBrief | null = null,
+): string {
+  // A page turn is a different job, not a variant of this one: it composes a
+  // document rather than answering, and every planning rule below (activityRef,
+  // dayRef, MoveActivity positions, conflict refs) describes tools it was not
+  // handed. The endpoint this replaced sent those rules anyway — ~1.5k
+  // characters of dead instruction on every page request, left verbatim by
+  // ADR-033's first step because trimming them changes what a live model is
+  // told. This is where that gets paid off: the branch is the trim.
+  if (page !== null) return pageInstructions(scope, dayCount, page);
   const canWrite = posture === "propose";
   return [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
@@ -747,6 +979,39 @@ export function instructionsFor(scope: AskScope, dayCount: number, posture: AskT
       ? `This question is about DAY ${scope.dayIndex + 1}. Answer about that day. Do not summarise the other days: you may read one if the user explicitly asks about it, but an answer that wanders off the day it was asked about is the wrong answer.`
       : "This question is about the trip as a whole.",
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
+    askScopeLine(scope),
+  ].join("\n");
+}
+
+/**
+ * The system instruction for a page-authoring turn.
+ *
+ * It carries the macro catalog because that is the one thing no tool returns:
+ * `compose_page`'s schema closes the macro NAME set (pageTools.ts derives it
+ * from the registry), but a model that has never seen the descriptions emits
+ * macros with the wrong params and `validateComposedPage` rejects the whole
+ * page. The old envelope shipped this same catalog alongside a full trip
+ * summary; the summary is gone because the read tools answer for the trip, and
+ * a turn that needs day 3 now asks for day 3 instead of paying for all fourteen.
+ */
+function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): string {
+  return [
+    "You are the travel-collab trip assistant, and on this turn you are WRITING one page of this trip's Notebook.",
+    `The page is called "${page.title}". Draft its whole body — you are replacing what is there, not appending to it.`,
+    "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
+    "Call read_trip first for the trip's shape, and read_day for what happens on a day (it is the only place stop times live).",
+    "Then call compose_page ONCE, with the finished page: a title and an ordered list of blocks.",
+    // The reason the macro registry was worth deriving a tool from at all: a
+    // macro renders live trip data every read, so it cannot go stale the way a
+    // number typed into a paragraph does the moment someone moves a stop.
+    "A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes.",
+    `These are the only macros that exist — never invent a name: ${JSON.stringify(macroCatalog())}`,
+    page.boundDay
+      ? `This page is bound to DAY ${page.boundDay.index + 1}${page.boundDay.date ? ` (${page.boundDay.date})` : ""}. Write it about that day, and prefer the day-scoped macros.`
+      : "This page is not bound to a day, so write it about the trip as a whole and prefer the trip-scoped macros.",
+    `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
+    "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
+    "Then say ONE short sentence about what you drafted. The page lands in the editor for the user to review and edit, so never say you have saved or published it.",
     askScopeLine(scope),
   ].join("\n");
 }
