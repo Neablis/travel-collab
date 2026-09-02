@@ -22,48 +22,47 @@ general setup.
 
 ## Where the work is right now
 
-**Four PRs are open as drafts, 2026-09-02, in two independent stacks.** None is
-merged; all four need marking ready, a CodeRabbit trigger, and — for the two
-noted below — a browser walk.
+**M17 and the AI-door consolidation are landing, 2026-09-02.** Three PRs merged
+overnight; two are open, green and reviewed.
 
-| PR | Branch | Base | What |
-|---|---|---|---|
-| **#109** | `claude/ai-one-door-retire-dead-surfaces` | `main` | ADR-033; `/ai`'s `board` and `combined` surfaces retired (no callers) |
-| **#110** | `claude/ai-one-door-page` | #109 | page authoring moves onto `/ask`; `/ai` deleted; `/ask` charges the step quota |
-| **#111** | `claude/m17-contracts-preferences` | `main` | M17 PR1 — the `UserPreferences` contract |
-| **#112** | `claude/m17-account-preferences` | #111 | M17 PR2 — migration `0015`, settings Sheet, `kmLabel` |
+| PR | State | What |
+|---|---|---|
+| **#109** | **merged** (`5766e79`) | ADR-033; `/ai`'s `board` and `combined` surfaces retired (they had no callers) |
+| **#111** | **merged** (`a4b6304`) | M17 PR1 — the `UserPreferences` contract |
+| **#115** | **merged** (`8648103`) | M20 and M21 scoped — the first commercial milestones |
+| **#110** | open, CI green, review clean | `/ai` deleted; page authoring moves onto `/ask`; `/ask` charges the step quota |
+| **#112** | open, CI green, review clean | M17 PR2 — migration `0015`, settings Sheet, `kmLabel` |
 
 **Two things a fresh session must not miss:**
 
 1. **#112 carries migration `0015` and merging does not apply it** —
    `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
-   That is M17's gate box 4.
-2. **#110 and #112 have had no e2e run and no browser walk.** Both are Tier 2.
-   #110 rewrote the Notebook compose client from `await fetch → res.json()`
-   onto a stream, and `m7-solo-delight.spec.ts` only asserts two strings are
-   *visible* — it would pass over a compose that silently produced nothing.
+   That is M17's gate box 4. **Check `0014` too** (from the merged pull request
+   104): merging never applied it either, and nothing in the repo records that
+   it was ever dispatched.
+2. **Neither #110 nor #112 has had a browser walk.** Both have full CI green
+   *including* the e2e lane — #112's `m17-account-preferences.spec.ts` ran for
+   the first time and passed — but #110 rewrote the Notebook compose client from
+   `await fetch → res.json()` onto a stream, and `m7-solo-delight.spec.ts` only
+   asserts two strings are *visible*. It would pass over a compose that silently
+   produced nothing.
 
-**`github-advanced-security` is red on every PR and it is not ours.** GitHub's
-agentic code scanning dies at `session.create` with *"Model `claude-opus-4.6` is
-not available"*, before reading any diff. Five failures across #104 (twice, and
-it merged anyway), #109, #111 and #113. Stand-down comments are on #109 and
-#111; no fix exists to port, because it is not a workflow in
-`.github/workflows/` — it is configured outside the repo.
+**Both PRs were reviewed and both reviewers found real bugs**, which is worth
+recording because the fixes are load-bearing. On #110: the step settlement
+under-metered every classified turn by one, because `classifyAskIntent` is a
+separate model call the agent's `onStepEnd` cannot see — **KI-67's own shape,
+reintroduced inside the fix for KI-67**. And `ComposePanel` held an
+`AbortController` that nothing ever aborted. On #112: `UpdateUserPreferences`
+accepted `{ displayName: undefined }`, because `Object.keys` counts a key whose
+value is `undefined` — the empty-patch refusal failing at the one job it had.
 
-**It fired on #113, which changes nothing but `docs/**`.** That is the part
-worth knowing before branch protection goes on: the check does **not** honour
-`ci.yml`'s `paths-ignore`, because it is not `ci.yml`. So a prose-only PR — the
-tier `AGENTS.md` says to run nothing for — still collects a red check. **Do not
-make it a required check** until it recovers, or nothing in the repo will be
-mergeable, documentation included. That is now the second item on the
-pre-branch-protection list, alongside `ci.yml`'s `paths-ignore` conversion.
-
-**It is only the AGENTIC check that is broken — CodeQL is fine.** On #110,
-`CodeQL` completed, `Analyze (actions)` succeeded and
-`Analyze (javascript-typescript)` ran, all while `github-advanced-security`
-failed. So the caution above is narrower than "no security check can be
-required": CodeQL is a safe required check today; `github-advanced-security`
-is not, for as long as it dies at `session.create`.
+**The red `github-advanced-security` check on every PR is not ours** and is now
+filed: `docs/known-issues/open/KI-20260902-ghas-code-scanning-fails-on-an-unavailable-model.md`.
+The operational point that entry makes is the one to remember here — it makes
+`mergeStateStatus` read `UNSTABLE`, which reads as "do not merge yet" to a
+reviewer who has not read the entry. **Only the agentic check is broken**:
+CodeQL and both `Analyze` jobs pass on the same head, so CodeQL is a safe
+required check and that one is not.
 
 *(Superseded, kept as the record: "Signup and onboarding feedback is on
 `claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
