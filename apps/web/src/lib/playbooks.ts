@@ -240,14 +240,24 @@ export type DiscoverDay = z.infer<typeof DiscoverDay>;
 export const DiscoverResponse = z.object({
   days: z.array(DiscoverDay),
   /**
-   * Cities present in the MATCHED set but absent from the query, with counts —
-   * §15's sibling chips, "one tap to add". Computed over the whole matched set
-   * rather than the returned page, so a chip's count is the number of days that
-   * city would actually add rather than the number that happened to fit.
+   * Cities present in the RESULT SET but absent from the query, with counts —
+   * §15's sibling chips, "one tap to add".
+   *
+   * The count is **"days in these results that also touch this city"**, and
+   * deliberately not "days this chip would add". It used to claim the latter,
+   * which was wrong twice over: city matching is containment, so adding a city
+   * WIDENS the match rather than narrowing it; and the count came from a SQL
+   * `group by` that could not carry the budget band, so with a band on it
+   * counted a strictly larger set than the page showed (KI-2026-08-31). It is
+   * now derived from the same in-band days `days` is sliced out of.
+   *
+   * Counted over every day that matched and fell in the band, not just the ones
+   * that fit on the page — bounded, like the band itself, by the ranked
+   * candidate window `truncated` reports on.
    *
    * On an empty query this is the "busy right now" row instead: the busiest
-   * cities in the published library, which is the same question with no
-   * subtraction to do.
+   * cities among those results, which is the same question with no subtraction
+   * to do.
    */
   siblings: z.array(CityMatch),
   /** The single currency every matched day agrees on, or null (see `BudgetBand`). */
