@@ -24,6 +24,14 @@ import { describe, expect, it } from "vitest";
  * It deliberately does NOT pin the exact script text. `eslint src '*.ts'`,
  * an explicit twelve-file list, and `eslint .` are all correct answers; only
  * a shape that leaves a root file unread is wrong.
+ *
+ * The same reasoning applies to `src`, and used to be applied far more weakly
+ * there: the second test only asked whether SOME argument started with `src`,
+ * which `eslint src/one-file.ts *.ts` satisfies while the other four hundred
+ * files under `src` go unread (CodeRabbit, PR #123). Both tests now work the
+ * same way — discover the real lintable files, then require each one to be
+ * covered by some argument — so neither half of the scope can be narrowed
+ * quietly.
  */
 
 const packageRoot = path.dirname(new URL(import.meta.url).pathname);
@@ -48,10 +56,38 @@ function rootTsFiles(): string[] {
     .sort();
 }
 
+// What ESLint would actually read if handed the directory. Kept in sync with
+// `eslint.config.mjs`, whose blocks are all scoped to `src/**/*.{ts,tsx}`; the
+// other extensions are here so a future `.mjs` helper under `src` is discovered
+// rather than silently exempt.
+const LINTABLE = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
+
+/** Every lintable file under `dir`, as a package-root-relative POSIX path. */
+function lintableFilesUnder(dir: string): string[] {
+  return readdirSync(path.join(packageRoot, dir), { withFileTypes: true, recursive: true })
+    .filter((entry) => entry.isFile() && LINTABLE.test(entry.name))
+    .map((entry) =>
+      path.relative(packageRoot, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"),
+    )
+    .sort();
+}
+
 function isCoveredBy(file: string, arg: string): boolean {
   // A bare `.` (or `./`) hands ESLint the whole package and covers everything.
   if (arg === "." || arg === "./") return true;
+  // A plain path is a directory or a single file, and a directory covers
+  // everything beneath it — that is what `eslint src` means. Only arguments
+  // that actually carry glob syntax go to the matcher, because `matchesGlob`
+  // treats `src` as a literal and would call `src/app/page.tsx` uncovered.
+  if (!/[*?[\]{}!]/.test(arg)) return file === arg || file.startsWith(`${arg.replace(/\/$/, "")}/`);
   return path.matchesGlob(file, arg);
+}
+
+/** The first few uncovered paths plus a count — a 400-entry diff helps nobody. */
+function describeUncovered(uncovered: string[], args: string[]): string {
+  return `${uncovered.length} file(s) not linted by \`eslint ${args.join(" ")}\`, e.g. ${uncovered
+    .slice(0, 5)
+    .join(", ")}`;
 }
 
 describe("the lint script's file scope", () => {
@@ -64,11 +100,23 @@ describe("the lint script's file scope", () => {
     expect(files.length).toBeGreaterThan(0);
 
     const uncovered = files.filter((file) => !args.some((arg) => isCoveredBy(file, arg)));
-    expect(uncovered, `not linted by \`eslint ${args.join(" ")}\``).toEqual([]);
+    expect(uncovered, describeUncovered(uncovered, args)).toEqual([]);
   });
 
-  it("still covers src", () => {
+  it("covers every lintable file under src", () => {
     const args = lintScriptArgs();
-    expect(args.some((arg) => arg === "." || arg === "./" || arg === "src" || arg.startsWith("src/"))).toBe(true);
+    const files = lintableFilesUnder("src");
+
+    // Guards the guard, twice. Zero files makes the assertion below vacuous;
+    // so does a walk that only ever sees the top level, which is the exact
+    // shape of the narrowing this test exists to catch.
+    expect(files.length).toBeGreaterThan(0);
+    expect(
+      files.some((file) => file.split("/").length > 2),
+      "expected the walk to descend into src, not just list its top level",
+    ).toBe(true);
+
+    const uncovered = files.filter((file) => !args.some((arg) => isCoveredBy(file, arg)));
+    expect(uncovered.length, describeUncovered(uncovered, args)).toBe(0);
   });
 });
