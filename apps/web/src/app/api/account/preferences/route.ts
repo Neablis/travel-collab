@@ -89,7 +89,7 @@ export async function PATCH(request: Request) {
     // `ai-not-entitled`). It was a bare `"no-account"` in the `error` field,
     // which the settings Sheet renders verbatim: the one string a signed-in
     // person could be shown here was an identifier written for a log. Found by
-    // review on #112.
+    // review on pull request 112.
     return Response.json(
       { error: "Your account could not be found. Sign out and back in.", code: NO_ACCOUNT_CODE },
       { status: 404 },

@@ -63,7 +63,7 @@ export function AccountSettingsSheet({
   // `SFO` land, which is the only way the normalization is visible as a
   // decision rather than as the client and the server quietly disagreeing.
   //
-  // **Guarded on the field being untouched, found by review on #112.** The
+  // **Guarded on the field being untouched, found by review on pull request 112.** The
   // resync fires on any `preferences` change, not only this field's own save,
   // and the provider replaces the whole object — so typing a name and then
   // flipping the distance unit saved the unit, pushed new preferences, and
@@ -230,7 +230,7 @@ export function AccountSettingsSheet({
                   // `result.error.message`; this one discarded the result, so a
                   // 401/404/500 left the toggle looking switched with nothing
                   // stored behind it — a settings control that lies about
-                  // having saved. Found by review on #112.
+                  // having saved. Found by review on pull request 112.
                   const result = await save({ distanceUnit });
                   setUnitError(result.ok ? null : result.error.message);
                 })();
@@ -238,7 +238,10 @@ export function AccountSettingsSheet({
             />
           </div>
           {unitError !== null && (
-            <Text variant="secondary" className="mt-2 text-[color:var(--danger-fg,#b42318)]">
+            // `text-danger-ink`, the same token `FormField` renders its own
+            // error with — not a hand-rolled colour. The colour wall exists to
+            // catch exactly the arbitrary value this line first carried.
+            <Text variant="muted" className="mt-2 text-danger-ink">
               {unitError}
             </Text>
           )}

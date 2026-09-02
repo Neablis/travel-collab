@@ -142,7 +142,7 @@ describe("PATCH /api/account/preferences", () => {
     // The settings Sheet renders `error` verbatim, so it has to be a sentence
     // for a person, with the branchable identifier in `code` beside it. This
     // used to be `error: "no-account"` — a log identifier shown to a signed-in
-    // user (review, #112).
+    // user (review, pull request 112).
     const body = (await res.json()) as { error: string; code: string };
     expect(body.code).toBe(NO_ACCOUNT_CODE);
     expect(body.error).not.toBe(NO_ACCOUNT_CODE);
