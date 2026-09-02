@@ -322,10 +322,25 @@ function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] 
   }
   return [...counts.entries()]
     .map(([city, dayCount]) => ({ city, days: dayCount }))
-    // Codepoint order on the tiebreak, not `localeCompare`: this replaced an
-    // `order by days desc, city asc` whose collation came from the database, so
-    // pinning it to something that does not vary with a locale keeps the row
-    // identical between a developer's machine, CI and production.
+    // UTF-16 code-unit order on the tiebreak, not `localeCompare`: this
+    // replaced an `order by days desc, city asc` whose collation came from the
+    // database, so pinning it to something that does not vary with a locale
+    // keeps the row identical between a developer's machine, CI and production.
+    // That determinism is the whole requirement and `<`/`>` meets it exactly.
+    //
+    // It is NOT codepoint order, which is what this comment claimed until
+    // CodeRabbit read it (PR #123). JS `<` compares code units, so an
+    // astral-plane character — U+10000 and up, encoded as a surrogate pair
+    // starting in D800 — sorts BEFORE U+E000-U+FFFF. `city` is free text
+    // (`z.string().min(1).max(200)`), so that input is reachable rather than
+    // impossible, and it is still left alone on purpose: the difference is the
+    // order of at most SIBLING_LIMIT chips in one row, both orders are stable
+    // on every machine, and neither is alphabetical to a reader anyway. A
+    // codepoint comparator would buy a distinction nobody can perceive and
+    // cost an allocating comparison plus a test to hold it in place.
+    //
+    // Do not reach for `localeCompare` to "fix" this. Varying with the locale
+    // is the bug the sort replaced.
     .sort((a, b) => b.days - a.days || (a.city < b.city ? -1 : a.city > b.city ? 1 : 0))
     .slice(0, SIBLING_LIMIT);
 }

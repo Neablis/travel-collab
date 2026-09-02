@@ -40,9 +40,13 @@
   over every in-band candidate, not over the 24 that fit on the page. What
   bounds them now is `CANDIDATE_LIMIT`, the same window the band already runs
   over, and `truncated` is already the response's word for "that window was
-  full". The `order by days desc, city asc` tiebreak became a codepoint
-  comparison rather than `localeCompare`, so the row no longer depends on a
-  database collation.
+  full". The `order by days desc, city asc` tiebreak became a plain `<`/`>`
+  string comparison rather than `localeCompare`, so the row no longer depends
+  on a database collation. (That is UTF-16 **code-unit** order, not codepoint
+  order as this entry and the code comment both first said — corrected on
+  PR #123. Determinism was the requirement and code-unit order has it; the two
+  differ only above U+FFFF, and the note at `siblingCities` says why that is
+  left alone.)
 
   **The wording is settled too**, as the entry asked. The count is *"days in
   these results that also touch this city"*, never *"days tapping it would
