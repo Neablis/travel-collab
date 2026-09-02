@@ -9,9 +9,11 @@
 import { flag } from "flags/next";
 import { vercelAdapter } from "@flags-sdk/vercel";
 
-// When false, POST /api/trips/:id/ai returns a SIMULATED plan: a canned model
-// emits tool calls, the real pipeline applies them, and the response carries
-// `simulated: true`. No provider is contacted and no tokens are spent.
+// When false, POST /api/trips/:id/ask answers from the SIMULATED model: it
+// emits real tool calls, the real read tools run, and the answer — or the
+// proposal, or the composed page — is written from what they returned. No
+// provider is contacted and no tokens are spent, and the response carries
+// `x-tc-ai-simulated: true` so the client can badge it.
 //
 // `defaultValue: false` is deliberate and fails CLOSED — an unreachable Flags
 // service degrades to simulated, never to spending. The Flags SDK uses
@@ -26,7 +28,7 @@ import { vercelAdapter } from "@flags-sdk/vercel";
 export const aiLiveFlag = flag<boolean>({
   key: "ai-live",
   description:
-    "When off, /api/trips/:id/ai returns a simulated plan instead of calling a model.",
+    "When off, /api/trips/:id/ask answers from the simulated model instead of calling a real one.",
   options: [
     { label: "Simulated", value: false },
     { label: "Live", value: true },

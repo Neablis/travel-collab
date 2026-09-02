@@ -80,8 +80,8 @@ export interface AssistantProposal {
   commands: BatchableCommand[];
   /**
    * Changes the resolver dropped, as sentences. `no-op` drops are excluded —
-   * the domain simply had nothing to do, which is not something to warn about
-   * (the same filter `handleAiRequest` applies).
+   * the domain simply had nothing to do, which is not something to warn about.
+   * `droppedWriteCalls` below filters it the same way.
    */
   skipped: string[];
 }
@@ -275,8 +275,7 @@ export function buildProposal(
  *
  * `no-op` is filtered out, the same way `buildProposal`'s `skipped` filters
  * it: a no-op is the domain correctly declining to do nothing, not a failure
- * to explain (the same rule `handleAiRequest` applies to its own
- * `resolutionErrors`).
+ * to explain.
  */
 export function droppedWriteCalls(
   intents: RawToolIntent[],
@@ -327,9 +326,15 @@ export interface ProposalCommitResult {
  *      unverified reported.
  *   2. **`flushPlanningBatch`.** One `executeTripCommandBatch` call.
  *
- * `geocoder` is resolved lazily for the reason `handleAiRequest` documents at
- * length: `getGeocoder()` throws on a missing LOCATIONIQ_API_KEY, and a batch
- * with no location to look up must not need one.
+ * **`geocoder` is resolved lazily, and that is an incident rather than a
+ * style.** It used to be a `geocoder: Geocoder = getGeocoder()` default
+ * parameter on the command endpoint — evaluated at call time whenever omitted,
+ * which was every real request. `getGeocoder()` throws when LOCATIONIQ_API_KEY
+ * is unset, so a deployment without that key could not compose a Notebook page:
+ * a surface that touches no location data at all was broken by a lookup it
+ * never needed. Hence the thunk: a batch with nothing to look up must never
+ * construct one. The rule survives the endpoint (ADR-033 Decision 4) because
+ * this is where /ask still enriches.
  */
 export async function commitProposal(
   tripId: string,

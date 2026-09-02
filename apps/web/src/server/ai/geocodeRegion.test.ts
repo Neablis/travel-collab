@@ -98,11 +98,24 @@ describe("withinBox", () => {
 });
 
 // Behavioural cover for what used to be checked by a regex over the source text
-// of `handleAiRequest.ts` and `geocodeEnrichment.ts` (writeTools.test.ts, now
-// deleted). Both of those files import this function and this constant now, so
-// the KI-15 parity claim — "an approved batch is enriched on exactly the
-// command path's terms" — is held by the module system rather than by a string
-// match that a rename would silently defeat.
+// of the command endpoint and `geocodeEnrichment.ts` (writeTools.test.ts, now
+// deleted).
+//
+// **Scope, stated narrowly on purpose.** What follows covers `tripRegionOf` and
+// the geometry helpers and NOTHING ELSE. An earlier version of this comment
+// claimed the KI-15 parity — "an approved batch is enriched on exactly the
+// command path's terms" — was held here for `commitProposal` and
+// `geocodeEnrichment`'s fallback. It is not: neither caller is exercised in
+// this file, so both could stop using `tripRegionOf` or re-declare
+// `TRIP_REGION_MARGIN_KM` with every test below still green. Flagged in review
+// on pull request 110, and this repo's own rule (KI-1, KI-14) is that a comment
+// asserting an invariant either has a test enforcing it or is a lie with a
+// timer on it.
+//
+// Where the callers ARE covered: `geocodeEnrichment.test.ts` for the
+// enrichment behaviour, and the `/ask` route's integration suite for the
+// approval path that reaches `commitProposal`. The command path this parity
+// was originally written against retired with ADR-033 Decision 4.
 describe("tripRegionOf", () => {
   it("is null for a trip with no locations at all", () => {
     expect(tripRegionOf(scenarios.emptyTrip())).toBeNull();

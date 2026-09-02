@@ -96,7 +96,7 @@ function runTool(detail: TripDetail, scope: AskScope, call: ToolCallPart): unkno
 const MAX_STEPS = 4;
 
 async function answerFor(detail: TripDetail, scope: AskScope, question: string): Promise<string> {
-  const model = simulatedModel("ask") as unknown as Probe;
+  const model = simulatedModel() as unknown as Probe;
   const prompt: unknown[] = [
     { role: "system", content: ["You are the trip assistant.", askScopeLine(scope)].join("\n") },
     { role: "user", content: [{ type: "text", text: question }] },

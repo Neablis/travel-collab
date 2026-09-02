@@ -1,4 +1,4 @@
-// The single place the ai-live flag is read. handleAiRequest asks this which
+// The single place the ai-live flag is read. `handleAskRequest` asks this which
 // model to use; it does not know a flag exists.
 import type { LanguageModel } from "ai";
 import { aiLiveFlag } from "@/server/flags";
@@ -69,10 +69,10 @@ export type ModelSelection =
   | { outcome: "simulated"; model: LanguageModel; classifierModel: LanguageModel }
   | { outcome: "denied"; reason: string };
 
-// The HTTP contract for a `denied` outcome, defined once here so every caller
-// (today's /ai endpoint, M16's /ask endpoint) renders the same refusal rather
-// than each inventing its own shape. 403, not 402: 402 asserts a payment
-// relationship that does not exist yet.
+// The HTTP contract for a `denied` outcome, defined once here so /ask's two
+// halves (the turn and the approval) render the same refusal rather than each
+// inventing its own shape. 403, not 402: 402 asserts a payment relationship
+// that does not exist yet.
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
 
 export function deniedResponse(reason: string): Response {
@@ -105,11 +105,12 @@ export async function selectAiModel(
     return { outcome: "denied", reason: "AI is not available for this account." };
   }
   if (!(await aiLive())) {
-    // ONE simulated instance, used for both. The classification call and the
-    // turn are the same surface, and `simulatedModel`'s per-instance latch is
-    // written on that assumption. Neither reaches a provider — which is the
-    // property the second model id must not quietly break, so it has a test.
-    const simulated = simulatedModel(actor.surface);
+    // ONE instance, used for both. The classification call and the turn are the
+    // same turn as far as this model is concerned — it decides which shape to
+    // answer with from the prompt it is handed, never from instance state
+    // (simulatedModel.ts). Neither reaches a provider, which is the property
+    // the second model id must not quietly break, so it has a test.
+    const simulated = simulatedModel();
     return { outcome: "simulated", model: simulated, classifierModel: simulated };
   }
   return { outcome: "live", model: aiModel(), classifierModel: aiClassifierModel() };

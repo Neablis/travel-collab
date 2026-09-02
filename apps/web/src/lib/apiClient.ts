@@ -14,7 +14,6 @@ import {
   UserPreferences,
   type CreateInviteInput,
   type CreateSavedDayInput,
-  type PageContext,
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
@@ -193,37 +192,6 @@ export async function sendTripCommandBatch(
     }
     const data = (await res.json()) as { detail: unknown; history: unknown };
     return { ok: true, value: parseOutcome(data) };
-  } catch (err) {
-    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-  }
-}
-
-// Task 5.5: POST /api/trips/:id/ai. `composeAiPage` is the page-authoring
-// surface, and since ADR-033 Decision 4 the only one: it returns a validated
-// PageContent doc for the caller to review before it autosaves — see
-// ComposePanel/PageScreen. The board/combined `composeAiPlan` retired with
-// them; changing the trip itself now goes through /ask's
-// propose → review → approve (`askAssistant`/`applyAssistantProposal` below).
-export async function composeAiPage(
-  tripId: string,
-  prompt: string,
-  pageContext: PageContext,
-): Promise<ApiResult<{ content: PageContent; simulated: boolean }>> {
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, surface: "page", pageContext }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-      return {
-        ok: false,
-        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-      };
-    }
-    const data = (await res.json()) as { content: unknown; simulated?: unknown };
-    return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -648,8 +616,20 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 // and viewer refusals can happen BEFORE a turn is ever appended.
 // ---------------------------------------------------------------------------
 
-/** `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server. */
-export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
+/**
+ * What a turn is about.
+ *
+ * `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server.
+ *
+ * `page` is the Notebook's turn (ADR-033 Decision 4): the assistant drafts that
+ * page's body instead of answering. The id is sent, never trusted — the server
+ * resolves it to a page on THIS trip that this actor may edit before it offers
+ * a page tool, and refuses rather than widening if it cannot.
+ */
+export type AskScope =
+  | { kind: "trip" }
+  | { kind: "day"; dayIndex: number }
+  | { kind: "page"; pageId: string };
 
 /** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
 export type AskWireMessage = {
@@ -695,6 +675,14 @@ export type AskEvent =
   | { type: "meta"; simulated: boolean }
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
+  /**
+   * The page a `page`-scoped turn composed, on that same final chunk. Already
+   * validated against the macro registry server-side, so a doc that failed
+   * validation arrives as `page-error` instead and never as content.
+   */
+  | { type: "page"; title: string; content: PageContent }
+  /** A page turn that produced no usable doc, with the server's own reason. */
+  | { type: "page-error"; message: string }
   | { type: "error"; message: string };
 
 /** Set on the ApiError when the failure arrived inside an already-open stream. */
@@ -762,13 +750,26 @@ export function askEventFromFrame(frame: string): AskEvent | null {
       message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
     };
   }
-  // The turn's proposal rides on the run's final chunk as message metadata —
-  // the first moment the server knows every write tool call the model made.
-  // Parsed, not cast: `commands` go straight back to `/ask/apply`, so a
-  // malformed proposal must be dropped here rather than posted.
+  // The turn's outcome rides on the run's final chunk as message metadata — the
+  // first moment the server knows every tool call the model made. A proposal OR
+  // a page, never both: the two tool sets are disjoint server-side
+  // (`offeredToolNamesFor`), so the scope that asked decides which arrives.
+  //
+  // Parsed, not cast, in both cases: `commands` go straight back to
+  // `/ask/apply` and `content` goes straight into the editor, so a malformed
+  // payload is dropped here rather than acted on.
   if (part.type === "finish") {
-    const proposal = proposalFrom((part.messageMetadata as { proposal?: unknown } | undefined)?.proposal);
-    return proposal === null ? null : { type: "proposal", proposal };
+    const metadata = part.messageMetadata as
+      | { proposal?: unknown; composedPage?: unknown; composeError?: unknown }
+      | undefined;
+    const proposal = proposalFrom(metadata?.proposal);
+    if (proposal !== null) return { type: "proposal", proposal };
+    const page = composedPageFrom(metadata?.composedPage);
+    if (page !== null) return page;
+    if (typeof metadata?.composeError === "string" && metadata.composeError !== "") {
+      return { type: "page-error", message: metadata.composeError };
+    }
+    return null;
   }
   return null;
 }
@@ -789,6 +790,23 @@ function proposalFrom(value: unknown): AssistantProposal | null {
     : [];
   const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
   return { proposalId: raw.proposalId, changes, commands: commands.data, skipped };
+}
+
+/**
+ * `unknown` → a page we are willing to put in the editor, or `null`.
+ *
+ * `PageContent.parse` is the same contract schema the editor and `updatePage`
+ * validate against, so a doc that would not survive a save never reaches the
+ * editor either. The server validated it too (against the macro registry, which
+ * this side cannot see) — this is the client half of the same rule, not a
+ * substitute for it.
+ */
+function composedPageFrom(value: unknown): { type: "page"; title: string; content: PageContent } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as { title?: unknown; content?: unknown };
+  if (typeof raw.title !== "string" || raw.title === "") return null;
+  const content = PageContent.safeParse(raw.content);
+  return content.success ? { type: "page", title: raw.title, content: content.data } : null;
 }
 
 /**

@@ -7,7 +7,6 @@ import {
   applyAssistantProposal,
   askAssistant,
   cloneSharedTrip,
-  composeAiPage,
   createSavedDay,
   createTrip,
   createTripInvite,
@@ -184,7 +183,6 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
   sendTripCommandBatch: () =>
     sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
-  composeAiPage: () => composeAiPage(TRIP_ID, "plan it", { tripId: TRIP_ID }),
   duplicateTrip: () => duplicateTrip(TRIP_ID),
   resetDemoData: () => resetDemoData(),
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
@@ -567,6 +565,63 @@ describe("the proposal on the wire", () => {
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+});
+
+// The composed page rides the SAME final chunk as a proposal, and never beside
+// one: the server's tool sets are disjoint (`offeredToolNamesFor`), so the scope
+// that asked decides which arrives.
+describe("the composed page on the wire", () => {
+  const PAGE = { title: "Trip Overview", content: { type: "doc", content: [{ type: "paragraph", content: [] }] } };
+  const finishWith = (metadata: unknown) =>
+    `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify(metadata)}}`;
+
+  it("arrives as one event, on the stream's final chunk", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, finishWith({ composedPage: PAGE })]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    const pages = events.filter((e) => e.type === "page");
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toEqual({ type: "page", title: "Trip Overview", content: PAGE.content });
+    expect(events.at(-1)).toBe(pages[0]);
+  });
+
+  // The server's own refusal reason — a macro whose params its registry schema
+  // rejects, or a turn that never composed. It has to reach the panel: silently
+  // doing nothing after "Generate" is a dead end.
+  it("passes the server's compose refusal through as page-error", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(['{"type":"start"}', finishWith({ composeError: 'Macro "cost.day" params failed validation.' })]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "page-error")).toEqual([
+      { type: "page-error", message: 'Macro "cost.day" params failed validation.' },
+    ]);
+  });
+
+  // The content goes straight into the editor and then into `updatePage`, so a
+  // doc that would not survive a save must not reach the editor either.
+  const MALFORMED: [unknown, string][] = [
+    [{ composedPage: { title: "T" } }, "no content"],
+    [{ composedPage: { title: "T", content: { type: "not-a-doc" } } }, "content that is not a doc"],
+    [{ composedPage: { content: { type: "doc", content: [] } } }, "no title"],
+    [{ composedPage: { title: "", content: { type: "doc", content: [] } } }, "an empty title"],
+    [{ composeError: "" }, "an empty refusal"],
+    [{}, "metadata with neither"],
+  ];
+
+  it.each(MALFORMED)("drops %j (%s)", async (metadata) => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', finishWith(metadata)])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "page" || e.type === "page-error")).toEqual([]);
   });
 });
 

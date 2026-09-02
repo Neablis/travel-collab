@@ -2,6 +2,14 @@
 // (ADR-015, Invariant 5: tool schemas must be DERIVED, never hand-written
 // duplicates). This is the page-authoring counterpart to planningTools.ts.
 //
+// **ADR-033 Decision 4 changed this family's HOST, not this family.** It used
+// to hang off the command endpoint's `generateText` call; it now hangs off the
+// /ask agent's loop, offered only on a turn whose page scope the server has
+// already verified (handleAskRequest.ts). The derivation is what had to
+// survive that move intact, and it did: `macroNameEnum` is still
+// `z.enum(MACRO_NAMES)` over the live registry, and `validateComposedPage`
+// still re-checks every macro node against that macro's OWN Zod schema.
+//
 // The compose_page tool's `inputSchema` describes a flat, AI-friendly page
 // shape (title + blocks), NOT the full nested ProseMirror doc. The macro
 // `name` param is a closed Zod enum over MACRO_NAMES, so an unknown macro
@@ -13,8 +21,8 @@
 // PageContent, it walks every node and re-validates each macro node against
 // @tc/contracts' MacroNode schema, confirms the macro is still in the
 // registry, and checks its params against that macro's own Zod schema.
-// Any failure returns { error } — the route (Task 5.5) decides whether to
-// downgrade or reject.
+// Any failure returns { error } — the caller decides whether to downgrade or
+// reject. /ask rejects: a doc that fails here never reaches the client.
 import { tool, type Tool } from "ai";
 import { z } from "zod";
 import { MacroNode, type PageContent } from "@tc/contracts";
@@ -76,7 +84,26 @@ function toPageContent(params: ComposePageParams): PageContent {
   return { type: "doc", content };
 }
 
-export function buildPageTools(): { tools: Record<string, Tool> } {
+/** What one `compose_page` call produced. */
+export interface ComposedPage {
+  title: string;
+  content: PageContent;
+}
+
+/**
+ * The page tools, and a reader for what the turn composed.
+ *
+ * The collector exists because the composed doc leaves on the stream's `finish`
+ * part as message metadata, and by then the tool result is several SDK frames
+ * behind — the same reason `buildWriteTools` collects rather than returning
+ * (writeTools.ts). `execute` is otherwise unchanged: it still transforms and
+ * returns, so the model sees its own result and can talk about it.
+ *
+ * **Last compose wins.** A model that calls this twice meant the second one;
+ * a page is one document, not an append log.
+ */
+export function buildPageTools(): { tools: Record<string, Tool>; getComposed: () => ComposedPage | null } {
+  let composed: ComposedPage | null = null;
   const tools: Record<string, Tool> = {
     compose_page: tool({
       description:
@@ -84,13 +111,22 @@ export function buildPageTools(): { tools: Record<string, Tool> } {
         "Macro names are limited to the trip data registry — do not invent macro names.",
       inputSchema: ComposePageParams,
       execute: async (params: ComposePageParams) => {
-        return { title: params.title, content: toPageContent(params) };
+        composed = { title: params.title, content: toPageContent(params) };
+        return composed;
       },
     }),
   };
 
-  return { tools };
+  return { tools, getComposed: () => composed };
 }
+
+/**
+ * The page tools, by name — MEASURED from the built set, never listed, for the
+ * same reason `WRITE_TOOL_NAMES` is (writeTools.ts): `minimumRoleFor` computes
+ * the guard from the tool names it is handed, so a second page tool inherits
+ * the editor requirement without anyone remembering to add it here.
+ */
+export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().tools);
 
 export function validateComposedPage(content: PageContent): PageContent | { error: string } {
   const error = walkForError(content.content);

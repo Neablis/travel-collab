@@ -18,9 +18,10 @@
   2 req/sec instead of a `Promise.all` burst, so a 9-name batch no longer 429s
   itself into coordinate-less locations. The response carries a
   `locationReport` (`verified`/`unverified`/`unchecked`/`failed`/`skipped`),
-  and `handleAiRequest.ts`'s `locationNotice` names up to three unverified,
-  failed, or skipped places in the reply message instead of reporting success
-  either way — `unchecked` (accepted with nothing yet to check it against,
+  and the reply names up to three unverified, failed, or skipped places instead
+  of reporting success either way (as `locationNotice` in the since-deleted
+  `handleAiRequest.ts`; the surviving implementation is `commitProposal` in
+  `writeTools.ts`, on the approval path, unchanged in substance) — `unchecked` (accepted with nothing yet to check it against,
   which is the common case on the very first lookup of a freshly planned trip)
   is deliberately excluded from the message to avoid training the user to
   ignore it, but stays in the payload.
@@ -67,7 +68,8 @@
      path. An `unverified` fallback is still a raw, unvalidated model guess,
      and it still gets persisted and still feeds `tripRegionOf` on the
      next request exactly as much as a verified one would; the fix makes that
-     widening *announced* (via `locationNotice`) rather than eliminating it.
+     widening *announced* (the unverified-locations notice in `commitProposal`)
+     rather than eliminating it.
 - **Fix path:** M9, "Grounding". The model cites a `placeRef` from a real
   `SearchPlaces` result, so there is nothing to overwrite and nothing to
   guess; enrichment survives only as a fallback for user-typed text.
