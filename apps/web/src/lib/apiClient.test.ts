@@ -16,6 +16,7 @@ import {
   deleteSavedDay,
   duplicateTrip,
   fetchInvitePreview,
+  fetchPreferences,
   fetchSavedDay,
   fetchSavedDays,
   fetchSharedTrip,
@@ -37,6 +38,7 @@ import {
   sendTripCommand,
   sendTripCommandBatch,
   unpublishSavedDay,
+  updatePreferences,
   type ApiResult,
 } from "@/lib/apiClient";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
@@ -197,6 +199,8 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   revokeTripShare: () => revokeTripShare(TRIP_ID, UUID),
   fetchSharedTrip: () => fetchSharedTrip("tok"),
   cloneSharedTrip: () => cloneSharedTrip("tok"),
+  fetchPreferences: () => fetchPreferences(),
+  updatePreferences: () => updatePreferences({ distanceUnit: "mi" }),
   fetchSavedDays: () => fetchSavedDays(),
   createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
   deleteSavedDay: () => deleteSavedDay(UUID),
