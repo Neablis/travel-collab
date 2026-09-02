@@ -428,6 +428,31 @@ these out immediately:
 
 ## Testing model
 
+**The procedure is `docs/guidelines/testing.md`** — which layer owns what, the
+locator ladder, the testid contract, and four copy-pasteable examples. Read it
+before writing a test; the `write-a-test` skill walks it as steps. What follows
+is the law it expands: invariants only, each one paid for.
+
+- **Red first: a test is not done until it has been seen to fail.** Break the
+  code it protects, watch it go red for *your* reason, restore, watch it go
+  green — and put the source edit and the real failure text in the PR. Three
+  tests written in one session (2026-09-02) passed while proving nothing: a
+  `waitFor` on a value that could not change between retries, an effect keyed so
+  it never re-ran, and an empty-patch check that accepted the emptiest patch.
+  Each was caught only by doing this, retroactively. `witness` does it
+  mechanically for property tests; for everything else it is manual and there is
+  no substitute.
+- **Test count is a cost, not a score.** A PR that adds tests without covering a
+  *new* failure mode made the suite slower and nothing else.
+- **Prove it at one layer.** Name the layer that owns each claim and do not
+  re-prove it above. The same rule proven four times costs four maintenance
+  sites and catches one bug.
+- **Never assert presentation.** Classes, tag names, DOM structure and prose
+  copy are not contracts — roles, labels, values and behaviour are. Enforced:
+  `toHaveClass` outside `src/components/ui/**` fails lint, as does reaching past
+  the query layer into nodes.
+- **No test may sleep** (`scripts/check-sleep-wall.mjs`), and **data comes from
+  `@tc/factories`**, never a hand-built rollup.
 - **Unit** (`packages/domain`): fast, exhaustive; property-based tests
   (fast-check) for reducers and the conflict engine. `fast-check` is also
   available in `@tc/pages` and `apps/web` — a claim of the form "for ALL

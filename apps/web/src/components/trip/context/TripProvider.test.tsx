@@ -735,6 +735,7 @@ describe.each(HISTORY_COMMANDS)(
 
       // Settled, then asserted: a guard that merely DELAYS the command is not a
       // guard, so this waits out every microtask rather than sampling early.
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       await act(async () => {});
       const sentTypes = sendTripCommandMock.mock.calls.map(
         (call) => (call[0] as { type: string }).type,
@@ -763,6 +764,7 @@ describe.each(HISTORY_COMMANDS)(
       // Two days: the confirmed one plus the optimistic d-race. Asserted after a
       // settled microtask queue, so a reconcile that clears `pending` has had
       // every chance to land.
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       await act(async () => {});
       expect(screen.getByTestId("dayCount").textContent).toBe("2");
     });

@@ -33,6 +33,7 @@ describe("HistoryPanel", () => {
     );
     const items = screen.getAllByTestId("history-entry");
     expect(items[0]!.textContent).toContain("Added Day 1");
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(items[0]!.querySelector("s, [style*='line-through']")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Added Day 1/ }));
     expect(onPreview).toHaveBeenCalledWith(2);

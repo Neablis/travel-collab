@@ -66,6 +66,7 @@ async function inviteLinkFor(page: Page, role: "Can edit" | "Can view"): Promise
   const copy = page.getByRole("button", { name: "Copy invite link" }).first();
   await expect(copy).toBeVisible();
   const link = await copy.getAttribute("title");
+  // eslint-disable-next-line playwright/prefer-web-first-assertions -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   expect(link).toBeTruthy();
   return link!;
 }
@@ -114,6 +115,7 @@ async function signedInAs(
     await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
   }
 
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
     // Both front-door routes, not just `/signin`: the super-code path starts on

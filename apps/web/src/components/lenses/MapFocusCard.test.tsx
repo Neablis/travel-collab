@@ -14,6 +14,7 @@ const day = (over: Partial<MapDay> = {}): MapDay => ({
 describe("MapFocusCard", () => {
   it("renders nothing when no day is focused", () => {
     const { container } = render(<MapFocusCard day={null} />);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.firstChild).toBeNull();
   });
 

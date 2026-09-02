@@ -96,6 +96,7 @@ async function renderHeader(children?: React.ReactNode) {
       <TripStatusProbe />
     </TripProvider>,
   );
+  // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await waitFor(() => expect(screen.getByText("Japan")).toBeTruthy());
   return { getEditorState: () => editorState };
 }
@@ -226,6 +227,7 @@ describe("TripHeader restyle (Task 9)", () => {
     await renderHeader();
 
     const badge = screen.getByText("Active");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(badge.className).toMatch(/bg-moss/);
   });
 
@@ -368,8 +370,11 @@ describe("TripHeader on a phone", () => {
     // `md:` IS 768px — the line globals.css already draws between "narrow but
     // still a shrinkable plan" and "phone" (`.assistant-rail`,
     // `.unscheduled-rack`) and the one `useIsPhone` reads.
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByTestId("trip-header-share").className).toBe("hidden md:block");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByTestId("trip-meta-row").className).toMatch(/(^| )hidden( |$)/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByTestId("trip-meta-row").className).toMatch(/md:flex/);
 
     // The other half of the decision, and the half a "hide it all" regression
@@ -377,11 +382,15 @@ describe("TripHeader on a phone", () => {
     // stop" and History have no home in Trip settings, and the tab strip and
     // day chips are the phone's primary navigation.
     for (const name of ["Add stop", "History"]) {
+      // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(screen.getByRole("button", { name }).closest("[class*='hidden']")).toBeNull();
     }
+    // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("tablist", { name: "Trip view" }).closest("[class*='hidden']")).toBeNull();
+    // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("group", { name: "Days" }).closest("[class*='hidden']")).toBeNull();
     // And the door to everything that IS hidden.
+    // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("button", { name: /trip settings/i }).closest("[class*='hidden']")).toBeNull();
   });
 
