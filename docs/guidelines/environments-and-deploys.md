@@ -145,9 +145,12 @@ that secret anywhere but `caesura.today` or a `travel-collab-*.vercel.app`
 host — it unlocks every protected deployment this project has, and a
 diagnostic whose only input is a URL must not hand it to whatever was typed.
 
-What the script still cannot prove is that production **forwards** the callback
-back to the preview. That needs a completed Google sign-in, so it needs a
-human — see KI-50 for the one remaining step.
+What the script cannot prove is that production **forwards** the callback back
+to the preview — that needs a completed Google sign-in, so it needs a human.
+**It was walked on 2026-09-02** (Mitchell, on PR #120's preview: signed in with
+Google, landed back on the preview) and KI-50 is resolved on the strength of
+it. The script is the cheap check that the *configuration* is still right on a
+given deployment; the sign-in is what proved the mechanism once.
 
 ## Feature flags
 

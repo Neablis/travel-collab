@@ -1,4 +1,4 @@
-### KI-50 — Google sign-in can't be verified on a preview deployment without hand-registering each branch's redirect URI
+### KI-50 — Google sign-in can't be verified on a preview deployment without hand-registering each branch's redirect URI — RESOLVED
 - **Severity:** cleanup (no user impact in production; blocks a verification workflow)
 - **Area:** `apps/web/src/server/auth.ts`, the Vercel Preview environment, and
   the Google Cloud OAuth client's Authorized redirect URIs.
@@ -63,3 +63,54 @@
 - **Why deferred:** the workaround unblocks M15's gate today, and the proxy
   touches production auth configuration — not something to change while a
   milestone gate is mid-verification. Mitchell's call, 2026-08-26.
+
+
+---
+
+- **Resolved 2026-09-02**, confirmed by Mitchell completing a real Google
+  sign-in on PR #120's preview and landing back **on the preview**, signed in.
+  That was the one step no amount of automation could take: it needs a real
+  Google account, and it is the only thing that exercises the return leg —
+  production decrypting a preview's OAuth `state`, seeing an origin that is not
+  its own, and forwarding the whole callback back to the deployment that
+  started it.
+- **What the fix is:** `AUTH_REDIRECT_PROXY_URL=https://caesura.today/api/auth`
+  on the **Preview and Production** Vercel environments. `@auth/core@0.41.3`
+  reads it directly (`lib/utils/env.js:39`); no application code configures it.
+  Production was redeployed 2026-09-02 so it would hold the variable — Vercel
+  injects env vars at deploy time, and the deployment then live was from
+  Aug 30. ADR-034 records the mechanism, read out of the resolved package
+  rather than from the docs.
+- **The three things this entry asked to be confirmed, all now confirmed.**
+  Production has a working Google client (it always did). `AUTH_SECRET` is a
+  single variable scoped to Production and Preview, so the two cannot differ —
+  which the redirect proxy requires, because the OAuth `state` is a JWE
+  encrypted with it. And the Deployment Protection interaction, *"still
+  unconfirmed either way"* since 2026-08-29, is confirmed: the final redirect
+  lands on the preview host and a browser already past that fence carries
+  straight through.
+- **Proven before the sign-in, and worth keeping as the cheap check:**
+  `scripts/check-auth-proxy.mjs` reads the `redirect_uri` out of the
+  authorization URL a deployment builds, requires it to be production's
+  callback exactly, and then asks Google whether it accepts it — which needs no
+  credentials, because an unregistered URI is refused before any sign-in
+  begins. With a negative control on the same request: the preview's own
+  callback comes back `authError=…` decoding to `redirect_uri_mismatch`, which
+  is this entry's exact symptom. So the passing case is not a vacuous one.
+- **The security half, which was not optional.** The proxy makes the shared
+  `AUTH_SECRET` load-bearing rather than incidental, and M3 of
+  `docs/reviews/2026-08-28-project-review.md` had named that as the thing to
+  close when the proxy landed: sessions are stateless JWTs, `AUTH_DEV_LOGIN` is
+  on in Preview, and dev login mints `dev-<name>` with no password against an
+  identity that inherits real trip memberships. So the session token now
+  carries the environment that minted it and a mismatched token is refused by
+  returning `null` from the `jwt` callback — Auth.js's own clear-the-cookie
+  signal. **M3 is closed by the same change.**
+- **What to do now, once:** delete the per-branch redirect URIs accumulated in
+  the Google Cloud OAuth client since 2026-08-26. They are dead — one
+  registered URI now covers every preview there will ever be — and leaving
+  them is the list of stale entries this entry complained about.
+- **Do not** add a branch alias to the Google client again. If a preview cannot
+  sign in, run `node scripts/check-auth-proxy.mjs <preview-url>` first: the
+  usual cause is a deployment built before the variable existed, and the answer
+  is a redeploy, not a registration.
