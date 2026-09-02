@@ -33,6 +33,11 @@
 // misreporting it as a configuration failure.
 
 const EXPECTED_PROXY_ORIGIN = "https://caesura.today";
+// The full URI, not just the origin. An origin-only comparison passes for any
+// path on caesura.today — including a wrong one that never reaches Auth.js's
+// callback — so it would report a working proxy for a broken
+// AUTH_REDIRECT_PROXY_URL. The path is the half that has to be right.
+const EXPECTED_PROXY_REDIRECT_URI = `${EXPECTED_PROXY_ORIGIN}/api/auth/callback/google`;
 
 const target = process.argv[2];
 if (!target) {
@@ -41,14 +46,61 @@ if (!target) {
 }
 
 const base = new URL(target).origin;
-const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const headers = bypass ? { "x-vercel-protection-bypass": bypass } : {};
 
 const fail = (message, detail) => {
   console.error(`FAIL  ${message}`);
   if (detail) console.error(`      ${detail}`);
   process.exit(1);
 };
+
+/**
+ * Is this a host of ours, and therefore one we may send the bypass secret to?
+ *
+ * `VERCEL_AUTOMATION_BYPASS_SECRET` unlocks EVERY protected deployment this
+ * project has (`environments-and-deploys.md` says so in as many words), and
+ * this script's only argument is a URL. Attaching the header to whatever the
+ * caller typed means one mistyped or pasted host receives that credential —
+ * an outbound secret leak caused by a diagnostic tool, which is a poor trade
+ * for saving a comparison. So the allow-list is the gate, not the header.
+ *
+ * Deliberately narrow: `caesura.today`, and this project's own Vercel hosts,
+ * which are all `travel-collab-…​.vercel.app`. A bare `.vercel.app` suffix
+ * check would not do — that is every Vercel deployment on the internet.
+ * HTTPS is required for the same reason; the secret must not cross plaintext.
+ */
+const isOurHost = (origin) => {
+  let u;
+  try {
+    u = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  return u.hostname === "caesura.today" ||
+    (u.hostname.startsWith("travel-collab-") && u.hostname.endsWith(".vercel.app"));
+};
+
+// A network error is a normal outcome for a diagnostic whose only input is a
+// URL — an unreachable host, DNS failure or TLS error otherwise surfaces as an
+// uncaught stack trace, which reads like the script is broken rather than the
+// host being wrong. Every fetch below goes through this.
+const get = async (url, init, what) => {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    fail(`Could not reach ${what}.`, `${error instanceof Error ? error.message : String(error)}\n      Check the URL is right and the host is up.`);
+  }
+};
+
+const trusted = isOurHost(base);
+const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+if (bypass && !trusted) {
+  fail(
+    `Refusing to send VERCEL_AUTOMATION_BYPASS_SECRET to ${base}.`,
+    "That secret unlocks every protected deployment this project has, and this host is not one of ours (expected https://caesura.today or https://travel-collab-*.vercel.app). Re-run without the variable set if you meant to probe it unauthenticated.",
+  );
+}
+const headers = bypass ? { "x-vercel-protection-bypass": bypass } : {};
 
 // Vercel's SSO gate answers with an HTML page rather than an error status, so
 // a JSON parse failure here is almost always protection rather than a broken
@@ -90,7 +142,7 @@ const asJson = async (res, what) => {
   }
 };
 
-const csrfRes = await fetch(`${base}/api/auth/csrf`, { headers, redirect: "manual" });
+const csrfRes = await get(`${base}/api/auth/csrf`, { headers, redirect: "manual" }, `${base}/api/auth/csrf`);
 const { csrfToken } = await asJson(csrfRes, "GET /api/auth/csrf");
 if (!csrfToken) fail("No csrfToken in /api/auth/csrf — is this a deployment of this app?");
 
@@ -101,7 +153,7 @@ const cookies = csrfRes.headers.getSetCookie().map((c) => c.split(";")[0]).join(
 // `X-Auth-Return-Redirect` makes Auth.js answer with `{ url }` as JSON instead
 // of a 302 (`@auth/core/index.js:108,138`), which is what lets this read the
 // destination without following it.
-const signinRes = await fetch(`${base}/api/auth/signin/google`, {
+const signinRes = await get(`${base}/api/auth/signin/google`, {
   method: "POST",
   redirect: "manual",
   headers: {
@@ -111,7 +163,7 @@ const signinRes = await fetch(`${base}/api/auth/signin/google`, {
     "X-Auth-Return-Redirect": "1",
   },
   body: new URLSearchParams({ csrfToken, callbackUrl: base }),
-});
+}, `${base}/api/auth/signin/google`);
 
 const { url } = await asJson(signinRes, "POST /api/auth/signin/google");
 if (!url) fail("Auth.js returned no URL for the google provider.", "Is AUTH_GOOGLE_ID set on this environment?");
@@ -141,25 +193,54 @@ console.log(`redirect_uri  ${redirectUri}`);
 // sign-in page); an unregistered one goes to `/signin/oauth/error` with a
 // base64 `authError` that decodes to `redirect_uri_mismatch`.
 const askGoogle = async (url) => {
-  const res = await fetch(url, { redirect: "manual" });
+  const res = await get(url, { redirect: "manual" }, "Google's authorization endpoint");
   const location = res.headers.get("location") ?? "";
-  if (!location.includes("/signin/oauth/error")) return { accepted: true, location };
-  let reason = "";
-  try {
-    const err = new URL(location).searchParams.get("authError") ?? "";
-    reason = Buffer.from(err, "base64").toString("utf8").replace(/[^\x20-\x7e]/g, " ").trim();
-  } catch {
-    /* the error blob is best-effort detail, never the verdict */
+
+  // Refusal is the one answer we can read precisely, so read it first.
+  if (location.includes("/signin/oauth/error")) {
+    let reason = "";
+    try {
+      const err = new URL(location).searchParams.get("authError") ?? "";
+      reason = Buffer.from(err, "base64").toString("utf8").replace(/[^\x20-\x7e]/g, " ").trim();
+    } catch {
+      /* the error blob is best-effort detail, never the verdict */
+    }
+    return { verdict: "refused", location, reason };
   }
-  return { accepted: false, location, reason };
+
+  // Acceptance must be RECOGNISED, not merely "not a refusal". Treating every
+  // other answer as a pass is how a check goes falsely green: Google can
+  // reply with a rate limit, a bot interstitial, a 5xx, or a 200 that is not a
+  // redirect at all, and none of those say the redirect_uri is registered.
+  const accepted =
+    res.status >= 300 && res.status < 400 &&
+    /^https:\/\/accounts\.google\.com\/(v\d+\/)?signin\//.test(location);
+  if (accepted) return { verdict: "accepted", location };
+
+  return {
+    verdict: "inconclusive",
+    location,
+    reason: `HTTP ${res.status}${location ? ` -> ${location.slice(0, 120)}` : " with no Location header"}`,
+  };
 };
 
-const verdict = await askGoogle(url);
-console.log(`google        ${verdict.accepted ? "accepts it" : "REFUSES it"}`);
-if (!verdict.accepted) {
+const google = await askGoogle(url);
+console.log(
+  `google        ${{ accepted: "accepts it", refused: "REFUSES it", inconclusive: "gave an answer this script cannot read" }[google.verdict]}`,
+);
+if (google.verdict === "refused") {
   fail(
     `Google refuses this redirect_uri.`,
-    `${verdict.reason || verdict.location}\n      Register ${redirectUri} in the Google Cloud console, or fix AUTH_REDIRECT_PROXY_URL. See ADR-034.`,
+    `${google.reason || google.location}\n      Register ${redirectUri} in the Google Cloud console, or fix AUTH_REDIRECT_PROXY_URL. See ADR-034.`,
+  );
+}
+if (google.verdict === "inconclusive") {
+  // Non-zero on purpose. The script's headline claim is "Google accepts it";
+  // an answer it cannot classify does not support that claim, and exiting 0
+  // here would turn a transient rate limit into a green check.
+  fail(
+    `Could not establish whether Google accepts this redirect_uri.`,
+    `${google.reason}\n      This is often transient (rate limit or bot interstitial) — retry before concluding anything. It is NOT evidence of a misconfiguration.`,
   );
 }
 
@@ -179,11 +260,27 @@ if (redirectOrigin === base) {
   process.exit(0);
 }
 
-if (redirectOrigin === EXPECTED_PROXY_ORIGIN) {
+if (redirectUri === EXPECTED_PROXY_REDIRECT_URI) {
+  // Says only what was actually established. This script proves two things —
+  // the URI this deployment generates, and that Google accepts it — and it
+  // cannot prove the third, that production forwards the callback back here.
+  // That needs a completed sign-in. Earlier wording claimed the forwarding
+  // outright, which was the script asserting something it had not checked.
   console.log(
-    `\nOK  Redirect proxy is LIVE. Google will call back to production, which forwards here.\n    Nothing needs registering for this host.`,
+    `\nOK  This deployment sends Google production's callback URI, and Google accepts it.
+    So nothing needs registering for this host — that is KI-50's fix working.
+
+    STILL UNPROVEN: that production forwards the callback back to this host.
+    Only a completed Google sign-in shows that. Open ${base}/signin and try it.`,
   );
   process.exit(0);
+}
+
+if (redirectOrigin === EXPECTED_PROXY_ORIGIN) {
+  fail(
+    `redirect_uri is on the right host but the wrong path: ${redirectUri}`,
+    `Expected exactly ${EXPECTED_PROXY_REDIRECT_URI}. AUTH_REDIRECT_PROXY_URL should be production's auth base with no trailing slash and no extra path — "https://caesura.today/api/auth". See ADR-034.`,
+  );
 }
 
 fail(

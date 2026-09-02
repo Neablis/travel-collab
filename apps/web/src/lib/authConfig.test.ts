@@ -178,6 +178,24 @@ describe("the dev-login provider's registration gate", () => {
   });
 });
 
+// RED-FIRST, run 2026-09-02 (the rule `docs/guidelines/testing.md` states, and
+// what a security guard owes a reviewer — these tests were written before that
+// guideline landed and did not carry this evidence until review asked for it):
+//
+//   Mutation A — delete `if (token.env !== authEnvironment()) return null;`
+//     3 failed | 18 passed. Exactly the three refusals:
+//       expected { userId: 'dev-alice', env: 'preview' }    to be null
+//       expected { userId: 'u1',        env: 'production' } to be null
+//       expected { userId: 'u1' }                           to be null
+//
+//   Mutation B — delete `token.env = authEnvironment();` at mint time
+//     2 failed | 19 passed. Exactly the two that read the stamp:
+//       expected { userId: 'dev-alice' } to match object { userId: 'dev-alice', env: 'preview' }
+//       expected { userId: 'dev-alice' } to match object { env: 'development' }
+//
+// Both restored, 21 passed. The two halves of the guard fail independently,
+// so neither is carried by the other.
+//
 // The environment claim (project review M3). Preview and Production share one
 // AUTH_SECRET — the redirect proxy needs them to — so a preview-minted JWT
 // verifies on production, and Preview is where password-less dev login lives.

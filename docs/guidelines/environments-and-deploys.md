@@ -134,11 +134,16 @@ node scripts/check-auth-proxy.mjs <deployment-url>
 ```
 
 It reads the `redirect_uri` out of the Google authorization URL that deployment
-builds, then **asks Google whether it accepts it** — which needs no credentials,
+builds, checks it is production's callback **exactly** (host and path — a right
+host with a wrong path is a broken proxy, not a working one), then **asks Google
+whether it accepts it** — which needs no credentials,
 because an unregistered URI is refused before any sign-in begins. Export
 `VERCEL_AUTOMATION_BYPASS_SECRET` first; `vercel env pull --environment=development`
 is where it comes back with a value (the Preview scope returns it empty,
-because it is a sensitive variable there).
+because it is a sensitive variable there). The script will **refuse** to send
+that secret anywhere but `caesura.today` or a `travel-collab-*.vercel.app`
+host — it unlocks every protected deployment this project has, and a
+diagnostic whose only input is a URL must not hand it to whatever was typed.
 
 What the script still cannot prove is that production **forwards** the callback
 back to the preview. That needs a completed Google sign-in, so it needs a
