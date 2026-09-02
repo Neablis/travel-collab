@@ -65,7 +65,7 @@ export function usePublishSaveState(state: SaveState): void {
   }, [publish, unsent, failure, retry]);
 }
 
-export function useSaveLight(): SaveState {
+function useSaveLight(): SaveState {
   return useContext(Context)?.state ?? REST;
 }
 
