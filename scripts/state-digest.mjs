@@ -22,14 +22,21 @@ import { join } from "node:path";
 //
 // Two hard rules, both of which are the whole point:
 //
-//  1. NO PROSE, NO JUDGEMENT. Every line is an extracted fact with a
-//     file:line citation. A session that needs the detail opens one file at
-//     one offset instead of `cat`-ing 50KB of it — which is what produced
-//     F1a's 29k-char `sed -n '/^## Open/,/^## Resolved/p'` calls.
+//  1. NO PROSE, NO JUDGEMENT. Every EXTRACTED fact carries a file:line
+//     citation, so a session that needs the detail opens one file at one
+//     offset instead of `cat`-ing 50KB of it — which is what produced F1a's
+//     29k-char `sed -n '/^## Open/,/^## Resolved/p'` calls.
+//     The exceptions are the fixed scaffolding — the banner, the DRIFT
+//     verdict line, and the closing NEXT READ / VERIFY hints — which are
+//     constants rather than readings and have nothing to cite. Stating the
+//     rule as "every line" was inaccurate and made a contract nobody could
+//     hold; it is the extracted facts that must be cited, and all of them are.
 //  2. IT HAS A BUDGET: ~60-80 lines, <=2,500 tokens. A digest that grows into
-//     a second copy of STATUS.md has failed at its only job, so KI *titles*
-//     are printed and KI bodies never are. scripts/__tests__ holds the test
-//     that fails if this outgrows the budget.
+//     a second copy of STATUS.md has failed at its only job. KI bodies are
+//     never printed, and the KI block is a count plus the newest few rather
+//     than the full list — see the note at that block for the measurement
+//     behind it. scripts/__tests__ holds the test that fails if this
+//     outgrows the budget.
 //
 // What it deliberately does NOT do:
 //   - It does not audit worktrees. It prints a count and defers to the

@@ -19,8 +19,12 @@ pnpm state
 citation on every line: the **Current milestone**, the **first unchecked
 `TODO.md` item** and the `← current milestone` marker, the leading block of
 **`docs/STATUS.md`**, the current milestone's **exit-gate tally**, open PRs, the
-worktree count, and the open-KI titles. It is deterministic — no judgement, no
-prose — and it costs about 1,100 tokens.
+worktree count, and the **open-KI count** (plus the newest few titles — not the
+whole list; the count and a grep are what that block is for). It is
+deterministic — no judgement, no prose. Its size is not a fixed number and this
+file should not quote one: what is guaranteed is the enforced budget of **<=80
+lines / ~2,500 tokens**, which `scripts/__tests__/state-digest.test.mjs` fails
+on if it is exceeded. Today's run is about half that.
 
 **Do not re-read `STATUS.md`, `TODO.md` or the milestone README in full to
 recover what the digest already printed.** That re-read is what this command
