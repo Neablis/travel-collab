@@ -7,7 +7,7 @@ import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
 import { inviteCodes, users } from "./db/schema";
 import { events } from "./db/schema";
-import { recordSignIn, upsertUser } from "./users";
+import { readPreferences, recordSignIn, upsertUser, writePreferences } from "./users";
 import { getTripDetail } from "./projections";
 
 // No beforeEach truncation: every test mints its own id, same isolation
@@ -73,6 +73,12 @@ describe("users repository", () => {
       email: "ana@example.com",
       name: "Ana",
       image: "https://img.test/a.png",
+      // M17's columns, at their storage defaults. `toEqual` rather than
+      // `toMatchObject` on purpose: a new column added without a decision about
+      // what a first sign-in should hold fails here.
+      displayName: null,
+      homeAirport: null,
+      distanceUnit: "km",
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });
@@ -99,6 +105,109 @@ describe("users repository", () => {
     await upsertUser({ id, email: "b@example.com", name: "B", image: null });
 
     expect((await readUser(id))?.image).toBeNull();
+  });
+});
+
+// M17. The preference columns are ordinary CRUD on the same row, read and
+// written by nothing but this module.
+describe("account preferences (M17)", () => {
+  it("answers with the storage defaults for a session with no row", async () => {
+    // Not an error, and not a thrown 500 on every authenticated page: sessions
+    // are JWT-only (ADR-025), so a token outlives the row it was minted from.
+    expect(await readPreferences(signInId())).toEqual({
+      displayName: null,
+      homeAirport: null,
+      distanceUnit: "km",
+    });
+  });
+
+  it("defaults a real row to kilometres and nothing else set", async () => {
+    const id = signInId();
+    await upsertUser({ id, email: "p@example.com", name: "P", image: null });
+
+    expect(await readPreferences(id)).toEqual({
+      displayName: null,
+      homeAirport: null,
+      distanceUnit: "km",
+    });
+  });
+
+  it("writes what it is given and reads it back whole", async () => {
+    const id = signInId();
+    await upsertUser({ id, email: "p@example.com", name: "P", image: null });
+
+    const written = await writePreferences(id, {
+      displayName: "Mitchell",
+      homeAirport: "SFO",
+      distanceUnit: "mi",
+    });
+
+    expect(written).toEqual({ displayName: "Mitchell", homeAirport: "SFO", distanceUnit: "mi" });
+    expect(await readPreferences(id)).toEqual(written);
+  });
+
+  // Absent means "leave it alone"; explicit null means "clear it". The two are
+  // different operations all the way down — a `?? undefined` anywhere on this
+  // path would silently turn the second into the first.
+  it("leaves an absent field alone and clears an explicit null", async () => {
+    const id = signInId();
+    await upsertUser({ id, email: "p@example.com", name: "P", image: null });
+    await writePreferences(id, { displayName: "Mitchell", homeAirport: "SFO" });
+
+    await writePreferences(id, { distanceUnit: "mi" });
+    expect(await readPreferences(id)).toEqual({
+      displayName: "Mitchell",
+      homeAirport: "SFO",
+      distanceUnit: "mi",
+    });
+
+    await writePreferences(id, { displayName: null });
+    expect(await readPreferences(id)).toEqual({
+      displayName: null,
+      homeAirport: "SFO",
+      distanceUnit: "mi",
+    });
+  });
+
+  // Not an upsert. `upsertUser` in the sign-in callback is the Identity
+  // module's only creator of rows and it sits behind the admission gate (M11a);
+  // a settings PATCH must not be a second door into that.
+  it("refuses to invent a row for a user who has none", async () => {
+    const id = signInId();
+    expect(await writePreferences(id, { distanceUnit: "mi" })).toBeNull();
+    expect(await readUser(id)).toBeNull();
+  });
+
+  it("moves updatedAt, which is what makes this an audited CRUD write", async () => {
+    const id = signInId();
+    await upsertUser({ id, email: "p@example.com", name: "P", image: null }, "2026-08-27T10:00:00.000Z");
+    await writePreferences(id, { distanceUnit: "mi" }, "2026-09-02T08:00:00.000Z");
+
+    expect((await readUser(id))?.updatedAt).toBe("2026-09-02 08:00:00+00");
+  });
+
+  // THE reason `display_name` is a column of its own rather than a better-used
+  // `users.name`. `upsertUser`'s `onConflictDoUpdate` enumerates its `set` list
+  // by hand — `email`, `name`, `image`, `updatedAt` — so the preference columns
+  // are simply not in it, and a name someone typed survives the next sign-in
+  // with Google. If somebody ever "tidies" that set list into a spread of the
+  // whole row, this test is what goes red.
+  it("does not let a later sign-in clobber a name the person chose", async () => {
+    const id = signInId();
+    await upsertUser({ id, email: "ana@example.com", name: "Ana Provider", image: null });
+    await writePreferences(id, { displayName: "Ana", homeAirport: "SFO", distanceUnit: "mi" });
+
+    // The real callback, driven for real — not a second `upsertUser` call.
+    await expect(recordSignIn({ user: { id, name: "Ana Provider", email: "ana@example.com" } }, admitting())).resolves.toBe(true);
+
+    expect(await readPreferences(id)).toEqual({
+      displayName: "Ana",
+      homeAirport: "SFO",
+      distanceUnit: "mi",
+    });
+    // And the provider's own field still refreshes, so this is not passing
+    // because the upsert stopped writing anything.
+    expect((await readUser(id))?.name).toBe("Ana Provider");
   });
 });
 
