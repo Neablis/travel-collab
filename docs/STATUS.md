@@ -22,11 +22,54 @@ general setup.
 
 ## Where the work is right now
 
-**Signup and onboarding feedback is on `claude/signup-onboarding-feedback-lx1qvx`
-(pull request 104), 2026-09-01.** Fifteen items Mitchell brought back from
-walking three people through signing up, then a second round from CodeRabbit
-and his own Vercel toolbar comments on the preview. Not a milestone, and it
-does not move the order below.
+**M17 and the AI-door consolidation are landing, 2026-09-02.** Three PRs merged
+overnight; two are open, green and reviewed.
+
+| PR | State | What |
+|---|---|---|
+| **#109** | **merged** (`5766e79`) | ADR-033; `/ai`'s `board` and `combined` surfaces retired (they had no callers) |
+| **#111** | **merged** (`a4b6304`) | M17 PR1 — the `UserPreferences` contract |
+| **#115** | **merged** (`8648103`) | M20 and M21 scoped — the first commercial milestones |
+| **#110** | open, CI green, review clean | `/ai` deleted; page authoring moves onto `/ask`; `/ask` charges the step quota |
+| **#112** | open, CI green, review clean | M17 PR2 — migration `0015`, settings Sheet, `kmLabel` |
+
+**Two things a fresh session must not miss:**
+
+1. **#112 carries migration `0015` and merging does not apply it** —
+   `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+   That is M17's gate box 4. **Check `0014` too** (from the merged pull request
+   104): merging never applied it either, and nothing in the repo records that
+   it was ever dispatched.
+2. **Neither #110 nor #112 has had a browser walk.** Both have full CI green
+   *including* the e2e lane — #112's `m17-account-preferences.spec.ts` ran for
+   the first time and passed — but #110 rewrote the Notebook compose client from
+   `await fetch → res.json()` onto a stream, and `m7-solo-delight.spec.ts` only
+   asserts two strings are *visible*. It would pass over a compose that silently
+   produced nothing.
+
+**Both PRs were reviewed and both reviewers found real bugs**, which is worth
+recording because the fixes are load-bearing. On #110: the step settlement
+under-metered every classified turn by one, because `classifyAskIntent` is a
+separate model call the agent's `onStepEnd` cannot see — **KI-67's own shape,
+reintroduced inside the fix for KI-67**. And `ComposePanel` held an
+`AbortController` that nothing ever aborted. On #112: `UpdateUserPreferences`
+accepted `{ displayName: undefined }`, because `Object.keys` counts a key whose
+value is `undefined` — the empty-patch refusal failing at the one job it had.
+
+**The red `github-advanced-security` check on every PR is not ours** and is now
+filed: `docs/known-issues/open/KI-20260902-ghas-code-scanning-fails-on-an-unavailable-model.md`.
+The operational point that entry makes is the one to remember here — it makes
+`mergeStateStatus` read `UNSTABLE`, which reads as "do not merge yet" to a
+reviewer who has not read the entry. **Only the agentic check is broken**:
+CodeQL and both `Analyze` jobs pass on the same head, so CodeQL is a safe
+required check and that one is not.
+
+*(Superseded, kept as the record: "Signup and onboarding feedback is on
+`claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
+That merged as `63c7fdb`, and #106 merged after it, but this section was never
+updated — so the file every session is told to read first spent a day naming a
+merged PR as the live work. The four durable facts that PR established are
+still below; only its in-flight status was wrong.)*
 
 Four things a fresh session should know, because they changed a rule rather
 than a string:
@@ -67,10 +110,14 @@ Discover budget bands moved to $200/$500/$1,000 and **three of the four now
 have no occupant** (every seeded day is under $200), and whether "Add stop"
 should join the header controls hidden on a phone.
 
-**It carries migration `0014`** (`saved_days.deleted_at`, for the soft delete),
-which merging does not apply — see `environments-and-deploys.md`.
+**PR #104 carried migration `0014`** (`saved_days.deleted_at`, for the soft
+delete). It is merged, and merging does not apply a migration — so unless it was
+dispatched by hand, `0014` is outstanding against production. Check before
+dispatching `0015` (PR #112), which is the next one in line:
+`gh workflow run migrate-production.yml -f confirm=migrate` from `main`. See
+`environments-and-deploys.md`.
 
-Verified at `617b3fe`: `pnpm check` (typecheck across 8 packages, lint plus all
+Verified at `617b3fe` (PR #104, before merge): `pnpm check` (typecheck across 8 packages, lint plus all
 four walls, 2,100+ unit, 440 integration), `pnpm seed:verify`, and
 `pnpm --filter web test:e2e:ci-like` at **78 passed**. Two red runs along the
 way were both identified from their recorded entries rather than guessed:
@@ -567,13 +614,14 @@ and the adds ledger. This is the thing most likely to be missed, because merging
 no longer applies a migration and the PR body is the only place anyone looks.
 
 Per `docs/milestones/README.md` the next milestone's plan re-checks the
-gate-close checklist, and **M18b's close (2026-08-30) is the one being
-re-checked** — TODO tick, six exit-gate boxes, retro, Current milestone and
-this file, all flipped in one commit on PR #91.
+gate-close checklist, and **M11b's close (2026-08-31) is the one to re-check**
+— not M18b's, which this line named until 2026-09-02 and which two gate closes
+have since superseded.
 
-**Alongside them, the activity-field descriptor refactor** (project review
-§6.1) is scheduled by the same 2026-08-29 decision, moving off the deferred
-list below. Two facts it needs: its stated prerequisite is **already met** —
+**Still unscheduled and now unattached: the activity-field descriptor
+refactor** (project review §6.1). It was scheduled 2026-08-29 "alongside" M11a
+and M11b; both closed 2026-08-31 and it did not happen, so it belongs to no
+milestone and nothing surfaces it. It is not blocked — Two facts it needs: its stated prerequisite is **already met** —
 §1.6 / KI-54 is resolved and `equality.ts:55-56` compares `city` and
 `countryCode` — and `AGENTS.md` reserves the contracts step as **its own
 reviewed PR**, which Mitchell scheduled it knowing. Keep it a separate PR from
