@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LeaderboardResponse } from "@/lib/playbooks";
 
@@ -44,9 +44,9 @@ describe("the leaderboard", () => {
     expect(
       within(rows).getAllByTestId("board-row").map((r) => r.getAttribute("data-user-id")),
     ).toEqual(["dev-bob", "dev-alice", "dev-carol"]);
-    // dev-carol shares the most days and is last. If this ever passes with
-    // carol first, the board has started ranking on post volume.
-    expect(within(rows).getAllByTestId("board-row")[2]!.getAttribute("data-user-id")).toBe("dev-carol");
+    // The fixture is built so that order is a real claim: dev-carol shares the
+    // most days and comes LAST, so a board that started ranking on post volume
+    // would reverse it rather than agree by coincidence.
   });
 
   // Tinted and badged, never pinned. The exit gate names all three.
@@ -79,18 +79,16 @@ describe("the leaderboard", () => {
   // A first read that FAILS leaves `loading` false and `data` null. The board
   // used to pulse skeleton rows forever under its own sync banner (CodeRabbit,
   // PR 102) — which reads as "still loading", not as "this did not work".
-  it("stops pretending to load when the first read failed", async () => {
+  it("stops pretending to load when the first read failed, and offers one Retry", async () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);
     await screen.findByText("The board could not be loaded");
     expect(screen.queryByTestId("board-skeleton")).toBeNull();
+    // Exactly one, and it is the banner's — a second Retry elsewhere on a page
+    // that failed its first read would be two answers to the same question.
     expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
-  });
-
-  it("offers a Retry when the board cannot be reached", async () => {
-    fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
-    render(<LeaderboardScreen />);
-    await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
-    expect(within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(
+      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
+    ).toBeTruthy();
   });
 });

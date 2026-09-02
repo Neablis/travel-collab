@@ -119,12 +119,10 @@ describe("savedDayFacts", () => {
 // doc comment. If either of these four flips, the rail and the Discover card
 // stop agreeing about the same day.
 describe("dayLength", () => {
-  it("is Short under four hours", () => {
+  it("is Short under four hours, and exactly four hours is Medium", () => {
     expect(dayLength({ start: "09:00", end: "09:30" })).toBe("short");
-    expect(dayLength({ start: "09:00", end: "12:59" })).toBe("short");
-  });
-
-  it("puts exactly four hours in Medium, not Short", () => {
+    // Both sides of the first edge, in one place: the "under" case and the
+    // "at" case were separate tests repeating the same 12:59 assertion.
     expect(dayLength({ start: "09:00", end: "12:59" })).toBe("short");
     expect(dayLength({ start: "09:00", end: "13:00" })).toBe("medium");
   });

@@ -116,15 +116,13 @@ describe("PATCH /api/account/preferences", () => {
     expect((await patch({})).status).toBe(400);
   });
 
-  it.each([
-    ["a code that is not three letters", { homeAirport: "SFOO" }],
-    ["a unit that is not a unit", { distanceUnit: "furlongs" }],
-    ["a name longer than the column promises", { displayName: "a".repeat(81) }],
-  ])("400s %s", async (_label, body) => {
-    currentUserId = await seedUser();
-    expect((await patch(body)).status).toBe(400);
-  });
-
+  // Per-field validity is `UpdateUserPreferences`' own claim and is asserted
+  // where the schema lives (`packages/contracts/test/identity.test.ts`, "still
+  // validates the fields it is given"): a bad airport code, a unit that is not
+  // a unit, an over-long name. Re-listing them here proved the schema twice and
+  // the route not at all. What the route owes is that a parse failure becomes a
+  // 400 rather than a 500 or a silent 200, and the two tests either side of
+  // this say exactly that.
   it("400s a body that is not an object at all", async () => {
     currentUserId = await seedUser();
     expect((await patch(null)).status).toBe(400);
