@@ -123,9 +123,18 @@ it is the reason Decision 2 is stated as a rule rather than left implicit.
 
 ## Consequences
 
-- **KI-87 and KI-80 close by construction**, not by two independent fixes. Both
-  entries name ADR-022 §4 as what pins them; that pin is now lifted, and both
-  need their "waiting on the pin" language corrected as they close.
+- **KI-87 closes by construction.** Two doors shared a resolver but not a
+  creation path, so `withDefaultKind` reached one and not the other; after this
+  there is one creation path and nothing left to disagree with.
+- **KI-80 does NOT close by construction.** The duplicated twelve-case switch is
+  `summarizeBatch` (`planSummary.ts`, past tense) and `describeProposedChange`
+  (`writeTools.ts`, conditional), and **both survive and both stay reachable
+  from `commitProposal`** — the proposal card needs the conditional mood and the
+  post-approval receipt needs the past tense, which is a real distinction one
+  door does not collapse. What changes is the *reason it is open*: KI-80 named
+  ADR-022 §4 as its blocker, and that pin is lifted, so the refactor its own
+  entry describes (`describeCommand(command, detail, mood)`) is now available.
+  Both entries need their "waiting on the pin" language corrected.
 - **The step-quota regression closes with the merge** — one door means one
   quota path, and KI-67's fix stops being something to remember twice.
 - **`simulatedModel`'s `pageCalls()` branch must survive.** It has no `/ask`
