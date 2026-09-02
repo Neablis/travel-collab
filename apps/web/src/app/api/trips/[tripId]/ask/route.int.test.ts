@@ -980,7 +980,7 @@ describe("POST /api/trips/:id/ask", () => {
       // the same key, made before the agent exists. Asserting `steps` alone
       // encoded an under-meter of exactly one per classified turn, which is
       // KI-67's own shape reintroduced inside the fix for it. Found by review
-      // on PR #110.
+      // on pull request 110.
       //
       // An editor's trip turn IS classified, so this is the +1 path; the page
       // turn below is the 0 path, because a verified page scope skips

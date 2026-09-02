@@ -108,7 +108,7 @@ describe("withinBox", () => {
 // `geocodeEnrichment`'s fallback. It is not: neither caller is exercised in
 // this file, so both could stop using `tripRegionOf` or re-declare
 // `TRIP_REGION_MARGIN_KM` with every test below still green. Flagged in review
-// on PR #110, and this repo's own rule (KI-1, KI-14) is that a comment
+// on pull request 110, and this repo's own rule (KI-1, KI-14) is that a comment
 // asserting an invariant either has a test enforcing it or is a lie with a
 // timer on it.
 //

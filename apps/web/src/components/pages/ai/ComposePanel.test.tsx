@@ -171,7 +171,7 @@ describe("ComposePanel", () => {
     expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy();
   });
 
-  // Both reviewers on PR #110 found the same defect: the abort ref was written
+  // Both reviewers on pull request 110 found the same defect: the abort ref was written
   // and never read, so the comment claiming unmount stops a turn had nothing
   // enforcing it. These two tests are that enforcement — without the cleanup
   // and the identity check in ComposePanel, each fails.
