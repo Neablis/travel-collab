@@ -12,12 +12,12 @@
 //     to reference it, so it emits zero commands and nothing changes.
 //   - the full `conflicts` / `dismissedConflictIds` records — the raw
 //     Conflict shape carries a compound, UUID-embedding `id` the model must
-//     never copy. Instead, `AiEnvelope.conflicts` (planning surfaces only)
-//     surfaces the ACTIVE (non-dismissed) conflicts in a stable,
-//     human-referenceable form — a 1-based `ref` + kind + description — so
-//     DismissConflict can name one by its number (`conflictRef`), resolved
-//     server-side back to its real id (see `activeConflicts`). Without this
-//     the model has no id to reference and every dismiss attempt fails.
+//     never copy. `activeConflicts` below is the stable, human-referenceable
+//     form instead — a 1-based `ref` + kind + description — and it is the one
+//     numbering both /ask's read tools and `batchResolver`'s `conflictRef`
+//     resolution read, so the number the model is shown and the id the server
+//     resolves it back to cannot drift. Without it the model has no id to
+//     reference and every dismiss attempt fails.
 // `members`, `backlog`, and `budget`/`budgetRemaining` are also excluded:
 // none of them are needed by the page-authoring or planning tool families
 // this envelope currently scopes into, and each one is either PII-adjacent
@@ -27,10 +27,13 @@
 import type { PageContext, TripDetail } from "@tc/contracts";
 import { macroCatalog } from "@tc/pages";
 
-// The surfaces that BUILD a context envelope and execute commands. Every one
-// of them writes: `page` authors Notebook content, `board`/`combined` apply a
-// planning batch.
-export type AiCommandSurface = "page" | "board" | "combined";
+// The surfaces that BUILD a context envelope and execute commands. `page`
+// authors Notebook content, and it is the only one left: `board` and
+// `combined` retired with ADR-033 Decision 4, having had no production caller
+// at all. Kept as a one-member union rather than inlined because `page` is
+// itself scheduled to retire once /ask carries page authoring — this is the
+// seam that goes with it.
+export type AiCommandSurface = "page";
 
 // Every surface a model is selected for. `ask` (M16, ADR-022) is the read-only
 // one: it answers a question through read tools instead of composing an
@@ -167,15 +170,10 @@ export function conflictsOnDay(detail: TripDetail, dayIndex: number): AiConflict
 export interface AiEnvelope {
   surface: AiCommandSurface;
   tripSummary: TripSummary;
-  macros?: ReturnType<typeof macroCatalog>;
-  // Active (non-dismissed) conflicts the model can dismiss by `ref`, present
-  // only on planning surfaces (board/combined) and only when there are any.
-  // Kept out of `tripSummary` on purpose — it is a planning affordance, not
-  // part of the trip's shape. See `activeConflicts`.
-  conflicts?: AiConflictSummary[];
+  macros: ReturnType<typeof macroCatalog>;
   tools: string[];
-  // The day a `page`/`combined`-surface request is bound to, resolved from
-  // `pageContext.dayRef` against `detail.days`. Absent when the surface has
+  // The day a `page`-surface request is bound to, resolved from
+  // `pageContext.dayRef` against `detail.days`. Absent when the request has
   // no page context, the page isn't day-bound, or the ref doesn't resolve
   // (e.g. an out-of-range index) — same resolution rule as
   // `@tc/pages`'s `resolveDayIndex` (packages/pages/src/macros/inline.ts),
@@ -202,8 +200,6 @@ function resolveBoundDay(detail: TripDetail, pageContext?: PageContext): AiEnvel
 
 const TOOLS_BY_SURFACE: Record<AiCommandSurface, string[]> = {
   page: ["page"],
-  board: ["planning"],
-  combined: ["planning", "page"],
 };
 
 function summarizeTrip(detail: TripDetail): TripSummary {
@@ -230,19 +226,12 @@ export function buildEnvelope(params: {
   pageContext?: PageContext;
 }): AiEnvelope {
   const { detail, surface, pageContext } = params;
-  const includeMacros = surface === "page" || surface === "combined";
-  const includePlanning = surface === "board" || surface === "combined";
-  const boundDay = includeMacros ? resolveBoundDay(detail, pageContext) : undefined;
-  // Strip the internal `id` — the model references conflicts by `ref` only.
-  const conflicts = includePlanning
-    ? activeConflicts(detail).map(({ id: _id, ...rest }) => rest)
-    : [];
+  const boundDay = resolveBoundDay(detail, pageContext);
 
   return {
     surface,
     tripSummary: summarizeTrip(detail),
-    ...(includeMacros ? { macros: macroCatalog() } : {}),
-    ...(conflicts.length > 0 ? { conflicts } : {}),
+    macros: macroCatalog(),
     tools: TOOLS_BY_SURFACE[surface],
     ...(boundDay ? { boundDay } : {}),
   };

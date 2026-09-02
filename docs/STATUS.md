@@ -136,12 +136,28 @@ against production. Retros and gate evidence are in
 `docs/milestones/M11a-invite-gate.md` and
 `docs/milestones/M11b-playbooks-public-library.md`.
 
-**Order from here: `M17 → M9 → M12 → M13 → M14 → M19`** — **reordered
-2026-09-01 by Mitchell**, moving M9 from last to second. M9 turned out to be
+**Order from here: `M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`** —
+**reordered 2026-09-01 by Mitchell**, moving M9 from last to second, and
+**extended the same day** by M20 and M21. M9 turned out to be
 four-sevenths built and both of ADR-022's grounds for placing it last (polish
 first, sharing first) have since happened. The reorder note is in
 `docs/milestones/README.md`; the working is in
 `docs/reviews/2026-09-01-milestone-audit.md`.
+
+**M20 and M21 — the first commercial milestones — were minted, scoped and
+placed 2026-09-01, after M9.** Account tiers and entitlements (M20), then
+Stripe (M21). Nothing in the repo had ever described a paid tier, a plan, a
+price or a payment, so this is a structural addition rather than a feature:
+**M20 needs an ADR before it opens**, adding an Entitlements module to
+`AGENTS.md`'s module map. Three things a session should know before reading
+either file: the AI entitlement seam has been built and stubbed since M16
+(`modelSelection.ts:88-89`) and M20 mostly fills it in; **a plan is a set, not
+a rank**, because Mitchell's tiers are "not necessarily subsets", so
+`accessPolicy.ts:11`'s `RANK` must not be copied; and **M20 takes no money** —
+its admin grant UI is what makes it provable without Stripe.
+**One decision is outstanding and it blocks M21, not M20: the plans and their
+prices.** Files: `M20-account-tiers-and-entitlements.md`,
+`M21-subscriptions-and-billing.md`.
 
 **M12, M13 and M14 were scoped the same day** and now have files and exit
 gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
@@ -149,9 +165,9 @@ gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
 milestone gets one before work begins. **Every milestone in the order now has a
 written gate except M19**, which is deliberately placed-but-not-scoped.
 
-**Two prerequisites are ADRs, and both are due before their milestone opens**,
-not during it: **M13's realtime transport ADR** and **M14's repeaters ADR**.
-Neither is a deliverable to write mid-build.
+**Three prerequisites are ADRs, and each is due before its milestone opens**,
+not during it: **M20's Entitlements-module ADR**, **M13's realtime transport
+ADR** and **M14's repeaters ADR**. None is a deliverable to write mid-build.
 
 **All twelve open AI known issues are assigned to M9** (2026-09-01) — three
 promoted to gate boxes (KI-12, KI-93, KI-94 with KI-97), nine carried. The
@@ -159,9 +175,10 @@ split rule, and why it is not all twelve: a gate box is something whose absence
 means the milestone is not done. See `M9-ai-planning-partner.md`.
 
 **M19 — a cost knows who and what it is for** was minted and placed last on
-2026-08-31 and is the newest milestone: `docs/milestones/M19-cost-model.md`.
-It is **placed but not scoped** — the exit gate is deliberately unwritten until
-link 1's design question is answered.
+2026-08-31: `docs/milestones/M19-cost-model.md`. It is **placed but not
+scoped** — the exit gate is deliberately unwritten until link 1's design
+question is answered, and it is now **the only milestone in the order without
+one**. (It was the newest until M20 and M21 were minted 2026-09-01.)
 
 > **This section was two gates stale from 2026-08-31 to 2026-09-01**, still
 > describing M11a and M11b as open PRs in review. The cause was structural:

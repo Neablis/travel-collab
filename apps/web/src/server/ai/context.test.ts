@@ -31,60 +31,21 @@ describe("buildEnvelope", () => {
 
     expect(envelope.surface).toBe("page");
     expect(envelope.tools).toEqual(["page"]);
-    expect(envelope.macros).toBeDefined();
-    expect(envelope.macros!.length).toBeGreaterThan(0);
+    expect(envelope.macros.length).toBeGreaterThan(0);
 
     // Forbidden fields: no raw activities record, no conflicts array.
     expect(envelope.tripSummary).not.toHaveProperty("activities");
     expect(envelope.tripSummary).not.toHaveProperty("conflicts");
   });
 
-  it("board surface: tools: ['planning'], no macro catalog", () => {
-    const detail = costedTripDetailFixture();
-    const envelope = buildEnvelope({ detail, surface: "board" });
-
-    expect(envelope.tools).toEqual(["planning"]);
-    expect(envelope.macros).toBeUndefined();
-  });
-
-  describe("active-conflict surfacing", () => {
-    it("board surface: exposes active conflicts as { ref, kind, description }, hiding the raw id", () => {
-      const detail = tripDetailFixture({ conflicts: [OVERLAP, OVER_BUDGET], dismissedConflictIds: [] });
-      const envelope = buildEnvelope({ detail, surface: "board" });
-
-      expect(envelope.conflicts).toEqual([
-        { ref: 1, kind: "time-overlap", description: OVERLAP.description },
-        { ref: 2, kind: "over-budget", description: OVER_BUDGET.description },
-      ]);
-      // The raw compound id must never leak into what the model sees.
-      expect(JSON.stringify(envelope.conflicts)).not.toContain(OVERLAP.id);
-    });
-
-    it("excludes dismissed conflicts and renumbers refs over what remains", () => {
-      const detail = tripDetailFixture({
-        conflicts: [OVERLAP, OVER_BUDGET],
-        dismissedConflictIds: [OVERLAP.id],
-      });
-      const envelope = buildEnvelope({ detail, surface: "board" });
-
-      expect(envelope.conflicts).toEqual([{ ref: 1, kind: "over-budget", description: OVER_BUDGET.description }]);
-    });
-
-    it("omits the conflicts field entirely when there are no active conflicts", () => {
-      const detail = tripDetailFixture({ conflicts: [], dismissedConflictIds: [] });
-      const envelope = buildEnvelope({ detail, surface: "board" });
-
-      expect(envelope.conflicts).toBeUndefined();
-    });
-
-    it("page surface: never surfaces conflicts (not a planning surface)", () => {
-      const detail = tripDetailFixture({ conflicts: [OVERLAP], dismissedConflictIds: [] });
-      const envelope = buildEnvelope({ detail, surface: "page", pageContext: PAGE_CONTEXT });
-
-      expect(envelope.conflicts).toBeUndefined();
-    });
-
-    it("activeConflicts keeps input order and carries the id for the resolver", () => {
+  // The envelope itself no longer carries conflicts — that was the board and
+  // combined surfaces, retired by ADR-033 Decision 4. `activeConflicts` is not
+  // retired with them: it is the SINGLE source of `ref` numbering, and /ask's
+  // `read_trip` (readTools.ts) and `batchResolver`'s `conflictRef` resolution
+  // both read it. Asserted here directly, because nothing else asserts the
+  // dismissal filter or the renumbering that follows it.
+  describe("activeConflicts", () => {
+    it("keeps input order and carries the id for the resolver", () => {
       const detail = tripDetailFixture({ conflicts: [OVERLAP, OVER_BUDGET], dismissedConflictIds: [] });
 
       expect(activeConflicts(detail)).toEqual([
@@ -92,15 +53,26 @@ describe("buildEnvelope", () => {
         { ref: 2, id: OVER_BUDGET.id, kind: "over-budget", description: OVER_BUDGET.description },
       ]);
     });
-  });
 
-  it("combined surface: tools: ['planning', 'page'], includes macro catalog", () => {
-    const detail = costedTripDetailFixture();
-    const envelope = buildEnvelope({ detail, surface: "combined", pageContext: PAGE_CONTEXT });
+    it("excludes dismissed conflicts and renumbers refs over what remains", () => {
+      const detail = tripDetailFixture({
+        conflicts: [OVERLAP, OVER_BUDGET],
+        dismissedConflictIds: [OVERLAP.id],
+      });
 
-    expect(envelope.tools).toEqual(["planning", "page"]);
-    expect(envelope.macros).toBeDefined();
-    expect(envelope.macros!.length).toBeGreaterThan(0);
+      expect(activeConflicts(detail)).toEqual([
+        { ref: 1, id: OVER_BUDGET.id, kind: "over-budget", description: OVER_BUDGET.description },
+      ]);
+    });
+
+    it("is empty when every conflict is dismissed", () => {
+      const detail = tripDetailFixture({
+        conflicts: [OVERLAP, OVER_BUDGET],
+        dismissedConflictIds: [OVERLAP.id, OVER_BUDGET.id],
+      });
+
+      expect(activeConflicts(detail)).toEqual([]);
+    });
   });
 
   it("summary is materially smaller than the full TripDetail: no activities record, no conflicts array", () => {
@@ -109,7 +81,7 @@ describe("buildEnvelope", () => {
     expect(Object.keys(detail.activities).length).toBeGreaterThan(0);
     expect(detail.days.length).toBeGreaterThan(0);
 
-    const envelope = buildEnvelope({ detail, surface: "board" });
+    const envelope = buildEnvelope({ detail, surface: "page", pageContext: PAGE_CONTEXT });
     const summary = envelope.tripSummary as unknown as Record<string, unknown>;
 
     expect(summary).not.toHaveProperty("activities");
@@ -169,13 +141,12 @@ describe("buildEnvelope", () => {
     expect(envelope.boundDay).toBeUndefined();
   });
 
-  it("board surface: boundDay is absent even if pageContext.dayRef were somehow present", () => {
+  it("page surface with an unresolvable dayRef: boundDay is absent rather than wrong", () => {
     const detail = costedTripDetailFixture();
-    const dayId = detail.days[0]!.dayId;
     const envelope = buildEnvelope({
       detail,
-      surface: "board",
-      pageContext: { tripId: detail.tripId, dayRef: { kind: "dayId", dayId } },
+      surface: "page",
+      pageContext: { tripId: detail.tripId, dayRef: { kind: "index", index: 99 } },
     });
 
     expect(envelope.boundDay).toBeUndefined();

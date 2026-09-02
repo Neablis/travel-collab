@@ -384,8 +384,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // derived receipt for a batch it has already applied, which is structurally
   // the wrong channel for "have a discussion" (ADR-022 §4 says so outright).
   // Two ask boxes side by side — one that talks, one that silently rewrites
-  // your trip — is worse than either. `composeAiPlan` itself is untouched and
-  // still exported.
+  // your trip — is worse than either. `composeAiPlan` has since been deleted
+  // outright (ADR-033 Decision 4): the rail's judgement here is what left it
+  // with no caller at all, and dead code was the only thing keeping it.
   //
   // M9 (Task 6) brought applying a plan back through THIS endpoint, in the
   // strictly better form: the turn PROPOSES, the user reviews, and Approve

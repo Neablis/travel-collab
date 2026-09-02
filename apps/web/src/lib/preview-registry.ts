@@ -42,8 +42,10 @@
 // a gate box pass.
 export const PREVIEW_REGISTRY = {
   // The rail's chrome (header/Hide) and ask box are real as of the M10
-  // redesign-feedback follow-up — composeAiPlan, the same real M7 feature
-  // the board's old ComposePanel used to expose directly. The quick-ask
+  // redesign-feedback follow-up. They were built on `composeAiPlan`, the same
+  // real M7 feature the board's old ComposePanel exposed directly; the rail
+  // has since moved to `/ask` and `composeAiPlan` was deleted with the
+  // board surface (ADR-033 Decision 4). The quick-ask
   // nudge chips ("assistant-quick-asks") were deleted rather than left
   // shelved in M16 Wave 1 (Task 4, SPEC §9's docked presentation) — Task 5
   // reintroduces them as derived suggested questions computed from real trip

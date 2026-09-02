@@ -1,14 +1,13 @@
 // The "AI is switched off" model (see docs/specs/2026-08-19-feature-flags-and-
 // ai-kill-switch-design.md). It is a real LanguageModelV4 that contacts
 // nothing: generateText calls doGenerate, gets canned tool calls back, and the
-// rest of handleAiRequest proceeds exactly as it would for a real model —
-// resolveBatch, the atomic batch, the event append, the projection. The trip
-// really changes. That is the point: a shared deployment stays exercisable at
-// zero token cost.
+// rest of handleAiRequest proceeds exactly as it would for a real model — the
+// page validates, saves and versions like any other. That is the point: a
+// shared deployment stays exercisable at zero token cost.
 //
 // The `ask` surface (M16, ADR-022) raises the bar, because /ask has no
-// server-derived answer to fall back on the way the command endpoint's
-// `summarizeBatch` does: whatever this model says IS the answer. So the ask
+// server-derived answer to fall back on the way an applied batch's
+// `summarizeBatch` receipt does: whatever this model says IS the answer. So the ask
 // branch does not emit a canned sentence. It runs the real agent loop — calls
 // the real read tools, waits for their real results, and writes its prose from
 // them. A trip with no free time left says so. That is what makes the
@@ -63,29 +62,6 @@ function call(toolName: string, input: Record<string, unknown>): ToolCall {
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) };
 }
 
-// Deterministic on purpose: e2e asserts this exact content, and a reviewer
-// should be able to recognize a simulated trip on sight.
-//
-// AddDay takes no arguments at all — planningTools drops `type` and `tripId`,
-// and `dayId` is a `mint` field the server generates. AddActivity keeps
-// `title` and swaps `dayId` for the human `dayRef` ("day N", 1-based over the
-// days THIS batch creates).
-//
-// No `location` and no `cost`, and that is load-bearing rather than lazy:
-// enrichCommandLocations no-ops when there is nothing to look up, so the
-// simulated path cannot reach LocationIQ. That is how "the kill switch covers
-// the LLM only" stays honest without a second branch — enforced by the
-// empty-locationReport assertion in route.int.test.ts.
-function planCalls(): ToolCall[] {
-  return [
-    call("AddDay", {}),
-    call("AddDay", {}),
-    call("AddActivity", { title: "Sample: morning walk", dayRef: "day 1" }),
-    call("AddActivity", { title: "Sample: long lunch", dayRef: "day 1" }),
-    call("AddActivity", { title: "Sample: museum in the afternoon", dayRef: "day 2" }),
-  ];
-}
-
 // Headings and paragraphs only — no macro blocks, so this stays decoupled from
 // the @tc/pages macro registry and passes validateComposedPage unconditionally.
 function pageCalls(): ToolCall[] {
@@ -104,12 +80,12 @@ function pageCalls(): ToolCall[] {
 }
 
 // What one message from a model on this surface would contain — mirroring the
-// tool sets handleAiRequest actually exposes there (KI-23). `combined` gets the
-// planning tools AND the page tools, so simulating it as a board request made
-// the switched-off deployment look less capable than the live one: a combined
-// ask only ever moved the board. Plan first, then the page, because that is the
-// order a model asked for both would sensibly work in — and because everything
-// in one message is applied as one batch anyway.
+// tool sets handleAiRequest actually exposes there. Only `page` is left since
+// ADR-033 retired `board` and `combined`, so this reads as a pass-through, and
+// it stays a switch anyway: KI-23 was a surface that silently inherited another
+// surface's script and made the switched-off deployment look less capable than
+// the live one. Exhaustive over the union, so a surface added back has to
+// answer this question at compile time instead of inheriting the page's.
 //
 // `ask` is absent: it is not one canned message but a two-step conversation
 // with the read tools, and it lives in `askTurn` below.
@@ -117,10 +93,6 @@ function callsFor(surface: Exclude<AiSurface, "ask">): ToolCall[] {
   switch (surface) {
     case "page":
       return pageCalls();
-    case "board":
-      return planCalls();
-    case "combined":
-      return [...planCalls(), ...pageCalls()];
   }
 }
 
@@ -453,8 +425,10 @@ function isQueued(result: ToolResultLike): boolean {
  *     dogfood run wrote `amountMinor: 0` on all nine activities it planned,
  *     which the board renders as *free* when the truth was *unknown*.
  *   * **No `location`.** `enrichCommandLocations` no-ops when there is nothing
- *     to look up, so the simulated path still cannot reach LocationIQ — the
- *     same guarantee `planCalls()` keeps for the command endpoint.
+ *     to look up, so the simulated path still cannot reach LocationIQ. This is
+ *     now the only place that guarantee is kept: the command endpoint's own
+ *     canned plan retired with the `board` surface (ADR-033), and the page it
+ *     composes never carried a location at all.
  */
 function proposeCalls(scope: AskScope, results: readonly ToolResultLike[]): ToolCall[] {
   const trip = resultFor<TripReadout>(results, "read_trip");
@@ -561,10 +535,14 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
 
 export function simulatedModel(surface: AiSurface): LanguageModel {
   // One step's worth of calls, then silence. The AI SDK loops doGenerate until
-  // `stopWhen` fires (32 steps for board/combined), and re-emitting on every
-  // call would apply the same plan once per remaining step — the failure
-  // `modelThatNeverStops` documents in route.int.test.ts. The ask surface needs
-  // no latch: its second step is a text answer, which ends the loop by itself.
+  // `stopWhen` fires, and re-emitting on every call would repeat the same work
+  // once per remaining step. The retired planning surfaces made that a 32×
+  // hazard; the page surface's budget is 3, which is smaller but not harmless —
+  // without the latch a compose would cost three round-trips instead of one,
+  // settle three steps against the actor's quota (KI-67), and come back with
+  // `truncated: true` on a page that was finished after the first step. The ask
+  // surface needs no latch: its second step is a text answer, which ends the
+  // loop by itself.
   let spent = false;
 
   const step = (options: CallOptionsLike): SimulatedStep => {
@@ -585,9 +563,11 @@ export function simulatedModel(surface: AiSurface): LanguageModel {
     },
     async doStream(options: CallOptionsLike) {
       // Only the ask surface streams. handleAiRequest still calls generateText
-      // exclusively, so throwing here keeps the loud seam the original comment
-      // asked for: if streaming is ever added to the command path, it fails
-      // here rather than silently serving canned data.
+      // exclusively for the page surface, so throwing here keeps the loud seam
+      // the original comment asked for: if streaming is ever added to the
+      // command path, it fails here rather than silently serving canned data.
+      // ADR-033 deletes this throw when `page` moves onto /ask and there is no
+      // command path left for it to mark.
       if (surface !== "ask") {
         throw new Error(`simulatedModel does not stream the ${surface} surface — handleAiRequest uses generateText`);
       }
