@@ -1,4 +1,6 @@
+import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
+import { kmLabel } from "@/lib/units";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { MapDay } from "./mapRailData";
 
@@ -16,12 +18,18 @@ const DOT_BG: Record<AccentFamily, string> = {
 // empty day, where the camera deliberately doesn't move (Task 2.3) and this
 // card is the only feedback the click did anything.
 export function MapFocusCard({ day }: { day: MapDay | null }) {
+  // Before the early return, because hooks cannot sit behind one. `day` is null
+  // whenever the rail has nothing focused, which is an ordinary state here.
+  const unit = useDistanceUnit();
   if (day === null) return null;
 
+  // M17: `kmLabel` owns every distance in the app (SPEC §12). `totalKm` stays
+  // kilometres all the way from `haversineKm` to here — the unit is a property
+  // of the reader, applied once, at the render.
   const stat =
     day.stops.length === 0
       ? null
-      : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}${day.totalKm !== null ? ` · ${day.totalKm.toFixed(1)} km` : ""}`;
+      : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}${day.totalKm !== null ? ` · ${kmLabel(day.totalKm, unit)}` : ""}`;
 
   return (
     <div

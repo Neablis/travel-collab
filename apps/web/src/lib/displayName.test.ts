@@ -5,6 +5,29 @@ import { displayNameFor } from "./displayName";
 // reaches a reader. Mitchell, on the shared-day screen: "Dont show the UUID in
 // the Header bar where publish button is".
 describe("displayNameFor", () => {
+  // M17. The chosen name is FIRST, ahead of the provider's — `users.name` is
+  // overwritten from Google on every sign-in, so if it won, a name typed into
+  // account settings would be invisible from the next sign-in onward.
+  it("prefers a chosen display name over everything else", () => {
+    expect(
+      displayNameFor({
+        userId: "dev-alice",
+        displayName: "Al",
+        name: "Alice Chen",
+        email: "a@example.com",
+      }),
+    ).toBe("Al");
+  });
+
+  it("falls through a cleared display name to the provider's name", () => {
+    // `null` is the DTO's "unset" and must behave exactly like the absent
+    // field, or clearing your name would render as an empty account.
+    expect(
+      displayNameFor({ userId: "dev-alice", displayName: null, name: "Alice Chen" }),
+    ).toBe("Alice Chen");
+    expect(displayNameFor({ userId: "dev-alice", displayName: null })).toBe("Alice");
+  });
+
   it("prefers a real name, then an email", () => {
     expect(displayNameFor({ userId: "dev-alice", name: "Alice Chen", email: "a@example.com" })).toBe(
       "Alice Chen",

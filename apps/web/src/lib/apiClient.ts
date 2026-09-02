@@ -10,6 +10,8 @@ import {
   TripInvite,
   TripShare,
   TripSummary,
+  UpdateUserPreferences,
+  UserPreferences,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type TripCommand,
@@ -366,6 +368,57 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
       method: "POST",
     });
     return await readJson(res, (data) => ({ tripId: (data as { tripId: string }).tripId }));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ── Account preferences (M17) ────────────────────────────────────────────────
+
+/**
+ * This person's preferences. Never 404s — the endpoint answers with the storage
+ * defaults for a session whose row has gone (ADR-025: JWT sessions outlive
+ * rows), so a failure here is a real failure.
+ *
+ * Read through the API rather than handed down from a server component, which
+ * is the shape ADR-019 prefers for a server-only value — because the lint wall
+ * forbids a page file importing `@/server/*` at all (`eslint.config.mjs` block
+ * 1; `scripts/check-lint-wall.mjs` fixtures exactly that import from `src/app`
+ * and asserts it is rejected). "UI calls the API" is the wall's own instruction
+ * for this case, and it is what `TripProvider` already does with trip state.
+ */
+export async function fetchPreferences(): Promise<ApiResult<UserPreferences>> {
+  try {
+    const res = await fetch(apiUrl("/api/account/preferences"));
+    return await readJson(res, (data) =>
+      UserPreferences.parse((data as { preferences: unknown }).preferences),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Change some of them, and get the whole of what is now stored back.
+ *
+ * A PARTIAL patch: an absent field is left alone, an explicit `null` clears it.
+ * The empty patch is refused with a 400 rather than treated as a no-op — see
+ * `UpdateUserPreferences`. `homeAirport` is normalized SERVER-side (trim +
+ * uppercase), so this helper deliberately sends what the person typed rather
+ * than tidying it here, where a second client would be free not to.
+ */
+export async function updatePreferences(
+  patch: UpdateUserPreferences,
+): Promise<ApiResult<UserPreferences>> {
+  try {
+    const res = await fetch(apiUrl("/api/account/preferences"), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    return await readJson(res, (data) =>
+      UserPreferences.parse((data as { preferences: unknown }).preferences),
+    );
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

@@ -7,6 +7,9 @@ import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
+import { AccountSettingsSheet } from "@/components/account/AccountSettingsSheet";
+import { usePreferences } from "@/components/account/PreferencesProvider";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { resetDemoData } from "@/lib/apiClient";
 
@@ -37,15 +40,15 @@ export function AccountMenu({
   email: string;
   onSignOut?: () => void;
   // Preview-only "Reset to demo data" item (see AppHeader.tsx /
-  // src/lib/demoDataReset.ts) — deliberate deviation from the design's
-  // "Your account" + "Sign out" dropdown (task 8b.2 omitted a third item
-  // rather than ship one that did nothing; this one is real and never
-  // renders outside preview). `undefined` when `demoResetEnabled` is false,
-  // same as `onSignOut` — nothing to call when the item doesn't exist.
+  // src/lib/demoDataReset.ts) — a deliberate addition to the design's
+  // "Your account" + "Sign out" dropdown, real and never rendered outside
+  // preview. `undefined` when `demoResetEnabled` is false, same as
+  // `onSignOut` — nothing to call when the item doesn't exist.
   demoResetEnabled?: boolean;
   onResetDemoData?: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -99,6 +102,20 @@ export function AccountMenu({
             {email}
           </span>
         </div>
+        {/* M17. Task 8b.2 omitted this item rather than ship one that did
+            nothing — the design's own "Your account" — and it has been absent
+            since, never a "not built yet" flash. It is real now: it opens the
+            account settings Sheet. Above Sign out, the design's order. */}
+        <Button
+          variant="ghost"
+          className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+          onClick={() => {
+            setOpen(false);
+            setAccountOpen(true);
+          }}
+        >
+          Your account
+        </Button>
         <Button
           variant="ghost"
           className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
@@ -123,6 +140,14 @@ export function AccountMenu({
           </Button>
         )}
       </Popover>
+      {/* Mounted only while open, deliberately: the Sheet reads preferences
+          through `useAccountPreferences`, which throws outside a provider, and
+          this menu is rendered bare in its own unit tests. Opening it is what
+          makes the provider a requirement, which is the honest place for that
+          requirement to bite. */}
+      {accountOpen && (
+        <AccountSettingsSheet open onOpenChange={setAccountOpen} email={email} />
+      )}
       {demoResetEnabled && (
         <Dialog
           open={resetConfirmOpen}
@@ -163,6 +188,9 @@ export function AccountMenu({
     </>
   );
 }
+
+/** The session fields the header reads. `id` is always set by the `session` callback. */
+type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
 // AppHeader can't call next-auth's server-side `auth()` itself to hand this
 // component its props: `src/components` is UI, and the UI/server lint wall
@@ -218,7 +246,10 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 // the first version doing precisely that, and the comment here claiming
 // otherwise was a lie the code did not keep.
 function useSessionUser() {
-  const [user, setUser] = useState<{ name?: string | null; email?: string | null } | null>(null);
+  // `id` too, since M17: the display-name seam's last resort derives a handle
+  // from it (`displayNameFor`), and it is already on the session — the JWT
+  // `session` callback sets `session.user.id` on every call (authConfig.ts).
+  const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,9 +271,12 @@ function AccountMenuFor({
   user,
   demoResetEnabled = false,
 }: {
-  user: { name?: string | null; email?: string | null };
+  user: SessionUser;
   demoResetEnabled?: boolean;
 }) {
+  // Read tolerantly (defaults outside a provider), because this component is
+  // rendered bare in its own tests and a name is display, not an operation.
+  const preferences = usePreferences();
   // A hard reload, not a router.push: this can be confirmed from any page
   // (a trip page whose own trip was just deleted included), and the freshly
   // seeded trip needs every client-fetched view — Home's trip list, any open
@@ -255,7 +289,18 @@ function AccountMenuFor({
 
   return (
     <AccountMenu
-      name={user.name ?? user.email ?? "Account"}
+      // Through the seam, not a fourth hand-spelled fallback. This line used to
+      // read `user.name ?? user.email ?? "Account"` — the same chain
+      // `displayNameFor` owns, minus the chosen display name M17 put at the
+      // front of it and minus the "never render a raw identifier" rule, so a
+      // name typed into account settings would not have reached the one place
+      // it is most obviously meant to show.
+      name={displayNameFor({
+        userId: user.id ?? "",
+        displayName: preferences.displayName,
+        name: user.name,
+        email: user.email,
+      })}
       email={user.email ?? ""}
       // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
       // `signOut` POSTs to /api/auth/signout (whose response clears the session
