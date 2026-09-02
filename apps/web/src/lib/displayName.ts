@@ -23,15 +23,34 @@
  * public user record**, and inventing one to hold a name would be building the
  * thing M17 is going to build. So those callers pass `{ userId }` alone and get
  * the identifier back, honestly, until M17 has something better to return.
+ *
+ * **M17 filled the front of the chain in, and stopped one link short.**
+ * `displayName` is now first, and the account menu passes it. `TravelersPanel`
+ * does not yet: its members arrive as `TripMemberProfile`, which is a
+ * `packages/contracts` schema, so giving it the chosen name means adding a
+ * field there — a contract change, which AGENTS.md invariant 5 reserves for its
+ * own reviewed PR with a changelog entry and every consumer updated. It is a
+ * one-field follow-up, not a design problem: `withProfiles` already reads the
+ * whole `users` row and the column it needs is now on it.
  */
 export type NameableUser = {
   userId: string;
+  /**
+   * What this person CHOSE to be called (M17, `UserPreferences.displayName`) —
+   * first in the chain, and the reason the chain exists.
+   *
+   * A separate field from `name` rather than a better-populated version of it:
+   * `users.name` is overwritten from the OAuth provider on every sign-in
+   * (`upsertUser`'s `onConflictDoUpdate`), so one column cannot be both and a
+   * name someone typed here would not survive their next sign-in with Google.
+   */
+  displayName?: string | null;
   name?: string | null;
   email?: string | null;
 };
 
 export function displayNameFor(who: NameableUser): string {
-  return who.name ?? who.email ?? handleFor(who.userId);
+  return who.displayName ?? who.name ?? who.email ?? handleFor(who.userId);
 }
 
 /**
@@ -65,8 +84,10 @@ export function displayNameFor(who: NameableUser): string {
  *     flat "Traveler" would make every row on that page the same person; the
  *     suffix is what stops that, at either width.
  *
- * This stays the M17 seam it always was: when accounts gain a chosen display
- * name, `name` arrives populated and this branch stops being reached.
+ * M17 filled the seam in: `displayNameFor` now takes a chosen `displayName`
+ * ahead of the provider's `name`, so this branch stops being reached for
+ * anybody who has set one. It is still what the saved-day surfaces get, because
+ * a `saved_days` row carries `owner_id` and nothing else — see the header.
  */
 function handleFor(userId: string): string {
   const dev = /^dev-(.+)$/.exec(userId);

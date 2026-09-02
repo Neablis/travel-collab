@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu, AccountMenuFromSession } from "./AccountMenu";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),
@@ -9,8 +10,14 @@ vi.mock("next-auth/react", () => ({
 }));
 
 const resetDemoDataMock = vi.fn();
+const fetchPreferencesMock = vi.fn(async () => ({
+  ok: true as const,
+  value: { displayName: null, homeAirport: null, distanceUnit: "km" as const },
+}));
 vi.mock("@/lib/apiClient", () => ({
   resetDemoData: (...args: unknown[]) => resetDemoDataMock(...args),
+  fetchPreferences: () => fetchPreferencesMock(),
+  updatePreferences: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "no" } })),
 }));
 
 afterEach(cleanup);
@@ -22,6 +29,25 @@ describe("AccountMenu", () => {
     expect(screen.getByText("sam@example.com")).toBeTruthy();
   });
 
+  // M17. Task 8b.2 omitted this item rather than ship one that did nothing, so
+  // for four milestones the design's own "Your account" was simply absent — it
+  // never flashed "not built yet", whatever the milestone file said. It is real
+  // now, and this is what says so.
+  it("opens the account settings sheet from Your account", async () => {
+    render(
+      <PreferencesProvider>
+        <AccountMenu name="Sam K" email="sam@example.com" />
+      </PreferencesProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Your account" }));
+
+    expect(await screen.findByRole("heading", { name: "Your account" })).toBeTruthy();
+    // The read-only email row, which is the one thing in the sheet that comes
+    // from the session rather than from the preferences row.
+    expect(screen.getAllByText("sam@example.com").length).toBeGreaterThan(0);
+  });
+
   it("signs out", async () => {
     const onSignOut = vi.fn();
     render(<AccountMenu name="Sam K" email="sam@example.com" onSignOut={onSignOut} />);
@@ -30,10 +56,10 @@ describe("AccountMenu", () => {
     expect(onSignOut).toHaveBeenCalled();
   });
 
-  // Task 8b.2 deliberately omitted a third dropdown item ("Your account")
-  // rather than ship one that does nothing — this is the exception, and only
-  // real outside preview (see AppHeader.tsx / demoDataReset.ts), so its
-  // absence when the prop is false must be exact: no disabled item, no trace.
+  // "Your account" (M17) and "Sign out" are the design's two items; this third
+  // one is only real outside preview (see AppHeader.tsx / demoDataReset.ts),
+  // so its absence when the prop is false must be exact: no disabled item, no
+  // trace.
   it("hides the reset item when demoResetEnabled is false", async () => {
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
     await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
