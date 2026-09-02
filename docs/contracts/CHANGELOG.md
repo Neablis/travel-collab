@@ -13,6 +13,52 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-02 — `UserPreferences`, the Identity module's first cross-boundary DTO (M17 PR1)
+
+- Added: `packages/contracts/src/identity.ts` with `DistanceUnit`
+  (`z.enum(["km", "mi"])`), `UserPreferences` and `UpdateUserPreferences`, all
+  types inferred. Exported from the package index
+- Why it is a contract and not an `apps/web` type: preferences cross the
+  server/UI wall — written by `PATCH /api/account/preferences`, read by the
+  settings Sheet and by every surface that renders a distance — which is
+  exactly what `packages/contracts` is for (AGENTS.md invariant 5)
+- Why it is NOT event-sourced: ADR-003 scopes the log to planning, and a
+  preference is not trip state. Putting "switch to miles" in the event log
+  would make it an entry in some trip's undo stack. These are ordinary CRUD
+  columns on `users` (ADR-025), the same shape as the Access module's tables
+- **`displayName` is a new column, not `users.name`.** `upsertUser`'s
+  `onConflictDoUpdate` rewrites `name` from the OAuth provider on every
+  sign-in, so one column cannot hold both the provider's value and a
+  user-chosen one — a name typed into settings would be silently clobbered at
+  the next Google sign-in. The resolution order becomes
+  `displayName ?? name ?? email ?? handle`, filling the seam `displayNameFor`
+  (`apps/web/src/lib/displayName.ts`) already reserved for M17
+- **Absent and `null` mean different things** on `UpdateUserPreferences`:
+  absent leaves a field alone, `null` clears it. That is why `UserPreferences`
+  declares its fields nullable rather than optional — a schema of optional
+  fields cannot express "clear this". `distanceUnit` has no `null` because the
+  storage layer defaults it and it has no unset state
+- **The empty patch is refused, not treated as a no-op.** A `PATCH` carrying
+  nothing is far likelier to be a client bug — a field name that silently
+  failed to match — than a deliberate request to change nothing, and a 200
+  would hide it
+- **`homeAirport` is validated, never coerced.** Three uppercase letters or
+  `null`; this package holds no transforms by convention, so trimming and
+  upcasing a typed `sfo` belongs to the accepting route, before the parse. It
+  is deliberately not resolved against any airport dataset: the timezone it
+  would eventually feed is out of M17's gate by Mitchell's decision
+  (2026-09-01), because the app has no timezone infrastructure at all
+- Consumers updated: none yet, and that is the point — this PR is schema plus
+  changelog so it is reviewable on its own, per AGENTS.md's rule that a
+  contract change is its own reviewed step before dependent work continues.
+  The migration, the Identity module functions, the route, `kmLabel` and the
+  settings Sheet all land in M17 PR2
+- Tests: `packages/contracts/test/identity.test.ts` — presence of every field,
+  the null-vs-absent distinction, the empty-patch refusal, and that a
+  lowercase code is rejected rather than upcased (which fails loudly if
+  someone later adds the transform this package does not have)
+- Breaking? **no** — purely additive; nothing imports it yet
+
 ## 2026-08-30 — `SavedDay` gains `cities`, `visibility` and `adds` (M11b PR1)
 
 - Added: `cities: z.array(z.string().min(1))`, `visibility: SavedDayVisibility`
