@@ -186,6 +186,51 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
 
+  // The launcher's twin of the above, and for the same class of reason: below
+  // 768px the assistant launcher is an in-flow button at the end of the plan
+  // column (see its own comment further below, and KI-2026-08-30 / SPEC §13.5),
+  // so unlike the `position: fixed` rack it *does* occupy real flow space —
+  // and the Map lens sizes its canvas to `100dvh - canvasTop - rack`, i.e. to
+  // exactly the whole viewport. The launcher therefore lands 56px *past* the
+  // bottom of a canvas that had already used the last pixel, and the document
+  // scrolls: `scrollHeight - innerHeight` was 56 at 411x760, failing
+  // responsive.spec.ts's "the canvas still owns the viewport" assertion.
+  //
+  // Measured, not the constant 56 (`mt-3` 12px + `min-h-11` 44px): both are
+  // rem-derived, so the real footprint grows with the user's text size and a
+  // hard-coded number would under-reserve at larger type — the same argument
+  // that made the rack a measurement.
+  //
+  // The wrapper is `flow-root` and the observed element, rather than the
+  // Button itself, for two reasons that both have to hold:
+  //   1. `mt-3` is the launcher's separation from the plan and is part of the
+  //      space it costs, but a child's top margin collapses out through
+  //      PageContainer (horizontal padding only) and would escape a plain
+  //      wrapper too — the wrapper would measure 44px, not 56px. A BFC stops
+  //      the collapse, so the box measures the whole flow footprint.
+  //   2. At >=768px the Button is `md:fixed` and `md:mt-0`, so it is out of
+  //      flow and the wrapper's height is genuinely 0 — which is exactly the
+  //      value desktop must publish. That is not a coincidence to be paired
+  //      with a breakpoint check here; "flow space the launcher occupies" IS
+  //      the quantity, and above the breakpoint it is zero by definition.
+  // A callback ref for the same reason as the rack's: the wrapper mounts
+  // below the `status === "loading"` early return, so an effect would run
+  // once against a null ref and never re-run.
+  const launcherObserverRef = useRef<ResizeObserver | null>(null);
+  const [launcherHeight, setLauncherHeight] = useState(0);
+  const launcherWrapperRef = useCallback((node: HTMLDivElement | null) => {
+    launcherObserverRef.current?.disconnect();
+    launcherObserverRef.current = null;
+    if (!node) {
+      setLauncherHeight(0);
+      return;
+    }
+    const observer = new ResizeObserver(() => setLauncherHeight(node.getBoundingClientRect().height));
+    observer.observe(node);
+    launcherObserverRef.current = observer;
+  }, []);
+  useEffect(() => () => launcherObserverRef.current?.disconnect(), []);
+
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
@@ -762,8 +807,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // and it tracks the rack opening, closing and changing item count
           // for free — the same measurement the assistant launcher's `bottom`
           // offset reads.
+          // `--launcher-height` is the same idea for the in-flow phone
+          // launcher below (see launcherWrapperRef above): 0px wherever the
+          // launcher is out of flow or absent, its measured flow footprint
+          // where it is not. Published here rather than on the launcher
+          // itself so MapLens's canvas — a *sibling* subtree, not a
+          // descendant of the launcher — inherits it, exactly as it already
+          // inherits `--rack-height`.
           // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
-          style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
+          style={
+            {
+              "--rack-height": `${rackHeight}px`,
+              "--launcher-height": `${launcherHeight}px`,
+            } as React.CSSProperties
+          }
         >
           <TripHeader tripId={tripId}>
             {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
@@ -952,25 +1009,34 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // Deliberately outside the `inert` wrapper above (as before):
             // asking a question about a previewed history state is a read, not
             // a write, so it stays available while the board is inert.
-            <PageContainer width={boardUsesFullWidth || isFullLens ? "full" : "content"}>
-              <Button
-                variant="primary"
-                onClick={assistant.show}
-                // `md:min-h-0` releases the phone's 44px floor above the
-                // breakpoint so the docked pill keeps the exact 40.3px height
-                // it has always had — this fix is not licensed to resize a
-                // desktop control.
-                className="mt-3 h-auto min-h-11 w-full gap-2 rounded-full px-4 py-2.5 text-base font-semibold md:fixed md:right-6 md:z-40 md:mt-0 md:min-h-0 md:w-auto md:shadow-overlay"
-                // Only read while the pill is `position: fixed` (>=768px); a
-                // static element ignores `bottom`, which is why the in-flow
-                // phone presentation needs no counterpart here.
-                // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-                style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-              >
-                <span aria-hidden>◎</span>
-                Assistant
-              </Button>
-            </PageContainer>
+            //
+            // The `flow-root` wrapper exists only to be measured — it is the
+            // box whose height is "flow space the launcher costs", which the
+            // Map lens has to subtract from its canvas or the document
+            // scrolls past a canvas that already owns the viewport. See
+            // launcherWrapperRef above for why the BFC and why not the
+            // Button itself.
+            <div ref={launcherWrapperRef} className="flow-root">
+              <PageContainer width={boardUsesFullWidth || isFullLens ? "full" : "content"}>
+                <Button
+                  variant="primary"
+                  onClick={assistant.show}
+                  // `md:min-h-0` releases the phone's 44px floor above the
+                  // breakpoint so the docked pill keeps the exact 40.3px height
+                  // it has always had — this fix is not licensed to resize a
+                  // desktop control.
+                  className="mt-3 h-auto min-h-11 w-full gap-2 rounded-full px-4 py-2.5 text-base font-semibold md:fixed md:right-6 md:z-40 md:mt-0 md:min-h-0 md:w-auto md:shadow-overlay"
+                  // Only read while the pill is `position: fixed` (>=768px); a
+                  // static element ignores `bottom`, which is why the in-flow
+                  // phone presentation needs no counterpart here.
+                  // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+                  style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
+                >
+                  <span aria-hidden>◎</span>
+                  Assistant
+                </Button>
+              </PageContainer>
+            </div>
           )}
         </div>
         {/* The assistant rail — a real streaming conversation against
