@@ -62,7 +62,7 @@ export const UserPreferences = z.object({
    */
   homeAirport: z
     .string()
-    .regex(/^[A-Z]{3}$/, "Use a three-letter airport code, like SFO.")
+    .regex(/^[A-Z]{3}$/, "Use a three-letter uppercase airport code, like SFO.")
     .nullable(),
   distanceUnit: DistanceUnit,
 });
@@ -85,7 +85,16 @@ export type UserPreferences = z.infer<typeof UserPreferences>;
  * boundary rather than succeed quietly behind it.
  */
 export const UpdateUserPreferences = UserPreferences.partial().refine(
-  (patch) => Object.keys(patch).length > 0,
+  // `Object.values(...).some(v => v !== undefined)`, NOT `Object.keys(...).length`.
+  // A key whose value is `undefined` is still a key, so the first spelling
+  // accepted `{ displayName: undefined }` — a patch asking for nothing, passing
+  // the very check written to refuse patches asking for nothing. `JSON.parse`
+  // never produces that shape, but a hand-built client object does, and it is
+  // the shape a spread of optional fields makes. Found by review on #111.
+  //
+  // `null` is deliberately NOT filtered out here: it is a real instruction
+  // ("clear this"), which is the whole distinction this schema is built around.
+  (patch) => Object.values(patch).some((value) => value !== undefined),
   { message: "Provide at least one preference to update." },
 );
 export type UpdateUserPreferences = z.infer<typeof UpdateUserPreferences>;
