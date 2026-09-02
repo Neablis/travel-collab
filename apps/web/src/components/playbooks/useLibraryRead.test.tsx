@@ -84,4 +84,55 @@ describe("useLibraryRead's changed signal", () => {
     await waitFor(() => expect(result.current.data).toBe("c"));
     expect(result.current.changed).toBe(false);
   });
+
+  // KI-20260831, the third face of the same mistake: a difference the reader
+  // already knows about, reported as news. The shared day re-reads after its
+  // own publish, and `visibility` is half its signature.
+  it("says nothing about a refresh the caller made itself", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+    expect(result.current.changed).toBe(false);
+  });
+
+  // The half that keeps the fix from being a deletion of the feature. A silent
+  // refresh moves the baseline forward; it does not switch the comparison off,
+  // so the next genuine external change is caught — and is measured against
+  // what the caller's own write left on screen, not against what preceded it.
+  it("still reports a genuine change after a refresh the caller made itself", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+
+    read.mockResolvedValue(ok("c"));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.changed).toBe(true));
+    expect(result.current.data).toBe("c");
+  });
+
+  // …and the baseline really is "b" and not the stale "a": a reload that brings
+  // back exactly what the caller's own write produced is not a change either.
+  // Without moving the baseline the bug would only be deferred by one read.
+  it("does not report the caller's own write again on the next reload", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(result.current.changed).toBe(false);
+  });
 });

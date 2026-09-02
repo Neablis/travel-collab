@@ -119,8 +119,15 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
     setBusy(false);
     // Re-read rather than patching local state from the response: the author
     // strip's numbers are computed server-side and a publish moves one of them.
+    //
+    // `refreshWithoutComparing`, not `reload` (KI-20260831). `visibility` is
+    // half this screen's signature, so a plain reload answered a successful
+    // publish with the external-change banner — "its author published, withdrew
+    // or someone took it" — about the button the author had just pressed. This
+    // read is the only one on the page whose difference the reader already
+    // knows about, because they caused it.
     if (result.ok) {
-      feed.reload();
+      feed.refreshWithoutComparing();
       return;
     }
     setVisibilityError(
@@ -142,6 +149,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
    * `feed.reload()` on failure, so the rail catches up with whatever moved
    * underneath it — the same reason `setVisibility` re-reads instead of
    * patching local state.
+   *
+   * The comparing `reload()` here, where `setVisibility` uses the silent one:
+   * a refused delete means the day is published and this page believed it was
+   * private, which is somebody else's edit arriving — exactly what the banner
+   * is for. `setVisibility`'s re-read is the author's own edit coming back.
    */
   async function handleDelete() {
     setBusy(true);
