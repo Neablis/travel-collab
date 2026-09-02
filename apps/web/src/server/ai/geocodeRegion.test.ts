@@ -98,11 +98,13 @@ describe("withinBox", () => {
 });
 
 // Behavioural cover for what used to be checked by a regex over the source text
-// of `handleAiRequest.ts` and `geocodeEnrichment.ts` (writeTools.test.ts, now
-// deleted). Both of those files import this function and this constant now, so
-// the KI-15 parity claim — "an approved batch is enriched on exactly the
-// command path's terms" — is held by the module system rather than by a string
-// match that a rename would silently defeat.
+// of the command endpoint and `geocodeEnrichment.ts` (writeTools.test.ts, now
+// deleted). Its callers import this function and this constant rather than
+// re-declaring the number, so the KI-15 parity claim — "an approved batch is
+// enriched on exactly the command path's terms" — is held by the module system
+// rather than by a string match that a rename would silently defeat. The
+// command path itself retired with ADR-033 Decision 4; the parity claim now
+// binds `commitProposal` and `geocodeEnrichment`'s own fallback.
 describe("tripRegionOf", () => {
   it("is null for a trip with no locations at all", () => {
     expect(tripRegionOf(scenarios.emptyTrip())).toBeNull();

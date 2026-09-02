@@ -23,11 +23,12 @@ const NULL_ISLAND_DEGREES = 0.5;
 /**
  * Padding on the box drawn around a trip's existing activities, in km.
  *
- * Lives here because THREE callers need the same number: `handleAiRequest` (the
- * command path), `writeTools.commitProposal` (the approval path) and
- * `geocodeEnrichment`'s own fallback. KI-15 parity — "an approved batch is
- * enriched on exactly the command path's terms" — is a claim about this value
- * being identical in all three, so all three import it.
+ * Lives here because more than one caller needs the same number:
+ * `writeTools.commitProposal` (the approval path) and `geocodeEnrichment`'s own
+ * fallback today, and the command endpoint before ADR-033 Decision 4 deleted
+ * it. KI-15 parity — "an approved batch is enriched on exactly the command
+ * path's terms" — was a claim about this value being identical in all of them,
+ * so all of them import it.
  *
  * They used to declare their own `= 150` and the agreement was checked by a
  * regex over their source text, on the reading that ADR-022 §4 ("the command
@@ -126,10 +127,11 @@ export function withinBox(box: BoundingBox, point: LatLng): boolean {
  * none — that is expected, and enrichment falls back to per-place hints and its
  * own within-batch bootstrapping.
  *
- * Here rather than at either call site because `handleAiRequest` (the command
- * path) and `writeTools.commitProposal` (the approval path) had a verbatim copy
- * each, which is the same KI-15 parity claim as the margin above and drifts the
- * same way.
+ * Here rather than at a call site because the command path and
+ * `writeTools.commitProposal` (the approval path) had a verbatim copy each,
+ * which is the same KI-15 parity claim as the margin above and drifts the same
+ * way. One of those two callers is gone (ADR-033 Decision 4); this stays shared,
+ * because `geocodeEnrichment`'s fallback still reads it.
  */
 export function tripRegionOf(detail: TripDetail): BoundingBox | null {
   const points = Object.values(detail.activities)
