@@ -45,11 +45,18 @@ noted below — a browser walk.
 
 **`github-advanced-security` is red on every PR and it is not ours.** GitHub's
 agentic code scanning dies at `session.create` with *"Model `claude-opus-4.6` is
-not available"*, before reading any diff. Four failures across #104 (twice, and
-it merged anyway), #109 and #111. Stand-down comments are on #109 and #111; no
-fix exists to port. **Do not make it a required check** until it recovers — that
-would make every PR in the repo unmergeable, which is now the second item on the
-pre-branch-protection list alongside `ci.yml`'s `paths-ignore` conversion.
+not available"*, before reading any diff. Five failures across #104 (twice, and
+it merged anyway), #109, #111 and #113. Stand-down comments are on #109 and
+#111; no fix exists to port, because it is not a workflow in
+`.github/workflows/` — it is configured outside the repo.
+
+**It fired on #113, which changes nothing but `docs/**`.** That is the part
+worth knowing before branch protection goes on: the check does **not** honour
+`ci.yml`'s `paths-ignore`, because it is not `ci.yml`. So a prose-only PR — the
+tier `AGENTS.md` says to run nothing for — still collects a red check. **Do not
+make it a required check** until it recovers, or nothing in the repo will be
+mergeable, documentation included. That is now the second item on the
+pre-branch-protection list, alongside `ci.yml`'s `paths-ignore` conversion.
 
 *(Superseded, kept as the record: "Signup and onboarding feedback is on
 `claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
