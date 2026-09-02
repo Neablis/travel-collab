@@ -82,6 +82,10 @@ test("a comment citing a pull request by number is not a color literal (KI-20260
   const contents = [
     "// Fixed in review on PR #100 — see the thread.",
     "// Also discussed in pull request #4271 and issue #12345678.",
+    // The shapes the CSS-shorthand matcher below could plausibly have re-broken:
+    // prose whose word right before the `#` ends in a digit. A rule reading
+    // "preceded by any number" would flag both of these.
+    "// Landed in M17 #112, and again in 2026 #100.",
     "export const x = 1;",
     "",
   ].join("\n");
@@ -103,6 +107,14 @@ test("real raw color literals are still caught, including all-decimal hexes in c
     'export const E = () => <div style={{ outlineColor: "hsl(120 50% 50%)" }} />;',
     'export const F = () => <div style={{ border: "1px solid #553DB8" }} />;',
     'export const G = () => <div style={{ color: "#FFFFFF" }} />;',
+    // The hole the narrowing left behind (CodeRabbit, PR #123). In a CSS
+    // SHORTHAND the colour is not the first token of the value, so an
+    // all-decimal one follows a space rather than the `:`/`=`/`,`/`[`/quote the
+    // context matcher anchored on — `#100` here was a real raw colour reaching
+    // the UI and the wall walked past it. Lines H and I are the two shapes that
+    // matter: a line-style keyword in front, and a length in front.
+    'export const H = () => <div style={{ border: "1px solid #100" }} />;',
+    'export const I = () => <div style={{ boxShadow: "0 1px 2px #100" }} />;',
   ];
   const { status, stderr, relative } = runWallAgainst("raw-colors.tsx", `${lines.join("\n")}\n`);
   assert.equal(status, 1, "expected the wall to fail on a file full of raw colors");

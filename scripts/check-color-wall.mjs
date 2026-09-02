@@ -57,11 +57,32 @@ const files = [
 // in front of it. Accepted residual: an all-decimal hex written bare in a
 // prose-like position (`// grey is #222`) is not flagged; anything containing
 // a-f still always is, so no real palette value can slip through.
+//
+// Those anchors all assume the color is the FIRST token of its value, and in a
+// CSS shorthand it is not: `border: 1px solid #100` and
+// `box-shadow: 0 1px 2px #100` put a space in front of the `#`, so the
+// narrowing above let a genuine raw color straight through (CodeRabbit, PR
+// #123). The second matcher closes that without giving the PR reference back,
+// by looking at the token immediately BEFORE the `#`: a CSS line-style keyword
+// or a length is a value, `PR` and `issue` are not. It is deliberately not "any
+// preceding word" and not "any preceding bare number" — `M17 #112` and
+// `in 2026 #100` are prose this repo actually writes, and both end in a digit.
+const CSS_LINE_STYLE = String.raw`\b(?:solid|dashed|dotted|double|groove|ridge|inset|outset)`;
+// `0` is the one unitless CSS length (`box-shadow: 0 0 #100`); every other
+// number has to carry a unit to count, which is what keeps `M17` out.
+const CSS_LENGTH = String.raw`(?:\b0|\d(?:\.\d+)?(?:px|rem|em|ex|ch|vh|vw|vmin|vmax|pt|pc|in|cm|mm|q|%))`;
 const hexWithLetter = /#(?=[0-9]*[a-fA-F])[0-9a-fA-F]{3,8}\b/;
 const decimalHexInColorContext = /[:=,[`'"]\s*#[0-9]{3,8}\b/;
+const decimalHexAfterCssValueToken = new RegExp(
+  String.raw`(?:${CSS_LINE_STYLE}|${CSS_LENGTH})\s+#[0-9]{3,8}\b`,
+  "i",
+);
 const functionalColor = /\brgba?\(|\bhsla?\(/;
 const isColorLiteral = (line) =>
-  hexWithLetter.test(line) || decimalHexInColorContext.test(line) || functionalColor.test(line);
+  hexWithLetter.test(line) ||
+  decimalHexInColorContext.test(line) ||
+  decimalHexAfterCssValueToken.test(line) ||
+  functionalColor.test(line);
 const arbitraryValue = /className={?["'`][^"'`]*\[/;
 let failed = false;
 for (const file of files) {
