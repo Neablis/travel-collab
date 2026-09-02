@@ -165,3 +165,72 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
     console.log(`lint wall OK: ${path} still carries the @tc/domain / @/server/* wall`);
   }
 }
+
+// THE TEST-QUALITY WALL (test-overhaul Task 7.1, landed 2026-09-02).
+//
+// A lint rule that asserts an invariant is the same species as a comment that
+// asserts one: if nothing proves it fires, it is a claim with a timer on it.
+// That is the whole reason this file exists, so the newest wall gets the same
+// treatment as the import walls above — including the "too strict" half, which
+// is the one a fixture-only check would miss.
+const presentationAssertion = lintFixture(
+  "test_quality_fixture",
+  'import { screen } from "@testing-library/react";\n' +
+    'it("fixture", () => {\n  expect(screen.getByRole("button")).toHaveClass("bg-danger");\n});\n',
+  { dir: "src/components", ext: "test.tsx" },
+);
+if (presentationAssertion.passed) {
+  console.error("TEST-QUALITY WALL BREACHED: a toHaveClass assertion was NOT flagged");
+  process.exitCode = 1;
+} else {
+  console.log("test-quality wall OK: presentation assertion correctly rejected");
+}
+
+// The deliberate exemption, and the reason this half exists: a design-system
+// primitive mapping `variant` onto a token class has no role, label or value
+// standing in for that class. Without this check, "the rule fires" cannot
+// distinguish a scoped wall from a blanket ban — the same gap the @tc/predict
+// case closes for the domain wall.
+const primitiveAssertion = lintFixture(
+  "test_quality_ui_fixture",
+  'import { screen } from "@testing-library/react";\n' +
+    'it("fixture", () => {\n  expect(screen.getByRole("button")).toHaveClass("bg-danger");\n});\n',
+  { dir: "src/components/ui", ext: "test.tsx" },
+);
+if (!primitiveAssertion.passed) {
+  console.error("TEST-QUALITY WALL TOO STRICT: src/components/ui is exempt and was flagged anyway");
+  process.exitCode = 1;
+} else {
+  console.log("test-quality wall OK: src/components/ui primitives may still assert their token classes");
+}
+
+const nodeAccess = lintFixture(
+  "test_quality_container_fixture",
+  'import { render } from "@testing-library/react";\n' +
+    'it("fixture", () => {\n  const { container } = render(<div />);\n' +
+    '  expect(container.querySelector("div")).toBeTruthy();\n});\n',
+  { dir: "src/components", ext: "test.tsx" },
+);
+if (nodeAccess.passed) {
+  console.error("TEST-QUALITY WALL BREACHED: container.querySelector was NOT flagged");
+  process.exitCode = 1;
+} else {
+  console.log("test-quality wall OK: container.querySelector correctly rejected");
+}
+
+// Doubles as proof that `e2e/` is inside the lint lane at all. It was not until
+// `apps/web`'s lint script was widened from `eslint src` (KI-2026-08-30-b), and
+// a script narrowing back to `src` would make every Playwright rule silently
+// stop applying — with no other signal than this line disappearing.
+const e2eWithoutAssertion = lintFixture(
+  "test_quality_e2e_fixture",
+  'import { test } from "@playwright/test";\n' +
+    'test("fixture", async ({ page }) => {\n  await page.goto("/");\n});\n',
+  { dir: "e2e", ext: "ts" },
+);
+if (e2eWithoutAssertion.passed) {
+  console.error("TEST-QUALITY WALL BREACHED: an e2e test with no assertion was NOT flagged (is e2e/ still in the lint lane?)");
+  process.exitCode = 1;
+} else {
+  console.log("test-quality wall OK: e2e spec without an assertion correctly rejected");
+}

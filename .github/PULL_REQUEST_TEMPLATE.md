@@ -41,6 +41,12 @@ Tier: <!-- 1 / 2 / 3 -->
 
 Subset run (Tier 2): <!-- the exact commands -->
 
+Red-first (any PR adding a test): <!-- For each new test: the source edit that
+     makes it fail, and the real failure text. "expected 'Sam' to be 'Sam Smith'"
+     — not "I verified it fails". A test never seen red is a claim, not a
+     control; three written in one session on 2026-09-02 asserted nothing and
+     passed. See docs/guidelines/testing.md §3. -->
+
 - [ ] `pnpm check` green locally (typecheck + lint + unit)
 - [ ] `pnpm --filter web test:int` green (needs Postgres)
 - [ ] `pnpm --filter web test:e2e:ci-like` green (production build + full e2e)
@@ -56,7 +62,7 @@ Not run, and why:
 
 <!-- Restated from AGENTS.md / docs/guidelines/quality-enforcement.md. -->
 
-- [ ] New logic has tests at its layer (domain unit / contract / integration / e2e)
+- [ ] New logic has tests at its layer (domain unit / contract / integration / e2e), and each new test was seen red before it was seen green
 - [ ] Milestone e2e extended if a user flow changed
 - [ ] Projection-rebuild golden test still passes if events or reducers changed
 - [ ] Contracts changelog entry if any schema changed, consumers updated here too

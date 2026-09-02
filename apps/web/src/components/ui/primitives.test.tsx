@@ -28,6 +28,7 @@ describe("ui primitives", () => {
   it("Button gives each variant its own appearance, and defaults to secondary", () => {
     const classesFor = (node: React.ReactElement): string => {
       const { unmount, container } = render(node);
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       const cls = container.querySelector("button")!.className;
       unmount();
       return cls;

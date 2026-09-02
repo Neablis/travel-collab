@@ -253,6 +253,7 @@ describe("Board", () => {
   // no stack/scroll breakpoint, just an overflow-x-auto row.
   it("day columns lay out in a horizontally scrolling row", () => {
     renderBoard(fixture(), noopCallbacks());
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const dayRow = screen.getAllByTestId("day-column")[0]!.parentElement;
     expect(dayRow?.className).toContain("overflow-x-auto");
     expect(dayRow?.className).not.toContain("flex-wrap");
@@ -262,6 +263,7 @@ describe("Board", () => {
   it("a day column's drop area fills the card with a minimum height", () => {
     renderBoard(fixture(), noopCallbacks());
     const day = screen.getAllByTestId("day-column")[0]!;
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const dropList = day.querySelector("ul");
     expect(dropList?.className).toContain("flex-1");
     expect(dropList?.className).toMatch(/min-h-/);
@@ -276,7 +278,9 @@ describe("Board", () => {
   it("a day column is 268px wide, rounded-2xl, and tinted by dayAccents", () => {
     renderBoard(fixture(), noopCallbacks());
     const day = screen.getAllByTestId("day-column")[0]!;
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(day.className).toContain("rounded-2xl");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(day.className).toContain("bg-moss");
     expect((day as HTMLElement).style.width).toBe("268px");
   });
@@ -286,6 +290,7 @@ describe("Board", () => {
   // itself while a card hovers over it.
   it("a day column's drop area carries no hover highlight", () => {
     renderBoard(fixture(), noopCallbacks());
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const dropList = screen.getAllByTestId("day-column")[0]!.querySelector("ul");
     expect(dropList?.className).not.toContain("bg-brand-tint");
   });
@@ -298,6 +303,7 @@ describe("Board", () => {
     renderBoard(fixture(), noopCallbacks());
     const addButton = screen.getByRole("button", { name: "Add activity to Day 1" });
     expect(addButton.textContent).toContain("+ Add");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(addButton.className).toContain("border-dashed");
   });
 
@@ -328,6 +334,7 @@ describe("Board", () => {
     const column = screen.getByTestId("one-more-day-column");
     expect(column.style.width).toBe(screen.getAllByTestId("day-column")[0]!.style.width);
     expect(column.style.width).toBe("268px");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(column.className).toContain("border-dashed");
     expect(screen.getByText("One more day?")).toBeDefined();
   });
@@ -345,6 +352,7 @@ describe("Board", () => {
     await userEvent.click(within(column).getByRole("button", { name: "Add a day" }));
     expect(callbacks.onAddDay).toHaveBeenCalledOnce();
 
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(column.querySelector("[data-preview-id]")).toBeNull();
     expect(
       within(column).getByRole("link", { name: "Take a day from the library" }).getAttribute("href"),
@@ -383,6 +391,7 @@ describe("Board", () => {
     const column = screen.getAllByTestId("day-column")[0]!;
     const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
     expect(addButton.textContent).toContain("+ Add");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(addButton.className).toContain("border-dashed");
   });
 
@@ -416,6 +425,7 @@ describe("Board", () => {
       noopCallbacks(),
     );
     const column = screen.getAllByTestId("day-column")[0]!;
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(column.querySelectorAll('[data-testid^="activity-card-"]')).toHaveLength(9);
     expect(within(column).getByText("Stop 1")).toBeTruthy();
     expect(within(column).getByText("Stop 9")).toBeTruthy();
@@ -484,7 +494,9 @@ describe("selecting a day from its column", () => {
     renderBoard(twoDays(), noopCallbacks(), 1);
     const columns = screen.getAllByTestId("day-column");
 
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(columns[1]!.className).toContain("ring-brand");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(columns[0]!.className).not.toContain("ring-brand");
     expect(headerOf(columns[1]!).getAttribute("aria-pressed")).toBe("true");
     expect(headerOf(columns[0]!).getAttribute("aria-pressed")).toBe("false");
@@ -569,6 +581,7 @@ describe("a read-only board", () => {
     // pragmatic-drag-and-drop marks what it has registered; an unregistered
     // card carries neither the attribute nor the grab cursor.
     expect(card.getAttribute("draggable")).not.toBe("true");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(card.className).not.toContain("cursor-grab");
   });
 

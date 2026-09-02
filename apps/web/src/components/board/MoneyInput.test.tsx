@@ -63,6 +63,7 @@ describe("MoneyInput", () => {
     await user.keyboard("{Enter}");
     expect(onChange).toHaveBeenLastCalledWith({ amountMinor: 9900, currency: "USD" });
     expect(onSubmit).not.toHaveBeenCalled();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.activeElement).not.toBe(input);
   });
 

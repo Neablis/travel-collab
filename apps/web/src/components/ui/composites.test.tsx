@@ -20,6 +20,7 @@ describe("ui composites", () => {
 
   it("Banner defaults conflict messaging to the warning palette, never danger", () => {
     render(<Banner variant="warning">2 conflicts need attention</Banner>);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const banner = screen.getByText("2 conflicts need attention").closest("[role=status]");
     expect(banner?.className).toContain("bg-warning-tint");
   });

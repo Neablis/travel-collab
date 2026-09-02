@@ -96,6 +96,7 @@ describe("NextTripHero", () => {
     // not just "some blocks exist" — what proves this isn't fabricated data.
     // Plus a day-number label per day (the trip's day 1 and day 2).
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const blocks = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(blocks.length).toBe(4);
     // "1"/"2" collide with the stat tiles' own values elsewhere on the page
@@ -185,6 +186,7 @@ describe("NextTripHero", () => {
     render(<NextTripHero trip={trip} />);
 
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(sparklineGroup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1); // only day 1 has a stop
     expect(within(sparklineGroup).getByText("1")).toBeTruthy(); // day 1's number
     expect(within(sparklineGroup).getByText("2")).toBeTruthy(); // day 2's number, even though it's empty
@@ -245,11 +247,14 @@ describe("NextTripHero", () => {
     render(<NextTripHero trip={trip} />);
 
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const bars = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(bars).toHaveLength(2);
     // Color now comes from a dayAccents family token class, not an inline
     // hex — same class both days, since both resolve to the same city.
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect((bars[0] as HTMLElement).className).toMatch(/\bbg-(brand|info|success|warning|danger)\b/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect((bars[0] as HTMLElement).className).toBe((bars[1] as HTMLElement).className);
   });
 
@@ -306,6 +311,7 @@ describe("NextTripHero", () => {
     render(<NextTripHero trip={trip} />);
 
     const sparklineGroup = await screen.findByRole("group", { name: /shape of the trip/i });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const blocks = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(blocks).toHaveLength(2);
     expect((blocks[0] as HTMLElement).style.height).toBe((blocks[1] as HTMLElement).style.height);
@@ -337,6 +343,7 @@ describe("NextTripHero", () => {
     const decisionTile = tiles.find((tile) => /open conflict/i.test(tile.textContent ?? ""));
     expect(decisionTile).toBeTruthy();
     expect(within(decisionTile!).getByText("3")).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
   });
 

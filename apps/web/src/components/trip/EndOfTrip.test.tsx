@@ -38,7 +38,9 @@ describe("EndOfTrip", () => {
   // this block was mostly made of, and re-adding it is the easy mistake.
   it("carries no Preview shell and no fabricated Playbook cards", () => {
     render(<EndOfTrip onAddDay={vi.fn()} />);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector("[data-preview-id]")).toBeNull();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector('[data-testid^="playbook-shortcut-"]')).toBeNull();
   });
 

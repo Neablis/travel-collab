@@ -114,7 +114,9 @@ describe("PageEditor typography (KI-44)", () => {
       />,
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const heading = container.querySelector("h2");
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const paragraph = container.querySelector("p");
     // The seeded Trip Overview page is the one the KI names by hand. If TipTap
     // ever stops emitting bare elements, the premise of the CSS below changed
@@ -154,6 +156,7 @@ describe("PageEditor typography (KI-44)", () => {
     const { container } = render(
       <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={content} onChange={() => {}} />,
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const list = container.querySelector("ul");
     expect(list).not.toBeNull();
 
