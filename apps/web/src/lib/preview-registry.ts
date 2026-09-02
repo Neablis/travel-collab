@@ -87,4 +87,3 @@ export const PREVIEW_REGISTRY = {
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;
-export type PreviewMilestone = (typeof PREVIEW_REGISTRY)[PreviewId]["milestone"];
