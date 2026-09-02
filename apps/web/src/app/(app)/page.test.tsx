@@ -245,6 +245,7 @@ describe("Home trip actions", () => {
     render(<Home />);
     const link = await screen.findByRole("link", { name: /start from a playbook/i });
     expect(link.getAttribute("href")).toBe("/playbooks");
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(link.closest("[data-preview-id]")).toBeNull();
   });
 });
@@ -321,6 +322,7 @@ describe("Home trip cards' planned-of-budget line", () => {
     // this fixture, which would otherwise make a page-wide assertion pass
     // for the wrong reason.
     const peruHeading = await screen.findByRole("heading", { name: "Peru" });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const peruBlock = peruHeading.closest("div");
     expect(peruBlock).not.toBeNull();
     expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
@@ -388,6 +390,7 @@ describe("Home trip cards' planned-of-budget line", () => {
     render(<Home />);
 
     const peruHeading = await screen.findByRole("heading", { name: "Peru" });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const peruBlock = peruHeading.closest("div");
     expect(peruBlock).not.toBeNull();
     expect(

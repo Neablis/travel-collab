@@ -27,7 +27,12 @@ export function Dialog({ open, onOpenChange, title, children }: { open: boolean;
             library is just the first list here long enough to reach it. */}
         <RadixDialog.Content
           className="overlay-layer fixed top-1/2 left-1/2 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface p-5 shadow-overlay"
-          // eslint-disable-next-line no-restricted-syntax -- a viewport-relative cap is not a design constant and has no token; `max-h-[85vh]` in className is what the color wall forbids, so this takes the same inline-style escape hatch Board/Sparkline use for computed geometry
+          // A viewport-relative cap is not a design constant and has no token;
+          // `max-h-[85vh]` in className is what the colour wall forbids, so this
+          // takes the same inline-style escape hatch Board and Sparkline use for
+          // computed geometry. (No eslint-disable needed: `src/components/ui/**`
+          // is already outside the inline-style wall's scope, so the directive
+          // that used to sit here suppressed nothing.)
           style={{ maxHeight: "85vh" }}
         >
           <div className="mb-3 flex items-start justify-between gap-3">

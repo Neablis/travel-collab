@@ -156,6 +156,7 @@ describe("a public profile", () => {
   it("offers a Retry when the profile cannot be reached", async () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
     // The test is named for the Retry, so it has to assert the Retry: a banner
     // that lost its button passed this before.

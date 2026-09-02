@@ -1,4 +1,4 @@
-### KI-2026-08-30-b — `apps/web`'s lint script is `eslint src`, so twelve root-level TypeScript files are never linted — RESOLVED
+### KI-2026-08-30-b — `apps/web`'s lint script is `eslint src`, so twelve root-level TypeScript files are never linted
 - **Severity:** cleanup (no known defect today — every one of these files is currently clean when linted by hand; what is missing is that anything would *tell* you if it stopped being)
 - **Area:** `apps/web/package.json` (the `lint` script), the twelve `*.ts` files at `apps/web/`'s root.
 - **What is wrong:** `"lint": "eslint src"`. Everything above `src/` is outside the lane. That is not only config — `sentry.shared.ts` is shipped code imported by `sentry.server.config.ts` and `sentry.edge.config.ts`, and `next.config.ts` decides the CSP that KI-66 tracks. The full set: `drizzle.config.ts`, `next-env.d.ts`, `next.config.ts`, `next.config.test.ts`, `playwright.config.ts`, `sentry.edge.config.ts`, `sentry.server.config.ts`, `sentry.shared.ts`, `sentry.shared.test.ts`, `vitest.config.ts`, `vitest.setup.ts`, `vitest.unit.config.ts`.
@@ -9,105 +9,21 @@
 - **Cross-reference:** KI-96 (resolved — the fixture whose file exposed this), KI-51 (resolved — the colour wall being blind to untracked files, the same species of guard-with-a-gap), KI-66 (`next.config.ts`'s CSP, one of the unlinted files), `docs/guidelines/quality-enforcement.md`.
 - **First noted:** 2026-08-30, during the KI sweep.
 
-- **RESOLVED 2026-09-02, by widening the script exactly as the fix path said, and pinning the width with a test so it cannot narrow again silently.**
+---
 
-  **Reproduced first.** A deliberate error-level violation appended to
-  `sentry.shared.ts` — `export const kiRepro: any = 1;`, hitting
-  `@typescript-eslint/no-explicit-any`, which resolves to `error` for that
-  file — was invisible to the lane and visible by hand:
-
-  ```
-  $ pnpm --filter web lint
-  > eslint src
-  .../src/components/ui/dialog.tsx
-    30:11  warning  Unused eslint-disable directive ...
-  ✖ 1 problem (0 errors, 1 warning)
-  EXIT=0
-
-  $ npx eslint sentry.shared.ts
-  .../apps/web/sentry.shared.ts
-    164:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  ✖ 1 problem (1 error, 0 warnings)
-  EXIT=1
-  ```
-
-  Green lane, red file: the gap as filed, in one pair of commands.
-
-  **Cause.** Not a rule and not an exemption — a file list. `"lint": "eslint
-  src"` hands ESLint one directory, and the flat config's `files` globs never
-  get the chance to disagree, because the twelve root files are never
-  enumerated in the first place.
-
-  **Fix, one word: `"lint": "eslint src '*.ts'"`** (`apps/web/package.json`).
-  The pattern is quoted so it reaches ESLint rather than being expanded by the
-  shell npm runs the script in. Measured before the regression test below was
-  added, `eslint '*.ts' -f json` reported **12 files linted, 0 errors, 0
-  warnings** — exactly the twelve the entry names, all clean, so the widening
-  is the no-op the entry predicted. Nothing needed fixing and no disable was
-  added. (The root set is thirteen now, and still clean: the new
-  `lint-scope.test.ts` is itself covered by the widened script.)
-
-  **The config walls did not leak onto config files, and that was checked
-  rather than assumed.** Every wall block in `eslint.config.mjs` (the
-  domain/server wall, the gateway chokepoint, the auth-config wall, the
-  element wall) is scoped `files: ["src/**/*.{ts,tsx}"]`, so none of them can
-  match a root file. Confirmed per file with `eslint --print-config`: for all
-  twelve, `no-restricted-imports`, `import/no-restricted-paths` and
-  `no-restricted-syntax` are all `undefined`. The root files get the shared
-  `next/core-web-vitals` + `next/typescript` baseline and nothing else —
-  `eslint.config.mjs` needed no change.
-
-  **Regression test added,** `apps/web/lint-scope.test.ts` (registered in
-  `vitest.unit.config.ts`'s node-project include list, alongside the
-  root-level test files whose presence there is what made this asymmetry
-  visible). It reads the `lint` script out of `package.json` and asserts every
-  root-level `*.ts` file is matched by one of the arguments, rather than
-  pinning the script's text — `eslint src '*.ts'`, an explicit file list and
-  `eslint .` are all correct answers; only a shape that leaves a root file
-  unread is wrong. Reverting the script to `eslint src` fails it with the
-  whole set named:
-
-  ```
-  AssertionError: not linted by `eslint src`: expected [ 'drizzle.config.ts', …(12) ] to deeply equal []
-  ```
-
-  **Proof.** Same reproduction, after the change:
-
-  ```
-  $ pnpm --filter web lint
-  > eslint src '*.ts'
-  .../apps/web/sentry.shared.ts
-    164:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  .../src/components/ui/dialog.tsx
-    30:11  warning  Unused eslint-disable directive ...
-  ✖ 2 problems (1 error, 1 warning)
-  EXIT=1
-  ```
-
-  The deliberate violation was removed afterwards; `git status` shows
-  `sentry.shared.ts` unmodified. Per `minimal-check-subset` (changed files
-  `apps/web/package.json`, `apps/web/vitest.unit.config.ts`,
-  `apps/web/lint-scope.test.ts` → `web`; nothing under
-  `packages/contracts/src`): `pnpm --filter web lint` clean (same single
-  pre-existing `dialog.tsx` warning as before the change, plus 13 more files
-  read and nothing new found), `pnpm --filter web typecheck` clean, `pnpm
-  --filter web exec vitest run -c vitest.unit.config.ts lint-scope.test.ts`
-  2/2. `vitest list -c vitest.unit.config.ts --filesOnly` confirms the include
-  edit added `[node] lint-scope.test.ts` and disturbed no other collection.
-  Not run, deliberately: `test:int` (claims the `postgres` lease), e2e, and
-  the full `pnpm check` — no product code changed, and a full run under
-  concurrent agents is the load condition KI-13 documents.
-
-  **The entry's sibling question, answered and left alone.**
-  `scripts/check-lint-wall.mjs` does *not* share the blind spot: it writes a
-  fixture and invokes `pnpm --filter web exec eslint <relative-path>`
-  directly, never the `lint` script, so its coverage does not depend on that
-  script's arguments. It fixtures only under `src/`, which is correct — the
-  walls it tests are `src`-scoped by design. `scripts/check-color-wall.mjs`
-  was not audited here; it is outside this entry's Area.
-
-  **Noticed and left alone:** `src/components/ui/dialog.tsx:30` carries an
-  unused `eslint-disable` for `no-restricted-syntax`, which `pnpm --filter web
-  lint` has been reporting as a warning both before and after this change.
-  Pre-existing, outside this entry's Area, and warning-level so it does not
-  fail the lane.
+- **Resolved 2026-09-02** (the test-quality wall PR). `apps/web`'s lint script
+  is now `eslint src e2e *.ts`. The twelve root-level files and all 30 e2e specs
+  are in the lane, and — as this entry predicted from a hand-run — **all of them
+  were already clean**, so widening the script fixed nothing and started
+  guarding everything. That was the entire point of the entry.
+- **The e2e half turned out to matter more than the root-file half.** Nothing
+  under `e2e/` was linted at all, which is why `scripts/check-sleep-wall.mjs`
+  had to be a standalone script rather than an ESLint rule. Widening the lane is
+  what let `eslint-plugin-playwright` land at the same time; it found 27 real
+  findings in specs no linter had ever read (grandfathered under KI-2026-09-02-b).
+- **The companion question this entry asked, answered:**
+  `scripts/check-lint-wall.mjs` does **not** share the blind spot — it is a
+  fixture-based self-test of the ESLint config, not a tree scanner, so it has no
+  glob to widen. `scripts/check-color-wall.mjs` does glob `apps/web/src/**`, and
+  that scope is deliberate rather than a gap: it is a design-system wall and
+  neither `next.config.ts` nor an e2e spec is product UI. Left as is, knowingly.

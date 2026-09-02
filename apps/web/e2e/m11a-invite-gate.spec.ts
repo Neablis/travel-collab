@@ -120,6 +120,7 @@ async function pendingAdmissionCookie(context: BrowserContext): Promise<Cookie |
 async function signUp(page: Page, username: string, code?: string): Promise<void> {
   await page.goto("/signup");
   if (code !== undefined) await page.getByLabel("Invite code").fill(code);
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
     // Wait for the sign-in ATTEMPT to settle, which is not the same as leaving
@@ -217,6 +218,7 @@ test("someone who already has a users row signs in with no code at all", async (
   // a code would read as a requirement to both.
   await expect(page.getByLabel("Invite code")).toHaveCount(0);
 
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', "alice");
   await Promise.all([
     page.waitForResponse(
@@ -259,6 +261,7 @@ test("the proxy banks an invite token in a short-lived httpOnly cookie, and a re
 
   // No code typed anywhere — the banked token is the whole credential, which
   // is what makes an invite link a one-step arrival for a new collaborator.
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
     page.waitForURL(refusalUrl(AdmissionRefusal.enum.INVALID_INVITE_CODE)),

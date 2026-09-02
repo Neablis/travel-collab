@@ -55,6 +55,7 @@ describe("the leaderboard", () => {
     const rows = await screen.findByTestId("board-rows");
     const mine = within(rows).getAllByTestId("board-row").find((r) => r.getAttribute("data-me") === "true")!;
     expect(mine.getAttribute("data-user-id")).toBe("dev-alice");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(mine.className).toContain("bg-brand-tint");
     expect(within(mine).getByText("You")).toBeTruthy();
     // Second, exactly where the ledger put it.
@@ -90,6 +91,7 @@ describe("the leaderboard", () => {
   it("offers a Retry when the board cannot be reached", async () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
     expect(within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" })).toBeTruthy();
   });

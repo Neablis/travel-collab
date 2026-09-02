@@ -60,6 +60,7 @@ async function typeCity(text: string): Promise<void> {
 describe("Discover", () => {
   it("asks the endpoint once the page mounts, and shows the cards", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
   });
@@ -80,6 +81,7 @@ describe("Discover", () => {
       ok(response({ days: [day({ cities: ["Kyoto", "Uji"], matchedCities: ["Kyoto"] })] })),
     );
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("match-line")).toBeTruthy());
 
     expect(screen.getByTestId("match-line").textContent).toBe("Kyoto matched · also Uji");
@@ -98,6 +100,7 @@ describe("Discover", () => {
   // and the rename alone would not stop somebody re-adding the word.
   it("prints the day's total with no per-person qualifier on it", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const line = screen.getByText(/\$27\.00/);
     expect(line.textContent).toContain("$27.00");
@@ -128,6 +131,7 @@ describe("Discover", () => {
   // assertion that stops somebody helpfully "fixing" them back.
   it("offers exactly two sorts and no rating floor", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const sort = screen.getByLabelText("Sort");
     expect(within(sort).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -148,6 +152,7 @@ describe("Discover", () => {
   // to `BUDGET_BAND_EDGES` cannot drift from what the control actually shows.
   it("offers four budget bands over $200/$500/$1,000, not the old three", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const budget = screen.getByLabelText("Budget");
     expect(within(budget).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -165,6 +170,7 @@ describe("Discover", () => {
   // on the server side of the query, not in a widened set of month parameters.
   it("filters by season, and sends the season rather than a month", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const season = screen.getByLabelText("Season");
     expect(within(season).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -189,6 +195,7 @@ describe("Discover", () => {
   it("hides the budget filter when the results do not share a currency", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ budgetCurrency: null })));
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.queryByLabelText("Budget")).toBeNull();
   });
@@ -200,6 +207,7 @@ describe("Discover", () => {
   it("offers only Search everywhere when nothing matches, and it really clears the filters", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
 
@@ -222,12 +230,14 @@ describe("Discover", () => {
   // does.
   it("shows the leaderboard link only when something is published", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
 
     cleanup();
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 0 })));
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
     expect(screen.queryByRole("link", { name: /Who shares the most/ })).toBeNull();
   });
@@ -236,6 +246,7 @@ describe("Discover", () => {
   it("keeps the leaderboard link when the query matches nothing but the library is not empty", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 7 })));
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
     expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
   });
@@ -243,12 +254,14 @@ describe("Discover", () => {
   it("labels the chip row Busy right now with no query, and Also in these results with one", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ siblings: [{ city: "Osaka", days: 4 }] })));
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("sibling-cities")).toBeTruthy());
     expect(screen.getByText("Busy right now")).toBeTruthy();
 
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       screen.getByRole("button", { name: "Add Osaka" }),
     );
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Also in these results")).toBeTruthy());
     expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ cities: ["Osaka"] }),
@@ -267,6 +280,7 @@ describe("Discover", () => {
   // ago — and Retry is a real control.
   it("keeps the results under a failure banner, and retries for real", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
 
     searchPlaybooksMock.mockResolvedValueOnce({
@@ -276,6 +290,7 @@ describe("Discover", () => {
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       screen.getByRole("radio", { name: "Yours" }),
     );
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
 
@@ -303,6 +318,7 @@ describe("Discover", () => {
   // genuine case.
   it("does not call a filter change the library moving", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.queryByTestId("library-moved")).toBeNull();
 
@@ -324,6 +340,7 @@ describe("Discover", () => {
   // The board's only entrance (project rule 1: not in the top bar).
   it("is where the leaderboard is entered from", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.getByRole("link", { name: /who shares the most/i }).getAttribute("href")).toBe(
       "/playbooks/board",
@@ -338,6 +355,7 @@ describe("Discover", () => {
 describe("Discover city search", () => {
   it("shows loading, then the matches, and adds one as a chip", async () => {
     render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -348,9 +366,11 @@ describe("Discover city search", () => {
     let release: (value: unknown) => void = () => {};
     searchCitiesMock.mockReturnValueOnce(new Promise((r) => (release = r)));
     await vi.advanceTimersByTimeAsync(300);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-loading")).toBeTruthy());
 
     release(ok([{ city: "Kyoto", days: 3 }]));
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-results")).toBeTruthy());
 
     await user.click(screen.getByRole("button", { name: /Kyoto · 3/ }));
@@ -364,6 +384,7 @@ describe("Discover city search", () => {
     render(<DiscoverScreen />);
     searchCitiesMock.mockResolvedValue(ok([]));
     await typeCity("Zzz");
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-empty")).toBeTruthy());
     expect(screen.queryByTestId("city-search-failed")).toBeNull();
   });
@@ -372,12 +393,14 @@ describe("Discover city search", () => {
     render(<DiscoverScreen />);
     searchCitiesMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     await typeCity("Kyo");
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-failed")).toBeTruthy());
 
     searchCitiesMock.mockResolvedValue(ok([{ city: "Kyoto", days: 3 }]));
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       within(screen.getByTestId("city-search-failed")).getByRole("button", { name: "Retry" }),
     );
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-results")).toBeTruthy());
     // The same query, not a fresh one — a person who typed "Kyo" and lost their
     // connection wants "Kyo" back.
@@ -386,10 +409,12 @@ describe("Discover city search", () => {
 
   it("has no <option> city list — the dropdown is gone and must not come back", async () => {
     const { container } = render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.queryByLabelText("City")).toBeNull();
     // The two selects that DO exist are the sort and the two filters; none of
     // them lists cities.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     for (const select of container.querySelectorAll("select")) {
       expect([...select.options].map((o) => o.textContent)).not.toContain("Kyoto");
     }

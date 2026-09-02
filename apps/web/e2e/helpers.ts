@@ -82,6 +82,7 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {
   await page.goto("/signup");
   await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   // Wait for the post-sign-in page's first authenticated /api/trips fetch —
   // it only fires after React hydrates, so the form's onSubmit is attached.

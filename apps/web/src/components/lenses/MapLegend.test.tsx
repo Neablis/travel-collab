@@ -8,11 +8,13 @@ describe("MapLegend", () => {
   it("shows the real 'Rest of trip' key outside any Preview wrap", () => {
     const { container } = render(<MapLegend />);
     expect(screen.getByText("Rest of trip")).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector('[data-preview-id="map-legend-modes"]')).not.toBeNull();
   });
 
   it("keeps the unbacked transport-mode keys inside the map-legend-modes Preview", () => {
     const { container } = render(<MapLegend />);
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const region = container.querySelector('[data-preview-id="map-legend-modes"]');
     expect(region).not.toBeNull();
     expect(region!.textContent).toContain("On foot");
