@@ -1,5 +1,9 @@
 # Quality enforcement
 
+> **How to write a test is `testing.md`, not this file.** This one is the
+> bar a change must clear — the pyramid, the golden tests, CI, and what to
+> believe from a run. `testing.md` is the procedure for the test itself.
+
 ## The testing pyramid (what every layer owes)
 
 | Layer | Test kind | Bar |
@@ -7,7 +11,7 @@
 | `packages/domain` | Vitest unit + fast-check property tests | Every `decide`/`evolve` branch; every conflict rule gets property tests; upcasters proven against old-version fixtures |
 | `packages/contracts` | Schema round-trip tests | Parse/serialize fixtures; breaking-change detection by reviewing changelog |
 | `apps/web/src/server` | Integration against real Postgres (docker-compose) | Every endpoint: happy path + rejection + authz denial; event-store suite (ordering, optimistic concurrency, rebuild) |
-| `apps/web` UI | Component tests against MSW mocks | Critical interactions (drag, conflict surfaces, undo) |
+| `apps/web` UI | Component tests against MSW mocks | Behaviour a user can observe. **Drag is tested in e2e** — jsdom has no `DataTransfer`, which is why `resolveDrop.ts` and `rackDisclosure.ts` were extracted; the pure decision functions under a drag are tested as pure functions |
 | Whole system | Playwright e2e | One happy-path script per milestone, green forever after its gate |
 
 ## Golden tests (never allowed to fail, never allowed to be skipped)
@@ -83,7 +87,9 @@ the symptom — see `cloud-agent-sessions.md`.
 ## Definition of done (restated from AGENTS.md — the checklist)
 
 - [ ] `pnpm check` green locally; CI green.
-- [ ] New logic has tests at its layer per the pyramid above.
+- [ ] New logic has tests at its layer per the pyramid above, and **each new
+      test was seen red before it was seen green** — the source edit and the
+      real failure text go in the PR (`testing.md` §3).
 - [ ] Milestone e2e extended if a user flow changed.
 - [ ] Contracts changelog entry if any schema changed; consumers updated in
       the same PR.
