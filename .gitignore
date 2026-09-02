@@ -50,3 +50,9 @@ package-lock.json
 .superpowers/
 
 .env.sentry-build-plugin
+
+# `pnpm mutate` (scripts/mutate.mjs) writes both inside the target package and
+# removes them on the way out, including after a failed run. These are here for
+# the case it cannot: a killed process, a container reclaimed mid-run.
+.stryker-tmp/
+stryker.tmp.json

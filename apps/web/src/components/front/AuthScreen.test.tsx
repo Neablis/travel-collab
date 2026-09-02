@@ -436,6 +436,7 @@ describe("AuthScreen", () => {
     "keeps the dev-login selectors e2e/helpers.ts depends on, in %s mode",
     (mode) => {
       const { container } = render(<AuthScreen mode={mode} devLoginEnabled googleAvailable />);
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(container.querySelectorAll('input[name="username"]')).toHaveLength(1);
       expect(screen.getByRole("button", { name: /sign in with dev login/i })).toBeDefined();
       expect(screen.getByLabelText("Username")).toBeDefined();
@@ -490,6 +491,7 @@ describe("AuthScreen", () => {
   it("still runs the dev-login form when Google is unavailable but dev login is enabled", async () => {
     const { container } = render(<AuthScreen mode="signin" devLoginEnabled googleAvailable={false} />);
     expect(screen.getByText(/Sign-in isn't set up on this deployment/)).toBeDefined();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector('input[name="username"]')).not.toBeNull();
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));

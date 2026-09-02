@@ -40,6 +40,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
 
   // Dev Login credentials form.
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
 
   // Wait for the post-sign-in page's first authenticated /api/trips fetch to

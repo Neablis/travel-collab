@@ -381,7 +381,9 @@ describe("SettingsSheet role gating", () => {
     // The money controls are disabled by their enclosing <fieldset>, which
     // disables descendants without stamping the attribute on each one — so
     // the fieldset is what carries it.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(true);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(true);
 
     // And the behavioural claim, which is the one that actually matters:
@@ -396,7 +398,9 @@ describe("SettingsSheet role gating", () => {
     renderSheet(vi.fn(), { myRole: "editor", onCommand });
 
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(false);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));

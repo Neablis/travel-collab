@@ -55,6 +55,7 @@ describe("the leaderboard", () => {
     const rows = await screen.findByTestId("board-rows");
     const mine = within(rows).getAllByTestId("board-row").find((r) => r.getAttribute("data-me") === "true")!;
     expect(mine.getAttribute("data-user-id")).toBe("dev-alice");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(mine.className).toContain("bg-brand-tint");
     expect(within(mine).getByText("You")).toBeTruthy();
     // Second, exactly where the ledger put it.
