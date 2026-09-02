@@ -58,6 +58,13 @@ make it a required check** until it recovers, or nothing in the repo will be
 mergeable, documentation included. That is now the second item on the
 pre-branch-protection list, alongside `ci.yml`'s `paths-ignore` conversion.
 
+**It is only the AGENTIC check that is broken — CodeQL is fine.** On #110,
+`CodeQL` completed, `Analyze (actions)` succeeded and
+`Analyze (javascript-typescript)` ran, all while `github-advanced-security`
+failed. So the caution above is narrower than "no security check can be
+required": CodeQL is a safe required check today; `github-advanced-security`
+is not, for as long as it dies at `session.create`.
+
 *(Superseded, kept as the record: "Signup and onboarding feedback is on
 `claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
 That merged as `63c7fdb`, and #106 merged after it, but this section was never
