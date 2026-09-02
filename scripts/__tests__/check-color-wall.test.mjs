@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, relative as relativeTo } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // check-color-wall.mjs scans the real repo via `git ls-files` rather than
@@ -18,16 +18,24 @@ function runWall() {
 }
 
 // The wall reads the working tree, not an argument, so the only way to show it
-// on a given input is to put that input in the tree. `--others
-// --exclude-standard` means an unstaged file counts, so nothing has to be
-// staged; the directory is removed again whatever the assertions do.
-const FIXTURE_DIR = "apps/web/src/__color-wall-fixture__";
+// on a given input is to put that input in the tree — and under `apps/web/src`,
+// the only place its `git ls-files` pathspec looks, which is why this cannot be
+// an OS temp directory. `--others --exclude-standard` means an unstaged file
+// counts, so nothing has to be staged; the directory goes away again whatever
+// the assertions do.
+//
+// The name is MINTED PER CALL by `mkdtempSync`, never fixed. Teardown here is a
+// recursive delete, and a fixed path is one a developer's tree may already hold
+// — a scratch directory, the leftovers of a run that was killed — so a fixed
+// name gives this test the power to destroy work it did not create.
+// `mkdtempSync` creates and never reuses, so the directory removed in `finally`
+// is by construction one this call made.
+const FIXTURE_PREFIX = "apps/web/src/__color-wall-fixture-";
 function runWallAgainst(basename, contents) {
-  const dir = join(REPO_ROOT, FIXTURE_DIR);
-  const relative = `${FIXTURE_DIR}/${basename}`;
-  mkdirSync(dir, { recursive: true });
+  const dir = mkdtempSync(join(REPO_ROOT, FIXTURE_PREFIX));
+  const relative = `${relativeTo(REPO_ROOT, dir)}/${basename}`;
   try {
-    writeFileSync(join(REPO_ROOT, relative), contents);
+    writeFileSync(join(dir, basename), contents);
     return { ...runWall(), relative };
   } finally {
     rmSync(dir, { recursive: true, force: true });
