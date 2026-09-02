@@ -307,3 +307,39 @@ The eight unit files: `SaveLight.test.tsx`, `trip/DayChips.test.tsx`,
 - **`pnpm seed:verify`** — no contract field changed. `STILL_TO_BOOK` was not
   read by the verifier (that was the point of deleting it), and
   `pnpm --filter @tc/fixtures test` covers the fixture package regardless.
+
+## A blind spot this sweep had, found by someone else the same day
+
+**`packages/factories/src/scenarios.ts` has no consumers outside its own
+package, and this sweep did not report it.** PR #117's author found it
+independently and filed it as `KI-2026-09-02-d`.
+
+The miss is not an oversight, it is the method. Both the reference-count script
+and knip ask *"is this symbol referenced anywhere?"* — and `scenarios` is
+referenced, by `packages/factories/src/contract.test.ts`. It passes that test
+while being, in the sense anyone cares about, unused: **no component test under
+`apps/web/src/components/**` imports it.** `grep -rn "scenarios\." apps/web/src
+--include=*.test.tsx` returns nothing.
+
+So the sweep's question has a hole in it, and the hole has a name:
+
+> **A symbol referenced only by its own package's tests is invisible to
+> reference counting, because its tests are references.**
+
+That is a whole category — test-only-consumed code — and it is exactly where
+scaffolding built ahead of its callers goes to die. Anything the test overhaul's
+Phase 2 built is a candidate, and so is anything built for a milestone that then
+took a different shape.
+
+**The right follow-up question, for whoever runs the next sweep:** for each
+exported symbol, are all its references inside its own package? If yes, is that
+package the intended consumer, or is it scaffolding whose real consumers never
+arrived? The second answer is not a deletion — `KI-2026-09-02-d` argues
+correctly that `scenarios` should be **adopted**, not removed, because the named
+states are where the meaning lives and hand-rebuilding them is the drift
+`@tc/factories` exists to stop. A sweep that had found it and deleted it would
+have been worse than a sweep that missed it.
+
+Which is the caveat to put on this report's headline. "Five dead exports out of
+1,130" is true of the question that was asked. It is not the same claim as
+"there is no unused code here."
