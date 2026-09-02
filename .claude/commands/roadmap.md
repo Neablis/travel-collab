@@ -9,20 +9,46 @@ Show the full milestone picture and reconcile it against reality.
 
 Drill-down target (may be empty): **$ARGUMENTS**
 
-## Step 1 — Read the four sources
+## Step 1 — Run the digest; read only what it points at
 
-These are four *different* things. Read all of them; do not assume they agree.
+```
+pnpm state
+```
 
-1. **`docs/milestones/README.md`** — the milestone table, and at the bottom the
-   **"Current milestone"** line. AGENTS.md designates that line the single
-   source of truth for the milestone number.
-2. **`TODO.md`** — the checklist. The first unchecked item is the current work.
-3. **`docs/STATUS.md`** — where the work actually is, including in-flight
-   branches. This is the most current and the least formal.
-4. **The current milestone's own file** in `docs/milestones/` — its exit-gate
-   checklist boxes.
+`scripts/state-digest.mjs` extracts, from the four sources, with a `file:line`
+citation on every line: the **Current milestone**, the **first unchecked
+`TODO.md` item** and the `← current milestone` marker, the leading block of
+**`docs/STATUS.md`**, the current milestone's **exit-gate tally**, open PRs, the
+worktree count, and the open-KI titles. It is deterministic — no judgement, no
+prose — and it costs about 1,100 tokens.
+
+**Do not re-read `STATUS.md`, `TODO.md` or the milestone README in full to
+recover what the digest already printed.** That re-read is what this command
+was measured doing, and the digest exists to replace it
+(`docs/reviews/2026-09-02-session-tooling-review.md`, F1 and F8: 2,621
+orientation reads across 220 sessions, ~1.9M tokens).
+
+Read further only where this turn actually needs more than a fact:
+
+- **`docs/milestones/README.md`'s table** — Step 4 reports every milestone with
+  its status, and the digest deliberately prints only the current one. You need
+  the table; you do not need the file's prose.
+- **The current milestone's own file, at the exit-gate line the digest cited** —
+  Step 4's "Open gate conditions" needs the box *text*, not just the tally.
+- **Anything the digest flagged as drift** — open those two files at those two
+  lines, and only those.
+
+These are still four *different* sources and they are still allowed to
+disagree. The digest tells you *that* they disagree; it never tells you which
+one is right. Steps 2 and 4 are where you work that out.
 
 ## Step 2 — Reconcile, and report drift loudly
+
+The digest has already run four checks mechanically and printed a `DRIFT:` line.
+Start from that line; it is a list of mismatches, not a verdict. **The verdict
+is this step's job** — a script can see that `TODO.md` and the milestone README
+name different milestones, and cannot see which of them records a decision
+Mitchell actually made.
 
 AGENTS.md's gate-close checklist requires four flags to flip **in one commit**:
 the `TODO.md` tick, the milestone file's exit-gate boxes, the retro note, and
@@ -42,26 +68,29 @@ Say which file you believe and why.
 
 ## Step 3 — Ground it in live repo state
 
-The docs describe intent. Check what is actually happening:
+The docs describe intent. Step 1's digest already ran the live checks —
+`git log --oneline origin/main -5`, `gh pr list --state open`,
+`git worktree list`, and the open-KI count — so **do not run them again**. Read
+the `OPEN PRS`, `WORKTREES`, `ORIGIN/MAIN` and `OPEN KIs` blocks it printed.
+
+If the digest said `OPEN PRS: (gh unavailable)`, that is the one case where you
+run the query yourself:
 
 ```
-git log --oneline origin/main -5
 gh pr list --state open --json number,title,headRefName,createdAt --jq '.[] | "#\(.number) \(.title) [\(.headRefName)] \(.createdAt[0:10])"'
-git worktree list
 ```
 
-Flag any open PR older than about a week, and any worktree whose branch is
-already merged — both are signs work has been left behind.
+What the digest does *not* do is judge, and this step is the judgement:
 
-Also count what is outstanding:
-
-```
-ls docs/known-issues/open/ | wc -l       # still open
-ls docs/known-issues/resolved/ | wc -l   # closed to date
-```
-
-The directory listing is the index — `docs/known-issues/` has no committed
-index file, deliberately (see its README, and KI-95).
+- **Flag any open PR older than about a week** — the digest prints creation
+  dates and says nothing about them.
+- **Flag any worktree whose branch is already merged.** The digest prints only
+  a count, on purpose: auditing worktrees for staleness and scope drift is the
+  `worktree-hygiene` skill's job, and this command should invoke it rather than
+  grow a second copy of it.
+- **Resolved KIs**, if the count is relevant: `ls docs/known-issues/resolved/ | wc -l`.
+  The directory listing is the index — `docs/known-issues/` has no committed
+  index file, deliberately (see its README, and KI-95).
 
 ## Step 4 — Report
 
@@ -91,6 +120,11 @@ it, and which of its phases are done.
 
 ## Rules
 
+- **Never restate the digest.** If `pnpm state` already printed a fact with a
+  citation, cite it; do not re-derive it and do not paste it back. This command
+  earns its turn on the four things a script cannot do: which source to believe,
+  what a drift *means*, whether a PR has been left behind, and what is actually
+  left of the gate.
 - Never restate the milestone table from memory. Read the file every time —
   the ordering has already been amended twice by ADR (M10 brought ahead of M9;
   M15 inserted between M10 and M9).

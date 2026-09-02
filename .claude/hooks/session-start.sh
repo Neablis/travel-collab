@@ -1,5 +1,6 @@
 #!/bin/bash
-# SessionStart hook. Two jobs, split by environment:
+# SessionStart hook. It prints the state digest (`pnpm state`) on both
+# branches, and does environment setup that splits by environment:
 #
 #   Remote (Claude Code on the web): full install, `pnpm run setup` (which
 #   creates apps/web/.env.local so `pnpm check` works out of the box), and a
@@ -267,11 +268,28 @@ link_playwright_shell() {
   done
 }
 
+# The state digest: "where are we", extracted deterministically and printed
+# into the session's opening context so nobody spends their first twenty tool
+# calls reading STATUS.md, TODO.md, the milestone table and 42 known-issue
+# files to find out. That is measured, not assumed — 66 of 72 main sessions did
+# exactly that, at a mean of 7,760 tokens each, and /roadmap (which answers the
+# same question on request) was invoked in 9 sessions out of 109 that needed it.
+# See docs/reviews/2026-09-02-session-tooling-review.md, F1/F2/F8.
+#
+# Advisory twice over. scripts/state-digest.mjs guards every section and exits
+# 0 whatever it finds, and this wrapper swallows the rest — a missing node, a
+# syntax error mid-edit, a repo with no docs/ at all. A digest is worth much
+# less than a session, so it never gets a vote on whether one starts.
+print_state_digest() {
+  node scripts/state-digest.mjs || echo "session-start: state digest unavailable (run 'pnpm state')." >&2
+}
+
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   pnpm install
   pnpm run setup
   start_postgres
   link_playwright_shell
+  print_state_digest
   exit 0
 fi
 
@@ -320,3 +338,5 @@ else
   echo "session-start: 'pnpm run setup' did not succeed; apps/web/.env.local may be missing," >&2
   echo "session-start: which breaks 'pnpm dev', 'db:*' and 'test:e2e'. Run 'pnpm setup' by hand." >&2
 fi
+
+print_state_digest
