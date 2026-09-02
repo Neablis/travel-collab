@@ -99,6 +99,7 @@ describe("a dialog longer than the viewport", () => {
     // `min-h-0` is load-bearing beside `flex-1`: a flex item's default
     // `min-height: auto` refuses to shrink below its content, so the body would
     // grow the capped box instead of scrolling inside it.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const body = screen.getByText("body").parentElement!;
     expect(body.className).toContain("overflow-y-auto");
     expect(body.className).toContain("min-h-0");
@@ -114,6 +115,7 @@ describe("a dialog longer than the viewport", () => {
     // slices the left edge off a `w-full` control's focus ring (Mitchell,
     // preview feedback on PR #55 — reported twice). `-mx-1 px-1` gives the ring
     // room and cancels the shift.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const body = screen.getByText("body").parentElement!;
     expect(body.className).toContain("-mx-1");
     expect(body.className).toContain("px-1");

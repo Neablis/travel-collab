@@ -66,6 +66,7 @@ describe("TripCard", () => {
     unmount();
 
     render(<TripCard trip={trip} />);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByTestId("accent-bar").className).toBe(firstClass);
   });
 

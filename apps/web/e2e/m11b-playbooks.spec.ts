@@ -49,6 +49,7 @@ async function signedInAs(browser: Browser, username: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto("/signup");
   await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
     page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),

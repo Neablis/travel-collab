@@ -347,6 +347,7 @@ describe("TimelineLens", () => {
   // that day — its dialog and save are KeepDayFlag.test.tsx's subject.
   it("puts a live keep-day pennant on the day header", () => {
     renderLens();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector('[data-preview-id="keep-day-flag"]')).toBeNull();
     const flag = screen.getByRole("button", { name: "Keep day 1" });
     expect(flag.hasAttribute("disabled")).toBe(false);
@@ -354,6 +355,7 @@ describe("TimelineLens", () => {
 
   it("renders the ghost Ask affordance inert, inside the timeline-ghost Preview region", () => {
     renderLens();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const region = document.querySelector('[data-preview-id="timeline-ghost"]');
     expect(region).not.toBeNull();
     expect(within(region as HTMLElement).getByRole("button", { name: "Ask" })).not.toBeNull();
@@ -368,6 +370,7 @@ describe("TimelineLens", () => {
     renderLensWithFocusControl();
     await userEvent.click(screen.getByRole("button", { name: "focus day 0" }));
     const card = screen.getByTestId("ghost-proposal-g1");
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const region = card.closest('[data-preview-id="timeline-ghost"]');
     expect(region).not.toBeNull();
     expect(within(card).getByText("Add teamLab Planets")).not.toBeNull();

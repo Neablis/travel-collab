@@ -99,6 +99,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
     budgetInput.press("Tab"),
   ]);
   await page.getByRole("button", { name: "Close" }).click();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 
   // -- undo the last cost edit: the budget field and the warning both revert --
@@ -116,5 +117,6 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   // -- dismiss the (now-restored) warning: it stays dismissed --
   await page.getByRole("button", { name: /^Dismiss:/ }).click();
+  // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/exceeds the budget/)).not.toBeVisible();
 });

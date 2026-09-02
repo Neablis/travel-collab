@@ -59,6 +59,7 @@ describe("BudgetChip", () => {
       />,
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const track = container.querySelector(".bg-moss");
     expect(track?.className).toContain("w-full");
     expect((track as HTMLElement | null)?.style.width).toBe("");
