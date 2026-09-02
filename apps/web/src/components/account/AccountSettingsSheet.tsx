@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DistanceUnit, UpdateUserPreferences } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
@@ -45,11 +45,16 @@ export function AccountSettingsSheet({
   /** From the session, and read-only here — Identity owns it, the provider sets it. */
   email: string;
 }) {
-  const { preferences, save } = useAccountPreferences();
+  const { preferences, loaded, save } = useAccountPreferences();
   const [name, setName] = useState(preferences.displayName ?? "");
   const [airport, setAirport] = useState(preferences.homeAirport ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
   const [airportError, setAirportError] = useState<string | null>(null);
+  const [unitError, setUnitError] = useState<string | null>(null);
+  // Set the moment someone types, cleared once their value is committed or
+  // reverted. It is what stops the resync below from overwriting an edit in
+  // progress — see the comment there.
+  const editing = useRef({ name: false, airport: false });
 
   // Controlled fields seeded from stored state, resynced whenever it moves.
   // The server NORMALIZES `homeAirport` (trim + uppercase) and refuses a
@@ -57,8 +62,21 @@ export function AccountSettingsSheet({
   // actually saved rather than what was typed — someone entering `sfo` sees
   // `SFO` land, which is the only way the normalization is visible as a
   // decision rather than as the client and the server quietly disagreeing.
-  useEffect(() => setName(preferences.displayName ?? ""), [preferences.displayName]);
-  useEffect(() => setAirport(preferences.homeAirport ?? ""), [preferences.homeAirport]);
+  //
+  // **Guarded on the field being untouched, found by review on #112.** The
+  // resync fires on any `preferences` change, not only this field's own save,
+  // and the provider replaces the whole object — so typing a name and then
+  // flipping the distance unit saved the unit, pushed new preferences, and
+  // wiped the half-typed name out of the box underneath the person's cursor.
+  // The pre-fetch case is the same defect from the other end: the Sheet seeds
+  // from the provider's DEFAULTS, so opening it before the first fetch lands
+  // showed empty fields and then overwrote whatever had been typed into them.
+  useEffect(() => {
+    if (!editing.current.name) setName(preferences.displayName ?? "");
+  }, [preferences.displayName]);
+  useEffect(() => {
+    if (!editing.current.airport) setAirport(preferences.homeAirport ?? "");
+  }, [preferences.homeAirport]);
 
   // Commit on blur, not per keystroke — the same shape the trip settings sheet
   // uses for the trip name, and for the same reason: a PATCH per character is
@@ -69,6 +87,10 @@ export function AccountSettingsSheet({
     revert: () => void,
   ) {
     const result = await save(patch);
+    // Committed or rejected, the field is no longer an edit in progress: either
+    // the stored value now matches it, or `revert()` below is about to put the
+    // stored value back. Cleared before both so the resync above is free again.
+    editing.current = { name: false, airport: false };
     if (result.ok) {
       setError(null);
       return;
@@ -92,9 +114,13 @@ export function AccountSettingsSheet({
           >
             <Input
               id="account-display-name"
+              disabled={!loaded}
               value={name}
               placeholder="Your name"
-              onChange={(e) => setName(e.currentTarget.value)}
+              onChange={(e) => {
+                editing.current.name = true;
+                setName(e.currentTarget.value);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
                 else if (e.key === "Escape") {
@@ -143,11 +169,15 @@ export function AccountSettingsSheet({
           >
             <Input
               id="account-home-airport"
+              disabled={!loaded}
               value={airport}
               placeholder="SFO"
               maxLength={3}
               autoCapitalize="characters"
-              onChange={(e) => setAirport(e.currentTarget.value)}
+              onChange={(e) => {
+                editing.current.airport = true;
+                setAirport(e.currentTarget.value);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
                 else if (e.key === "Escape") {
@@ -187,9 +217,31 @@ export function AccountSettingsSheet({
               aria-label="Distance units"
               value={preferences.distanceUnit}
               options={UNIT_OPTIONS}
-              onValueChange={(distanceUnit) => void save({ distanceUnit })}
+              onValueChange={(distanceUnit) => {
+                // Not before the first fetch resolves: until then
+                // `preferences` is the provider's DEFAULTS, and saving from
+                // that state would write a default over a value this Sheet has
+                // never seen. The text fields are disabled for the same window;
+                // this control has no `disabled` prop, so the guard lives here
+                // rather than widening a shared primitive for one caller.
+                if (!loaded) return;
+                void (async () => {
+                  // Surfaced, not swallowed. The other two fields show
+                  // `result.error.message`; this one discarded the result, so a
+                  // 401/404/500 left the toggle looking switched with nothing
+                  // stored behind it — a settings control that lies about
+                  // having saved. Found by review on #112.
+                  const result = await save({ distanceUnit });
+                  setUnitError(result.ok ? null : result.error.message);
+                })();
+              }}
             />
           </div>
+          {unitError !== null && (
+            <Text variant="secondary" className="mt-2 text-[color:var(--danger-fg,#b42318)]">
+              {unitError}
+            </Text>
+          )}
         </div>
       </div>
     </Sheet>

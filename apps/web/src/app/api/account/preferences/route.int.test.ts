@@ -8,7 +8,7 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-const { GET, PATCH } = await import("./route");
+const { GET, PATCH, NO_ACCOUNT_CODE } = await import("./route");
 
 // No truncation: every test mints its own id, the convention the sibling route
 // int tests use.
@@ -138,6 +138,16 @@ describe("PATCH /api/account/preferences", () => {
     currentUserId = newUserId();
     const res = await patch({ distanceUnit: "mi" });
     expect(res.status).toBe(404);
+
+    // The settings Sheet renders `error` verbatim, so it has to be a sentence
+    // for a person, with the branchable identifier in `code` beside it. This
+    // used to be `error: "no-account"` — a log identifier shown to a signed-in
+    // user (review, #112).
+    const body = (await res.json()) as { error: string; code: string };
+    expect(body.code).toBe(NO_ACCOUNT_CODE);
+    expect(body.error).not.toBe(NO_ACCOUNT_CODE);
+    expect(body.error).toMatch(/sign out/i);
+
     expect((await GET()).status).toBe(200);
   });
 });

@@ -11,6 +11,13 @@ import { readPreferences, writePreferences } from "@/server/users";
 // of it. Same shape as `saved-day-access.ts`'s first three lines, without the
 // part that exists because a saved day belongs to somebody.
 
+/**
+ * The session names a user row that does not exist — a stale cookie against a
+ * reset database, most often. Named after the reason and branchable without
+ * matching prose, the same convention as `DEMO_TRIP_UNSUPPORTED_CODE`.
+ */
+export const NO_ACCOUNT_CODE = "no-account";
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -77,7 +84,16 @@ export async function PATCH(request: Request) {
   // callback is the Identity module's only creator of rows, and it sits behind
   // the admission gate (M11a). A settings PATCH must not be a second door.
   if (preferences === null) {
-    return Response.json({ error: "no-account" }, { status: 404 });
+    // Prose for the person, a stable code for the client — the shape every
+    // other refusal in this app uses (`demo-trip-unsupported`,
+    // `ai-not-entitled`). It was a bare `"no-account"` in the `error` field,
+    // which the settings Sheet renders verbatim: the one string a signed-in
+    // person could be shown here was an identifier written for a log. Found by
+    // review on #112.
+    return Response.json(
+      { error: "Your account could not be found. Sign out and back in.", code: NO_ACCOUNT_CODE },
+      { status: 404 },
+    );
   }
   return Response.json({ preferences: UserPreferences.parse(preferences) });
 }
