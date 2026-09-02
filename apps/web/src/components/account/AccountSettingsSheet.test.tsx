@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
@@ -12,8 +12,15 @@ let stored: UserPreferences = { displayName: null, homeAirport: null, distanceUn
 let refuse: string | null = null;
 const patches: UpdateUserPreferences[] = [];
 
+// Set by `pendSave` to hold the NEXT save open, so a draft can be typed while
+// an earlier save is still in flight.
+let holdSave: (() => void) | null = null;
+
 const updatePreferencesMock = vi.fn(async (patch: UpdateUserPreferences) => {
   patches.push(patch);
+  if (holdSave !== null) {
+    await new Promise<void>((go) => (holdSave = go));
+  }
   if (refuse !== null) return { ok: false as const, error: { status: 400, message: refuse } };
   stored = {
     ...stored,
@@ -39,6 +46,16 @@ vi.mock("@/lib/apiClient", () => ({
   updatePreferences: (patch: UpdateUserPreferences) => updatePreferencesMock(patch),
 }));
 
+/** Make the next `updatePreferences` hang until the returned function is called. */
+function pendSave() {
+  holdSave = () => {};
+  return () => {
+    const go = holdSave;
+    holdSave = null;
+    go?.();
+  };
+}
+
 /** Make the next `fetchPreferences` hang until the returned function is called. */
 function pendFetch() {
   holdFetch = () => {};
@@ -59,6 +76,7 @@ function mount() {
 
 beforeEach(() => {
   holdFetch = null;
+  holdSave = null;
   stored = { displayName: null, homeAirport: null, distanceUnit: "km" };
   refuse = null;
   patches.length = 0;
@@ -176,6 +194,38 @@ describe("AccountSettingsSheet", () => {
 
       release();
       await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" })).toBeTruthy());
+    });
+
+    // Asked for in review on pull request 112, as the reachable half of the
+    // resync guard — and reachable without faking a second writer, which is
+    // what the earlier note said could not be done. It can: the person's own
+    // in-flight save is the second writer.
+    //
+    // Commit a name, keep typing while that save is still in flight, then let
+    // it land. `preferences.displayName` changes from null to the committed
+    // value, which re-runs the resync — and the draft typed since must survive.
+    it("keeps a newer draft when an earlier name save lands", async () => {
+      const release = pendSave();
+      mount();
+      const name = await screen.findByLabelText(/your name/i);
+
+      await userEvent.type(name, "Sam");
+      (name as HTMLInputElement).blur();
+      await waitFor(() => expect(updatePreferencesMock).toHaveBeenCalled());
+
+      // Still typing while the save is in flight.
+      await userEvent.type(name, " Smith");
+
+      // `act` rather than `waitFor`: the resync is an effect, and the thing
+      // being asserted is that it did NOT change the field. A `waitFor` on the
+      // input's existence would pass whether or not the effect ever ran, which
+      // is the vacuity this repo keeps catching — an earlier draft of this test
+      // did exactly that and passed with the guard removed.
+      await act(async () => {
+        release();
+      });
+
+      expect((screen.getByLabelText(/your name/i) as HTMLInputElement).value).toBe("Sam Smith");
     });
   });
 });
