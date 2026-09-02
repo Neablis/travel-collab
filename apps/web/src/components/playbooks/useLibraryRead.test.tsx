@@ -99,6 +99,33 @@ describe("useLibraryRead's changed signal", () => {
     expect(result.current.changed).toBe(false);
   });
 
+  // "It suppresses the comparison, it does not dismiss anything" was written on
+  // `refreshWithoutComparing` and nowhere enforced: every other test here calls
+  // it while `changed` is already false, so a `setChanged(false)` added to the
+  // silent path would have passed all of them (CodeRabbit, PR #123). That line
+  // is not cosmetic — the shared day refreshes after its own publish, and a
+  // banner standing at that moment is somebody ELSE's change, which the author
+  // has not seen and would never be told about again.
+  it("leaves a banner from an earlier genuine change standing", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    // Somebody else moves the library while the page sits open.
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.changed).toBe(true));
+
+    // …and only now does the reader publish, which re-reads silently. Waiting
+    // on `data` rather than asserting straight away: `changed` is already true,
+    // so a `waitFor` on it would pass before the refresh had settled and prove
+    // nothing about what the refresh did.
+    read.mockResolvedValue(ok("c"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("c"));
+    expect(result.current.changed).toBe(true);
+  });
+
   // The half that keeps the fix from being a deletion of the feature. A silent
   // refresh moves the baseline forward; it does not switch the comparison off,
   // so the next genuine external change is caught — and is measured against
