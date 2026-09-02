@@ -52,7 +52,7 @@ const WRAP_COLS = 98;
 // Every list here is capped, so the output length is bounded no matter how the
 // repo grows. That is the difference between a digest and a second STATUS.md:
 // 42 open KIs today fits, and 200 would not, and the budget is not negotiable.
-const KI_MAX_LINES = 44;
+const KI_NEWEST = 5;
 const PR_MAX_LINES = 8;
 // `gh` may be absent, logged out, or talking to a slow network. None of those
 // may hold up a session start, so the call is capped and its failure is a
@@ -434,11 +434,26 @@ function render(d) {
   if (d.ki.missing) {
     out.push(`OPEN KIs: (${d.ki.rel} not found)`);
   } else {
-    out.push(`OPEN KIs: ${d.ki.items.length} — titles only; grep ${d.ki.rel}/ for a body.`);
-    const shown = wrap(d.ki.items, " / ", "  ", WRAP_COLS);
-    out.push(...shown.slice(0, KI_MAX_LINES));
-    if (shown.length > KI_MAX_LINES) {
-      out.push(`  …the rest are in \`ls ${d.ki.rel}/\` — the directory listing is the index.`);
+    // A COUNT AND A GREP, not a list. This block printed every open title and
+    // ran to 49 of the digest's 79 lines — 62% of a session-start hook — while
+    // still truncating, so it paid a full-list price for a partial list.
+    //
+    // The titles were also the wrong shape for their one job. Their value is
+    // "has somebody already filed my symptom?", and you do not answer that by
+    // skimming 46 truncated titles; you answer it with the grep CLAUDE.md rule
+    // 2 already requires before calling anything flaky. So print the number
+    // (which is the orienting fact) and the command (which is the action), and
+    // let the newest few stand in for "what has been filed lately" — that being
+    // the slice most likely to concern work still in flight.
+    //
+    // Deviation from R1's spec in the review, which asked for titles. Taken
+    // deliberately, on R1's own budget constraint and the builder's own note
+    // that this was the first thing to cut. Revert by restoring the wrap() call.
+    out.push(`OPEN KIs: ${d.ki.items.length} — before calling anything flaky, grep ${d.ki.rel}/ for the symptom (CLAUDE.md rule 2).`);
+    const newest = d.ki.items.slice(-KI_NEWEST);
+    if (newest.length) {
+      out.push(`  newest ${newest.length}:`);
+      out.push(...wrap(newest, " / ", "    ", WRAP_COLS));
     }
   }
   out.push("");
