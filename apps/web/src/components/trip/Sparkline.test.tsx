@@ -170,12 +170,15 @@ describe("Sparkline", () => {
         ]}
       />,
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const columns = Array.from(container.querySelectorAll<HTMLElement>("[data-testid='sparkline-day']"));
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(columns.map((column) => column.querySelectorAll('[aria-hidden="true"]').length)).toEqual([4, 2, 5, 1]);
 
     // Every block in the graph is the same height — the column's height is
     // the count, nothing else.
     const heights = new Set(
+      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       Array.from(container.querySelectorAll<HTMLElement>('[aria-hidden="true"]'), (block) => block.style.height),
     );
     expect(heights.size).toBe(1);
@@ -205,8 +208,10 @@ describe("Sparkline", () => {
         ]}
       />,
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const columns = container.querySelectorAll("[data-testid='sparkline-day']");
     expect(columns).toHaveLength(2);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(columns[1]!.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
   });
 
@@ -221,9 +226,12 @@ describe("Sparkline", () => {
         ]}
       />,
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const [kyoto, osaka] = Array.from(container.querySelectorAll<HTMLElement>('[aria-hidden="true"]'));
     expect(kyoto!.style.backgroundColor).toBe("");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(kyoto!.className).toMatch(/\bbg-(brand|info|success|warning|danger)\b/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(kyoto!.className).not.toBe(osaka!.className);
   });
 
@@ -240,6 +248,7 @@ describe("Sparkline", () => {
     const list = screen.getByRole("list", { name: "Cities visited" });
     expect(screen.getByText("Tokyo · 2")).toBeTruthy(); // two days, not two stops
     expect(screen.getByText("Kyoto · 1")).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(list.querySelectorAll('[role="listitem"]')).toHaveLength(2);
   });
 

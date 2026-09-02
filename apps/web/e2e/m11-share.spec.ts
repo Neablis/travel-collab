@@ -43,6 +43,7 @@ async function shareLinkFor(page: Page, tripName: string): Promise<string> {
   const copy = page.getByRole("button", { name: "Copy share link" }).first();
   await expect(copy).toBeVisible();
   const link = await copy.getAttribute("title");
+  // eslint-disable-next-line playwright/prefer-web-first-assertions -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   expect(link, `no share link on the panel for ${tripName}`).toBeTruthy();
   return link!;
 }

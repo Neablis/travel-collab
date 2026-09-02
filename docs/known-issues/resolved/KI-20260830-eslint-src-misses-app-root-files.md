@@ -8,3 +8,22 @@
 - **Why not fixed here:** found by the KI-96 unit while fixing an unrelated fixture in one of these files, and outside that entry's declared Area. It was recorded inside KI-96's resolved entry, where it would have become invisible the moment that entry moved to `resolved/` — this entry exists so the finding outlives the fix it was noticed during.
 - **Cross-reference:** KI-96 (resolved — the fixture whose file exposed this), KI-51 (resolved — the colour wall being blind to untracked files, the same species of guard-with-a-gap), KI-66 (`next.config.ts`'s CSP, one of the unlinted files), `docs/guidelines/quality-enforcement.md`.
 - **First noted:** 2026-08-30, during the KI sweep.
+
+---
+
+- **Resolved 2026-09-02** (the test-quality wall PR). `apps/web`'s lint script
+  is now `eslint src e2e *.ts`. The twelve root-level files and all 30 e2e specs
+  are in the lane, and — as this entry predicted from a hand-run — **all of them
+  were already clean**, so widening the script fixed nothing and started
+  guarding everything. That was the entire point of the entry.
+- **The e2e half turned out to matter more than the root-file half.** Nothing
+  under `e2e/` was linted at all, which is why `scripts/check-sleep-wall.mjs`
+  had to be a standalone script rather than an ESLint rule. Widening the lane is
+  what let `eslint-plugin-playwright` land at the same time; it found 27 real
+  findings in specs no linter had ever read (grandfathered under KI-2026-09-02-b).
+- **The companion question this entry asked, answered:**
+  `scripts/check-lint-wall.mjs` does **not** share the blind spot — it is a
+  fixture-based self-test of the ESLint config, not a tree scanner, so it has no
+  glob to widen. `scripts/check-color-wall.mjs` does glob `apps/web/src/**`, and
+  that scope is deliberate rather than a gap: it is a design-system wall and
+  neither `next.config.ts` nor an e2e spec is product UI. Left as is, knowingly.

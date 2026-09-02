@@ -571,6 +571,7 @@ describe("TripBoardScreen", () => {
     const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i);
     fireEvent.change(box, { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy());
 
     askAssistantMock.mockImplementation(answers("Four stops."));
@@ -601,6 +602,7 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Five stops.")).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
@@ -773,6 +775,7 @@ describe("TripBoardScreen", () => {
     // real ceiling here rather than the client stopping short of the server's.
     for (let n = 1; n <= 20; n++) await ask(n);
     expect(askCall(19).messages).toHaveLength(39);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText(/reached its limit of 40 messages/)).toBeTruthy());
 
     // The composer is gone, so there is no 21st ask to make…
@@ -806,6 +809,7 @@ describe("TripBoardScreen", () => {
     }
     // 34 messages posted-so-far leaves room for three more questions, which is
     // where the warning starts — with room to finish the thought you are in.
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Room for 3 more questions in this conversation.")).toBeTruthy());
     expect(screen.getByPlaceholderText(/ask about this (?:day|trip)/i)).toBeTruthy();
   });
@@ -821,6 +825,7 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "First ask" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
 
     // A second ask that fails must not leave the previous answer's Simulated
@@ -949,6 +954,7 @@ describe("TripBoardScreen", () => {
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     expect(screen.getByText("Simulated")).toBeTruthy();
   });
@@ -1083,6 +1089,7 @@ describe("lens bottom-margin exemption for the full-bleed Map lens", () => {
     const { container } = renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const content = container.querySelector(".trip-board-content");
     expect(content?.classList.contains("full-bleed")).toBe(false);
 
@@ -1124,6 +1131,7 @@ describe("assistant rail visibility", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /assistant/i }));
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
 
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
@@ -1334,6 +1342,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
 
     // The board, not just the card: this is the assertion Ruling A is about.
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Coffee at Fuglen")).toBeTruthy());
     expect(applyProposalMock).toHaveBeenCalledTimes(1);
     const [tripIdArg, proposalArg] = applyProposalMock.mock.calls[0] as [string, { commands: unknown[] }];

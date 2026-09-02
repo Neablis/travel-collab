@@ -83,6 +83,7 @@ describe("KeepDayFlag", () => {
 // assertion here would be asserting jsdom's defaults. The class is the seam —
 // `globals.css` owns the keyframes and the `prefers-reduced-motion` drop.
 describe("the keep-day pennant's wave", () => {
+  // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   const wavingFlag = () => document.querySelector(".flag-wave");
 
   it("does not wave until it is pressed", () => {
