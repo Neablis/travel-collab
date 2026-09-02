@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PageContent } from "@tc/contracts";
 import { askAssistant, ASK_ABORTED_CODE } from "@/lib/apiClient";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +43,33 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
   // (`SIMULATED_HEADER`, handleAskRequest.ts).
   const [simulated, setSimulated] = useState(false);
   // Only one draft can be in flight (the button and Enter are both disabled
-  // while loading), so one ref is enough to make the panel's unmount or a
-  // second submit stop a turn still running on the operator's key.
+  // while loading), so one ref is enough to hold the turn still running on the
+  // operator's key.
   const abort = useRef<AbortController | null>(null);
+
+  // **The cleanup is what makes the sentence above true.** Until it existed,
+  // this ref was written and never read: nothing called `abort()`, so the
+  // claim that unmounting stops a turn was a comment with nothing enforcing it
+  // — the species AGENTS.md names, and caught here by two reviewers rather
+  // than by a test.
+  //
+  // Keyed on `tripId`/`pageId`, not just unmount, because the panel does NOT
+  // unmount when the Notebook moves to a different page: it re-renders with
+  // new props. A turn started for the old page would otherwise still be
+  // running, and its draft would land in the page now on screen.
+  //
+  // Resetting status here is part of the same fix: an aborted turn returns
+  // through the `ASK_ABORTED_CODE` branch below, which deliberately shows
+  // nothing, so without this the freshly-pointed panel would sit on the
+  // previous page's "loading" forever.
+  useEffect(() => {
+    setStatus("idle");
+    setError(null);
+    return () => {
+      abort.current?.abort();
+      abort.current = null;
+    };
+  }, [tripId, pageId]);
 
   const submit = async () => {
     if (prompt.trim() === "") return;
@@ -75,6 +99,14 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
       },
       controller.signal,
     );
+
+    // **Identity, not a mounted flag.** The cleanup above clears the ref, so
+    // `abort.current !== controller` is exactly "this turn was abandoned" —
+    // whether by unmount or by the panel being re-pointed at another page. A
+    // mounted flag would not do: on a re-point the panel stays mounted, so a
+    // stale turn would pass the check and apply the previous page's draft to
+    // the one now on screen.
+    if (abort.current !== controller) return;
     abort.current = null;
 
     if (composed !== null) {

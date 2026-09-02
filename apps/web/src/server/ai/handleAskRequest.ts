@@ -540,7 +540,23 @@ export async function handleAskRequest(
       // callback dispatch, long after the Response was returned. `settleAiSteps`
       // never refuses and never throws (see its comment) — a counter write must
       // not turn an answer the user already has into an error.
-      settled = settleAiSteps(aiStepQuotas(), userId, record.steps);
+      //
+      // **The classifier's own round-trip is counted here, not by the agent.**
+      // `record.steps` is observed from `agent.onStepEnd`, so it can only ever
+      // see steps the agent took; `classifyAskIntent` runs BEFORE the agent
+      // exists and spends `selected.classifierModel` on the same key. Settling
+      // `record.steps` alone therefore under-meters every classified turn by
+      // exactly one — an editor turn can cost nine round-trips and settle
+      // eight. That is the same shape as KI-67 itself (a control that does not
+      // bound the thing it exists to bound), reintroduced inside the fix for
+      // it, which is why it is spelled out rather than left to the arithmetic.
+      //
+      // `source` distinguishes the two paths: `"model"` means the call was
+      // made, `"affirmation"` means the classifier short-circuited on a bare
+      // "yes" and spent nothing. A page turn is not classified at all
+      // (`classification` is null), so it adds nothing.
+      const classifierSteps = record.classification?.source === "model" ? 1 : 0;
+      settled = settleAiSteps(aiStepQuotas(), userId, record.steps + classifierSteps);
     },
   });
 

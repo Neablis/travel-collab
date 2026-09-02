@@ -974,17 +974,34 @@ describe("POST /api/trips/:id/ask", () => {
       const steps = records[0]!.steps;
       expect(steps).toBeGreaterThan(1);
 
+      // **The classifier's round-trip counts too, and this assertion used to
+      // say otherwise.** `records[].steps` is observed from the agent's own
+      // `onStepEnd`, so it cannot see `classifyAskIntent` — a separate call on
+      // the same key, made before the agent exists. Asserting `steps` alone
+      // encoded an under-meter of exactly one per classified turn, which is
+      // KI-67's own shape reintroduced inside the fix for it. Found by review
+      // on PR #110.
+      //
+      // An editor's trip turn IS classified, so this is the +1 path; the page
+      // turn below is the 0 path, because a verified page scope skips
+      // classification entirely.
+      expect(records[0]!.classification!.source).toBe("model");
+      const expected = steps + 1;
+
       const hitsByBucket = new Map(
         (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
       );
       const stepPolicy = aiStepQuotas()[0]!.name;
-      expect(hitsByBucket.get(`${stepPolicy}:user:${ACTOR_ID}`)).toBe(steps);
-      expect(hitsByBucket.get(`${stepPolicy}:global`)).toBe(steps);
+      expect(hitsByBucket.get(`${stepPolicy}:user:${ACTOR_ID}`)).toBe(expected);
+      expect(hitsByBucket.get(`${stepPolicy}:global`)).toBe(expected);
       expect(hitsByBucket.get(`ai-hourly:user:${ACTOR_ID}`)).toBe(1);
     });
 
     // The same settlement on a page turn, because that is the shape that just
-    // moved here and it is the one that used to be metered correctly.
+    // moved here and it is the one that used to be metered correctly. It is
+    // also the contrast that makes the classifier arithmetic above legible: a
+    // page turn is never classified, so its settled count is `steps` exactly,
+    // with no +1.
     it("charges the step bucket for a page turn too", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId);

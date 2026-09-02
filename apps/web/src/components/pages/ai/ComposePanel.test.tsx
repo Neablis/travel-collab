@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import { ASK_ABORTED_CODE } from "@/lib/apiClient";
 
 const askAssistantMock = vi.fn();
 
@@ -168,5 +169,65 @@ describe("ComposePanel", () => {
     // — `getBy*` throws when the accessible name does not match exactly.
     expect(screen.getByLabelText("Ask AI to draft this page")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy();
+  });
+
+  // Both reviewers on PR #110 found the same defect: the abort ref was written
+  // and never read, so the comment claiming unmount stops a turn had nothing
+  // enforcing it. These two tests are that enforcement — without the cleanup
+  // and the identity check in ComposePanel, each fails.
+  describe("a turn the panel has walked away from", () => {
+    /** A turn that never resolves until `release()` is called. */
+    function heldTurn() {
+      let release!: (e: AskEvent) => void;
+      const started = new Promise<void>((ready) => {
+        askAssistantMock.mockImplementation(
+          async (
+            _tripId: string,
+            _messages: AskWireMessage[],
+            _scope: AskScope,
+            onEvent: (e: AskEvent) => void,
+            signal: AbortSignal,
+          ) => {
+            release = onEvent;
+            ready();
+            await new Promise<void>((done) => signal.addEventListener("abort", () => done()));
+            return { ok: false as const, error: { status: 0, message: "aborted", code: ASK_ABORTED_CODE } };
+          },
+        );
+      });
+      return { started, emit: (e: AskEvent) => release(e) };
+    }
+
+    it("aborts the request when the panel unmounts", async () => {
+      const turn = heldTurn();
+      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+      await type("Draft it");
+      await userEvent.click(screen.getByRole("button", { name: "Generate" }));
+      await turn.started;
+
+      const signal = askAssistantMock.mock.calls[0]![4] as AbortSignal;
+      expect(signal.aborted).toBe(false);
+      view.unmount();
+      expect(signal.aborted).toBe(true);
+    });
+
+    // The one a mounted-flag guard would not catch: the panel stays mounted
+    // when the Notebook moves to another page, so a stale turn would otherwise
+    // apply the previous page's draft to the page now on screen.
+    it("does not apply a draft from the page it used to be pointed at", async () => {
+      const turn = heldTurn();
+      const onApply = vi.fn();
+      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={onApply} />);
+      await type("Draft it");
+      await userEvent.click(screen.getByRole("button", { name: "Generate" }));
+      await turn.started;
+
+      const OTHER = "11111111-2222-4333-8444-555555555555";
+      view.rerender(<ComposePanel tripId="t1" pageId={OTHER} onApply={onApply} />);
+      turn.emit({ type: "page", title: "Stale", content: DOC });
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy());
+      expect(onApply).not.toHaveBeenCalled();
+    });
   });
 });
