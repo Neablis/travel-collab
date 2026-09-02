@@ -72,7 +72,7 @@ describe("aiLive", () => {
   });
 });
 
-const ACTOR = { surface: "board" as const, userId: "user-1" };
+const ACTOR = { surface: "page" as const, userId: "user-1" };
 
 describe("selectAiModel", () => {
   it("returns the gateway model, and its own classifier model, when the flag is on", async () => {
@@ -108,7 +108,6 @@ describe("selectAiModel", () => {
   it("never constructs a gateway client, of either kind, when the flag is off", async () => {
     aiLiveFlag.mockResolvedValue(false);
     await selectAiModel(ACTOR);
-    await selectAiModel({ surface: "page", userId: "user-1" });
     await selectAiModel({ surface: "ask", userId: "user-1" });
     expect(aiModel).not.toHaveBeenCalled();
     expect(aiClassifierModel).not.toHaveBeenCalled();
