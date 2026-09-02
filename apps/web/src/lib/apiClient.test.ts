@@ -8,7 +8,6 @@ import {
   askAssistant,
   cloneSharedTrip,
   composeAiPage,
-  composeAiPlan,
   createSavedDay,
   createTrip,
   createTripInvite,
@@ -186,7 +185,6 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   sendTripCommandBatch: () =>
     sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
   composeAiPage: () => composeAiPage(TRIP_ID, "plan it", { tripId: TRIP_ID }),
-  composeAiPlan: () => composeAiPlan(TRIP_ID, "plan it", "board"),
   duplicateTrip: () => duplicateTrip(TRIP_ID),
   resetDemoData: () => resetDemoData(),
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),

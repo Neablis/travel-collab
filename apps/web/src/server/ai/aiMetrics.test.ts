@@ -20,6 +20,7 @@ vi.mock("@sentry/nextjs", () => ({
 import {
   recordAskMetrics,
   recordCommandMetrics,
+  type CommandMetricsRecord,
   recordProposalApplyMetrics,
   splitModelId,
 } from "@/server/ai/aiMetrics";
@@ -383,8 +384,11 @@ describe("recordAskMetrics", () => {
 });
 
 describe("recordCommandMetrics", () => {
-  const COMMAND = {
-    surface: "board",
+  // Annotated, not inferred: `surface` is a narrowed union, and an unannotated
+  // object literal widens it to `string` — which is how this fixture went on
+  // reporting a retired surface after ADR-033 deleted it.
+  const COMMAND: CommandMetricsRecord = {
+    surface: "page",
     model: "anthropic/claude-haiku-4-5",
     simulated: false,
     finishReason: "stop",
@@ -399,7 +403,7 @@ describe("recordCommandMetrics", () => {
     recordCommandMetrics(COMMAND);
     expect(counted("ai.command.turns")[0]!.attributes).toMatchObject({
       agent: "command",
-      surface: "board",
+      surface: "page",
       model: "claude-haiku-4-5",
       provider: "anthropic",
       simulated: false,

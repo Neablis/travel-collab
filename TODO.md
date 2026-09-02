@@ -24,7 +24,8 @@ note, and the one consequence it carries for M11b, are in
 on the audit (`docs/reviews/2026-09-01-milestone-audit.md`): M9 turned out to be
 four-sevenths built, and both of ADR-022's grounds for placing it last — polish
 first, sharing first — have since happened. **The order is now
-`M17 → M9 → M12 → M13 → M14 → M19`.** M19 stays last regardless: its link 3
+`M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`** — **M20 and M21 were
+minted and placed 2026-09-01**, after M9, by Mitchell's call. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
 
@@ -319,6 +320,62 @@ Where the work actually stands right now: `docs/STATUS.md`.
       gate boxes (KI-12, KI-93, KI-94+97) and nine carried; the rationale for
       the split is in the milestone file:
       `docs/reviews/2026-09-01-milestone-audit.md`.)*
+
+- [ ] **M20 An account knows what it may do** →
+      `docs/milestones/M20-account-tiers-and-entitlements.md`
+      *(**Minted, scoped and placed 2026-09-01** — the **first commercial
+      milestone**: nothing in the repo had ever described a paid tier, a plan,
+      a price or a payment. Placed after M9 because `ai-live` defaults off and
+      M9's grounding is what would let it be turned on — selling a dark
+      feature was the reason not to place it sooner. Mostly wiring a seam
+      built for it and stubbed since M16: `modelSelection.ts:88` declares
+      `AiEntitlementCheck`, `:89` stubs it `EVERYONE_IS_ENTITLED`, and `:47`
+      says *"the day a pro-tier check exists it lands inside `isEntitled`
+      below, not as a signature change"*. Nine links, the ninth added 2026-09-01 for the
+      financial metrics: an **`ai_usage` cost ledger** storing tokens and
+      models, never dollars (prices move, and `Money`'s integer minor units
+      round a $0.0011 request to zero cents), moved out of M21 because both
+      milestones' pricing decisions are guesses without it. **Plan contents are versioned data, not
+      code** (2026-09-01) — `plan_versions` is immutable and append-only, a
+      purchase pins a version, and changing a price publishes a new one rather
+      than rewriting what anyone was sold; prices become tweakable without a
+      deploy. **A plan is a set, not
+      a rank** — Mitchell's requirement is that tiers are "not necessarily
+      subsets", so copying `accessPolicy.ts:11`'s `RANK` is the obvious move
+      and the wrong one. Trials, referral rewards and admin boosts collapse
+      into **one time-bounded grant with three `source` values**. Free keeps
+      trip planning entire; AI and inviting collaborators are paid. **Takes no
+      money** — the admin grant UI is what proves it without Stripe. Two
+      decisions by Mitchell the day it was scoped: plans are
+      `free | plus | premium` and **defined by enumeration, never by
+      extension** (the ladder is presentation only — nothing in code may know
+      the three nest); on lapse granted memberships **cap at `viewer` on
+      read**, never written to `trip_memberships`; existing accounts get a
+      permanent `founder` grant; the **trial grants `plus` at signup**; and a
+      **referral earns one month of the tier the referrer already holds**, so
+      a free account earns nothing. **Link 5 carries the cost
+      arithmetic**, against the models actually configured
+      (`deepseek/deepseek-v4-flash-0731`, `zai/glm-4.7-flash`) rather than
+      `config.ts`'s compiled Haiku default, which is not what runs: one live
+      request cost ~$0.001 and a fully-maxed account lands at ~$3-25/month,
+      so the ceilings are an abuse bound rather than a margin problem. Needs a migration, and an **ADR is a prerequisite** — it adds an
+      Entitlements module to `AGENTS.md`'s structural-law map.)*
+
+- [ ] **M21 An account can pay for itself** →
+      `docs/milestones/M21-subscriptions-and-billing.md`
+      *(**Minted, scoped and placed 2026-09-01**, immediately after M20.
+      Stripe checkout, the webhook that is the **sole writer** of subscription
+      state, the customer portal, failed payments. **Adds no entitlement and
+      no gate** — if its diff touches `modelSelection.ts`, `quota.ts` or
+      `members.ts`, the split has failed. Split from M20 because M20 is
+      provable with no external service and this is not, because a hand-grant
+      path is permanent infrastructure rather than scaffolding, and because
+      the blast radius here is money. **One decision is Mitchell's before it
+      opens: the plans and their prices** — M20 names plans without pricing
+      them. Also carries the `/ask` step-metering fix
+      (`handleAskRequest.ts:306` charges `aiQuotas()` but never
+      `aiStepQuotas()` or `settleAiSteps`), without which AI cannot be
+      priced.)*
 
 - [ ] **M19 A cost knows who and what it is for** →
       `docs/milestones/M19-cost-model.md`

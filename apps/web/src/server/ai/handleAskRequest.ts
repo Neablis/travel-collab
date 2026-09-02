@@ -54,8 +54,11 @@ import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetr
 
 // Round-trips one question may take. Eight is generous for a read-only turn —
 // three tools, and the shape of a real answer is "read what you need, then
-// speak", which is 2-3 steps — while staying far below the command endpoint's
-// 32, because a question that has taken eight round-trips is not converging.
+// speak", which is 2-3 steps — and a question that has taken eight round-trips
+// is not converging. It was originally sized against the command endpoint's
+// 32-step planning budget, which ADR-033 Decision 4 retired; the sizing
+// argument above never depended on that comparison, and this is now the
+// widest compiled step budget in the app.
 const MAX_ASK_STEPS = 8;
 
 // The tool names this endpoint can offer, by what the turn's actor may do.

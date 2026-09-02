@@ -199,11 +199,11 @@ export async function sendTripCommandBatch(
 }
 
 // Task 5.5: POST /api/trips/:id/ai. `composeAiPage` is the page-authoring
-// surface (returns a validated PageContent doc for the caller to review
-// before it autosaves — see ComposePanel/PageScreen). `composeAiPlan` is the
-// board/combined surface (the server executes 0+ planning tool calls as one
-// atomic batch and returns the resulting detail/history, same shape as
-// sendTripCommandBatch).
+// surface, and since ADR-033 Decision 4 the only one: it returns a validated
+// PageContent doc for the caller to review before it autosaves — see
+// ComposePanel/PageScreen. The board/combined `composeAiPlan` retired with
+// them; changing the trip itself now goes through /ask's
+// propose → review → approve (`askAssistant`/`applyAssistantProposal` below).
 export async function composeAiPage(
   tripId: string,
   prompt: string,
@@ -224,50 +224,6 @@ export async function composeAiPage(
     }
     const data = (await res.json()) as { content: unknown; simulated?: unknown };
     return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
-  } catch (err) {
-    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-  }
-}
-
-// The plan surface returns the same detail/history as a command batch, plus a
-// human-readable `message` summarizing what the AI applied (or why nothing
-// was) — surfaced to the user by ComposePanel.
-// `simulated` is true when the ai-live flag is off: the change really applied,
-// but the server composed it rather than a model. Surfaced so the UI can say so.
-export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
-
-export async function composeAiPlan(
-  tripId: string,
-  prompt: string,
-  surface: "board" | "combined" = "board",
-): Promise<ApiResult<PlanOutcome>> {
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, surface }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-      return {
-        ok: false,
-        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-      };
-    }
-    const data = (await res.json()) as {
-      detail: unknown;
-      history: unknown;
-      message?: unknown;
-      simulated?: unknown;
-    };
-    return {
-      ok: true,
-      value: {
-        ...parseOutcome(data),
-        message: typeof data.message === "string" ? data.message : "",
-        simulated: data.simulated === true,
-      },
-    };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -670,8 +626,8 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 // ---------------------------------------------------------------------------
 // The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
 //
-// Deliberately NOT `composeAiPlan`'s shape. That endpoint applies a batch and
-// answers with a derived receipt; this one answers with the model's own prose,
+// Deliberately NOT `applyAssistantProposal`'s shape. Applying a batch answers
+// with a derived receipt; this one answers with the model's own prose,
 // streamed, and writes nothing. Two channels have to be handled and they are
 // easy to conflate:
 //
@@ -931,6 +887,13 @@ export async function askAssistant(
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
 }
+
+// What applying a batch answers with: the same detail/history a command batch
+// returns, plus the server's derived `message` receipt. Named for the command
+// endpoint's plan surface, which is where it started and which retired with
+// ADR-033 Decision 4 — `/ask/apply` is its only caller now, and `simulated` is
+// always false there (see below).
+export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
 
 /**
  * Approve a proposal — the ONE atomic batch (ADR-013), one history entry, one

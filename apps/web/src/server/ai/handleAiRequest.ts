@@ -1,5 +1,5 @@
 // AI request handler (Task 5.5): wires the Wave 5 pieces (gateway, envelope,
-// planning tools, page tools) into one endpoint's logic. Lives outside
+// page tools) into one endpoint's logic. Lives outside
 // app/api/**/route.ts because Next.js's route-type-checking only allows a
 // route file to export HTTP method handlers + a small set of config fields
 // — any other export (like this function) fails `next build`'s route-shape
@@ -21,86 +21,41 @@
 // established, so the per-user targeting described in the design spec's §6 can
 // later be added to the flag declaration without moving this call site.
 //
-// `geocoder` is different: unlike `model`, it's used by only ONE of the three
-// surfaces (board/combined's enrichment step, well after the `surface ===
-// "page"` branch has already returned), and only when the resolved batch
-// actually has an AddActivity/UpdateActivity with a `location` to look up. A
-// default parameter is evaluated at call time whenever the argument is
-// omitted — which is every real request, since route.ts's `POST` never passes
-// one — so `geocoder: Geocoder = getGeocoder()` here would construct the real
-// LocationIQ geocoder (ADR-007) unconditionally, including for `page`-surface
-// requests that never touch location data at all. `getGeocoder()` throws if
-// LOCATIONIQ_API_KEY is unset, so that would break page-surface (Notebook
-// AI-authoring) on a missing key too. Instead `geocoder` stays optional and is
-// resolved lazily, right where `enrichCommandLocations` needs it — see there.
-// Tests inject a fake `Geocoder` the same way they inject a fake model, so no
-// test needs LOCATIONIQ_API_KEY.
+// ADR-033 Decision 4 retired the `board` and `combined` surfaces from here —
+// neither had a production caller, and /ask supersedes them with
+// propose → review → approve. What is left is the page-authoring surface the
+// Notebook uses. The planning pipeline they drove (`planningTools`,
+// `batchResolver`, `flushPlanningBatch`, `geocodeEnrichment`, `planSummary`)
+// is untouched and still shared: it was always the pipeline, not the door.
 import { z } from "zod";
 import { generateText, isStepCount, type LanguageModel } from "ai";
-import { PageContext, type PageContent, type TripHistory } from "@tc/contracts";
+import { PageContext, type PageContent } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
-import { getTripHistory } from "@/server/history";
 import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { buildEnvelope, type AiCommandSurface } from "@/server/ai/context";
 import { MAX_PROMPT_CHARS } from "@/server/ai/limits";
-import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
 import { buildPageTools, validateComposedPage } from "@/server/ai/pageTools";
-import { summarizeBatch } from "@/server/ai/planSummary";
-import { resolveBatch } from "@/server/ai/batchResolver";
-import {
-  enrichCommandLocations,
-  hasUnverifiedLocations,
-  type LocationEnrichmentReport,
-} from "@/server/ai/geocodeEnrichment";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { recordCommandMetrics, type CommandMetricsRecord } from "@/server/ai/aiMetrics";
-import { getGeocoder, type Geocoder } from "@/server/geocoding";
-
-const STATUS: Record<string, number> = {
-  "invalid-command": 400,
-  forbidden: 403,
-  "trip-not-found": 404,
-  "concurrency-conflict": 409,
-};
 
 const AiRequest = z.object({
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS, `prompt must be ${MAX_PROMPT_CHARS} characters or fewer`),
-  surface: z.enum(["page", "board", "combined"]),
+  surface: z.enum(["page"]),
   pageContext: PageContext.optional(),
 });
 
-// Max tool-call round-trips (steps) per surface. A step is ONE model
-// round-trip, however many tool calls it packs into that message: a model that
-// emits its whole plan at once costs 1 step, one that emits a single call per
-// message costs a step per call. So the planning budget has to cover the WORST
-// case, not the typical one — "a 7-day itinerary with lunches and something
-// nearby" is ~7 AddDay + ~21 AddActivity ≈ 28 calls.
+// Max tool-call round-trips (steps) for a page composition. A step is ONE model
+// round-trip, however many tool calls it packs into that message.
 //
-// The old board budget of 6 was sized for small edits ("AddDay then AddActivity
-// onto it") and silently truncated every itinerary-sized request: the
-// 2026-07-26 run spent all 6 steps on AddDay and returned 6 empty days with
-// zero activities, and the 2026-07-25 run ("15 AddDays across 6 steps") died on
-// the same ceiling. The system prompt now asks for everything in one message,
-// which keeps the usual cost at 1–3 steps; this ceiling is only the backstop
-// for when the model insists on going one at a time. Page composition is still
-// a single compose_page call.
-const MAX_STEPS: Record<AiCommandSurface, number> = { page: 3, board: 32, combined: 32 };
-
-// Operator override for the planning budget, e.g. AI_MAX_STEPS=8 (security
-// review 2026-08-28, H1: 32 round-trips is the per-request blast radius, and
-// until now nothing could turn it down without a deploy). It can only TIGHTEN:
-// `Math.min` against the compiled default means a misconfigured or hostile env
-// var can lower spend but never raise it, and anything that is not a positive
-// integer is ignored rather than treated as "no limit". The page surface is one
-// compose_page call and is not worth a knob.
-function maxStepsFor(surface: AiCommandSurface): number {
-  const ceiling = MAX_STEPS[surface];
-  if (surface === "page") return ceiling;
-  const raw = Number(process.env.AI_MAX_STEPS);
-  return Number.isInteger(raw) && raw > 0 ? Math.min(ceiling, raw) : ceiling;
-}
+// Composing a page is a single `compose_page` call, so 3 is a backstop for a
+// model that wanders, not a budget to spend. The retired planning surfaces
+// carried a 32-step budget and an `AI_MAX_STEPS` operator override sized
+// against a worst-case itinerary (~28 tool calls); neither has anything left to
+// bound here. The step-budget-as-blast-radius argument itself did not retire —
+// it lives on as `MAX_ASK_STEPS` in handleAskRequest.ts, which is the loop that
+// can still run long.
+const MAX_STEPS = 3;
 
 // Per-call retry ceiling passed to generateText (the AI SDK's own retry of
 // transient provider failures). Surfaced in the response `meta` so a caller
@@ -215,12 +170,10 @@ export async function handleAiRequest(
   request: Request,
   tripId: string,
   model?: LanguageModel,
-  geocoder?: Geocoder,
 ): Promise<Response> {
-  // `editor`, not membership: every surface this handler serves WRITES — the
-  // board/combined surfaces execute planning commands as an atomic batch, and
-  // the page surface authors Notebook content. A viewer driving the assistant
-  // would be a viewer editing the trip through a second door (M11 link 3).
+  // `editor`, not membership: this handler WRITES — it authors Notebook
+  // content. A viewer driving the assistant would be a viewer editing the trip
+  // through a second door (M11 link 3).
   const g = await guard(tripId, "editor");
   if ("error" in g) return g.error;
   const { userId, detail } = g;
@@ -270,7 +223,6 @@ export async function handleAiRequest(
   }
   const activeModel = selected.model;
   const { simulated } = selected;
-  const baseNotices = simulated ? [SIMULATED_NOTICE] : [];
 
   // Charged AFTER validation and AFTER model selection, and before the first
   // `generateText`. A malformed request costs the operator nothing, so it must
@@ -293,11 +245,18 @@ export async function handleAiRequest(
   if (!quota.allowed) return quotaRefusal(quota);
 
   const envelope = buildEnvelope({ detail, surface, pageContext });
-  // The ID rules matter: planning tools (Move/Update/Remove) require the
-  // activity's/day's UUID, which the model can only get by copying it verbatim
-  // from the envelope. Without this instruction the model tends to reference
-  // activities by title alone, fail to fill the required id field, and emit
-  // zero tool calls — the trip then comes back unchanged.
+  // Left verbatim by ADR-033's first step, which retired the surfaces but not
+  // this text: most of the rules below (activityRef/dayRef, MoveActivity,
+  // conflictRef, money units) describe planning tools the page surface is not
+  // handed, so they are ~1.5k characters of dead instruction on every request.
+  // Trimming them changes what a live model is told and so changes page
+  // behaviour — a separate, separately-verified change, not a cleanup to fold
+  // in here.
+  //
+  // The ID rules matter where they still apply: a tool that takes a UUID can
+  // only get it by copying it verbatim from the envelope. Without that
+  // instruction the model references things by title alone, fails to fill the
+  // required id field, and emits zero tool calls — nothing then changes.
   const system = [
     "You are the travel-collab planning/authoring assistant.",
     "Use ONLY the context below — no outside knowledge of the trip.",
@@ -318,80 +277,22 @@ export async function handleAiRequest(
     `Context: ${JSON.stringify(envelope)}`,
   ].join("\n");
 
-  if (surface === "page") {
-    const { tools } = buildPageTools();
-    let result;
-    const startedAt = Date.now();
-    try {
-      result = await generateText({
-        model: activeModel,
-        system,
-        prompt,
-        tools,
-        stopWhen: isStepCount(maxStepsFor("page")),
-        maxRetries: AI_MAX_RETRIES,
-        // Names this run in Sentry's AI Agents view. Sentry's `VercelAI`
-        // integration emits the run's spans off the AI SDK's own telemetry
-        // channel; `functionId` is the only thing it cannot infer, and
-        // without it every run in this app is a span called `invoke_agent`.
-        telemetry: { functionId: "compose_page" },
-      });
-    } catch (err) {
-      return Response.json(
-        {
-          error: `model call failed: ${errorMessage(err)}`,
-          simulated,
-          meta: failedMeta(activeModel, Date.now() - startedAt, simulated),
-        },
-        { status: 422 },
-      );
-    }
-    const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
-    // Settle the round-trips this answer actually cost, beyond the one already
-    // pre-authorised (KI-67). Placed immediately after `meta` is built so every
-    // return path below it — composed, not-composed, invalid — is charged the
-    // same: the provider was paid for those steps whatever the handler decides
-    // to do with the result. Never throws; see settleAiSteps.
-    await settleAiSteps(aiStepQuotas(), userId, meta.steps);
-    // Same placement, same reason, different ledger: the metrics count what the
-    // turn spent whatever the handler returns below. Never throws either.
-    recordCommandMetrics(commandMetricsOf("page", meta));
-    // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
-    // GenerateTextResult.toolResults reflected only the last step, which
-    // required manually flattening `result.steps[].toolResults` to find a
-    // compose_page call made on an earlier step). No workaround needed here
-    // anymore.
-    const composed = result.toolResults.find((r) => r.toolName === "compose_page") as
-      | { toolName: string; output: { title: string; content: PageContent } }
-      | undefined;
-    if (!composed) {
-      // meta.toolCalls shows what the model DID do instead of composing.
-      return Response.json({ error: "model did not compose a page", simulated, meta }, { status: 422 });
-    }
-    const validated = validateComposedPage(composed.output.content);
-    if ("error" in validated) {
-      return Response.json({ error: validated.error, simulated, meta }, { status: 422 });
-    }
-    return Response.json({ content: validated, simulated, meta });
-  }
-
-  // board | combined
-  const planning = buildPlanningTools();
-  const tools = surface === "combined" ? { ...planning.tools, ...buildPageTools().tools } : planning.tools;
-  let gen;
+  const { tools } = buildPageTools();
+  let result;
   const startedAt = Date.now();
   try {
-    gen = await generateText({
+    result = await generateText({
       model: activeModel,
       system,
       prompt,
       tools,
-      stopWhen: isStepCount(maxStepsFor(surface)),
+      stopWhen: isStepCount(MAX_STEPS),
       maxRetries: AI_MAX_RETRIES,
-      // See `compose_page` above. `surface` rather than a literal: `board` and
-      // `combined` are different tool sets and different step budgets, and
-      // averaging them together is exactly the comparison this names apart.
-      telemetry: { functionId: `plan_${surface}` },
+      // Names this run in Sentry's AI Agents view. Sentry's `VercelAI`
+      // integration emits the run's spans off the AI SDK's own telemetry
+      // channel; `functionId` is the only thing it cannot infer, and
+      // without it every run in this app is a span called `invoke_agent`.
+      telemetry: { functionId: "compose_page" },
     });
   } catch (err) {
     return Response.json(
@@ -403,127 +304,33 @@ export async function handleAiRequest(
       { status: 422 },
     );
   }
-  const meta = buildAiMeta(gen, activeModel, Date.now() - startedAt, simulated);
-  // As in the page branch above: charge the real round-trip cost here, once,
-  // so every return path below is metered identically (KI-67).
+  const meta = buildAiMeta(result, activeModel, Date.now() - startedAt, simulated);
+  // Settle the round-trips this answer actually cost, beyond the one already
+  // pre-authorised (KI-67). Placed immediately after `meta` is built so every
+  // return path below it — composed, not-composed, invalid — is charged the
+  // same: the provider was paid for those steps whatever the handler decides
+  // to do with the result. Never throws; see settleAiSteps.
   await settleAiSteps(aiStepQuotas(), userId, meta.steps);
+  // Same placement, same reason, different ledger: the metrics count what the
+  // turn spent whatever the handler returns below. Never throws either.
   recordCommandMetrics(commandMetricsOf(surface, meta));
-
-  // Turn the model's raw tool intents (human refs, no UUIDs) into concrete
-  // commands in one batch-aware pass: mint new ids, resolve refs against the
-  // trip AS THE BATCH BUILDS IT, and drop any command whose ref can't be
-  // matched. `resolutionErrors` are the drops — surfaced for the caller.
-  const { commands: resolvedCommands, errors: resolutionErrors } = resolveBatch(planning.getCollected(), detail, {
-    tripId,
-    actorId: userId,
-  });
-  // `no-op` drops are informational (the domain simply had nothing to do), not
-  // something the user needs told "couldn't be matched" — only count real drops.
-  const skipped = resolutionErrors.filter((e) => e.code !== "no-op");
-
-  if (resolvedCommands.length === 0) {
-    const history: TripHistory | null = await getTripHistory(tripId);
-    return Response.json({
-      detail,
-      history,
-      message: withNotices(
-        skipped.length > 0
-          ? "I couldn't match that to anything on your trip, so nothing was applied. Try naming the days and activities as they appear on the board."
-          : "I couldn't turn that into any changes, so nothing was applied.",
-        [...baseNotices, ...(meta.truncated ? [TRUNCATED_NOTICE] : [])],
-      ),
-      simulated,
-      meta,
-      resolvedCommands: [],
-      resolutionErrors,
-    });
+  // AI SDK v7: `result.toolResults` now spans ALL steps (previously, in v4,
+  // GenerateTextResult.toolResults reflected only the last step, which
+  // required manually flattening `result.steps[].toolResults` to find a
+  // compose_page call made on an earlier step). No workaround needed here
+  // anymore.
+  const composed = result.toolResults.find((r) => r.toolName === "compose_page") as
+    | { toolName: string; output: { title: string; content: PageContent } }
+    | undefined;
+  if (!composed) {
+    // meta.toolCalls shows what the model DID do instead of composing.
+    return Response.json({ error: "model did not compose a page", simulated, meta }, { status: 422 });
   }
-
-  // Server-side geocode enrichment (ADR-007). The model is not trusted with
-  // real coordinates, but neither is the geocoder trusted to overrule the
-  // model: a lookup is biased toward the trip's region and accepted only if it
-  // agrees with what we already believe (KI-15). Best-effort — never fails the
-  // request — and everything it could not verify comes back in `report` and is
-  // said out loud in the message. See geocodeEnrichment.ts.
-  const { commands, report: locationReport } = await enrichCommandLocations(
-    resolvedCommands,
-    () => geocoder ?? getGeocoder(),
-    tripRegionOf(detail),
-  );
-
-  const batch = await flushPlanningBatch(tripId, commands, userId);
-  if (!batch.ok) {
-    return Response.json(
-      {
-        error: batch.error.message,
-        code: batch.error.code,
-        simulated,
-        meta,
-        resolvedCommands: commands,
-        resolutionErrors,
-        locationReport,
-      },
-      { status: STATUS[batch.error.code] ?? 400 },
-    );
+  const validated = validateComposedPage(composed.output.content);
+  if ("error" in validated) {
+    return Response.json({ error: validated.error, simulated, meta }, { status: 422 });
   }
-  const summary = summarizeBatch(commands, detail);
-  const notices: string[] = [...baseNotices];
-  if (skipped.length > 0) {
-    notices.push(
-      `${skipped.length} other change${skipped.length === 1 ? "" : "s"} couldn't be matched and ${skipped.length === 1 ? "was" : "were"} skipped.`,
-    );
-  }
-  // Everything collected before the cut-off IS applied — truncated, not
-  // discarded — so this rides alongside the summary rather than replacing it.
-  if (meta.truncated) notices.push(TRUNCATED_NOTICE);
-  // Silence was KI-15's real damage: a wrong pin and a missing pin both read as
-  // success. Anything not positively verified gets said out loud.
-  const geocodeNotice = locationNotice(locationReport);
-  if (geocodeNotice) notices.push(geocodeNotice);
-  const message = withNotices(summary, notices);
-  return Response.json({
-    detail: batch.detail,
-    history: batch.history,
-    message,
-    simulated,
-    meta,
-    resolvedCommands: commands,
-    resolutionErrors,
-    locationReport,
-  });
-}
-
-// Turn the enrichment report into one sentence, or nothing. Named places beat
-// a bare count: "3 locations" is not actionable, "The Red Coach Inn" is.
-//
-// `report.unchecked` is deliberately absent: those were accepted with nothing
-// to check them against, which on a freshly planned trip is the common case,
-// and warning about all of them every time would train the user to ignore the
-// warning that matters. They remain in the response payload.
-function locationNotice(report: LocationEnrichmentReport): string | null {
-  if (!hasUnverifiedLocations(report)) return null;
-  const names = [...report.unverified, ...report.failed, ...report.skipped];
-  const shown = names.slice(0, 3).join(", ");
-  const rest = names.length - Math.min(3, names.length);
-  const tail = rest > 0 ? `, and ${rest} more` : "";
-  return `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${shown}${tail} — worth checking on the map.`;
-}
-
-// What the user is told when `meta.truncated` — the step budget ended the run
-// while the model still had calls to make. Without this the response reads as a
-// confident "Done — added a day, added a day, …" over a half-built trip.
-const TRUNCATED_NOTICE =
-  "I didn't finish the whole plan before running out of room — ask me to continue and I'll pick up from here.";
-
-// What the user is told when the ai-live flag is off. The plan they are looking
-// at is real — it applied, it is undoable, it is in the history — but no model
-// wrote it, and nothing about the response should let that be mistaken.
-const SIMULATED_NOTICE = "Simulated response — AI is disabled on this deployment.";
-
-// Parenthesised caveats appended to a message, so the summary of what DID apply
-// always leads.
-function withNotices(message: string, notices: string[]): string {
-  return notices.length > 0 ? `${message} (${notices.join(" ")})` : message;
+  return Response.json({ content: validated, simulated, meta });
 }
 
 // Minimal meta for the model-call-failure path, where there is no result to

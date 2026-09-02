@@ -73,6 +73,8 @@ for collaboration later landing on a product people already want to join.
 | M13 | Collaboration | **Narrowed 2026-08-27: invites, roles and revocation moved to M11** — what is left is near-real-time sync (transport ADR due here) and concurrent-edit conflicts as resolvable data. **It also owns per-stop attribution** (`add-stop-who` and `rack-provenance` in `preview-registry.ts`) — *no field records who a stop is for* — and **M19's link 3 depends on this milestone landing that field**, which is the whole reason M19 is placed after it. If M13 ships without it, that link returns to M19. Architecturally: swap the AccessPolicy implementation, broadcast events. The largest remaining architectural lift, so it waits until something needs it. **Scoped 2026-09-01** — it had no file and no exit gate until then; the transport ADR is a prerequisite, and link 3 (the re-prediction reducer KI-90 names) closes the KI-5 optimistic-loss class: `M13-collaboration.md` |
 | M14 | Rich layer | Notion-style pages with embedded community objects (TipTap/Yjs ADR due here), external calendar sync, dogfood-backlog items. The macro vocabulary deferred out of M8 returns here. **Owns the whole Notebook redesign** (`.design-sync/handoff/SPEC.md` §7, routed here 2026-08-23): reading/editing modes, values as chips, the scope × shape insert picker, prebuilt pages, the journal framing — and **repeaters**, which need their own ADR before the milestone opens (see the design-sync review §7). **Scoped 2026-09-01** — it had no file and no exit gate until then. Two items on this row need a call before it opens: the M8 macro vocabulary, and **external calendar sync**, which has no design, no ADR and no relationship to the Notebook and may deserve its own milestone: `M14-rich-layer.md` |
 | M19 | A cost knows who and what it is for | **Minted and placed 2026-08-31 by Mitchell — runs last, after M9.** Opened by M11b's `preview-registry` sweep: `cost-estimate-state` and `budget-breakdown` were tagged M11, are not M11's, and belong to no existing milestone — *"it does feel very much like a tacked on concept ... splitting cost, cost per person based on whos attached to what activity, better sharing cost in the shared day ui."* The whole model today is `Money = {amountMinor, currency}`, one optional `cost` on an activity and one `budget` on a trip. Five links: a cost's **kind** (unblocks `budget-breakdown`), a cost's **settled-vs-estimate** state (unblocks `cost-estimate-state`), **who an activity is for** (overlaps M13's `add-stop-who` — must land in exactly one), **splits** derived from that, and the **shared-day** presentation. Its anchor finding: `savedDayFacts.budgetPerPerson` was a plain sum of stop costs with nothing to divide by, so a shipped field asserted a per-person meaning it did not have — **the name was removed on pull request 104** (it is `totalCost` now, dividing by nothing and claiming nothing); the cost model it was standing in for is still entirely M19's: `M19-cost-model.md` |
+| M20 | An account knows what it may do | **Scoped and placed 2026-09-01 — runs after M9, before M21.** The **first commercial milestone**: nothing in the repo had ever described a paid tier, a plan, a price or a payment. Mostly a wiring job on a seam built for it and stubbed since M16 — `modelSelection.ts:88` declares `AiEntitlementCheck`, `:89` stubs it `EVERYONE_IS_ENTITLED`, and `:47` says *"the day a pro-tier check exists it lands inside `isEntitled` below, not as a signature change"*; ADR-019 is explicit that entitlement is **not** a flag. Nine links, the ninth added 2026-09-01 when Mitchell asked for the financial metrics: **an `ai_usage` cost ledger** storing tokens and models rather than dollars, because prices move (DeepSeek's changed mid-scoping) and because `Money`'s integer minor units round a $0.0011 request to **zero cents** — the KI-1/KI-14/`budgetPerPerson` defect class on its third recurrence. It moved out of M21 deliberately: M21 has to choose prices and M20's link 5 has to choose per-tier ceilings, and both are guesses without it, while the ledger itself needs no Stripe. It carries the `/ask` step-metering fix with it. Its four rules: **a plan is a set, not a rank** (Mitchell: tiers are *"not necessarily subsets"*, so copying `accessPolicy.ts:11`'s `RANK` is the obvious move and the wrong one); **trials, referral rewards and admin boosts are one time-bounded grant with three `source` values**, not three features; entitlements **resolve per request from the database**, never from the JWT (a downgrade must bite before a token refreshes); and — added 2026-09-01 on Mitchell's requirement that prices stay tweakable *"especially in the early days"* while purchases are honoured — **a plan's contents are versioned data, not code, and a purchase pins a version**. `plan_versions` is immutable and append-only, so changing a price or a term **publishes a new version** and what someone already bought is untouched until an explicit admin *migrate to version N*; the contracts package keeps the entitlement vocabulary, the rows own the offers. That is also what makes pricing changeable **without a deploy**. Free keeps trip planning entire; AI and inviting collaborators are paid. **It takes no money** — Stripe is M21, and the admin grant UI is what makes this provable without it. Plans are `free`, `plus` and `premium`, and **defined by enumeration, never by extension** — Mitchell, 2026-09-01: *"to an end user it should look like a nested ladder, but for architecting guidance it should look like split access, where they can own different things that aren't inherited from the previous tier"*, so the three happen to nest and nothing in code may know it; the ladder is presentation only. Four decisions by Mitchell the same day: on lapse granted memberships **cap at `viewer` on read**, never written to `trip_memberships`, so resubscribing restores everyone with zero writes; every account existing at migration time gets a **permanent `founder` grant**; the **trial grants `plus` at signup**, so collaboration is never trialled; and a **referral earns one month of the tier the referrer already holds**, which means a free account earns nothing and most of the abuse surface disappears with it. Needs a migration and an ADR adding an **Entitlements** module to `AGENTS.md`'s map: `M20-account-tiers-and-entitlements.md` |
+| M21 | An account can pay for itself | **Scoped and placed 2026-09-01, immediately after M20.** Stripe checkout, the webhook that is the **sole writer** of subscription state, the customer portal, and failed-payment handling. **Adds no entitlement and no gate** — if its diff touches `modelSelection.ts`, `quota.ts` or `members.ts`, the split has failed. Separate from M20 for three reasons: M20 is provable end to end with no external service and this is not; a hand-grant path is permanent infrastructure (comping, trials, disputes) rather than scaffolding; and the blast radius here is money, where a webhook mistake charges someone twice or grants access nobody paid for, silently. Signature verification, idempotency under Stripe's retries, and out-of-order tolerance are each a gate box, as is *no card number ever reaches this application*. Cancelling lapses through **M20's resolver** — no second downgrade path to keep in sync. **Link 6 is the revenue half of the unit economics**, against M20's cost ledger: MRR, ARPU reported twice and labelled (all accounts vs paying accounts, which diverge badly once founder/referral/trial grants exist), trailing-30-day margin per account, and an *accounts that cost more than they pay* list **segmented by grant source** — a comped account is underwater by construction, and unsegmented those swamp the list and make the metric worthless. **Mitchell owes one decision before it opens: the plans and their prices** — M20 names plans without pricing them: `M21-subscriptions-and-billing.md` |
 | M15 | Front door | **Gate closed 2026-08-26, PR #56.** Approved 2026-08-23 (ADR-021); ADR-022 (2026-08-25) placed it after M16, but it in fact **ran ahead of both M10's Phase 9 gate and M16** — decided by Mitchell 2026-08-26, superseding ADR-021/ADR-022's stated ordering (see the reorder note below). The unauthenticated surface the product had never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, and the header account menu (already shipped in M10 Phase 8b). The designed first-run screen was dropped — `NewTripWizard`'s "Create empty" already creates a trip from a name alone. Scope, exit gate and retro: `M15-front-door.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
@@ -201,7 +203,56 @@ Current milestone: **M17 — Account preferences**
 gates both closed** — M11a nine of nine with its admission paths walked on
 production, M11b eleven of eleven with the two-actor publish walk and the
 `cities` backfill. Order from here:
-`M11a ✓ → M11b ✓ → M17 → M9 → M12 → M13 → M14 → M19`.
+`M11a ✓ → M11b ✓ → M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`
+— **M20 and M21 minted and placed 2026-09-01**; see the note below.
+
+### 2026-09-01 — minted and placed: M20 and M21, the first commercial milestones
+
+**Mitchell's call, 2026-09-01**, choosing the placement from four offered:
+**after M9.** **New execution order:
+`M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`.** Milestone numbers are
+unchanged — this is a placement, the same shape as ADR-018, ADR-021, ADR-022
+and the M9 reorder above.
+
+**Why after M9 and not sooner.** `ai-live` defaults off and M9's grounding is
+what would let it be turned on, so the largest built feature in the product is
+dark. Selling access to it before M9 would sell a dark feature. The competing
+placement — straight after M17, to stop the entitlement stub rotting — was
+declined on that ground.
+
+**Why two milestones and not one.** M20 takes no money and is therefore
+provable end to end with no external service, no test-mode/live-mode split and
+no PCI surface; **its admin grant UI is what makes it provable without
+Stripe.** Fused, a vendor integration problem would block the tier substrate
+that AI gating, quotas and collaboration all read. The same carve the repo
+made at M11 → M11a/M11b, for the same reason.
+
+**Three decisions were Mitchell's on the day they were scoped:**
+
+1. **Placement: after M9** (above).
+2. **On lapse, granted memberships cap at `viewer`** — not "existing
+   collaborators unaffected", which was recommended. The implementation
+   consequence is recorded in M20 link 6: the cap is applied **on read** in
+   `effectiveMembers`, never written to `trip_memberships.role`, so
+   resubscribing restores every collaborator with zero writes and
+   `members.ts:148`'s standing rule ("role changes are not supported — revoke
+   and re-invite") is not violated.
+3. **Every account existing at the tier migration gets a permanent `founder`
+   grant** — inviting collaborators is a shipped capability today, and taking
+   it from the earliest users is a regression the platform's invite gate makes
+   cheap to avoid.
+
+**One decision is still Mitchell's, and it blocks M21 rather than M20: the
+plans and their prices.** M20 deliberately names plans without pricing them.
+
+**An ADR is a prerequisite to M20, due before it opens** — not written
+mid-build, the same standing as M13's transport ADR and M14's repeaters ADR.
+`AGENTS.md`'s module map is structural law and M20 adds a module to it:
+**Entitlements**, which owns plans, grants and capability resolution, is
+ordinary CRUD, and — like Identity — **explicitly does not know what a trip
+is.** It answers `can(account, capability)`; the caller knows that
+`trip.collaborators` is about invites. That is what keeps M20's collaboration
+gate from being a module-boundary violation.
 
 ### 2026-09-01 — reorder: M9 moves from last to second, by Mitchell's decision
 
