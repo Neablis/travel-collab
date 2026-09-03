@@ -44,11 +44,18 @@ model does not carry it) · **❌ needs a domain concept** (the data does not ex
 | `w-you` | Your name | single | — | ⚠️ | `users.name` / `users.displayName` both exist. Not in `TripDetail` — account scope needs a source the resolver does not currently get |
 | `w-email` | Your email | single | — | ⚠️ | `users.email` exists, same problem |
 | `w-air` | Home airport | single | — | ✅ | **The design's `needs a field` flag is STALE.** `users.home_airport` shipped in M17 |
+| — | Your tier | single | — | ⚠️ | Not in the design's list; Mitchell named it 2026-09-03. Needs billing (M20/M21) |
 | `w-trips` | A line for every trip you have | repeat | — | ⚠️ | Needs the trip *list*, plus `repeat` |
 
-**The account-scope problem is one problem, not four.** `resolve(detail, ctx, params)` is
-handed a `TripDetail` and nothing else. Every widget above needs a second source. That is a
-contract-and-signature decision — see ADR-037's open question 2.
+**The account-scope problem is one problem, not four — and it is now SETTLED.**
+`resolve` is handed a `TripDetail` and nothing else, so every widget above needed a second
+source. Mitchell, 2026-09-03: *"notebooks are always account scope […] the creation of a
+notebook based on what trip initiated it locks the trip it operates on."*
+
+So the context becomes **`{ user, trip? }`**: the user always, the trip when the notebook was
+created from one, fixed at creation and not rebindable. All four widgets above are therefore
+**buildable in this milestone**, and their ⚠️ is a signature change rather than missing data.
+Root-account notebooks (no trip) are the stated direction but explicitly out of scope.
 
 ### Trip scope
 
@@ -101,8 +108,15 @@ The person hole has two halves and they cost very differently:
    share so far"* is phrased generically, per §18's rule that a preview must not assert
    numbers the live widget computes.
 
-**Recommendation: cut both person widgets from the widget work and scope the attribution
-model separately.** Building 19 of 21 is a feature; blocking 21 on a settle-up model is not.
+~~**Recommendation: cut both person widgets.**~~ **OVERRULED — Mitchell, 2026-09-03:**
+*"that list is a starter, and we can just implement them in this milestone, I would want
+person (and persons)."*
+
+They are in. The reason for the recommendation does not go away by being overruled, so it is
+now a **cost the milestone carries**: an attribution model — what a person is in for, what
+they booked, what they owe — is a domain change with events behind it, not a resolver.
+**Cost it as its own link**, ahead of the two widgets that depend on it, rather than
+discovering it inside "build the widgets".
 
 ## Tally
 

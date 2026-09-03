@@ -131,12 +131,40 @@ insertWidget(name: string, params: unknown): Result<MacroNode, InsertError>
 ```
 
 It validates `params` against that widget's own schema and returns a node or a typed refusal.
-**Three callers, one code path**: the insert sheet's *Insert it*, the assistant's
-`insert_widget` (M14 link 8), and a template seeding a page with default bindings (link 7).
+**Five callers, one code path**: click-to-insert in the sidebar, drag-and-drop, the slash
+menu, the assistant's `insert_widget` (M14 link 8), and a template seeding a page with default
+bindings (link 7).
 
 That is the invariant worth stating: **there is no way to put a widget into a document that
 skips validation.** A second insert path is how a document acquires a node no resolver can
-read.
+read — and with five entry points that is no longer a hypothetical.
+
+**The insert surface is a sidebar, not the Sheet §18 specifies** (Mitchell, 2026-09-03):
+
+> definitely side bar and drag in or click insert and it puts the widget inline at cursor
+>
+> [slash] definitely in, shortcut for sidebar
+
+So: a **persistent sidebar** listing widgets; **click inserts at the cursor**; **drag drops
+one where it lands**; and **`/` opens the same list inline** as a shortcut. All four are the
+same command above with a different origin.
+
+Three things that follow, and the third is a real constraint:
+
+- **This supersedes §18's two-step Sheet.** The design says *"Insert is two steps in one
+  Sheet"*; the build is doing something else on Mitchell's decision. `DRIFT.md` should record
+  it so the next design pass reconciles rather than re-specifying a Sheet.
+- **Binding moves entirely to the chrome row.** With no modal step, *Point it at* has nowhere
+  to live at insert time — which is exactly why decision 6's "renders not set up" is load
+  bearing rather than defensive. Insert, then point it.
+- **Slash reverses an M8 decision and must be acknowledged, not slipped in.** M7 shipped `{{`
+  autocomplete; M8 removed macro authoring from the editor and there is a test named *"offers
+  no macro autocomplete"* (`PageEditor.test.tsx`) plus a comment in `MacroNodeExtension`
+  explaining the atom is inline so `{{` could work anywhere. A slash menu is a different
+  gesture with a different guarantee — **it inserts a validated node, it never lets anyone
+  type macro syntax** — so §7's "users never see or type macro syntax" survives. That
+  distinction is the whole reason this is allowed, and it should be written at the site rather
+  than left for someone to rediscover when they delete the M8 test.
 
 ### 5. A preview is a fixed sample, never a computed value
 
@@ -146,7 +174,51 @@ contradict each other in one session. The design already does this — `w-person
 *"Whoever you point it at — their stops, and their share so far"*, phrased generically on
 purpose.
 
-### 6. A widget may declare that it needs a field it does not have
+### 6. Every widget renders in every state, including "not set up"
+
+Mitchell, 2026-09-03:
+
+> every widget should be able to render with no inputs, that doesn't mean common sense
+> defaults, just means it can render like "not set up" so it doesn't crash if the underlying
+> data changes to something incorrect
+
+**"Not set up" is a first-class rendered state**, not an error path and not a fallback. A
+widget with nothing bound, or bound to something that has since been deleted, renders a
+placeholder saying so — legibly, inertly, and without taking the page down with it.
+
+The critical half is the middle clause: **not common-sense defaults.** A widget pointed at a
+day that no longer exists must say "not set up"; it must **not** quietly resolve to day 1.
+That is already the established behaviour and it is tested — one of link 2's red-first breaks
+was literally `if (!ref) return detail.days.length > 0 ? 0 : null` (an unbound widget guessing
+day 1), made to fail on purpose. Silently rendering the wrong day is worse than rendering
+nothing, because nothing about the page tells the reader it happened.
+
+Three requirements follow, and only the first exists today:
+
+**a. `resolve` is total.** Already enforced per-macro by
+`registry.property.test.ts` — *"never throws, always ok|empty|unbound"*, generated over
+arbitrary trips and params. Because that test iterates `MACRO_NAMES`, **a new widget inherits
+the property the day it is registered**, which is exactly the "we can easily add more" goal.
+Keep that iteration; never hard-code the list.
+
+**b. `render` must be total too, and today nothing says so.** ADR-037 splits resolve from
+render, so a total `resolve` feeding a `render` that throws on an odd payload still takes the
+page down. The property test must be extended to run `render` over every state `resolve` can
+return, not just to check `resolve`'s tag.
+
+**c. `unbound` has to stop being day-shaped.** It is `{ status: "unbound"; needs: "day" }` —
+a literal, from when `day` was the only input. With five input types it becomes
+`needs: WidgetInput["type"]` (or the input's `name`, so a two-input widget can say *which* of
+the two is missing — `w-stopline` takes a day **and** tags). Without that, "not set up" cannot
+name what is not set up.
+
+**Consequence for insert:** a widget may be inserted with nothing bound. That makes *Insert
+it* legal from the sidebar without visiting the bind step at all — the widget lands, says "not
+set up", and the chrome row is where you point it. This is a deliberate softening of §18's
+two-step flow and it is what makes drag-to-insert coherent: you cannot fill in a bind step
+mid-drag.
+
+### 7. A widget may declare that it needs a field it does not have
 
 `needs?: "needs a field"` — §7's one surviving picker rule, now a property of the module. The
 sheet badges it and says so on click instead of claiming an insert. **Note the design's own
@@ -172,23 +244,122 @@ example is stale**: `Home airport` is flagged `needs a field` and M17 shipped
 
 ## Open questions — Mitchell's, not a build's
 
-1. **Can a widget own a whole sentence?** The document mock renders *"The day in a sentence"*
-   — one name, one day binding, three chips and prose — but it is **not** in the insert list.
-   Either it is a composite widget the list forgot, or it is an authored paragraph holding
-   three separately-inserted widgets whose chrome row aggregates their binds. The first is
-   simpler to build and store; the second is more expressive and makes "changing one binding
-   re-renders that block" mean rewriting several instances at once. **This decides the
-   document format**, so it should be settled before ADR-038 is accepted.
-2. **Where does account scope come from?** Four widgets (your name, your email, home airport,
-   every trip you have) read the *user*, not the trip, and `resolve` is handed only a
-   `TripDetail`. Options: widen the context to `{ trip?, user? }`; or make account widgets a
-   separate registry with its own context. Widening is fewer concepts and makes every resolver
-   handle an absent trip; splitting keeps each registry honest and duplicates the machinery.
-   I lean **widening**, because "a page can hold any widget" is the design's whole premise.
-3. **Do the two person widgets get cut?** Per the catalogue: naming people is a cheap contract
-   change, but attributing stops and money to people is a domain model — new fields, new
-   events, a settle-up concept. **Recommend cutting both from the widget work** and scoping
-   attribution separately, rather than blocking 19 widgets on 2.
+1. **Asked badly the first time. Re-asked with examples**, since "can a widget own a whole
+   sentence?" read as "can a widget render more than one word" — which is settled and is a
+   yes (decision 3's `Seg[]`, and §18's own `w-person` renders three chips and prose from one
+   binding).
+
+   The actual ambiguity is **how many bindings a sentence has**. Both of these render
+   identically on the page:
+
+   > It's **Fri Sep 25** and you're in **Hakone**. **$310** of the budget is spoken for today.
+
+   **Reading A — one widget, one binding.** You insert *"The day in a sentence"* and point it
+   at Day 6. One node in the document. The chrome row shows one control:
+   `[The day in a sentence] [Pointed at: Day 6 ▾]`. Re-pointing at Day 7 is **one** change and
+   all three chips follow. But the prose is the widget's: you cannot change "and you're in" to
+   "and we're in".
+
+   **Reading B — three widgets in prose you typed.** You type `It's `, insert *A day's date*
+   → Day 6; type ` and you're in `, insert *A day's city* → Day 6; and so on. Three nodes,
+   three params, three bindings. The words are yours to edit. But re-pointing the sentence at
+   Day 7 means changing **three** controls, and the chrome row has to either show three or
+   aggregate them and rewrite three nodes at once.
+
+   **The trade is authorability against one-control rebinding**, and the design shows both:
+   `w-daydate` and `w-daycity` are separately insertable (B), while `w-person` is a listed
+   widget rendering three chips from one binding (A).
+
+   **My read: both exist, and that is fine** — A for widgets that ship a sentence, B for chips
+   dropped into your own prose. Which leaves one genuinely open sub-question:
+   **what does the chrome row do when one block holds several separately-bound widgets?**
+   Three stacked rows is noisy; aggregating "these three all read a day" into one control is
+   nicer but means one interaction rewrites three nodes. I lean **one row per block listing
+   each bound widget**, because aggregation invents a grouping the document does not store.
+2. ~~**Where does account scope come from?**~~ **SETTLED — Mitchell, 2026-09-03.**
+
+   > notebooks are always account scope, they can access data from account like your name,
+   > tier, etc. notebooks can be optionally account scoped, but that's today assigned on
+   > creation. the creation of a notebook based on what trip initiated it locks the trip it
+   > operates on.
+
+   So `WidgetContext` is **`{ user, trip? }`** — the user is *always* present, the trip is
+   present when the notebook was created from one and is **fixed at creation**. That is why
+   `PageContext` keeps `tripId` and why it is not rebindable: a notebook's trip is not a
+   binding, it is a property of the notebook.
+
+   Two consequences a build must not miss:
+   - **Every resolver must handle an absent trip**, because root-account notebooks are the
+     stated direction even though they are out of scope today. A resolver that assumes a trip
+     is a resolver that has to be rewritten when they arrive.
+   - **Account widgets are in scope now.** Your name, your email, home airport and tier all
+     become buildable — home airport because M17 shipped the field, tier once billing lands
+     (M20/M21). `resolve` reading `user` is what unblocks them.
+
+   Root-account notebooks (no trip, a different widget set) are **explicitly out of scope**.
+3. ~~**Do the two person widgets get cut?**~~ **SETTLED — Mitchell, 2026-09-03: no, they are
+   in this milestone**, and `persons` (plural) with them.
+
+   That overrides the catalogue's recommendation, and the reason it recommended cutting still
+   has to be paid for rather than wished away: **nothing links an activity to a person.** So
+   the milestone owes an attribution model — what a person is "in for", what they booked,
+   what they owe — before those two widgets can resolve anything. That is a domain change with
+   events behind it, not a resolver.
+
+   **This is the largest single item the widget work now carries**, and it should be costed as
+   its own link rather than absorbed into "build the widgets".
+
+4. **NEW, and the biggest one — a generic attribute widget over "trip globals".** Mitchell,
+   2026-09-03:
+
+   > I'm hoping we have some list of project level objects that can be generically rendered.
+   > for instance if a city shows up in the day, we would have just a trip attribute widget,
+   > and it would have all those trip globals, including all the cities so I can do
+   > `{{trip.cities[Tokyo].activities.length}}` and it renders 15 or something like that, and
+   > a developer adding a new global attribute gets it for free
+
+   **The goal is right and it is the most valuable idea in this ADR**: a developer adding a
+   trip attribute should get a widget for free, rather than someone hand-writing a module per
+   field. Twenty-one hand-written widgets is a catalogue; a generated surface is a system.
+   Worth taking seriously.
+
+   **The `{{…}}` syntax is the part I would push back on**, for three reasons that are about
+   this repo specifically rather than taste:
+
+   - **It reintroduces exactly what §7 forbids and M8 removed.** *"Users never see or type
+     macro syntax"* is a design rule, and M8 deleted macro authoring from the editor to honour
+     it. A path expression in a document is macro syntax with a different bracket.
+   - **It has no declared inputs, so it breaks ADR-035** — the accepted model where the input
+     *type* picks the control. A freeform string has no type to pick from, so it gets no
+     control, no *Point it at*, no `needs a field` badge, and no preview.
+   - **It cannot satisfy decision 6.** `{{trip.cities[Tokyo].activities.length}}` on a trip
+     that no longer visits Tokyo has to render "not set up" — which means the evaluator must
+     know that `cities[Tokyo]` is a *lookup that can miss* rather than a property access that
+     returns `undefined` and then throws on `.length`. A string parser cannot distinguish
+     those; a typed path can.
+
+   **A counter-proposal that keeps the goal and drops the syntax:** one `trip.attribute`
+   widget whose input type is `attribute`, and whose control is a searchable select over a
+   **generated manifest** of readable paths. The stored param is structured, not a string:
+
+   ```ts
+   { object: "trip", collection: "cities", key: "Tokyo", field: "activities.length" }
+   ```
+
+   A developer adding a trip attribute extends the manifest — ideally derived from the
+   contract schema — and it appears in the picker for free, which is the actual requirement.
+   No user-facing syntax; a real control; validated params; a closed set, so "not set up" is
+   expressible and there is no evaluator to sandbox.
+
+   **The genuinely valuable prerequisite either way** is the *"trip globals"* projection
+   itself: a uniform view exposing days, cities, people, tags and bookings as addressable
+   collections. **Cities do not exist as data today** — they are derived from
+   `Location.city` on activities via `cityFor()` — so `trip.cities` has to be built before
+   anything can address it. That projection is worth doing on its own merits and is what makes
+   half the catalogue cheap.
+
+   **Mitchell's call**, and it changes the shape of the milestone either way: the manifest
+   approach is more machinery up front and much less per widget afterwards.
 
 ## Alternatives rejected
 
