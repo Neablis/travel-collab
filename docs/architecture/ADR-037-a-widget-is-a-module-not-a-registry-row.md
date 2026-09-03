@@ -2,8 +2,9 @@
 
 **Status:** **Accepted — 2026-09-03.** Kicking off the implementation branch against it is
 the acceptance. Open questions 2, 3 and 4 were settled by Mitchell the same evening and are
-recorded inline; question 1's remaining sub-question (what the chrome row does when one block
-holds several bound widgets) is the only thing still open, and it does not block starting.
+recorded inline — **question 3 twice, ending in the two person widgets being deferred out of
+M14**; question 1's remaining sub-question (what the chrome row does when one block holds
+several bound widgets) is the only thing still open, and it does not block starting.
 **Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-035** (a widget is a function of declared inputs — this says how one is *built*),
 ADR-038 (how the document that holds them is stored), ADR-015/Invariant 5 (tool schemas are
@@ -372,17 +373,30 @@ nothing smuggles mutable state into a resolver, which decision 3c already forbid
      (M20/M21). `resolve` reading `user` is what unblocks them.
 
    Root-account notebooks (no trip, a different widget set) are **explicitly out of scope**.
-3. ~~**Do the two person widgets get cut?**~~ **SETTLED — Mitchell, 2026-09-03: no, they are
-   in this milestone**, and `persons` (plural) with them.
+3. ~~**Do the two person widgets get cut?**~~ ~~**SETTLED — Mitchell, 2026-09-03: no, they
+   are in this milestone**, and `persons` (plural) with them.~~
+   **RE-SETTLED THE OTHER WAY — Mitchell, 2026-09-03, once the attribution model was costed:
+   they are cut from M14 after all.**
 
-   That overrides the catalogue's recommendation, and the reason it recommended cutting still
-   has to be paid for rather than wished away: **nothing links an activity to a person.** So
-   the milestone owes an attribution model — what a person is "in for", what they booked,
-   what they owe — before those two widgets can resolve anything. That is a domain change with
-   events behind it, not a resolver.
+   > Lets skip this widget for now, and add in future we need activities to have owners (and i
+   > think participants that are going to that activity)
 
-   **This is the largest single item the widget work now carries**, and it should be costed as
-   its own link rather than absorbed into "build the widgets".
+   The reason the catalogue recommended cutting them is the reason they are now deferred:
+   **nothing links an activity to a person**, so an attribution model — what a person is "in
+   for", what they booked, what they owe — is a domain change with events behind it, not a
+   resolver, and it was the largest single item the widget work carried.
+
+   **It needs no new milestone.** The field is already scoped twice: **M13**'s `add-stop-who`
+   and **M19 link 3**, and M19's prerequisites already say it must land in exactly one of
+   them. `w-person` and `w-personline` become downstream of whichever does.
+
+   **One thing to carry there, from the sentence above:** *owners* and *participants* are two
+   relations, not one — who booked a stop is not who is going to it, and M19 link 4's splits
+   need the second. A single `assignee` would satisfy `add-stop-who`'s wording and still be
+   wrong for splits.
+
+   `w-people` is unaffected and stays: it needs a display name on `TripMember`, not
+   attribution.
 
 4. **NEW, and the biggest one — a generic attribute widget over "trip globals".** Mitchell,
    2026-09-03:

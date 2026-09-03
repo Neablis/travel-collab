@@ -10,11 +10,18 @@ That is the decision this file said was "available to be taken"; it has now been
 taken. What landed, and what it cost, is in *The navigation and index half*
 below.
 
-**The builder half is unblocked as of 2026-09-03.** Its prerequisite ADRs — 035
-(the widget model) and 036 (notebook history) — were **accepted** that day, by
-Mitchell's instruction to build against them. Links 2–8 are open for work.
-**Link 9 is not**, despite 036 being accepted: acceptance left one question open
-that a build cannot answer for itself, and the gate says which.
+**The builder half is unblocked as of 2026-09-03, link 9 included.** Its
+prerequisite ADRs — 035 (the widget model) and 036 (notebook history) — were
+**accepted** that day. Link 9 was held back because ADR-036's acceptance left the
+draft-durability question open; **Mitchell settled it the same day — one clock,
+autosave dropped, saved on edit finished** — so every link 2–9 is now open for
+work. **Nothing in this milestone is blocked.**
+
+**The two person widgets left the milestone the same day**, on Mitchell's call:
+*"Lets skip this widget for now, and add in future we need activities to have
+owners (and i think participants that are going to that activity)."* That field
+is already scoped — M13's `add-stop-who` and M19 link 3 — so this is a
+dependency ordering, not a new milestone. See *Item F* below.
 
 **It opens with an ADR** — and that ADR is a prerequisite, not a deliverable to
 write mid-build. Routed here by the 2026-08-23 design sync, which also gave this
@@ -93,11 +100,16 @@ Mitchell's framing, 2026-09-03:
    beside it, replacing `compose_page`'s whole-document round trip. `AskScope` already
    carries `{ kind: "page"; pageId }` and `/ask` already verifies the page (ADR-033), so
    this is a tool-list change, not new plumbing.
-9. **Notebook history — ADR-036 accepted, then built.** *(Accepted 2026-09-03. **Blocked
-   anyway**: acceptance left open where an unsettled draft lives once `pages` is a
-   projection — 800ms autosave against once-per-session events means a rebuild mid-session
-   destroys prose the log does not carry. That is a decision, not an implementation detail;
-   it goes in the ADR before this link is briefed.)* Notebook content joins the event
+9. **Notebook history — ADR-036 accepted, then built.** *(Accepted 2026-09-03, and
+   **unblocked the same day**. The open question was where an unsettled draft lives once
+   `pages` is a projection: 800ms autosave against once-per-session events means a rebuild
+   mid-session destroys prose the log does not carry. Mitchell's answer removes the conflict
+   rather than reconciling it — **there is only one clock**. Autosave is dropped, the write
+   happens on the settled edit session, and the row carries only what the log carries.
+   The accepted cost: prose typed since the last settle is lost on refresh or a closed tab,
+   with browser-local drafts named as the future mitigation. ADR-036 decision 3 is rewritten
+   accordingly. **This link now also owns deleting `PageScreen`'s 800ms autosave and
+   `lib/debounce.ts`'s use here** — that is part of the link, not a follow-up.)* Notebook content joins the event
    log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
    A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
    800ms cadence for durability while history commits **one event per settled edit
@@ -120,19 +132,29 @@ What the answers added (all in `ADR-037`, `ADR-038` and
 | **C** | **`WidgetContext = { user, trip? }`** | A notebook is always account-scope, optionally trip-scope, trip fixed at creation. Contract + signature change; unblocks four account widgets |
 | **D** | **A trip-globals projection** | `trip.cities` does not exist — cities are derived per-activity via `cityFor()`. Nothing can address collections until they are collections |
 | **E** | **The attribute manifest**, from annotated Zod fields | "A developer adding an attribute gets a widget free". Opt-in, never opt-out |
-| **F** | **An attribution model** — who a stop is for, who booked it, who owes what | **New domain concept**: fields, events, conflicts, a settle-up notion. The two person widgets cannot resolve anything without it |
+| **F** | ~~**An attribution model** — who a stop is for, who booked it, who owes what~~ **OUT — deferred 2026-09-03** | **New domain concept**: fields, events, conflicts, a settle-up notion. The two person widgets cannot resolve anything without it, so **they leave with it** — see below |
 | **G** | **The sidebar, drag-and-drop and the slash menu** | Supersedes §18's Sheet |
 | **H** | **~14 more widgets**, six of which need `kind: "repeat"` first | |
 
-**Recommendation: split, and F is the natural seam.**
+**Recommendation: split, and F is the natural seam. — F'S DEPARTURE IS TAKEN, 2026-09-03.**
 
 - **M14 keeps A, B, C, D, E, G, H** — the notebook document, the widget framework, and every
   widget that needs no new domain data. That is still a large milestone and it delivers a
-  working, extensible Notebook.
-- **F becomes its own milestone.** Attributing stops and money to people is a *product
-  feature* — expense splitting — that happens to have two widgets pointed at it. It carries
-  events, a conflict surface and a settle-up model. Scoping it as a line item inside "build
-  the widgets" is how a milestone silently doubles.
+  working, extensible Notebook. Whether *that* remainder splits further is still open and
+  nothing waits on it.
+- ~~**F becomes its own milestone.**~~ **F leaves M14 and needs no new milestone**, which is
+  the one correction to the proposal above. Mitchell, 2026-09-03: *"Lets skip this widget for
+  now, and add in future we need activities to have owners (and i think participants that are
+  going to that activity)."* The field he describes is **already scoped twice over** —
+  **M13**'s `add-stop-who` and **M19 link 3** (*"An activity knows who it is for.
+  Participation against the trip's existing members"*), which M19's own prerequisites section
+  already says must land in exactly one of them. Minting a third home for it would be the
+  drift invariant 5 exists to stop.
+- **So `w-person` and `w-personline` are cut from this milestone and become downstream of
+  that field.** `w-people` stays: it needs only a display name on `TripMember`, not
+  attribution. The "owners **and** participants" distinction Mitchell drew is worth carrying
+  into M13/M19 — one activity has an owner (who booked it) and a set of participants (who is
+  going), and M19 link 4's splits need the second, not the first.
 - **Link 9 (notebook history, ADR-036) should move behind ADR-038.** It stores documents; if
   documents are versioned, the log holds a version per event and replay migrates each. If not,
   it writes unversioned documents into the one place a format mistake is permanent. It is
@@ -396,9 +418,15 @@ milestone opens:**
       where an unsettled draft lives once `pages` is a projection: autosave writes
       the row every 800ms while history commits once per settled session, so
       between the two a rebuild would destroy prose no event carries. Recorded as
-      the last bullet under that ADR's Consequences. **Link 9 does not start until
-      that has an answer** — it is contract-and-migration shaped and belongs in the
-      ADR, not in a reducer discovered halfway through.)*
+      the last bullet under that ADR's Consequences. ~~**Link 9 does not start until
+      that has an answer**~~ — **SETTLED 2026-09-03, and link 9 is open.** Mitchell
+      removed the conflict rather than reconciling it: one clock, autosave dropped,
+      the write happens on the settled edit session, and the row carries only what
+      the log carries. The accepted cost is that prose typed since the last settle
+      is lost on refresh or a closed tab, with browser-local drafts named as the
+      future mitigation. ADR-036 decision 3 is rewritten and its rejected
+      alternatives now record the draft column and `PageDraftSaved` as considered
+      and dropped.)*
 - [ ] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
 - [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
@@ -422,6 +450,17 @@ milestone opens:**
       for the voided box above, and the one check that actually proves the model.
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
+- [ ] **Notebook history: an edit session commits one event, and the `pages` row
+      rebuilds from the log** — the projection-rebuild golden test gains a page
+      case, and `PageScreen` no longer autosaves. **A rebuild mid-session must not
+      be able to destroy prose, because there is no mid-session row state left to
+      destroy** — that is the whole content of the 2026-09-03 decision and the box
+      that proves it was honoured.
+- [ ] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
+      the registry declares a `person` input. They left this milestone on
+      2026-09-03 with item F; a build that quietly adds them back is building on a
+      domain concept that does not exist. `w-people` is unaffected — it needs a
+      display name on `TripMember`, not attribution.
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.

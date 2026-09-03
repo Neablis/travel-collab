@@ -70,12 +70,51 @@ subject to the M14 split below.
    is a *known* type. Only a nested **unknown** node exposes it. Both cases were caught by
    breaking the source and watching the test stay green (CLAUDE.md rule 3).
 
+### Two blockers settled 2026-09-03, and NOTHING in M14 is blocked now
+
+- **Notebook history (link 9) is open.** ADR-036's draft-durability question is answered:
+  **one clock, not two.** The 800ms autosave is dropped and the write happens on the settled
+  edit session, so the `pages` row carries only what the log carries and invariant 2 holds
+  with no draft column and no `PageDraftSaved` event — both were live options and both are
+  now in the ADR's rejected alternatives. Mitchell: *"Can we punt on the 800ms autosaving as
+  a future feature, and we save on edit finished to history."* **The accepted cost, stated
+  as a regression rather than a footnote:** prose typed since the last settle is lost on
+  refresh, crash or a closed tab. Browser-local drafts (`localStorage`, no contract, no
+  migration) are the named future mitigation. **Link 9 also owns deleting `PageScreen`'s
+  autosave**, and decision 4's guard survives that unchanged — changing *when* the write
+  fires does not change *what* it writes.
+- **The attribution model (item F) is deferred, and the two person widgets go with it.**
+  Mitchell: *"Lets skip this widget for now, and add in future we need activities to have
+  owners (and i think participants that are going to that activity)."* **This needs no new
+  milestone** — the field is already scoped twice, as M13's `add-stop-who` and M19 link 3,
+  and M19's prerequisites already say it must land in exactly one. M14 ships 19 of the 21
+  catalogued widgets; `w-people` is unaffected (it needs a display name on `TripMember`, not
+  attribution). **Carried into M19 link 3: owners and participants are two relations** — who
+  booked a stop is not who is going to it, and link 4's splits need the second, so a single
+  `assignee` would satisfy `add-stop-who`'s wording and still be wrong.
+
 ### Open, and not a build's to settle
 
-- **The M14 split** — proposed in `M14-rich-layer.md` with the attribution model as the
-  seam. M14 no longer describes the work.
 - **ADR-037 open question 1** — what the chrome row shows when one block holds several
-  separately-bound widgets.
+  separately-bound widgets. **Does not block starting** (the ADR says so itself); it bites at
+  link 4's chrome row and item G's insert surface.
+- **Whether M14's remainder (A, B, C, D, E, G, H) splits further.** F's departure was the
+  seam the split proposal named, and it has been taken; whether what is left is still too big
+  is open, and nothing waits on the answer.
+
+### The next unit is item B — the widget module contract
+
+`MacroView.tsx:35` still has `switch (name)` with `default: no renderer: <name>`: a
+hand-maintained duplicate of the registry, and the reason a widget cannot be added inside
+`packages/pages` without editing a React component in `apps/web`. That is what ADR-037 exists
+to delete, no open question touches it, and it gates the "easily add more" requirement.
+Then C (`WidgetContext = { user, trip? }`, which does not exist in the tree at all), D (the
+trip-globals projection — `trip.cities` is not data, it is derived per-activity via
+`cityFor()`), E (the attribute manifest from annotated Zod fields). Link 3 already landed in
+#130.
+
+### Still true from earlier today
+
 **`KI-2026-09-03-d` is measured and RESOLVED (2026-09-03), nothing changed.** A top-level
 `macro` mounts with no warning, renders, and round-trips — `Node.fromJSON` does not
 content-check, so it is inert on the path that matters. `doc.check()` *does* throw, and
