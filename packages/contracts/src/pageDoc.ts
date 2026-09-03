@@ -18,6 +18,13 @@ import { MacroNode } from "./pages";
 //
 // Two representations of one format — the TipTap schema and this — is the cost
 // ADR-038 accepted. This file is the half that is testable without a browser.
+//
+// The vocabulary below is MEASURED against the other half, not read off the
+// ADR: an editor built with `PageEditor`'s own extension set (`StarterKit` +
+// `MacroNodeExtension`) was fed one of every node and its `getJSON()` and
+// `schema.nodes` read back (2026-09-03). Every attr, every default and every
+// block/inline classification here came from that. Re-measure before changing
+// one; ADR-038 decision 1's list was written from neither and was wrong twice.
 
 // ---------------------------------------------------------------------------
 // Nodes
@@ -57,6 +64,18 @@ export const PageTextNode = z.object({
 }).strict();
 export type PageTextNode = z.infer<typeof PageTextNode>;
 
+// A line break inside a paragraph. INLINE, not a block: measured
+// `schema.nodes.hardBreak.isInline === true`, group `"inline"`, and `<p>a<br>b`
+// emits it between the two text nodes. It is a leaf and carries no attrs at
+// all — ProseMirror omits the `attrs` key entirely for a node type that
+// declares none, so `.strict()` here is what the editor actually writes.
+export const PageHardBreakNode = z.object({ type: z.literal("hardBreak") }).strict();
+export type PageHardBreakNode = z.infer<typeof PageHardBreakNode>;
+
+// Same story as `hardBreak`, one level up: a block-position leaf with no attrs.
+export const PageHorizontalRuleNode = z.object({ type: z.literal("horizontalRule") }).strict();
+export type PageHorizontalRuleNode = z.infer<typeof PageHorizontalRuleNode>;
+
 // ADR-038 decision 3. `raw` is the ORIGINAL value, held by reference and never
 // re-encoded, so `serializePageDoc` can put it back exactly as it came in. This
 // shape is in-memory only: no stored document contains a node of type
@@ -71,8 +90,29 @@ export type PageUnknownNode = z.infer<typeof PageUnknownNode>;
 // Every node type this build knows, at any position. Position validity is a
 // separate question, settled by the per-position unions below: a `text` node
 // sitting where a block belongs is a KNOWN type in the wrong place, so it is a
-// parse error, not an unknown node.
-const KNOWN_NODE_TYPES: ReadonlySet<string> = new Set(["paragraph", "heading", "macro", "repeat", "text"]);
+// parse error, not an unknown node. `listItem` is the sharpest case — measured,
+// it has no ProseMirror group, so the editor accepts it inside a list and
+// nowhere else, and this file says the same.
+//
+// What this does NOT reproduce is ProseMirror's full content expressions —
+// `listItem`'s `paragraph block*` requires its FIRST child to be a paragraph,
+// and nothing here enforces the ordering. Vocabulary and position are what a
+// document can be wrong about in a way that loses data; child ordering is
+// something the editor repairs on its own.
+const KNOWN_NODE_TYPES: ReadonlySet<string> = new Set([
+  "paragraph",
+  "heading",
+  "macro",
+  "repeat",
+  "text",
+  "blockquote",
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "codeBlock",
+  "horizontalRule",
+  "hardBreak",
+]);
 
 function isNodeLike(value: unknown): value is { type: string } {
   return (
@@ -84,7 +124,9 @@ function isNodeLike(value: unknown): value is { type: string } {
 }
 
 // Carry, don't drop (decision 3): a node whose `type` this build does not know
-// becomes `{ type: "unknown", raw }`.
+// becomes `{ type: "unknown", raw }`. Applied at EVERY content position, list
+// items and code-block text included — a rolling deploy does not get to choose
+// where the newer node lands.
 //
 // Note what deliberately does NOT come through here: a node whose type we DO
 // know but whose interior is malformed — a heading at level 9, an unexpected
@@ -97,7 +139,7 @@ function tagUnknownNode(raw: unknown): unknown {
 
 export const PageInlineNode = z.preprocess(
   tagUnknownNode,
-  z.discriminatedUnion("type", [PageTextNode, PageWidgetNode, PageUnknownNode]),
+  z.discriminatedUnion("type", [PageTextNode, PageWidgetNode, PageHardBreakNode, PageUnknownNode]),
 );
 export type PageInlineNode = z.infer<typeof PageInlineNode>;
 
@@ -107,15 +149,25 @@ export const PageParagraphNode = z.object({
 }).strict();
 export type PageParagraphNode = z.infer<typeof PageParagraphNode>;
 
-// Levels 1-3, per ADR-038 decision 1. This is NARROWER than what the app can
-// already produce: StarterKit allows 1-6 and the AI compose tool's block schema
-// (`apps/web/src/server/ai/pageTools.ts`) accepts `level` 1-6 today. A stored
-// level-4 heading therefore fails to parse here rather than becoming an unknown
-// node. Pinned by a test so the discrepancy stays visible; widening it is an
-// ADR amendment, not a quiet edit.
+// Levels 1-6: StarterKit's own range (measured — `<h1>`…`<h6>` all round-trip
+// as `heading` with the matching `level`), and the same range the AI compose
+// tool's block schema accepts (`apps/web/src/server/ai/pageTools.ts:37`,
+// `z.number().int().min(1).max(6)`). ADR-038 decision 1 says 1-3; Mitchell
+// chose widening the AST over narrowing the tool (2026-09-03), because a
+// level-4 heading is reachable from both the editor and `/ask` today and a
+// document containing one would otherwise open read-only under decision 4.
 export const PageHeadingNode = z.object({
   type: z.literal("heading"),
-  attrs: z.object({ level: z.union([z.literal(1), z.literal(2), z.literal(3)]) }).strict(),
+  attrs: z.object({
+    level: z.union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+    ]),
+  }).strict(),
   content: z.array(PageInlineNode).default([]),
 }).strict();
 export type PageHeadingNode = z.infer<typeof PageHeadingNode>;
@@ -131,11 +183,138 @@ export const PageRepeatNode = z.object({
 }).strict();
 export type PageRepeatNode = z.infer<typeof PageRepeatNode>;
 
-export const PageNode = z.preprocess(
+// A code block holds text and NOTHING ELSE — measured
+// `schema.nodes.codeBlock.spec.marks === ""`, which is ProseMirror for "no
+// marks here", so bold inside a code block is not a thing the editor can
+// write. A stored code block carrying marked text did not come from the
+// editor, and treating it as valid would mean re-serialising a mark the editor
+// drops on the next keystroke.
+export const PageCodeTextNode = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+}).strict();
+export type PageCodeTextNode = z.infer<typeof PageCodeTextNode>;
+
+const PageCodeBlockContentNode = z.preprocess(
   tagUnknownNode,
-  z.discriminatedUnion("type", [PageParagraphNode, PageHeadingNode, PageWidgetNode, PageRepeatNode, PageUnknownNode]),
+  z.discriminatedUnion("type", [PageCodeTextNode, PageUnknownNode]),
 );
-export type PageNode = z.infer<typeof PageNode>;
+
+// `language` is `null` when the block has no language set — that is TipTap's
+// own default, not an absence we invented, so an attrs-less code block
+// materialises to it rather than failing to parse. Same reasoning as
+// `content`'s `.default([])`; contrast `heading.attrs.level`, which carries
+// meaning and has no defensible default.
+export const PageCodeBlockNode = z.object({
+  type: z.literal("codeBlock"),
+  attrs: z.object({ language: z.string().nullable() }).strict().default({ language: null }),
+  content: z.array(PageCodeBlockContentNode).default([]),
+}).strict();
+export type PageCodeBlockNode = z.infer<typeof PageCodeBlockNode>;
+
+// ---------------------------------------------------------------------------
+// The recursive part of the vocabulary
+// ---------------------------------------------------------------------------
+
+// Lists and blockquotes hold blocks, so the union refers to itself:
+// `bulletList → listItem → paragraph`, and a blockquote can hold either. Zod
+// cannot infer a recursive type, so these four shapes are the one place in this
+// file where a type is written by hand rather than derived. They are not free
+// duplication: `PageNode`'s schema is annotated with the hand-written type
+// below, so a schema that stops matching its type fails to compile.
+export interface PageListItemNode {
+  type: "listItem";
+  content: PageNode[];
+}
+
+// A list holds list items — and, per decision 3, whatever a newer build put
+// there instead. A `paragraph` directly inside a `bulletList` is a known type
+// in a position the editor cannot produce, so it stays a parse error.
+export type PageListContentNode = PageListItemNode | PageUnknownNode;
+
+export interface PageBulletListNode {
+  type: "bulletList";
+  content: PageListContentNode[];
+}
+
+export interface PageOrderedListNode {
+  type: "orderedList";
+  attrs: { start: number; type: string | null };
+  content: PageListContentNode[];
+}
+
+export interface PageBlockquoteNode {
+  type: "blockquote";
+  content: PageNode[];
+}
+
+export type PageNode =
+  | PageParagraphNode
+  | PageHeadingNode
+  | PageWidgetNode
+  | PageRepeatNode
+  | PageCodeBlockNode
+  | PageHorizontalRuleNode
+  | PageBlockquoteNode
+  | PageBulletListNode
+  | PageOrderedListNode
+  | PageUnknownNode;
+
+// The knot-tying reference. The annotation is what stops TypeScript's
+// "referenced directly or indirectly in its own initializer"; the `unknown`
+// input parameter is required because `z.preprocess` accepts anything.
+const NestedPageNode: z.ZodType<PageNode, z.ZodTypeDef, unknown> = z.lazy(() => PageNode);
+
+export const PageListItemNode = z.object({
+  type: z.literal("listItem"),
+  content: z.array(NestedPageNode).default([]),
+}).strict();
+
+const PageListContentNode = z.preprocess(
+  tagUnknownNode,
+  z.discriminatedUnion("type", [PageListItemNode, PageUnknownNode]),
+);
+
+export const PageBulletListNode = z.object({
+  type: z.literal("bulletList"),
+  content: z.array(PageListContentNode).default([]),
+}).strict();
+
+// `start` and `type` are the `<ol>` attributes, and both are always emitted:
+// measured `{ start: 1, type: null }` for a plain list and `{ start: 3, type:
+// null }` for `<ol start="3">`. `type` is the list-style marker
+// ("1"/"a"/"A"/"i"/"I"), left as a string rather than an enum — an
+// unrecognised marker is not worth making a page read-only over, and the
+// editor offers no way to set one today.
+export const PageOrderedListNode = z.object({
+  type: z.literal("orderedList"),
+  attrs: z.object({
+    start: z.number().int(),
+    type: z.string().nullable(),
+  }).strict().default({ start: 1, type: null }),
+  content: z.array(PageListContentNode).default([]),
+}).strict();
+
+export const PageBlockquoteNode = z.object({
+  type: z.literal("blockquote"),
+  content: z.array(NestedPageNode).default([]),
+}).strict();
+
+export const PageNode: z.ZodType<PageNode, z.ZodTypeDef, unknown> = z.preprocess(
+  tagUnknownNode,
+  z.discriminatedUnion("type", [
+    PageParagraphNode,
+    PageHeadingNode,
+    PageWidgetNode,
+    PageRepeatNode,
+    PageCodeBlockNode,
+    PageHorizontalRuleNode,
+    PageBlockquoteNode,
+    PageBulletListNode,
+    PageOrderedListNode,
+    PageUnknownNode,
+  ]),
+);
 
 // ---------------------------------------------------------------------------
 // The document and its version
@@ -203,20 +382,39 @@ export function parsePageDoc(raw: unknown): PageDoc {
 // testing hardest. Known nodes serialise CANONICALLY (schema key order, `v`
 // present, absent `content` materialised as `[]`), so the whole document is not
 // byte-stable across a round trip and was never meant to be.
+//
+// Every leaf position goes through this one: inline nodes and code-block text
+// are all leaves, and a code text node is a text node with fewer keys.
 function serializePageInlineNode(node: PageInlineNode): unknown {
   return node.type === "unknown" ? node.raw : node;
 }
 
+function serializePageListContentNode(node: PageListContentNode): unknown {
+  return node.type === "unknown"
+    ? node.raw
+    : { ...node, content: node.content.map(serializePageNode) };
+}
+
+// Recursive, and that is the whole point: a list nested two deep whose
+// serialiser only walked one level would round-trip lossily and silently, in
+// the one function decision 4's guard depends on being right.
 export function serializePageNode(node: PageNode): unknown {
   switch (node.type) {
     case "unknown":
       return node.raw;
     case "macro":
+    case "horizontalRule":
       return node;
     case "paragraph":
     case "heading":
     case "repeat":
+    case "codeBlock":
       return { ...node, content: node.content.map(serializePageInlineNode) };
+    case "blockquote":
+      return { ...node, content: node.content.map(serializePageNode) };
+    case "bulletList":
+    case "orderedList":
+      return { ...node, content: node.content.map(serializePageListContentNode) };
   }
 }
 

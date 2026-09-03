@@ -132,15 +132,57 @@ is ADR-037 decision 8 ("a widget's `name` is a stored identifier") applying to n
 
 Not "ProseMirror JSON we hope is fine". A real union, exhaustively parsed:
 
+**Rewritten 2026-09-03 to match what was measured and built.** The first draft of this block
+listed five members and `level: 1|2|3`, both of which were wrong — see the amendment above.
+Keeping the sketch would have left a reader who scrolls straight to "Decision" with the
+answer that caused the problem.
+
 ```ts
 type PageNode =
-  | { type: "paragraph"; content: InlineNode[] }
-  | { type: "heading"; attrs: { level: 1|2|3 }; content: InlineNode[] }
-  | { type: "widget"; attrs: { name: string; params: Record<string, unknown> } }
-  | { type: "repeat"; attrs: { name: string; params: Record<string, unknown> };
-      content: InlineNode[] }        // its content IS the row template (ADR-035 decision 4)
-  | { type: "unknown"; raw: unknown } // decision 3
+  // text
+  | { type: "paragraph";  content: PageInlineNode[] }
+  | { type: "heading";    attrs: { level: 1|2|3|4|5|6 }; content: PageInlineNode[] }
+  // widgets — the discriminator is "macro", NOT "widget": it is what every stored
+  // page already uses, and v1 is defined as what is already stored. Renaming it is
+  // a v2 migration (see the deviation note above).
+  | { type: "macro";      attrs: { name: string; params: Record<string, unknown> } }
+  | { type: "repeat";     attrs: { name: string; params: Record<string, unknown> };
+                          content: PageInlineNode[] }   // content IS the row template
+  // the rest of StarterKit, which PageEditor loads today
+  | { type: "blockquote"; content: PageNode[] }                    // recursive
+  | { type: "bulletList";  content: PageListItemNode[] }
+  | { type: "orderedList"; attrs: { start: number; type: string | null };
+                           content: PageListItemNode[] }
+  | { type: "codeBlock";  attrs: { language: string | null }; content: PageCodeTextNode[] }
+  | { type: "horizontalRule" }                                     // no attrs key at all
+  | { type: "unknown";    raw: unknown };                          // decision 3
+
+type PageInlineNode =
+  | { type: "text"; text: string; marks?: PageMark[] }
+  | { type: "macro"; … }
+  | { type: "hardBreak" }            // INLINE, not block — measured
+  | { type: "unknown"; raw: unknown };
 ```
+
+Every attr here is **measured from `editor.getJSON()` and `editor.schema.nodes`** using
+`PageEditor`'s own extension set, not read off TipTap's docs. Three of them would have been
+wrong otherwise: `orderedList` carries **`type` as well as `start`** (the `<ol type>` marker,
+`null` when unset); `horizontalRule` and `hardBreak` have **no `attrs` key at all**, so
+requiring one would have failed every real document; and `codeBlock`'s content is text with
+`marks: ""` — ProseMirror for "no marks here" — so a bold run inside a code block is not
+something the editor can even write.
+
+`listItem` deliberately has **no group** in ProseMirror, so it is valid inside a list and
+nowhere else. The AST says the same: a `listItem` at block position is a parse error.
+
+`orderedList.attrs` and `codeBlock.attrs` carry `.default()` rather than being required.
+TipTap always writes them, the defaults are TipTap's own, and defaulting removes a class of
+false read-only pages. `heading.attrs.level` stays required — it carries meaning and has no
+defensible default.
+
+**Not enforced, deliberately:** ProseMirror's full content expressions, e.g. `listItem`'s
+`paragraph block*` first-child rule. Child ordering is something the editor repairs on load;
+rejecting it would produce a read-only page for a defect that costs nothing.
 
 The editor keeps using TipTap; TipTap's schema and this AST are **two representations of one
 format**, with an explicit conversion at the boundary rather than an assumption that they
