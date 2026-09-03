@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { DayRef, Page, PageContent, TripDetail } from "@tc/contracts";
+import type { Page, PageContent, TripDetail } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
-import { DayBindingControl, DAY_BINDING_SELECT_ID } from "@/components/pages/DayBindingControl";
 import { ComposePanel } from "@/components/pages/ai/ComposePanel";
 
 type Status = "loading" | "ready" | "error";
@@ -22,9 +21,8 @@ const AUTOSAVE_DELAY_MS = 800;
 // Renders one page's editor. Fetches the page + the trip's detail (the same
 // `fetchTripDetail` the board/lens system uses — pages don't need
 // `TripProvider`'s optimistic-update machinery, they never write planning
-// data) and wires `PageEditor`'s `value`/`onChange`/`onBindDay` to
-// `pagesClient.updatePage` — content debounced, the day binding immediate
-// (a discrete selection, not continuous typing).
+// data) and wires `PageEditor`'s `value`/`onChange` to
+// `pagesClient.updatePage`, debounced.
 export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -80,16 +78,6 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     saveContent(content);
   };
 
-  const handleBindDay = (dayRef: DayRef | undefined) => {
-    const context = { ...page.context, dayRef };
-    setPage((prev) => (prev === null ? prev : { ...prev, context }));
-    void updatePage(tripId, pageId, { context });
-  };
-
-  const focusDayBinding = () => {
-    document.getElementById(DAY_BINDING_SELECT_ID)?.focus();
-  };
-
   return (
     <PageContainer>
       <div className="mb-2">
@@ -98,9 +86,6 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
         </Link>
       </div>
       <Heading level={2}>{page.title}</Heading>
-      <div className="my-3">
-        <DayBindingControl trip={trip} dayRef={page.context.dayRef} onChange={handleBindDay} />
-      </div>
       <div className="mb-3">
         <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} />
       </div>
@@ -109,7 +94,6 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
         context={page.context}
         value={page.content}
         onChange={handleContentChange}
-        onBindDay={focusDayBinding}
       />
     </PageContainer>
   );

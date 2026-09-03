@@ -23,14 +23,10 @@ afterEach(() => {
 afterAll(() => server.close());
 
 describe("NotebookScreen", () => {
-  it("lists pages with title, binding, and last-edited", async () => {
-    const tripWide = pageFixture({ id: "11111111-1111-4111-8111-111111111111", title: "Trip Overview" });
-    const dayBound = pageFixture({
-      id: "22222222-2222-4222-8222-222222222222",
-      title: "Day Sheet",
-      context: { tripId: TRIP_ID, dayRef: { kind: "index", index: 0 } },
-    });
-    server.use(...makePagesHandlers([tripWide, dayBound]));
+  it("lists the trip's notebooks by title", async () => {
+    const overview = pageFixture({ id: "11111111-1111-4111-8111-111111111111", title: "Trip Overview" });
+    const daySheet = pageFixture({ id: "22222222-2222-4222-8222-222222222222", title: "Day Sheet" });
+    server.use(...makePagesHandlers([overview, daySheet]));
 
     render(<NotebookScreen tripId={TRIP_ID} />);
 
@@ -39,8 +35,6 @@ describe("NotebookScreen", () => {
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(within(list).getByText("Trip Overview")).toBeTruthy();
     expect(within(list).getByText("Day Sheet")).toBeTruthy();
-    expect(within(list).getByText("Day 1")).toBeTruthy();
-    expect(within(list).getByText("Trip-wide")).toBeTruthy();
   });
 
   it("creates a new page via the client and navigates to it", async () => {

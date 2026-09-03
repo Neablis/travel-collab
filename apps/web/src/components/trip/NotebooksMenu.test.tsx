@@ -39,37 +39,34 @@ describe("NotebooksMenu", () => {
     server.events.removeAllListeners();
   });
 
-  it("lists the trip's notebooks with their binding when opened", async () => {
-    const tripWide = pageFixture({
+  it("lists the trip's notebooks when opened", async () => {
+    const overview = pageFixture({
       id: "11111111-1111-4111-8111-111111111111",
       tripId: TRIP_ID,
       title: "Trip Overview",
     });
-    const dayBound = pageFixture({
+    const daySheet = pageFixture({
       id: "22222222-2222-4222-8222-222222222222",
       tripId: TRIP_ID,
       title: "Day Sheet",
-      context: { tripId: TRIP_ID, dayRef: { kind: "index", index: 5 } },
     });
-    server.use(...makePagesHandlers([tripWide, dayBound]));
+    server.use(...makePagesHandlers([overview, daySheet]));
 
     render(<NotebooksMenu tripId={TRIP_ID} />);
     fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
 
-    // Asserted through each LINK's accessible name, not as two independent
-    // text lookups. The independent form passed even if the two bindings were
-    // swapped onto the wrong notebooks — it proved both strings were somewhere
-    // on screen and nothing about which notebook each belonged to, which is the
-    // entire claim this test makes (Copilot, PR #126).
+    // Asserted through each LINK's accessible name rather than as a text
+    // lookup, anchored at the start and with a LITERAL space before the `.+`:
+    // the `.+` is the row's second line (asserted on its own below), and the
+    // space is the claim that the name reads as words. Without the explicit
+    // whitespace node in the row it computes as
+    // "Trip OverviewYours · edited…" — one run-together word to a screen
+    // reader.
     //
-    // Anchored at both ends, with LITERAL spaces around the `.+`: the `.+` is
-    // the row's second line (asserted on its own below), and the spaces are the
-    // claim that this name reads as words. Without the explicit whitespace
-    // nodes in the row it computes as "Trip OverviewYours…Trip-wide" — one
-    // run-together word to a screen reader.
-    expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Trip Overview .+ Trip-wide$/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Day Sheet .+ Day 6$/ })).toBeTruthy();
+    // The binding this used to assert went with SPEC §18: a page has no scope,
+    // so there is no per-notebook binding for the menu to name.
+    expect(await screen.findByRole("link", { name: /^Trip Overview .+/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
   });
 
   // The design gives every row a second line, and it is the same line the index

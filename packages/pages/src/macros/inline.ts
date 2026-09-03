@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { TripDetail, PageContext } from "@tc/contracts";
+import { DayRef, type TripDetail } from "@tc/contracts";
 import type { MacroDef } from "../registry-types";
 import { ok, empty, unbound, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
@@ -7,9 +7,19 @@ import { formatMoney, formatDate } from "../format";
 const NoParams = z.object({}).strip();
 type NoParams = z.infer<typeof NoParams>;
 
-// Resolve the bound day's index into TripDetail.days, or null if no/invalid binding.
-export function resolveDayIndex(detail: TripDetail, ctx: PageContext): number | null {
-  const ref = ctx.dayRef;
+// A widget that reads ONE day takes that day as its own input (ADR-035
+// decision 3): the day lives in this macro node's params, not on the page.
+// Optional, because a widget can exist before it is pointed anywhere — that is
+// the `unbound` state, and it renders as a chip rather than an error.
+export const DayParams = z.object({ dayRef: DayRef.optional() }).strip();
+export type DayParams = z.infer<typeof DayParams>;
+
+// Resolve this widget's bound day to an index into TripDetail.days, or null if
+// it is bound to nothing or to a day that no longer exists. A stale binding is
+// silently no binding, never a guessed one — writing about day 1 because day 100
+// was deleted is a confident wrong answer.
+export function resolveDayIndex(detail: TripDetail, params: DayParams): number | null {
+  const ref = params.dayRef;
   if (!ref) return null;
   if (ref.kind === "index") return ref.index < detail.days.length ? ref.index : null;
   const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
@@ -38,11 +48,11 @@ export const costTrip: MacroDef<NoParams, string> = {
   resolve: (d): MacroResult<string> => (d.tripCostTotal === 0 ? empty() : ok(formatMoney(d.tripCostTotal, d.currency))),
 };
 
-export const costDay: MacroDef<NoParams, string> = {
-  name: "cost.day", kind: "inline", params: NoParams,
-  description: "Total cost of the day this page is pointed at.", emptyText: "no costs on this day",
-  resolve: (d, ctx): MacroResult<string> => {
-    const idx = resolveDayIndex(d, ctx);
+export const costDay: MacroDef<DayParams, string> = {
+  name: "cost.day", kind: "inline", params: DayParams,
+  description: "Total cost of one day of the trip.", emptyText: "no costs on this day",
+  resolve: (d, _ctx, params): MacroResult<string> => {
+    const idx = resolveDayIndex(d, params);
     if (idx === null) return unbound("day");
     const sub = d.days[idx]!.costSubtotal;
     return sub === 0 ? empty() : ok(formatMoney(sub, d.currency));

@@ -38,9 +38,9 @@ async function openNotebookIndex(page: Page): Promise<void> {
   await expectNotebookIndex(page);
 }
 
-// M7 exit-gate demo, scripted: Notebook route + the two lazily-instantiated
-// default pages, and a day-bound page rebindable via DayBindingControl. See
-// docs/milestones/M7-solo-delight.md's exit gate.
+// M7 exit-gate demo, scripted: the Notebook route reached from the Notebooks
+// pill, and the two lazily-instantiated default pages rendering their starter
+// text. See docs/milestones/M7-solo-delight.md's exit gate.
 //
 // Rewritten post-Wave-B (M8, commit 5f8683a): macro *authoring* left the
 // primary editing surface — no more `{{` autocomplete, and no other manual
@@ -64,7 +64,7 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // spec only asserts `ComposePanel` renders (prompt box + submit button);
 // the actual compose behavior against a mocked model is covered by
 // apps/web/src/app/api/trips/[tripId]/ai/route.int.test.ts.
-test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
+test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
@@ -76,13 +76,6 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-
-  // Two days: gives Day Sheet's default day-0 binding somewhere to point,
-  // and a second day to rebind onto below.
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
-  await expect(page.getByTestId("day-column")).toHaveCount(1);
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
-  await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // -- open the trip's Notebooks: the two default notebooks exist --
   // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
@@ -104,16 +97,15 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await expect(page.getByLabel("Ask AI to draft this page")).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
 
-  // -- Day Sheet: its own starter text, and DayBindingControl (page-level
-  // metadata, independent of macro content) still binds/rebinds a day --
+  // -- Day Sheet: its own starter text --
+  // The day-binding control this used to drive went with SPEC §18: a page has
+  // no scope, and a day is a widget's own input (M14 link 2). The binding UI
+  // returns as the chrome row on a widget, which is M14 link 4's to cover.
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
   await daySheetLink.click();
   await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
-  await expect(page.getByLabel("Bind to day")).toHaveValue("0");
-  await page.getByLabel("Bind to day").selectOption({ label: "Day 2" });
-  await expect(page.getByLabel("Bind to day")).toHaveValue("1");
 });
 
 // Exit-gate line "Open a fresh empty trip's Notebook → default pages render

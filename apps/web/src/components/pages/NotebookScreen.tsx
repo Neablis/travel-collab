@@ -5,13 +5,12 @@ import Link from "next/link";
 import { DEFAULT_TEMPLATES, type TemplateSeed } from "@tc/pages";
 import type { PageContent, PageContext, PageSummary } from "@tc/contracts";
 import { createPage, deletePage, fetchPages, updatePage } from "@/lib/pagesClient";
-import { provenanceLabel, scopeLabel } from "@/lib/pageScope";
+import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -276,15 +275,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                       <Text as="span" className="font-medium text-ink">
                         {page.title}
                       </Text>
-                      {/* The scope as a Badge, not as secondary text. It was
-                          already computed and already rendered — as the first
-                          half of an "Trip-wide · Updated <full locale string>"
-                          line — which is why two planning docs recorded it as
-                          computed-but-unrendered. What was missing is that a
-                          scope is a property of the notebook, and the design
-                          gives properties badges so they can be scanned down a
-                          column rather than read one row at a time. */}
-                      <Badge variant="neutral">{scopeLabel(page.context)}</Badge>
                     </span>
                     {/* Provenance and freshness, SPEC §7. The absolute timestamp
                         it replaces answered a question nobody asks of a notebook

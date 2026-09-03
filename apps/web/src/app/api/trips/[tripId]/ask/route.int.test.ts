@@ -106,10 +106,10 @@ async function seedTrip(): Promise<string> {
 }
 
 /** One Notebook page on `tripId`, the way the Notebook's own CRUD route makes one. */
-async function seedPage(tripId: string, title = "Trip Overview", dayRef?: { kind: "index"; index: number }) {
+async function seedPage(tripId: string, title = "Trip Overview") {
   const page = await createPage(
     tripId,
-    { title, context: { tripId, ...(dayRef ? { dayRef } : {}) }, content: { type: "doc", content: [] } },
+    { title, context: { tripId }, content: { type: "doc", content: [] } },
     ACTOR_ID,
   );
   return page.id;
@@ -803,9 +803,9 @@ describe("POST /api/trips/:id/ask", () => {
     // assert it is to read what the model was handed. It has to carry the macro
     // catalog: no tool returns it, and a model that never saw the descriptions
     // emits macros whose params `validateComposedPage` then rejects.
-    it("tells the model which page it is writing, its day binding, and the macros", async () => {
+    it("tells the model which page it is writing and the macros it may use", async () => {
       const tripId = await seedTrip();
-      const pageId = await seedPage(tripId, "Day Sheet", { kind: "index", index: 1 });
+      const pageId = await seedPage(tripId, "Day Sheet");
       const { model, turnInstruction } = recordingModel();
       const res = await handleAskRequest(
         req(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } }),
@@ -817,7 +817,6 @@ describe("POST /api/trips/:id/ask", () => {
 
       const instruction = turnInstruction();
       expect(instruction).toContain('The page is called "Day Sheet"');
-      expect(instruction).toContain("bound to DAY 2");
       expect(instruction).toContain("itinerary.day");
       // None of the planning rules the command endpoint sent on every page
       // request — ~1.5k characters describing tools this turn is not handed.
@@ -825,7 +824,10 @@ describe("POST /api/trips/:id/ask", () => {
       expect(instruction).not.toContain("MoveActivity");
     });
 
-    it("says the page is about the whole trip when it is bound to no day", async () => {
+    // SPEC §18: a page is about nothing in particular, so the instruction says
+    // so unconditionally. It used to branch on the page's own `dayRef`, and the
+    // branch went with the field.
+    it("tells the model the page is not about any one day", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId, "Trip Overview");
       const { model, turnInstruction } = recordingModel();
@@ -836,7 +838,7 @@ describe("POST /api/trips/:id/ask", () => {
         () => {},
       );
       await res.text();
-      expect(turnInstruction()).toContain("not bound to a day");
+      expect(turnInstruction()).toContain("not about any one day");
     });
 
     // Composing writes nothing. The draft goes to the editor and the Notebook's

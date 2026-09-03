@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
@@ -35,17 +35,25 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
-  it("resolves a day-bound page's macro blocks against the loaded TripDetail", async () => {
+  it("resolves a day macro's own params against the loaded TripDetail", async () => {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({
       days: [{ dayId, activityIds: [], date: "2027-06-01", costSubtotal: 0 }],
     });
     const page = pageFixture({
       tripId: trip.tripId,
-      context: { tripId: trip.tripId, dayRef: { kind: "index", index: 0 } },
       content: {
         type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "macro", attrs: { name: "cost.day", params: {} } }] }],
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              // The day is the widget's, not the page's (SPEC §18): the page
+              // below is about nothing in particular.
+              { type: "macro", attrs: { name: "cost.day", params: { dayRef: { kind: "index", index: 0 } } } },
+            ],
+          },
+        ],
       },
     });
     server.use(
@@ -56,30 +64,5 @@ describe("PageScreen", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
     expect(await screen.findByText("no costs on this day")).toBeTruthy();
-  });
-
-  it("binds the page to a day via DayBindingControl, writing context.dayRef through updatePage", async () => {
-    const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
-    const trip = tripDetailFixture({
-      days: [{ dayId, activityIds: [], date: "2027-06-01", costSubtotal: 0 }],
-    });
-    const page = pageFixture({ tripId: trip.tripId });
-    const onUpdate = vi.fn();
-    server.use(
-      ...makePagesHandlers([page], { onUpdate }),
-      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
-    );
-
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
-
-    const select = await screen.findByLabelText("Bind to day");
-    fireEvent.change(select, { target: { value: "0" } });
-
-    await waitFor(() =>
-      expect(onUpdate).toHaveBeenCalledWith(
-        page.id,
-        expect.objectContaining({ context: { tripId: trip.tripId, dayRef: { kind: "index", index: 0 } } }),
-      ),
-    );
   });
 });

@@ -11,8 +11,7 @@ describe("templates", () => {
     const inputs = instantiateDefaults(tripId);
     expect(inputs).toHaveLength(2);
     for (const input of inputs) expect(CreatePageInput.safeParse(input).success).toBe(true);
-    expect(inputs[0]!.context.tripId).toBe(tripId);
-    expect(inputs[1]!.context.dayRef).toEqual({ kind: "index", index: 0 }); // Day Sheet binds day 0
+    for (const input of inputs) expect(input.context).toEqual({ tripId }); // a page is trip-bound and nothing else (SPEC §18)
   });
   // Task B3: macro authoring left the primary editing surface in M8, so the
   // seeded templates no longer plant macro nodes a reader can't add, edit, or
