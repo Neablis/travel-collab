@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Conflict } from "@tc/contracts";
-import { costedTripDetailFixture, tripDetailFixture } from "@tc/factories";
+import { tripDetailFixture } from "@tc/factories";
 import {
   ASK_SCOPE_PREFIX,
   activeConflicts,
   askScopeLine,
   parseAskScope,
-  resolveBoundDay,
   type AskScope,
 } from "./context";
-
-const PAGE_CONTEXT = { tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" };
 
 // Two conflicts with compound, UUID-embedding ids (as detectConflicts emits) —
 // exactly the ids the model must NEVER be asked to copy.
@@ -67,47 +64,6 @@ describe("activeConflicts", () => {
     });
 
     expect(activeConflicts(detail)).toEqual([]);
-  });
-});
-
-// A page-authoring turn is told which day its page is bound to, and that answer
-// comes from the STORED page row resolved against the trip — never from a
-// `pageContext` the client sent, which is what the command endpoint accepted
-// (ADR-033 Decision 2). These are the envelope's `boundDay` cases, kept whole:
-// the resolution rule did not change, only who supplies its input.
-describe("resolveBoundDay", () => {
-  it("resolves a dayId ref against detail.days", () => {
-    const detail = costedTripDetailFixture();
-    const dayId = detail.days[0]!.dayId;
-
-    expect(resolveBoundDay(detail, { tripId: detail.tripId, dayRef: { kind: "dayId", dayId } })).toEqual({
-      index: 0,
-      date: "2027-06-01",
-    });
-  });
-
-  it("resolves an index ref by position", () => {
-    const detail = costedTripDetailFixture();
-
-    expect(resolveBoundDay(detail, { tripId: detail.tripId, dayRef: { kind: "index", index: 0 } })).toEqual({
-      index: 0,
-      date: "2027-06-01",
-    });
-  });
-
-  it("is undefined for a page bound to no day", () => {
-    expect(resolveBoundDay(costedTripDetailFixture(), PAGE_CONTEXT)).toBeUndefined();
-  });
-
-  // A day deleted under a bound page. Silently no binding, never a guessed one:
-  // writing the page about day 1 because day 100 is gone is a confident wrong
-  // answer, which is the failure class this whole area exists to remove.
-  it("is undefined for an unresolvable ref rather than wrong", () => {
-    const detail = costedTripDetailFixture();
-
-    expect(
-      resolveBoundDay(detail, { tripId: detail.tripId, dayRef: { kind: "index", index: 99 } }),
-    ).toBeUndefined();
   });
 });
 

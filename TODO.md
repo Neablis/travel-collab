@@ -309,6 +309,19 @@ Where the work actually stands right now: `docs/STATUS.md`.
       secondary text rather than a badge; and this half **did** need a contract
       change, `PageSummary.actorId`, without which the provenance line cannot
       tell a seeded notebook from an authored one.)*
+      *(**RESCOPED and UNBLOCKED 2026-09-03.** SPEC **§18** replaced §7's model:
+      a page has no scope, and **a widget is a function of its own declared
+      inputs**, so two widgets on one page can read two different days. That
+      makes the six links nine, and it **dissolves the `templates.ts` blocker**
+      the paragraphs above are built around — the question stops being "does
+      macro authoring come back" and becomes "what does a seeded template
+      instantiate". **ADR-035 and ADR-036 were both accepted the same day**, so
+      nothing above about a PROPOSED prerequisite still holds. Links 2–8 are open
+      for work; **link 9 (notebook history) is not** — accepting ADR-036 left one
+      question open that a build cannot answer for itself, named in that ADR's
+      last Consequence and in the milestone's gate. Note §18 reached `main`
+      **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
+      is un-shipped on purpose by link 2 rather than regressed.)*
 - [x] **M15 Front door** → `docs/milestones/M15-front-door.md`
       *(Gate closed 2026-08-26, PR #56. **Ran ahead of M10's Phase 9 gate and
       M16**, superseding ADR-021/ADR-022's stated ordering — decision 1 in the

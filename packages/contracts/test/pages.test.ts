@@ -12,10 +12,18 @@ describe("page contracts", () => {
     expect(MacroNode.parse(node).attrs.params).toEqual({ day: { kind: "index", index: 2 } });
   });
 
-  it("binds a page to a trip, optionally to a day", () => {
-    expect(PageContext.parse({ tripId: crypto.randomUUID() }).dayRef).toBeUndefined();
-    const withDay = PageContext.parse({ tripId: crypto.randomUUID(), dayRef: { kind: "index", index: 0 } });
-    expect(withDay.dayRef).toEqual({ kind: "index", index: 0 });
+  it("binds a page to a trip and to nothing else", () => {
+    const tripId = crypto.randomUUID();
+    expect(PageContext.parse({ tripId })).toEqual({ tripId });
+  });
+
+  // A page row written before SPEC §18 carries `dayRef` in its `context` jsonb.
+  // `PageContext` is a plain (non-strict) object, so those rows still parse and
+  // the dead key is dropped on the way through — which is why removing the
+  // field needs no migration and no backfill.
+  it("drops a pre-§18 page's day binding instead of rejecting the row", () => {
+    const tripId = crypto.randomUUID();
+    expect(PageContext.parse({ tripId, dayRef: { kind: "index", index: 0 } })).toEqual({ tripId });
   });
 
   it("validates a full Page row", () => {

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { TripDetail, PageContext } from "@tc/contracts";
+import type { TripDetail } from "@tc/contracts";
 import type { MacroDef, ItineraryDayPayload, ItineraryTripPayload, CostsTablePayload } from "../registry-types";
 import { ok, empty, unbound, type MacroResult } from "../result";
 import { formatMoney } from "../format";
-import { resolveDayIndex } from "./inline";
+import { DayParams, resolveDayIndex } from "./inline";
 
 const NoParams = z.object({}).strip();
 type NoParams = z.infer<typeof NoParams>;
@@ -23,11 +23,11 @@ function dayPayload(detail: TripDetail, idx: number): ItineraryDayPayload {
   };
 }
 
-export const itineraryDay: MacroDef<NoParams, ItineraryDayPayload> = {
-  name: "itinerary.day", kind: "block", params: NoParams,
-  description: "The activity list for the day this page is pointed at.", emptyText: "No activities on this day yet",
-  resolve: (d, ctx): MacroResult<ItineraryDayPayload> => {
-    const idx = resolveDayIndex(d, ctx);
+export const itineraryDay: MacroDef<DayParams, ItineraryDayPayload> = {
+  name: "itinerary.day", kind: "block", params: DayParams,
+  description: "The activity list for one day of the trip.", emptyText: "No activities on this day yet",
+  resolve: (d, _ctx, params): MacroResult<ItineraryDayPayload> => {
+    const idx = resolveDayIndex(d, params);
     if (idx === null) return unbound("day");
     if (d.days[idx]!.activityIds.length === 0) return empty();
     return ok(dayPayload(d, idx));

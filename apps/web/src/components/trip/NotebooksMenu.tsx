@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ChevronDown, NotebookText } from "lucide-react";
 import type { PageSummary } from "@tc/contracts";
 import { createPage, fetchPages } from "@/lib/pagesClient";
-import { provenanceLabel, scopeLabel } from "@/lib/pageScope";
+import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
@@ -229,11 +229,11 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
                     <Text as="span" className="block truncate text-sm font-semibold">
                       {notebook.title}
                     </Text>
-                    {/* A real space between every pair of spans in this row.
-                        Without it the link's accessible name computes as
-                        "Trip OverviewTrip-wide" — one run-together word to a
-                        screen reader. A whitespace-only text node is not
-                        rendered as a flex item, so this changes the name and
+                    {/* A real space between the two spans in this row. Without
+                        it the link's accessible name computes as
+                        "Trip OverviewComes with your trip…" — one run-together
+                        word to a screen reader. A whitespace-only text node is
+                        not rendered as a flex item, so this changes the name and
                         not the layout. */}{" "}
                     {/* The same second line the index route gives each notebook
                         (`NotebookScreen`), from the same two helpers, so the two
@@ -245,17 +245,7 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
                       {provenanceLabel(notebook, viewerId)} · edited{" "}
                       {formatRelativeInstant(notebook.updatedAt) ?? "recently"}
                     </Text>
-                  </span>{" "}
-                  {/* The binding, per §11 ("the trip's notebooks with their
-                      day/trip-wide binding") — the one thing that distinguishes
-                      two notebooks with similar names. Left as plain text rather
-                      than the design's Badge: SPEC §18 (2026-09-02) strikes the
-                      Trip-wide/Day 6 badge outright and removes
-                      `PageContext.dayRef` as a page property, so promoting it
-                      now would build the thing the newer decision deletes. */}
-                  <Text as="span" variant="secondary" className="shrink-0">
-                    {scopeLabel(notebook.context)}
-                  </Text>
+                  </span>
                 </Link>
               </li>
             ))}

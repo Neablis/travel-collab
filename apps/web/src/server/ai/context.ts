@@ -13,10 +13,7 @@
 //     numbering: both the read tools and `batchResolver`'s `conflictRef`
 //     resolution read it, so the number the model is shown and the id the
 //     server resolves it back to cannot drift.
-//   - `resolveBoundDay` — a Notebook page's day binding, resolved server-side
-//     against the trip. It was the envelope's `boundDay`; it is now the page
-//     brief's (handleAskRequest.ts).
-import type { PageContext, TripDetail } from "@tc/contracts";
+import type { TripDetail } from "@tc/contracts";
 
 // Every surface a model is selected for, and there is one: `/ask` is the only
 // AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
@@ -144,30 +141,4 @@ export function conflictsOnDay(detail: TripDetail, dayIndex: number): AiConflict
   return activeConflicts(detail)
     .filter(({ id }) => (subjectsById.get(id) ?? []).some((s) => onThisDay.has(s)))
     .map(({ id: _id, ...rest }) => rest);
-}
-
-/**
- * A Notebook page's day binding, resolved against the trip.
- *
- * Mirrors `packages/pages/src/macros/inline.ts`'s `resolveDayIndex`, inlined
- * rather than imported since this module is otherwise free of a `@tc/pages`
- * dependency. `undefined` when the page is not day-bound or the ref no longer
- * resolves (a day deleted under it) — a stale binding is silently no binding,
- * never a guessed one.
- */
-export function resolveBoundDay(
-  detail: TripDetail,
-  pageContext?: PageContext,
-): { index: number; date: string | null } | undefined {
-  const ref = pageContext?.dayRef;
-  if (!ref) return undefined;
-  const index =
-    ref.kind === "index"
-      ? (ref.index < detail.days.length ? ref.index : null)
-      : (() => {
-          const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
-          return idx === -1 ? null : idx;
-        })();
-  if (index === null) return undefined;
-  return { index, date: detail.days[index]!.date };
 }

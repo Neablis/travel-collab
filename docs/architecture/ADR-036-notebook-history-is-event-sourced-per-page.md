@@ -1,7 +1,10 @@
 # ADR-036: Notebook history is event-sourced per page, at edit-session granularity
 
-**Status:** **PROPOSED — 2026-09-03.** Not accepted.
-**Deciders:** Mitchell (product/eng) — pending; Claude (architect) — drafted
+**Status:** **Accepted — 2026-09-03**: kicking off M14's builder half against this model is
+the acceptance. One thing acceptance did **not** settle — where an unsettled draft lives
+once `pages` is a projection — is the last bullet under *Consequences*, and link 9 does not
+start until it has an answer.
+**Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-003** (what the event log covers — this completes a space it reserved),
 ADR-035 (the widget model this stores), ADR-013/M2 (the history UI vocabulary),
 M13 (realtime transport, which may revisit decision 4)
@@ -113,6 +116,21 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
 - **This is not concurrent editing.** Two people in one page at once is M13's problem;
   this decision gives a page a durable, readable, revertible timeline for one editor at a
   time and does not pretend to more.
+- **Open on acceptance: decisions 3 and 4 do not yet compose with invariant 2, and link 9
+  does not start until they do.** Decision 3 keeps `updatePage` writing the `pages` row
+  every 800ms; the bullet above makes that row a projection. Invariant 2 says a projection
+  is rebuildable from the log, and `rebuildProjections()` enforces it the blunt way — it
+  deletes and re-inserts (`apps/web/src/server/projections.int.test.ts:47`). Between the
+  start of an edit session and the event that settles it, the row therefore holds content
+  no event carries: a rebuild in that window **destroys unsettled prose**, and the golden
+  "rebuild equals stored" test fails for any page mid-session. This is not an argument
+  against either decision — durability at 800ms and readability at session granularity are
+  both right, and it is precisely their difference in cadence that opens the gap. It means
+  the unsettled draft needs somewhere to live that is **not** the projected content: a
+  separate draft column keyed by editor, or a `PageDraftSaved` event the projection folds
+  and the history UI hides. Whichever it is, it is a decision, it is contract-and-migration
+  shaped, and it belongs in this ADR before link 9 is briefed rather than being discovered
+  by an agent halfway through writing the reducer.
 
 ## Alternatives rejected
 

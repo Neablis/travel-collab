@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
-import { tripName, tripDates, costTrip, costDay } from "./inline";
+import { tripName, tripDates, costTrip, costDay, resolveDayIndex } from "./inline";
 
 const base: TripDetail = {
   tripId: "11111111-1111-1111-1111-111111111111",
@@ -15,25 +15,48 @@ const base: TripDetail = {
   createdAt: "2026-07-20T00:00:00.000Z",
   unscheduledCostSubtotal: 0, tripCostTotal: 5000, budgetRemaining: null,
 };
-const tripCtx = { tripId: base.tripId };
-const dayCtx = { tripId: base.tripId, dayRef: { kind: "index", index: 0 } as const };
+// The page context carries the trip and nothing else: a day binding is the
+// widget's own param now (SPEC §18 / ADR-035 decision 3).
+const ctx = { tripId: base.tripId };
+const day0 = { dayRef: { kind: "index", index: 0 } as const };
 
 describe("inline resolvers", () => {
   it("trip.name resolves the name", () => {
-    const r = tripName.resolve(base, tripCtx, {});
+    const r = tripName.resolve(base, ctx, {});
     expect(r).toEqual({ status: "ok", value: "Japan 2026" });
   });
   it("trip.dates is empty when no startDate", () => {
-    expect(tripDates.resolve({ ...base, startDate: null }, tripCtx, {}).status).toBe("empty");
+    expect(tripDates.resolve({ ...base, startDate: null }, ctx, {}).status).toBe("empty");
   });
   it("cost.trip formats the total; empty when zero", () => {
-    expect(costTrip.resolve(base, tripCtx, {})).toEqual({ status: "ok", value: "$50.00" });
-    expect(costTrip.resolve({ ...base, tripCostTotal: 0 }, tripCtx, {}).status).toBe("empty");
+    expect(costTrip.resolve(base, ctx, {})).toEqual({ status: "ok", value: "$50.00" });
+    expect(costTrip.resolve({ ...base, tripCostTotal: 0 }, ctx, {}).status).toBe("empty");
   });
-  it("cost.day resolves the bound day; unbound with no day; empty when zero", () => {
-    expect(costDay.resolve(base, dayCtx, {})).toEqual({ status: "ok", value: "$50.00" });
-    expect(costDay.resolve(base, tripCtx, {}).status).toBe("unbound");
-    const day1 = { tripId: base.tripId, dayRef: { kind: "index", index: 1 } as const };
-    expect(costDay.resolve(base, day1, {}).status).toBe("empty");
+  it("cost.day resolves the day in its OWN params; unbound with no ref; empty when zero", () => {
+    expect(costDay.resolve(base, ctx, day0)).toEqual({ status: "ok", value: "$50.00" });
+    expect(costDay.resolve(base, ctx, {}).status).toBe("unbound");
+    expect(costDay.resolve(base, ctx, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
+  });
+});
+
+// These are the cases `resolveBoundDay` used to own in apps/web's AI context
+// module, which read the binding off the PAGE. The binding moved onto the
+// widget; the resolution rule did not change, so neither did they.
+describe("resolveDayIndex", () => {
+  it("resolves a dayId ref by identity and an index ref by position", () => {
+    expect(resolveDayIndex(base, { dayRef: { kind: "dayId", dayId: "d1" } })).toBe(1);
+    expect(resolveDayIndex(base, { dayRef: { kind: "index", index: 1 } })).toBe(1);
+  });
+
+  it("is null when the widget is pointed at nothing", () => {
+    expect(resolveDayIndex(base, {})).toBeNull();
+  });
+
+  // A day deleted under a bound widget. Silently no binding, never a guessed
+  // one: rendering day 1 because day 100 is gone is a confident wrong answer,
+  // which is the failure class this whole area exists to remove.
+  it("is null for a stale ref rather than the nearest day", () => {
+    expect(resolveDayIndex(base, { dayRef: { kind: "index", index: 99 } })).toBeNull();
+    expect(resolveDayIndex(base, { dayRef: { kind: "dayId", dayId: "d9" } })).toBeNull();
   });
 });

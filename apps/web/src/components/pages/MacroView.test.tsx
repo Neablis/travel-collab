@@ -39,8 +39,19 @@ describe("MacroView", () => {
     expect(screen.getByText("no costs yet")).toBeTruthy();
   });
 
-  it("shows a 'select a day' actionable chip for cost.day with no day binding", () => {
+  // These two are one assertion split in half: an unbound widget offers an
+  // action when there IS one, and says so inertly when there is not. The single
+  // test they replace asserted only the chip's text while calling it
+  // "actionable", so it passed just as happily once `PageScreen` stopped
+  // passing `onBindDay` and the chip became a button that did nothing.
+  it("offers an actionable 'select a day' chip for cost.day when rebinding is possible", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="cost.day" params={{}} onBindDay={() => {}} />);
+    expect(screen.getByRole("button", { name: "select a day" })).toBeTruthy();
+  });
+
+  it("states 'no day set' without offering a control when nothing can rebind", () => {
     render(<MacroView detail={baseDetail} context={ctx} name="cost.day" params={{}} />);
-    expect(screen.getByText("select a day")).toBeTruthy();
+    expect(screen.getByText("no day set")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

@@ -1,18 +1,27 @@
 import { z } from "zod";
 
-// A day binding. "index" = the Nth day (0-based) of the trip; resolvers map it
-// to the day at that position in TripDetail.days. (uuid form reserved for a
-// later "pin to a specific day" affordance; index is what templates use now.)
+// A day binding: the value shape of a `day` input inside ONE WIDGET's params
+// (ADR-035 decision 3 / SPEC §18). "index" = the Nth day (0-based) of the trip;
+// resolvers map it to the day at that position in TripDetail.days. (uuid form
+// reserved for a later "pin to a specific day" affordance; index is what the
+// registry's day macros take now.)
+//
+// It lives here rather than in the registry because it crosses the boundary
+// twice over: it is written into `MacroNode.attrs.params`, which the AI compose
+// path and the editor both produce, and read back by a resolver in @tc/pages.
 export const DayRef = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("index"), index: z.number().int().nonnegative() }),
   z.object({ kind: z.literal("dayId"), dayId: z.string().uuid() }),
 ]);
 export type DayRef = z.infer<typeof DayRef>;
 
-// A page's binding context. Trip-bound always; optionally day-bound.
+// A page is trip-bound and nothing else. It is NOT "about" a day: a page holds
+// widgets and each widget owns its own inputs, so two widgets on one page can
+// read two different days (SPEC §18, ADR-035 decision 1). `dayRef` used to live
+// here; it moved onto the widget instance, where the binding it describes
+// actually belongs.
 export const PageContext = z.object({
   tripId: z.string().uuid(),
-  dayRef: DayRef.optional(),
 });
 export type PageContext = z.infer<typeof PageContext>;
 

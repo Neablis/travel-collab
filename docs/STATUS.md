@@ -30,11 +30,12 @@ been superseded. Two consequences a session must not miss:
 1. **The Trip-wide / Day 6 badge on the notebook index is struck by the design**, along
    with `PageContext.dayRef` as a page property. #126 shipped that badge on 2026-09-03.
    Removing it is a planned conformance change (M14 link 2), not a regression.
+   **Done — link 2 is built** (see *The builder half* below).
 2. **ADR-035 was rewritten, not amended.** It was *"Repeaters are document content"*; it is
    now *"A notebook page is text and widgets; a widget is a function of declared inputs"*.
-   Repeaters are one shape of one kind of widget. **PROPOSED, awaiting acceptance.**
+   Repeaters are one shape of one kind of widget. **Accepted 2026-09-03.**
 
-**ADR-036 is new and PROPOSED**: notebook history is event-sourced per page at
+**ADR-036 is new and Accepted (2026-09-03)**: notebook history is event-sourced per page at
 edit-session granularity. It completes a space ADR-003 explicitly reserved — its accepted
 Option C says the log covers *"Trip Planning (and later, trip-page content)"* — which the
 build never took. A page is its own stream so board-level ⌘Z cannot revert prose; autosave
@@ -43,6 +44,40 @@ cost is that `pages` becomes a projection rather than the authority.**
 
 **§18 dissolves the `templates.ts` blocker** that gated M14's builder half, so the gating
 question is now ADR acceptance rather than an unresolved macro-authoring standoff.
+
+## The builder half — started 2026-09-03, on `claude/new-session-z796k4`
+
+**Both ADRs were accepted**, which is what starting this work means. Links 2–8 are open.
+**Link 9 is not, despite ADR-036 being accepted**, and this is the one thing to carry
+forward: accepting it left a question a build cannot answer for itself. Decision 3 keeps
+autosave writing the `pages` row every 800ms; the Consequences make that row a projection.
+Invariant 2 says a projection is rebuildable from the log, and `rebuildProjections()`
+enforces that by deleting and re-inserting — so during an open edit session the row holds
+prose no event carries, and a rebuild in that window destroys it. The unsettled draft needs
+somewhere to live that is not the projected content. That is contract-and-migration shaped;
+it belongs in the ADR before link 9 is briefed. Recorded as that ADR's last Consequence.
+
+**Link 2 — "a page loses its scope" — is built.** `PageContext` is `{ tripId }`; gone with
+`dayRef` are the "This page is about" dropdown, `DayBindingControl`, `handleBindDay`,
+`focusDayBinding`, `scopeLabel`, `resolveBoundDay`, and the Trip-wide / Day 6 badge on both
+the index and the Notebooks menu. Three things a session picking this up must not miss:
+
+1. **It carries more than the milestone's link 2 says, on purpose.** Link 2 as written only
+   removes the field, which would leave `cost.day` and `itinerary.day` unable to resolve a
+   day at all until link 4 — a dead widget on `main` across two merges. So their binding
+   moved into their own `params` here, which is ADR-035 decision 3 one link early and is
+   what invariant 5's "every consumer updated in the same PR" actually requires. **The
+   `inputs: WidgetInput[]` declaration is NOT here** — that is link 3, still open.
+2. **No migration, and that was checked rather than assumed.** `pages.context` is `jsonb`
+   and `PageContext` is non-strict, so a stored row keeping a dead `dayRef` key parses and
+   the key is stripped on read. There is now a contracts test asserting exactly that, so
+   the claim breaks loudly if anyone ever `.strict()`s the schema. Note the nuance: rows
+   keep the dead key forever and nothing cleans it — "not migrated", not "nothing to
+   migrate".
+3. **Two known issues were filed rather than fixed** — `KI-2026-09-03-c` (the "select a
+   day" chip is now a real button with nothing behind it, which link 4's chrome row
+   replaces) and `KI-2026-09-03-b` (the `NotebooksMenu` eslint-disable citing the design
+   canvas's no-JIT rule as if it bound `apps/web`).
 
 
 **M14's navigation-and-index half is on `claude/notebook-milestone-nlq5kv`,

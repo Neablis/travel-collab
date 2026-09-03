@@ -36,7 +36,7 @@
 // the flag (ADR-019's 2026-08-25 amendment).
 import { z } from "zod";
 import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent, type LanguageModel } from "ai";
-import type { Page, TripDetail, TripRole } from "@tc/contracts";
+import type { Page, TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { macroCatalog } from "@tc/pages";
 import { guard } from "@/server/pages-guard";
@@ -44,7 +44,7 @@ import { hasAtLeast } from "@/server/accessPolicy";
 import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
-import { askScopeLine, resolveBoundDay, type AskScope } from "@/server/ai/context";
+import { askScopeLine, type AskScope } from "@/server/ai/context";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import { buildReadTools, MAX_READ_DAYS, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
 import {
@@ -566,7 +566,7 @@ export async function handleAskRequest(
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites), briefFor(detail, page)),
+    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites), briefFor(page)),
     tools,
     toolsContext: readToolsContext({ tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
@@ -699,22 +699,20 @@ export async function handleAskRequest(
 }
 
 /**
- * What the model is told about the page it is writing — the page's own title
- * and its day binding, both read from the row the server just verified.
+ * What the model is told about the page it is writing: its own title, read from
+ * the row the server just verified rather than from the request body — the same
+ * rule the pageId is under.
  *
- * The binding is resolved here rather than accepted from the client, which is
- * the same rule the pageId is under: the old command endpoint took a
- * `pageContext` off the request body and resolved `dayRef` against the trip
- * from there, so a client could have told the server which day a page was bound
- * to. It cannot now — `page.context` is the stored row.
+ * It used to carry the page's day binding too. A page has no day (SPEC §18,
+ * ADR-035 decision 1): a day is a widget's own param, so there is nothing at
+ * page level left to resolve.
  */
 export interface PageBrief {
   title: string;
-  boundDay: { index: number; date: string | null } | undefined;
 }
 
-function briefFor(detail: TripDetail, page: Page | null): PageBrief | null {
-  return page === null ? null : { title: page.title, boundDay: resolveBoundDay(detail, page.context) };
+function briefFor(page: Page | null): PageBrief | null {
+  return page === null ? null : { title: page.title };
 }
 
 /**
@@ -1006,9 +1004,14 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     // number typed into a paragraph does the moment someone moves a stop.
     "A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes.",
     `These are the only macros that exist — never invent a name: ${JSON.stringify(macroCatalog())}`,
-    page.boundDay
-      ? `This page is bound to DAY ${page.boundDay.index + 1}${page.boundDay.date ? ` (${page.boundDay.date})` : ""}. Write it about that day, and prefer the day-scoped macros.`
-      : "This page is not bound to a day, so write it about the trip as a whole and prefer the trip-scoped macros.",
+    // A page is about nothing in particular (SPEC §18) — the day a day-scoped
+    // macro reads is that macro's own param. `macroCatalog()` above names
+    // macros without describing what they take, so nothing here tells a model
+    // how to set one, and a day macro drafted with no day renders as an unbound
+    // chip. Say so rather than letting the model find out on the page. The
+    // catalog grows an input description in ADR-035 decision 5 (M14 link 8),
+    // and this sentence is what should change when it does.
+    "A page is not about any one day: a day-scoped macro reads the day from its own settings. Write the page about the trip as a whole and prefer the trip-scoped macros — a day-scoped one drafted with no day set renders as a 'no day set' placeholder instead of a value.",
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
     "Then say ONE short sentence about what you drafted. The page lands in the editor for the user to review and edit, so never say you have saved or published it.",

@@ -36,7 +36,7 @@ const tripOverview: TemplateSeed = {
 const daySheet: TemplateSeed = {
   key: "day-sheet",
   title: "Day Sheet",
-  buildContext: (tripId) => ({ tripId, dayRef: { kind: "index", index: 0 } }),
+  buildContext: (tripId) => ({ tripId }),
   content: {
     type: "doc",
     content: [

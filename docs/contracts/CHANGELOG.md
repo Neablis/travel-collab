@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — `PageContext` loses `dayRef`: a page has no scope (M14 link 2, ADR-035)
+
+- Changed: `PageContext` is now `{ tripId }`. The optional `dayRef` is **removed**
+- Kept, deliberately: **`DayRef` itself**, which is no longer a page property but *is*
+  now the value shape of a day binding inside a widget's `params` — still a
+  cross-boundary type, so it stays in contracts rather than moving into `@tc/pages`
+- Why: SPEC §18 (2026-09-02) replaced §7's page-scope model with ADR-035's — *a page is
+  not "about" anything; a widget is a function of its own declared inputs*. The case the
+  old model could not express is the one that motivates the new one: **two widgets on one
+  page reading two different days**. A page-level `dayRef` makes that impossible by
+  construction
+- **This un-ships part of PR #126 on purpose.** #126 shipped the Trip-wide / Day 6 badge
+  on the notebook index on 2026-09-03, built against §7 a day after §18 replaced it. A
+  conformance change, not a regression — `docs/STATUS.md` and `M14-rich-layer.md` both
+  say so in advance
+- Also here, because invariant 5 requires every consumer updated in the same PR and
+  leaving them broken is not "updated": **`cost.day` and `itinerary.day` now take their
+  day from their own `params`** rather than from the page context. That is ADR-035
+  decision 3 ("a binding lives on the widget instance, in the node's `params`") arriving
+  one link early. Without it these two widgets could not resolve a day at all between
+  this PR and link 4 — a dead widget on `main` across two merges. `inputs: WidgetInput[]`
+  and the UI that reads it are **not** here; they are links 3 and 4
+- Consumers updated: `packages/pages` (`macros/inline.ts`, `macros/block.ts`,
+  `templates.ts`), `apps/web` (`lib/pageScope.ts` — `scopeLabel` deleted,
+  `components/pages/DayBindingControl.tsx` — deleted, `PageScreen`, `NotebookScreen`,
+  `NotebooksMenu`, `server/ai/context.ts` — `resolveBoundDay` deleted,
+  `server/ai/handleAskRequest.ts`), plus the e2e spec and every test that built a
+  day-bound `PageContext`
+- Breaking? **yes for TypeScript, no for stored data and no migration.** `pages.context`
+  is a `jsonb` column (`server/db/schema.ts:103`) and `PageContext` is a plain, non-strict
+  Zod object, so a row still carrying `dayRef` parses and the key is stripped on read.
+  Nothing backfills; nothing needs to
+
 ## 2026-09-03 — the notebook list route answers with `viewerId` (M14, follow-up)
 
 - Added: `GET /api/trips/:tripId/pages` now returns `{ pages, viewerId }`, and
