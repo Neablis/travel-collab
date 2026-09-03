@@ -93,14 +93,22 @@ subject to the M14 split below.
   booked a stop is not who is going to it, and link 4's splits need the second, so a single
   `assignee` would satisfy `add-stop-who`'s wording and still be wrong.
 
+- **ADR-037 open question 1 is settled too, so the ADR has none left: one chrome-row entry
+  per bound widget, never an aggregated control.** Mitchell: *"i should be able to have a
+  notebook that shows day 1, day 3 and day 9, if we lock all widgets to one selection, its
+  not possible."* Differing bindings in one document are a **requirement**, and it
+  generalises down to a single block — *"We land on Day 1 in Tokyo and by Day 9 we are in
+  Kyoto"* is one sentence with two day-bound widgets pointed at different days. Aggregation
+  has no honest answer there, so it is out; it may only ever be added later as an additive
+  convenience that never becomes the only way to rebind. The M14 gate carries a box that
+  fails if a block-wide rebind control appears.
+
 ### Open, and not a build's to settle
 
-- **ADR-037 open question 1** — what the chrome row shows when one block holds several
-  separately-bound widgets. **Does not block starting** (the ADR says so itself); it bites at
-  link 4's chrome row and item G's insert surface.
 - **Whether M14's remainder (A, B, C, D, E, G, H) splits further.** F's departure was the
   seam the split proposal named, and it has been taken; whether what is left is still too big
-  is open, and nothing waits on the answer.
+  is open, and nothing waits on the answer. **This is the only open item, and it blocks
+  nothing.**
 
 ### The next unit is item B — the widget module contract
 

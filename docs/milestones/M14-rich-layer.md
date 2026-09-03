@@ -448,6 +448,15 @@ milestone opens:**
 - [ ] **Two widgets on one page read two different days**, bound at insert and
       rebindable from the chrome row — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
+- [ ] **And two widgets in the SAME BLOCK read two different days** — *"We land on
+      Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
+      day-bound widgets pointed at different days, and it must be writable and
+      independently rebindable. The chrome row shows **one entry per bound widget
+      and never a single aggregated control** (ADR-037 open question 1, settled
+      2026-09-03: *"i should be able to have a notebook that shows day 1, day 3
+      and day 9, if we lock all widgets to one selection, its not possible"*).
+      This is the box that fails if someone adds an aggregate control that
+      rebinds a whole block.
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
 - [ ] **Notebook history: an edit session commits one event, and the `pages` row

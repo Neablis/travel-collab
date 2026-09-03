@@ -156,7 +156,10 @@ Two readings, and they imply different document formats:
 - **It is an authored paragraph** containing three separately-inserted single-value widgets,
   and `wname` labels the group. Then the chrome row aggregates the binds of the widgets
   inside a block, and "changing one re-renders that block" means rewriting three instances'
-  params at once.
+  params at once. **This half is now ruled out as a chrome behaviour — Mitchell, 2026-09-03:
+  the row shows one entry per bound widget and never aggregates**, because two widgets in one
+  block must be able to point at different days. It survives only as a reading of what the
+  mock *is*, not as a description of how binding works.
 
 `personBlock` in the same file settles it for at least one case: it renders `w-person` — a
 **listed** widget — as three chips plus prose from a single binding. So a widget does emit a
@@ -202,7 +205,7 @@ lands.
 | 4 | Iteration items never stored | §18 | ADR-035 d4 | Not built — needs `repeat` |
 | 5 | **The 21 widgets themselves** | canvas `WIDGETS` | **this file** | **Not built — the gap that prompted this audit.** 7 of 21 exist |
 | 6 | Reading / Editing as one toggle | §7 (amended 2026-09-02) | — | ⚠️ **No ADR.** *Edit* → *Done editing*, `aria-pressed`. Specified in SPEC only |
-| 7 | The chrome row | §18 | ADR-037 d4 | Name pill conditional on the widget having a name; itinerary under an authored heading shows only its range selects |
+| 7 | The chrome row | §18 | ADR-037 d4 + **open q1, settled 2026-09-03** | Name pill conditional on the widget having a name; itinerary under an authored heading shows only its range selects. **One row entry per bound widget, never an aggregated control** — differing bindings in one block (Day 1 … Day 9 in one sentence) are a requirement |
 | 8 | Insert surface | §18 → **overridden** | ADR-037 d4 | Sidebar + drag + click-at-cursor + slash. **Supersedes §18's Sheet — DRIFT owes an entry** |
 | 9 | `needs a field` badge | §7 (only surviving picker rule) | ADR-037 d7 | Mechanism kept; `Home airport` no longer an instance (M17 shipped the field) |
 | 10 | Preview must not assert computed numbers | §18 | ADR-037 d5 | |
