@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — `TripGlobals`: the trip's addressable collections (ADR-037 open question 4)
+- Added: `TripGlobals` (`days`, `cities`, `tags`, `bookedCount`) with
+  `TripGlobalsDay`, `TripGlobalsCity`, `TripGlobalsTag`
+- Why: ADR-037 open question 4's settled answer needs `trip.cities` to BE a
+  collection. It is not stored — cities are derived per-activity by
+  `citiesOfDay` in `@tc/domain`, and AGENTS.md's module map makes
+  `apps/web/src/server/**` the only code that may import domain. So the
+  projection is computed server-side, described here, and delivered to the
+  client, exactly as `TripDetail` already is. Mitchell chose this shape over
+  letting `@tc/pages` import `@tc/domain` (2026-09-03), which would have put
+  domain code in the browser bundle through a side door that three files in
+  `apps/web/src/lib` deliberately avoid
+- Every field carries `.describe()`, which is not documentation: item E's
+  attribute manifest is built by inverting this schema, per ADR-037 open
+  question 4's settled refinement (invert the Zod schema, not the TS type,
+  because in this repo the type is the derived artifact)
+- `people` is deliberately absent, not empty: nothing links an activity to a
+  person, and an empty array would read as "this trip has nobody on it" rather
+  than "this build cannot answer that". It arrives with M13 `add-stop-who` /
+  M19 link 3
+- Consumers updated: `apps/web` (`server/tripGlobals.ts`, a new
+  `GET /api/trips/:tripId/globals` behind the same viewer guard as the detail
+  route, `fetchTripGlobals`, and `WidgetContext.globals` through
+  `PageScreen` → `PageEditor` → `MacroView`) — in this same PR
+- Breaking? **no.** Additive: a new schema and a new route. No existing response
+  shape changed, and `fetchTripDetail` is untouched on purpose so the board, the
+  lenses and the map do not pay for a projection only the Notebook reads
+
 ## 2026-09-03 — `PageDoc` widens to the real v1 vocabulary (ADR-038 amendment)
 
 - Added to the node union: **`PageBlockquoteNode`, `PageBulletListNode`,
