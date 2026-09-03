@@ -22,6 +22,48 @@ general setup.
 
 ## Where the work is right now
 
+**M14's navigation-and-index half is on `claude/notebook-milestone-nlq5kv`,
+2026-09-03 — pulled forward out of order, on Mitchell's instruction, with M17's
+gate still open.** M17 is still the current milestone and none of its three
+boxes moved; this is a deliberate excursion, not a handover.
+
+What landed: the **Notebooks menu** (SPEC §11's pill in the view row, replacing
+the plain link at `TripHeader.tsx:137`) and the **rebuilt Notebook index**
+(standfirst, scope badge, provenance + relative freshness, "Start from a
+template" over the existing seeds). Plus **ADR-035 on repeaters — PROPOSED, and
+the thing to read next**: M14 link 1 requires it *accepted* before any repeater
+code lands, so the builder half (the insert picker, repeaters, Reading/Editing)
+is still gated and is gated on Mitchell, not on engineering.
+
+**Four things a session picking this up must not miss:**
+
+1. **It needed a contract change, which the plan said it would not.**
+   `PageSummary` now carries `actorId` and `SYSTEM_ACTOR_ID` moved into
+   `packages/contracts` — the provenance line cannot tell a seeded notebook from
+   an authored one otherwise. Entry in `docs/contracts/CHANGELOG.md`.
+2. **The e2e lane is green — `test:e2e:ci-like`, 80 passed, 2.1m** (CLAUDE.md
+   rule 1: never `test:e2e`). That matters here specifically because the specs
+   that used to click a link named "Notebook" were **rewritten** to open the
+   pill and click through its footer (`m7-solo-delight`'s three tests,
+   `m11-demo`'s withheld-controls test), and a rewritten spec is exactly what a
+   green unit suite does not vouch for. Both were re-run alone afterwards to
+   confirm they ran rather than being filtered out.
+3. **The browser walk happened, against a local production build, and it found
+   a defect no test layer could see** — `listPages` had no `ORDER BY`, so the
+   notebook list reshuffled after an edit and disagreed with the index's own
+   optimistic placement. Fixed, covered, and then **re-walked on the deployed
+   preview** (built from `a4bfbc2`) where the new notebook lands last, as it
+   should. Two reusable facts came out of it: the walk needs
+   `VERCEL_AUTOMATION_BYPASS_SECRET` **in the session's own environment** (a
+   share link redeems as `429 Vercel Security Checkpoint` — three tried), and
+   it needs **no invite code**, because `admission.ts` only gates someone with
+   no `users` row and an existing dev user is admitted as `returning-user`.
+4. **Two planning-doc claims about the code were wrong and are corrected in
+   place** — the scope string was `describeBinding` and was already rendered,
+   and this half was not contract-free. Both had been copied verbatim into
+   `TODO.md`. See `M14-rich-layer.md`.
+
+
 **M17 and the AI-door consolidation are landing, 2026-09-02.** Three PRs merged
 overnight; two are open, green and reviewed.
 

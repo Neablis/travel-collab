@@ -4,6 +4,15 @@
 (`M17 → M9 → M12 → M13 → M14 → M19`). It had no file and no exit gate until now
 — a table row and nothing else.
 
+**The navigation-and-index half was pulled forward and built 2026-09-03**, on
+Mitchell's instruction, out of the order above and with M17's gate still open.
+That is the decision this file said was "available to be taken"; it has now been
+taken. What landed, and what it cost, is in *The navigation and index half*
+below. **The blocked half has not moved** — but its prerequisite now exists as a
+written proposal: `ADR-035-repeaters-are-document-content-not-macro-params.md`,
+**PROPOSED, awaiting Mitchell's acceptance**. Links 4 and 5 stay gated until it
+is accepted.
+
 **It opens with an ADR — repeaters** — and that ADR is a prerequisite, not a
 deliverable to write mid-build. Routed here by the 2026-08-23 design sync, which
 also gave this milestone the **whole Notebook redesign** (`SPEC.md` §7).
@@ -99,15 +108,136 @@ It needs no ADR, no contract change, no macro decision and no new field:
   cards with inline rename and delete. The design has, and the build has none
   of: the standfirst (*"Pages that read like a document and stay true to the
   plan. Move a day or a stop and every page here follows it"*), a per-page
-  **scope badge** (`Trip-wide` / `Day 6` — `scopeLabel` already computes the
-  string at `NotebookScreen.tsx:19` and nothing renders it), a one-line
+  **scope badge** (`Trip-wide` / `Day 6`), a one-line
   description, a **provenance and freshness line** (*"Comes with your trip ·
   edited 2 days ago"* versus *"Yours · edited 4 hours ago"*), and a
   **"Start from a template"** gallery of three — *Trip overview*, *One day*,
-  *Blank page*. The first two are link 6's existing `templates.ts` seeds; the
-  third is `handleCreate` as it already behaves. The button's noun also
-  disagrees with §11's rule: the design says *notebook* in all three places and
-  the build says *page*.
+  *Blank page*.
+
+  > **Two claims in the paragraph above were wrong about the code, corrected
+  > 2026-09-03 while building it.** They are left visible rather than quietly
+  > edited, because both were repeated verbatim into `TODO.md` and read as fact
+  > by the session that acted on them.
+  >
+  > 1. *"`scopeLabel` already computes the string and nothing renders it"* — the
+  >    function was called `describeBinding` (`NotebookScreen.tsx:18`) and it
+  >    **was** rendered, at `:167`, as the first half of a
+  >    `"Trip-wide · Updated <locale string>"` line. The design ask survives
+  >    intact: it wants a scannable badge and the build had secondary text. But
+  >    "nothing renders it" described a hole that was not there.
+  > 2. *"needs no ADR, no contract change and no macro decision"* — **it needed
+  >    a contract change.** The provenance line distinguishes a seeded notebook
+  >    from an authored one, and the only fact that separates them is the row's
+  >    `actorId`, which `PageSummary` did not carry. That is `packages/contracts`,
+  >    so it took invariant 5's protocol: a changelog entry and every consumer
+  >    updated. Additive and small — but the claim was that there was none.
+
+  Of the gallery's three, the first two are link 6's existing `templates.ts`
+  seeds; the third is `handleCreate` as it already behaves. The button's noun
+  also disagrees with §11's rule: the design says *notebook* in all three places
+  and the build says *page*.
+
+### What the navigation and index half actually shipped (2026-09-03)
+
+Both surfaces, plus one contract change and one recorded limit.
+
+- **The Notebooks menu** — `apps/web/src/components/trip/NotebooksMenu.tsx`, a
+  bordered pill in the view row (`TripBoardScreen`), at the far right via
+  `ml-auto` rather than `justify-between`, because the tag focus line appears
+  and disappears between the tabs and the pill and would otherwise drag it
+  leftwards. It opens *New notebook*, the trip's notebooks with their binding,
+  and *Browse all notebooks →*, with §11's inline `max-height` and pinned
+  create/footer rows. The plain `<Link>` at `TripHeader.tsx:137` is **deleted**;
+  it is gated on `isDemoTripId` exactly as that nav row was (ADR-031).
+- **The index** — standfirst verbatim from §7, the scope as a `Badge`,
+  provenance and relative freshness, and the "Start from a template" trio over
+  `templates.ts`'s existing seeds plus a blank. The list gained a titled
+  region (`Your notebooks`), which was not cosmetic: a template card and a
+  notebook seeded *from* that template share a name by design, so the page had
+  two peer lists and no way — for a screen reader or a test — to say which was
+  which.
+- **`formatRelativeInstant`** (`lib/formatDate.ts`), for the freshness line.
+  It **clamps the future to "just now"** rather than taking an absolute
+  elapsed time: a symmetric `Math.abs` renders a clock-skewed row as
+  "2 hours ago", inventing a past as false as the future it avoided. The first
+  version of this had a dead guard and would have rendered "edited in 2 hours";
+  the mutation run is what found it.
+- **Two nouns were decided rather than inherited.** §11's "one noun in all three
+  places" wins over §7's literal strings wherever they disagree, so the gallery's
+  third card is *Blank notebook* and it creates an *Untitled notebook*, where §7
+  writes "Blank page" and this file's link 6 quotes the build's "Untitled page".
+  The two template cards take their names from the **seeds** (`Trip Overview`,
+  `Day Sheet`) rather than §7's *Trip overview* / *One day*, so that what you
+  click and what you get agree, and so a trip seeded before today does not list
+  a notebook under a gallery card with a different name. **Renaming the seeds is
+  link 6's file to touch**, and is still open.
+- **A known issue was filed with the code and then resolved the same day, and
+  the entry's reasoning was the part that was wrong.**
+  `KI-20260903` claimed the provenance line could not tell the reader's own
+  notebook from a collaborator's without a `users` join. Review pointed out the
+  list route already resolves the reader from its own `guard(tripId, "viewer")`
+  call — `g.userId` was there the whole time. The GET now returns `viewerId`,
+  and the line distinguishes seeded / yours / **"From another traveler"**
+  without ever naming the other person, which is the only part that would have
+  needed the join. Entry moved to `resolved/` with the correction.
+- **Two more defects came out of the same review, both real.** The list route
+  was sending every notebook's full `content` and letting `PageSummary.parse`
+  strip it in the browser — on a list the menu re-reads on every open — so
+  `listPages` now projects a real summary and its long-standing return type
+  stops being a lie. And the menu offered "New notebook" to a **viewer**, whose
+  POST the route refuses: withheld now, per ADR-031's rule that a disabled
+  control still says "there is something here for you".
+
+**Verified 2026-09-03** at `3aeb041`: `pnpm typecheck` (8 packages), `pnpm lint`
+plus all four walls, **2,865 unit tests**, **443 integration**, and
+**`pnpm --filter web test:e2e:ci-like` at 80 passed** — the ci-like lane, not
+`test:e2e` (CLAUDE.md rule 1). Every new test was watched failing under a
+deliberate mutation of the code it protects before being kept (23 across three
+rounds; PR #126's description lists every one with its real failure text,
+rule 3); one of those mutations found a real defect in `formatRelativeInstant`
+rather than confirming a test, which is recorded above.
+
+**The browser walk happened on 2026-09-03, against a local production build,
+and it found a defect three test layers had missed.** `listPages` was a bare
+`SELECT … WHERE` with no `ORDER BY`, so Postgres returned notebooks in physical
+row order — which an `UPDATE` changes, because it writes a new row version. A
+notebook created through the index came back **first** on the next read while
+`handleCreate` had just appended it **last** to its own list. Fixed with
+`ORDER BY created_at, id`, plus a per-seed millisecond stagger, because
+`instantiateDefaults` gave every seeded row one shared `now` and a tied sort key
+falls back to the same luck. Both halves are covered by one integration test,
+and the tie half is worth the anecdote: with the stagger reverted that test
+**passed once and failed twice in three identical runs**.
+
+Why no test caught it: unit and e2e both seed their rows in a single insert and
+never observe a reshuffle, so every layer agreed with itself. It took looking at
+the screen.
+
+**The preview walk happened too, on the deployed artifact** (deployment
+`dpl_Ahfakrd…`, built from `a4bfbc2` — the commit carrying the ordering fix),
+signed in as a dev user. It confirms the fix where it matters: creating from the
+Day Sheet template left the list reading *Trip Overview (seeded) → Day Sheet
+(seeded) → Day Sheet (Yours)*, with the new notebook **appended last**, which is
+where the client had put it optimistically.
+
+Two things about getting there are worth keeping, because both cost a run:
+
+- **`VERCEL_AUTOMATION_BYPASS_SECRET` was the whole unlock**, exactly as
+  `cloud-agent-sessions.md` predicted. Three `?_vercel_share=` links had all
+  redeemed as `429 Vercel Security Checkpoint` first. The secret must be in the
+  **session's own environment**; setting it in the Vercel project does not reach
+  a container whose environment was fixed at start.
+- **No invite code was needed.** `admission.ts` evaluates admission only for
+  someone with **no `users` row**, so an existing dev user is admitted as
+  `returning-user`. `INVITE_SUPER_CODE` is a first-sign-in concern, and
+  `playwright.config.ts` injects it only into the local e2e server — which had
+  been read here as "the preview is unreachable" and is not what it means.
+
+**Still owed by this half:** §7's
+"one-line description" per notebook is **not built** — the index shows title,
+scope, provenance and freshness, and there is no description field on a page to
+show. That is a field, so it is a contract change of its own and was left rather
+than invented.
 
 **What this means for placement.** The blocked half is genuinely late-order
 work — it opens with an ADR and changes the substrate. The unblocked half is
@@ -135,6 +265,17 @@ milestone opens:**
 - [ ] **The repeaters ADR is written and accepted before any repeater code
       lands**, and it names what a row template is, how it is stored, and what
       an empty collection renders.
+      *(**Written 2026-09-03, not yet accepted** —
+      `docs/architecture/ADR-035-repeaters-are-document-content-not-macro-params.md`,
+      status PROPOSED. It answers all three: a row template is the `repeat`
+      node's own inline content in the page document (not a string and not a
+      `params` value, both of which reintroduce the macro syntax §7 forbids);
+      the item scope is a render-time argument and never enters `PageContext`,
+      so nothing stores an item identity that a moved day could stale; and an
+      empty collection renders `emptyText` in Reading but keeps the rail and
+      the row template in Editing, because the empty case is exactly when an
+      author is writing. **This box ticks on Mitchell's acceptance, not on the
+      file existing.**)*
 - [ ] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
 - [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if

@@ -21,6 +21,23 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<void>):
   ]);
 }
 
+// The Notebook index's own heading, named exactly and by level. Both are
+// needed: `getByRole` name matching is substring-and-case-insensitive, and
+// this route now has an h2 "Notebooks" AND an h3 "Your notebooks", so a bare
+// { name: "Notebook" } matches two headings and trips strict mode.
+async function expectNotebookIndex(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+}
+
+// The way into the Notebook index since SPEC §11: the Notebooks pill at the far
+// right of the view row, then its pinned footer link. The plain text
+// `<Link>Notebook</Link>` this replaced sat in the trip header's nav row.
+async function openNotebookIndex(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Notebooks" }).click();
+  await page.getByRole("link", { name: /Browse all notebooks/ }).click();
+  await expectNotebookIndex(page);
+}
+
 // M7 exit-gate demo, scripted: Notebook route + the two lazily-instantiated
 // default pages, and a day-bound page rebindable via DayBindingControl. See
 // docs/milestones/M7-solo-delight.md's exit gate.
@@ -67,9 +84,10 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
-  // -- open the trip's Notebook: the two default pages exist --
-  await page.getByRole("link", { name: "Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  // -- open the trip's Notebooks: the two default notebooks exist --
+  // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
+  // text link that used to sit in the trip header's nav row.
+  await openNotebookIndex(page);
   const overviewLink = page.getByRole("link", { name: /Trip Overview/ });
   const daySheetLink = page.getByRole("link", { name: /Day Sheet/ });
   await expect(overviewLink).toBeVisible();
@@ -88,8 +106,8 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
 
   // -- Day Sheet: its own starter text, and DayBindingControl (page-level
   // metadata, independent of macro content) still binds/rebinds a day --
-  await page.getByRole("link", { name: "← Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await expectNotebookIndex(page);
   await daySheetLink.click();
   await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
@@ -113,16 +131,15 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("link", { name: "Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  await page.getByRole("link", { name: "← Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await expectNotebookIndex(page);
   await page.getByRole("link", { name: /Day Sheet/ }).click();
   await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
@@ -178,7 +195,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   // -- open Trip Overview, add hand-typed prose --
-  await page.getByRole("link", { name: "Notebook" }).click();
+  await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
 

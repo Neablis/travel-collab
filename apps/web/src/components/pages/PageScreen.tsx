@@ -70,7 +70,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     return (
       <PageContainer>
         <p role="alert">{error ?? "Something went wrong"}</p>
-        <Link href={`/trips/${tripId}/pages`}>← Notebook</Link>
+        <Link href={`/trips/${tripId}/pages`}>← Notebooks</Link>
       </PageContainer>
     );
   }
@@ -94,7 +94,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     <PageContainer>
       <div className="mb-2">
         <Link href={`/trips/${tripId}/pages`} className="text-sm text-slate hover:text-ink">
-          ← Notebook
+          ← Notebooks
         </Link>
       </div>
       <Heading level={2}>{page.title}</Heading>

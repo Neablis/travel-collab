@@ -131,12 +131,15 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               <Link href="/" className="text-xs text-slate hover:text-ink">
                 ← Your trips
               </Link>
-              {/* Notebook is a separate route subtree, not a lens (design spec
-                  decision 11, refined 2026-07-20) — a nav link here, not a
-                  TabStrip entry, keeps the lens system projection-only. */}
-              <Link href={`/trips/${tripId}/pages`} className="text-xs text-slate hover:text-ink">
-                Notebook
-              </Link>
+              {/* The Notebook link that used to sit here is gone. It is now
+                  the Notebooks menu (SPEC §11) in the view row below, which
+                  `TripBoardScreen` renders as this header's child: a bordered
+                  pill that also lists the trip's notebooks, instead of a plain
+                  text link that read as a peer of "← Your trips" and could only
+                  take you to the index. Notebook is still a separate route
+                  subtree rather than a lens (design spec decision 11, refined
+                  2026-07-20) — that part did not change; only the affordance
+                  did. */}
             </nav>
           )}
           {/* The title IS the way into Trip settings, and the only way:

@@ -58,3 +58,56 @@ export function ordinalDayOfMonth(dayOfMonth: number): string {
       return `${dayOfMonth}th`;
   }
 }
+
+/**
+ * An INSTANT as "4 hours ago" / "2 days ago", for the Notebook index's
+ * freshness line (SPEC §7).
+ *
+ * `Intl.RelativeTimeFormat` rather than a hand-rolled ladder of thresholds:
+ * it owns the pluralisation and the "yesterday"/"last month" wordings, and it
+ * is the same class of API as the `toLocaleDateString` calls above. What is
+ * hand-rolled is only the choice of UNIT, which `Intl` does not do — it
+ * formats the number and unit you hand it.
+ *
+ * `numeric: "auto"` is what turns -1 day into "yesterday" rather than
+ * "1 day ago". That is the wording a person uses, and the freshness line is
+ * prose, not a data readout.
+ *
+ * `now` is injected rather than read from the clock so a test can assert a
+ * string instead of asserting against `Date.now()` twice and hoping the
+ * second call lands in the same second.
+ */
+const RELATIVE = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+
+// Descending, so the first unit the elapsed time reaches is the one used.
+// Months are 30 days and years 365: a freshness line is an approximation by
+// construction ("2 months ago" is not a claim about which months), and a
+// calendar-exact version would still render the same words.
+const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 24 * 60 * 60 * 1000],
+  ["month", 30 * 24 * 60 * 60 * 1000],
+  ["day", 24 * 60 * 60 * 1000],
+  ["hour", 60 * 60 * 1000],
+  ["minute", 60 * 1000],
+];
+
+export function formatRelativeInstant(iso: string, now: Date = new Date()): string | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  // Clamped at zero, so nothing in the future is ever formatted. A row can
+  // carry a server timestamp ahead of the reader's clock — a second or two from
+  // ordinary skew, hours if a machine's clock is wrong — and "edited in 2
+  // hours" is a bug report, not a freshness line. Clamping says "just now",
+  // which is both the least wrong thing available and what the reader would
+  // conclude anyway.
+  //
+  // This is deliberately a clamp rather than a symmetric `Math.abs`: absolute
+  // elapsed time would render a clock-skewed row as "2 hours ago", inventing a
+  // past that is just as false as the future it avoided.
+  const elapsedMs = Math.max(0, now.getTime() - at.getTime());
+  for (const [unit, ms] of UNITS) {
+    if (elapsedMs >= ms) return RELATIVE.format(-Math.round(elapsedMs / ms), unit);
+  }
+  // Below the smallest unit above.
+  return "just now";
+}

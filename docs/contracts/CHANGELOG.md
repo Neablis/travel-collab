@@ -13,6 +13,64 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — the notebook list route answers with `viewerId` (M14, follow-up)
+
+- Added: `GET /api/trips/:tripId/pages` now returns `{ pages, viewerId }`, and
+  `fetchPages` resolves a `NotebookList` (`{ pages, viewerId }`) instead of a
+  bare array
+- **Not a `packages/contracts` change** — the route's response envelope was
+  never a contract schema; `PageSummary` itself is untouched. Recorded here
+  anyway because it changes a shape two consumers read, and because the entry
+  below is what made `actorId` available in the first place
+- Why: `actorId` proves a *person* wrote a notebook, not that the **reader**
+  did, so the index's provenance line labelled every collaborator's notebook
+  "Yours" on a shared trip. The route already resolves the reader from its own
+  `guard(tripId, "viewer")`, so the truthful answer costs no extra request —
+  which is also why `KI-20260903` (filed on the premise that this needed a
+  `users` join) is resolved rather than carried
+- `viewerId` is `null` when absent, and `provenanceLabel` then stays
+  author-neutral rather than guessing
+- **`listPages` now projects a real `PageSummary`.** Its declared return type
+  said so already while it returned full `Page` rows, so every notebook's
+  unbounded `content` crossed the wire and was stripped client-side after
+  download — on a list the Notebooks menu re-reads on every open
+- Consumers updated: the list route, `lib/pagesClient.ts`, `lib/pageScope.ts`,
+  `NotebookScreen`, `NotebooksMenu`, `mocks/handlers.ts`
+- Breaking? **no** for the wire (additive field); **yes** for `fetchPages`'
+  TypeScript signature, and both call sites are updated here
+
+## 2026-09-03 — `PageSummary` carries `actorId`, and `SYSTEM_ACTOR_ID` moves into contracts (M14, navigation-and-index half)
+
+- Added: `actorId` to `PageSummary`'s `Page.pick({...})`, and a new exported
+  `SYSTEM_ACTOR_ID = "system"` in `packages/contracts/src/pages.ts`
+- Why: SPEC §7's Notebook index draws a provenance line — "Comes with your trip"
+  for a notebook the lazy template seeder wrote, "Yours" for one a person wrote
+  — and the only fact that separates the two is whether the row's `actorId` is
+  the seeder's sentinel. The list had no way to know
+- **Nothing new goes over the wire.** `listPages` already returns `toPage(row)`,
+  a full `Page`, on every call (`apps/web/src/server/pages.ts`); `PageSummary`'s
+  `.pick` was stripping `actorId` off at parse time in `pagesClient`. This
+  widens what the client is allowed to keep, not what the server sends
+- **`content` deliberately stays off `PageSummary`.** It is the one field that
+  makes a list response unbounded, and nothing in a list renders it. The
+  pre-existing test asserting a summary carries no `content`
+  (`pagesClient.test.ts:23`) still holds
+- **Why `SYSTEM_ACTOR_ID` is a contract and not a server constant:** it was
+  `const SYSTEM_ACTOR_ID` inside `apps/web/src/server/pages.ts`, private to the
+  module that writes it. The UI now READS it — the provenance line is "is this
+  row's `actorId` that sentinel?" — so a value compared on both sides of the
+  server/UI wall is exactly what `packages/contracts` is for (AGENTS.md
+  invariant 5). The server now imports it rather than declaring its own
+- **It is still load-bearing for a migration.** Migration 0005's
+  `pages_system_seed_unique` partial unique index is scoped to
+  `WHERE actor_id = 'system'`, so changing the string means changing that index.
+  The comment saying so moved with the constant rather than being left behind in
+  the file that no longer defines it
+- Consumers updated: `packages/contracts`, `apps/web` (`server/pages.ts`,
+  `lib/pageScope.ts`, `components/pages/NotebookScreen.tsx`)
+- Breaking? **no** — additive on a read DTO. An older client parsing a newer
+  response ignores the extra key; the field was already present in the JSON
+
 ## 2026-09-02 — `UserPreferences`, the Identity module's first cross-boundary DTO (M17 PR1)
 
 - Added: `packages/contracts/src/identity.ts` with `DistanceUnit`
