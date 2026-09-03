@@ -95,6 +95,43 @@ does not know one node in it.
 3. **The trigger is much broader than `repeat`.** This does not wait for link 6 — see the
    vocabulary gap below.
 
+### AMENDED 2026-09-03: decision 4's round-trip criterion does not detect the failure decision 4 exists to prevent
+
+Decision 4 below says, in as many words: *parse the stored document and re-serialise
+it; if the result is not equivalent to what was stored, open read-only.* Building it
+showed that criterion is **blind to both halves of the loss it was written for.**
+Measured, in `apps/web/src/components/pages/editor/storedPageDoc.test.ts`:
+
+- A document containing a **`repeat`** node parses cleanly and re-serialises
+  **byte-identically** — `repeat` is a known type in the AST, and there is no TipTap
+  extension behind it. Round-trip: pass. Editor: discards the entire document.
+- A document containing a node from a **newer build** re-serialises byte-identically
+  too. That is not an accident, it is exactly what **decision 3 promises**: unknown
+  nodes are carried verbatim. Round-trip: pass. Editor: discards the entire document.
+
+So the two documents the guard exists for are precisely the two it waves through.
+Worse in the other direction: because known nodes re-serialise *canonically* (`v`
+materialised, absent `content` filled in), a literal implementation also locks
+**ordinary** pages — a stored document with no `v`, which is every document written
+before this ADR, fails a strict comparison against its own re-serialisation.
+
+The mistake is in what the criterion measures. **Round-tripping proves a document
+survives OUR parser. It says nothing about the editor, and the editor is what eats
+the page.** Under decision 3 it is close to a tautology by design.
+
+**The corrected criterion, which decision 4 below now states:** a document is safe to
+mount iff **every node type in it is one the editor's schema has a definition for.**
+That is a vocabulary comparison across the two representations this ADR accepted the
+cost of keeping in step — contracts answers "what node types are in this document"
+(`collectPageDocNodeTypes`), the web app answers "what can the editor mount"
+(`PAGE_EDITOR_NODE_TYPES`, derived from the live extension set via TipTap's own
+`getSchema`, never a hand-written list). Parse failure is the second, separate
+verdict: there is no AST, so there is nothing to render and nothing safe to write.
+
+The **intent** of decision 4 is untouched — "a page that cannot be saved losslessly is
+a page that must not be saved at all". Only the test it applies changed, and it
+changed because the specified one was measured not to work.
+
 ### The v1 vocabulary is wider than decision 1's node list, and that gap is now the urgent one
 
 `PageEditor` loads full `StarterKit`, so `bulletList`, `orderedList`, `listItem`,
@@ -213,13 +250,38 @@ and serialise back out **byte-identical**. The editor renders them as an inert p
 This is what makes a rolling deploy and a stale tab safe: an older client can open, read, and
 even edit a document containing newer nodes without destroying them.
 
-### 4. A document that fails to round-trip is never autosaved over
+### 4. A document the editor cannot mount is never mounted, and never autosaved over
 
-Belt and braces, and the rule that actually prevents the loss described above:
+The rule that actually prevents the loss described above. **Rewritten 2026-09-03** — the
+first draft made this a round-trip comparison, which was measured not to detect either
+form of the failure; see the amendment above. The rule, not the mechanism, is what
+mattered, and the rule is unchanged.
 
-**Before the first autosave of a session, parse the stored document and re-serialise it. If
-the result is not equivalent to what was stored, the page opens read-only with a visible
-explanation and autosave is disabled for that page.**
+**Before the editor is mounted, parse the stored document and compare its node vocabulary
+against the editor's schema. Three verdicts:**
+
+- **mountable** — it parses, and every node type in it is one the editor's schema knows.
+  Mount it, and autosave normally.
+- **unsupported** — it parses, but contains node types this build's editor has no
+  definition for. Open **read-only**: render the parsed document without TipTap (decision
+  3's placeholder for the nodes we cannot draw), say so visibly, and disable autosave and
+  every other write path on the page, the AI compose panel included.
+- **unreadable** — it does not parse at all (a malformed known node, or a `v` from the
+  future). There is no AST, so there is nothing to render and nothing safe to write:
+  the explanation stands alone.
+
+**The refusal must be upstream of mounting, not a flag on a mounted editor.** By the time
+TipTap has fallen back to an empty document the content is gone from memory, and the
+`contentError` event is a notification rather than a veto.
+
+The write path is the same rule pointed outwards: `Create`/`UpdatePageInput` are `PageDoc`,
+so a document this build cannot parse is refused at the API boundary, and the client parses
+`getJSON()` before sending — a save that will not parse is not attempted, and the user is
+told rather than retried at.
+
+`Page.content` on the **read** path deliberately stays permissive. A strict read schema
+would make fetching an unreadable page throw, and then there is no page to explain — you
+cannot show someone a read-only notebook you refused to deliver.
 
 A page that cannot be saved losslessly is a page that must not be saved at all. This is the
 one behaviour I would not trade away for convenience: a reader who cannot edit is

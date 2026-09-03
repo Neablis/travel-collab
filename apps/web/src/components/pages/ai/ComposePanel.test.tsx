@@ -1,3 +1,4 @@
+import { newPageDoc } from "@tc/contracts";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +18,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { ComposePanel } from "./ComposePanel";
 
 const PAGE_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
-const DOC = { type: "doc" as const, content: [{ type: "paragraph", content: [] }] };
+const DOC = newPageDoc([{ type: "paragraph", content: [] }]);
 
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {

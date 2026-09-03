@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { MacroNode } from "./pages";
 
 // The stored notebook document, as a versioned AST (ADR-038). `PageContent`
 // next door is what this replaces: `z.array(z.unknown())` is not an AST, it is
@@ -29,6 +28,23 @@ import { MacroNode } from "./pages";
 // ---------------------------------------------------------------------------
 // Nodes
 // ---------------------------------------------------------------------------
+
+// Macro params are an open bag validated per-macro by the registry (Wave 2).
+// The contract only guarantees the node shape; the registry owns param schemas.
+//
+// This lived in `pages.ts` until the write-side inputs there started needing
+// `PageDoc`, which made the two files import each other — a cycle that Zod
+// schemas, built at module load rather than deferred behind a function, do not
+// survive. It belongs here anyway: it IS the AST's widget node, and
+// `PageWidgetNode` immediately below is built from it.
+export const MacroNode = z.object({
+  type: z.literal("macro"),
+  attrs: z.object({
+    name: z.string().min(1),
+    params: z.record(z.unknown()).default({}),
+  }),
+});
+export type MacroNode = z.infer<typeof MacroNode>;
 
 // A widget instance's attributes: the stored widget name and its params
 // (ADR-037 decisions 8 and 9 — the name is a stored identifier, and each input
@@ -350,6 +366,17 @@ export const PAGE_DOC_MIGRATIONS: readonly PageDocMigration[] = [];
 // Derived, never written twice: appending a migration IS the version bump.
 export const CURRENT_PAGE_DOC_VERSION = PAGE_DOC_MIGRATIONS.length + 1;
 
+// Build a document at the CURRENT version. Every producer of a new page —
+// the template seeder, the "new notebook" button, the AI compose tool — goes
+// through this rather than writing `v: 1` inline, for the same reason
+// `CURRENT_PAGE_DOC_VERSION` is derived: the day a v2 exists, a hard-coded 1
+// scattered across four files is four places to write a stale version from,
+// and each one produces a document that claims to need a migration it does
+// not need.
+export function newPageDoc(content: PageNode[] = []): PageDoc {
+  return { v: CURRENT_PAGE_DOC_VERSION, type: "doc", content };
+}
+
 // Migrate-on-read (decision 2). Idempotent by construction: a document already
 // at the current version has an empty tail of migrations to apply.
 //
@@ -420,4 +447,53 @@ export function serializePageNode(node: PageNode): unknown {
 
 export function serializePageDoc(doc: PageDoc): unknown {
   return { v: doc.v, type: doc.type, content: doc.content.map(serializePageNode) };
+}
+
+// ---------------------------------------------------------------------------
+// The vocabulary a document actually uses
+// ---------------------------------------------------------------------------
+
+// Every node type name present in a parsed document, at any depth.
+//
+// This exists because ADR-038 decision 4's stated criterion — "parse the stored
+// document and re-serialise it; if the result is not equivalent to what was
+// stored, open read-only" — is BLIND to the failure it was written to prevent.
+// Measured 2026-09-03, both cases:
+//
+//   * a `repeat` node is a KNOWN type here and has no TipTap extension, so it
+//     parses, round-trips BYTE-IDENTICALLY, and is discarded by the editor;
+//   * an unknown node round-trips byte-identically too, because that is exactly
+//     what decision 3 promises it will do.
+//
+// So round-tripping proves the document survives *our* parser. It says nothing
+// about whether the *editor* can mount it, and the editor is what eats the
+// page. The real question is a vocabulary comparison across the two
+// representations ADR-038 accepted the cost of keeping in step, and this is the
+// half of it contracts can answer without importing TipTap.
+//
+// An `unknown` node reports the type it was WRAPPING, not the string
+// `"unknown"`: the caller is asking "what is in this document that I might not
+// be able to render", and `{ type: "unknown" }` is our word for the answer, not
+// the answer.
+export function collectPageDocNodeTypes(doc: PageDoc): ReadonlySet<string> {
+  const types = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!isNodeLike(node)) return;
+    if (node.type === "unknown") {
+      const raw = (node as PageUnknownNode).raw;
+      // A wrapped node always has a string `type` — `tagUnknownNode` only wraps
+      // things `isNodeLike` accepted — but `raw` is typed `unknown`, so this
+      // reads it back defensively rather than asserting.
+      types.add(isNodeLike(raw) ? raw.type : "unknown");
+      return;
+    }
+    types.add(node.type);
+    visit((node as { content?: unknown }).content);
+  };
+  visit(doc.content);
+  return types;
 }

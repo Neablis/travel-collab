@@ -22,17 +22,36 @@ general setup.
 
 ## Where the work is right now
 
-**M14's widget model is decided and its foundation is merged, 2026-09-03 evening.**
-`main` is `72c7085`. Nothing is in flight: no open PR of ours, no worktrees, clean tree.
-Merged today: **#129** (a page loses its scope), **#130** (widget catalogue, ADR-037,
-ADR-038, M14 rescope), **#131** (`PageDoc`, the versioned AST). **ADRs 035, 036, 037 and
+**M14's editor integration is built and in flight, 2026-09-03.** Branch
+`claude/m14-editor-integration-9idg1r`. `main` is `a99d935`. Merged before it: **#129** (a
+page loses its scope), **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131**
+(`PageDoc`, the versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and
 038 are all Accepted.**
 
-**The next unit is ADR-038 decision 4** — parse stored documents through `PageDoc` before
-mounting the editor, and open a page **read-only** when it does not round-trip.
-`PageContent` still holds every call site; swapping them is that work.
+**ADR-038 decision 4 is done, with its criterion corrected.** `PageScreen` inspects the
+stored document before mounting: it parses through `PageDoc`, compares the document's node
+vocabulary against the editor's own schema, and opens the page **read-only with a visible
+explanation and every write path off** when the editor could not mount it. The write path
+(`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
+stays permissive on purpose, because you cannot explain a document you refused to deliver.
 
-### Three things measured today that a session must not re-derive or re-guess
+**The next unit is M14 link 6** (the `repeat` node and the widget authoring vocabulary),
+subject to the M14 split below.
+
+### Four things measured that a session must not re-derive or re-guess
+
+0. **ADR-038 decision 4's ORIGINAL criterion did not work, and was replaced.** It said:
+   re-serialise the document and open read-only if it differs from what was stored. Both
+   documents the guard exists for pass that test — a `repeat` node (known to the AST, no
+   TipTap extension) and a node from a newer build both round-trip **byte-identically**, the
+   second because that is exactly what decision 3 promises. Meanwhile a stored document with
+   no `v` — i.e. every pre-ADR row — *fails* a strict comparison, so a literal implementation
+   also locks ordinary pages. Round-tripping proves a document survives *our parser*; the
+   editor is what eats the page. The criterion is now a **vocabulary comparison against the
+   editor's schema**, derived from the live extension set via TipTap's `getSchema`, never a
+   hand-written list. Tests:
+   `apps/web/src/components/pages/editor/storedPageDoc.test.ts` (both halves asserted side by
+   side), ADR-038's 2026-09-03 amendment.
 
 1. **TipTap discards the ENTIRE document when it meets an unknown node type.** Not a throw,
    not a targeted drop: it catches ProseMirror's `RangeError`, warns `[tiptap warn]: Invalid
@@ -57,15 +76,18 @@ mounting the editor, and open a page **read-only** when it does not round-trip.
   seam. M14 no longer describes the work.
 - **ADR-037 open question 1** — what the chrome row shows when one block holds several
   separately-bound widgets.
-- **`KI-2026-09-03-d`, and measure it before touching any schema.** `macro` is group
-  `"inline"` in ProseMirror, yet the AST, the v1 golden **and the live AI compose path** all
-  place one at block position — a divergence pointing the *wrong way* for decision 4. Whether
-  ProseMirror rejects it at mount is untested; `Node.fromJSON` does not content-check, so it
-  may be inert. The fix differs completely depending on the answer.
+**`KI-2026-09-03-d` is measured and RESOLVED (2026-09-03), nothing changed.** A top-level
+`macro` mounts with no warning, renders, and round-trips — `Node.fromJSON` does not
+content-check, so it is inert on the path that matters. `doc.check()` *does* throw, and
+nothing calls it; that is pinned by its own test so a TipTap release that starts checking
+content on load shows up as a failure rather than as lost pages. The speculative fix was
+measured to be harmful: making `macro` a block node breaks the inline macro every stored
+page uses.
 
-**One honest gap: #131 received no code review.** It merged before either reviewer was
-triggered. Its CI went green and `pnpm check` passed twice locally, but the recursive
-`z.lazy` seam and `serializePageNode` are exactly what a second reader earns their keep on.
+**One honest gap that is still open: #131 received no code review.** It merged before either
+reviewer was triggered. Its CI went green and `pnpm check` passed twice locally, but the
+recursive `z.lazy` seam and `serializePageNode` are exactly what a second reader earns their
+keep on. The branch above touches both, so a review of it covers most of that ground.
 
 ---
 
