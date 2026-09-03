@@ -20,9 +20,19 @@ import { CostsTableBlock } from "./blocks/CostsTableBlock";
 // switch grows only when somebody designs a genuinely new way for a block to
 // look, which is the moment a new component has to be written anyway.
 //
-// `never` on the exhaustive branch is what keeps it honest: adding a member to
+// The `never` assignment below is what keeps it honest: adding a member to
 // `BlockPayload` without a component here fails to compile, so the
 // `no renderer:` chip cannot come back as a runtime surprise.
+//
+// **It was not there, and this comment claimed it was** — caught by CodeRabbit
+// on PR 134. A bare exhaustive switch is not enough: `strict` does NOT imply
+// `noImplicitReturns`, and this repo sets only `strict` in `tsconfig.base.json`,
+// so a fourth `BlockPayload` member compiled clean and made this function
+// return `undefined` — React renders nothing, silently, which is the exact
+// failure the name switch used to make loud with a `no renderer:` chip.
+// Measured before fixing: a probe member added to the union typechecked with no
+// error. That is `.coderabbit.yaml`'s own named defect class (KI-1, KI-14) — a
+// comment asserting an invariant nothing enforces.
 export function BlockView({ block }: { block: BlockPayload }) {
   switch (block.kind) {
     case "itinerary-day":
@@ -31,5 +41,12 @@ export function BlockView({ block }: { block: BlockPayload }) {
       return <ItineraryTripBlock payload={block} />;
     case "costs-table":
       return <CostsTableBlock payload={block} />;
+    default: {
+      // Not dead code and not defensive: this line is the enforcement. If
+      // `block` is ever not `never` here, the assignment fails to compile and
+      // names the member nobody wrote a component for.
+      const exhaustive: never = block;
+      return exhaustive;
+    }
   }
 }

@@ -127,10 +127,20 @@ renders as an itinerary day adds no case anywhere, which is the requirement deci
 in one line: *"if adding the fifteenth widget touches a component, the model has failed"*.
 
 The switch that remains lives in one file (`BlockView.tsx`), is exhaustive over a closed
-union, and returns `never` on the unhandled branch, so a new `BlockPayload` member without a
+union, and assigns the unhandled case to `never`, so a new `BlockPayload` member without a
 component **fails to compile** rather than reappearing as a runtime chip. That is the
 difference between a hand-maintained duplicate of the registry and a type-checked mapping of
 five shapes to five components.
+
+**The `never` assignment is load-bearing and this paragraph first described it without it
+existing** (caught by CodeRabbit on PR 134, corrected the same day). A bare exhaustive switch
+does not get you this: `strict` does **not** imply `noImplicitReturns`, and
+`tsconfig.base.json` sets only `strict`, so the first version compiled clean with a fourth
+member and returned `undefined` — React renders nothing at all, silently, which is strictly
+worse than the `no renderer:` chip it replaced. Measured both ways: a probe member added to
+the union typechecked with no error before, and fails with `Type 'ProbePayload' is not
+assignable to type 'never'` after. Anyone restating this guarantee should check the
+assignment is still there rather than trusting the switch.
 
 **b. `params` is the only thing trusted, and it is validated before `resolve` sees it.**
 `resolveMacro` already `safeParse`s and already has a `bad-params` path. A hand-edited
