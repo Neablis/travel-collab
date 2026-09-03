@@ -1,7 +1,9 @@
 # ADR-038: The notebook document is a versioned AST, and a read that cannot understand it must never overwrite it
 
-**Status:** **PROPOSED — 2026-09-03.** Not accepted.
-**Deciders:** Mitchell (product/eng) — pending; Claude (architect) — drafted
+**Status:** **Accepted — 2026-09-03**, and it is the FIRST thing to build: every page written
+before it lands is written in a format nothing can identify, so the cost of deferring it grows
+with the number of documents. ADR-036 (page history) should follow it rather than precede it.
+**Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: ADR-035 (widgets carry bindings, so a document holds instances with arguments),
 **ADR-037** (a widget module — this stores what that produces), **ADR-036** (page history;
 it stores documents, so it inherits whatever this decides), Invariant 5

@@ -1,7 +1,10 @@
 # ADR-037: A widget is a self-contained module, and rendering it can never produce markup
 
-**Status:** **PROPOSED — 2026-09-03.** Not accepted.
-**Deciders:** Mitchell (product/eng) — pending; Claude (architect) — drafted
+**Status:** **Accepted — 2026-09-03.** Kicking off the implementation branch against it is
+the acceptance. Open questions 2, 3 and 4 were settled by Mitchell the same evening and are
+recorded inline; question 1's remaining sub-question (what the chrome row does when one block
+holds several bound widgets) is the only thing still open, and it does not block starting.
+**Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-035** (a widget is a function of declared inputs — this says how one is *built*),
 ADR-038 (how the document that holds them is stored), ADR-015/Invariant 5 (tool schemas are
 derived, never hand-written twice)
@@ -224,6 +227,78 @@ mid-drag.
 sheet badges it and says so on click instead of claiming an insert. **Note the design's own
 example is stale**: `Home airport` is flagged `needs a field` and M17 shipped
 `users.home_airport`. The mechanism stays; that widget is no longer an instance of it.
+
+### 8. A widget's `name` is a stored identifier, so renaming or removing one is a migration
+
+`MacroNode.attrs.name` is written into every document that uses the widget. That makes a
+widget name **part of the storage format**, not a label:
+
+- **Names are stable ids and are never churned for taste.** Convention: `object.attribute`
+  (`day.date`, `cost.trip`) — what the code already uses. The design's `w-daydate` ids are
+  canvas-local and are **not** what gets stored; the catalogue maps between them.
+- **Renaming a widget is an ADR-038 migration**, in the same PR, or it is a silent breakage of
+  every page using it.
+- **Removing one needs a deprecation path.** Today an unknown name renders an error chip
+  forever. A removed widget should migrate to something — a plain text snapshot of its last
+  rendered value is the honest fallback, since the alternative is a page that quietly loses a
+  sentence.
+
+This is the single tightest coupling between ADR-037 and ADR-038 and it is easy to forget
+until the first rename.
+
+### 9. Each input type has one stored param shape, defined once in contracts
+
+`inputs` says what a widget takes; this says what a *binding* looks like on disk. Five types,
+five shapes, and they belong in `packages/contracts` because the editor, the AI path and the
+resolvers all read them:
+
+| Type | Stored as | "Not set up" when |
+|---|---|---|
+| `day` | `DayRef` — exists today | absent, or the day was deleted |
+| `days` | `{ from: DayRef; through: DayRef }` | either end absent or unresolvable |
+| `person` | a member's `userId` | absent, or that person is no longer on the trip |
+| `tags` | `"all"` or `ActivityTag[]` | never — `"all"` is a valid binding, not an empty one |
+| `trip` | a `tripId` | absent, or not a trip the reader may see |
+
+Two of these carry a trap worth stating. **`tags` has no unbound state** — "every stop" is a
+real choice, so an empty array must mean "no tags match", not "not configured". And
+**`person` and `trip` are the only bindings that can reference something the reader is not
+allowed to see**, which is why decision 3c matters: the resolver reads the `TripDetail` it was
+handed and cannot fetch a trip or a person outside it.
+
+### 10. Deliberately deferred, and named rather than omitted
+
+The failure this ADR is trying not to repeat is ADR-035 defining a model while nobody noticed
+that *"build the widgets"* was in none of the links. So the things that are **out** are listed,
+not left silent:
+
+- **Mobile has no design and this ADR does not invent one.** The Notebook is a phone tab
+  (§13's `Plan / Map / Notebook / Playbooks / Trips`), and SPEC §13 says outright: *"Notebook
+  on the phone reads the focused day only. The full macro document (templates, inline + block
+  macros) has no phone treatment yet."* **A persistent sidebar plus drag-and-drop has no
+  sensible form at 402px**, so the insert surface is desktop-only until the design says
+  otherwise. This is a real gap, it is the design's to close, and shipping the desktop
+  surface without saying so would leave the phone silently broken.
+- **Concurrent editing** — M13, per ADR-036.
+- **Widget-level permissions** — every widget reads data the page's reader can already see.
+  Worth re-checking before the person widgets ship, because they are the first to render
+  another human's name.
+
+### 11. Drag is never the only way to do anything
+
+Click-to-insert and the slash menu are both keyboard-reachable and both go through the same
+command as drag (decision 4). **Any widget that can be inserted by dragging can be inserted
+without a mouse**, and re-pointing a binding happens in the chrome row's `NativeSelect`
+(ADR-010: a real `<select>`), not in a drag interaction. Stated because drag-and-drop is the
+easy thing to build first and the easy thing to leave un-keyboardable.
+
+### 12. Re-resolution is per block, not per document
+
+§18: *"Changing one re-renders that block and nothing else."* With ~20 widget instances on a
+page, re-resolving the whole document on every keystroke or every trip update is the obvious
+way to make a Notebook feel slow. `resolve` is pure and its inputs are `(context, params,
+item?)`, so memoising on those is straightforward — but it only stays straightforward if
+nothing smuggles mutable state into a resolver, which decision 3c already forbids.
 
 ## Consequences
 

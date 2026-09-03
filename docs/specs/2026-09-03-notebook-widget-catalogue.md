@@ -166,3 +166,57 @@ ADR-037 open question 1.
    `users.home_airport`. The `needs a field` *mechanism* is still required — it is the one
    rule §7's picker subsection survived by — but this widget is no longer an instance of it.
    Worth telling the design, since it is the design's own example of the pattern.
+
+---
+
+## Coverage audit — every design surface, mapped
+
+**Why this exists.** ADR-035 defined the widget model correctly and *"build the widgets"* was
+in none of M14's links. Nobody noticed until Mitchell asked. The model was right and the plan
+was incomplete, and nothing in the process was looking for that.
+
+So: every notebook surface the design describes, with where it is decided or why it is not.
+**A row with no decision and no deferral is a bug in the plan.** Update this when a link
+lands.
+
+| # | Design surface | Source | Decided in | Status |
+|---|---|---|---|---|
+| 1 | A page has no scope | §18 | ADR-035 d1 | **Built** — M14 link 2 |
+| 2 | A widget declares its inputs | §18 | ADR-035 d2 | **Built** — M14 link 3 |
+| 3 | A binding lives on the instance | §18 | ADR-035 d3 | Built (params); UI is link 4 |
+| 4 | Iteration items never stored | §18 | ADR-035 d4 | Not built — needs `repeat` |
+| 5 | **The 21 widgets themselves** | canvas `WIDGETS` | **this file** | **Not built — the gap that prompted this audit.** 7 of 21 exist |
+| 6 | Reading / Editing as one toggle | §7 (amended 2026-09-02) | — | ⚠️ **No ADR.** *Edit* → *Done editing*, `aria-pressed`. Specified in SPEC only |
+| 7 | The chrome row | §18 | ADR-037 d4 | Name pill conditional on the widget having a name; itinerary under an authored heading shows only its range selects |
+| 8 | Insert surface | §18 → **overridden** | ADR-037 d4 | Sidebar + drag + click-at-cursor + slash. **Supersedes §18's Sheet — DRIFT owes an entry** |
+| 9 | `needs a field` badge | §7 (only surviving picker rule) | ADR-037 d7 | Mechanism kept; `Home airport` no longer an instance (M17 shipped the field) |
+| 10 | Preview must not assert computed numbers | §18 | ADR-037 d5 | |
+| 11 | Repeaters, row template, empty case | §7 + §18 | ADR-035 d4 | Empty renders `emptyText` in Reading, keeps rail + template in Editing |
+| 12 | "Edit the wording" on the repeat rail | §7 | — | ⚠️ **Unowned.** How an author edits a row template is unspecified beyond "it is document content" |
+| 13 | Templates instantiate widgets | §18 | M14 link 7 | What a seed contains is still open |
+| 14 | Assistant insert tools | §18 | M14 link 8 | `insert_text` / `insert_widget`, derived from the registry |
+| 15 | Notebook history | Mitchell | ADR-036 | **Blocked** — draft durability unresolved; also should follow ADR-038 |
+| 16 | Document format + versioning | Mitchell | ADR-038 | Not built. **The most urgent item** |
+| 17 | Widget module contract | Mitchell | ADR-037 | Not built |
+| 18 | Account scope | Mitchell | ADR-037 oq2 | `{ user, trip? }`, trip fixed at creation |
+| 19 | Trip-globals projection | Mitchell | ADR-037 oq4 | Not built. Prerequisite for 20 — cities are derived today |
+| 20 | Attribute manifest from annotated Zod | Mitchell | ADR-037 oq4 | Opt-in, never opt-out |
+| 21 | Attribution model (person ↔ activity) | Mitchell | — | ⚠️ **No ADR and no data.** Blocks 2 widgets. Proposed as its own milestone |
+| 22 | Widget name stability / removal | — | ADR-037 d8 | Names are stored; renaming is a migration |
+| 23 | Param shape per input type | — | ADR-037 d9 | `tags` has no unbound state |
+| 24 | "Not set up" in every state | Mitchell | ADR-037 d6 | `resolve` total today; `render` totality and a non-day-shaped `unbound` still owed |
+| 25 | **Mobile** | §13 | ADR-037 d10 | ⚠️ **Deferred, design's to close.** Notebook is a phone tab; a sidebar has no 402px form |
+| 26 | Keyboard parity for insert | — | ADR-037 d11 | |
+| 27 | Per-block re-resolution | §18 | ADR-037 d12 | |
+
+### The four rows that still have no owner
+
+Not blockers for starting, but they are what a second pass would otherwise miss again:
+
+1. **Row 6 — Reading/Editing mode has no ADR.** It is the container every other decision
+   assumes, specified only in SPEC prose. Cheapest to close.
+2. **Row 12 — editing a repeater's wording.** ADR-035 says the row template *is* document
+   content; it does not say how an author edits it without seeing macro syntax.
+3. **Row 21 — attribution.** Needs its own ADR before its two widgets can resolve anything.
+4. **Row 25 — mobile.** The design's, not the build's, and it should be asked for explicitly
+   rather than waited on.
