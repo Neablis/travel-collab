@@ -175,8 +175,16 @@ Both surfaces, plus one contract change and one recorded limit.
   for anyone, because naming an author needs a `users` join `pages` has never
   had — the same gap `displayName.ts` records for saved days.
 
-**Still owed by this half:** no browser walk yet (CLAUDE.md rule 1 — the verdict
-lane is `pnpm --filter web test:e2e:ci-like`, not `test:e2e`), and §7's
+**Verified 2026-09-03** at `3aeb041`: `pnpm typecheck` (8 packages), `pnpm lint`
+plus all four walls, **2,865 unit tests**, **443 integration**, and
+**`pnpm --filter web test:e2e:ci-like` at 80 passed** — the ci-like lane, not
+`test:e2e` (CLAUDE.md rule 1). Every new test was watched failing under a
+deliberate mutation of the code it protects before being kept (13 mutations,
+rule 3); one of those mutations found a real defect in `formatRelativeInstant`
+rather than confirming a test, which is recorded above.
+
+**Still owed by this half:** a human browser walk — the e2e lane proves the
+flow works, not that it reads right — and §7's
 "one-line description" per notebook is **not built** — the index shows title,
 scope, provenance and freshness, and there is no description field on a page to
 show. That is a field, so it is a contract change of its own and was left rather

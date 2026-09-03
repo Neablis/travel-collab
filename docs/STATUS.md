@@ -41,11 +41,14 @@ is still gated and is gated on Mitchell, not on engineering.
    `PageSummary` now carries `actorId` and `SYSTEM_ACTOR_ID` moved into
    `packages/contracts` — the provenance line cannot tell a seeded notebook from
    an authored one otherwise. Entry in `docs/contracts/CHANGELOG.md`.
-2. **No browser walk yet.** CLAUDE.md rule 1: the verdict lane is
-   `pnpm --filter web test:e2e:ci-like`, never `test:e2e`. The e2e specs that
-   clicked a link named "Notebook" were rewritten to open the pill instead
-   (`m7-solo-delight`, `m11-demo`), and rewritten specs are exactly the ones a
-   green unit suite does not vouch for.
+2. **The e2e lane is green — `test:e2e:ci-like`, 80 passed, 2.1m** (CLAUDE.md
+   rule 1: never `test:e2e`). That matters here specifically because the specs
+   that used to click a link named "Notebook" were **rewritten** to open the
+   pill and click through its footer (`m7-solo-delight`'s three tests,
+   `m11-demo`'s withheld-controls test), and a rewritten spec is exactly what a
+   green unit suite does not vouch for. Both were re-run alone afterwards to
+   confirm they ran rather than being filtered out. **A human browser walk is
+   still owed** — the lane proves the flow works, not that it reads right.
 3. **Two planning-doc claims about the code were wrong and are corrected in
    place** — the scope string was `describeBinding` and was already rendered,
    and this half was not contract-free. Both had been copied verbatim into
