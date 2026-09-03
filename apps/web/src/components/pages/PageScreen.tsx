@@ -86,7 +86,14 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
         </Link>
       </div>
       <Heading level={2}>{page.title}</Heading>
-      <div className="mb-3">
+      {/* `mt-3` replaces the margin the day-binding control used to contribute.
+          That control sat between the title and this panel in a `my-3` wrapper,
+          so deleting it (SPEC §18 — a page has no scope) took the panel's only
+          top margin with it: `Heading` computes `margin: 0`, and the panel's
+          border ended up 1px under the title while the seams either side of it
+          are 8px and 12px. Caught on the preview walk, not by any test — no
+          layer we have asserts vertical rhythm. */}
+      <div className="mb-3 mt-3">
         <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} />
       </div>
       <PageEditor
