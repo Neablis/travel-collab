@@ -358,8 +358,49 @@ example is stale**: `Home airport` is flagged `needs a field` and M17 shipped
    anything can address it. That projection is worth doing on its own merits and is what makes
    half the catalogue cheap.
 
-   **Mitchell's call**, and it changes the shape of the milestone either way: the manifest
-   approach is more machinery up front and much less per widget afterwards.
+   **SETTLED — Mitchell, 2026-09-03:**
+
+   > Yes, thats fine, i didnt mean that template string to be how a end user actually
+   > interacts, lets always avoid dropping into letting end user write raw string templates,
+   > it should also be a frontend widget, a search input, a dropdown, something easy for them
+   > to use.
+   >
+   > The manifest is fine, we can invert a Typescript type to identify the fields that can be
+   > accessed and how to serialize them
+
+   The manifest approach is adopted, and **"never drop the end user into raw string
+   templates" is now a standing rule** rather than a property of this one widget — it is §7's
+   "users never see or type macro syntax" restated as a build constraint, and it applies to
+   anything added later that is tempted to accept an expression.
+
+   **One refinement: invert the Zod schema, not the TypeScript type.** Same instinct — the
+   type already knows, so do not hand-maintain a list — but in this repo the TS type is the
+   *derived* artifact. Invariant 5: contracts are "Zod schemas; types inferred, never
+   hand-written twice". So:
+
+   - Walking `ZodObject.shape` is **runtime reflection with no build step**, and it lives in
+     `packages/contracts`, which depends on nothing.
+   - Inverting the TS type needs the compiler API or `ts-morph` at build time, plus a codegen
+     artifact to keep in sync, to recover information Zod is already holding at runtime.
+
+   Same manifest, one fewer moving part. `.describe()` can carry the human label.
+
+   **And one caveat that changes the design rather than decorating it: exposure must be
+   opt-in.** "A developer adding a global attribute gets it for free" is the goal, but
+   free-*by-default* over a whole schema is a leak: `TripDetail` carries
+   `dismissedConflictIds`, `forkedFrom` and internal uuids, none of which belong in a
+   user-facing picker. So the manifest is built from **annotated** fields — one line per
+   field, which is still "free" in the sense that matters, since the alternative is a widget
+   module. Opt-out would mean every future contract field is published into a document surface
+   until someone notices.
+
+   **"How to serialize them"** becomes a small closed set of value kinds — money, date,
+   count, text, duration — each with one formatter. `packages/pages/src/format.ts` already has
+   `formatMoney` and `formatDate`, so this is naming what exists rather than inventing it.
+
+   **The prerequisite is unchanged and is the real work**: the trip-globals projection.
+   `trip.cities` cannot be addressed until cities exist as a collection rather than as
+   `Location.city` derived per activity by `cityFor()`.
 
 ## Alternatives rejected
 

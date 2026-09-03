@@ -104,6 +104,44 @@ Mitchell's framing, 2026-09-03:
    session**. The `pages` table becomes a projection rather than the authority — that is
    the real work in this link.
 
+### Rescoped a second time, 2026-09-03 (evening) — and it no longer fits in one milestone
+
+The nine links above were written before the widget model was worked out. Mitchell's answers
+that evening settled six questions and **grew the work well past what this milestone can
+hold**. Recorded here as a proposal, because splitting a milestone is his call, not a build's.
+
+What the answers added (all in `ADR-037`, `ADR-038` and
+`docs/specs/2026-09-03-notebook-widget-catalogue.md`):
+
+| | New work | Why it is not "a widget" |
+|---|---|---|
+| **A** | **A versioned document AST** (ADR-038) | `PageContent` is `z.array(z.unknown())` with no version marker, and the ordinary read→render→autosave path silently drops nodes an older schema does not know. Blocking, and it gets worse once ADR-036 puts documents in an append-only log |
+| **B** | **The widget module contract** (ADR-037) | Deletes `MacroView`'s `switch (name)` so a widget can be added without editing a React component. This is the "easily add more" requirement |
+| **C** | **`WidgetContext = { user, trip? }`** | A notebook is always account-scope, optionally trip-scope, trip fixed at creation. Contract + signature change; unblocks four account widgets |
+| **D** | **A trip-globals projection** | `trip.cities` does not exist — cities are derived per-activity via `cityFor()`. Nothing can address collections until they are collections |
+| **E** | **The attribute manifest**, from annotated Zod fields | "A developer adding an attribute gets a widget free". Opt-in, never opt-out |
+| **F** | **An attribution model** — who a stop is for, who booked it, who owes what | **New domain concept**: fields, events, conflicts, a settle-up notion. The two person widgets cannot resolve anything without it |
+| **G** | **The sidebar, drag-and-drop and the slash menu** | Supersedes §18's Sheet |
+| **H** | **~14 more widgets**, six of which need `kind: "repeat"` first | |
+
+**Recommendation: split, and F is the natural seam.**
+
+- **M14 keeps A, B, C, D, E, G, H** — the notebook document, the widget framework, and every
+  widget that needs no new domain data. That is still a large milestone and it delivers a
+  working, extensible Notebook.
+- **F becomes its own milestone.** Attributing stops and money to people is a *product
+  feature* — expense splitting — that happens to have two widgets pointed at it. It carries
+  events, a conflict surface and a settle-up model. Scoping it as a line item inside "build
+  the widgets" is how a milestone silently doubles.
+- **Link 9 (notebook history, ADR-036) should move behind ADR-038.** It stores documents; if
+  documents are versioned, the log holds a version per event and replay migrates each. If not,
+  it writes unversioned documents into the one place a format mistake is permanent. It is
+  already blocked on the unsettled draft-durability question, so this costs nothing.
+
+**Sequence, if the split is taken:** ADR-038 (format) → B (module contract) → C (context) →
+D (projection) → E (manifest) → G (insert surface) + link 4's chrome row → H (widgets) →
+link 7 (templates) → link 8 (assistant tools). F and link 9 leave this milestone.
+
 ### What this does to the gate
 
 The old gate's **"choosing a day value on a trip-wide page binds the page and reveals the
