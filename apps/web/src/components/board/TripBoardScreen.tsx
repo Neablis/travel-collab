@@ -824,26 +824,37 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           }
         >
           <TripHeader tripId={tripId}>
-            {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
-                the tabs' own `shrink-0` are what keep that true at a phone's
-                width: the line drops onto its own line rather than squeezing
-                the tab strip, which is the control you need most. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {/* "Beside the view tabs" (SPEC §11), so one row — and the design
+                keeps it one row at every width by SCROLLING it
+                (`flex-wrap: nowrap; overflow-x: auto`), not by wrapping. The
+                build wrapped, so on a phone the Notebooks pill dropped onto a
+                second line and pushed the day chips down; nothing here is
+                worth a row of its own. */}
+            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto">
               {/* `shrink-0` on the wrapper, not inside TabStrip: TabStrip is a
-                  primitive with no className seam, and the tab strip is the
-                  control you least want squeezed when the focus line appears
-                  beside it. */}
+                  primitive with no className seam, and under `nowrap` an
+                  unpinned child squeezes instead of scrolling — which is the
+                  failure mode this row is being changed to avoid. */}
               <div className="shrink-0">
                 <TripViewTabs />
               </div>
+              {/* Deliberately NOT wrapped in a `shrink-0` div the way the tabs
+                  are, though the design pins it `flex: 0 0 auto`: TagFocusLine
+                  renders null when no tag is focused and a wrapper does not, so
+                  the wrapper would leave a phantom flex item — and a `gap-4`
+                  worth of dead space — on every board that is not focused. It
+                  carries its own `min-w-0` and truncate for the squeeze. */}
               <TagFocusLine />
+              {/* The design's explicit spacer, in place of `ml-auto` on the
+                  pill: the focus line appears and disappears between the tabs
+                  and the pill, and a margin-auto would drag the pill leftwards
+                  whenever a tag came into focus. `min-w-3` is the design's
+                  12px floor, so the two never touch once the row is scrolling. */}
+              <div className="min-w-3 flex-auto" />
               {/* SPEC §11: the Notebooks pill sits at the FAR RIGHT of this
                   row, deliberately a different class of thing from the tabs —
                   they project this trip through another view, it leaves for
-                  another route. `ml-auto` rather than `justify-between` on the
-                  row, because the focus line appears and disappears between
-                  the tabs and this pill and would otherwise drag it leftwards
-                  whenever a tag is in focus.
+                  another route.
 
                   Gated on `isDemoTripId` for the same reason `TripHeader`'s nav
                   row is (ADR-031): the demo board's visitor has no session, so
@@ -851,7 +862,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   that only leads to a sign-in wall still says "there is
                   something here for you", and there is not. */}
               {!isDemo && (
-                <div className="ml-auto shrink-0">
+                <div className="shrink-0">
                   <NotebooksMenu tripId={tripId} readOnly={readOnly} />
                 </div>
               )}

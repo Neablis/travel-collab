@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
+import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { pageFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
 import { NotebooksMenu } from "./NotebooksMenu";
@@ -60,9 +61,57 @@ describe("NotebooksMenu", () => {
     // swapped onto the wrong notebooks — it proved both strings were somewhere
     // on screen and nothing about which notebook each belonged to, which is the
     // entire claim this test makes (Copilot, PR #126).
+    //
+    // Anchored at both ends, with LITERAL spaces around the `.+`: the `.+` is
+    // the row's second line (asserted on its own below), and the spaces are the
+    // claim that this name reads as words. Without the explicit whitespace
+    // nodes in the row it computes as "Trip OverviewYours…Trip-wide" — one
+    // run-together word to a screen reader.
     expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Trip Overview Trip-wide" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Day Sheet Day 6" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Trip Overview .+ Trip-wide$/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Day Sheet .+ Day 6$/ })).toBeTruthy();
+  });
+
+  // The design gives every row a second line, and it is the same line the index
+  // route already shows (`NotebookScreen`) from the same two helpers — a menu
+  // that described one notebook differently from the list it links to would be
+  // two answers to one question.
+  it("gives each notebook a second line saying where it came from and how stale it is", async () => {
+    // Relative to now, so "3 hours ago" is a constant rather than a function of
+    // how long ago the fixture's own date was.
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    const seeded = pageFixture({
+      id: "11111111-1111-4111-8111-111111111111",
+      tripId: TRIP_ID,
+      title: "Trip Overview",
+      actorId: SYSTEM_ACTOR_ID,
+      updatedAt: threeHoursAgo,
+    });
+    const mine = pageFixture({
+      id: "22222222-2222-4222-8222-222222222222",
+      tripId: TRIP_ID,
+      title: "Packing",
+      actorId: "dev-alice",
+      updatedAt: threeHoursAgo,
+    });
+    // The case that needs `viewerId`: `actorId` alone cannot tell a
+    // collaborator's notebook from the reader's own, so without the reader
+    // threaded through, every row on a shared trip reads "Yours".
+    const theirs = pageFixture({
+      id: "33333333-3333-4333-8333-333333333333",
+      tripId: TRIP_ID,
+      title: "Bob's notes",
+      actorId: "dev-bob",
+      updatedAt: threeHoursAgo,
+    });
+    server.use(...makePagesHandlers([seeded, mine, theirs], { viewerId: "dev-alice" }));
+
+    render(<NotebooksMenu tripId={TRIP_ID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+
+    expect(await screen.findByText("Comes with your trip · edited 3 hours ago")).toBeTruthy();
+    expect(screen.getByText("Yours · edited 3 hours ago")).toBeTruthy();
+    expect(screen.getByText("From another traveler · edited 3 hours ago")).toBeTruthy();
   });
 
   it("re-reads the list on each open, so a notebook made elsewhere shows up", async () => {
