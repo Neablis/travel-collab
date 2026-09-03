@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — `PageDoc`: the notebook document becomes a versioned AST (ADR-038 step 1)
+
+- Added: `PageDoc` (`{ v, type: "doc", content: PageNode[] }`) and its node union —
+  `PageParagraphNode`, `PageHeadingNode`, `PageWidgetNode`, `PageRepeatNode`,
+  `PageUnknownNode`, plus `PageInlineNode`/`PageTextNode`/`PageMark` — in a new
+  `src/pageDoc.ts`. With them: `PAGE_DOC_MIGRATIONS` (an ordered, currently EMPTY
+  chain of pure `(doc) => doc` steps), `CURRENT_PAGE_DOC_VERSION` derived from its
+  length, `migratePageDoc`, `parsePageDoc`, `serializePageNode`, `serializePageDoc`
+- **`PageContent` is untouched and still in use.** `PageDoc` lands *alongside* it;
+  swapping the call sites belongs with the editor work (ADR-038 decision 4) and would
+  break the app if done here
+- Why: `PageContent`'s `z.array(z.unknown())` cannot say whether a stored page is
+  valid or what format it was written in. ADR-038 asked for the empirical answer first,
+  and it is now measured rather than asserted — see
+  `apps/web/src/components/pages/editor/PageEditor.test.tsx`, "PageEditor given a node
+  type the schema does not know". TipTap does not throw and does not drop the one node:
+  it catches ProseMirror's `RangeError: Unknown node type`, warns, and mounts an EMPTY
+  document, which `PageScreen` then autosaves over the original 800 ms later. The blast
+  radius is the whole page
+- Two places this build deviates from ADR-038 as written, both deliberate and both
+  pinned by tests: the widget node's stored discriminator stays **`"macro"`** (the ADR
+  writes `"widget"`; renaming it would reclassify every existing widget as an unknown
+  node, so it is a v2 migration, not a rename), and `heading` is **levels 1-3** per the
+  ADR even though `server/ai/pageTools.ts` accepts 1-6 today
+- Consumers updated: none — the schema is additive and nothing imports it yet.
+  `packages/contracts` gains `fast-check` as a devDependency for the round-trip property
+- Breaking? **no.** No stored data changes, no migration, no call site moves
+
 ## 2026-09-03 — `PageContext` loses `dayRef`: a page has no scope (M14 link 2, ADR-035)
 
 - Changed: `PageContext` is now `{ tripId }`. The optional `dayRef` is **removed**

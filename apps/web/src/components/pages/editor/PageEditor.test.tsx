@@ -63,6 +63,51 @@ describe("PageEditor", () => {
   });
 });
 
+// ADR-038 asked an open empirical question and refused to design around a guess:
+// when a stored page holds a node type the editor's TipTap schema has no
+// definition for, does ProseMirror throw or does it drop the node? It does
+// neither. `createNodeFromContent` catches ProseMirror's
+// `RangeError: Unknown node type: repeat`, warns, and falls back to an EMPTY
+// document — so the blast radius is not the unrecognised node, it is every node
+// on the page. `PageScreen` then autosaves that empty document over the original
+// on its 800 ms debounce, with no error and nothing for the user to see.
+//
+// This test is the reproduction. It is expected to CHANGE SHAPE when ADR-038's
+// decisions 3 and 4 land (unknown nodes preserved as `{ type: "unknown", raw }`;
+// a lossy page opens read-only and never autosaves) — not to be deleted.
+describe("PageEditor given a node type the schema does not know (ADR-038)", () => {
+  const withUnknownNode = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "written by the user" }] },
+      { type: "repeat", attrs: { name: "day.line", params: {} }, content: [] },
+    ],
+  } as unknown as PageContent;
+
+  it("discards the whole stored document rather than throwing or dropping the one node", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onChange = vi.fn();
+    try {
+      render(<PageEditor detail={detail} context={context} value={withUnknownNode} onChange={onChange} />);
+
+      await userEvent.type(screen.getByRole("textbox"), "x");
+
+      // Not a throw: the editor mounted and is editable. TipTap swallowed it.
+      expect(warn).toHaveBeenCalled();
+      expect(String(warn.mock.calls[0]?.[0])).toContain("[tiptap warn]: Invalid content.");
+
+      expect(onChange).toHaveBeenCalled();
+      const saved = onChange.mock.calls[onChange.mock.calls.length - 1]![0];
+      // Not a targeted drop either: the user's own paragraph went with it, and
+      // what would be written back is the keystroke and nothing else.
+      expect(saved).toEqual({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x" }] }] });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+
 // KI-44 regression. `.tc-page-editor` was applied at the call site and defined
 // nowhere for the whole life of the Notebook surface, and nothing caught it
 // because no test tied the class on the element to a rule in the stylesheet.
