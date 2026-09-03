@@ -1,5 +1,33 @@
 ### KI-2026-09-02 — GitHub Advanced Security's agentic code scanning fails every PR before it reads the diff, because the model it asks for is not available
 
+> **RESOLVED 2026-09-03 by observation, not by a fix of ours.** The check started passing
+> and has stayed passing. Nothing in this repo changed to cause it — the entry's own
+> diagnosis was that the failure came from a model being unavailable on GitHub's side, and
+> the most likely explanation is simply that it became available again.
+>
+> **The evidence, in order, all on the same day:**
+>
+> | PR | head | `github-advanced-security` |
+> |---|---|---|
+> | #129 | `d8e67db` | ❌ failure |
+> | #129 | `318c27b` | ❌ failure |
+> | #130 | `09eb5d5` | ✅ success |
+> | #130 | `f068a9c` | ✅ success |
+> | #131 | `c4e1f0d` | ✅ success |
+>
+> Two failures then three consecutive passes, across two different PRs and five heads.
+> The entry was deliberately **not** resolved on the first pass — one green run is a
+> coincidence, and the whole point of this file is not to record guesses.
+>
+> **What this closes, and it was the real cost:** the failing check made `mergeStateStatus`
+> read `UNSTABLE` on every PR, which reads as "do not merge yet" to anyone who has not read
+> this entry. That tax is gone.
+>
+> **If it comes back**, the entry below is still the right diagnosis and the right advice —
+> it dies at `session.create` before reading the diff, so re-running it never helps, and
+> CodeQL plus both `Analyze` jobs passing on the same head remains the test that only the
+> agentic check is broken. Reopen rather than rewrite.
+
 - **Severity:** CI noise, not product. It cannot pass and it cannot find
   anything — it fails during session setup, so no analysis of any kind runs. It
   costs a red X on every pull request and, worse, it makes `mergeStateStatus`

@@ -22,6 +22,53 @@ general setup.
 
 ## Where the work is right now
 
+**M14's widget model is decided and its foundation is merged, 2026-09-03 evening.**
+`main` is `72c7085`. Nothing is in flight: no open PR of ours, no worktrees, clean tree.
+Merged today: **#129** (a page loses its scope), **#130** (widget catalogue, ADR-037,
+ADR-038, M14 rescope), **#131** (`PageDoc`, the versioned AST). **ADRs 035, 036, 037 and
+038 are all Accepted.**
+
+**The next unit is ADR-038 decision 4** — parse stored documents through `PageDoc` before
+mounting the editor, and open a page **read-only** when it does not round-trip.
+`PageContent` still holds every call site; swapping them is that work.
+
+### Three things measured today that a session must not re-derive or re-guess
+
+1. **TipTap discards the ENTIRE document when it meets an unknown node type.** Not a throw,
+   not a targeted drop: it catches ProseMirror's `RangeError`, warns `[tiptap warn]: Invalid
+   content.`, and mounts an **empty** doc — which `PageScreen` autosaves over the original
+   800ms later. A page needs nothing new in it to be lost; it only needs to be opened by a
+   client that does not know one node in it. Test:
+   `apps/web/src/components/pages/editor/PageEditor.test.tsx`. **This is why decision 4 is
+   the primary defence rather than belt-and-braces** — preserving unknown nodes protects
+   nothing, because the content is gone before our serialiser runs.
+2. **`enableContentCheck: true` does not help.** `Editor.createView` catches the error,
+   emits `contentError`, then re-runs the same fallback. **`contentError` is a notification,
+   not a veto.** The refusal has to be ours, upstream of mounting.
+3. **A test can pass while asserting nothing, and it happened twice today.** The nested
+   round-trip test guarding `serializePageNode`'s recursion was insensitive as written: a
+   serialiser that stops recursing still emits byte-identical output when every node below
+   is a *known* type. Only a nested **unknown** node exposes it. Both cases were caught by
+   breaking the source and watching the test stay green (CLAUDE.md rule 3).
+
+### Open, and not a build's to settle
+
+- **The M14 split** — proposed in `M14-rich-layer.md` with the attribution model as the
+  seam. M14 no longer describes the work.
+- **ADR-037 open question 1** — what the chrome row shows when one block holds several
+  separately-bound widgets.
+- **`KI-2026-09-03-d`, and measure it before touching any schema.** `macro` is group
+  `"inline"` in ProseMirror, yet the AST, the v1 golden **and the live AI compose path** all
+  place one at block position — a divergence pointing the *wrong way* for decision 4. Whether
+  ProseMirror rejects it at mount is untested; `Node.fromJSON` does not content-check, so it
+  may be inert. The fix differs completely depending on the answer.
+
+**One honest gap: #131 received no code review.** It merged before either reviewer was
+triggered. Its CI went green and `pnpm check` passed twice locally, but the recursive
+`z.lazy` seam and `serializePageNode` are exactly what a second reader earns their keep on.
+
+---
+
 **SPEC §18 landed in `f365f0b` and rescoped M14, 2026-09-03.** *"Notebook widgets — a page
 has no scope"* (dated 2026-09-02) replaced §7's model, and it reached `main` **after** the
 navigation half merged in #126 — so part of #126 was built against a spec that had already
