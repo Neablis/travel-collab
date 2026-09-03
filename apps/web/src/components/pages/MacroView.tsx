@@ -1,5 +1,5 @@
 "use client";
-import type { TripDetail, PageContext, UserPreferences } from "@tc/contracts";
+import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, type Seg } from "@tc/pages";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -34,12 +34,13 @@ function Segs({ segs }: { segs: readonly Seg[] }) {
   );
 }
 
-export function MacroView({ detail, context, user = null, name, params, onBindDay }: {
-  detail: TripDetail; context: PageContext; user?: UserPreferences | null; name: string;
+export function MacroView({ detail, context, user = null, globals = null, name, params, onBindDay }: {
+  detail: TripDetail; context: PageContext; user?: UserPreferences | null;
+  globals?: TripGlobals | null; name: string;
   params: Record<string, unknown>; onBindDay?: () => void;
 }) {
   const def = getMacro(name);
-  const outcome = renderMacro({ trip: detail, page: context, user }, name, params);
+  const outcome = renderMacro({ trip: detail, page: context, user, globals }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
   // The chip is a control only when something can act on it. `PageScreen`

@@ -31,7 +31,7 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
   // pass. Callers that need account widgets go through `renderMacro`, which
   // takes a whole `WidgetContext`; this one keeps working for everything that
   // reads the trip.
-  return def.resolve({ trip: detail, page: ctx, user: null }, parsed.data as never);
+  return def.resolve({ trip: detail, page: ctx, user: null, globals: null }, parsed.data as never);
 }
 
 // Resolve AND render in one call, which is what every UI wants and what keeps

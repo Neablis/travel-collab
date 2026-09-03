@@ -30,14 +30,14 @@ const twoDays: TripDetail = {
 
 describe("block resolvers", () => {
   it("itinerary.day returns the bound day's activities", () => {
-    const r = itineraryDay.resolve({ trip: detail, page: ctx, user: null }, { dayRef: { kind: "index", index: 0 } });
+    const r = itineraryDay.resolve({ trip: detail, page: ctx, user: null, globals: null }, { dayRef: { kind: "index", index: 0 } });
     expect(r.status).toBe("ok");
     if (r.status === "ok") expect(r.value.activities[0]!.title).toBe("Museum");
   });
   // The claim §18 exists to make: the day comes off the WIDGET, so this one
   // reads day 2 while the page it sits on is about nothing in particular.
   it("itinerary.day reads the day named in its own params", () => {
-    const r = itineraryDay.resolve({ trip: twoDays, page: ctx, user: null }, { dayRef: { kind: "index", index: 1 } });
+    const r = itineraryDay.resolve({ trip: twoDays, page: ctx, user: null, globals: null }, { dayRef: { kind: "index", index: 1 } });
     expect(r.status).toBe("ok");
     if (r.status === "ok") {
       expect(r.value.dayId).toBe("d1");
@@ -45,20 +45,20 @@ describe("block resolvers", () => {
     }
   });
   it("itinerary.day is unbound when its params name no day", () => {
-    expect(itineraryDay.resolve({ trip: twoDays, page: ctx, user: null }, {}).status).toBe("unbound");
+    expect(itineraryDay.resolve({ trip: twoDays, page: ctx, user: null, globals: null }, {}).status).toBe("unbound");
   });
   it("itinerary.day is empty for a day with no activities", () => {
     const emptyDay = { ...detail, days: [{ dayId: "d0", activityIds: [], date: "2026-08-01", costSubtotal: 0 }] };
-    expect(itineraryDay.resolve({ trip: emptyDay, page: ctx, user: null }, { dayRef: { kind: "index", index: 0 } }).status).toBe("empty");
+    expect(itineraryDay.resolve({ trip: emptyDay, page: ctx, user: null, globals: null }, { dayRef: { kind: "index", index: 0 } }).status).toBe("empty");
   });
   it("itinerary.trip returns all days; empty when there are none", () => {
-    expect(itineraryTrip.resolve({ trip: detail, page: ctx, user: null }, {}).status).toBe("ok");
-    expect(itineraryTrip.resolve({ trip: { ...detail, days: [] }, page: ctx, user: null }, {}).status).toBe("empty");
+    expect(itineraryTrip.resolve({ trip: detail, page: ctx, user: null, globals: null }, {}).status).toBe("ok");
+    expect(itineraryTrip.resolve({ trip: { ...detail, days: [] }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
   it("costs.table lists day + backlog rows with a total; empty when zero", () => {
-    const r = costsTable.resolve({ trip: detail, page: ctx, user: null }, {});
+    const r = costsTable.resolve({ trip: detail, page: ctx, user: null, globals: null }, {});
     expect(r.status).toBe("ok");
     if (r.status === "ok") expect(r.value.total).toBe("$50.00");
-    expect(costsTable.resolve({ trip: { ...detail, tripCostTotal: 0, days: [{ dayId: "d0", activityIds: [], date: "2026-08-01", costSubtotal: 0 }] }, page: ctx, user: null }, {}).status).toBe("empty");
+    expect(costsTable.resolve({ trip: { ...detail, tripCostTotal: 0, days: [{ dayId: "d0", activityIds: [], date: "2026-08-01", costSubtotal: 0 }] }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
 });

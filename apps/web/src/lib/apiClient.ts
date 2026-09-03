@@ -6,6 +6,7 @@ import {
   SharedTripView,
   TripAccess,
   TripDetail,
+  TripGlobals,
   TripHistory,
   TripInvite,
   TripShare,
@@ -387,6 +388,21 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
  * and asserts it is rejected). "UI calls the API" is the wall's own instruction
  * for this case, and it is what `TripProvider` already does with trip state.
  */
+/**
+ * The trip's addressable collections (ADR-037 open question 4).
+ *
+ * Separate from `fetchTripDetail` on purpose — see the route's own comment. A
+ * caller that only renders the board never asks for this.
+ */
+export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGlobals>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`));
+    return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
 export async function fetchPreferences(): Promise<ApiResult<UserPreferences>> {
   try {
     const res = await fetch(apiUrl("/api/account/preferences"));

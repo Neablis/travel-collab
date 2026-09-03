@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext } from "react";
-import type { TripDetail, PageContext, UserPreferences } from "@tc/contracts";
+import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 
 // Carries the `detail`/`context` that every `macro` NodeView needs to resolve
 // itself, from `PageEditor` down to `MacroNodeView` — without threading them
@@ -17,6 +17,8 @@ export interface MacroEditorContextValue {
   // still opens, and account widgets render "not set up" (decision 6) rather
   // than the notebook refusing to load over a preference fetch.
   user: UserPreferences | null;
+  // The trip's addressable collections; `null` until the request lands.
+  globals: TripGlobals | null;
   onBindDay?: () => void;
 }
 

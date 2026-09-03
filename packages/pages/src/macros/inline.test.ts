@@ -22,20 +22,20 @@ const day0 = { dayRef: { kind: "index", index: 0 } as const };
 
 describe("inline resolvers", () => {
   it("trip.name resolves the name", () => {
-    const r = tripName.resolve({ trip: base, page: ctx, user: null }, {});
+    const r = tripName.resolve({ trip: base, page: ctx, user: null, globals: null }, {});
     expect(r).toEqual({ status: "ok", value: "Japan 2026" });
   });
   it("trip.dates is empty when no startDate", () => {
-    expect(tripDates.resolve({ trip: { ...base, startDate: null }, page: ctx, user: null }, {}).status).toBe("empty");
+    expect(tripDates.resolve({ trip: { ...base, startDate: null }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
   it("cost.trip formats the total; empty when zero", () => {
-    expect(costTrip.resolve({ trip: base, page: ctx, user: null }, {})).toEqual({ status: "ok", value: "$50.00" });
-    expect(costTrip.resolve({ trip: { ...base, tripCostTotal: 0 }, page: ctx, user: null }, {}).status).toBe("empty");
+    expect(costTrip.resolve({ trip: base, page: ctx, user: null, globals: null }, {})).toEqual({ status: "ok", value: "$50.00" });
+    expect(costTrip.resolve({ trip: { ...base, tripCostTotal: 0 }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
   it("cost.day resolves the day in its OWN params; unbound with no ref; empty when zero", () => {
-    expect(costDay.resolve({ trip: base, page: ctx, user: null }, day0)).toEqual({ status: "ok", value: "$50.00" });
-    expect(costDay.resolve({ trip: base, page: ctx, user: null }, {}).status).toBe("unbound");
-    expect(costDay.resolve({ trip: base, page: ctx, user: null }, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, day0)).toEqual({ status: "ok", value: "$50.00" });
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, {}).status).toBe("unbound");
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
   });
 });
 

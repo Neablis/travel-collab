@@ -120,7 +120,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       // Bind anything that takes a day to the one day above, so block widgets
       // reach `ok` instead of `unbound`.
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
       if (outcome.status !== "ok") continue;
       seen.push(name);
       expect(["inline", "block", "rows"], `${name} rendered an unknown kind`).toContain(outcome.rendered.kind);
@@ -138,7 +138,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
       const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
       for (const seg of segs) expect(["text", "chip"]).toContain(seg.kind);
@@ -152,7 +152,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind !== "block") continue;
       expect(typeof outcome.rendered.block.kind, `${name}'s block payload has no kind`).toBe("string");
     }

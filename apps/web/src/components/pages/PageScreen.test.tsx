@@ -19,6 +19,11 @@ const server = setupServer(
   http.get("/api/account/preferences", () =>
     HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
   ),
+  // Same reasoning as the account default above: every notebook page now asks
+  // for the trip's addressable collections (ADR-037 open question 4).
+  http.get("/api/trips/:tripId/globals", () =>
+    HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+  ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {

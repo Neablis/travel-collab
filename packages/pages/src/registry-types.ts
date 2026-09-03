@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { TripDetail, PageContext, MacroKind, UserPreferences } from "@tc/contracts";
+import type { TripDetail, PageContext, MacroKind, TripGlobals, UserPreferences } from "@tc/contracts";
 import type { MacroResult } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -122,6 +122,15 @@ export interface WidgetContext {
   trip: TripDetail;
   page: PageContext;
   user: UserPreferences | null;
+  // The trip's addressable collections (ADR-037 open question 4). `null` for
+  // the same reason `user` is: it is a separate request, and a widget saying
+  // "not set up" beats a notebook that will not open.
+  //
+  // It is HANDED to widgets rather than computed by them, and that is the
+  // architectural point rather than a convenience: `trip.cities` is derived by
+  // `citiesOfDay` in `@tc/domain`, which only `apps/web/src/server/**` may
+  // import. See `TripGlobals`' own header.
+  globals: TripGlobals | null;
 }
 
 export interface MacroDef<P, T> {
