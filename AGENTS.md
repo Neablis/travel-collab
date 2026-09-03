@@ -125,6 +125,21 @@ standalone service without touching domain or contracts (ADR-002).
 
 Committed in the repo, so every session and every worktree has them.
 
+**State digest** (`pnpm state`, `scripts/state-digest.mjs`): the "where are we"
+answer, extracted rather than summarized — current milestone and its exit-gate
+tally, the first unchecked TODO, STATUS.md's leading block, open PRs, a
+worktree count, and an open-KI count with the newest few. Every line carries a
+`file:line` citation, so a session that needs the detail opens one file at one
+offset instead of `cat`-ing 50KB of it. The `SessionStart` hook prints it on
+both branches, so it has usually already run before you start; `/roadmap` calls
+it for its Steps 1 and 3, then spends its turn on the judgement the script
+refuses to make. It defers twice on purpose: a worktree count rather than an
+audit (that is `worktree-hygiene`), and a named mismatch rather than a verdict
+when the status sources disagree (that is `/roadmap`). Why it is a script and
+not one more thing to invoke: `docs/reviews/2026-09-02-session-tooling-review.md`
+(R1, findings F1/F2/F8) measured 2,621 orientation re-reads across 220 sessions,
+~1.9M tokens, against 9 sessions that thought to run `/roadmap`.
+
 **Slash commands** (`.claude/commands/`):
 
 | Command | What it does |
@@ -428,6 +443,31 @@ these out immediately:
 
 ## Testing model
 
+**The procedure is `docs/guidelines/testing.md`** — which layer owns what, the
+locator ladder, the testid contract, and four copy-pasteable examples. Read it
+before writing a test; the `write-a-test` skill walks it as steps. What follows
+is the law it expands: invariants only, each one paid for.
+
+- **Red first: a test is not done until it has been seen to fail.** Break the
+  code it protects, watch it go red for *your* reason, restore, watch it go
+  green — and put the source edit and the real failure text in the PR. Three
+  tests written in one session (2026-09-02) passed while proving nothing: a
+  `waitFor` on a value that could not change between retries, an effect keyed so
+  it never re-ran, and an empty-patch check that accepted the emptiest patch.
+  Each was caught only by doing this, retroactively. `witness` does it
+  mechanically for property tests; for everything else it is manual and there is
+  no substitute.
+- **Test count is a cost, not a score.** A PR that adds tests without covering a
+  *new* failure mode made the suite slower and nothing else.
+- **Prove it at one layer.** Name the layer that owns each claim and do not
+  re-prove it above. The same rule proven four times costs four maintenance
+  sites and catches one bug.
+- **Never assert presentation.** Classes, tag names, DOM structure and prose
+  copy are not contracts — roles, labels, values and behaviour are. Enforced:
+  `toHaveClass` outside `src/components/ui/**` fails lint, as does reaching past
+  the query layer into nodes.
+- **No test may sleep** (`scripts/check-sleep-wall.mjs`), and **data comes from
+  `@tc/factories`**, never a hand-built rollup.
 - **Unit** (`packages/domain`): fast, exhaustive; property-based tests
   (fast-check) for reducers and the conflict engine. `fast-check` is also
   available in `@tc/pages` and `apps/web` — a claim of the form "for ALL

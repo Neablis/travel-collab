@@ -44,13 +44,51 @@ const files = [
   .sort()
   .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f) && !generatedNonProduct.has(f));
 
-const colorLiteral = /(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
+// A `#` followed by 3-8 hex digits is only unambiguously a color when at least
+// one of those digits is a letter (`#0c6b58`, `#FFF`) — that case is always a
+// violation, wherever it sits. When every digit is decimal the token is equally
+// a CSS grey (`#111`) and a GitHub reference, and from PR #100 onward
+// (2026-08-30) every pull-request number this repo mints is also a valid 3-to-8
+// digit hex string — so the old single `\b` match flagged code comments citing
+// a pull request with no color anywhere near them (KI-20260830). Settle the
+// ambiguous case by context instead: a color that actually reaches the UI is
+// quoted, bracketed, or follows `:` / `=` / `,` (`color: #111`, `"#111"`,
+// `bg-[#111]`, `var(--x, #111)`). Prose ("review on PR #100") has none of those
+// in front of it. Accepted residual: an all-decimal hex written bare in a
+// prose-like position (`// grey is #222`) is not flagged; anything containing
+// a-f still always is, so no real palette value can slip through.
+//
+// Those anchors all assume the color is the FIRST token of its value, and in a
+// CSS shorthand it is not: `border: 1px solid #100` and
+// `box-shadow: 0 1px 2px #100` put a space in front of the `#`, so the
+// narrowing above let a genuine raw color straight through (CodeRabbit, PR
+// #123). The second matcher closes that without giving the PR reference back,
+// by looking at the token immediately BEFORE the `#`: a CSS line-style keyword
+// or a length is a value, `PR` and `issue` are not. It is deliberately not "any
+// preceding word" and not "any preceding bare number" — `M17 #112` and
+// `in 2026 #100` are prose this repo actually writes, and both end in a digit.
+const CSS_LINE_STYLE = String.raw`\b(?:solid|dashed|dotted|double|groove|ridge|inset|outset)`;
+// `0` is the one unitless CSS length (`box-shadow: 0 0 #100`); every other
+// number has to carry a unit to count, which is what keeps `M17` out.
+const CSS_LENGTH = String.raw`(?:\b0|\d(?:\.\d+)?(?:px|rem|em|ex|ch|vh|vw|vmin|vmax|pt|pc|in|cm|mm|q|%))`;
+const hexWithLetter = /#(?=[0-9]*[a-fA-F])[0-9a-fA-F]{3,8}\b/;
+const decimalHexInColorContext = /[:=,[`'"]\s*#[0-9]{3,8}\b/;
+const decimalHexAfterCssValueToken = new RegExp(
+  String.raw`(?:${CSS_LINE_STYLE}|${CSS_LENGTH})\s+#[0-9]{3,8}\b`,
+  "i",
+);
+const functionalColor = /\brgba?\(|\bhsla?\(/;
+const isColorLiteral = (line) =>
+  hexWithLetter.test(line) ||
+  decimalHexInColorContext.test(line) ||
+  decimalHexAfterCssValueToken.test(line) ||
+  functionalColor.test(line);
 const arbitraryValue = /className={?["'`][^"'`]*\[/;
 let failed = false;
 for (const file of files) {
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((line, i) => {
-    if (colorLiteral.test(line)) {
+    if (isColorLiteral(line)) {
       console.error(`${file}:${i + 1}: raw color literal (tokens only — design-system.md)`);
       failed = true;
     }

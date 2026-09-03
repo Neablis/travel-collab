@@ -159,13 +159,14 @@ describe("optimistic state machine", () => {
       expect(next.failure).toBeUndefined();
     });
 
-    // KI-55, recorded rather than fixed. `enqueue` predicts a NEWLY queued
-    // unit against `baseDetail`, which skips the retained nulls — so the new
-    // prediction (and therefore `activeDetail`) omits work that IS still
-    // queued and WILL still be sent. This pins that behaviour so a change to
-    // it is a visible test change and not a silent one; it is not an
-    // endorsement. See docs/known-issues/ KI-55 for the trade-off.
-    it("predicts a newly queued unit over a base that skips the retained ones (KI-55)", () => {
+    // KI-55, fixed. `enqueue` used to predict a NEWLY queued unit against
+    // `baseDetail`, which skips the retained nulls — so the new prediction
+    // (and therefore `activeDetail`) rendered that unit's work while omitting
+    // work queued AHEAD of it that was still going to be sent. It now queues
+    // the unit unpredicted instead, which keeps the nulls a strict suffix of
+    // `pending`. This test used to assert the inverse and passed; that was the
+    // bug, written down. See KI-55 under docs/known-issues/resolved/.
+    it("queues a unit behind retained ones unpredicted, so the preview stays honest (KI-55)", () => {
       const retained = confirmHead(queued(), authoritative());
       expect(retained.pending.every((u) => u.predictedDetail === null)).toBe(true);
 
@@ -173,18 +174,108 @@ describe("optimistic state machine", () => {
       expect(added.ok).toBe(true);
       if (!added.ok) throw new Error("unreachable");
 
-      // Nothing is lost: the retained units are still queued, still counted.
+      // Nothing is lost: the new unit is queued and counted alongside the
+      // retained ones, in order, and the sender is still ungated.
       expect(added.state.pending.map((u) => u.id)).toEqual(["u2", "u3", "u4"]);
       expect(unsentCount(added.state)).toBe(3);
-      // But the rendered trip is authoritative + u4, with u2/u3 absent. Assert
-      // the day *identities*, not just the count: "renders d-c, omits d-d" adds
-      // one day too, so a count alone would stay green on the exact inversion
-      // this test exists to pin.
+      expect(added.state.failure).toBeUndefined();
+      // It carries no prediction, so the nulls remain a suffix.
+      expect(added.state.pending.map((u) => u.predictedDetail)).toEqual([null, null, null]);
+      // And the board shows the authoritative trip: no d-c, and no d-d either.
+      // Assert the day *identities*, not just the count — "renders d-c, omits
+      // d-d" has the same count as the correct answer and as the old bug.
       const shown = activeDetail(added.state);
-      expect(shown.days.length).toBe(authoritative().detail.days.length + 1);
+      expect(shown).toEqual(authoritative().detail);
       const shownDayIds = shown.days.map((day) => day.dayId);
-      expect(shownDayIds).toContain("d-d");
+      expect(shownDayIds).not.toContain("d-d");
       expect(shownDayIds).not.toContain("d-c");
+    });
+
+    // The barrier has to hold for the whole tail, not just the first unit past
+    // it. Before the fix each new unit predicted over the previous one's
+    // detail, so the divergence compounded: two edits, a preview two days
+    // ahead of a trip that omitted the two retained units entirely.
+    it("keeps every later unit unpredicted, not just the first (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      const a = enqueue(retained, "u4", [{ type: "AddDay", tripId, dayId: "d-d" }]);
+      if (!a.ok) throw new Error("setup");
+      const b = enqueue(a.state, "u5", [{ type: "AddDay", tripId, dayId: "d-e" }]);
+      if (!b.ok) throw new Error("setup");
+
+      expect(b.state.pending.map((u) => u.id)).toEqual(["u2", "u3", "u4", "u5"]);
+      expect(b.state.pending.every((u) => u.predictedDetail === null)).toBe(true);
+      expect(activeDetail(b.state)).toEqual(authoritative().detail);
+    });
+
+    // The barrier withholds the predicted DETAIL, not the unit and not its
+    // description: the user's edit is still named in the pending history,
+    // exactly like the retained units ahead of it, so a board that stops
+    // moving is not a queue that has gone silent.
+    it("still describes the unit it queues unpredicted (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      const added = enqueue(retained, "u4", [{ type: "AddDay", tripId, dayId: "d-d" }]);
+      if (!added.ok) throw new Error("setup");
+
+      const u4 = added.state.pending.find((u) => u.id === "u4")!;
+      expect(u4.description).not.toBe("");
+      const rows: HistoryRow[] = activeHistory(added.state).entries;
+      expect(rows.filter((e) => e.pending).map((e) => e.batchId)).toEqual(["u4", "u3", "u2"]);
+    });
+
+    // The barrier is a queue condition, not a validation change: a command
+    // that cannot apply to the trip the user is looking at is still refused
+    // with the predictor's own code, rather than being swallowed into the
+    // unpredicted tail where nothing would ever tell the user about it.
+    it("still rejects an impossible command while the queue is unpredictable (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      const r = enqueue(retained, "u4", [
+        { type: "MoveActivity", tripId, activityId: "ghost", toDayId: null, position: 0 },
+      ]);
+      expect(r.ok).toBe(false);
+      if (r.ok) throw new Error("unreachable");
+      expect(r.code).toBe("activity-not-found");
+    });
+
+    // The barrier lifts on its own. Once the retained units drain (here: the
+    // server confirms them one by one), the next edit predicts and the board
+    // moves again — the cost is bounded by the queue, not sticky.
+    it("resumes predicting once the queue has no unpredicted unit left (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      const added = enqueue(retained, "u4", [{ type: "AddDay", tripId, dayId: "d-d" }]);
+      if (!added.ok) throw new Error("setup");
+
+      // u2, u3 and u4 each reach the server and are confirmed in order.
+      let s = added.state;
+      s = confirmHead(s, authoritative());
+      s = confirmHead(s, authoritative());
+      s = confirmHead(s, authoritative());
+      expect(s.pending).toHaveLength(0);
+
+      const next = enqueue(s, "u6", [{ type: "AddDay", tripId, dayId: "d-f" }]);
+      expect(next.ok).toBe(true);
+      if (!next.ok) throw new Error("unreachable");
+      expect(activeDetail(next.state).days.map((day) => day.dayId)).toContain("d-f");
+    });
+
+    // KI-55 REPRODUCTION. The queue is sent sequentially, in order, so any
+    // trip the server can ever hold while this queue drains contains the work
+    // of a PREFIX of the queue. u3 (AddDay d-c) is queued ahead of u4 (AddDay
+    // d-d): no send produces a trip with d-d and without d-c. The rendered
+    // preview must therefore never show a later unit's work while omitting an
+    // earlier queued unit's.
+    it("never previews a later unit's work while omitting an earlier queued unit's (KI-55)", () => {
+      const retained = confirmHead(queued(), authoritative());
+      const added = enqueue(retained, "u4", [{ type: "AddDay", tripId, dayId: "d-d" }]);
+      expect(added.ok).toBe(true);
+      if (!added.ok) throw new Error("unreachable");
+
+      const shownDayIds = activeDetail(added.state).days.map((day) => day.dayId);
+      const sendOrder = ["d-c", "d-d"]; // u3 then u4
+      const shownFromQueue = sendOrder.filter((dayId) => shownDayIds.includes(dayId));
+      // Whatever the preview shows of the queue must be a PREFIX of the send
+      // order. Showing ["d-d"] means previewing u4 without u3, which no send
+      // ever reaches.
+      expect(shownFromQueue).toEqual(sendOrder.slice(0, shownFromQueue.length));
     });
 
     it("keeps the retained units visible as pending history rows", () => {

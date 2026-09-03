@@ -180,9 +180,20 @@
      earlier version keyed on the *absence* of `.assistant-open` instead, which
      is not the same predicate: on /demo no launcher is rendered at all, and
      that version still reserved 158px of canvas for it — a gap in front of
-     nothing (CodeRabbit, PR #98). */
-  .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
-    padding-right: 158px;
+     nothing (CodeRabbit, PR #98).
+     Scoped to >=768px (KI-2026-08-30): below that the launcher is no longer a
+     `position: fixed` pill in the viewport's bottom-right at all — SPEC §13.5
+     forbids one on a phone, so it is an in-flow button at the end of the plan
+     column (TripBoardScreen.tsx). The two corners stop being the same corner,
+     and an unscoped rule here reserves 158px of a 402px-wide canvas for a pill
+     that is not there: exactly the "gap in front of nothing" the /demo case
+     above describes, wrapping the attribution onto three lines. Same 768px
+     `.unscheduled-rack`'s own compensation rule above is scoped to, and the
+     same one `.assistant-rail` turns on. */
+  @media (min-width: 768px) {
+    .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
+      padding-right: 158px;
+    }
   }
 
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies

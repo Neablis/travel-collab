@@ -91,14 +91,20 @@ describe("UpdateUserPreferences", () => {
     expect(UpdateUserPreferences.safeParse({ displayName: undefined, homeAirport: undefined }).success).toBe(false);
   });
 
-  // …but `null` is a real instruction ("clear it") and must still pass.
-  it("accepts a patch whose only value is null", () => {
-    expect(UpdateUserPreferences.safeParse({ displayName: null }).success).toBe(true);
-  });
+  // …and `null` is a real instruction ("clear it") which must still pass — see
+  // "distinguishes clearing a field from omitting it" above, which parses
+  // `{ displayName: null }` and asserts what comes out, so a separate
+  // `safeParse(...).success` case here would only restate the weaker half.
 
+  // Every value the PATCH route used to re-reject in its own integration test
+  // (`api/account/preferences/route.int.test.ts`). The route owes "a parse
+  // failure becomes a 400"; which values fail to parse is this schema's claim
+  // and belongs here, once.
   it("still validates the fields it is given", () => {
     expect(UpdateUserPreferences.safeParse({ homeAirport: "sfo" }).success).toBe(false);
+    expect(UpdateUserPreferences.safeParse({ homeAirport: "SFOO" }).success).toBe(false);
     expect(UpdateUserPreferences.safeParse({ displayName: "" }).success).toBe(false);
+    expect(UpdateUserPreferences.safeParse({ displayName: "a".repeat(81) }).success).toBe(false);
     expect(UpdateUserPreferences.safeParse({ distanceUnit: "furlongs" }).success).toBe(false);
   });
 });

@@ -387,6 +387,7 @@ describe("MapLens", () => {
       </EditorHost>,
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector(".map-lens-pin-list")).toBeNull();
 
     const affordance = screen.getByRole("button", { name: /1 activity has no location/i });
@@ -484,6 +485,7 @@ describe("MapLens", () => {
     const { container } = renderMap(detailWithBacklogPinOnly());
 
     expect(screen.getByText(/no located activities yet/i)).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector(".map-lens-canvas")).toBeNull();
     expect(mapConstructorMock.mock.calls.length).toBe(callsBefore);
   });
@@ -852,9 +854,12 @@ describe("MapLens on a phone", () => {
     setViewportMatches(true);
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
 
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
     // The rail is the thing the strip replaces; both at once is the bug.
+    // eslint-disable-next-line testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.queryByRole("button", { name: /Day 1/ })).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector("[data-rail-track]")).toBeNull();
     // The legend's copy is its own; nothing else on the lens says this.
     expect(screen.queryByText("Rest of trip")).toBeNull();
@@ -864,6 +869,7 @@ describe("MapLens on a phone", () => {
     setViewportMatches(false);
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
 
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(document.querySelector("[data-rail-track]")).toBeTruthy());
     expect(screen.queryByTestId("map-day-strip")).toBeNull();
     expect(screen.getByText("Rest of trip")).toBeTruthy();
@@ -982,6 +988,7 @@ describe("MapLens on a phone", () => {
     setViewportMatches(true);
     renderMap(detailWithTwoDays(), { focusedDay: null });
 
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
     fitBoundsMock.mockClear();
 
@@ -1003,6 +1010,7 @@ describe("MapLens on a phone", () => {
     setViewportMatches(true);
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
 
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
     expect(screen.getByTestId("map-day-strip-detail").textContent).toMatch(/2 stops/);
   });

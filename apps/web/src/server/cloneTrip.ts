@@ -192,7 +192,7 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
  * the trade the demo is worth: the alternative, `forkedFrom: null`, tells the
  * person who just copied the demo that their trip came from nowhere.
  */
-export async function cloneDemoTrip(actorId: string): Promise<CommandResult> {
+async function cloneDemoTrip(actorId: string): Promise<CommandResult> {
   const detail = demoTripDetail();
   return cloneFrom(
     detail,

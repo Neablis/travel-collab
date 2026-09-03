@@ -197,9 +197,9 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * RESOLVED command, only reaches a real assistant-authored creation.
  *
  * `resolveBatch` (`batchResolver.ts`) is pinned to its current behaviour on
- * this branch, so this cannot live there either even though it is the one
- * seam both `/ask` and the older `/ai` command endpoint share — see this
- * module's own note on `buildProposal` for where that leaves `/ai`.
+ * this branch, so this cannot live there either. It used to be the one seam
+ * `/ask` and the older `/ai` command endpoint shared; `/ai` was deleted in
+ * db5a5cb, so `/ask` is now the only caller.
  *
  * `UpdateActivity` is untouched: an omitted `kind` there means "unchanged"
  * (activity.ts), not "nothing was ever stated" — defaulting it would silently

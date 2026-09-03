@@ -32,21 +32,17 @@ describe("the pending demo-clone marker", () => {
     expect(takeDemoClone()).toBe(false);
   });
 
-  it("expires rather than firing on an unrelated sign-in days later", () => {
-    const now = 1_700_000_000_000;
-    rememberDemoClone(now);
-    expect(takeDemoClone(now + PENDING_DEMO_CLONE_MAX_AGE_MS + 1)).toBe(false);
-  });
-
   it("is still live at the edge of its window", () => {
     const now = 1_700_000_000_000;
     rememberDemoClone(now);
     expect(takeDemoClone(now + PENDING_DEMO_CLONE_MAX_AGE_MS)).toBe(true);
   });
 
-  it("clears an expired marker instead of leaving it to fire later", () => {
+  it("expires a moment later, and clears itself rather than firing another day", () => {
     const now = 1_700_000_000_000;
     rememberDemoClone(now);
+    // One millisecond past the window: an unrelated sign-in days later must not
+    // redeem a copy nobody asked for today.
     expect(takeDemoClone(now + PENDING_DEMO_CLONE_MAX_AGE_MS + 1)).toBe(false);
     // A stale marker that survived being read would keep being re-evaluated on
     // every later visit to the trip list.

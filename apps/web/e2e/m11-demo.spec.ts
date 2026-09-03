@@ -138,6 +138,7 @@ test.describe("the demo trip", () => {
     // with no `users` row, and alice has had one since `auth.setup.ts` — which
     // every project here depends on. This is the returning-user path, and its
     // being unremarkable is the point.
+    // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await page.fill('input[name="username"]', "alice");
     await page.getByRole("button", { name: /sign in with dev login/i }).click();
 
@@ -179,6 +180,7 @@ test.describe("the demo trip", () => {
     // A genuinely new account: M11a's gate refuses anyone with no `users` row
     // and no credential, so this is the real sign-up, super code and all.
     await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await page.fill('input[name="username"]', freshDemoUsername());
     await page.getByRole("button", { name: /sign in with dev login/i }).click();
 

@@ -37,6 +37,21 @@ import type { ApiResult } from "@/lib/apiClient";
  * PR 102). The baseline is therefore reset whenever `read` changes identity, and
  * kept across `reload()`, which is the only call that re-asks the SAME
  * question.
+ *
+ * **And a change you made yourself is not the library moving either**
+ * (KI-20260831). The shared day re-reads after its own publish or withdraw
+ * rather than patching local state, because the author strip's numbers are the
+ * server's; the same question then answers differently and the banner told the
+ * author that "its author published, withdrew or someone took it" about the
+ * button they had just pressed. That is the PR 102 failure a third time — a
+ * difference the reader already knows about, reported as news.
+ *
+ * `refreshWithoutComparing()` is the caller's way to say *this one is mine*. It
+ * is a separate call rather than an option on `reload`, because `reload` is
+ * passed straight to `onClick` in two places and an options argument there
+ * would quietly receive a `MouseEvent`. It still MOVES the baseline forward to
+ * what it read, so the very next genuine external change is still caught — a
+ * silent refresh suppresses one comparison, never the feature.
  */
 export type LibraryRead<T> = {
   data: T | null;
@@ -46,6 +61,13 @@ export type LibraryRead<T> = {
   /** True when a reload brought back a different `signature` than was on screen. */
   changed: boolean;
   reload: () => void;
+  /**
+   * Re-read after a write THIS page made: the answer moves, and the reader is
+   * the one who moved it, so it is not reported as the library moving. An
+   * unacknowledged banner from an earlier, genuine change is left standing —
+   * this suppresses the comparison, it does not dismiss anything.
+   */
+  refreshWithoutComparing: () => void;
   acknowledgeChange: () => void;
 };
 
@@ -70,7 +92,7 @@ export function useLibraryRead<T>(
   // is the "results for the previous keystroke" bug in its usual disguise.
   const generation = useRef(0);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (compare: boolean) => {
     const mine = ++generation.current;
     setLoading(true);
     const result = await read();
@@ -87,7 +109,11 @@ export function useLibraryRead<T>(
     // not leave the previous failure sitting next to fresh, correct data.
     setError(null);
     const next = signature(result.value);
-    if (onScreen.current !== null && onScreen.current !== next) setChanged(true);
+    if (compare && onScreen.current !== null && onScreen.current !== next) setChanged(true);
+    // Outside the `compare` guard on purpose: a refresh the caller made is
+    // still what the reader is now looking at, so it becomes the new baseline.
+    // Leaving the old signature here would report the caller's own write as an
+    // external change on the NEXT reload instead — the bug moved, not fixed.
     onScreen.current = next;
     setData(result.value);
   }, [read, signature]);
@@ -98,7 +124,7 @@ export function useLibraryRead<T>(
     // `signature`) changes identity — a new question.
     onScreen.current = null;
     setChanged(false);
-    void run();
+    void run(true);
   }, [run]);
 
   return {
@@ -106,7 +132,8 @@ export function useLibraryRead<T>(
     loading,
     error,
     changed,
-    reload: () => void run(),
+    reload: () => void run(true),
+    refreshWithoutComparing: () => void run(false),
     acknowledgeChange: () => setChanged(false),
   };
 }

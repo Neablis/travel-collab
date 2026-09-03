@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 // still a shrinkable plan" and "phone" — see `.assistant-rail` and
 // `.unscheduled-rack` in globals.css, and SPEC §13's mobile-foundations
 // framing. Reused here rather than picking a new one.
-export const PHONE_MAX_WIDTH_PX = 767;
+const PHONE_MAX_WIDTH_PX = 767;
 
 /**
  * `true` below 768px. A JS media query rather than a CSS one because the Map

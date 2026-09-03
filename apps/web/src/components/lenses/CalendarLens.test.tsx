@@ -116,6 +116,7 @@ describe("CalendarLens", () => {
     const grid = screen.getByRole("grid", { name: JUNE_GRID_LABEL });
     // The header is the grid's first 7 children, in order — asserting each
     // label merely exists would also pass for a Monday-first grid.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const headerLabels = Array.from(grid.children)
       .slice(0, 7)
       .map((el) => el.textContent);
@@ -322,12 +323,15 @@ describe("CalendarLens", () => {
   it("puts the day tint on the inner card, not the cell button", () => {
     renderLens(detailFixture());
     const button = screen.getByRole("button", { name: /^Day 1,/ });
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(button.className).toMatch(/bg-surface/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(button.className).not.toMatch(/-tint\b/);
     // Several cards per cell now (one per city, plus the untitled bucket), so
     // every one of them must carry the tint, not merely the first.
     const cards = within(button).getAllByTestId("calendar-day-card");
     expect(cards.length).toBeGreaterThan(1);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     for (const card of cards) expect(card.className).toMatch(/bg-\w+-tint/);
   });
 

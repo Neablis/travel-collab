@@ -226,6 +226,7 @@ describe("ComposePanel", () => {
       view.rerender(<ComposePanel tripId="t1" pageId={OTHER} onApply={onApply} />);
       turn.emit({ type: "page", title: "Stale", content: DOC });
 
+      // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       await waitFor(() => expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy());
       expect(onApply).not.toHaveBeenCalled();
     });

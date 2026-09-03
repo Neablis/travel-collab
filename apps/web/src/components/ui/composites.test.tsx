@@ -14,12 +14,17 @@ describe("ui composites", () => {
         <Input id="trip-name" />
       </FormField>,
     );
-    expect(screen.getByLabelText("Trip name").tagName).toBe("INPUT");
+    // The wiring claim, not `Input`'s own tag: `getByLabelText` resolving at
+    // all is what proves the label points somewhere, and `id` is what it points
+    // at. That the primitive renders a native `<input>` is asserted once, in
+    // primitives.test.tsx, against the primitive rather than through a caller.
+    expect(screen.getByLabelText("Trip name").id).toBe("trip-name");
     expect(screen.getByText("Enter a name").className).toContain("text-danger-ink");
   });
 
   it("Banner defaults conflict messaging to the warning palette, never danger", () => {
     render(<Banner variant="warning">2 conflicts need attention</Banner>);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const banner = screen.getByText("2 conflicts need attention").closest("[role=status]");
     expect(banner?.className).toContain("bg-warning-tint");
   });

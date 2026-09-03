@@ -250,7 +250,7 @@ function truncateForLog(text: string): string {
 //     not to whoever writes it next. C0 and C1 both, because U+0085 is a
 //     line break to several log platforms' parsers and U+0000 truncates a
 //     line outright in others.
-export const MAX_LOGGED_CAUSE_CHARS = 500;
+const MAX_LOGGED_CAUSE_CHARS = 500;
 
 export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): string {
   const flattened = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim();
@@ -267,7 +267,7 @@ export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): stri
  * null-prototype object with no `toString`, or a `bigint` — so every read is
  * inside the try, not just the obvious ones.
  */
-export function describeFailure(err: unknown): AskFailureCause {
+function describeFailure(err: unknown): AskFailureCause {
   try {
     const e = err as { name?: unknown; message?: unknown; statusCode?: unknown; status?: unknown };
     // `statusCode` is what `AI_APICallError` carries; `status` is what a bare

@@ -34,6 +34,7 @@ describe("LandingScreen", () => {
   // at. `/demo` decides that, on its own page (ADR-031).
   it("sends both peek-at-a-trip CTAs to the public demo board", () => {
     const { container } = render(<LandingScreen />);
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelectorAll("[data-preview-id]")).toHaveLength(0);
     const peek = screen.getByRole("link", { name: "Look around a real trip" });
     const finished = screen.getByRole("link", { name: "See a finished one" });

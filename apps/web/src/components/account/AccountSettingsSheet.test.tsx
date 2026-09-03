@@ -193,6 +193,7 @@ describe("AccountSettingsSheet", () => {
       expect(updatePreferencesMock).not.toHaveBeenCalled();
 
       release();
+      // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" })).toBeTruthy());
     });
 
