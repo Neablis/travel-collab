@@ -126,7 +126,21 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // ADR-037 decision 6, and the reason this widget does NOT use
     // `lib/displayName.ts`'s fallback chain: that chain ends at the email
     // address, and a notebook is a shared document.
-    await renderWithPreferences({ displayName: null, homeAirport: null, distanceUnit: "km" });
+    //
+    // `homeAirport` is deliberately NON-empty. CodeRabbit caught this on #134:
+    // with every other preference null too, a resolver that wrongly fell back
+    // to a sibling field would still render "no name set" and this test would
+    // still pass. A real value there makes that fallback observable: the widget
+    // must still say "no name set", and "SFO" must appear nowhere.
+    //
+    // CodeRabbit also suggested scoping the assertion to the widget's own node
+    // via `closest('[data-macro-name="account.name"]')`. Not taken: that trips
+    // `testing-library/no-node-access`, which KI-2026-09-02-b grandfathers for
+    // existing violations and says not to add more of. It buys nothing here
+    // either — breaking the resolver to fall back to `homeAirport` fails the
+    // first assertion below on its own, which is how this was checked.
+    await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
     expect(await screen.findByText("no name set")).toBeTruthy();
+    expect(screen.queryByText("SFO")).toBeNull();
   });
 });

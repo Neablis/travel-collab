@@ -73,3 +73,41 @@ describe("buildTripGlobals", () => {
     expect(g).toEqual({ days: [], cities: [], tags: [], bookedCount: 0 });
   });
 });
+
+// Found by CodeRabbit on PR 134. A backlog stop is an activity with no day, and
+// its city was being dropped — but only sometimes, which is what made it a bug
+// rather than a gap: the count loop incremented an EXISTING entry for any
+// activity, so a backlog stop in Osaka counted when some unrelated day visited
+// Osaka and vanished when none did.
+describe("buildTripGlobals and the backlog", () => {
+  function withBacklogStop(): TripDetail {
+    const base = tripDetailFixture();
+    const stop = (id: string, city: string) => ({
+      activityId: id, tripId: base.tripId, title: `Stop ${id}`, dayId: null, position: 0,
+      timeWindow: null, location: { city }, notes: null, anchors: [],
+      kind: "planned", tags: [], cost: null,
+    });
+    return {
+      ...base,
+      days: [{ dayId: "d0", activityIds: ["a1"], date: "2026-08-01", costSubtotal: 0 }],
+      backlog: ["a2"],
+      activities: {
+        a1: { ...stop("a1", "Tokyo"), dayId: "d0", timeWindow: { start: "09:00", end: "10:00" } },
+        a2: stop("a2", "Osaka"),
+      } as unknown as TripDetail["activities"],
+    };
+  }
+
+  it("lists a city that only an unscheduled stop is in, with no days behind it", () => {
+    const g = buildTripGlobals(withBacklogStop());
+    const osaka = g.cities.find((c) => c.name === "Osaka");
+    expect(osaka).toBeDefined();
+    expect(osaka!.dayIndexes).toEqual([]);
+    expect(osaka!.activityCount).toBe(1);
+  });
+
+  it("counts every stop exactly once, scheduled or not", () => {
+    const g = buildTripGlobals(withBacklogStop());
+    expect(g.cities.reduce((n, c) => n + c.activityCount, 0)).toBe(2);
+  });
+});

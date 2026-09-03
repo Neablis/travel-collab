@@ -135,26 +135,38 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // ADR-037 decision 3a. Not a policy the renderers are asked to follow: the
     // `Seg` union has no member that can carry an element, an attribute or a
     // URL, and this asserts the widgets stay inside it.
+    let inspected = 0;
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
       const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
       const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
+      inspected += segs.length;
       for (const seg of segs) expect(["text", "chip"]).toContain(seg.kind);
     }
+    // This sweep skips every block, so without a floor it passes when every
+    // widget is one and no segment is examined at all — the same insensitivity
+    // the main sweep's floor exists for. CodeRabbit caught that both
+    // conditional sweeps here were missing their own (#134).
+    expect(inspected, "no segment was inspected").toBeGreaterThan(0);
   });
 
   it("gives every block payload a `kind`, which is what BlockView dispatches on", () => {
     // The other half of deleting the name switch: `apps/web` picks a component
     // by payload shape, so a payload with no discriminator is a block nothing
     // can render.
+    let inspected = 0;
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
       const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind !== "block") continue;
+      inspected += 1;
       expect(typeof outcome.rendered.block.kind, `${name}'s block payload has no kind`).toBe("string");
     }
+    // The mirror image: this one skips every NON-block, so it passes when no
+    // widget renders as a block and nothing is examined.
+    expect(inspected, "no block payload was inspected").toBeGreaterThan(0);
   });
 });

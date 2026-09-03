@@ -37,11 +37,22 @@ export function buildTripGlobals(detail: TripDetail): TripGlobals {
   // Stop counts are attributed by the stop's OWN city, not by its day's city
   // list: a travel day touches two cities and its stops are not evenly split
   // between them. Counting per day would double-count every stop on such a day.
+  //
+  // A city met here for the first time is CREATED rather than skipped, with no
+  // days behind it. That is the backlog: an unscheduled stop is in a city the
+  // trip plans to visit, and it belongs in a collection whose field says "how
+  // many stops are in this city".
+  //
+  // Skipping it was not merely an omission, it was inconsistent — the earlier
+  // version incremented an existing entry for any activity, so a backlog stop
+  // COUNTED when some unrelated day happened to visit its city and vanished
+  // when none did. Found by CodeRabbit on #134.
   for (const activity of Object.values(detail.activities)) {
     const name = activity.location?.city;
     if (!name) continue;
-    const entry = cityIndex.get(name);
-    if (entry) entry.activityCount += 1;
+    const entry = cityIndex.get(name) ?? { dayIndexes: [], activityCount: 0 };
+    entry.activityCount += 1;
+    cityIndex.set(name, entry);
   }
   const cities: TripGlobalsCity[] = [...cityIndex.entries()]
     .map(([name, entry]) => ({ name, dayIndexes: entry.dayIndexes, activityCount: entry.activityCount }));

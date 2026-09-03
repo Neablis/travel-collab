@@ -37,19 +37,29 @@ describe("the attribute manifest", () => {
   // free-by-default over a whole schema is a leak".
   // ────────────────────────────────────────────────────────────────────────
 
-  it("publishes a described field with no other edit — the whole point", () => {
-    // The manifest is reflection over the live schema, so this proves the
-    // property by construction rather than by re-listing what it returns: a
-    // schema shaped like `TripGlobals` plus one described field yields one more
-    // entry, and nobody touched the manifest to make that happen.
-    const before = Object.keys(TripGlobals.shape).length;
-    const widened = TripGlobals.extend({ walkingMinutes: z.number().describe("Minutes on foot") });
-    expect(Object.keys(widened.shape).length).toBe(before + 1);
-    // And it is described, so it would pass the gate the builder applies.
-    expect(widened.shape.walkingMinutes.description).toBe("Minutes on foot");
-  });
+  // REWRITTEN after CodeRabbit's review of #134, which was right about it: the
+  // original test here was called "publishes a described field with no other
+  // edit — the whole point" and never called `buildAttributeManifest` at all.
+  // It asserted that `TripGlobals.extend(...)` adds a key and that `.describe()`
+  // sets a description — i.e. it tested Zod, not this module — so a regression
+  // in the reflection would have sailed past it under a name claiming otherwise.
+  //
+  // CodeRabbit proposed adding a seam: let `buildAttributeManifest` take the
+  // declared roots as an argument so a test could pass a widened schema.
+  // **Not taken, and the reason is the thing the seam would undo.** The
+  // module's safety property is that only `MANIFEST_ROOTS` is ever walked and
+  // there is NO entry point that walks anything else — that is what stops
+  // `TripDetail`'s internals reaching a picker. A parameter would make "walk
+  // this instead" a supported call, and the guarantee would become a
+  // convention.
+  //
+  // The property survives without it, and the test below is where: the manifest
+  // and the root's described fields are asserted to be the SAME SET. Add a
+  // described field to `TripGlobals` and that test fails until the manifest
+  // reflects it, which is exactly "a developer adding an attribute gets it for
+  // free" — proved against the real root rather than a stand-in.
 
-  it("excludes a field with no description, so anything added later is out by default", () => {
+  it("lists exactly the root's described fields — add one and it is published, with no other edit", () => {
     // The failure this prevents: `TripDetail` carries `dismissedConflictIds`,
     // `forkedFrom` and internal uuids. If exposure were opt-OUT, every future
     // contract field would be published into a user-facing picker until someone
