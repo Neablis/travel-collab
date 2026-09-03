@@ -49,15 +49,18 @@ describe("registry", () => {
       // the resolver will never see — silent, and exactly the drift this seam
       // exists to prevent. `.strip()` makes that failure quiet, so assert the
       // key SURVIVES rather than merely that parsing succeeded.
-      expect(parsed.success, `${name}: params rejected its own declared inputs`).toBe(true);
+      if (!parsed.success) throw new Error(`${name}: params rejected its own declared inputs`);
       for (const input of def.inputs) {
-        expect(parsed.success && parsed.data as Record<string, unknown>).toHaveProperty(input.name);
+        expect(parsed.data as Record<string, unknown>).toHaveProperty(input.name);
       }
       checked.push(name);
     }
     // Non-vacuous: if every widget declared nothing, the loop above would pass
-    // while asserting nothing at all.
-    expect(checked).toEqual(["cost.day", "itinerary.day"]);
+    // while asserting nothing at all. Containment, NOT equality — a new widget
+    // that declares inputs must make this test cover more, never make it fail
+    // (Copilot, PR 130). Exact equality would have contradicted the comment at
+    // the top of this test the first time link 4 added a widget.
+    expect(checked).toEqual(expect.arrayContaining(["cost.day", "itinerary.day"]));
   });
 
   it("declares inputs for every macro, with [] meaning 'binds nothing'", () => {
