@@ -8,13 +8,13 @@ import { useMacroEditorContext } from "./MacroEditorContext";
 // itself, only the TipTap/React wiring: pulling attrs off the node and
 // `detail`/`context` off the surrounding editor context.
 export function MacroNodeView({ node, selected }: ReactNodeViewProps) {
-  const { detail, context, onBindDay } = useMacroEditorContext();
+  const { detail, context, user, onBindDay } = useMacroEditorContext();
   const name = node.attrs.name as string;
   const params = (node.attrs.params ?? {}) as Record<string, unknown>;
 
   return (
     <NodeViewWrapper as="span" className={selected ? "ring-2 ring-primary rounded" : undefined} data-macro-name={name}>
-      <MacroView detail={detail} context={context} name={name} params={params} onBindDay={onBindDay} />
+      <MacroView detail={detail} context={context} user={user} name={name} params={params} onBindDay={onBindDay} />
     </NodeViewWrapper>
   );
 }

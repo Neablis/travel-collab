@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext } from "react";
-import type { TripDetail, PageContext } from "@tc/contracts";
+import type { TripDetail, PageContext, UserPreferences } from "@tc/contracts";
 
 // Carries the `detail`/`context` that every `macro` NodeView needs to resolve
 // itself, from `PageEditor` down to `MacroNodeView` — without threading them
@@ -12,6 +12,11 @@ import type { TripDetail, PageContext } from "@tc/contracts";
 export interface MacroEditorContextValue {
   detail: TripDetail;
   context: PageContext;
+  // The account, which every notebook is in scope of (ADR-037 open question 2).
+  // `null` means the preferences request has not landed or failed — the page
+  // still opens, and account widgets render "not set up" (decision 6) rather
+  // than the notebook refusing to load over a preference fetch.
+  user: UserPreferences | null;
   onBindDay?: () => void;
 }
 

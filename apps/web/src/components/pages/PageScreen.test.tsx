@@ -10,7 +10,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-const server = setupServer();
+const server = setupServer(
+  // Every notebook page fetches the account now (ADR-037 open question 2), so
+  // this is a suite-wide default rather than a line in each test. Individual
+  // tests override it with `server.use` when the account is what they are
+  // about. Without it the suite's `onUnhandledRequest: "error"` logs on every
+  // test, which is how a genuinely unhandled request later gets missed.
+  http.get("/api/account/preferences", () =>
+    HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
+  ),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
@@ -64,5 +73,55 @@ describe("PageScreen", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
     expect(await screen.findByText("no costs on this day")).toBeTruthy();
+  });
+});
+
+// ADR-037 open question 2: the account is always in scope. This is the only
+// test that proves `WidgetContext.user` actually ARRIVES — everything else
+// about it is types, and a typed field nothing populates renders "not set up"
+// forever without failing anything.
+describe("PageScreen and the account (ADR-037 open question 2)", () => {
+  const pageWithAccountName = {
+    type: "doc" as const,
+    content: [
+      { type: "paragraph", content: [{ type: "macro", attrs: { name: "account.name", params: {} } }] },
+    ],
+  };
+
+  async function renderWithPreferences(preferences: unknown | null) {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, content: pageWithAccountName as never });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/account/preferences", () =>
+        preferences === null
+          ? HttpResponse.json({ error: "boom" }, { status: 500 })
+          : HttpResponse.json({ preferences }),
+      ),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+  }
+
+  it("renders the account's chosen name in a widget on the page", async () => {
+    await renderWithPreferences({ displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" });
+    expect(await screen.findByText("Priya")).toBeTruthy();
+  });
+
+  it("still opens the notebook when the preferences request fails, and says the widget is not set up", async () => {
+    // The trade this makes explicit: a preferences fetch is not a page
+    // dependency. Failing it must cost one widget, never the notebook — the
+    // page below must still render rather than showing the error screen.
+    await renderWithPreferences(null);
+    expect(await screen.findByText("no name set")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says the widget is not set up rather than falling back to anything else", async () => {
+    // ADR-037 decision 6, and the reason this widget does NOT use
+    // `lib/displayName.ts`'s fallback chain: that chain ends at the email
+    // address, and a notebook is a shared document.
+    await renderWithPreferences({ displayName: null, homeAirport: null, distanceUnit: "km" });
+    expect(await screen.findByText("no name set")).toBeTruthy();
   });
 });

@@ -119,7 +119,7 @@ describe("macro registry — every resolver is pure and total", () => {
           if (!parsed.success) return; // the schema rejected it — not the resolver's problem
           let result: { status?: string };
           try {
-            result = def.resolve({ trip: detail, page: ctx as never }, parsed.data as never) as never;
+            result = def.resolve({ trip: detail, page: ctx as never, user: null }, parsed.data as never) as never;
           } catch (error) {
             throw new Error(
               `resolver threw on params=${JSON.stringify(raw)} ctx=${JSON.stringify(ctx)}: ${(error as Error).message}`,
@@ -146,8 +146,8 @@ describe("macro registry — resolvers are deterministic", () => {
         for (const def of Object.values(MACRO_REGISTRY)) {
           const parsed = def.params.safeParse(raw);
           if (!parsed.success) continue;
-          const first = def.resolve({ trip: detail, page: ctx as never }, parsed.data as never);
-          const second = def.resolve({ trip: detail, page: ctx as never }, parsed.data as never);
+          const first = def.resolve({ trip: detail, page: ctx as never, user: null }, parsed.data as never);
+          const second = def.resolve({ trip: detail, page: ctx as never, user: null }, parsed.data as never);
           w.tick();
           expect(first).toEqual(second);
         }

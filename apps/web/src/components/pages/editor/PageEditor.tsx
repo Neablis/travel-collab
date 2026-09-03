@@ -1,13 +1,14 @@
 "use client";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { TripDetail, PageContext, PageContent } from "@tc/contracts";
+import type { TripDetail, PageContext, PageContent, UserPreferences } from "@tc/contracts";
 import { MacroNodeExtension } from "./MacroNodeExtension";
 import { MacroEditorContext } from "./MacroEditorContext";
 
 export interface PageEditorProps {
   detail: TripDetail;
   context: PageContext;
+  user?: UserPreferences | null;
   value: PageContent;
   onChange: (content: PageContent) => void;
   onBindDay?: () => void;
@@ -17,7 +18,7 @@ export interface PageEditorProps {
 // `macro` atom node. `detail`/`context` reach each macro's NodeView via
 // `MacroEditorContext`, not extension `storage` — see that file for why
 // (storage updates aren't reactive; a Provider re-render is).
-export function PageEditor({ detail, context, value, onChange, onBindDay }: PageEditorProps) {
+export function PageEditor({ detail, context, user = null, value, onChange, onBindDay }: PageEditorProps) {
   const editor = useEditor({
     // Macro AUTHORING left the primary surface in M8 (seven macros is not a
     // vocabulary; the block renderers never had a design pass). RENDERING stays
@@ -37,7 +38,7 @@ export function PageEditor({ detail, context, value, onChange, onBindDay }: Page
   });
 
   return (
-    <MacroEditorContext.Provider value={{ detail, context, onBindDay }}>
+    <MacroEditorContext.Provider value={{ detail, context, user, onBindDay }}>
       <EditorContent editor={editor} className="tc-page-editor" />
     </MacroEditorContext.Provider>
   );

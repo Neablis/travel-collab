@@ -3,9 +3,11 @@ import type { AnyMacroDef, InlinePayload, BlockPayload, Rendered, WidgetContext 
 import type { MacroResult } from "./result";
 import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
+import { accountName, accountHomeAirport } from "./macros/account";
 
 const DEFS: AnyMacroDef[] = [
   tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
+  accountName, accountHomeAirport,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -25,7 +27,11 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  return def.resolve({ trip: detail, page: ctx }, parsed.data as never);
+  // `resolveMacro` predates the account being in scope and has no user to
+  // pass. Callers that need account widgets go through `renderMacro`, which
+  // takes a whole `WidgetContext`; this one keeps working for everything that
+  // reads the trip.
+  return def.resolve({ trip: detail, page: ctx, user: null }, parsed.data as never);
 }
 
 // Resolve AND render in one call, which is what every UI wants and what keeps

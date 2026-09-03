@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { TripDetail, PageContext, MacroKind } from "@tc/contracts";
+import type { TripDetail, PageContext, MacroKind, UserPreferences } from "@tc/contracts";
 import type { MacroResult } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -95,20 +95,33 @@ export type WidgetInput =
 // What a widget is handed at resolve time (ADR-037 decision 1).
 //
 // One argument rather than `(detail, ctx)`, because ADR-037 open question 2
-// settled that a notebook is ALWAYS account-scope and OPTIONALLY trip-scope:
-// `WidgetContext = { user, trip? }`. `user` is not here yet — it needs plumbing
-// that does not exist client-side — and it lands as an ADDITIVE field, which is
-// exactly why the shape changes to an object now rather than growing a third
-// positional parameter later.
+// settled what a notebook is scoped to. Mitchell, 2026-09-03:
 //
-// **Every resolver must handle an absent trip** when that day comes: root-account
-// notebooks are the stated direction, and a resolver that assumes a trip is a
-// resolver that has to be rewritten when they arrive. `trip` is required today
-// because every notebook has one; the field is named rather than positional so
-// making it optional is a one-line change here instead of seven signatures.
+// > notebooks are always account scope, they can access data from account like
+// > your name, tier, etc. notebooks can be optionally account scoped, but that's
+// > today assigned on creation. the creation of a notebook based on what trip
+// > initiated it locks the trip it operates on.
+//
+// So the account is always in scope and the trip is a property of the notebook,
+// fixed at creation — which is why `PageContext` keeps `tripId` and why it is
+// not a binding a widget can be re-pointed at.
+//
+// **`user` is `UserPreferences | null`, and the `null` is not the absent-account
+// case.** The account is always in scope; what can be absent is our copy of its
+// preferences, because loading them is a request that can fail. A widget answers
+// that with ADR-037 decision 6's "not set up" state rather than the page
+// refusing to open — a notebook that will not load because a preferences fetch
+// 500'd is a worse outcome than one widget saying it has nothing to show.
+//
+// **Every resolver must handle an absent trip** when root-account notebooks
+// arrive; they are the stated direction and explicitly out of scope today. `trip`
+// stays required because every notebook currently has one, and the field is named
+// rather than positional so relaxing it later is a one-line change here instead
+// of seven signatures.
 export interface WidgetContext {
   trip: TripDetail;
   page: PageContext;
+  user: UserPreferences | null;
 }
 
 export interface MacroDef<P, T> {
