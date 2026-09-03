@@ -10,6 +10,17 @@ function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
 }
 
+// The LIST projection, and it exists because the type was lying. `listPages`
+// has always been typed `Promise<PageSummary[]>` while returning `toPage` rows
+// — full `Page` objects, `content` and all — so every notebook's entire
+// document went over the wire and `PageSummary.parse` stripped it in the
+// browser AFTER the download. That is the one field which makes a list
+// response unbounded, and the Notebooks menu re-reads this list on every open.
+// Projecting here makes the declared return type true (Copilot, PR #126).
+function toSummary(row: typeof pages.$inferSelect): PageSummary {
+  return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, updatedAt: row.updatedAt, actorId: row.actorId };
+}
+
 function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
 }
@@ -35,7 +46,7 @@ export async function createPage(tripId: string, input: CreatePageInput, actorId
 // come back in a fixed order rather than a lucky one.
 export async function listPages(tripId: string): Promise<PageSummary[]> {
   const existing = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
-  if (existing.length > 0) return existing.map(toPage);
+  if (existing.length > 0) return existing.map(toSummary);
 
   // Lazy default instantiation — first visit only. The zero-rows check above
   // is an optimisation, NOT the idempotency guarantee: two concurrent first
@@ -71,7 +82,7 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   );
   await db.insert(pages).values(seeds).onConflictDoNothing();
   const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
-  return seeded.map(toPage);
+  return seeded.map(toSummary);
 }
 
 export async function getPage(id: string): Promise<Page | null> {

@@ -36,7 +36,7 @@ interface Starter {
 const BLANK_TITLE = "Untitled notebook";
 
 const STARTER_DESCRIPTIONS: Record<string, string> = {
-  "trip-overview": "The whole trip on one page — the why, the shape, the money.",
+  "trip-overview": "The whole trip in one place — the why, the shape, the money.",
   "day-sheet": "One day, close up. Times, reservations, notes for the group.",
 };
 
@@ -86,6 +86,8 @@ const STARTERS: Starter[] = [...DEFAULT_TEMPLATES.map(starterFrom), BLANK_STARTE
 export function NotebookScreen({ tripId }: { tripId: string }) {
   const router = useRouter();
   const [pages, setPages] = useState<PageSummary[] | null>(null);
+  // Who is reading, so the provenance line can say "Yours" without guessing.
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -97,7 +99,8 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     void fetchPages(tripId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
-        setPages(result.value);
+        setPages(result.value.pages);
+        setViewerId(result.value.viewerId);
         setStatus("ready");
       } else {
         setError(result.error.message);
@@ -167,10 +170,18 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     <PageContainer>
       <div className="mb-6">
         <Heading level={2}>Notebooks</Heading>
-        {/* The standfirst, verbatim from SPEC §7. It is doing a job the list
-            cannot: a notebook that follows the plan looks exactly like a
-            notebook that does not until something moves, so the promise has to
-            be stated before the reader has any reason to believe it. */}
+        {/* The standfirst, VERBATIM from SPEC §7, including its two uses of
+            "page" where §11's one-noun rule would say notebook. Deliberate: it
+            is the design's own sentence, and paraphrasing the one line a
+            reviewer can diff against the spec costs more than the
+            inconsistency. §11 governs the nouns this build chooses — the pill,
+            the headings, the gallery card — not a quoted standfirst. Raised by
+            Copilot on PR #126 and answered rather than applied.
+
+            It is doing a job the list cannot: a notebook that follows the plan
+            looks exactly like a notebook that does not until something moves,
+            so the promise has to be stated before the reader has any reason to
+            believe it. */}
         <Text variant="secondary" className="mt-1 max-w-prose">
           Pages that read like a document and stay true to the plan. Move a day or a stop and every page here follows
           it.
@@ -280,7 +291,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                         ("at what second?") and buried the one they do ("is this
                         stale?") in a locale string that changes width per row. */}
                     <Text as="span" variant="secondary" className="mt-0.5 block">
-                      {provenanceLabel(page)} · edited {formatRelativeInstant(page.updatedAt) ?? "recently"}
+                      {provenanceLabel(page, viewerId)} · edited {formatRelativeInstant(page.updatedAt) ?? "recently"}
                     </Text>
                   </Link>
                 )}

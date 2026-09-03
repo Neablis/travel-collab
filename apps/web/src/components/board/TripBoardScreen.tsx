@@ -852,7 +852,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   something here for you", and there is not. */}
               {!isDemo && (
                 <div className="ml-auto shrink-0">
-                  <NotebooksMenu tripId={tripId} />
+                  <NotebooksMenu tripId={tripId} readOnly={readOnly} />
                 </div>
               )}
             </div>

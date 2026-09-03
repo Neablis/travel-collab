@@ -130,10 +130,12 @@ It needs no ADR, no contract change, no macro decision and no new field:
   >    from an authored one, and the only fact that separates them is the row's
   >    `actorId`, which `PageSummary` did not carry. That is `packages/contracts`,
   >    so it took invariant 5's protocol: a changelog entry and every consumer
-  >    updated. Additive and small — but the claim was that there was none. The first two are link 6's existing `templates.ts` seeds; the
-  third is `handleCreate` as it already behaves. The button's noun also
-  disagrees with §11's rule: the design says *notebook* in all three places and
-  the build says *page*.
+  >    updated. Additive and small — but the claim was that there was none.
+
+  Of the gallery's three, the first two are link 6's existing `templates.ts`
+  seeds; the third is `handleCreate` as it already behaves. The button's noun
+  also disagrees with §11's rule: the design says *notebook* in all three places
+  and the build says *page*.
 
 ### What the navigation and index half actually shipped (2026-09-03)
 
@@ -169,17 +171,29 @@ Both surfaces, plus one contract change and one recorded limit.
   click and what you get agree, and so a trip seeded before today does not list
   a notebook under a gallery card with a different name. **Renaming the seeds is
   link 6's file to touch**, and is still open.
-- **One known issue filed with the code, not after it:**
-  `KI-20260903-notebook-provenance-says-yours-for-a-collaborator.md`. The
-  seeded half of the provenance line is exact; the authored half says "Yours"
-  for anyone, because naming an author needs a `users` join `pages` has never
-  had — the same gap `displayName.ts` records for saved days.
+- **A known issue was filed with the code and then resolved the same day, and
+  the entry's reasoning was the part that was wrong.**
+  `KI-20260903` claimed the provenance line could not tell the reader's own
+  notebook from a collaborator's without a `users` join. Review pointed out the
+  list route already resolves the reader from its own `guard(tripId, "viewer")`
+  call — `g.userId` was there the whole time. The GET now returns `viewerId`,
+  and the line distinguishes seeded / yours / **"From another traveler"**
+  without ever naming the other person, which is the only part that would have
+  needed the join. Entry moved to `resolved/` with the correction.
+- **Two more defects came out of the same review, both real.** The list route
+  was sending every notebook's full `content` and letting `PageSummary.parse`
+  strip it in the browser — on a list the menu re-reads on every open — so
+  `listPages` now projects a real summary and its long-standing return type
+  stops being a lie. And the menu offered "New notebook" to a **viewer**, whose
+  POST the route refuses: withheld now, per ADR-031's rule that a disabled
+  control still says "there is something here for you".
 
 **Verified 2026-09-03** at `3aeb041`: `pnpm typecheck` (8 packages), `pnpm lint`
 plus all four walls, **2,865 unit tests**, **443 integration**, and
 **`pnpm --filter web test:e2e:ci-like` at 80 passed** — the ci-like lane, not
 `test:e2e` (CLAUDE.md rule 1). Every new test was watched failing under a
-deliberate mutation of the code it protects before being kept (13 mutations,
+deliberate mutation of the code it protects before being kept (23 across three
+rounds; PR #126's description lists every one with its real failure text,
 rule 3); one of those mutations found a real defect in `formatRelativeInstant`
 rather than confirming a test, which is recorded above.
 

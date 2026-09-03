@@ -94,6 +94,36 @@ describe("pages repository", () => {
     }
   });
 
+  // `listPages` has always been typed `Promise<PageSummary[]>` while returning
+  // full `Page` rows, so every notebook's whole document went over the wire and
+  // `PageSummary.parse` stripped it in the BROWSER, after the download. The
+  // Notebooks menu re-reads this list on every open (Copilot, PR #126).
+  it("returns summaries, not whole documents — no notebook content crosses the wire", async () => {
+    const { tripId } = await seedTrip();
+    await listPages(tripId);
+    await createPage(
+      tripId,
+      {
+        title: "Heavy",
+        context: { tripId },
+        content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x".repeat(5000) }] }] },
+      },
+      "user-1",
+    );
+
+    const listed = await listPages(tripId);
+    for (const summary of listed) {
+      expect(summary).not.toHaveProperty("content");
+    }
+    // The rest of the summary is still there — a projection, not a truncation.
+    const heavy = listed.find((p) => p.title === "Heavy")!;
+    expect(heavy.actorId).toBe("user-1");
+    expect(heavy.context.tripId).toBe(tripId);
+    expect(typeof heavy.updatedAt).toBe("string");
+    // And the document itself is still readable one page at a time.
+    expect((await getPage(heavy.id))!.content).toBeDefined();
+  });
+
   it("creates, reads, updates, deletes a page", async () => {
     const { tripId } = await seedTrip();
     const created = await createPage(

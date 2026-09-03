@@ -55,12 +55,14 @@ describe("NotebooksMenu", () => {
     render(<NotebooksMenu tripId={TRIP_ID} />);
     fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
 
-    // The binding is the whole reason the menu lists them rather than just
-    // linking to the index: it is what tells two similarly named notebooks
-    // apart without opening either.
-    expect(await screen.findByText("Trip Overview")).toBeTruthy();
-    expect(screen.getByText("Trip-wide")).toBeTruthy();
-    expect(screen.getByText("Day 6")).toBeTruthy();
+    // Asserted through each LINK's accessible name, not as two independent
+    // text lookups. The independent form passed even if the two bindings were
+    // swapped onto the wrong notebooks — it proved both strings were somewhere
+    // on screen and nothing about which notebook each belonged to, which is the
+    // entire claim this test makes (Copilot, PR #126).
+    expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Trip Overview Trip-wide" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Day Sheet Day 6" })).toBeTruthy();
   });
 
   it("re-reads the list on each open, so a notebook made elsewhere shows up", async () => {
@@ -101,9 +103,9 @@ describe("NotebooksMenu", () => {
         call += 1;
         if (call === 1) {
           await held;
-          return HttpResponse.json({ pages: [stale] });
+          return HttpResponse.json({ pages: [stale], viewerId: "dev-alice" });
         }
-        return HttpResponse.json({ pages: [fresh] });
+        return HttpResponse.json({ pages: [fresh], viewerId: "dev-alice" });
       }),
     );
 
@@ -134,6 +136,44 @@ describe("NotebooksMenu", () => {
     // A create that leaves you looking at a list is a second click to reach
     // the thing you just made.
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
+  });
+
+  it("withholds New notebook from a viewer, who can still read the list", async () => {
+    const notebook = pageFixture({ tripId: TRIP_ID, title: "Trip Overview" });
+    server.use(...makePagesHandlers([notebook]));
+
+    render(<NotebooksMenu tripId={TRIP_ID} readOnly />);
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+
+    // Reading is theirs — the GET is viewer-gated.
+    expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
+    // Creating is not: the POST is editor-gated, so an offered control is a
+    // guaranteed 403. Withheld rather than disabled (ADR-031).
+    expect(screen.queryByRole("button", { name: "New notebook" })).toBeNull();
+  });
+
+  it("blames the create, not the list, when creating fails — and keeps the notebooks on screen", async () => {
+    const notebook = pageFixture({ tripId: TRIP_ID, title: "Trip Overview" });
+    server.use(
+      http.get("/api/trips/:tripId/pages", () =>
+        HttpResponse.json({ pages: [notebook], viewerId: "dev-alice" }),
+      ),
+      http.post("/api/trips/:tripId/pages", () => HttpResponse.json({ error: "nope" }, { status: 500 })),
+    );
+
+    render(<NotebooksMenu tripId={TRIP_ID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+    expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "New notebook" }));
+
+    // The create's own failure, beside the control that failed.
+    expect(await screen.findByText(/Could not create a notebook/)).toBeTruthy();
+    // And the list is untouched: writing the create's failure into the LIST's
+    // state used to blank the notebooks it had already loaded, then blame the
+    // load for something the load did not do.
+    expect(screen.getByRole("link", { name: /Trip Overview/ })).toBeTruthy();
+    expect(screen.queryByText("Could not load your notebooks.")).toBeNull();
   });
 
   it("offers a way through to the full index", async () => {

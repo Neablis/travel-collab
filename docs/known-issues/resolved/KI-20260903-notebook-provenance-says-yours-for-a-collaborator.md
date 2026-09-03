@@ -1,4 +1,4 @@
-### KI-20260903 — The Notebook index says "Yours" for a collaborator's notebook
+### KI-20260903 — The Notebook index says "Yours" for a collaborator's notebook — **RESOLVED 2026-09-03, same day, in the PR that filed it**
 
 - **Severity:** correctness, cosmetic in effect — the line names the wrong
   person on a shared trip. Nothing routes, gates or writes off it.
@@ -32,3 +32,30 @@
   share a trip and have the other person write a notebook.
 - **First noted:** 2026-09-03, in the commit that built the line (M14's
   navigation-and-index half). Recorded with the code rather than after it.
+
+---
+
+**RESOLVED 2026-09-03 (PR #126), and the entry's own reasoning was the thing that
+was wrong.** This was filed on the premise that saying whose notebook it is needs
+a `users` join `pages` has never had, with the session comparison dismissed as
+"a `getSession()` round trip in front of a list that otherwise renders on one
+fetch". Copilot's review pointed out the premise was false: the list route
+**already** resolves the reader from its own `guard(tripId, "viewer")` call, so
+`g.userId` was sitting there the whole time. The GET now returns `viewerId`
+alongside the pages, and `provenanceLabel` takes it — no join, no extra request,
+no session resolver in the client.
+
+The distinction it draws is exactly the one that can be drawn honestly: seeded
+("Comes with your trip"), the reader's own ("Yours"), and somebody else's ("From
+another traveler"). It never names the other person, which IS the part that would
+need the join. When `viewerId` is unknown the wording stays author-neutral rather
+than guessing, because "Yours" on somebody else's notebook is the precise error
+this exists to stop.
+
+**The lesson worth keeping:** a known issue is a claim about the code, and this
+one's claim was not checked before it was written down. "It needs a users join"
+was inferred from `displayName.ts`'s account of saved days — a genuinely
+different surface, which has no guard call in the same request — and carried over
+without opening the route. A filed KI buys the right to move on; it does not buy
+the right to skip the ten seconds of reading that would have shown there was
+nothing to file.

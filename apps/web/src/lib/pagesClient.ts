@@ -31,12 +31,32 @@ async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
   return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
 }
 
-export async function fetchPages(tripId: string): Promise<ApiResult<PageSummary[]>> {
+/**
+ * The notebook list, plus who is reading it.
+ *
+ * `viewerId` is not decoration: the provenance line on the index says "Yours",
+ * and `PageSummary.actorId` alone cannot tell the reader's own notebook from a
+ * collaborator's. The route resolves the reader from its own guard, so this
+ * costs no extra request. `null` when the response predates the field, which
+ * the caller renders as author-neutral rather than guessing.
+ */
+export interface NotebookList {
+  pages: PageSummary[];
+  viewerId: string | null;
+}
+
+export async function fetchPages(tripId: string): Promise<ApiResult<NotebookList>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages`));
     if (!res.ok) return await refusal(res);
-    const data = (await res.json()) as { pages: unknown[] };
-    return { ok: true, value: data.pages.map((p) => PageSummary.parse(p)) };
+    const data = (await res.json()) as { pages: unknown[]; viewerId?: unknown };
+    return {
+      ok: true,
+      value: {
+        pages: data.pages.map((p) => PageSummary.parse(p)),
+        viewerId: typeof data.viewerId === "string" ? data.viewerId : null,
+      },
+    };
   } catch (err) {
     return networkError(err);
   }

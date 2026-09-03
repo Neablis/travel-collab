@@ -26,12 +26,13 @@ type Status = "idle" | "loading" | "ready" | "error";
  * calls its rows pages internally, and the contract type is `PageSummary`, but
  * nothing a person reads says "page".
  */
-export function NotebooksMenu({ tripId }: { tripId: string }) {
+export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; readOnly?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notebooks, setNotebooks] = useState<PageSummary[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Which open this is. Close-and-reopen starts a second `fetchPages` while the
   // first may still be in flight, and responses are not guaranteed to arrive in
@@ -57,7 +58,7 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
     void fetchPages(tripId).then((result) => {
       if (seq !== openSeq.current) return;
       if (result.ok) {
-        setNotebooks(result.value);
+        setNotebooks(result.value.pages);
         setStatus("ready");
       } else {
         setStatus("error");
@@ -70,6 +71,7 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
   // second click to reach the thing you just made.
   const handleCreate = () => {
     setCreating(true);
+    setCreateError(null);
     void createPage(tripId, {
       title: "Untitled notebook",
       context: { tripId },
@@ -77,7 +79,11 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
     }).then((result) => {
       setCreating(false);
       if (!result.ok) {
-        setStatus("error");
+        // NOT `setStatus("error")`: that is the LIST's state, so a failed
+        // create used to blank the notebooks the menu had already loaded and
+        // then blame the load ("Could not load your notebooks") for something
+        // the load did not do (Copilot, PR #126).
+        setCreateError(result.error.message);
         return;
       }
       setOpen(false);
@@ -90,8 +96,14 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
       open={open}
       onOpenChange={handleOpenChange}
       align="end"
+      // No `aria-haspopup="menu"` on the trigger: Radix's Popover exposes
+      // dialog semantics, and this content is ordinary links and buttons rather
+      // than `menuitem`s with menu keyboard behaviour. Advertising a menu hands
+      // assistive technology an interaction model the surface does not
+      // implement (Copilot, PR #126). "Menu" in this component's name is SPEC
+      // §11's word for the affordance, not an ARIA role.
       trigger={
-        <Button variant="secondary" size="sm" aria-label="Notebooks" aria-haspopup="menu">
+        <Button variant="secondary" size="sm" aria-label="Notebooks">
           <NotebookText aria-hidden="true" className="size-4" />
           Notebooks
           <ChevronDown aria-hidden="true" className="size-4" />
@@ -117,9 +129,26 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
         // eslint-disable-next-line no-restricted-syntax -- a Radix-measured viewport value has no static token, and §11 warns off the Tailwind arbitrary-value form on this page
         style={{ maxHeight: "calc(var(--radix-popover-content-available-height, 420px) - 24px)" }}
       >
-        <Button variant="secondary" onClick={handleCreate} disabled={creating} className="w-full justify-start">
-          New notebook
-        </Button>
+        {/* HIDDEN for a reader, not greyed — ADR-031's rule, the one
+            `TripHeader` applies to Share three files over. A viewer may READ a
+            trip's notebooks (the GET is viewer-gated) and may not add to them
+            (the POST is editor-gated), so an exposed "New notebook" is a
+            guaranteed 403 — and it surfaced as "Could not load your notebooks",
+            which is not even what went wrong (Copilot, PR #126). */}
+        {!readOnly && (
+          <div className="flex flex-col gap-1">
+            <Button variant="secondary" onClick={handleCreate} disabled={creating} className="w-full justify-start">
+              New notebook
+            </Button>
+            {/* Beside the control that failed, and separate from the list's own
+                error below, so the reason shown matches the thing that broke. */}
+            {createError !== null && (
+              <Text variant="muted" role="alert">
+                Could not create a notebook. {createError}
+              </Text>
+            )}
+          </div>
+        )}
 
         {/* `min-h-0` is what makes the max-height above actually bite: a flex
             child's default `min-height: auto` refuses to shrink below its
@@ -154,6 +183,11 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
                   <Text as="span" className="truncate text-ink">
                     {notebook.title}
                   </Text>
+                  {/* A real space between the two spans. Without it the link's
+                      accessible name computes as "Trip OverviewTrip-wide" —
+                      one run-together word to a screen reader. A whitespace-only
+                      text node is not rendered as a flex item, so this changes
+                      the name and not the layout. */}{" "}
                   {/* The binding, per §11 ("the trip's notebooks with their
                       day/trip-wide binding") — the one thing that distinguishes
                       two notebooks with similar names. */}

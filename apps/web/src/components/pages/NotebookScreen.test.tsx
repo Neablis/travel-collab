@@ -104,7 +104,7 @@ describe("NotebookScreen", () => {
     expect(await screen.findByText(/Move a day or a stop and every page here follows it/)).toBeTruthy();
   });
 
-  it("says where each notebook came from — seeded by the trip, or written by a person", async () => {
+  it("tells the three provenances apart — seeded, the reader's own, and a collaborator's", async () => {
     const seeded = pageFixture({
       id: "11111111-1111-4111-8111-111111111111",
       tripId: TRIP_ID,
@@ -117,12 +117,22 @@ describe("NotebookScreen", () => {
       title: "Packing",
       actorId: "dev-alice",
     });
-    server.use(...makePagesHandlers([seeded, mine]));
+    // The case that used to read "Yours": a notebook somebody ELSE on this
+    // shared trip wrote. `actorId` alone cannot tell it from the reader's own,
+    // which is why the route sends `viewerId` (Copilot, PR #126).
+    const theirs = pageFixture({
+      id: "33333333-3333-4333-8333-333333333333",
+      tripId: TRIP_ID,
+      title: "Bob's notes",
+      actorId: "dev-bob",
+    });
+    server.use(...makePagesHandlers([seeded, mine, theirs], { viewerId: "dev-alice" }));
 
     render(<NotebookScreen tripId={TRIP_ID} />);
 
     expect(await screen.findByText(/Comes with your trip · edited/)).toBeTruthy();
     expect(screen.getByText(/^Yours · edited/)).toBeTruthy();
+    expect(screen.getByText(/^From another traveler · edited/)).toBeTruthy();
   });
 
   it("dates each notebook relatively, not as a wall-clock timestamp", async () => {

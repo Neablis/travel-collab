@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — the notebook list route answers with `viewerId` (M14, follow-up)
+
+- Added: `GET /api/trips/:tripId/pages` now returns `{ pages, viewerId }`, and
+  `fetchPages` resolves a `NotebookList` (`{ pages, viewerId }`) instead of a
+  bare array
+- **Not a `packages/contracts` change** — the route's response envelope was
+  never a contract schema; `PageSummary` itself is untouched. Recorded here
+  anyway because it changes a shape two consumers read, and because the entry
+  below is what made `actorId` available in the first place
+- Why: `actorId` proves a *person* wrote a notebook, not that the **reader**
+  did, so the index's provenance line labelled every collaborator's notebook
+  "Yours" on a shared trip. The route already resolves the reader from its own
+  `guard(tripId, "viewer")`, so the truthful answer costs no extra request —
+  which is also why `KI-20260903` (filed on the premise that this needed a
+  `users` join) is resolved rather than carried
+- `viewerId` is `null` when absent, and `provenanceLabel` then stays
+  author-neutral rather than guessing
+- **`listPages` now projects a real `PageSummary`.** Its declared return type
+  said so already while it returned full `Page` rows, so every notebook's
+  unbounded `content` crossed the wire and was stripped client-side after
+  download — on a list the Notebooks menu re-reads on every open
+- Consumers updated: the list route, `lib/pagesClient.ts`, `lib/pageScope.ts`,
+  `NotebookScreen`, `NotebooksMenu`, `mocks/handlers.ts`
+- Breaking? **no** for the wire (additive field); **yes** for `fetchPages`'
+  TypeScript signature, and both call sites are updated here
+
 ## 2026-09-03 — `PageSummary` carries `actorId`, and `SYSTEM_ACTOR_ID` moves into contracts (M14, navigation-and-index half)
 
 - Added: `actorId` to `PageSummary`'s `Page.pick({...})`, and a new exported

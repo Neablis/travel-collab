@@ -20,10 +20,10 @@ describe("pagesClient", () => {
     server.use(...makePagesHandlers([page]));
     const result = await fetchPages(TRIP_ID);
     if (!result.ok) throw new Error("expected ok");
-    expect(result.value).toHaveLength(1);
-    expect(result.value[0]!.title).toBe(page.title);
+    expect(result.value.pages).toHaveLength(1);
+    expect(result.value.pages[0]!.title).toBe(page.title);
     // PageSummary must not carry `content` — confirms Zod parsing, not passthrough of raw JSON.
-    expect((result.value[0] as unknown as { content?: unknown }).content).toBeUndefined();
+    expect((result.value.pages[0] as unknown as { content?: unknown }).content).toBeUndefined();
   });
 
   it("creates a page and round-trips a full Page", async () => {

@@ -58,7 +58,7 @@ is still gated and is gated on Mitchell, not on engineering.
    share link redeems as `429 Vercel Security Checkpoint` — three tried), and
    it needs **no invite code**, because `admission.ts` only gates someone with
    no `users` row and an existing dev user is admitted as `returning-user`.
-3. **Two planning-doc claims about the code were wrong and are corrected in
+4. **Two planning-doc claims about the code were wrong and are corrected in
    place** — the scope string was `describeBinding` and was already rendered,
    and this half was not contract-free. Both had been copied verbatim into
    `TODO.md`. See `M14-rich-layer.md`.
