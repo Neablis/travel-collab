@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — the attribute manifest, and `AttributeRef` (ADR-037 open question 4)
+- Added: `buildAttributeManifest()`, `AttributeEntry`, `AttributeRef`
+- Why: the settled answer to *"a developer adding a new global attribute gets it
+  for free"* — a widget whose control is a searchable select over a GENERATED
+  list of readable paths, with a structured stored param and no user-facing
+  syntax. `{{trip.cities[Tokyo].activities.length}}` was dropped because a
+  freeform string has no declared inputs (so no control, no preview, no
+  `needs a field` badge) and cannot express a lookup that MISSES, which
+  decision 6's "not set up" requires
+- Built by inverting the **Zod** schema, not the TypeScript type, per that
+  decision's own refinement: in this repo the type is the derived artifact
+  (invariant 5), so inverting it would need the compiler API plus a codegen
+  artifact to recover what Zod already holds at runtime. Walking
+  `ZodObject.shape` needs no build step and lives in `packages/contracts`, which
+  depends on nothing
+- **Exposure is opt-in twice over**, which is the half that is a safety property
+  rather than a feature: only schemas named in `MANIFEST_ROOTS` are walked
+  (`TripGlobals` and nothing else — there is no "walk everything" entry point,
+  so `TripDetail`'s `dismissedConflictIds`, `forkedFrom` and internal uuids
+  cannot be published by accident), and within a root only fields carrying
+  `.describe()` are listed. Anything added later is EXCLUDED by default
+- `AttributeRef` is `.strict()`: an extra key is a parse error rather than
+  something dropped on the next save, and a string expression does not parse at
+  all
+- Consumers updated: none yet — the `trip.attribute` widget that reads this
+  needs an `attribute` input type and a control to render it, which arrives with
+  the insert surface (item G). The manifest's contract is fully asserted by
+  `packages/contracts/test/manifest.test.ts` in the meantime
+- Breaking? **no.** Additive: new exports only
+
 ## 2026-09-03 — `TripGlobals`: the trip's addressable collections (ADR-037 open question 4)
 - Added: `TripGlobals` (`days`, `cities`, `tags`, `bookedCount`) with
   `TripGlobalsDay`, `TripGlobalsCity`, `TripGlobalsTag`
