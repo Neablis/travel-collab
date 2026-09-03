@@ -68,6 +68,14 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   [data-r="slot"] { grid-template-columns: 64px 1fr !important; gap: 10px !important; }
   [data-r="pad"] { padding-left: 16px !important; padding-right: 16px !important; }
   [data-r="grid3col"] { grid-template-columns: 1fr !important; }
+  /* Shared day on a phone: rating + Add to a trip come first, the map is next,
+     and the map's focus card leaves the overlay so it never covers the route. */
+  [data-r="daygrid"] { grid-template-columns: 1fr !important; gap: 20px !important; }
+  [data-r="dayside"] { position: static !important; top: auto !important; order: -1; }
+  [data-r="daymap"] { height: 260px !important; }
+  [data-r="dayfocus"] { position: static !important; width: auto !important; border: 0 !important; border-top: 1px solid var(--color-hairline) !important; border-radius: 0 !important; box-shadow: none !important; animation: none !important; }
+  [data-r="daylegend"] { display: none !important; }
+  [data-r="daystop"] { grid-template-columns: 62px 24px minmax(0, 1fr) !important; gap: 10px !important; }
 }
 </style>
 </helmet>
@@ -95,6 +103,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">sam@example.com</span>
           </div>
           <button onClick="{{ openAccount }}" style="text-align: left; background: none; border: 0; padding: 9px 10px; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--color-ink); border-radius: 6px;" style-hover="background: var(--color-moss);">Your account</button>
+          <sc-if value="{{ isOperator }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ goAdmin }}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; background: none; border: 0; padding: 9px 10px; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--color-ink); border-radius: 6px;" style-hover="background: var(--color-moss);">
+              Operator console
+              <span style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Admin</span>
+            </button>
+          </sc-if>
           <button onClick="{{ signOut }}" style="text-align: left; background: none; border: 0; padding: 9px 10px; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--color-ink); border-radius: 6px;" style-hover="background: var(--color-moss);">Sign out</button>
         </div>
       </x-import>
@@ -349,6 +363,288 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" value="{{ budgetInput }}" onChange="{{ setBudget }}"></x-import>
                   </x-import>
                 </sc-if>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phonePb }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 0 0 auto; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline); padding: 58px 16px 10px;">
+              <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; color: var(--color-ink);">Playbooks</div>
+              <div style="font-size: 12.5px; color: var(--color-slate); padding: 3px 0 10px; text-wrap: pretty;">One good day, saved whole. Search a city to find days people have already run.</div>
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Kyoto, Lisbon, New Orleans…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
+              <sc-if value="{{ hasQ }}" hint-placeholder-val="{{ false }}">
+                <div style="border: 1px solid var(--color-hairline); border-radius: 10px; margin-top: 8px; overflow: hidden;">
+                  <sc-if value="{{ hitsLoading }}" hint-placeholder-val="{{ true }}">
+                    <div style="padding: 12px 13px; font-size: 13px; color: var(--color-slate);">Searching cities…</div>
+                  </sc-if>
+                  <sc-if value="{{ hitsError }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 13px;">
+                      <span style="flex: 1; font-size: 12.5px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach city search.</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ retrySearch }}">Retry</x-import>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ hitsEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 12px 13px; font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">No city matches “{{ q }}”. Try the nearest big city.</div>
+                  </sc-if>
+                  <sc-for list="{{ hits }}" as="h" hint-placeholder-count="0">
+                    <button onClick="{{ h.pick }}" style="display: flex; align-items: baseline; gap: 9px; width: 100%; min-height: 44px; text-align: left; background: var(--color-surface); border: 0; border-top: 1px solid var(--color-hairline); padding: 10px 13px; cursor: pointer; font-family: inherit;">
+                      <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ h.name }}</span>
+                      <span style="font-size: 12px; color: var(--color-slate);">{{ h.region }}</span>
+                      <span style="flex: 1;"></span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ h.count }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ hasCities }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 9px;">
+                  <sc-for list="{{ qChips }}" as="c" hint-placeholder-count="1">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{ c.ink }}; background: {{ c.tint }}; border-radius: 999px; padding: 4px 6px 4px 12px;">
+                      {{ c.name }}
+                      <button onClick="{{ c.remove }}" aria-label="{{ c.removeLabel }}" style="border: 0; background: none; cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1; color: {{ c.ink }}; padding: 4px 6px;">×</button>
+                    </span>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="display: flex; align-items: center; gap: 10px; padding-top: 10px;">
+                <span style="flex: 1; min-width: 0; font-size: 12.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ resultLine }}</span>
+                <button onClick="{{ openPbSheet }}" style="flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-ink); cursor: pointer;">
+                  Filter
+                  <sc-if value="{{ hasPbFilters }}" hint-placeholder-val="{{ false }}">
+                    <span style="min-width: 18px; height: 18px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); font-family: var(--font-next-mono); font-size: 11px; display: grid; place-items: center; padding: 0 5px;">{{ pbFilterCountLabel }}</span>
+                  </sc-if>
+                </button>
+              </div>
+            </div>
+
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 110px; display: flex; flex-direction: column; gap: 10px;">
+              <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning">These are the days already on this device. Ratings may be a few hours stale.</x-import>
+              </sc-if>
+              <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
+                <sc-for list="{{ skeletons }}" as="sk" hint-placeholder-count="3">
+                  <div style="height: 132px; border: 1px solid var(--color-hairline); border-radius: 13px; background: var(--color-surface); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                    <span style="width: 76px; height: 18px; border-radius: 999px; background: var(--color-moss);"></span>
+                    <span style="width: 80%; height: 18px; border-radius: 5px; background: var(--color-moss);"></span>
+                    <span style="width: 52%; height: 11px; border-radius: 5px; background: var(--color-moss);"></span>
+                    <span style="height: 34px; border-radius: 10px; background: var(--color-moss);"></span>
+                  </div>
+                </sc-for>
+              </sc-if>
+              <sc-if value="{{ showDays }}" hint-placeholder-val="{{ true }}">
+                <sc-for list="{{ pbResults }}" as="pb" hint-placeholder-count="5">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,164px" className="flex flex-col gap-2 rounded-lg p-0 shrink-0 cursor-pointer" onClick="{{ pb.open }}">
+                    <span style="display: block; padding: 13px 14px 14px;">
+                      <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+                        <sc-for list="{{ pb.cityChips }}" as="c" hint-placeholder-count="2">
+                          <span style="font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 9px;">{{ c.name }}</span>
+                        </sc-for>
+                        <span style="flex: 1;"></span>
+                        <sc-if value="{{ pb.yours }}" hint-placeholder-val="{{ false }}">
+                          <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="brand">Yours</x-import>
+                        </sc-if>
+                      </span>
+                      <span style="display: block; font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink); line-height: 1.25; padding-top: 8px;">{{ pb.name }}</span>
+                      <span style="display: block; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 4px;">{{ pb.spanLine }}</span>
+                      <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; padding-top: 7px;">
+                        <sc-if value="{{ pb.rated }}" hint-placeholder-val="{{ true }}">
+                          <span style="display: inline-flex; align-items: center; gap: 2px;">
+                            <sc-for list="{{ pb.stars }}" as="st" hint-placeholder-count="5">
+                              <span style="position: relative; display: inline-block; font-size: 12px; line-height: 1; color: var(--color-hairline);">★<span style="position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; width: {{ st.w }}; color: var(--color-warning);">★</span></span>
+                            </sc-for>
+                          </span>
+                          <span style="font-size: 12.5px; font-weight: 600; color: var(--color-ink);">{{ pb.ratingLabel }}</span>
+                          <span style="font-size: 11.5px; color: var(--color-slate);">{{ pb.reviewLabel }}</span>
+                        </sc-if>
+                        <sc-if value="{{ pb.unrated }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size: 11.5px; color: var(--color-slate);">No reviews yet</span>
+                        </sc-if>
+                      </span>
+                      <span style="display: flex; gap: 3px; align-items: flex-end; height: 40px; background: {{ pb.tint }}; border-radius: 10px; padding: 8px; margin-top: 10px;">
+                        <sc-for list="{{ pb.shape }}" as="b" hint-placeholder-count="5">
+                          <span style="flex: 1; border-radius: 3px; background: {{ pb.solid }}; height: {{ b.h }}; margin-left: {{ b.brk }};"></span>
+                        </sc-for>
+                      </span>
+                      <span style="display: block; font-size: 11.5px; color: var(--color-slate); padding-top: 9px;">{{ pb.footMeta }}</span>
+                    </span>
+                  </x-import>
+                </sc-for>
+              </sc-if>
+              <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                <div style="border: 1px dashed var(--color-border-strong); border-radius: 13px; padding: 22px 18px; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center;">
+                  <div style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink); text-wrap: pretty;">{{ emptyTitle }}</div>
+                  <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ emptyBody }}</div>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,38px" variant="secondary" size="sm" onClick="{{ clearFilters }}">Drop the filters</x-import>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phonePbDay }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 0 0 auto; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline); padding: 58px 16px 10px;">
+              <button onClick="{{ backToDiscover }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Playbooks</button>
+            </div>
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 110px; display: grid; grid-auto-rows: min-content; align-content: start; gap: 14px; background: var(--color-surface);">
+              <div>
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+                  <sc-for list="{{ day.cityChips }}" as="c" hint-placeholder-count="2">
+                    <span style="font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 9px;">{{ c.name }}</span>
+                  </sc-for>
+                </div>
+                <div style="font-family: var(--font-next-display); font-size: 24px; font-weight: 600; line-height: 1.2; color: var(--color-ink); padding-top: 9px;">{{ day.name }}</div>
+                <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 5px;">{{ day.meta }}</div>
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 11px;">
+                  <sc-for list="{{ day.tagRoll }}" as="tr" hint-placeholder-count="3">
+                    <span style="font-size: 11.5px; font-weight: 600; color: {{ tr.ink }}; background: {{ tr.bg }}; border: {{ tr.bd }}; border-radius: 6px; padding: 3px 9px;">{{ tr.label }}</span>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ day.bookLine }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 8px;">{{ day.bookLine }}</div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ day.hasMap }}" hint-placeholder-val="{{ true }}">
+                <div style="flex: none; border: 1px solid var(--color-hairline); border-radius: 13px; overflow: hidden;">
+                  <button onClick="{{ toggleDayMap }}" aria-expanded="{{ dayMapOpen }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px; background: var(--color-surface); border: 0; font-family: inherit; cursor: pointer; text-align: left;">
+                    <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ day.mapColor }};"></span>
+                    <span style="flex: 1; min-width: 0;">
+                      <span style="display: block; font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ day.mapTitle }}</span>
+                      <span style="display: block; font-size: 11.5px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ day.mapNote }}</span>
+                    </span>
+                    <span style="font-size: 12px; color: var(--color-brand); font-weight: 600;">{{ dayMapCta }}</span>
+                  </button>
+                  <sc-if value="{{ dayMapPanel }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top: 1px solid var(--color-hairline);">
+                      <div id="pbdaymapm" style="height: 260px; background: var(--color-moss);"></div>
+                      <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-top: 1px solid var(--color-hairline);">
+                        <sc-for list="{{ day.mapFacts }}" as="mf" hint-placeholder-count="3">
+                          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                            <span style="font-size: 12px; color: var(--color-slate);">{{ mf.k }}</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink);">{{ mf.v }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ dayMapOfflinePanel }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top: 1px solid var(--color-hairline); padding: 20px 16px; text-align: center; background: var(--color-moss);">
+                      <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Map tiles need a connection. The stops, the order and the distances below are all here.</div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <div>
+                <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="5">
+                  <div style="display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: 10px; padding: 10px 0 3px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 3px;">{{ s.t }}</span>
+                    <span style="width: 24px; height: 24px; border-radius: 999px; background: {{ s.pin }}; color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; font-weight: 600;">{{ s.num }}</span>
+                    <div style="min-width: 0; display: flex; flex-direction: column; gap: 5px;">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px;">
+                        <span style="font-size: 14.5px; font-weight: 600; color: {{ s.nameInk }};">{{ s.n }}</span>
+                        <sc-if value="{{ s.isTransit }}" hint-placeholder-val="{{ false }}">
+                          <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="info">Travel</x-import>
+                        </sc-if>
+                        <sc-for list="{{ s.tags }}" as="tg" hint-placeholder-count="2">
+                          <span style="font-size: 10.5px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 5px; padding: 2px 7px;">{{ tg.label }}</span>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ s.note }}" hint-placeholder-val="{{ true }}">
+                        <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ s.note }}</span>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <sc-if value="{{ s.gap }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: 10px; align-items: center; padding: 2px 0;">
+                      <span></span>
+                      <span style="display: grid; place-items: center; height: 22px;"><span style="width: 0; height: 22px; border-left: 2px {{ s.gapStroke }} {{ s.gapColor }};"></span></span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ s.gap }}</span>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+
+              <div style="height: 44px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,44px" className="w-full h-full" variant="primary" onClick="{{ day.add }}">Add to a trip</x-import>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ pbSheetOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closePbSheet }}" style="position: absolute; inset: 0; background: color-mix(in srgb, var(--color-ink) 34%, transparent); z-index: 5;"></div>
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 660px; z-index: 6; background: var(--color-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 34px rgba(0,0,0,.18); display: flex; flex-direction: column;">
+              <div style="display: grid; place-items: center; padding: 9px 0 2px;"><span style="width: 38px; height: 4px; border-radius: 999px; background: var(--color-hairline);"></span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 12px; border-bottom: 1px solid var(--color-hairline);">
+                <sc-if value="{{ hasPbFilters }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ clearFilters }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Clear all</button>
+                </sc-if>
+                <sc-if value="{{ noPbFilters }}" hint-placeholder-val="{{ true }}">
+                  <span style="width: 62px;"></span>
+                </sc-if>
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Filter days</span>
+                <button onClick="{{ closePbSheet }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-brand); cursor: pointer;">Done</button>
+              </div>
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 22px; display: flex; flex-direction: column; gap: 18px;">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Whose days</span>
+                  <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="100%,38px" value="{{ scope }}" onValueChange="{{ setScope }}" options="{{ scopes }}" aria-label="Whose days"></x-import>
+                </div>
+                <sc-for list="{{ pbFilterGroups }}" as="fg" hint-placeholder-count="4">
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">{{ fg.label }}</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                      <sc-for list="{{ fg.items }}" as="op" hint-placeholder-count="4">
+                        <button onClick="{{ op.pick }}" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; box-sizing: border-box; padding: 0 14px; background: {{ op.bg }}; border: 1px solid {{ op.edge }}; border-radius: 999px; font-family: inherit; font-size: 13.5px; font-weight: {{ op.weight }}; color: var(--color-ink); cursor: pointer;">
+                          <span style="color: var(--color-brand);">{{ op.tick }}</span>{{ op.label }}
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+                <span style="font-size: 13px; color: var(--color-slate); padding-top: 2px; border-top: 1px solid var(--color-hairline);">{{ resultLine }}</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneIns }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closeIns }}" style="position: absolute; inset: 0; background: color-mix(in srgb, var(--color-ink) 34%, transparent); z-index: 5;"></div>
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 680px; z-index: 6; background: var(--color-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 34px rgba(0,0,0,.18); display: flex; flex-direction: column;">
+              <div style="display: grid; place-items: center; padding: 9px 0 2px;"><span style="width: 38px; height: 4px; border-radius: 999px; background: var(--color-hairline);"></span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 12px; border-bottom: 1px solid var(--color-hairline);">
+                <button onClick="{{ closeIns }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Cancel</button>
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Add to a trip</span>
+                <button onClick="{{ doInsert }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-brand); cursor: pointer;">Add</button>
+              </div>
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 22px; display: flex; flex-direction: column; gap: 16px;">
+                <div style="background: var(--color-moss); border-radius: 12px; padding: 12px 13px;">
+                  <div style="font-size: 14px; font-weight: 600; color: var(--color-ink); text-wrap: pretty;">{{ insName }}</div>
+                  <div style="font-size: 12px; color: var(--color-slate); padding-top: 3px; text-wrap: pretty;">{{ insLede }}</div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Which trip</span>
+                  <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="100%,38px" value="{{ insTrip }}" onValueChange="{{ setInsTrip }}" options="{{ insTripOpts }}" aria-label="Which trip"></x-import>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Where it goes</span>
+                  <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,44px" className="w-full" value="{{ insDayVal }}" onChange="{{ setInsDaySel }}">
+                    <sc-for list="{{ insSlots }}" as="d" hint-placeholder-count="8">
+                      <option value="{{ d.value }}">{{ d.label }}</option>
+                    </sc-for>
+                  </x-import>
+                </div>
+                <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ insShiftNote }}</span>
+                <div style="border: 1px solid var(--color-hairline); border-radius: 11px; padding: 12px 13px;">
+                  <div style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 7px;">{{ insNewLabel }}</div>
+                  <sc-for list="{{ insPreview }}" as="s" hint-placeholder-count="3">
+                    <div style="display: flex; gap: 10px; padding: 3px 0; font-size: 13px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 2px; width: 58px; flex: none;">{{ s.t }}</span>
+                      <span style="color: var(--color-ink); min-width: 0;">{{ s.n }}</span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ insMore }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size: 12px; color: var(--color-slate); padding-top: 6px;">{{ insMoreLabel }}</div>
+                  </sc-if>
+                </div>
               </div>
             </div>
           </sc-if>
@@ -1291,18 +1587,65 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="warning">{{ day.conflictText }}</x-import>
             </sc-if>
 
-            <div data-r="grid3col" style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; align-items: start;">
+            <div data-r="daygrid" style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; align-items: start;">
               <div style="display: flex; flex-direction: column; gap: 22px; min-width: 0;">
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                   <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
                     <sc-for list="{{ day.cityChips }}" as="c" hint-placeholder-count="2">
                       <span style="font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: {{ c.fg }}; background: {{ c.bg }}; border: 1px solid {{ c.bd }}; border-radius: 999px; padding: 3px 10px;">{{ c.name }}</span>
                     </sc-for>
+                    <sc-for list="{{ day.tags }}" as="tg" hint-placeholder-count="3">
+                      <span style="font-size: 11.5px; color: var(--color-slate); background: var(--color-moss); padding: 3px 10px; border-radius: 999px;">{{ tg }}</span>
+                    </sc-for>
                   </div>
                   <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">{{ day.name }}</x-import>
                   <div style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ day.meta }}</div>
                   <div style="font-size: 14.5px; color: var(--color-ink); max-width: 62ch; text-wrap: pretty;">{{ day.blurb }}</div>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 4px;">
+                    <sc-for list="{{ day.tagRoll }}" as="tr" hint-placeholder-count="3">
+                      <span style="font-size: 11.5px; font-weight: 600; color: {{ tr.ink }}; background: {{ tr.bg }}; border: {{ tr.bd }}; border-radius: 6px; padding: 3px 9px;">{{ tr.label }}</span>
+                    </sc-for>
+                    <sc-if value="{{ day.bookLine }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ day.bookLine }}</span>
+                    </sc-if>
+                  </div>
                 </div>
+
+                <sc-if value="{{ day.hasMap }}" hint-placeholder-val="{{ true }}">
+                  <div data-r="daymapwrap" style="position: relative; border: 1px solid var(--color-hairline); border-radius: 14px; overflow: hidden; background: var(--color-moss);">
+                    <div id="pbdaymap" data-r="daymap" style="height: 342px;"></div>
+                    <sc-if value="{{ day.showMap }}" hint-placeholder-val="{{ true }}">
+                      <div data-r="dayfocus" style="position: absolute; left: 16px; bottom: 16px; z-index: 3; width: 252px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.12)); padding: 13px 15px 14px; animation: riseIn 220ms ease both;">
+                        <div style="display: flex; align-items: center; gap: 7px;">
+                          <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ day.mapColor }};"></span>
+                          <span style="font-size: 13px; font-weight: 700; color: var(--color-ink);">{{ day.mapTitle }}</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 9px;">
+                          <sc-for list="{{ day.mapFacts }}" as="mf" hint-placeholder-count="3">
+                            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                              <span style="font-size: 12px; color: var(--color-slate);">{{ mf.k }}</span>
+                              <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ mf.v }}</span>
+                            </div>
+                          </sc-for>
+                        </div>
+                        <div style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); margin-top: 9px; text-wrap: pretty;">{{ day.mapNote }}</div>
+                      </div>
+                      <div data-r="daylegend" style="position: absolute; right: 16px; bottom: 16px; z-index: 3; display: flex; align-items: center; gap: 14px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 7px 14px; font-size: 11px; color: var(--color-slate);">
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 3px; border-radius: 2px; background: {{ day.mapColor }};"></span>On foot</span>
+                        <sc-if value="{{ day.hasRides }}" hint-placeholder-val="{{ true }}">
+                          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 3px dotted {{ day.mapColor }};"></span>By train or taxi</span>
+                        </sc-if>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ day.mapOffline }}" hint-placeholder-val="{{ false }}">
+                      <div style="position: absolute; inset: 0; z-index: 4; background: var(--color-moss); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center;">
+                        <span style="width: 38px; height: 38px; border-radius: 999px; background: var(--color-surface); display: grid; place-items: center; font-size: 16px; color: var(--color-slate);">◍</span>
+                        <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Map tiles need a connection</span>
+                        <span style="font-size: 13px; color: var(--color-slate); max-width: 44ch; text-wrap: pretty;">The stops, the order and the distances below are all here — only the tiles are missing.</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-if>
 
                 <button onClick="{{ day.author.open }}" style="display: flex; align-items: center; gap: 12px; text-align: left; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 12px 14px; cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-border-strong);">
                   <span style="width: 38px; height: 38px; flex: 0 0 auto; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ day.author.initials }}</span>
@@ -1316,26 +1659,34 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <div style="display: flex; flex-direction: column; gap: 0;">
                   <div style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 10px;">The day, as they ran it</div>
                   <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="5">
-                    <div style="display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-hairline);">
-                      <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding-top: 2px;">{{ s.t }}</span>
-                      <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
-                          <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ s.n }}</span>
+                    <div data-r="daystop" style="display: grid; grid-template-columns: 86px 24px minmax(0, 1fr); gap: 12px; padding: 11px 0 3px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding-top: 3px;">{{ s.t }}</span>
+                      <span style="width: 24px; height: 24px; border-radius: 999px; background: {{ s.pin }}; color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; font-weight: 600;">{{ s.num }}</span>
+                      <div style="min-width: 0; display: flex; flex-direction: column; gap: 5px; padding-top: 1px;">
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                          <span style="font-size: 14.5px; font-weight: 600; color: {{ s.nameInk }};">{{ s.n }}</span>
+                          <sc-if value="{{ s.isTransit }}" hint-placeholder-val="{{ false }}">
+                            <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="info">Travel</x-import>
+                          </sc-if>
                           <sc-if value="{{ s.showCity }}" hint-placeholder-val="{{ false }}">
                             <span style="font-size: 11px; color: {{ s.ink }}; background: {{ s.tint }}; border-radius: 999px; padding: 2px 9px;">{{ s.city }}</span>
                           </sc-if>
+                          <sc-for list="{{ s.tags }}" as="tg" hint-placeholder-count="2">
+                            <span title="{{ tg.power }}" style="font-size: 10.5px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border-radius: 5px; padding: 2px 7px;">{{ tg.label }}</span>
+                          </sc-for>
                         </div>
                         <sc-if value="{{ s.note }}" hint-placeholder-val="{{ true }}">
                           <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ s.note }}</span>
                         </sc-if>
                       </div>
                     </div>
-                  </sc-for>
-                </div>
-
-                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                  <sc-for list="{{ day.tags }}" as="tg" hint-placeholder-count="3">
-                    <span style="font-size: 11.5px; color: var(--color-slate); background: var(--color-moss); padding: 4px 11px; border-radius: 999px;">{{ tg }}</span>
+                    <sc-if value="{{ s.gap }}" hint-placeholder-val="{{ true }}">
+                      <div data-r="daystop" style="display: grid; grid-template-columns: 86px 24px minmax(0, 1fr); gap: 12px; align-items: center; padding: 2px 0;">
+                        <span></span>
+                        <span style="display: grid; place-items: center; height: 24px;"><span style="width: 0; height: 24px; border-left: 2px {{ s.gapStroke }} {{ s.gapColor }};"></span></span>
+                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ s.gap }}</span>
+                      </div>
+                    </sc-if>
                   </sc-for>
                 </div>
 
@@ -1406,7 +1757,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
               </div>
 
-              <div style="display: flex; flex-direction: column; gap: 14px; position: sticky; top: 18px;">
+              <div data-r="dayside" style="display: flex; flex-direction: column; gap: 14px; position: sticky; top: 18px;">
                 <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="flex flex-col gap-4 rounded-lg p-5">
                   <div style="display: flex; align-items: flex-end; gap: 10px;">
                     <sc-if value="{{ day.rated }}" hint-placeholder-val="{{ true }}">
@@ -1447,10 +1798,171 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ day.add }}">Add to a trip</x-import>
                     <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,36px" variant="secondary" className="w-full" onClick="{{ day.save }}">{{ day.saveLabel }}</x-import>
                   </div>
-                  <div style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Times reflow to the day you drop it on. Nothing is copied to the author.</div>
+                  <div style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Times reflow to the day you drop it on. Tags come with each stop; everything arrives as <em style="font-style: normal; color: var(--color-ink);">planned</em> except the travel legs, so nothing shows as booked until you book it.</div>
                 </x-import>
               </div>
             </div>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <sc-if value="{{ isAdminRoute }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div style="padding: 26px 0 90px; display: flex; flex-direction: column; gap: 20px;">
+
+            <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">Operator console</x-import>
+                <span style="font-size: 13.5px; color: var(--color-slate); text-wrap: pretty;">Accounts, what they hold, what they cost. Admin only — a non-admin gets nothing here, not a hidden link.</span>
+              </div>
+              <div style="font-family: var(--font-next-mono); font-size: 11px; line-height: 1.5; color: var(--color-slate); border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 8px 11px; max-width: 300px;">Design note — operator tool, deliberately plain. No accent language, no product chrome.</div>
+            </div>
+
+            <sc-if value="{{ opStale }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="Stripe events are behind">Three webhook deliveries are unprocessed, so plans and revenue below are as of 14:02. Grants still apply immediately — they don't go through Stripe.</x-import>
+            </sc-if>
+            <sc-if value="{{ opConflict }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning" title="Mitchell published premium v3 while you were here">Your version list is one behind. Nothing you did was lost — reload before you migrate anyone, or you'll migrate them to v2.</x-import>
+            </sc-if>
+
+            <div data-r="grid4" style="display: grid; grid-template-columns: repeat(4, 1fr); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+              <sc-for list="{{ opsMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-left: 1px solid {{ m.divider }};">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ m.k }}</span>
+                  <div style="display: flex; align-items: baseline; gap: 8px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--color-ink);">{{ m.v }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ m.deltaInk }};">{{ m.delta }}</span>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ m.sub }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Accounts">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-size: 12.5px; color: var(--color-slate);">Plan and version are what the account holds. Cost is model tokens over the trailing 30 days, priced at the rates in force on each day.</div>
+
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="240px,34px" className="w-60" placeholder="Find an address…" aria-label="Find an account" value="{{ opQ }}" onChange="{{ setOpQ }}"></x-import>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <sc-for list="{{ opFilters }}" as="f" hint-placeholder-count="6">
+                      <button onClick="{{ f.pick }}" style="display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; color: {{ f.ink }}; background: {{ f.bg }}; border: 1px solid {{ f.border }}; border-radius: 999px; padding: 5px 11px; cursor: pointer;">
+                        {{ f.label }}
+                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ f.countInk }};">{{ f.count }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="overflow-x: auto;">
+                  <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                    <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
+                      <tr>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Account</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Holds</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Why</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Pays</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Costs 30d</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">State</th>
+                        <th style="background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px;"></th>
+                      </tr>
+                    </x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,240px">
+                      <sc-for list="{{ opsAccounts }}" as="a" hint-placeholder-count="7">
+                        <tr style="background: {{ a.rowBg }};">
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ a.email }}</td>
+                          <td style="padding: 9px 10px; font-size: 13px; color: var(--color-ink); white-space: nowrap;">{{ a.holds }}</td>
+                          <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.why }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right; white-space: nowrap;">{{ a.pays }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: {{ a.costInk }}; text-align: right; white-space: nowrap;">{{ a.cost }}</td>
+                          <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.state }}</td>
+                          <td style="padding: 6px 10px; text-align: right; white-space: nowrap;">
+                            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="secondary" size="sm" onClick="{{ a.grant }}">Grant</x-import>
+                          </td>
+                        </tr>
+                      </sc-for>
+                    </x-import>
+                  </x-import>
+                </div>
+
+                <sc-if value="{{ opNone }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 18px 20px;">
+                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">No account matches</span>
+                    <span style="font-size: 12.5px; color: var(--color-slate);">{{ opNoneLine }}</span>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ opClear }}">Clear the filter</x-import>
+                  </div>
+                </sc-if>
+
+                <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--color-hairline); padding-top: 10px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ opRange }}</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtStart }}" onClick="{{ opPrev }}">Previous</x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtEnd }}" onClick="{{ opNext }}">Next</x-import>
+                  </div>
+                </div>
+              </div>
+            </x-import>
+
+            <div data-r="grid2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;">
+
+              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Costs more than it pays">
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                  <div style="display: flex; flex-direction: column; gap: 9px;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-danger-ink);">Paying, and underwater</span>
+                    <div style="display: flex; align-items: baseline; gap: 10px; background: var(--color-danger-tint); border-radius: 8px; padding: 11px 13px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 22px; font-weight: 600; line-height: 1; color: var(--color-danger-ink);">{{ underPayCount }}</span>
+                      <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-danger-ink); text-wrap: pretty;">{{ underPayLine }}</span>
+                    </div>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ showUnder }}">Show them in the table</x-import>
+                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trailing 30 days, marginal model cost only. The addresses live in the table above — this is the count, not a second copy of the list.</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Underwater by construction</span>
+                    <sc-for list="{{ underwaterGrant }}" as="g" hint-placeholder-count="4">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-size: 13px; color: var(--color-ink);">{{ g.source }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ g.line }}</span>
+                      </div>
+                    </sc-for>
+                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Comped on purpose, so they're counted and set aside rather than listed. Mixed into the list above they'd bury the two rows that matter.</span>
+                  </div>
+                </div>
+              </x-import>
+
+              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="How each tier is doing">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                  <sc-for list="{{ opsPlans }}" as="p" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 9px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 14px;">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right;">{{ p.grants }}</span>
+                      </div>
+                      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                        <sc-for list="{{ p.stats }}" as="st" hint-placeholder-count="4">
+                          <div style="display: flex; flex-direction: column; gap: 3px;">
+                            <span style="font-family: var(--font-next-mono); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ st.v }}</span>
+                            <span style="font-size: 11.5px; line-height: 1.3; color: var(--color-slate);">{{ st.k }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--color-hairline); padding-top: 8px;">
+                        <sc-for list="{{ p.versions }}" as="v" hint-placeholder-count="2">
+                          <div style="display: grid; grid-template-columns: 34px 58px 1fr auto; gap: 10px; align-items: baseline; font-family: var(--font-next-mono); font-size: 11.5px;">
+                            <span style="color: var(--color-ink);">{{ v.v }}</span>
+                            <span style="color: var(--color-ink);">{{ v.price }}</span>
+                            <span style="color: var(--color-slate); overflow: hidden; text-overflow: ellipsis;">{{ v.when }}</span>
+                            <span style="color: var(--color-slate); white-space: nowrap;">{{ v.held }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Read-only. Versions are published from the repo, not from here — this page is for seeing which tier is worth keeping, and who is on an older one.</span>
+                </div>
+              </x-import>
+
+            </div>
+
           </div>
         </x-import>
       </sc-if>
@@ -1885,8 +2397,23 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       <div>
         <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
           <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Who is invited</span>
-          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ invite }}">Invite someone</x-import>
+          <sc-if value="{{ canInvite }}" hint-placeholder-val="{{ true }}">
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ invite }}">Invite someone</x-import>
+          </sc-if>
         </div>
+        <sc-if value="{{ inviteGated }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 9px; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 10px; padding: 13px 14px; margin-bottom: 10px;">
+            <span style="font-size: 13.5px; font-weight: 600; color: var(--color-brand-pressed);">{{ inviteGateTitle }}</span>
+            <span style="font-size: 13px; line-height: 1.5; color: var(--color-brand-pressed); text-wrap: pretty;">{{ inviteGateBody }}</span>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 2px;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="primary" size="sm" onClick="{{ openAccountBilling }}">{{ inviteGateCta }}</x-import>
+              <span style="font-size: 12px; color: var(--color-brand-pressed);">The plan itself stays yours either way — this is only about other people editing it.</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ crewCapped }}" hint-placeholder-val="{{ false }}">
+          <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning" title="{{ cappedTitle }}" className="mb-2.5">{{ cappedBody }}</x-import>
+        </sc-if>
         <div style="display: flex; flex-direction: column; border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
           <sc-for list="{{ tripCrew }}" as="p" hint-placeholder-count="4">
             <div style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--color-hairline); background: var(--color-surface);">
@@ -1908,7 +2435,93 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ acctSheet }}" onOpenChange="{{ setAcctSheet }}" title="Account settings">
     <div style="display: flex; flex-direction: column; gap: 20px; padding: 4px 4px 2px;">
-      <div style="display: flex; flex-direction: column; gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Plan</span>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px; background: var(--color-surface);">
+          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ planLabel }}</span>
+              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ planStateVariant }}">{{ planStateLabel }}</x-import>
+            </div>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ planStateLine }}</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ planCtaVariant }}" size="sm" onClick="{{ planCta }}">{{ planCtaLabel }}</x-import>
+            <sc-if value="{{ hasBilling }}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ openPortal }}">Payment and invoices</x-import>
+            </sc-if>
+          </div>
+        </div>
+
+        <sc-if value="{{ pickOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <sc-for list="{{ planOptions }}" as="p" hint-placeholder-count="3">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: {{ p.bg }}; border: 1px solid {{ p.border }}; border-radius: 10px; padding: 11px 13px;">
+                <div style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0;">
+                  <div style="display: flex; align-items: baseline; gap: 7px;">
+                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink);">{{ p.price }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ p.per }}</span>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ p.line }}</span>
+                </div>
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ p.variant }}" size="sm" onClick="{{ p.pick }}">{{ p.cta }}</x-import>
+              </div>
+            </sc-for>
+            <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Payment happens on Stripe, not here. Nothing about your account changes until the payment clears.</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pastDue }}" hint-placeholder-val="{{ false }}">
+          <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="{{ dueTitle }}">{{ dueBody }}</x-import>
+        </sc-if>
+
+        <sc-if value="{{ hasMeters }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Assistant use today</span>
+              <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ usageSynced }}</span>
+            </div>
+            <sc-for list="{{ usage }}" as="u" hint-placeholder-count="2">
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 12.5px; color: var(--color-ink);">{{ u.label }}</span>
+                  <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,18px" size="sm" className="text-slate">{{ u.amt }}</x-import>
+                </div>
+                <span style="display: block; height: 6px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
+                  <span style="display: block; height: 6px; border-radius: 3px; background: {{ u.fill }}; width: {{ u.width }};"></span>
+                </span>
+                <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">{{ u.note }}</span>
+              </div>
+            </sc-for>
+            <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); border-top: 1px solid var(--color-hairline); padding-top: 10px; text-wrap: pretty;">{{ ceilingNote }}</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ noMeters }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 13px 14px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Nothing metered on Free</span>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trips, days, stops, costs and saved days are unlimited and always will be. The only thing with a number on it is the assistant, and Free doesn't include it.</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ canRefer }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Bring someone in, get a month</span>
+              <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ referNote }}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink); background: var(--color-moss); border-radius: 8px; padding: 7px 10px;">{{ referCode }}</span>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ copyRefer }}">{{ referCta }}</x-import>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--color-hairline); padding-top: 18px;">
         <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="ac1" label="Your name">
           <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="ac1" value="{{ acctName }}" onChange="{{ setAcctName }}"></x-import>
         </x-import>
@@ -2130,6 +2743,53 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
+  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ opDlgOpen }}" onOpenChange="{{ setOpDlg }}" title="{{ opDlgTitle }}">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
+
+        <sc-if value="{{ opGrant }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
+              <span style="font-size: 12px; color: var(--color-slate);">Account</span>
+              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ opAccount }}</span>
+            </div>
+            <div data-r="grid2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og1" label="Grant">
+                <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="og1" className="w-full" value="{{ opPlan }}" onChange="{{ setOpPlan }}">
+                  <option value="plus">plus</option>
+                  <option value="premium">premium</option>
+                </x-import>
+              </x-import>
+              <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og2" label="At version">
+                <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="og2" className="w-full" value="{{ opVersion }}" onChange="{{ setOpVersion }}">
+                  <option value="v2">v2 — current</option>
+                  <option value="v1">v1</option>
+                </x-import>
+              </x-import>
+              <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og3" label="Because">
+                <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="og3" className="w-full" value="{{ opSource }}" onChange="{{ setOpSource }}">
+                  <option value="admin">admin</option>
+                  <option value="trial">trial</option>
+                  <option value="referral">referral</option>
+                  <option value="founder">founder</option>
+                </x-import>
+              </x-import>
+              <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og4" label="Runs out">
+                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="og4" type="date" value="{{ opExpiry }}" onChange="{{ setOpExpiry }}"></x-import>
+              </x-import>
+            </div>
+            <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="info">{{ opGrantNote }}</x-import>
+          </div>
+        </sc-if>
+
+      </div>
+      <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closeOpDlg }}">Cancel</x-import>
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ confirmOp }}">{{ opCta }}</x-import>
+      </x-import>
+    </div>
+  </x-import>
+
   <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ pbOpen }}" onOpenChange="{{ setPbOpen }}" title="Save this day as a Playbook">
     <div style="display: flex; flex-direction: column; gap: 14px;">
       <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
@@ -2166,7 +2826,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
-  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ insOpen }}" onOpenChange="{{ setInsOpen }}" title="Insert a saved day into a trip">
+  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ insOpenDesktop }}" onOpenChange="{{ setInsOpen }}" title="Insert a saved day into a trip">
     <div style="display: flex; flex-direction: column; gap: 14px;">
       <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
       <div style="display: flex; align-items: center; gap: 12px; background: var(--color-moss); border-radius: 12px; padding: 12px 14px;">
@@ -2242,6 +2902,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       </span>
       <div style="flex: 1;"></div>
       <div style="display: flex; align-items: center; gap: 8px;">
+        <a href="#pricing" style="font-size: 14px; font-weight: 500; padding: 6px 10px; text-decoration: none;">Pricing</a>
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ goSignin }}">Sign in</x-import>
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ goSignup }}">Start a trip</x-import>
       </div>
@@ -2597,6 +3258,106 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         </div>
       </div>
 
+      <section id="pricing" style="width: 100%; background: var(--color-surface); border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline);">
+        <div style="width: 100%; max-width: 1140px; margin: 0 auto; padding: 66px 28px 70px; display: flex; flex-direction: column; gap: 30px;">
+
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 12px; max-width: 620px;">
+              <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">Pricing</span>
+              <h2 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(28px, 3vw, 38px); line-height: 1.08; letter-spacing: -0.02em; color: var(--color-ink); text-wrap: pretty;">Planning a trip is free. The help costs.</h2>
+              <p style="margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Every plan plans a whole trip — days, stops, map, costs, saved days. What you pay for is the assistant, and the people you plan with.</p>
+            </div>
+            <div style="font-family: var(--font-next-mono); font-size: 11px; line-height: 1.5; color: var(--color-slate); border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 8px 11px; max-width: 260px;">Design note — the two prices are placeholders. The numbers are not set.</div>
+          </div>
+
+          <div data-r="grid3col" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: stretch;">
+
+            <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,470px" className="flex flex-col gap-5 rounded-lg p-6 h-full">
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Free</span>
+                <div style="display: flex; align-items: baseline; gap: 6px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink);">$0</span>
+                </div>
+                <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Plan the whole thing yourself. Nothing expires.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; color: var(--color-ink);">
+                <span>Days, stops, times, map, timeline, calendar</span>
+                <span>Costs, splits and who owes what</span>
+                <span>Save a day as a Playbook and publish it</span>
+                <span style="color: var(--color-slate);">No assistant</span>
+                <span style="color: var(--color-slate);">No one else on the trip</span>
+              </div>
+              <div style="margin-top: auto; display: flex; flex-direction: column; gap: 9px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="secondary" className="w-full" onClick="{{ goSignup }}">Start a trip</x-import>
+              </div>
+            </x-import>
+
+            <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,470px" className="flex flex-col gap-5 rounded-lg p-6 h-full">
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Plus</span>
+                <div style="display: flex; align-items: baseline; gap: 6px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink);">$8</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">/ month</span>
+                </div>
+                <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">The assistant, on the trip in front of you.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; color: var(--color-ink);">
+                <span>Everything in Free</span>
+                <span>Ask about your own plan — gaps, timings, what's near what</span>
+                <span>Tell it to move things: “push Tuesday an hour later”</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">100 questions a day</span>
+                <span style="color: var(--color-slate);">Still a trip for one</span>
+              </div>
+              <div style="margin-top: auto; display: flex; flex-direction: column; gap: 9px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="secondary" className="w-full" onClick="{{ goSignup }}">Start the free week</x-import>
+                <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Every new account opens with a week of Plus.</span>
+              </div>
+            </x-import>
+
+            <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,470px" raised="{{ true }}" className="flex flex-col gap-5 rounded-lg p-6 h-full border-brand">
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Premium</span>
+                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="brand">For a group</x-import>
+                </div>
+                <div style="display: flex; align-items: baseline; gap: 6px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink);">$16</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">/ month</span>
+                </div>
+                <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Plan it with the people actually coming.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; color: var(--color-ink);">
+                <span>Everything in Plus</span>
+                <span>Invite the group — they add stops, vote and comment on the same plan</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">300 questions a day</span>
+                <span>Bring someone new to Caesura, get a month back</span>
+              </div>
+              <div style="margin-top: auto; display: flex; flex-direction: column; gap: 9px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ goSignup }}">Choose Premium</x-import>
+                <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">The free week covers the assistant, not the group. If you're planning with other people, this is the one.</span>
+              </div>
+            </x-import>
+
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 14px 40px; border-top: 1px solid var(--color-hairline); padding-top: 20px;">
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Cancel whenever</span>
+              <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">You keep everything to the end of the period you already paid for, then it lapses. Nothing you planned is deleted.</span>
+            </div>
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Prices can change. Yours doesn't.</span>
+              <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">You keep the price and the terms you signed up on until you choose to move to a newer plan.</span>
+            </div>
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Early access</span>
+              <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Paid plans are new. If something we sold you doesn't work, tell us and we'll sort the account out by hand.</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <div style="width: 100%; max-width: 1140px; padding: 56px 28px 78px;">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; background: var(--color-moss); border: 1px solid var(--color-hairline); border-radius: 16px; padding: 30px 32px;">
           <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -2702,7 +3463,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;vibe&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;calm&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;timeline&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;timeline&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -3130,7 +3891,7 @@ class Component extends DCLogic {
     if (mine && !mine.queued) { sum += mine.stars; n += 1; }
     return { rating: n ? sum / n : 0, count: n };
   }
-  openDay(id) { this.setState({ route: 'day', dayId: id, revStars: 0, revNote: '' }); }
+  openDay(id) { this.setState({ dayMapFail: false, route: 'day', dayId: id, revStars: 0, revNote: '' }); }
   cityChips(p, matched) {
     return p.cities.map(c => {
       const a = this.accent(c), on = matched.indexOf(c) >= 0;
@@ -3142,12 +3903,7 @@ class Component extends DCLogic {
   // filter reads as this app's own control rather than a browser select.
   filterMenus() {
     const s = this.state;
-    const defs = [
-      { key: 'fScore', label: 'Rating', idle: 'Any rating', opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
-      { key: 'fSeason', label: 'Season', idle: 'Any season', opts: ['Any season', 'Spring', 'Summer', 'Autumn', 'Winter'] },
-      { key: 'fBudget', label: 'Budget', idle: 'Any budget', opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
-      { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] }
-    ];
+    const defs = this.FILTER_DEFS;
     return defs.map(d => {
       const cur = s[d.key], set = cur !== d.idle;
       return {
@@ -3161,6 +3917,31 @@ class Component extends DCLogic {
         }))
       };
     });
+  }
+  FILTER_DEFS = [
+    { key: 'fScore', label: 'Rating', idle: 'Any rating', opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
+    { key: 'fSeason', label: 'Season', idle: 'Any season', opts: ['Any season', 'Spring', 'Summer', 'Autumn', 'Winter'] },
+    { key: 'fBudget', label: 'Budget', idle: 'Any budget', opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
+    { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] }
+  ];
+  filterCount() {
+    const s = this.state;
+    return this.FILTER_DEFS.filter(d => s[d.key] !== d.idle).length + (s.pbScope !== 'all' ? 1 : 0);
+  }
+  // The same four filters as the desktop popovers, flattened for the phone sheet.
+  filterGroups() {
+    const s = this.state;
+    return this.FILTER_DEFS.map(d => ({
+      label: d.label,
+      items: d.opts.map(o => ({
+        label: o, on: o === s[d.key],
+        tick: o === s[d.key] ? '✓' : '',
+        weight: o === s[d.key] ? '600' : '400',
+        bg: o === s[d.key] ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+        edge: o === s[d.key] ? 'var(--color-brand)' : 'var(--color-hairline)',
+        pick: () => { this.setState({ [d.key]: o }); this.refetch(); }
+      }))
+    }));
   }
   caret(color) {
     return React.createElement('svg', {
@@ -3252,6 +4033,237 @@ class Component extends DCLogic {
   // One row per person who has shared a day, ranked by real-trip adds (the answer to
   // "who is worth following"). Derived from the days themselves so it can never
   // disagree with what Discover shows.
+  // M20/M21 billing surfaces. A plan is a named SET, never a rank — the ladder
+  // below is presentation only (display order), and nothing here compares plans.
+  PLAN_META = {
+    free:    { label: 'Free',    price: '$0',  per: '',        reqs: 0,   steps: 0 },
+    plus:    { label: 'Plus',    price: '$8',  per: '/ month', reqs: 100, steps: 800 },
+    premium: { label: 'Premium', price: '$16', per: '/ month', reqs: 300, steps: 2400 }
+  };
+  PLAN_LINES = {
+    free: 'Days, stops, map, costs, saved days. No assistant, no one else on the trip.',
+    plus: 'The assistant on your own trips. 100 questions a day.',
+    premium: 'The assistant at 300 a day, and the group on the same plan.'
+  };
+  OPS_BASE = [
+    { email: 'sam@example.com', holds: 'premium v2', why: 'bought', pays: '$16.00', cost: '$1.42', state: 'active · renews 1 Oct' },
+    { email: 'mei@example.com', holds: 'premium v1', why: 'bought', pays: '$12.00', cost: '$0.88', state: 'active · renews 4 Oct' },
+    { email: 'priya@example.com', holds: 'plus v2', why: 'bought', pays: '$8.00', cost: '$9.60', state: 'active', under: true },
+    { email: 'rex@example.com', holds: 'plus v2', why: 'bought', pays: '$8.00', cost: '$12.40', state: 'active', under: true },
+    { email: 'tomas@example.com', holds: 'premium v2', why: 'bought', pays: '$16.00', cost: '$0.00', state: 'past due · grace ends 7 Sep' },
+    { email: 'luis@example.com', holds: 'plus v2', why: 'trial · ends 10 Sep', pays: '—', cost: '$0.31', state: 'granted' },
+    { email: 'malee@example.com', holds: 'premium v1', why: 'founder · no expiry', pays: '—', cost: '$6.20', state: 'granted' },
+    { email: 'dana@example.com', holds: 'plus v1', why: 'referral · to 28 Sep', pays: '—', cost: '$1.05', state: 'granted' },
+    { email: 'kenji@example.com', holds: 'free v1', why: '—', pays: '—', cost: '$0.00', state: 'free' }
+  ];
+  OPS_NAMES = ['aiko', 'ben', 'cara', 'dev', 'elin', 'fabio', 'gita', 'hugo', 'ines', 'jonas', 'kaito', 'lena', 'marc', 'nina', 'omar', 'pia', 'quinn', 'rosa', 'sami', 'tara', 'uwe', 'vera', 'wei', 'yuki', 'zoe', 'ada', 'noor'];
+  opsAll() {
+    if (this._opsAll) return this._opsAll;
+    const rows = this.OPS_BASE.slice();
+    this.OPS_NAMES.forEach((n, i) => {
+      const plan = i % 5 === 0 ? 'free' : i % 3 === 0 ? 'premium' : 'plus';
+      const v1 = i % 4 === 0;
+      const why = plan === 'free' ? '—' : i % 7 === 0 ? 'referral · to 28 Sep' : i % 11 === 0 ? 'trial · ends 12 Sep' : 'bought';
+      const pays = why !== 'bought' ? '—' : plan === 'premium' ? (v1 ? '$12.00' : '$16.00') : (v1 ? '$6.00' : '$8.00');
+      rows.push({
+        email: n + '@example.com',
+        holds: plan + ' ' + (v1 ? 'v1' : 'v2'),
+        why: why,
+        pays: pays,
+        cost: '$' + (((i * 37) % 340) / 100).toFixed(2),
+        state: plan === 'free' ? 'free' : why === 'bought' ? 'active · renews ' + (2 + (i % 26)) + ' Oct' : 'granted'
+      });
+    });
+    this._opsAll = rows;
+    return rows;
+  }
+  OPS_PLANS = [
+    { name: 'premium', grants: 'ai.ask · ai.command · trip.collaborators', versions: [
+      { v: 'v2', price: '$16.00', when: 'published 1 Sep by mitchell', held: '204 hold' },
+      { v: 'v1', price: '$12.00', when: 'published 2 Aug by mitchell', held: '41 hold' }] },
+    { name: 'plus', grants: 'ai.ask · ai.command', versions: [
+      { v: 'v2', price: '$8.00', when: 'published 1 Sep by mitchell', held: '96 hold' },
+      { v: 'v1', price: '$6.00', when: 'published 2 Aug by mitchell', held: '71 hold' }] },
+    { name: 'free', grants: 'planning only — no ai.*, no collaborators', versions: [
+      { v: 'v1', price: '$0.00', when: 'published 2 Aug by mitchell', held: '1,140 hold' }] }
+  ];
+  PLAN_STATS = {
+    premium: [{ k: 'accounts', v: '245' }, { k: 'MRR', v: '$3,704' }, { k: 'median cost 30d', v: '$1.10' }, { k: 'median margin', v: '$14.20' }],
+    plus: [{ k: 'accounts', v: '167' }, { k: 'MRR', v: '$1,116' }, { k: 'median cost 30d', v: '$0.94' }, { k: 'median margin', v: '$6.60' }],
+    free: [{ k: 'accounts', v: '1,140' }, { k: 'MRR', v: '$0' }, { k: 'median cost 30d', v: '$0.00' }, { k: 'median margin', v: '—' }]
+  };
+  opsMatch(filter, q) {
+    const needle = (q || '').trim().toLowerCase();
+    return this.opsAll().filter(a => {
+      if (needle && a.email.indexOf(needle) < 0) return false;
+      if (filter === 'paying') return a.pays !== '—';
+      if (filter === 'granted') return /trial|referral|founder|admin/.test(a.why);
+      if (filter === 'free') return a.holds.indexOf('free') === 0;
+      if (filter === 'past_due') return a.state.indexOf('past due') >= 0;
+      if (filter === 'under') return !!a.under;
+      return true;
+    });
+  }
+  ENT_WHAT = { 'ai.ask': 'ask about the plan', 'ai.command': 'let it move things', 'trip.collaborators': 'invite other people' };
+
+  billing() {
+    const s = this.state, P = this.props;
+    const plan = s.planOv || P.plan || 'premium';
+    const status = s.billOv || P.billingStatus || 'active';
+    const ops = s.opsOv || P.opsState || 'healthy';
+    const trial = status === 'trial', lapsed = status === 'lapsed', due = status === 'past_due';
+    const eff = lapsed ? 'free' : (trial ? 'plus' : plan);
+    const meta = this.PLAN_META[eff];
+    const paid = eff !== 'free';
+    const ver = eff === 'premium' ? 'v2' : eff === 'plus' ? 'v2' : 'v1';
+    const reqsUsed = eff === 'premium' ? 112 : 38, stepsUsed = eff === 'premium' ? 690 : 214;
+    const pct = (a, b) => b ? Math.min(100, Math.round(a / b * 100)) : 0;
+    const bar = (a, b) => pct(a, b) >= 80 ? 'var(--color-warning)' : 'var(--color-brand)';
+    const nf = n => n.toLocaleString('en-US');
+    const stateLine = lapsed
+      ? 'Premium ended on 12 August. Everything you planned is still here, and the four people on Japan can still read it.'
+      : due ? 'We could not take the payment on Monday 31 August.'
+      : trial ? 'Your week of Plus ends Thursday 10 September. Nothing is charged when it does — the assistant just stops answering.'
+      : paid ? 'Renews Thursday 1 October at ' + meta.price + ' a month, on the terms you bought (' + eff + ' ' + ver + ').'
+      : 'Everything about planning a trip, with no expiry and nothing metered.';
+
+    const canInvite = eff === 'premium';
+    const openDlg = (mode, extra) => this.setState(Object.assign({ opDlg: mode }, extra || {}));
+    const opsHits = this.opsMatch(s.opFilter || 'all', s.opQ || '');
+    const opsTotal = this.opsAll().length;
+    const opsFrom = Math.min(Math.max(0, (s.opPage || 0) * 8), Math.max(0, (Math.ceil(opsHits.length / 8) - 1) * 8));
+    const opsPage = opsHits.slice(opsFrom, opsFrom + 8);
+
+    return {
+      isAdminRoute: s.route === 'admin',
+      // Comment: nothing here needs to work on a phone — the entry point goes too.
+      isOperator: P.adminUser !== false && this.surface() !== 'phone',
+      goAdmin: () => this.setState({ route: 'admin', acctOpen: false }),
+
+      planLabel: meta.label,
+      planStateLabel: lapsed ? 'Lapsed' : due ? 'Payment failed' : trial ? 'Free week' : paid ? 'Active' : 'No charge',
+      planStateVariant: lapsed ? 'neutral' : due ? 'danger' : trial ? 'info' : paid ? 'success' : 'neutral',
+      planStateLine: stateLine,
+      hasBilling: paid && !trial,
+      planCtaLabel: paid && !trial ? 'Change plan' : 'Choose a plan',
+      planCtaVariant: paid && !trial ? 'secondary' : 'primary',
+      planCta: () => this.setState(st => ({ pickOpen: !st.pickOpen })),
+      openPortal: () => this.flash('Opens Stripe — card, invoices and cancelling all live there'),
+      pastDue: due,
+      dueTitle: 'Your card was declined on 31 August',
+      dueBody: 'You keep everything until Monday 7 September. After that the assistant stops and the four people on Japan drop to read-only — nothing is deleted, and paying puts them back.',
+
+      pickOpen: !!s.pickOpen,
+      planOptions: ['free', 'plus', 'premium'].map(id => {
+        const m = this.PLAN_META[id];
+        return {
+          id: id, name: m.label, price: m.price, per: m.per, line: this.PLAN_LINES[id],
+          held: id === eff, cta: id === eff ? 'What you hold' : id === 'free' ? 'Downgrade' : 'Pick ' + m.label,
+          variant: id === eff ? 'ghost' : id === 'premium' ? 'primary' : 'secondary',
+          bg: id === eff ? 'var(--color-moss)' : 'var(--color-surface)',
+          border: id === eff ? 'var(--color-border-strong)' : 'var(--color-hairline)',
+          pick: () => { if (id === eff) return; this.setState({ pickOpen: false }); this.flash(id === 'free' ? 'You keep ' + meta.label + ' until 1 October, then it lapses' : 'Opens Stripe checkout — nothing changes here until the payment clears'); }
+        };
+      }),
+
+      hasMeters: paid,
+      noMeters: !paid,
+      usage: [
+        { label: 'Questions', amt: nf(reqsUsed) + ' / ' + nf(meta.reqs), width: pct(reqsUsed, meta.reqs) + '%', fill: bar(reqsUsed, meta.reqs), note: 'Every question you ask the assistant, across all your trips.' },
+        { label: 'Steps', amt: nf(stepsUsed) + ' / ' + nf(meta.steps), width: pct(stepsUsed, meta.steps) + '%', fill: bar(stepsUsed, meta.steps), note: 'One question can take several steps. On a heavy day this is the one that runs out first.' }
+      ],
+      usageSynced: ops === 'healthy' ? 'synced 2 min ago' : 'last synced 14:02',
+      ceilingNote: 'Both ceilings come from ' + eff + ' ' + ver + ' — the version you bought. Counts reset at midnight where you are.',
+
+      canRefer: paid && !trial,
+      referNote: 'When someone new signs up with your code you get a month of ' + meta.label + ' — whatever you hold the moment they join.',
+      referCode: 'SAMK-4F2P',
+      referCta: s.refCopied ? 'Copied' : 'Copy',
+      copyRefer: () => { this.setState({ refCopied: true }); this.flash('Code copied — a month lands when someone signs up with it'); },
+
+      canInvite: canInvite,
+      inviteGated: !canInvite,
+      inviteGateTitle: lapsed ? 'Inviting needs Premium — your plan lapsed' : 'Inviting people is part of Premium',
+      inviteGateBody: lapsed
+        ? 'Mei, Priya, Sam and Kenji are still on this trip and can still read it. Going back to Premium puts them back to editing, exactly as they were.'
+        : 'Premium is the plan where other people can open your trip and add to it. It is not in the free week, so this is the first time you have met it — everyone you invite can add stops, vote and comment, and you stay the only one who can move dates or delete days.',
+      inviteGateCta: lapsed ? 'Sort the plan out' : 'See Premium',
+      openAccountBilling: () => this.setState({ setOpen: false, acctSheet: true, pickOpen: true }),
+      crewCapped: lapsed,
+      cappedTitle: 'Everyone here is read-only',
+      cappedBody: 'Nobody was removed and nothing was rewritten — while the plan is lapsed, everyone except you is capped at reading. Paying again restores all four to editing with no re-invites.',
+
+      opStale: ops === 'webhooks-behind',
+      opConflict: ops === 'version-conflict',
+      opsMetrics: [
+        { k: 'MRR', v: '$4,820', delta: '+$610', deltaInk: 'var(--color-success-ink)', divider: 'transparent', sub: '412 active subscriptions, up 38 this month' },
+        { k: 'ARPU · all accounts', v: '$2.94', delta: '', deltaInk: 'var(--color-slate)', divider: 'var(--color-hairline)', sub: 'Across all 1,640 accounts — comped and trial included' },
+        { k: 'ARPU · paying only', v: '$11.70', delta: '', deltaInk: 'var(--color-slate)', divider: 'var(--color-hairline)', sub: 'The 412 that pay. Quote both of these or neither.' },
+        { k: 'Margin per paying account', v: '$11.06', delta: 'median', deltaInk: 'var(--color-slate)', divider: 'var(--color-hairline)', sub: 'Trailing 30 days — what they pay minus their model tokens' }
+      ],
+
+      opQ: s.opQ || '',
+      setOpQ: e => this.setState({ opQ: e.target.value, opPage: 0 }),
+      opFilters: [
+        { id: 'all', label: 'All' }, { id: 'paying', label: 'Paying' }, { id: 'granted', label: 'Granted' },
+        { id: 'free', label: 'Free' }, { id: 'past_due', label: 'Past due' }, { id: 'under', label: 'Costs more than it pays' }
+      ].map(fl => {
+        const on = (s.opFilter || 'all') === fl.id;
+        return Object.assign({}, fl, {
+          count: this.opsMatch(fl.id, '').length,
+          bg: on ? 'var(--color-ink)' : 'var(--color-surface)',
+          border: on ? 'var(--color-ink)' : 'var(--color-hairline)',
+          ink: on ? 'var(--color-surface)' : 'var(--color-ink)',
+          countInk: on ? 'var(--color-hairline)' : 'var(--color-slate)',
+          pick: () => this.setState({ opFilter: fl.id, opPage: 0 })
+        });
+      }),
+      opsAccounts: opsPage.map(a => Object.assign({}, a, {
+        rowBg: a.under ? 'var(--color-danger-tint)' : 'transparent',
+        costInk: a.under ? 'var(--color-danger-ink)' : 'var(--color-ink)',
+        grant: () => openDlg('grant', { opAccount: a.email, opPlan: 'premium', opVersion: 'v2', opSource: 'admin' })
+      })),
+      opRange: opsHits.length ? 'Showing ' + (opsFrom + 1) + '–' + Math.min(opsHits.length, opsFrom + 8) + ' of ' + opsHits.length + (opsHits.length === opsTotal ? '' : ' matching · ' + opsTotal + ' accounts') : '0 of ' + opsTotal + ' accounts',
+      opAtStart: opsFrom === 0,
+      opAtEnd: opsFrom + 8 >= opsHits.length,
+      opPrev: () => this.setState(st => ({ opPage: Math.max(0, (st.opPage || 0) - 1) })),
+      opNext: () => this.setState(st => ({ opPage: (st.opPage || 0) + 1 })),
+      opNone: opsHits.length === 0,
+      opNoneLine: 'Nothing in ' + (s.opFilter === 'all' || !s.opFilter ? 'all accounts' : 'that filter') + ' matches “' + (s.opQ || '') + '”.',
+      opClear: () => this.setState({ opFilter: 'all', opQ: '', opPage: 0 }),
+
+      underPayCount: '2',
+      underPayLine: 'paying accounts whose trailing model cost is above what they pay — $16.00 in, $22.00 out',
+      showUnder: () => this.setState({ opFilter: 'under', opQ: '', opPage: 0 }),
+      underwaterGrant: [
+        { source: 'founder', line: '18 accounts · $41.60' },
+        { source: 'trial', line: '12 · $3.90' },
+        { source: 'referral', line: '5 · $6.10' },
+        { source: 'admin', line: '2 · $0.70' }
+      ],
+      opsPlans: this.OPS_PLANS.map(p => Object.assign({}, p, {
+        stats: this.PLAN_STATS[p.name]
+      })),
+
+      opDlgOpen: !!s.opDlg,
+      opGrant: true,
+      opDlgTitle: 'Grant entitlements by hand',
+      opCta: 'Grant',
+      setOpDlg: v => { if (!v) this.setState({ opDlg: null }); },
+      closeOpDlg: () => this.setState({ opDlg: null }),
+      opAccount: s.opAccount || 'mei@example.com',
+      opPlan: s.opPlan || 'premium', setOpPlan: e => this.setState({ opPlan: e.target.value }),
+      opVersion: s.opVersion || 'v2', setOpVersion: e => this.setState({ opVersion: e.target.value }),
+      opSource: s.opSource || 'admin', setOpSource: e => this.setState({ opSource: e.target.value }),
+      opExpiry: s.opExpiry || '2026-10-02', setOpExpiry: e => this.setState({ opExpiry: e.target.value }),
+      opGrantNote: 'The grant pins ' + (s.opPlan || 'premium') + ' ' + (s.opVersion || 'v2') + ', so publishing a newer version later does not move it. It applies on their next request — no sign-out, no token refresh.',
+      confirmOp: () => {
+        this.setState({ opDlg: null });
+        this.flash('Granted ' + (s.opPlan || 'premium') + ' ' + (s.opVersion || 'v2') + ' to ' + (s.opAccount || 'mei@example.com') + ' — live on their next request');
+      }
+    };
+  }
+
   contributors() {
     const by = {};
     this.PLAYBOOKS.forEach(p => {
@@ -3401,6 +4413,7 @@ class Component extends DCLogic {
     const p = this.PLAYBOOKS.filter(x => x.id === id)[0];
     if (!p) return { author: {}, stops: [], reviews: [], tags: [], cityChips: [], bars: [], facts: [], stars: [], starInput: [] };
     const live = this.liveRating(p), mine = this.myRev(p.id), multi = p.cities.length > 1;
+    const geo = this.pbGeo(p);
     const qc = s.qCities.map(c => c.toLowerCase());
     const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
 
@@ -3442,17 +4455,62 @@ class Component extends DCLogic {
             : dn + ' · added ' + this.nAdds(c.adds) + ' times · this one ' + p.shared;
         }).call(this, this.contributorOf(p.author.name))
       },
-      stops: p.full.map(x => Object.assign({ t: x[0], n: x[1], city: x[2], note: x[3], showCity: multi }, this.accent(x[2]))),
+      stops: p.full.map((x, i) => Object.assign({
+        t: x[0], n: x[1], city: x[2], note: x[3], showCity: multi,
+        num: i + 1,
+        pin: (geo && geo.transit[i]) ? 'var(--color-slate)' : (geo ? geo.solid : 'var(--color-brand)'),
+        isTransit: !!(geo && geo.transit[i]),
+        nameInk: (geo && geo.transit[i]) ? 'var(--color-slate)' : 'var(--color-ink)',
+        tags: this.pbStopTags(x, geo && geo.transit[i]).map(id => this.TAG(id)),
+        hasTags: this.pbStopTags(x, geo && geo.transit[i]).length > 0,
+        gap: geo && geo.gaps[i] ? geo.gaps[i].label : '',
+        gapStroke: geo && geo.gaps[i] && geo.gaps[i].ride ? 'dotted' : 'solid',
+        gapColor: geo && geo.gaps[i] && geo.gaps[i].ride ? 'var(--color-border-strong)' : (geo ? geo.solid : 'var(--color-hairline)')
+      }, this.accent(x[2]))),
+      // What is actually IN the day, from the tags the stops carry — the thing you
+      // are trying to answer at a glance. Counted once, never repeated below.
+      tagRoll: (function () {
+        const n = {};
+        p.full.forEach((x, i) => this.pbStopTags(x, geo && geo.transit[i]).forEach(id => { n[id] = (n[id] || 0) + 1; }));
+        return ['meal', 'lodging', 'ticketed', 'outdoors'].filter(id => n[id]).map(id => {
+          const t = this.TAG(id);
+          return {
+            label: n[id] + ' ' + (id === 'meal' ? (n[id] === 1 ? 'meal' : 'meals') : id === 'lodging' ? 'to sleep' : id === 'ticketed' ? 'ticketed' : 'outdoors'),
+            bg: t.bg, ink: t.ink,
+            // Outdoors is the one tag whose tint IS the surface — in a row of tinted
+            // chips it needs an edge to read as a chip at all.
+            bd: id === 'outdoors' ? '1px solid var(--color-hairline)' : '1px solid transparent'
+          };
+        });
+      }).call(this),
+      bookCount: (function () {
+        let n = 0;
+        p.full.forEach((x, i) => { if (this.pbStopTags(x, geo && geo.transit[i]).indexOf('ticketed') >= 0) n++; });
+        return n;
+      }).call(this),
+      bookLine: (function () {
+        let n = 0, moves = 0;
+        p.full.forEach((x, i) => {
+          if (this.pbStopTags(x, geo && geo.transit[i]).indexOf('ticketed') >= 0) n++;
+          if (geo && geo.transit[i]) moves++;
+        });
+        const bits = [];
+        if (n) bits.push(n === 1 ? 'One stop needs booking ahead' : n + ' stops need booking ahead');
+        if (moves) bits.push(moves === 1 ? 'one leg is pure transit' : moves + ' legs are pure transit');
+        return bits.join(' · ');
+      }).call(this),
+      hasMap: !!geo, showMap: !!geo && !s.syncOff, mapOffline: !!geo && !!s.syncOff, mapNote: geo ? geo.note : '', mapFacts: geo ? geo.facts : [],
+      mapTitle: geo ? geo.title : '', mapColor: geo ? geo.solid : 'var(--color-brand)',
+      hasRides: !!(geo && !geo.walkOnly),
       rated: live.count > 0, unrated: live.count === 0,
       stars: this.starsOf(live.rating), ratingLabel: live.rating.toFixed(1),
       reviewLabel: live.count + (live.count === 1 ? ' review' : ' reviews'),
       reviewMeta: live.count ? live.count + ' from people who added this day' : 'nothing yet',
       bars: [5, 4, 3, 2, 1].map((nStar, i) => ({ n: nStar, c: counts[i], w: (counts[i] / top * 100).toFixed(0) + '%' })),
+      // Stops / window / month already read in the line under the title — the panel
+      // carries only what is not up there.
       facts: [
-        { k: 'Stops', v: p.stops + (p.days > 1 ? ' over ' + p.days + ' days' : '') },
-        { k: 'Window', v: p.span },
         { k: 'Budget each', v: '$' + p.budget },
-        { k: 'Run in', v: this.seasonOf(p.month) + ' · ' + p.month },
         { k: 'Added to trips', v: this.nAdds(p.adds) + '×' }
       ],
       conflict: conflict,
@@ -3610,6 +4668,8 @@ class Component extends DCLogic {
       // The assistant floats now, so a narrow window no longer has to evict it —
       // it only needs pulling back inside the viewport.
       this.setState(s => ({ asstPos: s.asstPos ? this.asstClamp(s.asstPos.x, s.asstPos.y, s.asst) : null }));
+      // the shared day's map height changes at the mobile breakpoint
+      if (this._dmap) { this._dmap.resize(); this.drawPbMap(true); }
     };
     window.addEventListener('resize', this._rz);
     this._rz();
@@ -3855,12 +4915,219 @@ class Component extends DCLogic {
       this.setState({ asst: this.props.assistantDefault !== 'bubble' && window.innerWidth > 1180, asstPos: null });
     }
     if (ps && (ps.view !== this.state.view || ps.route !== this.state.route || ps.tripId !== this.state.tripId)) this.stopRail();
+    if (this.state.route === 'day') setTimeout(() => this.syncPbMap(), 0);
     if (this.surface() === 'phone') this.syncPhoneRail();
     if (this.surface() === 'phone' && this.state.phoneTab === 'map' && this.state.route === 'trip') setTimeout(() => this._phoneMap(), 0);
     else if (this._pmap && (this.surface() !== 'phone' || this.state.phoneTab !== 'map')) {
       try { this._pmap.remove(); } catch (e) {}
       this._pmap = null; this._pmapReady = false; this._pmarks = [];
     }
+  }
+
+  // A shared day has geography too — same coordinates, same lens as the trip's map.
+  // 't' marks a stop that IS transit, so the leg into it draws as a ride.
+  PB_GEO = {
+    'pb-higashiyama': [[135.7727, 34.9671], [135.7803, 34.9958], [135.7850, 34.9949], [135.7796, 35.0000], [135.7807, 34.9989]],
+    'pb-treme': [[-90.0344, 29.9633], [-90.0555, 29.9668], [-90.0770, 29.9646], [-90.0692, 29.9639], [-90.0578, 29.9629]],
+    'pb-shibuya': [[139.6987, 35.6437], [139.6975, 35.6465], [139.7030, 35.6485], [139.6982, 35.6420], [139.7060, 35.6690], [139.7080, 35.6320]],
+    'pb-naoshima': [[135.5003, 34.7334, 't'], [133.9490, 34.4880, 't'], [133.9925, 34.4568], [133.9960, 34.4520], [133.9946, 34.4585], [133.9970, 34.4700, 't']],
+    'pb-arashiyama': [[135.6737, 35.0158], [135.6780, 35.0125], [135.6704, 35.0186], [135.7627, 35.0155]],
+    'pb-kyoto3': [[135.7727, 34.9671], [135.7752, 35.0037], [135.6737, 35.0158], [135.7648, 35.0050], [135.7982, 35.0270], [135.7690, 35.0043]],
+    'pb-uji': [[135.7727, 34.9671], [135.7720, 34.9679, 't'], [135.8077, 34.8892], [135.8073, 34.8912], [135.8060, 34.8905], [135.7581, 34.9858, 't']],
+    'pb-nara-osaka': [[135.8430, 34.6851], [135.8398, 34.6890], [135.8483, 34.6813], [135.8296, 34.6841, 't'], [135.5063, 34.6524], [135.5030, 34.6670], [135.5010, 34.6620]],
+    'pb-kamakura': [[139.7016, 35.6580, 't'], [139.5666, 35.3216], [139.5359, 35.3169], [139.5117, 35.3062], [139.5235, 35.3058], [139.7016, 35.6580, 't']],
+    'pb-hakone': [[139.1553, 35.2564, 't'], [139.0400, 35.2440, 't'], [139.0470, 35.2440], [139.0200, 35.2440], [139.0257, 35.2000], [139.0538, 35.2286]],
+    'pb-bywater': [[-90.0295, 29.9673], [-90.0447, 29.9648], [-90.0287, 29.9605], [-90.0330, 29.9615], [-90.0289, 29.9662]],
+    'pb-sintra': [[-9.1428, 38.7148, 't'], [-9.3907, 38.7876], [-9.3966, 38.7962], [-9.3899, 38.7981], [-9.1428, 38.7148, 't'], [-9.1300, 38.7166], [-9.1288, 38.7110]],
+    'pb-cascais': [[-9.1453, 38.7060, 't'], [-9.4207, 38.6979], [-9.4275, 38.6947], [-9.4283, 38.6944], [-9.4737, 38.7325], [-9.3980, 38.7050]]
+  };
+
+  // A published day carries the four real tags (KI-52 dropped Considering and Travel —
+  // both are kinds now, not tags). Playbook seed text predates the field, so the tags
+  // are read off the stop the same way inferTags() does for trip seed data.
+  PB_TAGWORDS = {
+    meal: /dinner|lunch|breakfast|coffee|espresso|yakitori|sushi|ramen|market|tea|bakery|buffet|gumbo|praline|wine|kaiseki|omakase|highball|matcha|soba|fish|bacchanal|tascantiga|hisago|yoshida|kikunoi|nakamura|elizabeth|dooky|frenchmen|kuromon|dōtonbori|nishiki|gion|arabica|onibus|solo /,
+    lodging: /check in|hotel|ryokan|kadan|nazuna|zentis|trunk|nap/,
+    ticketed: /museum|palace|regaleira|chich|benesse|castle|timed|free pass|ticket|byōdō|tōdai|kōtoku|kiyomizu|pena|tenzan|ropeway|fado|onsen/,
+    outdoors: /park|grove|garden|beach|coast|cliff|path|walk|river|levee|falls|inari|shrine|bamboo|island|bay|seaside|promenade|mountain|deer|sunset|lantern|kōdai|tenry|ginkaku|kasuga|crescent|guincho|ashi/
+  };
+  pbStopTags(x, transit) {
+    if (transit) return [];
+    const t = (x[1] + ' ' + (x[3] || '')).toLowerCase(), out = [];
+    ['meal', 'lodging', 'ticketed', 'outdoors'].forEach(k => { if (this.PB_TAGWORDS[k].test(t)) out.push(k); });
+    return out.slice(0, 2);
+  }
+
+  // Same shape as mapDay(): points, legs, and the numbers that describe how the day moves.
+  pbGeo(p) {
+    if (!p) return null;
+    const g = this.PB_GEO[p.id];
+    if (!g) return null;
+    const ac = this.accent(p.cities[0]);
+    const pts = [];
+    p.full.forEach((x, i) => {
+      const c = g[i];
+      if (c) pts.push({ n: pts.length + 1, idx: i, c: [c[0], c[1]], transit: c[2] === 't', title: x[1], time: x[0] });
+    });
+    if (pts.length < 2) return null;
+    const legs = [], gaps = {}, transit = {};
+    pts.forEach(pt => { if (pt.transit) transit[pt.idx] = true; });
+    for (let j = 0; j < pts.length - 1; j++) {
+      const km = this.hav(pts[j].c, pts[j + 1].c);
+      const ride = km > 1.6 || pts[j].transit || pts[j + 1].transit;
+      const perMin = km > 60 ? 2.2 : km > 12 ? 1.0 : 0.62;
+      const mins = ride ? Math.max(8, Math.round(km / perMin)) : Math.max(3, Math.round(km / 0.075));
+      const leg = { a: pts[j], b: pts[j + 1], km: km, ride: ride, mins: mins };
+      legs.push(leg);
+      gaps[pts[j].idx] = {
+        label: this.minLabel(mins) + (ride ? ' by train or taxi' : ' walk') + ' · ' + this.kmLabel(km),
+        ride: ride
+      };
+    }
+    const walk = legs.filter(l => !l.ride), ride = legs.filter(l => l.ride);
+    const walkKm = walk.reduce((a, l) => a + l.km, 0), rideKm = ride.reduce((a, l) => a + l.km, 0);
+    const walkMins = walk.reduce((a, l) => a + l.mins, 0), rideMins = ride.reduce((a, l) => a + l.mins, 0);
+    let span = 0;
+    pts.forEach(a => pts.forEach(b => { const v = this.hav(a.c, b.c); if (v > span) span = v; }));
+    const total = walkKm + rideKm, wander = span > 0.4 ? total / span : 1;
+    const longest = legs.slice().sort((a, b) => b.km - a.km)[0];
+    const transitShare = total > 0 ? rideKm / total : 0;
+    const note = transitShare > 0.8 && rideMins > 90
+      ? 'Mostly transit — about ' + this.minLabel(rideMins) + ' of the day is spent moving.'
+      : wander < 1.5 ? 'One clean line. It never doubles back on itself.'
+      : wander < 2.6 ? 'A loop — it ends near where it started.'
+      : 'It criss-crosses. Expect to cover the same ground twice.';
+    const facts = [];
+    if (walkKm > 0.05) facts.push({ k: 'On foot', v: this.kmLabel(walkKm) + ' · ' + this.minLabel(walkMins) });
+    if (rideKm > 0.05) facts.push({ k: 'By train or taxi', v: this.kmLabel(rideKm) + ' · ' + this.minLabel(rideMins) });
+    facts.push({ k: 'Widest point to point', v: this.kmLabel(span) });
+    return {
+      pts: pts, legs: legs, gaps: gaps, transit: transit, color: this.rgbOf(ac.solid), solid: ac.solid,
+      note: note, facts: facts, longest: longest, walkOnly: rideKm <= 0.05,
+      title: p.cities.length > 1 ? p.cities.join(' → ') : p.cities[0]
+    };
+  }
+
+  syncPbMap() {
+    const s = this.state;
+    const on = s.route === 'day' && !s.syncOff && (this.surface() !== 'phone' || !!s.dayMapOpen);
+    if (!on) {
+      clearTimeout(this._pbT); clearInterval(this._dmapPoll); this._pbTries = 0;
+      if (this._dmap) { try { this._dmap.remove(); } catch (e) {} this._dmap = null; this._dmapFor = null; this._dmapDay = null; this._dmarkFor = null; this._dmarks = []; }
+      return;
+    }
+    // Both surfaces render at once (the phone is an overlay over the desktop tree),
+    // so each owns its own container id.
+    const el = document.getElementById(this.surface() === 'phone' ? 'pbdaymapm' : 'pbdaymap');
+    // The container arrives with the sc-if subtree, which can commit after this
+    // frame. Drop the latch so the next render tries again instead of never.
+    if (!el || !window.maplibregl) {
+      this._pbSnap = null;
+      this._pbTries = (this._pbTries || 0) + 1;
+      if (this._pbTries < 24) { clearTimeout(this._pbT); this._pbT = setTimeout(() => this.syncPbMap(), 90); }
+      return;
+    }
+    this._pbTries = 0;
+    const geo = this.pbGeo(this.PLAYBOOKS.filter(x => x.id === s.dayId)[0]);
+    if (!geo) return;
+    if (this._dmap && this._dmap.getContainer() !== el) {
+      try { this._dmap.remove(); } catch (e) {}
+      this._dmap = null; this._dmapFor = null; this._dmapDay = null; this._dmarkFor = null; this._dmarks = [];
+    }
+    if (!this._dmap) {
+      // A remount can leave an orphaned canvas from a previous instance in this
+      // container — start from an empty node so only one map ever lives here.
+      if (el.firstChild) el.innerHTML = '';
+      const map = new maplibregl.Map({ container: el, style: this.MAP_STYLE, center: geo.pts[0].c, zoom: 11, attributionControl: false });
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      this._dmap = map; this._dmapDay = null; this._dmapFor = null; this._dmarks = [];
+      // 'load' can be missed when an instance is swapped mid-flight, so idle and a
+      // short poll converge on the same draw — whichever arrives first wins, and
+      // drawPbMap() owns its own sources, so running it twice is harmless.
+      const draw = () => this.drawPbMap(true);
+      map.on('load', draw);
+      map.on('idle', draw);
+      map.on('error', () => { this._dmapErrs = (this._dmapErrs || 0) + 1; });
+      this.armPbPoll();
+      return;
+    }
+    this._dmap.resize();
+    this.drawPbMap(true);
+    // Re-armed on every sync: the poll is the only thing that guarantees a draw, so
+    // it must not depend on which call created the instance.
+    this.armPbPoll();
+  }
+
+  // Runs until THIS instance has actually drawn (drawPbMap sets _dmapFor), not until
+  // some day id matches. If the style stalls, the instance is rebuilt twice before we
+  // admit defeat and show the no-tiles panel.
+  armPbPoll() {
+    clearInterval(this._dmapPoll);
+    if (this._dmapFor === this._dmap && this._dmapDay === this.state.dayId) return;
+    let n = 0;
+    this._dmapPoll = setInterval(() => {
+      const map = this._dmap;
+      if (!map || this.state.route !== 'day') { clearInterval(this._dmapPoll); return; }
+      this.drawPbMap(true);
+      if (this._dmapFor === map && this._dmapDay === this.state.dayId) { clearInterval(this._dmapPoll); return; }
+      n++;
+      if (n === 14 || n === 30) {
+        // Style never finished for this instance — rebuild it once, then once more.
+        this._dmapRebuilds = (this._dmapRebuilds || 0) + 1;
+        try { map.remove(); } catch (e) {}
+        this._dmap = null; this._dmapFor = null; this._dmapDay = null; this._dmarks = [];
+        clearInterval(this._dmapPoll);
+        this._pbSnap = null;
+        setTimeout(() => this.syncPbMap(), 60);
+        return;
+      }
+      if (n > 46) {
+        clearInterval(this._dmapPoll);
+        if (!this.state.dayMapFail) this.setState({ dayMapFail: true });
+      }
+    }, 250);
+  }
+
+  // Idempotent: it creates whatever the current map instance is missing, so it is
+  // safe to call on load, on idle, on a poll, or after a day switch.
+  drawPbMap(snap) {
+    const map = this._dmap;
+    if (!map) return;
+    const geo = this.pbGeo(this.PLAYBOOKS.filter(x => x.id === this.state.dayId)[0]);
+    if (!geo) return;
+    const color = geo.color;
+    // Pins and framing need only the map, so they go on immediately — a slow style
+    // must never leave the panel looking empty. The line layers wait for the style.
+    if (map.isStyleLoaded()) {
+      if (!map.getSource('s-dwalk')) {
+        ['dwalk', 'dride'].forEach(k => map.addSource('s-' + k, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }));
+        map.addLayer({ id: 'l-dride', type: 'line', source: 's-dride', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-dasharray': [0.2, 1.9], 'line-opacity': 0.9 } });
+        map.addLayer({ id: 'l-dwalk', type: 'line', source: 's-dwalk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 3.4 } });
+      }
+      const walk = [], ride = [];
+      geo.legs.forEach(l => (l.ride ? ride : walk).push({
+        type: 'Feature', properties: { color: color }, geometry: { type: 'LineString', coordinates: [l.a.c, l.b.c] }
+      }));
+      map.getSource('s-dwalk').setData({ type: 'FeatureCollection', features: walk });
+      map.getSource('s-dride').setData({ type: 'FeatureCollection', features: ride });
+      this._dmapDay = this.state.dayId;
+      this._dmapFor = map;
+    }
+    if (this._dmarkFor === map && this._dmarkDay === this.state.dayId) return;
+    this._dmarkFor = map; this._dmarkDay = this.state.dayId;
+    (this._dmarks || []).forEach(m => m.remove());
+    this._dmarks = geo.pts.map(p => {
+      const el = document.createElement('div');
+      el.style.cssText = 'width:24px;height:24px;border-radius:50%;background:' + color +
+        ';color:#fff;font:600 11px/24px var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.28);';
+      el.textContent = p.n;
+      el.title = p.time + ' · ' + p.title;
+      return new maplibregl.Marker({ element: el }).setLngLat(p.c).addTo(map);
+    });
+    const b = new maplibregl.LngLatBounds();
+    geo.pts.forEach(p => b.extend(p.c));
+    map.fitBounds(b, { padding: { top: 54, bottom: 96, left: 60, right: 60 }, maxZoom: 14.4, duration: snap ? 0 : 520 });
   }
 
   MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
@@ -5124,6 +6391,9 @@ class Component extends DCLogic {
       if (prevSnap && (prevSnap.view !== snap.view || prevSnap.route !== snap.route || prevSnap.tripId !== snap.tripId)) this.stopRail();
       requestAnimationFrame(() => this.syncMap(prevSnap));
     }
+    // the shared-day map is a second canvas, reconciled the same way
+    const pbSnap = route === 'day' ? s.dayId + ':' + (s.syncOff ? 'off' : 'on') + ':' + this.surface() + ':' + (s.dayMapOpen ? 'open' : 'shut') : '';
+    if (this._pbSnap !== pbSnap) { this._pbSnap = pbSnap; requestAnimationFrame(() => this.syncPbMap()); }
 
     // Built from the trip's real date range, week by week — a trip that crosses a
     // month boundary keeps every day on its true date, with the month named at the
@@ -5195,6 +6465,7 @@ class Component extends DCLogic {
     const dv = this.discover();
     const dayView = this.dayView(s.dayId);
     return {
+      ...this.billing(),
       isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks', isDay: route === 'day', isBoard: route === 'board', isProfile: route === 'profile',
 
       acctOpen: !!s.acctOpen,
@@ -5563,20 +6834,48 @@ class Component extends DCLogic {
       phoneGoPlan: () => this.setState({ phoneTab: 'plan' }),
       phoneRetryMap: () => { this.setState({ mapOffline: false }); if (this._pmap) { try { this._pmap.remove(); } catch (e) {} this._pmap = null; this._pmapReady = false; this._pmarks = []; } setTimeout(() => this._phoneMap(), 0); },
       phoneNb: route === 'trip' && s.phoneTab === 'notebook',
-      phoneTrips: route !== 'trip',
+      // Every phone screen is an explicit route — 'playbooks' and 'day' own theirs, so
+      // Trips must not fall through to "anything that isn't a trip".
+      phoneTrips: route === 'home' || route === 'board' || route === 'profile',
+      // Playbooks is account-scope, like Trips — so it is a route, not a view of the
+      // open trip. 'plan'/'map'/'notebook' remain views onto the trip.
+      phonePb: route === 'playbooks',
+      phonePbDay: route === 'day',
       phoneTabs: [
         { id: 'plan', glyph: '▤', label: 'Plan' },
         { id: 'map', glyph: '◎', label: 'Map' },
         { id: 'notebook', glyph: '✎', label: 'Notebook' },
+        { id: 'playbooks', glyph: '❖', label: 'Playbooks' },
         { id: 'trips', glyph: '☰', label: 'Trips' }
-      ].map(t => ({
-        glyph: t.glyph, label: t.label,
-        ink: (t.id === 'trips' ? route !== 'trip' : route === 'trip' && s.phoneTab === t.id) ? 'var(--color-brand)' : 'var(--color-slate)',
-        weight: (t.id === 'trips' ? route !== 'trip' : route === 'trip' && s.phoneTab === t.id) ? '600' : '400',
-        go: () => t.id === 'trips'
-          ? this.setState({ route: 'home' })
-          : this.setState({ phoneTab: t.id, route: 'trip' })
-      })),
+      ].map(t => {
+        const on = t.id === 'trips' ? (route === 'home' || route === 'board' || route === 'profile')
+          : t.id === 'playbooks' ? (route === 'playbooks' || route === 'day')
+          : route === 'trip' && s.phoneTab === t.id;
+        return {
+          glyph: t.glyph, label: t.label,
+          ink: on ? 'var(--color-brand)' : 'var(--color-slate)',
+          weight: on ? '600' : '400',
+          go: () => t.id === 'trips' ? this.setState({ route: 'home' })
+            : t.id === 'playbooks' ? this.setState({ route: 'playbooks' })
+            : this.setState({ phoneTab: t.id, route: 'trip' })
+        };
+      }),
+      // One level of controls only (CLAUDE.md rule 3): the phone puts every filter in
+      // a single sheet as plain option rows — no popover inside a popover.
+      pbSheetOpen: !!s.pbSheet,
+      openPbSheet: () => this.setState({ pbSheet: true, fOpen: null }),
+      setPbSheet: v => this.setState({ pbSheet: !!v }),
+      pbFilterGroups: this.filterGroups(),
+      pbFilterCount: this.filterCount(),
+      pbFilterCountLabel: this.filterCount() ? String(this.filterCount()) : '',
+      hasPbFilters: this.filterCount() > 0,
+      // Collapsed by default on the phone: the list is the content, the route is a
+      // question you ask of it.
+      dayMapOpen: !!s.dayMapOpen,
+      dayMapCta: s.dayMapOpen ? 'Hide' : 'Show route',
+      dayMapPanel: !!s.dayMapOpen && !s.syncOff && !s.dayMapFail,
+      dayMapOfflinePanel: !!s.dayMapOpen && (!!s.syncOff || !!s.dayMapFail),
+      toggleDayMap: () => this.setState(st => ({ dayMapOpen: !st.dayMapOpen, dayMapFail: false })),
       phoneDayLabel: focusDay ? focusDay.label : '',
       phoneDayDate: focusDay ? focusDay.dateLabel : '',
       phoneDayCost: focusDay ? focusDay.costLabel : '',
@@ -5630,7 +6929,9 @@ class Component extends DCLogic {
       dowHeads: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], cells, calMonths,
       openInsertFromTrip: () => this.setState({ insOpen: true }),
 
-      asstOpen: s.asst, asstClosed: !s.asst,
+      // Rule 2: the assistant is trip-scoped chrome. The operator console has
+      // nothing for it to act on, so neither the panel nor the bubble renders there.
+      asstOpen: s.asst && s.route !== 'admin', asstClosed: !s.asst && s.route !== 'admin',
       asstX: s.asstDock ? 'auto' : this.asstAt(s.asst).x + 'px',
       asstY: s.asstDock ? 'auto' : this.asstAt(s.asst).y + 'px',
       asstCursor: s.asstDock ? 'default' : (s.asstDragging ? 'grabbing' : 'grab'),
@@ -5755,6 +7056,14 @@ class Component extends DCLogic {
       },
 
       insOpen: s.insOpen, setInsOpen: v => this.setState({ insOpen: v }), closeIns: () => this.setState({ insOpen: false }),
+      // Radix portals to <body>, which sits under the phone overlay — so the phone
+      // renders its own in-frame sheet and the Dialog stays desktop-only.
+      insOpenDesktop: !!s.insOpen && this.surface() !== 'phone',
+      phoneIns: !!s.insOpen && this.surface() === 'phone',
+      insDayVal: s.insDay,
+      setInsDaySel: e => this.setState({ insDay: e.target.value }),
+      closePbSheet: () => this.setState({ pbSheet: false }),
+      noPbFilters: this.filterCount() === 0,
       insName: insPb.name + ' · ' + insPb.cities.join(' → ') + ' · ' + (insPb.days > 1 ? insPb.days + ' days, ' : '') + insPb.stops + ' stops',
       insLede: ins.lede,
       insTrip: s.insTripId,

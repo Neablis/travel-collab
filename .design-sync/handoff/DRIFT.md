@@ -2,6 +2,7 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
+Design side refreshed 2026-09-02 (§2c billing surfaces; §2d the shared-day map and the phone Playbooks tab).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -21,6 +22,7 @@ shelled, not missing* — it is not a design gap.
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins; design should add it back or the build should drop it. Only survivor of the old D5 list. |
 | **D4** | New-trip "roughly when?" chips | `CreateTrip` (`contracts/src/trip.ts`) carries **name only** | First-run screen offers date-range chips | Shipped as a Preview-wrapped shell with a dashed border reading "needs a `CreateTrip` field". Contract change, or delete. |
 | **D6** | "Next trip" | `TripSummary` has no dates, so `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown derived from `TODAY` / `NEXT_TRIP_START` | **= their KI-34, still open**, and worse than first written: with nothing to sort by, the hero can surface the *wrong trip*, not just the wrong date. Countdown is honest in design and unbuildable until the field lands. |
+| **D10** | Billing | Nothing — no `plan`, no `plan_versions`, no `entitlement_grants`, no `is_admin`, no `subscriptions`, no `ai_usage`. `modelSelection.ts:89` is still `EVERYONE_IS_ENTITLED` | Four surfaces: pricing, operator console, the collaboration gate, plan + usage (§2c) | Design is ahead on purpose and blocked on **all** of M20 and M21. Not a defect on either side. |
 | **D9** | Playbooks scope | `playbooks-route` shell, private days only | Public search, reviews, ratings, leaderboard, profiles (§2b) | Design is far ahead. Needs `cities[]`, a city search endpoint and a reviews table before it is buildable. |
 | **D8** | Landing page has no route | nothing — the unauthenticated branch is four lines | A full screen with a rotating hero and three feature blocks | New with §2. Needs a real marketing route, not a conditional inside `page.tsx`. |
 
@@ -123,6 +125,56 @@ board — an adds ledger keyed by (day, trip) so an add can be counted once and 
 dated trip. A public user record is NOT needed: profiles are derived from days. Until
 the reviews table exists, every rating on this surface is fixture data.
 
+## 2c. New this turn — the billing surfaces (M20 / M21)
+
+`SPEC.md` §17 is the whole design. Four surfaces, **all fixture data**, and the two prices
+are placeholders: M21's own prerequisite makes the price Mitchell's decision, and the design
+has not made it. What matters for planning:
+
+- **They are blocked on the milestones, not on a field.** M20 introduces an Entitlements
+  module to `AGENTS.md`'s module map — structural law, ADR due before it opens. Until M20
+  lands there is no plan, no grant, no resolver and no `is_admin`; until M21 lands there is
+  no subscription, no MRR and no ARPU. Nothing here is a shell to wire up.
+- **The design asserts no new gate.** The two gates it shows are M20 link 4 (AI, 402 with
+  `ai-not-entitled`) and link 6 (invites, capped on read). If a diff written against these
+  screens touches `modelSelection.ts`, `quota.ts` or `members.ts` during **M21**, that is
+  M21's split failing, not the design asking for it.
+- **The ladder is presentation only.** Three plan cards nest in copy; nothing in the design
+  reads a display order as authority or derives one plan from another. A pricing page is the
+  most likely place for M20's enumeration rule to be lost quietly.
+- **Publishing and migrating plan versions are deliberately absent from the UI**
+  (Mitchell, 2026-09-02), which narrows M20 link 7: the admin surface owes the accounts
+  list, effective entitlements, grant history, granting and revoking, and per-tier stats —
+  **not** the two plan-version operations. Versions are still immutable and still pinned;
+  they are published from the repo. If link 7's exit gate is read as requiring publish-in-UI,
+  that gate and this design disagree, and the design is the newer decision.
+- **The console is not a product surface**, per link 7, and the design keeps that: plainest
+  primitives, no accent language, and it does not exist on the phone — entry point included.
+- **Costs-more-than-it-pays is segmented in the UI**, not just in the query: one count for
+  paying-and-underwater with a filter into the table, grant-funded accounts counted by
+  source and set aside. This is M21 link 7's requirement expressed as layout.
+
+Two smaller notes for whoever builds it. `Money` must not appear on these screens' data
+path — a request costing $0.0011 rounds to zero in `amountMinor` (M20 link 9, third
+recurrence of that defect class); the console shows dollars derived at read time from tokens
+plus a dated rate table. And the account's meters read the **pinned version's** per-user
+ceilings; the environment's global ceiling is deliberately not shown, because it was never
+sold to anyone.
+
+## 2d. New this turn — the shared-day map and the phone Playbooks tab
+
+Also absent from the previous bundle, which predated both. `SPEC.md` §16.
+
+The shared day draws a map beside its stop list. Three constraints are load-bearing and each
+one was a live bug in the design file: the map node stays mounted (a conditional container
+detaches it mid-style-load and the load aborts silently — DRIFT §6 build-check 5); pins draw
+immediately while lines wait for the style; and style-load recovery is per instance, with a
+rebuild at 3.5s and 7.5s and a list-only fallback at 11s.
+
+The phone tab bar is now **Plan / Map / Notebook / Playbooks / Trips** — SPEC §13's four-tab
+list is superseded. Phone Playbooks has parity with Discover, with all filters in one bottom
+sheet per rule 3 and the shared day's map collapsed behind a "Show route" row.
+
 ## 3. Designed, shelled in code behind `<Preview>`
 
 From the registry, unchanged this sync. **Blocked on a missing field:**
@@ -217,6 +269,10 @@ Carried forward because each one is a bug the design already hit:
 | **KI-48** | Six one-file cosmetics, including `1 travellers`. Our copy says "4 travelers". |
 
 ## 8. Still open, on our side
+
+- **The billing surfaces are desktop and landing only.** No phone treatment for plan and
+  usage or the collaboration gate; the operator console is deliberately never on the phone.
+  The two phone states rule 6 wants for the plan section are undesigned.
 
 - **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
   after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project

@@ -1,7 +1,7 @@
 # Spec — what the design file cannot say out loud
 
 Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
-a second file). Current as of 2026-08-30 — §15 is the newest section.
+a second file). Current as of 2026-09-02 — §17 is the newest section.
 
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
@@ -608,3 +608,139 @@ day, board or Discover depending on where you came from, because the same page i
 reachable three ways.
 
 ### Until the reviews table exists, every rating here is fixture data.
+
+
+---
+
+## 16. The shared day gets a map, and Playbooks reaches the phone — 2026-09-01
+
+Two additions to §15's surfaces. The previous handoff bundle predated both.
+
+### The shared day is a map plus a list
+
+A shared day (route `day`) now draws its stops on a map beside the stop list, with a
+focus card and a legend. Three implementation constraints, each one a bug that was hit
+and fixed in the design file and will be hit again in a build:
+
+1. **The map node stays mounted.** Only the focus card and the legend are conditional.
+   Putting the map container inside a `<sc-if>` (or a React conditional) detaches the
+   node mid-style-load, the instance stays bound to the detached container, and the load
+   aborts with no error. This is the same trap as build-check 5 in DRIFT §6.
+2. **Pins draw immediately; lines wait for the style.** Drawing a line before the style
+   is ready silently drops the layer. Pins have no such dependency, so the day is legible
+   in the first frame either way.
+3. **Style-load recovery is explicit, and it is per instance.** Rebuild at 3.5s and 7.5s,
+   fall back to a list-only view at 11s. The poll must be scoped to the instance that
+   started it and re-arm itself until that instance finishes — a shared timer serving
+   whichever map is current will cancel a live load when the route changes.
+
+Accents reaching a map paint property must be converted out of `oklch` first
+(DRIFT §6 build-check 2). This is where that bites hardest.
+
+### Playbooks is a fifth phone tab
+
+The phone tab bar is **Plan / Map / Notebook / Playbooks / Trips** — §13's four-tab list
+is superseded. Playbooks on the phone has full parity with Discover: city search with the
+same four states, the filters in **one** bottom sheet (not a stack of popovers, per rule 3),
+and the shared day with its map collapsed behind a "Show route" row.
+
+Phone control sizing, restated because it was got wrong once: **44px minimum hit target on
+every control**, the horizontal scroller is a `min-content` grid rather than a column flex
+(children shrink otherwise), and `Button` needs `h-full` to fill the target inside its
+`display: contents` wrapper.
+
+---
+
+## 17. Billing surfaces — M20 / M21 — 2026-09-02
+
+Four surfaces for the two commercial milestones. **Every number on them is fixture data**,
+and the two prices are placeholders — M21's prerequisite says the price is Mitchell's
+decision, and nothing here should be read as having made it.
+
+The plans are M20's: `free`, `plus`, `premium`. `free` plans a whole trip; `plus` adds
+`ai.ask` + `ai.command`; `premium` adds `trip.collaborators`.
+
+### The ladder is presentation only
+
+The pricing page and the in-app chooser show a nested ladder ("Everything in Plus") because
+that is what a buyer understands. **Nothing in the design asserts that the data nests.**
+No screen compares plans, no screen derives one plan's contents from another's, and the
+display order is metadata about rendering. This is M20's most load-bearing rule and the
+easiest one to lose while implementing a pricing page.
+
+### 1. Pricing on the landing page (`#pricing`)
+
+A section on the existing landing page, plus a nav anchor — not a second route. Three cards
+in display order, each enumerating its own contents in full. Three things the copy must
+keep saying:
+
+- **The free week is Plus, not Premium.** M20 grants the trial `plus`, so nobody ever
+  experiences collaboration before paying for it. The Premium card says so in as many
+  words, because that gate is met cold.
+- **"Prices can change. Yours doesn't."** A purchase pins a plan version; a republished
+  price affects new purchases only. This is a promise the schema already keeps, and saying
+  it out loud is free.
+- **Cancelling runs to the end of the paid period**, then lapses through the resolver.
+
+§14's copy rules still hold: no "free" as a positioning claim, no "no credit card". The
+`Free` **plan name** is not that claim.
+
+### 2. Operator console (route `admin`)
+
+Entered from the account menu, visible only to an admin — and **not on the phone at all**,
+entry point included. It is an operator tool: plainest primitives, no accent language, no
+product chrome. The assistant bubble is gated off this route for the same reason (rule 2).
+
+- **Four numbers, in one strip:** MRR and its movement; **ARPU twice, labelled** (all
+  accounts / paying only — an unlabelled ARPU gets quoted as whichever is convenient);
+  median margin per paying account over a trailing 30 days.
+- **Accounts table** — address, what they hold (plan + version), why they hold it (bought /
+  trial / referral / founder / admin), what they pay, what they cost over 30 days, state.
+  Address search, six counted filters, 8 rows a page, and a no-match state.
+- **"Costs more than it pays" is a count, not a second list.** Paying-and-underwater is one
+  figure with a button that filters the table; grant-funded accounts are counted by source
+  and set aside, because they are underwater *by construction* and would swamp the list.
+- **Granting is the only write.** Grant a plan at a version with an expiry and a reason;
+  the copy states that the grant **pins that version** and applies on the account's next
+  request with no sign-out. Publishing and migrating plan versions are **deliberately not
+  in the UI** (Mitchell, 2026-09-02) — the tier panel is read-only.
+- **Per-tier stats** replace the version-publishing panel: accounts, MRR, median cost and
+  median margin per tier, with each tier's version history and hold counts beneath it.
+- States: `webhooks-behind` (revenue numbers stamped stale; grants still apply, they do not
+  go through Stripe) and `version-conflict` (someone published while you were here — reload
+  before migrating). It has no empty state; it cannot be empty.
+
+### 3. The collaboration gate lives in Trip settings
+
+Inviting requires `trip.collaborators`, so for a `free` or `plus` owner the **Invite
+someone button is not rendered** — a named-tier block takes its place. The refusal names
+Premium and says what is behind it; it never reads as a permission error (M20's gate box).
+
+On lapse the design shows what M20's read-boundary cap actually does: everyone except the
+owner is **capped at reading**, nothing is removed, no role is rewritten, and paying again
+restores all of them with no re-invites. The banner says exactly that, because a capability
+that disappears quietly is indistinguishable from a bug.
+
+### 4. Plan and usage in the account sheet
+
+Account settings gains a **Plan** section at the top — not a new route, and not a second
+place to see what the trip costs.
+
+- Plan, version and state (`Active` / `Free week` / `Payment failed` / `Lapsed`).
+- **Two meters, questions and steps**, against the ceilings of the version the account
+  holds. Steps is the one that binds first on a heavy day, and the copy says so. Ceilings
+  come from the pinned version; the global env ceiling is not shown, because it was never
+  sold to anyone.
+- **Past due is told before anything is taken**: the decline date, the date the grace
+  window ends, and what stops then — including the collaborators dropping to read-only.
+- Referral: a code, and one line saying it earns a month of whatever tier you hold when
+  they join. A `free` or trial-only account has no referral row, because it earns nothing.
+- **Upgrading has somewhere to land** — an inline three-plan chooser in the same sheet, so
+  the invite gate's CTA does not need a pricing route inside the app. Payment happens on
+  Stripe; the copy says nothing changes here until it clears.
+
+### What a build owes before any of this is real
+
+All of M20 and M21. Nothing on these four surfaces is buildable against `main` today:
+there is no `plan`, no `plan_versions`, no `entitlement_grants`, no `is_admin`, no
+`ai_usage` and no `subscriptions`. See DRIFT §2c.
