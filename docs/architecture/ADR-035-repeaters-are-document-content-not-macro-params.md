@@ -84,7 +84,7 @@ permissive doc shape already holds it.
 extension is an atom, and an atom cannot have editable content; widening it
 would mean making every macro node non-atomic to serve one kind that is.
 
-### 2. `params` carries the collection, and that is what the seam was for
+### 2. The macro name names the collection; `params` narrows it — and that is what the seam was for
 
 The `repeat` node's `name` attr resolves through the same registry as every
 other macro, against a third kind:
@@ -92,6 +92,13 @@ other macro, against a third kind:
 ```ts
 export const MacroKind = z.enum(["inline", "block", "repeat"]);
 ```
+
+**Which collection is the macro's own identity, not a param.** `repeat.days`,
+`repeat.stops` and `repeat.cities` are three registry entries, the same way
+`itinerary.day` and `itinerary.trip` are two — so the picker lists them, each
+carries its own `description` and `emptyText`, and an unknown one is caught by
+`resolveMacro`'s existing `{ status: "unknown" }` branch rather than by a
+param validator. `params` is for narrowing *within* a collection.
 
 A repeat macro's `resolve` returns **the items to iterate**, not a rendered
 payload:
