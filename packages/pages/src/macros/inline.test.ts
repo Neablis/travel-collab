@@ -22,20 +22,20 @@ const day0 = { dayRef: { kind: "index", index: 0 } as const };
 
 describe("inline resolvers", () => {
   it("trip.name resolves the name", () => {
-    const r = tripName.resolve(base, ctx, {});
+    const r = tripName.resolve({ trip: base, page: ctx }, {});
     expect(r).toEqual({ status: "ok", value: "Japan 2026" });
   });
   it("trip.dates is empty when no startDate", () => {
-    expect(tripDates.resolve({ ...base, startDate: null }, ctx, {}).status).toBe("empty");
+    expect(tripDates.resolve({ trip: { ...base, startDate: null }, page: ctx }, {}).status).toBe("empty");
   });
   it("cost.trip formats the total; empty when zero", () => {
-    expect(costTrip.resolve(base, ctx, {})).toEqual({ status: "ok", value: "$50.00" });
-    expect(costTrip.resolve({ ...base, tripCostTotal: 0 }, ctx, {}).status).toBe("empty");
+    expect(costTrip.resolve({ trip: base, page: ctx }, {})).toEqual({ status: "ok", value: "$50.00" });
+    expect(costTrip.resolve({ trip: { ...base, tripCostTotal: 0 }, page: ctx }, {}).status).toBe("empty");
   });
   it("cost.day resolves the day in its OWN params; unbound with no ref; empty when zero", () => {
-    expect(costDay.resolve(base, ctx, day0)).toEqual({ status: "ok", value: "$50.00" });
-    expect(costDay.resolve(base, ctx, {}).status).toBe("unbound");
-    expect(costDay.resolve(base, ctx, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
+    expect(costDay.resolve({ trip: base, page: ctx }, day0)).toEqual({ status: "ok", value: "$50.00" });
+    expect(costDay.resolve({ trip: base, page: ctx }, {}).status).toBe("unbound");
+    expect(costDay.resolve({ trip: base, page: ctx }, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
   });
 });
 

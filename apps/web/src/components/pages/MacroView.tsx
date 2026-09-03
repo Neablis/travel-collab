@@ -1,21 +1,45 @@
 "use client";
 import type { TripDetail, PageContext } from "@tc/contracts";
-import { resolveMacro, getMacro } from "@tc/pages";
+import { renderMacro, getMacro, type Seg } from "@tc/pages";
 import { EmptyChip } from "./EmptyChip";
-import { ItineraryDayBlock } from "./blocks/ItineraryDayBlock";
-import { ItineraryTripBlock } from "./blocks/ItineraryTripBlock";
-import { CostsTableBlock } from "./blocks/CostsTableBlock";
+import { BlockView } from "./BlockView";
 
-// Dispatches a resolved macro outcome to its renderer. This is the C-era swap
-// seam (design spec §3): block components consume resolver *payloads*
-// (structured data), never markup, so a future live-lens upgrade only
-// touches the renderer files under this directory.
+// Renders one widget instance. **It no longer knows any widget's name.**
+//
+// It used to end in `switch (name)` mapping three widget names to three block
+// components, with `default:` rendering `no renderer: <name>` — a
+// hand-maintained duplicate of the registry, living in `apps/web`, which meant a
+// widget could not be added inside `packages/pages` without editing this file
+// (ADR-037 decision 1). What replaced it: the registry hands back `Rendered`,
+// this walks it, and `BlockView` picks a component by payload SHAPE.
+//
+// The C-era swap seam is unchanged and now stated by the types rather than by a
+// comment: block components consume resolver payloads, never markup.
+function Segs({ segs }: { segs: readonly Seg[] }) {
+  return (
+    <>
+      {segs.map((seg, i) =>
+        seg.kind === "text" ? (
+          <span key={i} className="text-ink">{seg.text}</span>
+        ) : (
+          // A chip is a resolved value reading as a word in a sentence (§7).
+          // `seg.text` is a text node either way — `Seg` has nowhere to put an
+          // element, an attribute or a URL, which is ADR-037 decision 3a.
+          <span key={i} className="text-ink underline decoration-hairline underline-offset-2" title={seg.name}>
+            {seg.text}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
 export function MacroView({ detail, context, name, params, onBindDay }: {
   detail: TripDetail; context: PageContext; name: string; params: Record<string, unknown>;
   onBindDay?: () => void;
 }) {
   const def = getMacro(name);
-  const outcome = resolveMacro(detail, context, name, params);
+  const outcome = renderMacro({ trip: detail, page: context }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
   // The chip is a control only when something can act on it. `PageScreen`
@@ -30,12 +54,24 @@ export function MacroView({ detail, context, name, params, onBindDay }: {
       : <EmptyChip tone="muted" label="no day set" />;
   }
   if (outcome.status === "empty") return <EmptyChip tone="muted" label={def?.emptyText ?? "—"} />;
-  // ok:
-  if (def?.kind === "inline") return <span className="text-ink">{outcome.value as string}</span>;
-  switch (name) {
-    case "itinerary.day": return <ItineraryDayBlock payload={outcome.value as never} />;
-    case "itinerary.trip": return <ItineraryTripBlock payload={outcome.value as never} />;
-    case "costs.table": return <CostsTableBlock payload={outcome.value as never} />;
-    default: return <EmptyChip tone="error" label={`no renderer: ${name}`} />;
+
+  const { rendered } = outcome;
+  switch (rendered.kind) {
+    case "inline":
+      return <Segs segs={rendered.segs} />;
+    case "block":
+      return <BlockView block={rendered.block} />;
+    // A repeat's rows. Nothing emits one until M14 link 6 builds repeaters —
+    // the shape exists here for the same reason `PageDoc` understands a `repeat`
+    // node before the editor does (ADR-038): the renderer has to know a shape
+    // before the document can contain it.
+    case "rows":
+      return (
+        <>
+          {rendered.rows.map((segs, i) => (
+            <div key={i}><Segs segs={segs} /></div>
+          ))}
+        </>
+      );
   }
 }

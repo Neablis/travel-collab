@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DayRef, type TripDetail } from "@tc/contracts";
-import type { MacroDef, WidgetInput } from "../registry-types";
+import type { MacroDef, WidgetContext, WidgetInput } from "../registry-types";
+import { inlineOf, text } from "../registry-types";
 import { ok, empty, unbound, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
 
@@ -32,35 +33,44 @@ export function resolveDayIndex(detail: TripDetail, params: DayParams): number |
   return idx === -1 ? null : idx;
 }
 
+// The four inline widgets each render a single text segment — the faithful
+// translation of `InlinePayload = string`, and deliberately not more. A widget
+// that wants chips inside prose (the design's `w-person`) now CAN emit them;
+// none of these four has anything to chip.
 export const tripName: MacroDef<NoParams, string> = {
   name: "trip.name", kind: "inline", params: NoParams, inputs: [],
   description: "The trip's name.", emptyText: "untitled trip",
-  resolve: (d): MacroResult<string> => (d.name.trim() === "" ? empty() : ok(d.name)),
+  resolve: ({ trip }): MacroResult<string> => (trip.name.trim() === "" ? empty() : ok(trip.name)),
+  render: (value) => inlineOf(text(value)),
 };
 
 export const tripDates: MacroDef<NoParams, string> = {
   name: "trip.dates", kind: "inline", params: NoParams, inputs: [],
   description: "The trip's date range (start date and number of days).", emptyText: "no dates set",
-  resolve: (d): MacroResult<string> => {
-    if (d.startDate === null) return empty();
-    const last = d.days.length > 0 ? d.days[d.days.length - 1]!.date : d.startDate;
-    return ok(d.days.length <= 1 ? formatDate(d.startDate) : `${formatDate(d.startDate)} – ${formatDate(last)}`);
+  resolve: ({ trip }): MacroResult<string> => {
+    if (trip.startDate === null) return empty();
+    const last = trip.days.length > 0 ? trip.days[trip.days.length - 1]!.date : trip.startDate;
+    return ok(trip.days.length <= 1 ? formatDate(trip.startDate) : `${formatDate(trip.startDate)} – ${formatDate(last)}`);
   },
+  render: (value) => inlineOf(text(value)),
 };
 
 export const costTrip: MacroDef<NoParams, string> = {
   name: "cost.trip", kind: "inline", params: NoParams, inputs: [],
   description: "Total cost of the whole trip.", emptyText: "no costs yet",
-  resolve: (d): MacroResult<string> => (d.tripCostTotal === 0 ? empty() : ok(formatMoney(d.tripCostTotal, d.currency))),
+  resolve: ({ trip }): MacroResult<string> =>
+    trip.tripCostTotal === 0 ? empty() : ok(formatMoney(trip.tripCostTotal, trip.currency)),
+  render: (value) => inlineOf(text(value)),
 };
 
 export const costDay: MacroDef<DayParams, string> = {
   name: "cost.day", kind: "inline", params: DayParams, inputs: DAY_INPUT,
   description: "Total cost of one day of the trip.", emptyText: "no costs on this day",
-  resolve: (d, _ctx, params): MacroResult<string> => {
-    const idx = resolveDayIndex(d, params);
+  resolve: ({ trip }: WidgetContext, params): MacroResult<string> => {
+    const idx = resolveDayIndex(trip, params);
     if (idx === null) return unbound("day");
-    const sub = d.days[idx]!.costSubtotal;
-    return sub === 0 ? empty() : ok(formatMoney(sub, d.currency));
+    const sub = trip.days[idx]!.costSubtotal;
+    return sub === 0 ? empty() : ok(formatMoney(sub, trip.currency));
   },
+  render: (value) => inlineOf(text(value)),
 };

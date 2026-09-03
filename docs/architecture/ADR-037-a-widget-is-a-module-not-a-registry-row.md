@@ -114,6 +114,24 @@ React escapes text nodes by default, so a widget **cannot** emit an element, an 
 URL or a script — not because it is asked not to, but because the type has nowhere to put one.
 `dangerouslySetInnerHTML` is already absent from this path and a lint wall should keep it so.
 
+**a-bis. Block payloads are a DISCRIMINATED union, and `apps/web` dispatches on the shape
+rather than on the widget's name.** Added 2026-09-03 while building this decision; the ADR
+specified `Rendered` but not how `{ kind: "block"; block: BlockPayload }` reaches a React
+component, and the answer decides whether decision 1 is actually satisfied.
+
+Dispatching by widget name is what `MacroView` did and it is the thing this ADR exists to
+delete: every widget was its own `case`, and the `default:` rendered `no renderer: <name>` to
+whoever opened the page. Dispatching on the payload's own `kind` moves the switch from
+*widgets* to *presentations* — 21 designed widgets share about five shapes — so a widget that
+renders as an itinerary day adds no case anywhere, which is the requirement decision 2 states
+in one line: *"if adding the fifteenth widget touches a component, the model has failed"*.
+
+The switch that remains lives in one file (`BlockView.tsx`), is exhaustive over a closed
+union, and returns `never` on the unhandled branch, so a new `BlockPayload` member without a
+component **fails to compile** rather than reappearing as a runtime chip. That is the
+difference between a hand-maintained duplicate of the registry and a type-checked mapping of
+five shapes to five components.
+
 **b. `params` is the only thing trusted, and it is validated before `resolve` sees it.**
 `resolveMacro` already `safeParse`s and already has a `bad-params` path. A hand-edited
 document, an AI-written one, or a page restored from an old version cannot hand a resolver a
