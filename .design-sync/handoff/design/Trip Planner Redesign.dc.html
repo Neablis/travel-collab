@@ -157,14 +157,14 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <div style="flex: 0 0 auto; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
               <div style="display: flex; align-items: center; justify-content: space-between; height: 34px;">
                 <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">Notebook</span>
-                <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Following {{ phoneDayLabel }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ phoneDayLabel }} · {{ phoneDayCity }}</span>
               </div>
             </div>
             <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 20px 110px; background: var(--color-surface);">
               <div style="font-family: var(--font-next-display); font-size: 26px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">{{ phoneDayCity }}</div>
               <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding: 6px 0 18px;">{{ phoneDayDate }} · {{ phoneDayLabel }}</div>
               <div style="border-left: 2px dashed {{ phoneDaySolid }}; padding-left: 14px; display: flex; flex-direction: column; gap: 12px;">
-                <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Repeats for every stop shown · {{ phoneNbCount }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">A line for every stop · pointed at {{ phoneDayLabel }} · {{ phoneNbCount }}</span>
                 <div style="display: flex; flex-wrap: wrap; gap: 7px;">
                   <sc-for list="{{ phoneTagChips }}" as="tc" hint-placeholder-count="4">
                     <button onClick="{{ tc.act }}" style="display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; font-family: inherit; font-size: 12.5px; font-weight: {{ tc.weight }}; color: {{ tc.ink }}; background: {{ tc.bg }}; border: 1px solid {{ tc.edge }}; border-radius: 999px; padding: 0 14px; cursor: pointer;">{{ tc.label }}</button>
@@ -2074,7 +2074,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <div>
                 <button onClick="{{ backToPlan }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← {{ trip.name }}</button>
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,38px" level="{{ 1 }}">Notebook</x-import>
-                <div style="font-size: 14px; color: var(--color-slate); margin-top: 6px; max-width: 56ch; text-wrap: pretty;">Pages that read like a document and stay true to the plan. Move a day or a stop and every page here follows it.</div>
+                <div style="font-size: 14px; color: var(--color-slate); margin-top: 6px; max-width: 56ch; text-wrap: pretty;">Pages that read like a document. Every live value in one is a widget pointed at something — a day, a stretch of days, someone on the trip — so a page is never locked to a single scope.</div>
               </div>
               <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ newDoc }}">Blank page</x-import>
             </div>
@@ -2086,7 +2086,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px;">
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                       <span style="font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ dc.title }}</span>
-                      <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ dc.bindVariant }}">{{ dc.bind }}</x-import>
                     </div>
                     <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ dc.blurb }}</span>
                     <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ dc.meta }}</span>
@@ -2116,24 +2115,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px;">
             <button onClick="{{ backToNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← Notebook</button>
             <div style="flex: 1;"></div>
-            <sc-if value="{{ docDayBound }}" hint-placeholder-val="{{ false }}">
-              <div style="display: flex; align-items: center; gap: 7px;">
-                <span style="font-size: 12px; color: var(--color-slate);">This page is about</span>
-                <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="210px,32px" defaultValue="{{ docDay }}" onChange="{{ setDocDay }}" aria-label="Which day this page is about">
-                  <sc-for list="{{ blDayOptions }}" as="o" hint-placeholder-count="14">
-                    <option value="{{ o.value }}">{{ o.label }}</option>
-                  </sc-for>
-                </x-import>
-              </div>
-            </sc-if>
-            <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,32px" value="{{ docMode }}" onValueChange="{{ setDocMode }}" options="{{ docModes }}" aria-label="Page mode"></x-import>
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" size="sm" variant="{{ docEditVariant }}" onClick="{{ toggleDocMode }}" aria-pressed="{{ docEditing }}">{{ docEditLabel }}</x-import>
           </div>
-
-          <sc-if value="{{ docFollowed }}" hint-placeholder-val="{{ false }}">
-            <div style="padding-bottom: 14px;">
-              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">{{ docFollowedLine }}</x-import>
-            </div>
-          </sc-if>
 
           <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,620px" raised="{{ true }}" className="p-0 overflow-hidden">
             <div style="padding: 40px 52px 52px; display: flex; flex-direction: column;">
@@ -2142,6 +2125,29 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
               <sc-for list="{{ docBlocks }}" as="b" hint-placeholder-count="5">
                 <div style="padding-bottom: 20px;">
+                  <sc-if value="{{ b.wedit }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 0 0 9px;">
+                      <sc-if value="{{ b.wname }}" hint-placeholder-val="{{ false }}">
+                        <span style="display: inline-flex; align-items: center; gap: 6px; background: var(--color-brand-tint); border-radius: 999px; padding: 3px 10px;">
+                          <span style="font-size: 10px; color: var(--color-brand-pressed);">◆</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-brand-pressed);">{{ b.wname }}</span>
+                        </span>
+                      </sc-if>
+                      <sc-for list="{{ b.wbinds }}" as="wb" hint-placeholder-count="1">
+                        <span style="display: inline-flex; align-items: center; gap: 6px;">
+                          <span style="font-size: 12px; color: var(--color-slate);">{{ wb.label }}</span>
+                          <span style="display: inline-flex; min-width: 120px;">
+                            <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,30px" className="w-full" value="{{ wb.value }}" onChange="{{ wb.set }}" aria-label="{{ wb.label }}">
+                              <sc-for list="{{ wb.options }}" as="o" hint-placeholder-count="14">
+                                <option value="{{ o.value }}">{{ o.label }}</option>
+                              </sc-for>
+                            </x-import>
+                          </span>
+                        </span>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
                   <sc-if value="{{ b.isH }}" hint-placeholder-val="{{ false }}">
                     <div style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ b.text }}</div>
                   </sc-if>
@@ -2156,7 +2162,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <div style="border-left: 2px dashed {{ b.edge }}; padding-left: 16px; display: flex; flex-direction: column; gap: 10px;">
                       <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ b.repeatLabel }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Prints {{ b.repeatLabel }}</span>
                           <button onClick="{{ b.editRow }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Edit the wording</button>
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -2224,7 +2230,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
               <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
                 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
-                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ openInsert }}">Insert from the plan</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ openInsert }}">Insert a widget</x-import>
                   <span style="font-size: 12.5px; color: var(--color-slate);">or press <span style="font-family: var(--font-next-mono); background: var(--color-moss); border-radius: 4px; padding: 1px 5px;">/</span> anywhere in the page</span>
                 </div>
               </sc-if>
@@ -2285,52 +2291,76 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     <div style="position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 60; background: var(--color-ink); color: var(--color-surface); font-size: 13px; padding: 10px 16px; border-radius: 999px; animation: riseIn 180ms ease both;">{{ toast }}</div>
   </sc-if>
 
-  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ insertOpen }}" onOpenChange="{{ setInsertOpen }}" title="Insert from the plan">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 2px;">
-      <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Search — cost, stops, name…" value="{{ insQ }}" onChange="{{ setInsQ }}" aria-label="Search insertable values"></x-import>
+  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ insertOpen }}" onOpenChange="{{ setInsertOpen }}" title="Insert a widget">
+    <sc-if value="{{ insBrowsing }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 2px;">
+        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Search — cost, stops, a day, a person…" value="{{ insQ }}" onChange="{{ setInsQ }}" aria-label="Search widgets"></x-import>
 
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">What it comes from</span>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <sc-for list="{{ insScopes }}" as="sc" hint-placeholder-count="3">
-            <button onClick="{{ sc.pick }}" style="display: flex; align-items: center; gap: 10px; text-align: left; background: {{ sc.bg }}; border: 1px solid {{ sc.border }}; border-radius: 9px; padding: 9px 11px; cursor: pointer; font-family: inherit;">
-              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
-                <span style="font-size: 13.5px; font-weight: 600; color: {{ sc.ink }};">{{ sc.label }}</span>
-                <span style="font-size: 12px; color: var(--color-slate);">{{ sc.hint }}</span>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">How it reads</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,32px" value="{{ insKind }}" onValueChange="{{ setInsKind }}" options="{{ insKinds }}" aria-label="How it reads"></x-import>
+        </div>
+
+        <div style="height: 1px; background: var(--color-hairline);"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; color: var(--color-slate);">{{ insCountLine }}</span>
+          <sc-for list="{{ insItems }}" as="it" hint-placeholder-count="4">
+            <button onClick="{{ it.pick }}" style="text-align: left; display: flex; flex-direction: column; gap: 5px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 11px 13px; cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-border-strong);">
+              <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ it.title }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); background: var(--color-moss); border-radius: 4px; padding: 1px 6px;">{{ it.shape }}</span>
+                <sc-if value="{{ it.needs }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="warning">{{ it.needs }}</x-import>
+                </sc-if>
               </span>
-              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ sc.variant }}">{{ sc.count }}</x-import>
+              <span style="font-size: 12.5px; color: var(--color-slate); line-height: 1.45; text-wrap: pretty;">{{ it.body }}</span>
+              <sc-if value="{{ it.takes }}" hint-placeholder-val="{{ false }}">
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-brand-pressed);">{{ it.takes }}</span>
+              </sc-if>
+              <span style="font-size: 12.5px; color: var(--color-ink); background: var(--color-paper); border-radius: 6px; padding: 5px 8px;">{{ it.preview }}</span>
             </button>
           </sc-for>
+          <sc-if value="{{ insEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--color-slate); text-wrap: pretty;">No widget matches that. Try another shape, or clear the search.</div>
+          </sc-if>
         </div>
       </div>
+    </sc-if>
 
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">How it reads</span>
-        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,32px" value="{{ insKind }}" onValueChange="{{ setInsKind }}" options="{{ insKinds }}" aria-label="How it reads"></x-import>
+    <sc-if value="{{ insPicked }}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 16px; padding: 4px 4px 2px;">
+        <button onClick="{{ insBack }}" style="align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← All widgets</button>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink);">{{ insTitle }}</span>
+            <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); background: var(--color-moss); border-radius: 4px; padding: 1px 6px;">{{ insShape }}</span>
+          </span>
+          <span style="font-size: 13px; color: var(--color-slate); line-height: 1.5; text-wrap: pretty;">{{ insBody }}</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Point it at</span>
+          <sc-for list="{{ insBindRows }}" as="r" hint-placeholder-count="1">
+            <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,62px" id="{{ r.label }}" label="{{ r.label }}">
+              <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,34px" className="w-full" id="{{ r.label }}" value="{{ r.value }}" onChange="{{ r.set }}">
+                <sc-for list="{{ r.options }}" as="o" hint-placeholder-count="6">
+                  <option value="{{ o.value }}">{{ o.label }}</option>
+                </sc-for>
+              </x-import>
+            </x-import>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; background: var(--color-paper); border-radius: 10px; padding: 12px 14px;">
+          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Reads as</span>
+          <span style="font-size: 14px; color: var(--color-ink); line-height: 1.5; text-wrap: pretty;">{{ insSummary }}</span>
+        </div>
+
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ insConfirm }}">Insert it</x-import>
       </div>
-
-      <div style="height: 1px; background: var(--color-hairline);"></div>
-
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <span style="font-size: 12px; color: var(--color-slate);">{{ insCountLine }}</span>
-        <sc-for list="{{ insItems }}" as="it" hint-placeholder-count="4">
-          <button onClick="{{ it.insert }}" style="text-align: left; display: flex; flex-direction: column; gap: 4px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 11px 13px; cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-border-strong);">
-            <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ it.title }}</span>
-              <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); background: var(--color-moss); border-radius: 4px; padding: 1px 6px;">{{ it.shape }}</span>
-              <sc-if value="{{ it.needs }}" hint-placeholder-val="{{ false }}">
-                <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="warning">{{ it.needs }}</x-import>
-              </sc-if>
-            </span>
-            <span style="font-size: 12.5px; color: var(--color-slate); line-height: 1.45; text-wrap: pretty;">{{ it.body }}</span>
-            <span style="font-size: 12.5px; color: var(--color-ink); background: var(--color-paper); border-radius: 6px; padding: 5px 8px;">{{ it.preview }}</span>
-          </button>
-        </sc-for>
-        <sc-if value="{{ insEmpty }}" hint-placeholder-val="{{ false }}">
-          <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Nothing matches that here. Try another scope, or clear the search.</div>
-        </sc-if>
-      </div>
-    </div>
+    </sc-if>
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ setOpenDesktop }}" onOpenChange="{{ setSetOpen }}" title="Trip settings">
@@ -3488,8 +3518,8 @@ class Component extends DCLogic {
     histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
     surfaceOv: null, phoneTab: 'plan', mapOffline: false,
-    docId: 'overview', docMode: 'read', docDay: 6, docFollowed: false, insertOpen: false,
-    boundDocs: [], insScope: 'trip', insKind: 'all', insQ: '', blankMade: false,
+    docId: 'overview', docMode: 'read', insertOpen: false,
+    wb: {}, insPick: null, insD: {}, insKind: 'all', insQ: '', blankMade: false,
     setOpen: false, datesEdit: false, currency: 'USD', costs: {}, okConf: [], addCost: '',
     budgets: { japan: 16400, nola: 3800 },
     crewBy: { japan: ['Sam K', 'Priya R', 'Jonah M', 'Mei T'], nola: ['Sam K', 'Dana R'] },
@@ -4780,44 +4810,64 @@ class Component extends DCLogic {
   // reads as words in a sentence, but it resolves from the trip every render,
   // so moving a day or a stop rewrites the page without anyone editing it.
   DOCS = [
-    { id: 'overview', title: 'Trip overview', dayBound: false, origin: 'Comes with your trip', edited: '2 days ago',
+    { id: 'overview', title: 'Trip overview', origin: 'Comes with your trip', edited: '2 days ago',
       blurb: 'The whole trip in one read — dates, the shape of it, every day, what it costs.' },
-    { id: 'day', title: 'One day', dayBound: true, origin: 'Comes with your trip', edited: 'yesterday',
-      blurb: 'A single day, written out. Point it at any day with the dropdown.' },
-    { id: 'mei', title: 'Mei’s notes', dayBound: false, origin: 'Yours', edited: '4 hours ago',
+    { id: 'day', title: 'Hakone, written out', origin: 'Comes with your trip', edited: 'yesterday',
+      blurb: 'A day as prose. Its widgets are pointed at Day 6 — point any of them somewhere else.' },
+    { id: 'mei', title: 'Mei’s notes', origin: 'Yours', edited: '4 hours ago',
       blurb: 'Your own page. Nothing in it yet but what you put there.' },
-    { id: 'blank', title: 'Untitled page', dayBound: false, origin: 'Yours', edited: 'just now', fresh: true,
-      blurb: 'Nothing here yet — insert what you want from the plan.' }
+    { id: 'blank', title: 'Untitled page', origin: 'Yours', edited: 'just now', fresh: true,
+      blurb: 'Nothing here yet — insert a widget and point it at something.' }
   ];
   doc() { return this.DOCS.find(d => d.id === (this.state.docId || 'overview')) || this.DOCS[0]; }
-  dayBound() { const d = this.doc(); return !!d.dayBound || (this.state.boundDocs || []).indexOf(d.id) >= 0; }
+  PEOPLE = ['Sam K', 'Priya', 'Jonah', 'Mei T'];
+  // A widget's inputs are bound per WIDGET, not per page. 'rep.day' is the day
+  // that one block is pointed at, so two widgets on the same page can read
+  // different days — which is why a page needs no scope of its own.
+  wget(k, d) { const v = (this.state.wb || {})[k]; return v === undefined ? d : v; }
+  wset(k, v) { this.setState(s => ({ wb: Object.assign({}, s.wb || {}, { [k]: v }) })); }
+  dayOpts(days) { return days.map((x, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + x.city })); }
+  dayBind(key, label, days) {
+    return { label: label, value: String(this.wget(key, 6)), options: this.dayOpts(days), w: '186px',
+      set: e => this.wset(key, +e.target.value) };
+  }
+  rangeBind(key, days) {
+    const opts = days.map((x, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) }));
+    return [
+      { label: 'From', value: String(this.wget(key + '.from', 1)), options: opts, w: '104px', set: e => this.wset(key + '.from', +e.target.value) },
+      { label: 'to', value: String(this.wget(key + '.to', days.length)), options: opts, w: '104px', set: e => this.wset(key + '.to', +e.target.value) }
+    ];
+  }
+  personBind(key, label) {
+    return { label: label, value: this.wget(key, 'Priya'), w: '132px',
+      options: this.PEOPLE.map(p => ({ value: p, label: p })), set: e => this.wset(key, e.target.value) };
+  }
   txt(t) { return { isText: true, text: t }; }
   chip(macro, value) {
     return { isChip: true, macro: macro, value: value, chipBg: 'var(--color-brand-tint)', chipEdge: 'var(--color-brand)' };
   }
-  docTitle(days) {
-    const d = this.doc(), i = (this.state.docDay || 6) - 1;
-    if (d.id === 'day') return days[i] ? days[i].label + ' — ' + days[i].city : 'A day';
-    if (d.id === 'overview') return this.trip().name;
-    return d.title;
-  }
-  docSubtitle(days) {
-    const d = this.doc(), i = (this.state.docDay || 6) - 1;
-    if (d.id === 'day') return days[i] ? days[i].dateLabel : '';
+  // Titles are authored text now — nothing derives them from a page scope.
+  docTitle() { const d = this.doc(); return d.id === 'overview' ? this.trip().name : d.title; }
+  docSubtitle() {
+    const d = this.doc();
     if (d.id === 'overview') return this.trip().dates;
-    return 'Yours · nothing connected to the plan yet';
+    if (d.id === 'day') return 'Three widgets, each pointed at its own input';
+    return 'Yours · no widgets in it yet';
   }
   // The repeater is where tags earn their keep: same sentence, narrowed to the
   // stops that carry a tag. Filtering by Meal turns the day page into "where we
   // ate" without anyone writing a query.
-  repeatBlock(day) {
+  repeatBlock(days) {
+    const day = days[this.wget('rep.day', 6) - 1] || days[0];
+    if (!day) return { isRepeat: true, rows: [], noRows: true, tagChips: [] };
     const df = this.state.docTagF || [];
     const rows = day.items.filter(a => !df.length || a.tagIds.filter(x => df.indexOf(x) >= 0).length);
     const mealOnly = df.length === 1 && df[0] === 'meal';
     const lead = mealOnly ? 'We ate at ' : 'Today we’re going to ';
     return {
       isRepeat: true, edge: day.solid,
-      repeatLabel: 'Repeats for every stop ' + (df.length ? 'tagged ' + df.map(x => this.TAG(x).label.toLowerCase()).join(' or ') : 'on this day') + ' · ' + rows.length + (rows.length === 1 ? ' stop' : ' stops'),
+      wname: 'A line for every stop', wbinds: [this.dayBind('rep.day', 'Pointed at', days)],
+      repeatLabel: rows.length + (rows.length === 1 ? ' stop' : ' stops') + (df.length ? ' tagged ' + df.map(x => this.TAG(x).label.toLowerCase()).join(' or ') : ''),
       tagChips: this.TAGS.map(t => {
         const on = df.indexOf(t.id) >= 0;
         return { label: t.label, bg: on ? t.bg : 'transparent', ink: on ? t.ink : 'var(--color-slate)', edge: on ? 'transparent' : 'var(--color-hairline)',
@@ -4831,20 +4881,22 @@ class Component extends DCLogic {
   docBlocks(days, trip) {
     const d = this.doc();
     if (d.id === 'day') {
-      const i = (this.state.docDay || 6) - 1, day = days[i];
+      const day = days[this.wget('sum.day', 6) - 1] || days[0];
       if (!day) return [];
       return [
-        { isP: true, segs: [this.txt('It’s '), this.chip('day.date', day.dateLabel), this.txt(' and you’re in '), this.chip('day.city', day.city), this.txt('. '), this.chip('cost.day', day.costLabel), this.txt(' of the budget is spoken for today.')] },
-        this.repeatBlock(day),
+        { isP: true, wname: 'The day in a sentence', wbinds: [this.dayBind('sum.day', 'Pointed at', days)],
+          segs: [this.txt('It’s '), this.chip('day.date', day.dateLabel), this.txt(' and you’re in '), this.chip('day.city', day.city), this.txt('. '), this.chip('cost.day', day.costLabel), this.txt(' of the budget is spoken for today.')] },
+        this.repeatBlock(days),
         { isH: true, text: 'Notes for the group' },
         { isP: true, segs: [this.txt('Bring cash — the ryokan doesn’t take cards for the onsen. Meet in the lobby ten minutes before we leave.')] },
+        this.personBlock(days),
         { isNote: true, noteLabel: 'Only you', text: 'Ask about the late dinner. Priya wants an early night.' }
       ];
     }
     if (d.id === 'blank' || d.id === 'mei') {
       return [
         { isP: true, segs: [this.txt('Nothing here yet.')] },
-        { isEmpty: true, text: 'Insert something from the plan and it becomes part of the page — a date, a day’s stops, the whole itinerary.' }
+        { isEmpty: true, text: 'Insert a widget and pick what it reads — a day, a stretch of days, someone on the trip. Nothing about this page decides that for you.' }
       ];
     }
     const cities = [];
@@ -4855,49 +4907,95 @@ class Component extends DCLogic {
       { isH: true, text: 'The shape of it' },
       { isP: true, segs: [this.txt('Five nights in Tokyo to find our feet, a day out to Nikkō, one night in the mountains at Hakone, then Kyoto slowly. Osaka at the end because the flight home leaves from there.')] },
       { isH: true, text: 'Every day at a glance' },
-      { isItin: true, days: days.map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink,
-        line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') + (x.items.length > 3 ? ' · +' + (x.items.length - 3) + ' more' : '') : 'Nothing planned yet' })) },
+      { isItin: true, wbinds: this.rangeBind('itin', days),
+        days: days.slice(this.wget('itin.from', 1) - 1, this.wget('itin.to', days.length)).map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink,
+          line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') + (x.items.length > 3 ? ' · +' + (x.items.length - 3) + ' more' : '') : 'Nothing planned yet' })) },
       { isH: true, text: 'What it costs' },
       { isCosts: true, rows: costRows, totalLabel: 'Planned so far', total: this.money(this.spend().total) },
+      this.personBlock(days),
       { isNote: true, noteLabel: 'Only you', text: 'Sam is covering the ryokan — settle up after Kyoto.' }
     ];
   }
-  // Two axes, not one long list: where a value comes from (account / trip / day)
-  // and how it reads (one value, a block, or a line that repeats). Both are
-  // filters, so the picker stays the same size as the registry grows.
-  INSERTABLES = [
-    { scope: 'account', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'Sam K' },
-    { scope: 'account', kind: 'single', title: 'Your email', body: 'The address you signed in with.', preview: 'sam@example.com' },
-    { scope: 'account', kind: 'single', title: 'Home airport', body: 'Where you usually fly out of.', preview: 'SFO', needs: 'needs a field' },
-    { scope: 'account', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'Japan — 14 days from late September.' },
-    { scope: 'trip', kind: 'single', title: 'Trip name', body: 'The trip’s name.', preview: 'Japan: Tokyo → Kyoto → Osaka' },
-    { scope: 'trip', kind: 'single', title: 'Trip dates', body: 'The trip’s date range.', preview: 'Sep 20 – Oct 3, 2026' },
-    { scope: 'trip', kind: 'single', title: 'Total cost', body: 'Total cost of the whole trip.', preview: '$9,085' },
-    { scope: 'trip', kind: 'single', title: 'Budget left', body: 'What’s left of the trip budget.', preview: '$7,315 left of $16,400' },
-    { scope: 'trip', kind: 'single', title: 'Number of days', body: 'How many days the trip runs.', preview: '14 days' },
-    { scope: 'trip', kind: 'block', title: 'Full itinerary', body: 'Every day and its stops.', preview: 'Day 1 · Tokyo — Day 2 · Tokyo — Day 3 · Tokyo…' },
-    { scope: 'trip', kind: 'block', title: 'Cost breakdown', body: 'A cost table by day, with a trip total.', preview: 'Day 1 $310 · Day 2 $95 · Total $9,085' },
-    { scope: 'trip', kind: 'block', title: 'Everyone on the trip', body: 'The travellers and what they’re down for.', preview: 'Sam, Priya, Jonah, Mei' },
-    { scope: 'trip', kind: 'repeat', title: 'A line for every day', body: 'Write one sentence and it repeats for each day, filled in with that day’s own detail.', preview: 'Day 6 — Hakone, five stops, $1,175.' },
-    { scope: 'trip', kind: 'repeat', title: 'A line for every city', body: 'One sentence per city, in the order you reach them.', preview: 'Kyoto — four nights, eleven stops.' },
-    { scope: 'day', kind: 'single', title: 'The day’s date', body: 'The date of the day this page is pointed at.', preview: 'Fri Sep 25' },
-    { scope: 'day', kind: 'single', title: 'The day’s city', body: 'Where you are on that day.', preview: 'Hakone' },
-    { scope: 'day', kind: 'single', title: 'The day’s cost', body: 'Total cost of the day this page is pointed at.', preview: '$1,175' },
-    { scope: 'day', kind: 'single', title: 'First and last stop', body: 'When the day starts and ends.', preview: '8:20 am – 8:30 pm' },
-    { scope: 'day', kind: 'block', title: 'The day’s stops', body: 'The stop list for the day this page is pointed at.', preview: '8:20 am · Romancecar — 10:30 am · Open-Air Museum' },
-    { scope: 'day', kind: 'repeat', title: 'A line for every stop', body: 'One sentence per stop on this day, in your own wording.', preview: 'Today we’re going to Hakone Open-Air Museum in Ninotaira.' },
-    { scope: 'day', kind: 'repeat', title: 'A line for every stop with a tag', body: 'The same sentence, narrowed to the stops carrying the tags you pick — meals, lodging, travel.', preview: 'We ate at Kichi Kichi in Pontochō.' },
-    { scope: 'day', kind: 'repeat', title: 'A line for every booking', body: 'One sentence per confirmed booking on this day.', preview: 'Gora Kadan — checked in at 4:40 pm, $340.' }
+  // The one widget with a non-date input, so the model reads as "pick the input"
+  // rather than "pick a day".
+  personBlock(days) {
+    const who = this.wget('who', 'Priya'), i = Math.max(0, this.PEOPLE.indexOf(who));
+    const total = days.reduce((n, d) => n + d.items.length, 0);
+    const mine = Math.max(3, Math.round(total * [0.86, 0.62, 0.41, 0.55][i]));
+    return { isP: true, wname: 'What one person is in for', wbinds: [this.personBind('who', 'Pointed at')],
+      segs: [this.chip('person.name', who), this.txt(' is in for '), this.chip('person.stops', mine + ' of ' + total + ' stops'), this.txt(', and owes '), this.chip('person.owed', this.money(420 + i * 137)), this.txt(' so far.')] };
+  }
+  // Every widget is a function of its inputs. 'inputs' lists what it needs —
+  // a day, a stretch of days, a person, a set of tags — and you bind those when
+  // you insert it. Nothing here asks what the PAGE is about, because a page
+  // isn't about anything: it's a document holding widgets.
+  WIDGETS = [
+    { id: 'w-you', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'Sam K', inputs: [] },
+    { id: 'w-email', kind: 'single', title: 'Your email', body: 'The address you signed in with.', preview: 'sam@example.com', inputs: [] },
+    { id: 'w-air', kind: 'single', title: 'Home airport', body: 'Where you usually fly out of.', preview: 'SFO', inputs: [], needs: 'needs a field' },
+    { id: 'w-trips', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'Japan — 14 days from late September.', inputs: [] },
+    { id: 'w-name', kind: 'single', title: 'Trip name', body: 'The name of a trip.', preview: 'Japan: Tokyo → Kyoto → Osaka', inputs: ['trip'] },
+    { id: 'w-dates', kind: 'single', title: 'Trip dates', body: 'A trip’s date range.', preview: 'Sep 20 – Oct 3, 2026', inputs: ['trip'] },
+    { id: 'w-total', kind: 'single', title: 'Cost of a stretch', body: 'What a run of days adds up to. Point it at one day or all fourteen.', preview: '$1,270 across Day 6 – Day 8', inputs: ['days'] },
+    { id: 'w-left', kind: 'single', title: 'Budget left', body: 'What’s left of a trip’s budget.', preview: '$7,315 left of $16,400', inputs: ['trip'] },
+    { id: 'w-daydate', kind: 'single', title: 'A day’s date', body: 'The date of whichever day you point it at.', preview: 'Fri Sep 25', inputs: ['day'] },
+    { id: 'w-daycity', kind: 'single', title: 'A day’s city', body: 'Where you are on that day.', preview: 'Hakone', inputs: ['day'] },
+    { id: 'w-dayends', kind: 'single', title: 'First and last stop', body: 'When a day starts and ends.', preview: '8:20 am – 8:30 pm', inputs: ['day'] },
+    { id: 'w-daystops', kind: 'block', title: 'A day’s stops', body: 'The stop list for one day.', preview: '8:20 am · Romancecar — 10:30 am · Open-Air Museum', inputs: ['day'] },
+    { id: 'w-itin', kind: 'block', title: 'Days at a glance', body: 'A table of days and their stops, for whatever stretch you pick.', preview: 'Day 6 · Hakone — Day 7 · Kyoto — Day 8 · Kyoto', inputs: ['days'] },
+    { id: 'w-costs', kind: 'block', title: 'Cost breakdown', body: 'A cost table by day, with a total for the stretch.', preview: 'Day 1 $310 · Day 2 $95 · Total $9,085', inputs: ['days'] },
+    { id: 'w-people', kind: 'block', title: 'Everyone on a trip', body: 'The travellers and what they’re in for.', preview: 'Sam, Priya, Jonah, Mei', inputs: ['trip'] },
+    { id: 'w-person', kind: 'single', title: 'What one person is in for', body: 'One traveller’s stops and what they owe.', preview: 'Whoever you point it at — their stops, and their share so far.', inputs: ['person'] },
+    { id: 'w-dayline', kind: 'repeat', title: 'A line for every day', body: 'Write one sentence and it repeats for each day in the stretch, filled in with that day’s own detail.', preview: 'Day 6 — Hakone, five stops, $1,175.', inputs: ['days'] },
+    { id: 'w-cityline', kind: 'repeat', title: 'A line for every city', body: 'One sentence per city, in the order you reach them.', preview: 'Kyoto — four nights, eleven stops.', inputs: ['trip'] },
+    { id: 'w-stopline', kind: 'repeat', title: 'A line for every stop', body: 'One sentence per stop, in your own wording — narrowed to the tags you pick.', preview: 'We ate at Kichi Kichi in Pontochō.', inputs: ['day', 'tags'] },
+    { id: 'w-bookline', kind: 'repeat', title: 'A line for every booking', body: 'One sentence per confirmed booking on a day.', preview: 'Gora Kadan — checked in at 4:40 pm, $340.', inputs: ['day'] },
+    { id: 'w-personline', kind: 'repeat', title: 'A line for everything one person booked', body: 'One sentence per booking in someone’s name.', preview: 'Priya — Gora Kadan, $340.', inputs: ['person', 'days'] }
   ];
   SHAPES = { single: 'one value', block: 'a block', repeats: 'repeats', repeat: 'repeats' };
-  insScope() { return this.state.insScope || 'trip'; }
+  INPUT_WORDS = { day: 'a day', days: 'a stretch of days', person: 'someone on the trip', tags: 'tags', trip: 'a trip' };
   insList() {
     const q = (this.state.insQ || '').trim().toLowerCase();
     const kind = this.state.insKind || 'all';
-    return this.INSERTABLES
-      .filter(x => x.scope === this.insScope())
+    return this.WIDGETS
       .filter(x => kind === 'all' || x.kind === kind)
-      .filter(x => !q || (x.title + ' ' + x.body + ' ' + x.preview).toLowerCase().indexOf(q) >= 0);
+      .filter(x => !q || (x.title + ' ' + x.body + ' ' + x.preview + ' ' + x.inputs.join(' ')).toLowerCase().indexOf(q) >= 0);
+  }
+  insWidget() { return this.WIDGETS.find(w => w.id === this.state.insPick) || null; }
+  insDget(t, days) {
+    const d = this.state.insD || {};
+    if (d[t] !== undefined) return d[t];
+    return t === 'day' ? 6 : t === 'days' ? [1, days.length] : t === 'person' ? 'Priya' : t === 'tags' ? 'all' : 'japan';
+  }
+  insDset(t, v) { this.setState(s => ({ insD: Object.assign({}, s.insD || {}, { [t]: v }) })); }
+  // One control per input the widget declares. Same shapes as the binds that
+  // ride on an inserted widget, so binding at insert and rebinding later are
+  // the same act.
+  insBindRows(w, days, trip) {
+    if (!w) return [];
+    const rows = [];
+    w.inputs.forEach(t => {
+      if (t === 'day') rows.push({ label: 'Which day', value: String(this.insDget('day', days)), w: '100%', options: this.dayOpts(days), set: e => this.insDset('day', +e.target.value) });
+      if (t === 'days') {
+        const r = this.insDget('days', days), opts = days.map((x, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + x.city }));
+        rows.push({ label: 'From', value: String(r[0]), w: '100%', options: opts, set: e => this.insDset('days', [+e.target.value, r[1]]) });
+        rows.push({ label: 'Through', value: String(r[1]), w: '100%', options: opts, set: e => this.insDset('days', [r[0], +e.target.value]) });
+      }
+      if (t === 'person') rows.push({ label: 'Who', value: this.insDget('person', days), w: '100%', options: this.PEOPLE.map(p => ({ value: p, label: p })), set: e => this.insDset('person', e.target.value) });
+      if (t === 'tags') rows.push({ label: 'Only stops tagged', value: this.insDget('tags', days), w: '100%', options: [{ value: 'all', label: 'Every stop' }].concat(this.TAGS.map(x => ({ value: x.id, label: x.label }))), set: e => this.insDset('tags', e.target.value) });
+      if (t === 'trip') rows.push({ label: 'Which trip', value: this.insDget('trip', days), w: '100%', options: [{ value: 'japan', label: trip.name }, { value: 'nola', label: 'New Orleans, long weekend' }], set: e => this.insDset('trip', e.target.value) });
+    });
+    return rows;
+  }
+  insBindSummary(w, days) {
+    if (!w || !w.inputs.length) return '';
+    return w.inputs.map(t => {
+      if (t === 'day') { const d = days[this.insDget('day', days) - 1]; return d ? d.label + ' · ' + d.city : 'a day'; }
+      if (t === 'days') { const r = this.insDget('days', days); return r[0] === r[1] ? 'Day ' + r[0] : 'Day ' + r[0] + ' – Day ' + r[1]; }
+      if (t === 'person') return this.insDget('person', days);
+      if (t === 'tags') { const v = this.insDget('tags', days); return v === 'all' ? 'every stop' : this.TAG(v).label.toLowerCase() + ' stops'; }
+      return this.trip().name;
+    }).join(' · ');
   }
   HIST = [
     { description: 'Moved Ryokan check-in to 4:00 pm', when: 'Sep 18', undone: false },
@@ -6377,6 +6475,7 @@ class Component extends DCLogic {
     const saveState = s.pendingSave ? 'saving' : (this.props.saveState || 'saved');
     const canUndo = this.histTarget(true) >= 0, canRedo = this.histTarget(false) >= 0;
     const days = (route === 'trip' || route === 'notebook' || route === 'doc') ? this.buildDays() : [];
+    const insW = this.insWidget();
     const sugs = this.suggestionData().filter(x => s.dismissed.indexOf(x.id) < 0);
     const focusDay = days[s.focus];
     const insPb = this.PLAYBOOKS[s.insPbIdx];
@@ -6723,71 +6822,56 @@ class Component extends DCLogic {
       newDoc: () => { this.setState({ route: 'doc', docId: 'blank', docMode: 'edit', blankMade: true, nbOpen: false }); this.flash('Blank page created'); },
       // The untitled page only exists once you've made it.
       docs: this.DOCS.filter(d => !d.fresh || s.blankMade).map(d => Object.assign({}, d, this.accent(d.city || trip.days[0][0]), {
-        bind: d.dayBound ? 'Day ' + (s.docDay || 6) : 'Trip-wide',
-        bindVariant: d.dayBound ? 'brand' : 'neutral',
         meta: d.origin + ' · edited ' + d.edited,
         open: () => this.setState({ route: 'doc', docId: d.id, nbOpen: false })
       })),
       docTemplates: [
         { title: 'Trip overview', body: 'The whole trip in one read — dates, the shape of it, every day, what it costs.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'overview' }) },
-        { title: 'One day', body: 'A single day as a readable page. Point it at any day with a dropdown.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'day' }) },
-        { title: 'Blank page', body: 'Start with nothing and insert what you want from the plan.', fills: 'Yours', use: () => this.setState({ route: 'doc', docId: 'blank', docMode: 'edit' }) }
+        { title: 'A day, written out', body: 'A day’s prose and its stop list. Every widget in it starts on one day; point them anywhere after.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'day' }) },
+        { title: 'Blank page', body: 'Start with nothing and insert the widgets you want.', fills: 'Yours', use: () => this.setState({ route: 'doc', docId: 'blank', docMode: 'edit' }) }
       ],
 
-      docMode: s.docMode || 'read',
-      setDocMode: v => this.setState({ docMode: v }),
-      docModes: [{ value: 'read', label: 'Reading' }, { value: 'edit', label: 'Editing' }],
       docEditing: (s.docMode || 'read') === 'edit',
-      docDay: String(s.docDay || 6),
-      setDocDay: e => this.setState({ docDay: +e.target.value, docFollowed: true }),
-      docFollowed: !!s.docFollowed,
-      docFollowedLine: 'This page follows ' + (days[(s.docDay || 6) - 1] ? days[(s.docDay || 6) - 1].label + ' · ' + days[(s.docDay || 6) - 1].city : 'this day') + '. Every line on it updated with the plan.',
+      docEditLabel: (s.docMode || 'read') === 'edit' ? 'Done editing' : 'Edit',
+      docEditVariant: (s.docMode || 'read') === 'edit' ? 'primary' : 'secondary',
+      toggleDocMode: () => this.setState(st => ({ docMode: (st.docMode || 'read') === 'edit' ? 'read' : 'edit' })),
 
       insertOpen: !!s.insertOpen,
-      setInsertOpen: v => this.setState({ insertOpen: v }),
-      openInsert: () => this.setState({ insertOpen: true }),
+      setInsertOpen: v => this.setState({ insertOpen: v, insPick: v ? s.insPick : null }),
+      openInsert: () => this.setState({ insertOpen: true, insPick: null }),
       insQ: s.insQ || '', setInsQ: e => this.setState({ insQ: e.target.value }),
       insKind: s.insKind || 'all', setInsKind: v => this.setState({ insKind: v }),
       insKinds: [{ value: 'all', label: 'All' }, { value: 'single', label: 'One value' }, { value: 'block', label: 'A block' }, { value: 'repeat', label: 'Repeats' }],
-      insScopes: [
-        { value: 'account', label: 'Your account', hint: 'You — the same on every trip' },
-        { value: 'trip', label: 'This trip', hint: 'Japan: Tokyo → Kyoto → Osaka' },
-        { value: 'day', label: 'The day this page is about', hint: this.dayBound() ? 'Follows the dropdown at the top' : 'Not pointed at a day yet — picking one of these will point it' }
-      ].map(x => {
-        const on = this.insScope() === x.value;
-        return Object.assign({}, x, {
-          count: String(this.INSERTABLES.filter(i => i.scope === x.value).length),
-          variant: on ? 'brand' : 'neutral',
-          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)',
-          border: on ? 'var(--color-brand)' : 'var(--color-hairline)',
-          ink: on ? 'var(--color-brand-pressed)' : 'var(--color-ink)',
-          pick: () => this.setState({ insScope: x.value })
-        });
-      }),
+      insBrowsing: !insW, insPicked: !!insW,
       insItems: this.insList().map(x => Object.assign({}, x, {
         shape: this.SHAPES[x.kind] || x.kind,
         needs: x.needs || '',
-        insert: () => {
+        takes: x.inputs.length ? 'takes ' + x.inputs.map(t => this.INPUT_WORDS[t]).join(' + ') : '',
+        pick: () => {
           if (x.needs) { this.setState({ insertOpen: false }); this.flash(x.title + ' — nothing models this yet'); return; }
-          // A day value on a page with no day binding binds the page, the way
-          // the real unbound-macro path sends you to the binding control.
-          if (x.scope === 'day' && !this.dayBound()) {
-            const d = this.doc();
-            this.setState(st => ({ insertOpen: false, boundDocs: st.boundDocs.concat([d.id]), docFollowed: true }));
-            this.flash('This page now follows Day ' + (this.state.docDay || 6) + ' — change it at the top');
-            return;
-          }
-          this.setState({ insertOpen: false });
-          this.flash('Inserted — it fills itself from the plan');
+          // No inputs, nothing to bind — it just goes in.
+          if (!x.inputs.length) { this.setState({ insertOpen: false }); this.flash('Inserted — ' + x.title.toLowerCase()); return; }
+          this.setState({ insPick: x.id });
         }
       })),
       insEmpty: !this.insList().length,
-      insCountLine: this.insList().length + (this.insList().length === 1 ? ' thing you can insert' : ' things you can insert'),
+      insCountLine: this.insList().length + (this.insList().length === 1 ? ' widget' : ' widgets'),
 
-      docDayBound: this.dayBound(),
-      docTitle: this.docTitle(days),
-      docSubtitle: this.docSubtitle(days),
-      docBlocks: this.docBlocks(days, trip),
+      insTitle: insW ? insW.title : '',
+      insBody: insW ? insW.body : '',
+      insShape: insW ? (this.SHAPES[insW.kind] || insW.kind) : '',
+      insBindRows: this.insBindRows(insW, days, trip),
+      insSummary: this.insBindSummary(insW, days),
+      insBack: () => this.setState({ insPick: null }),
+      insConfirm: () => {
+        const sum = this.insBindSummary(insW, days);
+        this.setState({ insertOpen: false, insPick: null });
+        this.flash('Inserted — ' + insW.title.toLowerCase() + ', pointed at ' + sum);
+      },
+
+      docTitle: this.docTitle(),
+      docSubtitle: this.docSubtitle(),
+      docBlocks: this.docBlocks(days, trip).map(b => Object.assign({}, b, { wedit: (s.docMode || 'read') === 'edit' && !!(b.wbinds && b.wbinds.length) })),
 
       blOpen: s.blOpen, blCaret: s.blOpen ? '▼' : '▲', blToggleLabel: s.blOpen ? 'Hide' : 'Show', blCountLabel: String(s.backlog.length), blEmpty: !s.backlog.length,
       showRack: s.view === 'columns',

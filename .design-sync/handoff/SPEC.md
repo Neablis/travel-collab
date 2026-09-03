@@ -1,7 +1,7 @@
 # Spec — what the design file cannot say out loud
 
 Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
-a second file). Current as of 2026-09-02 — §17 is the newest section.
+a second file). Current as of 2026-09-02 — §18 is the newest section.
 
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
@@ -119,6 +119,12 @@ thread. This actually happened in the design file; it is not hypothetical.
 
 ## 7. Notebook — pages that read like documents
 
+> **Partly superseded by §18 (2026-09-02).** Pages no longer have a scope, and the insert
+> picker is no longer scope × shape. The struck parts below are kept, not deleted, because
+> `PageContext.dayRef`, `PageScreen.handleBindDay` and `focusDayBinding` all exist in code
+> and whoever reads them needs to know the design walked away from them on purpose.
+> Everything not struck — chips, prose, prebuilt pages, repeaters — still holds.
+
 Route: `/trips/[tripId]/pages` (list) and `.../pages/[pageId]` (one page). Two audiences:
 the planner building the trip, and the traveller who didn't plan it and just needs the day.
 
@@ -127,34 +133,30 @@ underlined, the macro name in its `title`. It reads as words in a sentence but r
 the trip on every render, so moving a day or a stop rewrites the page with nobody editing it.
 Users never see or type macro syntax.
 
-**Every page has a scope.** Trip-wide, or pointed at one day via the "This page is about"
+~~**Every page has a scope.** Trip-wide, or pointed at one day via the "This page is about"
 dropdown (that is `PageContext.dayRef`, already in the contract). Changing it re-resolves the
-whole page and raises an info Banner naming what it now follows.
+whole page and raises an info Banner naming what it now follows.~~ **Struck — see §18.**
 
-**Reading / Editing** is one segmented control. Editing reveals the repeat rail's label, its
-"Edit the wording" action, and the insert affordance. Reading is the traveller's view.
+**Reading / Editing** is **one toggle button**, not a segmented control (changed 2026-09-02):
+*Edit* (secondary) → *Done editing* (primary), carrying `aria-pressed`. Editing reveals each
+widget's chrome — its name and its bind controls — plus the repeat rail's "Edit the wording"
+action and the insert affordance. Reading is the traveller's view and shows no chrome.
 
-**Prebuilt pages ship with the trip** — "Trip overview" (trip-wide) and "One day" (day-bound),
-matching `templates.ts`'s `trip-overview` / `day-sheet` seeds, plus the user's own pages.
+**Prebuilt pages ship with the trip** — "Trip overview" and "A day, written out", matching
+`templates.ts`'s `trip-overview` / `day-sheet` seeds, plus the user's own pages.
 "Blank page" creates an **Untitled page** (matching `NotebookScreen`'s `handleCreate`), which
 does not appear in the list until it exists.
 
-### The insert picker — two axes, not one list
+### ~~The insert picker — two axes, not one list~~ **Superseded by §18**
 
-`Insert from the plan` is a Sheet with **search**, then **scope** (Your account / This trip /
-The day this page is about — each a row with a live count and a one-line explanation), then
-**how it reads** (All / One value / A block / Repeats). Scope × shape is a lens, so the picker
-stays the same size as the registry grows. Each item shows the registry's own `description`, a
-shape tag, and a real resolved preview.
+~~`Insert from the plan` is a Sheet with search, then scope (Your account / This trip / The day
+this page is about), then how it reads. Scope × shape is a lens.~~ Scope stopped being a lens
+the moment inputs became explicit: a widget that takes a day is not "day-scoped", it is a
+function with a day argument. §18 has the picker that replaced this.
 
-Two states the picker must keep honest:
-
-- A value with no field behind it (e.g. a home airport) carries a `needs a field` badge and
-  says so on click instead of claiming an insert.
-- Choosing a **day** value on a **trip-wide** page **binds the page to a day** and reveals the
-  dropdown — the design of `MacroResult`'s `unbound("day")` case, matching
-  `PageScreen.handleBindDay` / `focusDayBinding`. The day scope's hint changes to
-  "Not pointed at a day yet — picking one of these will point it" when unbound.
+One rule from this subsection survives verbatim and must not be lost: **a value with no field
+behind it (e.g. a home airport) carries a `needs a field` badge and says so on click instead
+of claiming an insert.**
 
 ### The one new primitive
 
@@ -164,11 +166,89 @@ item, with chips filled from each item ("Today we're going to *Hakone Open-Air M
 
 **The registry cannot express this yet.** `itinerary.trip` resolves a fixed block; there is no
 loop macro and no params for an author-supplied row template. This needs a macro param schema
-(the registry already owns per-macro `params`), and it is the main engineering decision the
-Notebook creates.
+(the registry already owns per-macro `params`) — and §18 makes that schema the *whole* model
+rather than one macro's extra, which is a simplification, not more work.
 
-**Account scope is also new** — `Your name` / `Your email` exist in the NextAuth session, but
-there is no account model beyond that, so anything else at that scope needs fields first.
+**Account-level widgets are also new** — `Your name` / `Your email` exist in the NextAuth
+session, but there is no account model beyond that, so anything else needs fields first. Note
+these are the widgets that take **no** input at all; they are not a scope.
+
+---
+
+## 18. Notebook widgets — a page has no scope — 2026-09-02
+
+This replaces the page-scope model in §7. It is the newer decision and it is smaller.
+
+### A page is a document. Nothing else.
+
+A notebook page is not "about" a trip or a day. It holds widgets, and **each widget owns its
+own inputs**. The consequence is the whole point: two widgets on one page can read two
+different days. On the seeded "Hakone, written out" page the opening sentence is pointed at
+Day 6 while the stop repeater can be pointed at Day 9, and the page is neither.
+
+Removed from the design, and each should be removed from the build's plan too:
+
+- the **"This page is about [day]"** dropdown in the page header;
+- the **"this page follows Day 6"** info Banner;
+- the **Trip-wide / Day 6** badge on the notebook index;
+- **"Following Day 6"** on the phone Notebook header;
+- the **Your account / This trip / The day this page is about** rows in the insert sheet;
+- `PageContext.dayRef` as a *page* property, and with it `handleBindDay` /
+  `focusDayBinding`'s reason to exist. The binding moves onto the widget instance.
+
+### A widget is a function of declared inputs
+
+Every entry in the registry declares its inputs. The design ships five input types, and the
+type is what a control is chosen from — not a hardcoded list per widget:
+
+| Input | Control | Reads as |
+|---|---|---|
+| `day` | one day select | "Day 6 · Hakone" |
+| `days` | from / through, two selects | "Day 6 – Day 8", or "Day 6" when equal |
+| `person` | who | "Priya" |
+| `tags` | every stop, or one tag | "meal stops" |
+| `trip` | which trip | the trip name |
+
+Widgets with **no** inputs (your name, your email, a line for every trip you have) insert
+directly with nothing to bind. Ranges and people fall out of this for free — the design added
+*cost of a stretch*, *days at a glance*, *a line for every day* (over a range), *what one
+person is in for* and *a line for everything one person booked* without inventing a mechanism,
+which is the argument for the model.
+
+### Binding at insert and rebinding later are the same act
+
+**Insert is two steps in one Sheet.** Step one is search + *how it reads* (All / One value /
+A block / Repeats) over a flat list; each row carries its shape tag, a real resolved preview,
+and a mono line naming what it takes ("takes a day + tags"). Choosing a widget with inputs
+replaces the list with **Point it at** — one `FormField` + `NativeSelect` per input, a
+**Reads as** summary of the current binding, and *Insert it*. A back link returns to the list.
+Choosing a widget with no inputs inserts immediately.
+
+**On the page, in Editing mode, every widget with a binding wears the same controls** as a
+chrome row above it: a brand-tint pill with the widget's name, then its bind selects inline.
+Changing one re-renders that block and nothing else. Reading mode shows no chrome at all.
+
+Two details that are load-bearing rather than decorative:
+
+- The chrome row renders whenever a block **has binds** — the name pill is conditional on the
+  widget having a name. The itinerary widget under the authored heading "Every day at a
+  glance" shows only its two range selects, because a name pill there would print the heading
+  twice (rule 4).
+- A widget's registry **preview must not assert numbers the live widget computes**, or the
+  sheet and the page contradict each other in the same session. Person previews are phrased
+  generically for exactly this reason.
+
+### What this does to the `templates.ts` blocker
+
+§7's blocker was: the design says prose with live macro chips, M8 removed macro authoring,
+and `templates.ts` seeds templates with **no macro nodes**. That standoff is now a different,
+easier question. A seeded template under this model is **a document containing widget
+instances with default bindings** — `day-sheet` seeds its widgets pointed at day index 0.
+Nothing has to re-open macro *authoring* to make the seeds honest; the authoring UI is the
+insert sheet plus the chrome row, and neither is a text-macro editor.
+
+**This is still the item to settle first** (DRIFT "Suggested order" 2), but settle it as
+"what does a seeded template instantiate", not "does macro authoring come back".
 
 ## 8. Deliberately not designed yet
 

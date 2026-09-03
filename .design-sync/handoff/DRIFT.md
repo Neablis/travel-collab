@@ -2,7 +2,8 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-Design side refreshed 2026-09-02 (§2c billing surfaces; §2d the shared-day map and the phone Playbooks tab).
+Design side refreshed 2026-09-02 (§2c billing surfaces; §2d the shared-day map and the phone
+Playbooks tab; §2e Notebook widgets — pages no longer have a scope).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -175,6 +176,40 @@ The phone tab bar is now **Plan / Map / Notebook / Playbooks / Trips** — SPEC 
 list is superseded. Phone Playbooks has parity with Discover, with all filters in one bottom
 sheet per rule 3 and the shared day's map collapsed behind a "Show route" row.
 
+## 2e. New this turn — Notebook widgets replace page scope
+
+`SPEC.md` §18, which supersedes §7's page-scope model. This is the first item on this pass
+that makes the build's job **smaller**, so it is worth reading before the next Notebook diff.
+
+A page no longer has a scope. **Each widget owns its inputs** — a day, a stretch of days, a
+person, a tag set, a trip — bound when it is inserted and rebindable in place. Two widgets on
+one page can read two different days, and the design demonstrates exactly that.
+
+What the build should stop planning for:
+
+- `PageContext.dayRef` **as a page property**, and with it `PageScreen.handleBindDay` and
+  `focusDayBinding`. The binding belongs to the widget instance. These three are real code
+  today, which is why §7 keeps the struck text rather than deleting it.
+- The page-header day dropdown, the "this page follows Day 6" Banner, the Trip-wide / Day
+  badge on the index, and "Following Day 6" on the phone. All four asserted a scope the model
+  no longer has, and three of them also duplicated a value already on screen (rule 4).
+- Scope as a facet in the insert picker. Scope × shape was a lens over the registry; with
+  inputs declared it is a category that does not exist. The picker is now search + shape over
+  a flat list, then a **Point it at** step with one control per declared input.
+
+What it needs instead — and this is the part to cost:
+
+- **Inputs are part of the registry entry**, not per-macro special cases: an input *type*
+  (`day` / `days` / `person` / `tags` / `trip`) picks the control, so a new widget needs no
+  new UI. This is §7's "macro param schema" promoted from one macro's extra to the model.
+- **A widget instance stores its bindings** — a page document therefore holds instances with
+  arguments, not bare macro references.
+- Ranges (`days`) and people (`person`) are new resolver arguments. The design added five
+  widgets that use them without inventing a mechanism; that is the test of the model, and it
+  is also five resolvers a build now owes.
+
+**It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
+
 ## 3. Designed, shelled in code behind `<Preview>`
 
 From the registry, unchanged this sync. **Blocked on a missing field:**
@@ -197,10 +232,15 @@ chips.
 - **Notebook / Pages — an entire feature.** `packages/pages` (macro registry,
   templates, inline + block macros), `NotebookScreen`, `PageScreen`, `PageEditor`
   (TipTap), `MacroNodeView`, `ComposePanel`, `ItineraryDayBlock`, `ItineraryTripBlock`,
-  `CostsTableBlock`, routed at `/trips/[tripId]/pages`. **Blocked, not queued:** SPEC §7
-  says prose with live macro chips; the build removed macro authoring in M8 and seeds
-  templates with no macro nodes. Nobody should design or build to §7 until that is
-  settled. It is also why the phone Notebook stays unstarted.
+  `CostsTableBlock`, routed at `/trips/[tripId]/pages`. **Still the item to settle first,
+  but the question changed on 2026-09-02** (SPEC §18): the standoff was "design wants live
+  macro chips, M8 removed macro authoring, `templates.ts` seeds no macro nodes". Under the
+  widget model a seeded template is **a document holding widget instances with default
+  bindings** — `day-sheet` seeds its widgets pointed at day index 0 — so nothing has to
+  re-open macro *authoring*: the authoring surface is the insert sheet plus the in-place
+  chrome row, neither of which is a text-macro editor. Settle it as "what does a seeded
+  template instantiate", not "does macro authoring come back". It is still why the phone
+  Notebook stays unstarted.
 - **Trip lifecycle.** Delete → undo toast → `RestoreTrip`, and `duplicateTrip`. The
   optimistic pattern (drop the row on confirm, re-add on failure) has no design.
 - **Dev login.** `dev-login` credentials provider behind `AUTH_DEV_LOGIN` — the only
@@ -274,6 +314,11 @@ Carried forward because each one is a bug the design already hit:
   usage or the collaboration gate; the operator console is deliberately never on the phone.
   The two phone states rule 6 wants for the plan section are undesigned.
 
+- **The phone Notebook has one hardwired widget.** Its stop repeater follows the focused day
+  rather than carrying a binding of its own, so the phone does not yet express SPEC §18. That
+  is a deliberate stop, not an oversight: the phone is a companion (§10) and per-widget
+  rebinding on a 390px screen needs its own design pass. Nothing in the model prevents it.
+
 - **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
   after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project
   rule 6 requires all three of every screen.
@@ -290,8 +335,10 @@ Carried forward because each one is a bug the design already hit:
 ## Suggested order
 
 1. Settle **D1** (rename to Caesura in code) — it is trivial and a year stale.
-2. Settle **SPEC §7 vs `templates.ts`**. It blocks Notebook on both surfaces *and* the
-   landing page's second feature block.
+2. Settle **what a seeded template instantiates** (SPEC §18 vs `templates.ts`; was "§7 vs
+   `templates.ts`"). It blocks Notebook on both surfaces *and* the landing page's second
+   feature block. §18 narrows it to a data question — instances with default bindings —
+   rather than a reversal of M8.
 3. Land **KI-34** so the home hero can be honest.
 4. Design the phone **conflict** state; that is the last of rule 6.
 5. Then §4's undesigned lifecycle work.

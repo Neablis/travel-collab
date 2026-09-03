@@ -4,7 +4,8 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-02 (billing surfaces for M20 / M21)
+Last substantive pass: 2026-09-02 (Notebook widgets — pages no longer have a scope; billing
+surfaces for M20 / M21)
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
 bundle. It supersedes the 2026-08-30 bundle.
@@ -16,6 +17,15 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
+- **Notebook pages no longer have a scope.** `SPEC.md` §18, `DRIFT.md` §2e. Each **widget**
+  owns its inputs — a day, a stretch of days, a person, a tag set, a trip — bound when you
+  insert it and rebindable in place, so two widgets on one page can read two different days.
+  This is the one item in this bundle that makes the build's job **smaller**: it retires
+  `PageContext.dayRef` as a page property (with `handleBindDay` / `focusDayBinding`), the
+  page-header day dropdown, the "this page follows" Banner, and scope as a facet in the insert
+  picker. It also **restates the oldest Notebook blocker**: settle what a seeded template
+  *instantiates*, not whether macro authoring returns. §18 supersedes the page-scope half of
+  §7; the struck text there is kept on purpose, because the code it names still exists.
 - **Billing has four designed surfaces** — pricing on the landing page, an operator console
   (route `admin`), the collaboration gate in Trip settings, and plan + usage in the account
   sheet. `SPEC.md` §17 is the whole design; `DRIFT.md` §2c is what it needs. **Read both
@@ -28,7 +38,8 @@ What is new since the last bundle:
   `DRIFT.md` §2d. The previous bundle predated both. §16's three map constraints are each a
   bug that was hit and fixed in the design file; §13's four-tab list is superseded.
 - **The design file in `design/` is refreshed** to the current prototype — the previous copy
-  predated the day-view map, the phone Playbooks tab and all of the billing work.
+  predated the Notebook widget model, the day-view map, the phone Playbooks tab and all of
+  the billing work.
 - Still carried and unchanged: Playbooks as a public library (§15), the landing page (§14),
   Calendar as a city view (§12), mobile as a `surface` of this same file (§13), and
   `DS-UPSTREAM.md` for what is owed to the DS package.
@@ -43,8 +54,8 @@ what may exist on a page — read `RULES.md` first.
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
-| `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks**, §5 closed, §6 build checks, §7 their KIs |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 
