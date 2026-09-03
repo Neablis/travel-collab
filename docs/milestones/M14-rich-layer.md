@@ -183,8 +183,35 @@ deliberate mutation of the code it protects before being kept (13 mutations,
 rule 3); one of those mutations found a real defect in `formatRelativeInstant`
 rather than confirming a test, which is recorded above.
 
-**Still owed by this half:** a human browser walk — the e2e lane proves the
-flow works, not that it reads right — and §7's
+**The browser walk happened on 2026-09-03, against a local production build,
+and it found a defect three test layers had missed.** `listPages` was a bare
+`SELECT … WHERE` with no `ORDER BY`, so Postgres returned notebooks in physical
+row order — which an `UPDATE` changes, because it writes a new row version. A
+notebook created through the index came back **first** on the next read while
+`handleCreate` had just appended it **last** to its own list. Fixed with
+`ORDER BY created_at, id`, plus a per-seed millisecond stagger, because
+`instantiateDefaults` gave every seeded row one shared `now` and a tied sort key
+falls back to the same luck. Both halves are covered by one integration test,
+and the tie half is worth the anecdote: with the stagger reverted that test
+**passed once and failed twice in three identical runs**.
+
+Why no test caught it: unit and e2e both seed their rows in a single insert and
+never observe a reshuffle, so every layer agreed with itself. It took looking at
+the screen.
+
+**The Vercel preview walk is still blocked, and it is a known condition rather
+than a new one.** `docs/guidelines/cloud-agent-sessions.md` (2026-08-30) already
+records `?_vercel_share=` links redeeming as `429 Vercel Security Checkpoint`
+from this container — Vercel's anti-bot interstitial challenging headless
+Chromium on a datacentre IP — and concludes that
+`VERCEL_AUTOMATION_BYPASS_SECRET` is the only dependable route. Reproduced
+exactly here across three freshly minted links. The secret must be in the
+**session's own environment** to be usable, and a cloud session's environment is
+fixed when its container starts, so setting it in the Vercel project does not
+reach a session already running.
+
+**Still owed by this half:** the walk against the deployed preview specifically
+(the local walk exercises the same code but not the same artifact), and §7's
 "one-line description" per notebook is **not built** — the index shows title,
 scope, provenance and freshness, and there is no description field on a page to
 show. That is a field, so it is a contract change of its own and was left rather

@@ -49,6 +49,36 @@ describe("pages repository", () => {
     expect(after.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
   });
 
+  // Found by walking the Notebook index in a browser on 2026-09-03, not by a
+  // test: a notebook created through the index appeared FIRST on the next
+  // read, while `NotebookScreen.handleCreate` had just appended it to the end
+  // of its own list. `listPages` was a bare `SELECT … WHERE` with no ORDER BY,
+  // so Postgres returned rows in physical order — which an UPDATE changes,
+  // because it writes a new row version.
+  //
+  // The update below is the half that catches the reshuffle. Creation order
+  // alone can pass unordered, since fresh inserts often land in insertion
+  // order anyway; editing the FIRST row is what moves it.
+  it("returns notebooks in a stable order that an edit does not disturb", async () => {
+    const { tripId } = await seedTrip();
+    const seeded = await listPages(tripId);
+    // The prebuilt pair comes back in `instantiateDefaults` order, which is
+    // the order SPEC §7 names them in — not whichever the database felt like.
+    expect(seeded.map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet"]);
+
+    const mine = await createPage(
+      tripId,
+      { title: "Packing", context: { tripId }, content: { type: "doc", content: [] } },
+      "user-1",
+    );
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+
+    // Edit the first row, then the last. Neither may move.
+    await updatePage(seeded[0]!.id, { title: "Trip Overview" });
+    await updatePage(mine.id, { title: "Packing" });
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+  });
+
   it("creates, reads, updates, deletes a page", async () => {
     const { tripId } = await seedTrip();
     const created = await createPage(

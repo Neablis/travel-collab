@@ -35,7 +35,7 @@ the thing to read next**: M14 link 1 requires it *accepted* before any repeater
 code lands, so the builder half (the insert picker, repeaters, Reading/Editing)
 is still gated and is gated on Mitchell, not on engineering.
 
-**Three things a session picking this up must not miss:**
+**Four things a session picking this up must not miss:**
 
 1. **It needed a contract change, which the plan said it would not.**
    `PageSummary` now carries `actorId` and `SYSTEM_ACTOR_ID` moved into
@@ -47,8 +47,16 @@ is still gated and is gated on Mitchell, not on engineering.
    pill and click through its footer (`m7-solo-delight`'s three tests,
    `m11-demo`'s withheld-controls test), and a rewritten spec is exactly what a
    green unit suite does not vouch for. Both were re-run alone afterwards to
-   confirm they ran rather than being filtered out. **A human browser walk is
-   still owed** — the lane proves the flow works, not that it reads right.
+   confirm they ran rather than being filtered out.
+3. **The browser walk happened, against a local production build, and it found
+   a defect no test layer could see** — `listPages` had no `ORDER BY`, so the
+   notebook list reshuffled after an edit and disagreed with the index's own
+   optimistic placement. Fixed and covered. **The walk against the deployed
+   Vercel preview is still blocked** by the condition
+   `cloud-agent-sessions.md` already documents: share links redeem as
+   `429 Vercel Security Checkpoint` from this container, and
+   `VERCEL_AUTOMATION_BYPASS_SECRET` has to be in the session's OWN
+   environment, which is fixed at container start.
 3. **Two planning-doc claims about the code were wrong and are corrected in
    place** — the scope string was `describeBinding` and was already rendered,
    and this half was not contract-free. Both had been copied verbatim into

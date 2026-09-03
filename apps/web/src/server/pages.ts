@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
@@ -19,8 +19,22 @@ export async function createPage(tripId: string, input: CreatePageInput, actorId
   return toPage(inserted!);
 }
 
+// Ordered by `createdAt`, and the ordering is load-bearing rather than tidy.
+// Without it this is a bare `SELECT … WHERE`, so Postgres returns rows in
+// whatever physical order it currently has them — which changes as rows are
+// updated, and disagrees with the Notebook index's own optimistic placement:
+// `handleCreate` appends a new notebook to the end of its list, and an
+// unordered re-read put the same notebook first. Found by walking the flow in
+// a browser (2026-09-03); no unit or e2e test could see it, because both seed
+// their rows in one insert and never observe a reshuffle.
+//
+// `createdAt` rather than `updatedAt`: a list that reorders itself every time
+// you edit something is a list you cannot learn the shape of, and the two
+// seeded notebooks stay where a returning reader last saw them. `id` breaks
+// any remaining tie, so two notebooks created in the same millisecond still
+// come back in a fixed order rather than a lucky one.
 export async function listPages(tripId: string): Promise<PageSummary[]> {
-  const existing = await db.select().from(pages).where(eq(pages.tripId, tripId));
+  const existing = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
   if (existing.length > 0) return existing.map(toPage);
 
   // Lazy default instantiation — first visit only. The zero-rows check above
@@ -30,10 +44,18 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   // (trip_id, title) WHERE actor_id = 'system' — the racer that loses inserts
   // nothing and the re-read below returns the winner's rows. Do not replace
   // this with per-row createPage() calls; that reintroduces the race.
-  const now = new Date().toISOString();
-  const seeds = instantiateDefaults(tripId).map((seed) => newRow(tripId, seed, SYSTEM_ACTOR_ID, now));
+  // Each seed gets its own millisecond, so `ORDER BY created_at` reproduces
+  // `instantiateDefaults`' order — Trip Overview, then Day Sheet, which is the
+  // order SPEC §7 lists the prebuilt pages in. One shared `now` for all of them
+  // left every seeded row tied on the sort key, and a tie falls back to
+  // whatever order Postgres happens to return: the ordering would have looked
+  // fixed in a two-row trip and shuffled in a busier one.
+  const startedAt = Date.now();
+  const seeds = instantiateDefaults(tripId).map((seed, i) =>
+    newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt + i).toISOString()),
+  );
   await db.insert(pages).values(seeds).onConflictDoNothing();
-  const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId));
+  const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
   return seeded.map(toPage);
 }
 
