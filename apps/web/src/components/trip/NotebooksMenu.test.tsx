@@ -67,6 +67,10 @@ describe("NotebooksMenu", () => {
     // so there is no per-notebook binding for the menu to name.
     expect(await screen.findByRole("link", { name: /^Trip Overview .+/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
+    // And no scope anywhere in the menu. The `.+` above would happily match a
+    // reinstated "Trip-wide", so without this the test permits exactly what
+    // §18 struck (CodeRabbit on PR 129).
+    expect(screen.queryByText(/Trip-wide|Day \d/)).toBeNull();
   });
 
   // The design gives every row a second line, and it is the same line the index

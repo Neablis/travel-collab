@@ -18,7 +18,17 @@ export function MacroView({ detail, context, name, params, onBindDay }: {
   const outcome = resolveMacro(detail, context, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
-  if (outcome.status === "unbound") return <EmptyChip tone="action" label="select a day" onClick={onBindDay} />;
+  // The chip is a control only when something can act on it. `PageScreen`
+  // stopped passing `onBindDay` when the page-level day binding went (SPEC §18)
+  // — and an `action` chip renders through the Button primitive, so without a
+  // handler it was a keyboard-focusable button that did nothing. Both reviewers
+  // caught it on #129. Link 4's chrome row passes a handler again, and this
+  // goes back to being actionable with no further edit.
+  if (outcome.status === "unbound") {
+    return onBindDay
+      ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
+      : <EmptyChip tone="muted" label="no day set" />;
+  }
   if (outcome.status === "empty") return <EmptyChip tone="muted" label={def?.emptyText ?? "—"} />;
   // ok:
   if (def?.kind === "inline") return <span className="text-ink">{outcome.value as string}</span>;

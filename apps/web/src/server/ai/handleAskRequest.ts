@@ -1011,7 +1011,7 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     // chip. Say so rather than letting the model find out on the page. The
     // catalog grows an input description in ADR-035 decision 5 (M14 link 8),
     // and this sentence is what should change when it does.
-    "A page is not about any one day: a day-scoped macro reads the day from its own settings. Write the page about the trip as a whole and prefer the trip-scoped macros — a day-scoped one drafted with no day set renders as an empty chip.",
+    "A page is not about any one day: a day-scoped macro reads the day from its own settings. Write the page about the trip as a whole and prefer the trip-scoped macros — a day-scoped one drafted with no day set renders as a 'no day set' placeholder instead of a value.",
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
     "Then say ONE short sentence about what you drafted. The page lands in the editor for the user to review and edit, so never say you have saved or published it.",

@@ -35,6 +35,11 @@ describe("NotebookScreen", () => {
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(within(list).getByText("Trip Overview")).toBeTruthy();
     expect(within(list).getByText("Day Sheet")).toBeTruthy();
+    // A notebook has no scope to name (SPEC §18), so the badge #126 shipped
+    // here must not come back. Removing the positive assertion only stopped
+    // this test requiring the badge — it did not stop it passing WITH one,
+    // which is the invariant the PR actually establishes (CodeRabbit on PR 129).
+    expect(within(list).queryByText(/Trip-wide|Day \d/)).toBeNull();
   });
 
   it("creates a new page via the client and navigates to it", async () => {
