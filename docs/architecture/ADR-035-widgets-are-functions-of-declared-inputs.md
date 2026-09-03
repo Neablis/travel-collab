@@ -1,7 +1,8 @@
 # ADR-035: A notebook page is text and widgets; a widget is a function of declared inputs
 
-**Status:** **PROPOSED — revised 2026-09-03.** Not accepted.
-**Deciders:** Mitchell (product/eng) — pending; Claude (architect) — drafted
+**Status:** **Accepted — 2026-09-03.** Rewritten and accepted the same day: kicking off
+M14's builder half against this model is the acceptance.
+**Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Design spec: `.design-sync/handoff/SPEC.md` **§18** ("Notebook widgets — a page has
 no scope", 2026-09-02), which replaces §7's page-scope model
 Milestone: `docs/milestones/M14-rich-layer.md` — link 1, which gates the builder half

@@ -8,14 +8,18 @@
 Mitchell's instruction, out of the order above and with M17's gate still open.
 That is the decision this file said was "available to be taken"; it has now been
 taken. What landed, and what it cost, is in *The navigation and index half*
-below. **The blocked half has not moved** — but its prerequisite now exists as a
-written proposal: `ADR-035-repeaters-are-document-content-not-macro-params.md`,
-**PROPOSED, awaiting Mitchell's acceptance**. Links 4 and 5 stay gated until it
-is accepted.
+below.
 
-**It opens with an ADR — repeaters** — and that ADR is a prerequisite, not a
-deliverable to write mid-build. Routed here by the 2026-08-23 design sync, which
-also gave this milestone the **whole Notebook redesign** (`SPEC.md` §7).
+**The builder half is unblocked as of 2026-09-03.** Its prerequisite ADRs — 035
+(the widget model) and 036 (notebook history) — were **accepted** that day, by
+Mitchell's instruction to build against them. Links 2–8 are open for work.
+**Link 9 is not**, despite 036 being accepted: acceptance left one question open
+that a build cannot answer for itself, and the gate says which.
+
+**It opens with an ADR** — and that ADR is a prerequisite, not a deliverable to
+write mid-build. Routed here by the 2026-08-23 design sync, which also gave this
+milestone the **whole Notebook redesign** (`SPEC.md` §7) — since replaced for the
+builder half by §18.
 
 ## Why this exists
 
@@ -62,7 +66,9 @@ Mitchell's framing, 2026-09-03:
 
 1. **ADR-035 accepted** — *A notebook page is text and widgets; a widget is a function of
    declared inputs*. Rewritten 2026-09-03 against §18; the earlier repeaters-only draft is
-   superseded. Still a prerequisite, not a deliverable.
+   superseded. **Accepted 2026-09-03**, together with ADR-036, on Mitchell's instruction to
+   build the builder half against them. Links 2–8 are unblocked; **link 9 is not** — see the
+   gate.
 2. **A page loses its scope.** `PageContext.dayRef` removed, and with it the "This page is
    about" dropdown, the follows-a-day Banner, `handleBindDay`/`focusDayBinding`, **and the
    Trip-wide / Day 6 badge PR #126 shipped on the index**. A contract change, so invariant
@@ -87,7 +93,11 @@ Mitchell's framing, 2026-09-03:
    beside it, replacing `compose_page`'s whole-document round trip. `AskScope` already
    carries `{ kind: "page"; pageId }` and `/ask` already verifies the page (ADR-033), so
    this is a tool-list change, not new plumbing.
-9. **Notebook history — ADR-036 accepted, then built.** Notebook content joins the event
+9. **Notebook history — ADR-036 accepted, then built.** *(Accepted 2026-09-03. **Blocked
+   anyway**: acceptance left open where an unsettled draft lives once `pages` is a
+   projection — 800ms autosave against once-per-session events means a rebuild mid-session
+   destroys prose the log does not carry. That is a decision, not an implementation detail;
+   it goes in the ADR before this link is briefed.)* Notebook content joins the event
    log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
    A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
    800ms cadence for durability while history commits **one event per settled edit
@@ -100,6 +110,12 @@ The old gate's **"choosing a day value on a trip-wide page binds the page and re
 dropdown"** box is **void** — there is no page binding to reveal. Replaced by: *a widget's
 inputs are bound at insert and rebindable from the chrome row, and two widgets on one page
 can read two different days.*
+
+**Carried into the gate itself on 2026-09-03**, which this section had not done: saying a
+box is void here and leaving it ticked-shaped down there is how a struck requirement gets
+built by the next session that reads only the checklist. The picker box is rewritten to
+§18's two-step Sheet (keeping the `needs a field` badge, the one rule §7's picker subsection
+survived by), and the two-widgets-two-days replacement is now its own box.
 
 ---
 
@@ -320,29 +336,52 @@ milestone opens:**
 
 ## Exit gate
 
-- [ ] **The repeaters ADR is written and accepted before any repeater code
+- [x] **The repeaters ADR is written and accepted before any repeater code
       lands**, and it names what a row template is, how it is stored, and what
       an empty collection renders.
-      *(**Written 2026-09-03, not yet accepted** —
-      `docs/architecture/ADR-035-repeaters-are-document-content-not-macro-params.md`,
-      status PROPOSED. It answers all three: a row template is the `repeat`
-      node's own inline content in the page document (not a string and not a
-      `params` value, both of which reintroduce the macro syntax §7 forbids);
-      the item scope is a render-time argument and never enters `PageContext`,
-      so nothing stores an item identity that a moved day could stale; and an
-      empty collection renders `emptyText` in Reading but keeps the rail and
-      the row template in Editing, because the empty case is exactly when an
-      author is writing. **This box ticks on Mitchell's acceptance, not on the
-      file existing.**)*
+      *(**Accepted 2026-09-03** — `ADR-035-widgets-are-functions-of-declared-inputs.md`,
+      which is the rewrite of the file this box was written against
+      (`ADR-035-repeaters-are-document-content-not-macro-params.md`); repeaters
+      turned out to be one shape of one kind of widget, so the ADR grew to the
+      model underneath them. It still answers all three of this box's questions,
+      in decision 4: a row template is the `repeat` node's own inline content in
+      the page document (not a string and not a `params` value, both of which
+      reintroduce the macro syntax §7 forbids); the item scope is a render-time
+      argument and never persisted, so nothing stores an item identity a moved
+      day could stale; and an empty collection renders `emptyText` in Reading but
+      keeps the rail and the row template in Editing, because the empty case is
+      exactly when an author is writing. Acceptance was Mitchell's instruction to
+      build the builder half against it, not the file existing.)*
+- [x] **ADR-036 accepted** — notebook history is event-sourced per page, at
+      edit-session granularity.
+      *(**Accepted 2026-09-03**, same instruction. Acceptance did **not** settle
+      where an unsettled draft lives once `pages` is a projection: autosave writes
+      the row every 800ms while history commits once per settled session, so
+      between the two a rebuild would destroy prose no event carries. Recorded as
+      the last bullet under that ADR's Consequences. **Link 9 does not start until
+      that has an answer** — it is contract-and-migration shaped and belongs in the
+      ADR, not in a reducer discovered halfway through.)*
 - [ ] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
 - [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
       raw syntax reaches the DOM.
 - [ ] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
-- [ ] The insert picker offers scope × shape with live counts, a **`needs a
-      field` badge** on a value with no field behind it, and choosing a day value
-      on a trip-wide page **binds the page and reveals the dropdown**.
+- [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
+      carrying its shape tag, a **real resolved preview**, and a mono line naming
+      what it takes; then **Point it at** for widgets with inputs, and immediate
+      insert for those without. A value with no field behind it still carries the
+      **`needs a field` badge** and says so on click instead of claiming an insert
+      — the one rule §7's picker subsection kept when §18 replaced the rest of it.
+      *(Rewritten 2026-09-03. The original box ended "…and choosing a day value on
+      a trip-wide page **binds the page and reveals the dropdown**", which §18
+      voided outright: there is no page binding left to reveal. The rescope section
+      above said the box was void and then left it standing in the gate, which is
+      how a struck requirement gets built by the next session that reads only the
+      checklist.)*
+- [ ] **Two widgets on one page read two different days**, bound at insert and
+      rebindable from the chrome row — the replacement the rescope section named
+      for the voided box above, and the one check that actually proves the model.
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
