@@ -51,12 +51,13 @@ is still gated and is gated on Mitchell, not on engineering.
 3. **The browser walk happened, against a local production build, and it found
    a defect no test layer could see** — `listPages` had no `ORDER BY`, so the
    notebook list reshuffled after an edit and disagreed with the index's own
-   optimistic placement. Fixed and covered. **The walk against the deployed
-   Vercel preview is still blocked** by the condition
-   `cloud-agent-sessions.md` already documents: share links redeem as
-   `429 Vercel Security Checkpoint` from this container, and
-   `VERCEL_AUTOMATION_BYPASS_SECRET` has to be in the session's OWN
-   environment, which is fixed at container start.
+   optimistic placement. Fixed, covered, and then **re-walked on the deployed
+   preview** (built from `a4bfbc2`) where the new notebook lands last, as it
+   should. Two reusable facts came out of it: the walk needs
+   `VERCEL_AUTOMATION_BYPASS_SECRET` **in the session's own environment** (a
+   share link redeems as `429 Vercel Security Checkpoint` — three tried), and
+   it needs **no invite code**, because `admission.ts` only gates someone with
+   no `users` row and an existing dev user is admitted as `returning-user`.
 3. **Two planning-doc claims about the code were wrong and are corrected in
    place** — the scope string was `describeBinding` and was already rendered,
    and this half was not contract-free. Both had been copied verbatim into

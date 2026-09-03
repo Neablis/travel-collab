@@ -130,6 +130,29 @@ checkpoint ever renders. Until that secret exists, a cloud session cannot
 produce preview evidence for a gate, and should say so rather than reporting a
 walk it could not perform.
 
+**The secret now exists** (Vercel → Settings → Deployment Protection →
+Protection Bypass for Automation) and was used for a full signed-in walk on
+2026-09-03. Two things that were not obvious the first time:
+
+- **It has to be in the SESSION's environment, not just in Vercel.** A cloud
+  container's environment is fixed when it starts, so setting the value in the
+  project does not reach a session already running — it has to be handed to
+  that session. The value is deliberately not written down in this repo.
+- **A signed-in walk needs no invite code.** `server/admission.ts` evaluates
+  admission only for someone with **no `users` row**; an existing dev user is
+  admitted as `returning-user`. So `/signin` → dev login as a username that has
+  been here before is enough. `INVITE_SUPER_CODE` is a first-sign-in concern and
+  `playwright.config.ts` injects it only into the LOCAL e2e web server — which
+  is easy to misread as "the preview is unreachable".
+
+One trap that cost two runs, and belongs to whoever writes the walk script
+rather than to the app: Playwright's `getByRole(..., { name })` matches the
+accessible name by **substring**. A fixture trip named `[walk] notebooks …`
+makes the trip-title button (accessible name `<trip name> — Trip settings`)
+match `getByRole("button", { name: "Notebooks" })`, and the resulting strict-mode
+violation reads exactly like the app rendering the control twice. Name walk
+fixtures so they cannot collide with a control you intend to query.
+
 Three things had to be true at once, and each failed with an error naming none
 of the others. Worth knowing, because they bite anything else you point at the
 network from a renderer:

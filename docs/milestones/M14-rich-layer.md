@@ -199,19 +199,27 @@ Why no test caught it: unit and e2e both seed their rows in a single insert and
 never observe a reshuffle, so every layer agreed with itself. It took looking at
 the screen.
 
-**The Vercel preview walk is still blocked, and it is a known condition rather
-than a new one.** `docs/guidelines/cloud-agent-sessions.md` (2026-08-30) already
-records `?_vercel_share=` links redeeming as `429 Vercel Security Checkpoint`
-from this container — Vercel's anti-bot interstitial challenging headless
-Chromium on a datacentre IP — and concludes that
-`VERCEL_AUTOMATION_BYPASS_SECRET` is the only dependable route. Reproduced
-exactly here across three freshly minted links. The secret must be in the
-**session's own environment** to be usable, and a cloud session's environment is
-fixed when its container starts, so setting it in the Vercel project does not
-reach a session already running.
+**The preview walk happened too, on the deployed artifact** (deployment
+`dpl_Ahfakrd…`, built from `a4bfbc2` — the commit carrying the ordering fix),
+signed in as a dev user. It confirms the fix where it matters: creating from the
+Day Sheet template left the list reading *Trip Overview (seeded) → Day Sheet
+(seeded) → Day Sheet (Yours)*, with the new notebook **appended last**, which is
+where the client had put it optimistically.
 
-**Still owed by this half:** the walk against the deployed preview specifically
-(the local walk exercises the same code but not the same artifact), and §7's
+Two things about getting there are worth keeping, because both cost a run:
+
+- **`VERCEL_AUTOMATION_BYPASS_SECRET` was the whole unlock**, exactly as
+  `cloud-agent-sessions.md` predicted. Three `?_vercel_share=` links had all
+  redeemed as `429 Vercel Security Checkpoint` first. The secret must be in the
+  **session's own environment**; setting it in the Vercel project does not reach
+  a container whose environment was fixed at start.
+- **No invite code was needed.** `admission.ts` evaluates admission only for
+  someone with **no `users` row**, so an existing dev user is admitted as
+  `returning-user`. `INVITE_SUPER_CODE` is a first-sign-in concern, and
+  `playwright.config.ts` injects it only into the local e2e server — which had
+  been read here as "the preview is unreachable" and is not what it means.
+
+**Still owed by this half:** §7's
 "one-line description" per notebook is **not built** — the index shows title,
 scope, provenance and freshness, and there is no description field on a page to
 show. That is a field, so it is a contract change of its own and was left rather
