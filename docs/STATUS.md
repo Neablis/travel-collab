@@ -22,6 +22,29 @@ general setup.
 
 ## Where the work is right now
 
+**SPEC §18 landed in `f365f0b` and rescoped M14, 2026-09-03.** *"Notebook widgets — a page
+has no scope"* (dated 2026-09-02) replaced §7's model, and it reached `main` **after** the
+navigation half merged in #126 — so part of #126 was built against a spec that had already
+been superseded. Two consequences a session must not miss:
+
+1. **The Trip-wide / Day 6 badge on the notebook index is struck by the design**, along
+   with `PageContext.dayRef` as a page property. #126 shipped that badge on 2026-09-03.
+   Removing it is a planned conformance change (M14 link 2), not a regression.
+2. **ADR-035 was rewritten, not amended.** It was *"Repeaters are document content"*; it is
+   now *"A notebook page is text and widgets; a widget is a function of declared inputs"*.
+   Repeaters are one shape of one kind of widget. **PROPOSED, awaiting acceptance.**
+
+**ADR-036 is new and PROPOSED**: notebook history is event-sourced per page at
+edit-session granularity. It completes a space ADR-003 explicitly reserved — its accepted
+Option C says the log covers *"Trip Planning (and later, trip-page content)"* — which the
+build never took. A page is its own stream so board-level ⌘Z cannot revert prose; autosave
+keeps 800ms for durability while history commits once per settled edit session. **The real
+cost is that `pages` becomes a projection rather than the authority.**
+
+**§18 dissolves the `templates.ts` blocker** that gated M14's builder half, so the gating
+question is now ADR acceptance rather than an unresolved macro-authoring standoff.
+
+
 **M14's navigation-and-index half is on `claude/notebook-milestone-nlq5kv`,
 2026-09-03 — pulled forward out of order, on Mitchell's instruction, with M17's
 gate still open.** M17 is still the current milestone and none of its three
